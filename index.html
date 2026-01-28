@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+    <title>Firesafe Ordreseddel</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="loading" id="loading">Genererer fil...</div>
+
+    <div class="container">
+        <div class="toolbar">
+            <button class="btn-new" onclick="newForm()">Ny</button>
+            <button class="btn-save" onclick="saveForm()">Lagre</button>
+            <button class="btn-load" onclick="showSavedForms()">Hent</button>
+            <button class="btn-pdf" onclick="exportPDF()">PDF</button>
+            <button class="btn-jpg" onclick="exportJPG()">JPG</button>
+            <button class="btn-archive" onclick="showArchivedForms()">Arkiv</button>
+            <button class="btn-login" id="btn-login" onclick="handleAuth()">Logg inn</button>
+        </div>
+
+        <!-- Mobile-friendly input form (visible on mobile only) -->
+        <div class="mobile-form" id="mobile-form">
+            <div class="mobile-form-header">
+                <h1>FIRESAFE<span class="mobile-logo-slash"></span></h1>
+                <p>Ordreseddel</p>
+            </div>
+
+            <div class="mobile-section">
+                <div class="mobile-section-title">Grunninfo</div>
+                <div class="mobile-field">
+                    <label>Ordreseddel nr. <span class="required">*</span></label>
+                    <input type="text" id="mobile-ordreseddel-nr" inputmode="numeric" >
+                </div>
+                <div class="mobile-field">
+                    <label>Dato <span class="required">*</span></label>
+                    <input type="text" id="mobile-dato">
+                </div>
+            </div>
+
+            <div class="mobile-section">
+                <div class="mobile-section-title">Kunde</div>
+                <div class="mobile-field">
+                    <label>Oppdragsgiver <span class="required">*</span></label>
+                    <input type="text" id="mobile-oppdragsgiver">
+                </div>
+                <div class="mobile-field">
+                    <label>Kundens ref.</label>
+                    <input type="text" id="mobile-kundens-ref">
+                </div>
+                <div class="mobile-field">
+                    <label>Fakturaadresse</label>
+                    <input type="text" id="mobile-fakturaadresse">
+                </div>
+            </div>
+
+            <div class="mobile-section">
+                <div class="mobile-section-title">Prosjekt</div>
+                <div class="mobile-field">
+                    <label>Prosjektnr. <span class="required">*</span></label>
+                    <input type="text" id="mobile-prosjektnr">
+                </div>
+                <div class="mobile-field">
+                    <label>Prosjektnavn <span class="required">*</span></label>
+                    <input type="text" id="mobile-prosjektnavn">
+                </div>
+                <div class="mobile-field">
+                    <label>Montør <span class="required">*</span></label>
+                    <input type="text" id="mobile-montor">
+                </div>
+                <div class="mobile-field">
+                    <label>Avdeling <span class="required">*</span></label>
+                    <input type="text" id="mobile-avdeling">
+                </div>
+            </div>
+
+            <div class="mobile-section">
+                <div class="mobile-section-title">Utførte arbeider</div>
+                <div id="mobile-work-lines">
+                    <div class="mobile-work-line visible">
+                        <div class="mobile-work-line-header"><span>Linje 1</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)" disabled><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 2</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 3</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 4</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 5</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 6</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 7</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 8</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 9</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 10</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 11</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 12</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 13</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 14</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mobile-work-line">
+                        <div class="mobile-work-line-header"><span>Linje 15</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
+                        <div class="mobile-field">
+                            <label>Beskrivelse <span class="required">*</span></label>
+                            <input type="text" class="mobile-work-desc">
+                        </div>
+                        <div class="mobile-field">
+                            <label>Material</label>
+                            <input type="text" class="mobile-work-material" >
+                        </div>
+                        <div class="mobile-work-row">
+                            <div class="mobile-field">
+                                <label>Antall</label>
+                                <input type="text" class="mobile-work-antall" inputmode="numeric">
+                            </div>
+                            <div class="mobile-field">
+                                <label>Enhet</label>
+                                <input type="text" class="mobile-work-enhet">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="mobile-add-line-btn" onclick="addMobileLine()">+ Legg til linje</button>
+            </div>
+
+            <div class="mobile-section">
+                <div class="mobile-section-title">Signering</div>
+                <div class="mobile-field">
+                    <label>Sted <span class="required">*</span></label>
+                    <input type="text" id="mobile-sted">
+                </div>
+                <div class="mobile-field">
+                    <label>Dato <span class="required">*</span></label>
+                    <input type="text" id="mobile-signering-dato">
+                </div>
+                <div class="mobile-field">
+                    <label>Kundens underskrift</label>
+                    <input type="text" id="mobile-kundens-underskrift">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-container" id="form-container">
+            <!-- Header -->
+            <div class="header">
+                <div class="header-left">
+                    <div class="logo">
+                        FIRESAFE<div class="logo-slash"></div>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="ordreseddel-nr-row">
+                        <span class="ordreseddel-nr-label">Ordreseddel nr.:</span>
+                        <input type="text" id="ordreseddel-nr" >
+                    </div>
+                    <div class="header-right-info">
+                        <span class="left" style="font-weight: bold; font-size: 13px;">FIRESAFE AS</span><span class="right" style="font-weight: bold; font-size: 13px;">HOVEDKONTOR</span>
+                        <span class="left">Postadresse</span><span class="right">Postboks 6411 Etterstad</span>
+                        <span class="left"></span><span class="right">0605 Oslo</span>
+                        <span class="left">Telefon</span><span class="right">09110</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oppdragsgiver / Kundens ref -->
+            <div class="form-row">
+                <div class="form-cell">
+                    <div class="cell-label">Oppdragsgiver</div>
+                    <div class="cell-input">
+                        <input type="text" id="oppdragsgiver">
+                    </div>
+                </div>
+                <div class="form-cell small">
+                    <div class="cell-label">Kundens ref.</div>
+                    <div class="cell-input">
+                        <input type="text" id="kundens-ref">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fakturaadresse -->
+            <div class="form-row">
+                <div class="form-cell">
+                    <div class="cell-label">Fakturaadresse</div>
+                    <div class="cell-input">
+                        <input type="text" id="fakturaadresse">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dato / Prosjektnr / Prosjektnavn -->
+            <div class="form-row">
+                <div class="form-cell" style="flex: 0 0 50%; display: flex; padding: 0;">
+                    <div class="form-cell" style="flex: 0 0 105px; border-right: 1px solid #000;">
+                        <div class="cell-label">Dato</div>
+                        <div class="cell-input">
+                            <input type="text" id="dato">
+                        </div>
+                    </div>
+                    <div class="form-cell" style="flex: 1; border-right: none;">
+                        <div class="cell-label">Prosjektnr.</div>
+                        <div class="cell-input">
+                            <input type="text" id="prosjektnr">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-cell" style="flex: 0 0 50%;">
+                    <div class="cell-label">Prosjektnavn</div>
+                    <div class="cell-input">
+                        <input type="text" id="prosjektnavn">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Montør / Avdeling -->
+            <div class="form-row">
+                <div class="form-cell" style="flex: 1;">
+                    <div class="cell-label">Montør</div>
+                    <div class="cell-input">
+                        <input type="text" id="montor">
+                    </div>
+                </div>
+                <div class="form-cell" style="flex: 1;">
+                    <div class="cell-label">Avdeling</div>
+                    <div class="cell-input">
+                        <input type="text" id="avdeling">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work description header -->
+            <div class="work-header">
+                <div class="work-header-desc">Beskrivelse av utforte arbeider</div>
+                <div class="work-header-antall">Antall</div>
+                <div class="work-header-enhet">Enhet</div>
+            </div>
+
+            <!-- Work lines -->
+            <div class="work-lines" id="work-lines">
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+                <div class="work-line"><div class="work-line-desc"><textarea class="work-description"></textarea><textarea class="work-material"></textarea></div><div class="work-line-antall"><input type="text" class="work-antall"></div><div class="work-line-enhet"><input type="text" class="work-enhet"></div></div>
+            </div>
+
+            <!-- Footer: Sted / Dato / Kundens underskrift -->
+            <div class="footer-row">
+                <div class="footer-cell signature-cell">
+                    <div class="signature-input">
+                        <input type="text" id="sted">
+                    </div>
+                    <div class="signature-label">Sted</div>
+                </div>
+                <div class="footer-cell signature-cell">
+                    <div class="signature-input">
+                        <input type="text" id="signering-dato">
+                    </div>
+                    <div class="signature-label">Dato</div>
+                </div>
+                <div class="footer-cell signature-cell">
+                    <div class="signature-input">
+                        <input type="text" id="kundens-underskrift">
+                    </div>
+                    <div class="signature-label">Kundens underskrift</div>
+                </div>
+            </div>
+
+            <!-- Bottom text -->
+            <div class="footer-bottom">
+                <div class="footer-bottom-left">Original: Firesafe</div>
+                <div class="footer-bottom-right">Kopi: Kunden</div>
+            </div>
+            <div class="footer-staples"><span class="staples-nr">42789</span> Staples - Tlf.: 02272</div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="confirm-modal" id="confirm-modal">
+        <div class="confirm-modal-content">
+            <div class="confirm-modal-text" id="confirm-modal-text">Er du sikker?</div>
+            <div class="confirm-modal-buttons">
+                <button class="confirm-btn-cancel" onclick="closeConfirmModal(false)">Avbryt</button>
+                <button class="confirm-btn-ok" id="confirm-btn-ok" onclick="closeConfirmModal(true)">Fjern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div class="notification-modal" id="notification-modal">
+        <div class="notification-modal-content">
+            <div class="notification-modal-text" id="notification-modal-text">Skjema lagret!</div>
+            <button class="notification-btn-ok" onclick="closeNotificationModal()">OK</button>
+        </div>
+    </div>
+
+    <!-- Fullskjerm tekst-editor Modal -->
+    <div class="text-editor-modal" id="text-editor-modal">
+        <div class="text-editor-header">
+            <span class="text-editor-title" id="text-editor-title">Beskrivelse</span>
+            <button class="text-editor-done" onclick="closeTextEditor()">Ferdig</button>
+        </div>
+        <textarea class="text-editor-textarea" id="text-editor-textarea"></textarea>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="saved-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Lagrede skjemaer</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-search">
+                <input type="text" id="saved-search" placeholder="Søk ordrenummer..." oninput="filterSavedForms()">
+            </div>
+            <div class="modal-body" id="saved-list"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="archive-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Arkiverte skjemaer</span>
+                <button class="modal-close" onclick="closeArchiveModal()">&times;</button>
+            </div>
+            <div class="modal-search">
+                <input type="text" id="archive-search" placeholder="Søk ordrenummer..." oninput="filterArchivedForms()">
+            </div>
+            <div class="modal-body" id="archive-list"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
