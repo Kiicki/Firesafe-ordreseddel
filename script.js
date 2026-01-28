@@ -7,6 +7,10 @@ history.pushState(null, '', location.href);
 window.addEventListener('popstate', function() {
     history.pushState(null, '', location.href);
 });
+window.addEventListener('beforeunload', function(e) {
+    e.preventDefault();
+    e.returnValue = '';
+});
 
 // ============================================
 // FIREBASE KONFIGURASJON
