@@ -2,7 +2,7 @@
 <html lang="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
     <title>Firesafe Ordreseddel</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1032,9 +1032,11 @@
             left: 0;
             width: 100%;
             height: 100%;
+            height: 100dvh;
             background: white;
             z-index: 4000;
             flex-direction: column;
+            overflow: hidden;
         }
 
         .text-editor-modal.active {
@@ -1048,6 +1050,7 @@
             padding: 15px;
             border-bottom: 1px solid #ddd;
             background: #f8f9fa;
+            flex-shrink: 0;
         }
 
         .text-editor-title {
@@ -1081,6 +1084,7 @@
             outline: none;
             box-sizing: border-box;
             font-family: inherit;
+            overflow: auto;
         }
 
         /* Mobile responsive - show mobile form, hide original */
