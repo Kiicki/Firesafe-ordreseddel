@@ -77,9 +77,10 @@ body {
 .btn-load,
 .btn-pdf,
 .btn-jpg,
-.btn-archive {
-    flex: 1 1 calc(25% - 6px) !important;
-    max-width: calc(25% - 6px) !important;
+.btn-archive,
+.btn-template {
+    flex: 1 1 calc(20% - 6.4px) !important;
+    max-width: calc(20% - 6.4px) !important;
     background: transparent !important;
     border: 1.5px solid #495057 !important;
     color: #495057 !important;
@@ -88,7 +89,8 @@ body {
 .btn-load:hover,
 .btn-pdf:hover,
 .btn-jpg:hover,
-.btn-archive:hover {
+.btn-archive:hover,
+.btn-template:hover {
     background: #e9ecef !important;
 }
 
@@ -583,6 +585,32 @@ body {
 
 .modal-search input:focus {
     border-color: #1abc9c;
+}
+
+.modal-footer-skip {
+    padding: 10px 15px;
+    border-top: 1px solid #eee;
+}
+
+.btn-skip-template {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid #495057;
+    background: transparent;
+    color: #495057;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-skip-template:hover {
+    background: #e9ecef;
+}
+
+.btn-skip-template:active {
+    transform: translateY(1px);
 }
 
 .saved-item {

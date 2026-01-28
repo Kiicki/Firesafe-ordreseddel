@@ -23,6 +23,7 @@
             <button class="btn-pdf" onclick="exportPDF()">PDF</button>
             <button class="btn-jpg" onclick="exportJPG()">JPG</button>
             <button class="btn-archive" onclick="showArchivedForms()">Arkiv</button>
+            <button class="btn-template" onclick="saveAsTemplate()">Lagre mal</button>
             <button class="btn-login" id="btn-login" onclick="handleAuth()">Logg inn</button>
         </div>
 
@@ -41,7 +42,7 @@
                 </div>
                 <div class="mobile-field">
                     <label>Uke <span class="required">*</span></label>
-                    <input type="text" id="mobile-dato">
+                    <input type="text" id="mobile-dato" autocapitalize="sentences">
                 </div>
             </div>
 
@@ -65,7 +66,7 @@
                 <div class="mobile-section-title">Prosjekt</div>
                 <div class="mobile-field">
                     <label>Prosjektnr. <span class="required">*</span></label>
-                    <input type="text" id="mobile-prosjektnr">
+                    <input type="text" id="mobile-prosjektnr" inputmode="numeric">
                 </div>
                 <div class="mobile-field">
                     <label>Prosjektnavn <span class="required">*</span></label>
@@ -97,7 +98,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -118,7 +119,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -139,7 +140,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -160,7 +161,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -181,7 +182,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -202,7 +203,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -223,7 +224,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -244,7 +245,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -265,7 +266,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -286,7 +287,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -307,7 +308,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -328,7 +329,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -349,7 +350,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -370,7 +371,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -391,7 +392,7 @@
                         <div class="mobile-work-row">
                             <div class="mobile-field">
                                 <label>Antall</label>
-                                <input type="text" class="mobile-work-antall">
+                                <input type="text" class="mobile-work-antall" autocapitalize="sentences">
                             </div>
                             <div class="mobile-field">
                                 <label>Enhet</label>
@@ -604,6 +605,23 @@
                 <input type="text" id="saved-search" placeholder="Søk ordrenummer..." oninput="filterSavedForms()">
             </div>
             <div class="modal-body" id="saved-list"></div>
+        </div>
+    </div>
+
+    <!-- Template Modal -->
+    <div class="modal" id="template-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Velg prosjekt</span>
+                <button class="modal-close" onclick="cancelTemplateModal()">&times;</button>
+            </div>
+            <div class="modal-search">
+                <input type="text" id="template-search" placeholder="Søk prosjekt..." oninput="filterTemplates()">
+            </div>
+            <div class="modal-body" id="template-list"></div>
+            <div class="modal-footer-skip">
+                <button class="btn-skip-template" onclick="closeTemplateModal()">Blankt skjema</button>
+            </div>
         </div>
     </div>
 

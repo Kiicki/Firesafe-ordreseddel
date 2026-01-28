@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'firesafe_ordresedler';
 const ARCHIVE_KEY = 'firesafe_arkiv';
+const TEMPLATE_KEY = 'firesafe_maler';
 
 // ============================================
 // FIREBASE KONFIGURASJON
@@ -111,6 +112,16 @@ async function getArchivedForms() {
         }
     }
     return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+}
+
+// Track last saved form data for unsaved changes detection
+let lastSavedData = null;
+let preNewFormData = null;
+
+function getFormDataSnapshot() {
+    const data = getFormData();
+    delete data.savedAt;
+    return JSON.stringify(data);
 }
 
 // Confirmation modal
@@ -619,12 +630,14 @@ async function saveForm() {
             if (!existing.empty) {
                 showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', async function() {
                     await formsRef.doc(existing.docs[0].id).set(data);
+                    lastSavedData = getFormDataSnapshot();
                     showNotificationModal('Skjema oppdatert!');
                 }, 'Oppdater', '#1abc9c');
             } else {
                 showConfirmModal('Er du sikker på at du vil lagre skjemaet?', async function() {
                     data.id = Date.now().toString();
                     await formsRef.doc(data.id).set(data);
+                    lastSavedData = getFormDataSnapshot();
                     showNotificationModal('Skjema lagret!');
                 }, 'Lagre', '#1abc9c');
             }
@@ -652,6 +665,7 @@ async function saveForm() {
                 data.id = saved[existingIndex].id;
                 saved[existingIndex] = data;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                lastSavedData = getFormDataSnapshot();
                 showNotificationModal('Skjema oppdatert!');
             }, 'Oppdater', '#1abc9c');
         } else {
@@ -660,6 +674,7 @@ async function saveForm() {
                 saved.unshift(data);
                 if (saved.length > 50) saved.pop();
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                lastSavedData = getFormDataSnapshot();
                 showNotificationModal('Skjema lagret!');
             }, 'Lagre', '#1abc9c');
         }
@@ -711,6 +726,7 @@ async function showSavedForms() {
 function loadForm(index) {
     if (loadedForms[index]) {
         setFormData(loadedForms[index]);
+        lastSavedData = getFormDataSnapshot();
         closeModal();
     }
 }
@@ -832,6 +848,7 @@ async function showArchivedForms() {
 function loadArchivedForm(index) {
     if (loadedArchivedForms[index]) {
         setFormData(loadedArchivedForms[index]);
+        lastSavedData = getFormDataSnapshot();
         closeArchiveModal();
     }
 }
@@ -889,29 +906,245 @@ function closeArchiveModal() {
     document.getElementById('archive-search').value = '';
 }
 
-function newForm() {
-    showConfirmModal('Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.', function() {
-        // Clear all inputs in both forms
-        document.querySelectorAll('#form-container input, #form-container textarea').forEach(el => el.value = '');
-        document.querySelectorAll('#mobile-form input, #mobile-form textarea').forEach(el => el.value = '');
+// ============================================
+// PROSJEKTMALER
+// ============================================
 
-        // Clear sessionStorage so refresh doesn't restore data
-        sessionStorage.removeItem('firesafe_current');
+let loadedTemplates = [];
 
-        // Reset mobile lines - only show first line
-        const lines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
-        lines.forEach((line, index) => {
-            if (index === 0) {
-                line.classList.add('visible');
+async function getTemplates() {
+    if (currentUser && db) {
+        try {
+            const snapshot = await db.collection('templates').orderBy('prosjektnavn').get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.error('Templates error:', e);
+            return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        }
+    }
+    return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+}
+
+async function saveAsTemplate() {
+    // Sync mobile to original first
+    if (isMobile()) {
+        syncMobileToOriginal();
+    }
+
+    const prosjektnavn = document.getElementById('prosjektnavn').value.trim();
+    if (!prosjektnavn) {
+        showNotificationModal('Du må fylle inn prosjektnavn for å lagre som mal');
+        return;
+    }
+
+    const templateData = {
+        prosjektnavn: prosjektnavn,
+        prosjektnr: document.getElementById('prosjektnr').value.trim(),
+        oppdragsgiver: document.getElementById('oppdragsgiver').value.trim(),
+        avdeling: document.getElementById('avdeling').value.trim(),
+        sted: document.getElementById('sted').value.trim(),
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser ? currentUser.uid : 'local'
+    };
+
+    if (currentUser && db) {
+        try {
+            const templatesRef = db.collection('templates');
+            const existing = await templatesRef.where('prosjektnavn', '==', templateData.prosjektnavn).get();
+
+            if (!existing.empty) {
+                showConfirmModal('En mal med prosjektnavn «' + templateData.prosjektnavn + '» finnes allerede. Vil du oppdatere den?', async function() {
+                    await templatesRef.doc(existing.docs[0].id).set(templateData);
+                    showNotificationModal('Mal oppdatert!');
+                }, 'Oppdater', '#1abc9c');
             } else {
-                line.classList.remove('visible');
+                const docId = Date.now().toString();
+                await templatesRef.doc(docId).set(templateData);
+                showNotificationModal('Prosjektmal lagret!');
             }
-        });
-        document.querySelector('.mobile-add-line-btn').style.display = 'block';
+        } catch (e) {
+            console.error('Save template error:', e);
+            showNotificationModal('Feil ved lagring av mal: ' + e.message);
+        }
+    } else {
+        // localStorage fallback
+        const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        const existingIndex = templates.findIndex(t => t.prosjektnavn.toLowerCase() === templateData.prosjektnavn.toLowerCase());
 
-        // Update delete button states (disable when only 1 line)
-        updateDeleteButtonStates();
-    }, 'Start ny', '#1abc9c');
+        if (existingIndex !== -1) {
+            showConfirmModal('En mal med prosjektnavn «' + templateData.prosjektnavn + '» finnes allerede. Vil du oppdatere den?', function() {
+                templateData.id = templates[existingIndex].id;
+                templates[existingIndex] = templateData;
+                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+                showNotificationModal('Mal oppdatert!');
+            }, 'Oppdater', '#1abc9c');
+        } else {
+            templateData.id = Date.now().toString();
+            templates.push(templateData);
+            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+            showNotificationModal('Prosjektmal lagret!');
+        }
+    }
+}
+
+async function showTemplateModal() {
+    const listEl = document.getElementById('template-list');
+    listEl.innerHTML = '<div class="no-saved">Laster...</div>';
+    document.getElementById('template-modal').classList.add('active');
+
+    const templates = await getTemplates();
+    loadedTemplates = templates;
+
+    if (templates.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">Ingen prosjektmaler</div>';
+    } else {
+        listEl.innerHTML = templates.map((item, index) => {
+            const row1 = item.prosjektnavn || 'Uten navn';
+            const row2 = [item.oppdragsgiver, item.prosjektnr].filter(x => x).join(' • ');
+            const row3 = [item.avdeling, item.sted].filter(x => x).join(' • ');
+
+            return `
+                <div class="saved-item" onclick="loadTemplate(${index})">
+                    <div class="saved-item-info">
+                        <div class="saved-item-row1">${row1}</div>
+                        ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
+                        ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
+                    </div>
+                    <div class="saved-item-buttons">
+                        <button class="saved-item-icon-btn delete" onclick="deleteTemplate(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+function loadTemplate(index) {
+    const template = loadedTemplates[index];
+    if (!template) return;
+
+    preNewFormData = null;
+    clearForm();
+
+    // Fill the 5 fields in both forms
+    document.getElementById('oppdragsgiver').value = template.oppdragsgiver || '';
+    document.getElementById('prosjektnr').value = template.prosjektnr || '';
+    document.getElementById('prosjektnavn').value = template.prosjektnavn || '';
+    document.getElementById('avdeling').value = template.avdeling || '';
+    document.getElementById('sted').value = template.sted || '';
+
+    document.getElementById('mobile-oppdragsgiver').value = template.oppdragsgiver || '';
+    document.getElementById('mobile-prosjektnr').value = template.prosjektnr || '';
+    document.getElementById('mobile-prosjektnavn').value = template.prosjektnavn || '';
+    document.getElementById('mobile-avdeling').value = template.avdeling || '';
+    document.getElementById('mobile-sted').value = template.sted || '';
+
+    document.getElementById('template-modal').classList.remove('active');
+    document.getElementById('template-search').value = '';
+}
+
+function deleteTemplate(event, index) {
+    event.stopPropagation();
+    showConfirmModal('Er du sikker på at du vil slette denne malen?', async function() {
+        const template = loadedTemplates[index];
+        if (!template) return;
+
+        if (currentUser && db) {
+            try {
+                await db.collection('templates').doc(template.id).delete();
+            } catch (e) {
+                console.error('Delete template error:', e);
+            }
+        } else {
+            const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+            const idx = templates.findIndex(t => t.id === template.id);
+            if (idx !== -1) {
+                templates.splice(idx, 1);
+                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+            }
+        }
+        showTemplateModal();
+    });
+}
+
+function closeTemplateModal() {
+    if (preNewFormData) {
+        clearForm();
+        preNewFormData = null;
+    }
+    document.getElementById('template-modal').classList.remove('active');
+    document.getElementById('template-search').value = '';
+}
+
+function cancelTemplateModal() {
+    if (preNewFormData) {
+        setFormData(preNewFormData);
+        preNewFormData = null;
+    }
+    document.getElementById('template-modal').classList.remove('active');
+    document.getElementById('template-search').value = '';
+}
+
+function filterTemplates() {
+    const searchTerm = document.getElementById('template-search').value.toLowerCase();
+    const items = document.querySelectorAll('#template-list .saved-item');
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
+    });
+}
+
+function hasAnyFormData() {
+    const fields = ['mobile-ordreseddel-nr', 'mobile-oppdragsgiver', 'mobile-prosjektnr', 'mobile-prosjektnavn', 'mobile-montor', 'mobile-avdeling', 'mobile-dato'];
+    for (const id of fields) {
+        if (document.getElementById(id).value.trim()) return true;
+    }
+    const descs = document.querySelectorAll('.mobile-work-line.visible .mobile-work-desc');
+    for (const desc of descs) {
+        if (desc.value.trim()) return true;
+    }
+    return false;
+}
+
+function clearForm() {
+    document.querySelectorAll('#form-container input, #form-container textarea').forEach(el => el.value = '');
+    document.querySelectorAll('#mobile-form input, #mobile-form textarea').forEach(el => el.value = '');
+
+    const today = formatDate(new Date());
+    document.getElementById('signering-dato').value = today;
+    document.getElementById('mobile-signering-dato').value = today;
+
+    sessionStorage.removeItem('firesafe_current');
+    lastSavedData = null;
+
+    const lines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
+    lines.forEach((line, index) => {
+        if (index === 0) {
+            line.classList.add('visible');
+        } else {
+            line.classList.remove('visible');
+        }
+    });
+    document.querySelector('.mobile-add-line-btn').style.display = 'block';
+    updateDeleteButtonStates();
+}
+
+function doNewForm() {
+    preNewFormData = getFormData();
+    showTemplateModal();
+}
+
+function newForm() {
+    const currentData = getFormDataSnapshot();
+    const hasUnsavedChanges = lastSavedData !== null
+        ? currentData !== lastSavedData
+        : hasAnyFormData();
+
+    if (hasUnsavedChanges) {
+        showConfirmModal('Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.', doNewForm, 'Start ny', '#1abc9c');
+    } else {
+        doNewForm();
+    }
 }
 
 async function exportPDF() {
@@ -1091,6 +1324,10 @@ document.getElementById('archive-modal').addEventListener('click', function(e) {
     if (e.target === this) closeArchiveModal();
 });
 
+document.getElementById('template-modal').addEventListener('click', function(e) {
+    if (e.target === this) cancelTemplateModal();
+});
+
 // Sync forms when typing
 document.getElementById('mobile-form').addEventListener('input', function() {
     syncMobileToOriginal();
@@ -1112,10 +1349,11 @@ window.addEventListener('load', function() {
             }
         } catch (e) {}
     }
-    // Alltid tøm signering-dato og kundens underskrift ved oppstart
-    document.getElementById('signering-dato').value = '';
+    // Alltid sett signering-dato til dagens dato og tøm kundens underskrift ved oppstart
+    const today = formatDate(new Date());
+    document.getElementById('signering-dato').value = today;
     document.getElementById('kundens-underskrift').value = '';
-    document.getElementById('mobile-signering-dato').value = '';
+    document.getElementById('mobile-signering-dato').value = today;
     document.getElementById('mobile-kundens-underskrift').value = '';
 
     // Initialize auto-resize for textareas
