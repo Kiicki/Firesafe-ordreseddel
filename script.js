@@ -2,6 +2,12 @@ const STORAGE_KEY = 'firesafe_ordresedler';
 const ARCHIVE_KEY = 'firesafe_arkiv';
 const TEMPLATE_KEY = 'firesafe_maler';
 
+// Forhindre utilsiktet tilbake-navigering
+history.pushState(null, '', location.href);
+window.addEventListener('popstate', function() {
+    history.pushState(null, '', location.href);
+});
+
 // ============================================
 // FIREBASE KONFIGURASJON
 // Fyll inn dine egne verdier fra Firebase Console
