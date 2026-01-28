@@ -401,6 +401,9 @@ body {
 .work-line-antall {
     width: 100px;
     border-right: 1px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .work-line-antall input {
@@ -419,6 +422,9 @@ body {
 
 .work-line-enhet {
     width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .work-line-enhet input {

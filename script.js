@@ -148,7 +148,9 @@ let currentEditingField = null;
 
 function openTextEditor(inputElement, label) {
     currentEditingField = inputElement;
-    document.getElementById('text-editor-textarea').value = inputElement.value;
+    // Use data-full-value if available (contains multiline text), otherwise fall back to .value
+    const fullValue = inputElement.getAttribute('data-full-value');
+    document.getElementById('text-editor-textarea').value = fullValue !== null ? fullValue : inputElement.value;
     document.getElementById('text-editor-title').textContent = label;
     document.getElementById('text-editor-modal').classList.add('active');
     document.getElementById('text-editor-textarea').focus();
@@ -156,7 +158,13 @@ function openTextEditor(inputElement, label) {
 
 function closeTextEditor() {
     if (currentEditingField) {
-        currentEditingField.value = document.getElementById('text-editor-textarea').value;
+        const fullText = document.getElementById('text-editor-textarea').value;
+        // Store full multiline text in data attribute
+        currentEditingField.setAttribute('data-full-value', fullText);
+        // Show only first line in the input field, with "..." if multiline
+        const lines = fullText.split('\n').filter(l => l.trim() !== '');
+        const firstLine = lines[0] || '';
+        currentEditingField.value = lines.length > 1 ? firstLine + '...' : firstLine;
         currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
     }
     document.getElementById('text-editor-modal').classList.remove('active');
@@ -407,11 +415,11 @@ function syncMobileToOriginal() {
             const originalEnhet = originalWorkLines[index].querySelector('.work-enhet');
 
             if (mobileDesc && originalDesc) {
-                originalDesc.value = mobileDesc.value;
+                originalDesc.value = mobileDesc.getAttribute('data-full-value') || mobileDesc.value;
                 autoResizeTextarea(originalDesc);
             }
             if (mobileMaterial && originalMaterial) {
-                originalMaterial.value = mobileMaterial.value;
+                originalMaterial.value = mobileMaterial.getAttribute('data-full-value') || mobileMaterial.value;
                 autoResizeTextarea(originalMaterial);
             }
             if (mobileAntall && originalAntall) originalAntall.value = mobileAntall.value;
@@ -462,8 +470,18 @@ function syncOriginalToMobile() {
             const mobileAntall = mobileWorkLines[index].querySelector('.mobile-work-antall');
             const mobileEnhet = mobileWorkLines[index].querySelector('.mobile-work-enhet');
 
-            if (originalDesc && mobileDesc) mobileDesc.value = originalDesc.value;
-            if (originalMaterial && mobileMaterial) mobileMaterial.value = originalMaterial.value;
+            if (originalDesc && mobileDesc) {
+                const descVal = originalDesc.value;
+                mobileDesc.setAttribute('data-full-value', descVal);
+                const descLines = descVal.split('\n').filter(l => l.trim() !== '');
+                mobileDesc.value = descLines.length > 1 ? descLines[0] + '...' : (descLines[0] || '');
+            }
+            if (originalMaterial && mobileMaterial) {
+                const matVal = originalMaterial.value;
+                mobileMaterial.setAttribute('data-full-value', matVal);
+                const matLines = matVal.split('\n').filter(l => l.trim() !== '');
+                mobileMaterial.value = matLines.length > 1 ? matLines[0] + '...' : (matLines[0] || '');
+            }
             if (originalAntall && mobileAntall) mobileAntall.value = originalAntall.value;
             if (originalEnhet && mobileEnhet) mobileEnhet.value = originalEnhet.value;
         }
@@ -590,6 +608,14 @@ async function saveForm() {
             const formsRef = db.collection('users').doc(currentUser.uid).collection('forms');
             const existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
 
+            // Sjekk også arkivet for duplikater
+            const archiveRef = db.collection('users').doc(currentUser.uid).collection('archive');
+            const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
+            if (!existingArchive.empty) {
+                showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i arkivet.');
+                return;
+            }
+
             if (!existing.empty) {
                 showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', async function() {
                     await formsRef.doc(existing.docs[0].id).set(data);
@@ -609,6 +635,14 @@ async function saveForm() {
     } else {
         // Fallback til localStorage
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+
+        // Sjekk arkivet for duplikater
+        if (archived.some(item => item.ordreseddelNr === data.ordreseddelNr)) {
+            showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i arkivet.');
+            return;
+        }
+
         const existingIndex = saved.findIndex(item =>
             item.ordreseddelNr === data.ordreseddelNr
         );
