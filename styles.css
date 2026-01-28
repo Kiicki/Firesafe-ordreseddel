@@ -42,6 +42,7 @@ body {
     background: #495057;
     color: white;
     transition: all 0.15s ease;
+    text-align: center;
 }
 
 .toolbar button:hover {
@@ -109,7 +110,6 @@ body {
 .btn-login.logged-in {
     background: #34a853;
     font-size: 11px;
-    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
