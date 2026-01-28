@@ -728,7 +728,6 @@
             background: white;
             border-radius: 8px;
             padding: 2px 15px 5px 15px;
-            padding-bottom: 150px; /* Ekstra plass for mobil-tastatur */
         }
 
         .mobile-form-header {
@@ -789,6 +788,11 @@
             margin-bottom: 4px;
         }
 
+        .required {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
         .mobile-field input,
         .mobile-field textarea {
             width: 100%;
@@ -805,6 +809,13 @@
             outline: none;
             border-color: #e74c3c;
             box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+        }
+
+        .mobile-work-desc,
+        .mobile-work-material {
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
         }
 
         .mobile-work-line {
@@ -845,7 +856,7 @@
         .mobile-add-line-btn {
             width: 100%;
             padding: 12px;
-            background: #27ae60;
+            background: #1abc9c;
             color: white;
             border: none;
             border-radius: 6px;
@@ -1013,6 +1024,65 @@
             background: #16a085;
         }
 
+        /* Fullskjerm tekst-editor modal */
+        .text-editor-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 4000;
+            flex-direction: column;
+        }
+
+        .text-editor-modal.active {
+            display: flex;
+        }
+
+        .text-editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            background: #f8f9fa;
+        }
+
+        .text-editor-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .text-editor-done {
+            background: #1abc9c;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .text-editor-done:active {
+            background: #16a085;
+        }
+
+        .text-editor-textarea {
+            flex: 1;
+            width: 100%;
+            border: none;
+            padding: 15px;
+            font-size: 16px;
+            resize: none;
+            outline: none;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
         /* Mobile responsive - show mobile form, hide original */
         @media screen and (max-width: 600px) {
             body {
@@ -1052,11 +1122,11 @@
             <div class="mobile-section">
                 <div class="mobile-section-title">Grunninfo</div>
                 <div class="mobile-field">
-                    <label>Ordreseddel nr.</label>
+                    <label>Ordreseddel nr. <span class="required">*</span></label>
                     <input type="text" id="mobile-ordreseddel-nr" inputmode="numeric" >
                 </div>
                 <div class="mobile-field">
-                    <label>Dato</label>
+                    <label>Dato <span class="required">*</span></label>
                     <input type="text" id="mobile-dato">
                 </div>
             </div>
@@ -1064,7 +1134,7 @@
             <div class="mobile-section">
                 <div class="mobile-section-title">Kunde</div>
                 <div class="mobile-field">
-                    <label>Oppdragsgiver</label>
+                    <label>Oppdragsgiver <span class="required">*</span></label>
                     <input type="text" id="mobile-oppdragsgiver">
                 </div>
                 <div class="mobile-field">
@@ -1080,19 +1150,19 @@
             <div class="mobile-section">
                 <div class="mobile-section-title">Prosjekt</div>
                 <div class="mobile-field">
-                    <label>Prosjektnr.</label>
+                    <label>Prosjektnr. <span class="required">*</span></label>
                     <input type="text" id="mobile-prosjektnr">
                 </div>
                 <div class="mobile-field">
-                    <label>Prosjektnavn</label>
+                    <label>Prosjektnavn <span class="required">*</span></label>
                     <input type="text" id="mobile-prosjektnavn">
                 </div>
                 <div class="mobile-field">
-                    <label>Montør</label>
+                    <label>Montør <span class="required">*</span></label>
                     <input type="text" id="mobile-montor">
                 </div>
                 <div class="mobile-field">
-                    <label>Avdeling</label>
+                    <label>Avdeling <span class="required">*</span></label>
                     <input type="text" id="mobile-avdeling">
                 </div>
             </div>
@@ -1103,7 +1173,7 @@
                     <div class="mobile-work-line visible">
                         <div class="mobile-work-line-header"><span>Linje 1</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)" disabled><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1124,7 +1194,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 2</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1145,7 +1215,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 3</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1166,7 +1236,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 4</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1187,7 +1257,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 5</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1208,7 +1278,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 6</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1229,7 +1299,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 7</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1250,7 +1320,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 8</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1271,7 +1341,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 9</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1292,7 +1362,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 10</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1313,7 +1383,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 11</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1334,7 +1404,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 12</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1355,7 +1425,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 13</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1376,7 +1446,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 14</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1397,7 +1467,7 @@
                     <div class="mobile-work-line">
                         <div class="mobile-work-line-header"><span>Linje 15</span><button type="button" class="mobile-work-line-remove" onclick="removeMobileLine(this)"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></div>
                         <div class="mobile-field">
-                            <label>Beskrivelse</label>
+                            <label>Beskrivelse <span class="required">*</span></label>
                             <input type="text" class="mobile-work-desc">
                         </div>
                         <div class="mobile-field">
@@ -1422,11 +1492,11 @@
             <div class="mobile-section">
                 <div class="mobile-section-title">Signering</div>
                 <div class="mobile-field">
-                    <label>Sted</label>
+                    <label>Sted <span class="required">*</span></label>
                     <input type="text" id="mobile-sted">
                 </div>
                 <div class="mobile-field">
-                    <label>Dato</label>
+                    <label>Dato <span class="required">*</span></label>
                     <input type="text" id="mobile-signering-dato">
                 </div>
                 <div class="mobile-field">
@@ -1600,6 +1670,15 @@
         </div>
     </div>
 
+    <!-- Fullskjerm tekst-editor Modal -->
+    <div class="text-editor-modal" id="text-editor-modal">
+        <div class="text-editor-header">
+            <span class="text-editor-title" id="text-editor-title">Beskrivelse</span>
+            <button class="text-editor-done" onclick="closeTextEditor()">Ferdig</button>
+        </div>
+        <textarea class="text-editor-textarea" id="text-editor-textarea"></textarea>
+    </div>
+
     <!-- Modal -->
     <div class="modal" id="saved-modal">
         <div class="modal-content">
@@ -1659,6 +1738,26 @@
 
         function closeNotificationModal() {
             document.getElementById('notification-modal').classList.remove('active');
+        }
+
+        // Fullskjerm tekst-editor
+        let currentEditingField = null;
+
+        function openTextEditor(inputElement, label) {
+            currentEditingField = inputElement;
+            document.getElementById('text-editor-textarea').value = inputElement.value;
+            document.getElementById('text-editor-title').textContent = label;
+            document.getElementById('text-editor-modal').classList.add('active');
+            document.getElementById('text-editor-textarea').focus();
+        }
+
+        function closeTextEditor() {
+            if (currentEditingField) {
+                currentEditingField.value = document.getElementById('text-editor-textarea').value;
+                currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            document.getElementById('text-editor-modal').classList.remove('active');
+            currentEditingField = null;
         }
 
         // Format today's date as DD.MM.YYYY
@@ -2042,15 +2141,44 @@
             showMobileLinesWithData();
         }
 
-        function saveForm() {
-            const data = getFormData();
+        // Validering av påkrevde felter
+        function validateRequiredFields() {
+            const fields = [
+                { id: 'mobile-ordreseddel-nr', name: 'Ordreseddel nr.' },
+                { id: 'mobile-dato', name: 'Dato' },
+                { id: 'mobile-oppdragsgiver', name: 'Oppdragsgiver' },
+                { id: 'mobile-prosjektnr', name: 'Prosjektnr.' },
+                { id: 'mobile-prosjektnavn', name: 'Prosjektnavn' },
+                { id: 'mobile-montor', name: 'Montør' },
+                { id: 'mobile-avdeling', name: 'Avdeling' },
+                { id: 'mobile-sted', name: 'Sted' },
+                { id: 'mobile-signering-dato', name: 'Signering dato' }
+            ];
 
-            // Sjekk at ordrenummer er fylt ut
-            if (!data.ordreseddelNr || data.ordreseddelNr.trim() === '') {
-                showNotificationModal('Du må fylle inn ordrenummer før du kan lagre.');
-                return;
+            for (const field of fields) {
+                if (!document.getElementById(field.id).value.trim()) {
+                    showNotificationModal('Du må fylle inn ' + field.name);
+                    return false;
+                }
             }
 
+            // Sjekk at alle synlige linjer har beskrivelse
+            const visibleLines = document.querySelectorAll('.mobile-work-line.visible');
+            for (let i = 0; i < visibleLines.length; i++) {
+                const desc = visibleLines[i].querySelector('.mobile-work-desc').value.trim();
+                if (!desc) {
+                    showNotificationModal('Beskrivelse mangler for Linje ' + (i + 1));
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function saveForm() {
+            if (!validateRequiredFields()) return;
+
+            const data = getFormData();
             const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const existingIndex = saved.findIndex(item =>
                 item.ordreseddelNr === data.ordreseddelNr
@@ -2272,6 +2400,8 @@
         }
 
         async function exportPDF() {
+            if (!validateRequiredFields()) return;
+
             const loading = document.getElementById('loading');
             loading.classList.add('active');
 
@@ -2356,6 +2486,8 @@
         }
 
         async function exportJPG() {
+            if (!validateRequiredFields()) return;
+
             const loading = document.getElementById('loading');
             loading.classList.add('active');
 
@@ -2477,12 +2609,14 @@
             // Update delete button states
             updateDeleteButtonStates();
 
-            // Scroll fokusert input inn i sikt når mobil-tastatur åpnes
-            document.querySelectorAll('#mobile-form input, #mobile-form textarea').forEach(input => {
-                input.addEventListener('focus', function() {
-                    setTimeout(() => {
-                        this.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 300);
+            // Fullskjerm tekst-editor for beskrivelse og material felter
+            document.querySelectorAll('.mobile-work-desc, .mobile-work-material').forEach(input => {
+                input.setAttribute('readonly', true);
+                input.addEventListener('click', function(e) {
+                    const line = this.closest('.mobile-work-line');
+                    const lineNum = line.querySelector('.mobile-work-line-header span').textContent;
+                    const fieldType = this.classList.contains('mobile-work-desc') ? 'Beskrivelse' : 'Material';
+                    openTextEditor(this, fieldType + ' - ' + lineNum);
                 });
             });
         });
