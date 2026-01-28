@@ -171,9 +171,9 @@ function formatDate(date) {
     return `${d}.${m}.${y}`;
 }
 
-// Check if we're on mobile
+// Always use mobile form for input
 function isMobile() {
-    return window.innerWidth <= 600;
+    return true;
 }
 
 // Auto-resize textarea to fit content
