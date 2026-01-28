@@ -52,52 +52,54 @@ body {
     transform: translateY(1px);
 }
 
-/* Primære knapper - Ny og Lagre */
-.btn-new {
-    flex: 1 1 calc(50% - 4px) !important;
-    max-width: calc(50% - 4px) !important;
+/* Primære knapper - Ny, Lagre, Hent */
+.btn-new,
+.btn-save,
+.btn-load {
+    flex: 1 1 calc(33.333% - 5.33px) !important;
+    max-width: calc(33.333% - 5.33px) !important;
     background: #198754;
 }
 
-.btn-new:hover {
-    background: #157347;
-}
-
-.btn-save {
-    flex: 1 1 calc(50% - 4px) !important;
-    max-width: calc(50% - 4px) !important;
-    background: #198754;
-}
-
-.btn-save:hover {
+.btn-new:hover,
+.btn-save:hover,
+.btn-load:hover {
     background: #157347;
 }
 
 /* Sekundære knapper - outline-stil */
-.btn-load,
 .btn-pdf,
 .btn-jpg,
-.btn-archive,
-.btn-template {
-    flex: 1 1 calc(20% - 6.4px) !important;
-    max-width: calc(20% - 6.4px) !important;
+.btn-archive {
+    flex: 1 1 calc(33.333% - 5.33px) !important;
+    max-width: calc(33.333% - 5.33px) !important;
     background: transparent !important;
     border: 1.5px solid #495057 !important;
     color: #495057 !important;
 }
 
-.btn-load:hover,
 .btn-pdf:hover,
 .btn-jpg:hover,
-.btn-archive:hover,
+.btn-archive:hover {
+    background: #e9ecef !important;
+}
+
+.btn-template {
+    flex: 1 1 calc(50% - 4px) !important;
+    max-width: calc(50% - 4px) !important;
+    background: transparent !important;
+    border: 1.5px solid #495057 !important;
+    color: #495057 !important;
+}
+
 .btn-template:hover {
     background: #e9ecef !important;
 }
 
 .btn-login {
     background: #4285f4;
-    flex: 1 1 100% !important;
-    max-width: 100% !important;
+    flex: 1 1 calc(50% - 4px) !important;
+    max-width: calc(50% - 4px) !important;
 }
 
 .btn-login:hover {
