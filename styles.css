@@ -109,6 +109,10 @@ body {
 .btn-login.logged-in {
     background: #34a853;
     font-size: 11px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Form container - hidden, used only for PDF/JPG export */
