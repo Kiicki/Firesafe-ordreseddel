@@ -1058,7 +1058,16 @@ document.getElementById('archive-modal').addEventListener('click', function(e) {
 });
 
 // Sync forms when typing
-document.getElementById('mobile-form').addEventListener('input', function() {
+document.getElementById('mobile-form').addEventListener('input', function(e) {
+    // Auto-capitalize first letter
+    const el = e.target;
+    if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.type !== 'number') {
+        if (el.value.length > 0 && el.value[0] !== el.value[0].toUpperCase()) {
+            const pos = el.selectionStart;
+            el.value = el.value[0].toUpperCase() + el.value.slice(1);
+            el.setSelectionRange(pos, pos);
+        }
+    }
     syncMobileToOriginal();
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
 });
