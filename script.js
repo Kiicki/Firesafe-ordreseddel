@@ -1029,7 +1029,7 @@ let loadedTemplates = [];
 async function getTemplates() {
     if (currentUser && db) {
         try {
-            const snapshot = await db.collection('templates').orderBy('prosjektnavn').get();
+            const snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get();
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (e) {
             console.error('Templates error:', e);
@@ -1063,7 +1063,7 @@ async function saveAsTemplate() {
 
     if (currentUser && db) {
         try {
-            const templatesRef = db.collection('templates');
+            const templatesRef = db.collection('users').doc(currentUser.uid).collection('templates');
             const existing = await templatesRef.where('prosjektnavn', '==', templateData.prosjektnavn).get();
 
             if (!existing.empty) {
@@ -1165,7 +1165,7 @@ function deleteTemplate(event, index) {
 
         if (currentUser && db) {
             try {
-                await db.collection('templates').doc(template.id).delete();
+                await db.collection('users').doc(currentUser.uid).collection('templates').doc(template.id).delete();
             } catch (e) {
                 console.error('Delete template error:', e);
             }
