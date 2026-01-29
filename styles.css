@@ -79,7 +79,7 @@ body {
 }
 
 .btn-login.logged-in {
-    background: #34a853;
+    background: #1abc9c;
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
