@@ -1033,6 +1033,7 @@ body {
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
+    white-space: nowrap;
 }
 
 .confirm-btn-cancel:active {
@@ -1049,6 +1050,7 @@ body {
     font-size: 14px;
     font-weight: bold;
     cursor: pointer;
+    white-space: nowrap;
 }
 
 .confirm-btn-ok:active {
