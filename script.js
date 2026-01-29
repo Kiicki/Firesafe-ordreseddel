@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'firesafe_ordresedler';
 const ARCHIVE_KEY = 'firesafe_arkiv';
 const TEMPLATE_KEY = 'firesafe_maler';
+const SETTINGS_KEY = 'firesafe_settings';
 
 // ============================================
 // FIREBASE KONFIGURASJON
@@ -59,7 +60,7 @@ function handleAuth() {
         // Logg ut
         showConfirmModal('Vil du logge ut?', () => {
             auth.signOut().then(() => {
-                showNotificationModal('Du er nå logget ut');
+                showNotificationModal('Du er nå logget ut', true);
             });
         }, 'Logg ut', '#6c757d');
     } else {
@@ -67,7 +68,7 @@ function handleAuth() {
         const provider = new firebase.auth.GoogleAuthProvider();
         auth.signInWithPopup(provider)
             .then((result) => {
-                showNotificationModal('Logget inn som ' + result.user.email);
+                showNotificationModal('Logget inn som ' + result.user.email, true);
             })
             .catch((error) => {
                 if (error.code !== 'auth/popup-closed-by-user') {
@@ -144,14 +145,23 @@ function closeConfirmModal(confirmed) {
     pendingConfirmAction = null;
 }
 
-// Notification modal
-function showNotificationModal(message) {
+// Toast notification
+let toastTimeout = null;
+function showNotificationModal(message, isSuccess) {
+    const toast = document.getElementById('notification-modal');
     document.getElementById('notification-modal-text').textContent = message;
-    document.getElementById('notification-modal').classList.add('active');
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toast.classList.remove('success');
+    if (isSuccess) toast.classList.add('success');
+    toast.classList.add('active');
+    toastTimeout = setTimeout(closeNotificationModal, isSuccess ? 2000 : 3000);
 }
 
 function closeNotificationModal() {
-    document.getElementById('notification-modal').classList.remove('active');
+    const toast = document.getElementById('notification-modal');
+    toast.classList.remove('active');
+    if (toastTimeout) { clearTimeout(toastTimeout); toastTimeout = null; }
+    setTimeout(() => toast.classList.remove('success'), 300);
 }
 
 // Fullskjerm tekst-editor
@@ -170,9 +180,7 @@ function openTextEditor(inputElement, label) {
 function closeTextEditor() {
     if (currentEditingField) {
         const fullText = document.getElementById('text-editor-textarea').value;
-        // Store full multiline text in data attribute
         currentEditingField.setAttribute('data-full-value', fullText);
-        // Show only first line in the input field, with "..." if multiline
         const lines = fullText.split('\n').filter(l => l.trim() !== '');
         const firstLine = lines[0] || '';
         currentEditingField.value = lines.length > 1 ? firstLine + '...' : firstLine;
@@ -209,55 +217,13 @@ function autoResizeTextarea(textarea) {
     textarea.style.height = Math.max(textarea.scrollHeight, minHeight) + 'px';
 }
 
-// Apply auto-resize to all textareas in work-lines
-function initAutoResize() {
-    document.querySelectorAll('.work-description, .work-material').forEach(textarea => {
-        textarea.addEventListener('input', function() {
-            autoResizeTextarea(this);
-        });
-        // Initial resize
-        autoResizeTextarea(textarea);
-    });
-}
-
-// Force resize all textareas (used before export)
-function resizeAllTextareas() {
-    document.querySelectorAll('.work-description, .work-material').forEach(textarea => {
-        const text = textarea.value;
-        if (text && text.length > 0) {
-            // First set a minimal height to force scrollHeight to calculate wrapped content
-            textarea.style.height = '1px';
-            textarea.style.overflow = 'hidden';
-
-            // Force browser to recalculate layout
-            void textarea.offsetHeight;
-
-            // Now scrollHeight contains the full height needed for wrapped text
-            const scrollHeight = textarea.scrollHeight;
-            const minHeight = textarea.classList.contains('work-material') ? 18 : 24;
-            textarea.style.height = Math.max(scrollHeight, minHeight) + 'px';
-        } else {
-            // Empty textarea - set to min height
-            const minHeight = textarea.classList.contains('work-material') ? 18 : 24;
-            textarea.style.height = minHeight + 'px';
-        }
-    });
-}
+// No longer needed - desktop form is dynamically generated
+function initAutoResize() {}
+function resizeAllTextareas() {}
 
 // Convert textareas to divs for export (divs wrap text properly)
 function convertTextareasToDiv() {
     const convertedElements = [];
-
-    // Convert work description and material textareas
-    document.querySelectorAll('#form-container .work-description, #form-container .work-material').forEach(textarea => {
-        const div = document.createElement('div');
-        div.textContent = textarea.value;
-        div.className = textarea.className + ' textarea-converted';
-
-        textarea.style.display = 'none';
-        textarea.parentNode.insertBefore(div, textarea.nextSibling);
-        convertedElements.push({ original: textarea, replacement: div });
-    });
 
     // Convert ordreseddel-nr input to span (fixes rendering issues with html2canvas)
     const ordreseddelInput = document.getElementById('ordreseddel-nr');
@@ -290,113 +256,173 @@ function restoreTextareas(convertedElements) {
     });
 }
 
-// Update delete button states based on visible lines
-function updateDeleteButtonStates() {
-    const visibleLines = document.querySelectorAll('#mobile-work-lines .mobile-work-line.visible');
-    const allButtons = document.querySelectorAll('#mobile-work-lines .mobile-work-line-remove');
+// --- Order card functions ---
+const deleteIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
 
-    // If only one line is visible, disable all delete buttons
-    // Otherwise, enable delete buttons on visible lines
-    allButtons.forEach((btn, index) => {
-        const line = btn.closest('.mobile-work-line');
-        if (visibleLines.length <= 1) {
-            btn.disabled = true;
-        } else if (line.classList.contains('visible')) {
-            btn.disabled = false;
-        }
+function createOrderCard(orderData, expanded) {
+    const card = document.createElement('div');
+    card.className = 'mobile-order-card';
+
+    const desc = orderData.description || '';
+
+    card.innerHTML = `
+        <div class="mobile-order-header" onclick="toggleOrder(this)">
+            <span class="mobile-order-arrow">${expanded ? '&#9650;' : '&#9660;'}</span>
+            <span class="mobile-order-title">Beskrivelse</span>
+            <button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeOrder(this)">${deleteIcon}</button>
+        </div>
+        <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
+            <div class="mobile-field">
+                <label>Beskrivelse <span class="required">*</span></label>
+                <input type="text" class="mobile-order-desc" readonly autocapitalize="sentences">
+            </div>
+            <div class="mobile-order-materials-section">
+                <label class="mobile-order-sublabel">Materialer</label>
+                <div class="mobile-order-materials"></div>
+                <button type="button" class="mobile-add-mat-btn" onclick="addMaterialToOrder(this)">+ Material</button>
+            </div>
+            <div class="mobile-work-row">
+                <div class="mobile-field" style="flex:1">
+                    <label>Timer</label>
+                    <input type="text" class="mobile-order-timer" inputmode="decimal">
+                </div>
+            </div>
+        </div>`;
+
+    // Set description with data-full-value
+    const descInput = card.querySelector('.mobile-order-desc');
+    descInput.setAttribute('data-full-value', desc);
+    const descLines = desc.split('\n').filter(l => l.trim());
+    descInput.value = descLines.length > 1 ? descLines[0] + '...' : (descLines[0] || '');
+
+    // Set timer
+    card.querySelector('.mobile-order-timer').value = orderData.timer || '';
+
+    // Add materials
+    const matContainer = card.querySelector('.mobile-order-materials');
+    const mats = orderData.materials && orderData.materials.length > 0 ? orderData.materials : [{ name: '', antall: '', enhet: '' }];
+    mats.forEach(m => {
+        matContainer.appendChild(createMaterialRow(m));
     });
+    updateMatDeleteStates(matContainer);
+
+    // Set up description click → text editor
+    descInput.addEventListener('click', function() {
+        openTextEditor(this, 'Beskrivelse');
+    });
+
+    return card;
 }
 
-// Renumber visible lines sequentially (Linje 1, Linje 2, ...)
-function renumberLines() {
-    const visibleLines = document.querySelectorAll('#mobile-work-lines .mobile-work-line.visible');
-    visibleLines.forEach((line, index) => {
-        const span = line.querySelector('.mobile-work-line-header span');
-        if (span) {
-            span.textContent = 'Linje ' + (index + 1);
-        }
-    });
+function createMaterialRow(m) {
+    const div = document.createElement('div');
+    div.className = 'mobile-material-row';
+    div.innerHTML = `
+        <div class="mobile-field"><input type="text" class="mobile-mat-name" placeholder="Materiale" autocapitalize="sentences" value="${(m.name || '').replace(/"/g, '&quot;')}"></div>
+        <div class="mobile-work-row">
+            <div class="mobile-field"><input type="text" class="mobile-mat-antall" placeholder="Antall" value="${(m.antall || '').replace(/"/g, '&quot;')}"></div>
+            <div class="mobile-field"><input type="text" class="mobile-mat-enhet" placeholder="Enhet" autocapitalize="sentences" value="${(m.enhet || '').replace(/"/g, '&quot;')}"></div>
+            <button type="button" class="mobile-mat-remove" onclick="removeMaterialFromOrder(this)">${deleteIcon}</button>
+        </div>`;
+    return div;
 }
 
-// Add another mobile work line (show next hidden line)
-function addMobileLine() {
-    const lines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
-    for (let i = 0; i < lines.length; i++) {
-        if (!lines[i].classList.contains('visible')) {
-            lines[i].classList.add('visible');
-            // Hide button if all 15 lines are visible
-            if (i === lines.length - 1) {
-                document.querySelector('.mobile-add-line-btn').style.display = 'none';
-            }
-            // Scroll to the new line
-            lines[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
-            break;
-        }
+function updateMatDeleteStates(matContainer) {
+    const rows = matContainer.querySelectorAll('.mobile-material-row');
+    const buttons = matContainer.querySelectorAll('.mobile-mat-remove');
+    buttons.forEach(btn => { btn.disabled = rows.length <= 1; });
+}
+
+function addMaterialToOrder(btn) {
+    const matContainer = btn.closest('.mobile-order-body').querySelector('.mobile-order-materials');
+    const row = createMaterialRow({ name: '', antall: '', enhet: '' });
+    matContainer.appendChild(row);
+    updateMatDeleteStates(matContainer);
+    row.querySelector('.mobile-mat-name').focus();
+}
+
+function removeMaterialFromOrder(btn) {
+    const row = btn.closest('.mobile-material-row');
+    const matContainer = row.closest('.mobile-order-materials');
+    row.remove();
+    updateMatDeleteStates(matContainer);
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+}
+
+function toggleOrder(headerEl) {
+    const card = headerEl.closest('.mobile-order-card');
+    const body = card.querySelector('.mobile-order-body');
+    const arrow = card.querySelector('.mobile-order-arrow');
+    if (body.style.display === 'none') {
+        body.style.display = '';
+        arrow.innerHTML = '&#9650;';
+    } else {
+        body.style.display = 'none';
+        arrow.innerHTML = '&#9660;';
     }
-    // Update delete button states
-    updateDeleteButtonStates();
-    renumberLines();
 }
 
-// Remove a mobile work line
-function removeMobileLine(button) {
-    showConfirmModal('Er du sikker på at du vil fjerne denne linjen?', function() {
-        const line = button.closest('.mobile-work-line');
+function renumberOrders() {
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach((card, idx) => {
+        card.querySelector('.mobile-order-title').textContent = 'Beskrivelse ' + (idx + 1);
+    });
+}
 
-        // Clear all inputs in this line
-        line.querySelectorAll('input').forEach(input => input.value = '');
+function addOrder() {
+    const container = document.getElementById('mobile-orders');
+    // Collapse existing open cards
+    container.querySelectorAll('.mobile-order-card').forEach(card => {
+        const body = card.querySelector('.mobile-order-body');
+        if (body.style.display !== 'none') {
+            body.style.display = 'none';
+            card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
+        }
+    });
+    const card = createOrderCard({ description: '', materials: [], timer: '' }, true);
+    container.appendChild(card);
+    updateOrderDeleteStates();
+    renumberOrders();
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
-        // Hide the line
-        line.classList.remove('visible');
-
-        // Show the add button again
-        document.querySelector('.mobile-add-line-btn').style.display = 'block';
-
-        // Update delete button states
-        updateDeleteButtonStates();
-        renumberLines();
-
-        // Sync to original form
-        syncMobileToOriginal();
-
-        // Save to session storage
+function removeOrder(btn) {
+    const card = btn.closest('.mobile-order-card');
+    showConfirmModal('Slett denne bestillingen?', function() {
+        card.remove();
+        updateOrderDeleteStates();
+        renumberOrders();
         sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     });
 }
 
-// Show mobile lines that have data
-function showMobileLinesWithData() {
-    const lines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
-
-    // Først nullstill alle linjer (fjern visible-klassen)
-    lines.forEach(line => line.classList.remove('visible'));
-
-    // Vis kun linjer med data
-    lines.forEach(line => {
-        const desc = line.querySelector('.mobile-work-desc');
-        const material = line.querySelector('.mobile-work-material');
-        const antall = line.querySelector('.mobile-work-antall');
-        const enhet = line.querySelector('.mobile-work-enhet');
-
-        if ((desc && desc.value) || (material && material.value) || (antall && antall.value) || (enhet && enhet.value)) {
-            line.classList.add('visible');
-        }
-    });
-
-    // Vis alltid minst første linjen
-    if (!lines[0].classList.contains('visible')) {
-        lines[0].classList.add('visible');
-    }
-
-    // Update button visibility
-    const allVisible = Array.from(lines).every(l => l.classList.contains('visible'));
-    document.querySelector('.mobile-add-line-btn').style.display = allVisible ? 'none' : 'block';
-
-    // Update delete button states
-    updateDeleteButtonStates();
+function updateOrderDeleteStates() {
+    const cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+    const deleteButtons = document.querySelectorAll('#mobile-orders .mobile-order-header-delete');
+    deleteButtons.forEach(btn => { btn.disabled = cards.length <= 1; });
 }
 
-// Sync mobile form to original form
+// Get all orders data from mobile form
+function getOrdersData() {
+    const orders = [];
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(card => {
+        const descInput = card.querySelector('.mobile-order-desc');
+        const description = descInput.getAttribute('data-full-value') || descInput.value;
+        const timer = card.querySelector('.mobile-order-timer').value;
+        const materials = [];
+        card.querySelectorAll('.mobile-material-row').forEach(row => {
+            const name = row.querySelector('.mobile-mat-name').value;
+            const antall = row.querySelector('.mobile-mat-antall').value;
+            const enhet = row.querySelector('.mobile-mat-enhet').value;
+            if (name || antall || enhet) {
+                materials.push({ name, antall, enhet });
+            }
+        });
+        orders.push({ description, materials, timer });
+    });
+    return orders;
+}
+
+// Sync mobile form to original (desktop) form for export
 function syncMobileToOriginal() {
     // Simple fields
     const fieldMap = {
@@ -422,39 +448,93 @@ function syncMobileToOriginal() {
         }
     }
 
-    // Work lines
-    const mobileWorkLines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
-    const originalWorkLines = document.querySelectorAll('#work-lines .work-line');
-
-    mobileWorkLines.forEach((mobileLine, index) => {
-        if (originalWorkLines[index]) {
-            const mobileDesc = mobileLine.querySelector('.mobile-work-desc');
-            const mobileMaterial = mobileLine.querySelector('.mobile-work-material');
-            const mobileAntall = mobileLine.querySelector('.mobile-work-antall');
-            const mobileEnhet = mobileLine.querySelector('.mobile-work-enhet');
-
-            const originalDesc = originalWorkLines[index].querySelector('.work-description');
-            const originalMaterial = originalWorkLines[index].querySelector('.work-material');
-            const originalAntall = originalWorkLines[index].querySelector('.work-antall');
-            const originalEnhet = originalWorkLines[index].querySelector('.work-enhet');
-
-            if (mobileDesc && originalDesc) {
-                originalDesc.value = mobileDesc.getAttribute('data-full-value') || mobileDesc.value;
-                autoResizeTextarea(originalDesc);
-            }
-            if (mobileMaterial && originalMaterial) {
-                originalMaterial.value = mobileMaterial.getAttribute('data-full-value') || mobileMaterial.value;
-                autoResizeTextarea(originalMaterial);
-            }
-            if (mobileAntall && originalAntall) originalAntall.value = mobileAntall.value;
-            if (mobileEnhet && originalEnhet) originalEnhet.value = mobileEnhet.value;
-        }
-    });
+    // Build desktop work lines dynamically
+    buildDesktopWorkLines();
 }
 
-// Sync original form to mobile form
+// Build the desktop form work lines from orders data (for PDF export)
+function buildDesktopWorkLines() {
+    const container = document.getElementById('work-lines');
+    container.innerHTML = '';
+
+    const orders = getOrdersData();
+
+    function addRow(descText, antallText, enhetText, options) {
+        const row = document.createElement('div');
+        row.className = 'work-line';
+        const descDiv = document.createElement('div');
+        descDiv.className = 'work-line-desc';
+        const descContent = document.createElement('div');
+        descContent.className = 'work-line-desc-text';
+        descContent.textContent = descText || '';
+        if (options && options.bold) descContent.style.fontWeight = 'bold';
+        if (options && options.italic) descContent.style.fontStyle = 'italic';
+        if (options && options.alignRight) descContent.style.textAlign = 'right';
+        descDiv.appendChild(descContent);
+        row.appendChild(descDiv);
+
+        const antallDiv = document.createElement('div');
+        antallDiv.className = 'work-line-antall';
+        const antallSpan = document.createElement('span');
+        antallSpan.textContent = antallText || '';
+        antallDiv.appendChild(antallSpan);
+        row.appendChild(antallDiv);
+
+        const enhetDiv = document.createElement('div');
+        enhetDiv.className = 'work-line-enhet';
+        const enhetSpan = document.createElement('span');
+        enhetSpan.textContent = enhetText || '';
+        enhetDiv.appendChild(enhetSpan);
+        row.appendChild(enhetDiv);
+
+        container.appendChild(row);
+    }
+
+    let totalTimer = 0;
+
+    orders.forEach((order, idx) => {
+        // Separator between orders
+        if (idx > 0) {
+            addRow('', '', '');
+        }
+
+        // Description
+        if (order.description) {
+            addRow(order.description, '', '');
+        }
+
+        // Materials
+        const filledMats = (order.materials || []).filter(m => m.name || m.antall || m.enhet);
+        if (filledMats.length > 0) {
+            addRow('Materiell:', '', '', { bold: true });
+            filledMats.forEach(m => {
+                addRow(m.name, m.antall, m.enhet);
+            });
+        }
+
+        // Timer
+        if (order.timer) {
+            addRow('Timer:', order.timer, 'timer', { bold: true });
+            const val = parseFloat((order.timer || '').replace(',', '.'));
+            if (!isNaN(val)) totalTimer += val;
+        }
+    });
+
+    // Total timer (only if there are any)
+    if (totalTimer > 0) {
+        const formatted = totalTimer % 1 === 0 ? totalTimer.toString() : totalTimer.toFixed(1).replace('.', ',');
+        addRow('Totalt:', formatted, 'timer', { bold: true, alignRight: true });
+    }
+
+    // Ensure minimum rows to fill the page
+    const currentRows = container.querySelectorAll('.work-line').length;
+    for (let i = currentRows; i < 15; i++) {
+        addRow('', '', '');
+    }
+}
+
+// Sync original form to mobile form (not used in new structure, kept for compatibility)
 function syncOriginalToMobile() {
-    // Simple fields
     const fieldMap = {
         'ordreseddel-nr': 'mobile-ordreseddel-nr',
         'oppdragsgiver': 'mobile-oppdragsgiver',
@@ -477,61 +557,14 @@ function syncOriginalToMobile() {
             mobileEl.value = originalEl.value;
         }
     }
-
-    // Work lines
-    const originalWorkLines = document.querySelectorAll('#work-lines .work-line');
-    const mobileWorkLines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
-
-    originalWorkLines.forEach((originalLine, index) => {
-        if (mobileWorkLines[index]) {
-            const originalDesc = originalLine.querySelector('.work-description');
-            const originalMaterial = originalLine.querySelector('.work-material');
-            const originalAntall = originalLine.querySelector('.work-antall');
-            const originalEnhet = originalLine.querySelector('.work-enhet');
-
-            const mobileDesc = mobileWorkLines[index].querySelector('.mobile-work-desc');
-            const mobileMaterial = mobileWorkLines[index].querySelector('.mobile-work-material');
-            const mobileAntall = mobileWorkLines[index].querySelector('.mobile-work-antall');
-            const mobileEnhet = mobileWorkLines[index].querySelector('.mobile-work-enhet');
-
-            if (originalDesc && mobileDesc) {
-                const descVal = originalDesc.value;
-                mobileDesc.setAttribute('data-full-value', descVal);
-                const descLines = descVal.split('\n').filter(l => l.trim() !== '');
-                mobileDesc.value = descLines.length > 1 ? descLines[0] + '...' : (descLines[0] || '');
-            }
-            if (originalMaterial && mobileMaterial) {
-                const matVal = originalMaterial.value;
-                mobileMaterial.setAttribute('data-full-value', matVal);
-                const matLines = matVal.split('\n').filter(l => l.trim() !== '');
-                mobileMaterial.value = matLines.length > 1 ? matLines[0] + '...' : (matLines[0] || '');
-            }
-            if (originalAntall && mobileAntall) mobileAntall.value = originalAntall.value;
-            if (originalEnhet && mobileEnhet) mobileEnhet.value = originalEnhet.value;
-        }
-    });
 }
 
 
 
 function getFormData() {
-    // If on mobile, sync to original first
     if (isMobile()) {
         syncMobileToOriginal();
     }
-
-    const workLines = [];
-    document.querySelectorAll('.work-line').forEach(line => {
-        const description = line.querySelector('.work-description').value;
-        const material = line.querySelector('.work-material').value;
-        const antall = line.querySelector('.work-antall').value;
-        const enhet = line.querySelector('.work-enhet').value;
-
-        // Kun lagre linjer som har innhold
-        if (description || material || antall || enhet) {
-            workLines.push({ description, material, antall, enhet });
-        }
-    });
 
     return {
         ordreseddelNr: document.getElementById('ordreseddel-nr').value,
@@ -543,7 +576,7 @@ function getFormData() {
         prosjektnavn: document.getElementById('prosjektnavn').value,
         montor: document.getElementById('montor').value,
         avdeling: document.getElementById('avdeling').value,
-        workLines: workLines,
+        orders: getOrdersData(),
         sted: document.getElementById('sted').value,
         signeringDato: document.getElementById('signering-dato').value,
         kundensUnderskrift: document.getElementById('kundens-underskrift').value,
@@ -552,7 +585,7 @@ function getFormData() {
 }
 
 function setFormData(data) {
-    // Set original form data
+    // Set simple fields
     document.getElementById('ordreseddel-nr').value = data.ordreseddelNr || '';
     document.getElementById('oppdragsgiver').value = data.oppdragsgiver || '';
     document.getElementById('kundens-ref').value = data.kundensRef || '';
@@ -566,25 +599,48 @@ function setFormData(data) {
     document.getElementById('signering-dato').value = data.signeringDato || '';
     document.getElementById('kundens-underskrift').value = data.kundensUnderskrift || '';
 
-    const workLines = document.querySelectorAll('.work-line');
-    workLines.forEach((line, index) => {
-        const lineData = data.workLines && data.workLines[index] ? data.workLines[index] : {};
-        const descEl = line.querySelector('.work-description');
-        const matEl = line.querySelector('.work-material');
-        descEl.value = lineData.description || '';
-        matEl.value = lineData.material || '';
-        line.querySelector('.work-antall').value = lineData.antall || '';
-        line.querySelector('.work-enhet').value = lineData.enhet || '';
-        // Resize textareas
-        autoResizeTextarea(descEl);
-        autoResizeTextarea(matEl);
-    });
-
-    // Also sync to mobile form
     syncOriginalToMobile();
 
-    // Show mobile lines that have data
-    showMobileLinesWithData();
+    // Convert old formats to orders
+    let orders = data.orders;
+
+    if (!orders) {
+        if (data.workDescription || data.materials || data.timers) {
+            // Previous flat format → 1 order
+            orders = [{
+                description: data.workDescription || '',
+                materials: data.materials || [],
+                timer: (data.timers && data.timers[0]) || ''
+            }];
+        } else if (data.workLines) {
+            // Oldest workLines format → 1 order
+            const descriptions = [];
+            const materials = [];
+            data.workLines.forEach(wl => {
+                if (wl.description) descriptions.push(wl.description);
+                if (wl.material || wl.antall || wl.enhet) {
+                    materials.push({ name: wl.material || '', antall: wl.antall || '', enhet: wl.enhet || '' });
+                }
+            });
+            orders = [{
+                description: descriptions.join('\n'),
+                materials: materials,
+                timer: ''
+            }];
+        }
+    }
+
+    // Render order cards
+    const container = document.getElementById('mobile-orders');
+    container.innerHTML = '';
+    const ordersList = orders && orders.length > 0 ? orders : [{ description: '', materials: [], timer: '' }];
+    ordersList.forEach((order, idx) => {
+        const expanded = idx === 0; // First order expanded by default
+        const card = createOrderCard(order, expanded);
+        container.appendChild(card);
+    });
+    renumberOrders();
+    updateOrderDeleteStates();
 }
 
 // Validering av påkrevde felter
@@ -608,12 +664,17 @@ function validateRequiredFields() {
         }
     }
 
-    // Sjekk at alle synlige linjer har beskrivelse
-    const visibleLines = document.querySelectorAll('.mobile-work-line.visible');
-    for (let i = 0; i < visibleLines.length; i++) {
-        const desc = visibleLines[i].querySelector('.mobile-work-desc').value.trim();
-        if (!desc) {
-            showNotificationModal('Beskrivelse mangler for Linje ' + (i + 1));
+    // Sjekk at minst én bestilling har beskrivelse
+    const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+    if (orderCards.length === 0) {
+        showNotificationModal('Du må legge til minst én bestilling');
+        return false;
+    }
+    for (let i = 0; i < orderCards.length; i++) {
+        const descInput = orderCards[i].querySelector('.mobile-order-desc');
+        const descVal = descInput.getAttribute('data-full-value') || descInput.value;
+        if (!descVal.trim()) {
+            showNotificationModal('Beskrivelse mangler for bestilling ' + (i + 1));
             return false;
         }
     }
@@ -644,14 +705,14 @@ async function saveForm() {
                 showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', async function() {
                     await formsRef.doc(existing.docs[0].id).set(data);
                     lastSavedData = getFormDataSnapshot();
-                    showNotificationModal('Skjema oppdatert!');
+                    showNotificationModal('Skjema oppdatert!', true);
                 }, 'Oppdater', '#1abc9c');
             } else {
                 showConfirmModal('Er du sikker på at du vil lagre skjemaet?', async function() {
                     data.id = Date.now().toString();
                     await formsRef.doc(data.id).set(data);
                     lastSavedData = getFormDataSnapshot();
-                    showNotificationModal('Skjema lagret!');
+                    showNotificationModal('Skjema lagret!', true);
                 }, 'Lagre', '#1abc9c');
             }
         } catch (e) {
@@ -679,7 +740,7 @@ async function saveForm() {
                 saved[existingIndex] = data;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
                 lastSavedData = getFormDataSnapshot();
-                showNotificationModal('Skjema oppdatert!');
+                showNotificationModal('Skjema oppdatert!', true);
             }, 'Oppdater', '#1abc9c');
         } else {
             showConfirmModal('Er du sikker på at du vil lagre skjemaet?', function() {
@@ -688,7 +749,7 @@ async function saveForm() {
                 if (saved.length > 50) saved.pop();
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
                 lastSavedData = getFormDataSnapshot();
-                showNotificationModal('Skjema lagret!');
+                showNotificationModal('Skjema lagret!', true);
             }, 'Lagre', '#1abc9c');
         }
     }
@@ -913,7 +974,7 @@ function archiveForm(event, index) {
         }
 
         showSavedForms();
-        showNotificationModal('Skjema arkivert!');
+        showNotificationModal('Skjema arkivert!', true);
     }, 'Arkiver', '#1abc9c');
 }
 
@@ -991,7 +1052,7 @@ function restoreForm(event, index) {
         }
 
         showArchivedForms();
-        showNotificationModal('Skjema gjenopprettet!');
+        showNotificationModal('Skjema gjenopprettet!', true);
     }, 'Gjenopprett', '#3498db');
 }
 
@@ -1069,12 +1130,12 @@ async function saveAsTemplate() {
             if (!existing.empty) {
                 showConfirmModal('En mal med prosjektnavn «' + templateData.prosjektnavn + '» finnes allerede. Vil du oppdatere den?', async function() {
                     await templatesRef.doc(existing.docs[0].id).set(templateData);
-                    showNotificationModal('Mal oppdatert!');
+                    showNotificationModal('Mal oppdatert!', true);
                 }, 'Oppdater', '#1abc9c');
             } else {
                 const docId = Date.now().toString();
                 await templatesRef.doc(docId).set(templateData);
-                showNotificationModal('Prosjektmal lagret!');
+                showNotificationModal('Prosjektmal lagret!', true);
             }
         } catch (e) {
             console.error('Save template error:', e);
@@ -1090,13 +1151,13 @@ async function saveAsTemplate() {
                 templateData.id = templates[existingIndex].id;
                 templates[existingIndex] = templateData;
                 localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-                showNotificationModal('Mal oppdatert!');
+                showNotificationModal('Mal oppdatert!', true);
             }, 'Oppdater', '#1abc9c');
         } else {
             templateData.id = Date.now().toString();
             templates.push(templateData);
             localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-            showNotificationModal('Prosjektmal lagret!');
+            showNotificationModal('Prosjektmal lagret!', true);
         }
     }
 }
@@ -1133,6 +1194,14 @@ async function showTemplateModal() {
     }
 }
 
+async function autoFillOrderNumber() {
+    const nextNr = await getNextOrderNumber();
+    if (nextNr !== null) {
+        document.getElementById('ordreseddel-nr').value = nextNr;
+        document.getElementById('mobile-ordreseddel-nr').value = nextNr;
+    }
+}
+
 function loadTemplate(index) {
     const template = loadedTemplates[index];
     if (!template) return;
@@ -1152,6 +1221,8 @@ function loadTemplate(index) {
     document.getElementById('mobile-prosjektnavn').value = template.prosjektnavn || '';
     document.getElementById('mobile-avdeling').value = template.avdeling || '';
     document.getElementById('mobile-sted').value = template.sted || '';
+
+    autoFillOrderNumber();
 
     document.getElementById('template-modal').classList.remove('active');
     document.getElementById('template-search').value = '';
@@ -1185,6 +1256,7 @@ function closeTemplateModal() {
     if (preNewFormData) {
         clearForm();
         preNewFormData = null;
+        autoFillOrderNumber();
     }
     document.getElementById('template-modal').classList.remove('active');
     document.getElementById('template-search').value = '';
@@ -1208,21 +1280,187 @@ function filterTemplates() {
     });
 }
 
+// ============================================
+// ORDRESEDDELNUMMER INNSTILLINGER
+// ============================================
+
+// In-memory ranges for settings modal editing
+let settingsRanges = [];
+
+async function getOrderNrSettings() {
+    let data = null;
+    if (currentUser && db) {
+        try {
+            const doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').get();
+            if (doc.exists) data = doc.data();
+        } catch (e) {
+            console.error('Settings error:', e);
+        }
+    }
+    if (!data) {
+        const stored = localStorage.getItem(SETTINGS_KEY);
+        data = stored ? JSON.parse(stored) : null;
+    }
+    // Backward compat: convert old {nrStart, nrEnd} to {ranges}
+    if (data && !data.ranges && data.nrStart != null) {
+        data = { ranges: [{ start: data.nrStart, end: data.nrEnd }] };
+    }
+    return data;
+}
+
+async function saveOrderNrSettings() {
+    if (settingsRanges.length === 0) {
+        showNotificationModal('Legg til minst ett nummerområde.');
+        return;
+    }
+    const settings = { ranges: settingsRanges.slice() };
+
+    if (currentUser && db) {
+        try {
+            await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings);
+        } catch (e) {
+            console.error('Save settings error:', e);
+        }
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    showNotificationModal('Innstillinger lagret!', true);
+    closeSettingsModal();
+}
+
+async function showSettingsModal() {
+    const settings = await getOrderNrSettings();
+    settingsRanges = (settings && settings.ranges) ? settings.ranges.slice() : [];
+    renderSettingsRanges();
+    document.getElementById('settings-new-start').value = '';
+    document.getElementById('settings-new-end').value = '';
+    document.getElementById('settings-modal').classList.add('active');
+    updateSettingsStatus();
+}
+
+function closeSettingsModal() {
+    document.getElementById('settings-modal').classList.remove('active');
+}
+
+function renderSettingsRanges() {
+    const container = document.getElementById('settings-ranges');
+    if (settingsRanges.length === 0) {
+        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">Ingen nummerområder lagt til</div>';
+        return;
+    }
+    container.innerHTML = settingsRanges.map((r, idx) =>
+        `<div class="settings-range-item">
+            <span>${r.start} – ${r.end}</span>
+            <button onclick="removeSettingsRange(${idx})" title="Fjern"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+        </div>`
+    ).join('');
+}
+
+async function addSettingsRange() {
+    const startInput = document.getElementById('settings-new-start');
+    const endInput = document.getElementById('settings-new-end');
+    const start = parseInt(startInput.value);
+    const end = parseInt(endInput.value);
+
+    if (isNaN(start) || isNaN(end) || start > end) {
+        showNotificationModal('"Fra" må være mindre enn eller lik "Til".');
+        return;
+    }
+    settingsRanges.push({ start, end });
+    startInput.value = '';
+    endInput.value = '';
+    renderSettingsRanges();
+    updateSettingsStatus();
+    // Auto-save
+    const settings = { ranges: settingsRanges.slice() };
+    if (currentUser && db) {
+        try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    showNotificationModal('Nummerområde lagt til!', true);
+}
+
+function removeSettingsRange(idx) {
+    const r = settingsRanges[idx];
+    showConfirmModal(`Fjerne nummerområde ${r.start} – ${r.end}?`, async function() {
+        settingsRanges.splice(idx, 1);
+        renderSettingsRanges();
+        updateSettingsStatus();
+        // Auto-save
+        const settings = { ranges: settingsRanges.slice() };
+        if (currentUser && db) {
+            try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
+        }
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    });
+}
+
+async function updateSettingsStatus() {
+    const statusEl = document.getElementById('settings-status');
+    if (settingsRanges.length === 0) {
+        statusEl.textContent = '';
+        return;
+    }
+
+    let total = 0;
+    settingsRanges.forEach(r => { total += r.end - r.start + 1; });
+
+    const usedNumbers = await getUsedOrderNumbers();
+    let usedCount = 0;
+    settingsRanges.forEach(r => {
+        for (let n = r.start; n <= r.end; n++) {
+            if (usedNumbers.has(String(n))) usedCount++;
+        }
+    });
+
+    const nextNr = findNextInRanges(settingsRanges, usedNumbers);
+    statusEl.textContent = `Brukt: ${usedCount} av ${total}` + (nextNr ? ` · Neste: ${nextNr}` : ' · Alle brukt!');
+}
+
+async function getUsedOrderNumbers() {
+    const saved = await getSavedForms();
+    const archived = await getArchivedForms();
+    const used = new Set();
+    saved.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
+    archived.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
+    return used;
+}
+
+function findNextInRanges(ranges, usedNumbers) {
+    for (const r of ranges) {
+        for (let n = r.start; n <= r.end; n++) {
+            if (!usedNumbers.has(String(n))) return n;
+        }
+    }
+    return null;
+}
+
+async function getNextOrderNumber() {
+    const settings = await getOrderNrSettings();
+    if (!settings || !settings.ranges || settings.ranges.length === 0) return null;
+    const usedNumbers = await getUsedOrderNumbers();
+    return findNextInRanges(settings.ranges, usedNumbers);
+}
+
 function hasAnyFormData() {
     const fields = ['mobile-ordreseddel-nr', 'mobile-oppdragsgiver', 'mobile-prosjektnr', 'mobile-prosjektnavn', 'mobile-montor', 'mobile-avdeling', 'mobile-dato'];
     for (const id of fields) {
         if (document.getElementById(id).value.trim()) return true;
     }
-    const descs = document.querySelectorAll('.mobile-work-line.visible .mobile-work-desc');
-    for (const desc of descs) {
-        if (desc.value.trim()) return true;
+    const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+    for (const card of orderCards) {
+        const descInput = card.querySelector('.mobile-order-desc');
+        const descVal = descInput.getAttribute('data-full-value') || descInput.value;
+        if (descVal.trim()) return true;
     }
     return false;
 }
 
 function clearForm() {
     document.querySelectorAll('#form-container input, #form-container textarea').forEach(el => el.value = '');
-    document.querySelectorAll('#mobile-form input, #mobile-form textarea').forEach(el => el.value = '');
+    document.querySelectorAll('#mobile-form input, #mobile-form textarea').forEach(el => {
+        el.value = '';
+        el.removeAttribute('data-full-value');
+    });
 
     const today = formatDate(new Date());
     document.getElementById('signering-dato').value = today;
@@ -1231,16 +1469,14 @@ function clearForm() {
     sessionStorage.removeItem('firesafe_current');
     lastSavedData = null;
 
-    const lines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
-    lines.forEach((line, index) => {
-        if (index === 0) {
-            line.classList.add('visible');
-        } else {
-            line.classList.remove('visible');
-        }
-    });
-    document.querySelector('.mobile-add-line-btn').style.display = 'block';
-    updateDeleteButtonStates();
+    // Reset orders to 1 empty card
+    const container = document.getElementById('mobile-orders');
+    container.innerHTML = '';
+    container.appendChild(createOrderCard({ description: '', materials: [], timer: '' }, true));
+    updateOrderDeleteStates();
+
+    // Clear desktop work lines
+    document.getElementById('work-lines').innerHTML = '';
 }
 
 function doNewForm() {
@@ -1365,9 +1601,6 @@ document.getElementById('saved-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
 
-document.getElementById('archive-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeArchiveModal();
-});
 
 document.getElementById('template-modal').addEventListener('click', function(e) {
     if (e.target === this) cancelTemplateModal();
@@ -1401,20 +1634,10 @@ window.addEventListener('load', function() {
     document.getElementById('mobile-signering-dato').value = today;
     document.getElementById('mobile-kundens-underskrift').value = '';
 
-    // Initialize auto-resize for textareas
-    initAutoResize();
-
-    // Update delete button states
-    updateDeleteButtonStates();
-
-    // Fullskjerm tekst-editor for beskrivelse og material felter
-    document.querySelectorAll('.mobile-work-desc, .mobile-work-material').forEach(input => {
-        input.setAttribute('readonly', true);
-        input.addEventListener('click', function(e) {
-            const line = this.closest('.mobile-work-line');
-            const lineNum = line.querySelector('.mobile-work-line-header span').textContent;
-            const fieldType = this.classList.contains('mobile-work-desc') ? 'Beskrivelse' : 'Material';
-            openTextEditor(this, fieldType + ' - ' + lineNum);
-        });
-    });
+    // Initialize orders if empty (first load without session data)
+    const ordersContainer = document.getElementById('mobile-orders');
+    if (ordersContainer && ordersContainer.children.length === 0) {
+        ordersContainer.appendChild(createOrderCard({ description: '', materials: [], timer: '' }, true));
+        updateOrderDeleteStates();
+    }
 });
