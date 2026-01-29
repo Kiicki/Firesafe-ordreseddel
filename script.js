@@ -864,7 +864,12 @@ function showSaveMenu() {
 // Keep old names for compatibility
 function closeSaveMenu() { closeActionPopup(); }
 function closeExportMenu() { closeActionPopup(); }
-function showExportMenu() { showShareMenu(); }
+function showExportMenu() {
+    showActionPopup('Eksporter som', [
+        { label: 'PDF', onclick: 'exportPDF()' },
+        { label: 'JPG', onclick: 'exportJPG()' }
+    ]);
+}
 
 function filterSavedForms() {
     const searchTerm = document.getElementById('saved-search').value.toLowerCase();
@@ -1355,65 +1360,6 @@ async function exportJPG() {
     }
 }
 
-// Del via Web Share API med fallback til nedlasting
-async function shareOrDownload(format) {
-    if (!validateRequiredFields()) return;
-    const loading = document.getElementById('loading');
-    loading.classList.add('active');
-    try {
-        const canvas = await renderFormToCanvas();
-        const filename = getExportFilename(format);
-
-        let file;
-        if (format === 'pdf') {
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 210;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
-            const blob = pdf.output('blob');
-            file = new File([blob], filename, { type: 'application/pdf' });
-        } else {
-            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
-            file = new File([blob], filename, { type: 'image/jpeg' });
-        }
-
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                files: [file],
-                title: filename
-            });
-        } else {
-            // Fallback til vanlig nedlasting
-            if (format === 'pdf') {
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const imgWidth = 210;
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
-                pdf.save(filename);
-            } else {
-                const link = document.createElement('a');
-                link.download = filename;
-                link.href = canvas.toDataURL('image/jpeg', 0.95);
-                link.click();
-            }
-        }
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            alert('Feil ved deling: ' + error.message);
-        }
-    } finally {
-        loading.classList.remove('active');
-    }
-}
-
-function showShareMenu() {
-    showActionPopup('Del som', [
-        { label: 'PDF', onclick: "shareOrDownload('pdf')" },
-        { label: 'JPG', onclick: "shareOrDownload('jpg')" }
-    ]);
-}
 
 document.getElementById('saved-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
