@@ -28,11 +28,12 @@ body {
     max-width: 600px;
     margin-left: auto;
     margin-right: auto;
+    position: relative;
 }
 
 .toolbar button {
-    flex: 1 1 calc(33.333% - 6px);
-    max-width: calc(33.333% - 6px);
+    flex: 1 1 calc(25% - 6px);
+    max-width: calc(25% - 6px);
     padding: 11px 14px;
     border: none;
     border-radius: 8px;
@@ -57,8 +58,6 @@ body {
 .btn-new,
 .btn-save,
 .btn-load {
-    flex: 1 1 calc(33.333% - 5.33px) !important;
-    max-width: calc(33.333% - 5.33px) !important;
     background: #198754;
 }
 
@@ -68,39 +67,22 @@ body {
     background: #157347;
 }
 
-/* Sekundære knapper - outline-stil */
-.btn-pdf,
-.btn-jpg,
-.btn-archive {
-    flex: 1 1 calc(33.333% - 5.33px) !important;
-    max-width: calc(33.333% - 5.33px) !important;
+/* Eksporter-knapp */
+.btn-export {
     background: transparent !important;
     border: 1.5px solid #495057 !important;
     color: #495057 !important;
 }
 
-.btn-pdf:hover,
-.btn-jpg:hover,
-.btn-archive:hover {
+.btn-export:hover {
     background: #e9ecef !important;
 }
 
-.btn-template {
-    flex: 1 1 calc(50% - 4px) !important;
-    max-width: calc(50% - 4px) !important;
-    background: transparent !important;
-    border: 1.5px solid #495057 !important;
-    color: #495057 !important;
-}
-
-.btn-template:hover {
-    background: #e9ecef !important;
-}
 
 .btn-login {
     background: #4285f4;
-    flex: 1 1 calc(50% - 4px) !important;
-    max-width: calc(50% - 4px) !important;
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
 }
 
 .btn-login:hover {
@@ -569,6 +551,57 @@ body {
     color: white;
     font-size: 24px;
     cursor: pointer;
+}
+
+.modal-tabs {
+    display: flex;
+    border-bottom: 2px solid #eee;
+}
+
+.modal-tab {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+}
+
+.modal-tab.active {
+    color: #333;
+    border-bottom-color: #333;
+}
+
+.modal-tab:hover:not(.active) {
+    color: #555;
+    background: #f8f8f8;
+}
+
+.modal-footer-template {
+    padding: 10px 15px;
+    border-top: 1px solid #eee;
+}
+
+.btn-save-template {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid #495057;
+    background: transparent;
+    color: #495057;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-save-template:hover {
+    background: #e9ecef;
 }
 
 .modal-body {

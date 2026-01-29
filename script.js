@@ -768,7 +768,109 @@ function deleteForm(event, index) {
 function closeModal() {
     document.getElementById('saved-modal').classList.remove('active');
     document.getElementById('saved-search').value = '';
+    document.getElementById('archive-search').value = '';
+    // Reset to saved tab
+    switchHentTab('saved');
 }
+
+function switchHentTab(tab) {
+    const tabs = document.querySelectorAll('#saved-modal .modal-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+
+    const savedList = document.getElementById('saved-list');
+    const archiveList = document.getElementById('archive-list');
+    const savedSearch = document.getElementById('saved-search').closest('.modal-search');
+    const archiveSearch = document.getElementById('archive-search-wrap');
+
+    if (tab === 'saved') {
+        tabs[0].classList.add('active');
+        savedList.style.display = '';
+        archiveList.style.display = 'none';
+        savedSearch.style.display = '';
+        archiveSearch.style.display = 'none';
+    } else {
+        tabs[1].classList.add('active');
+        savedList.style.display = 'none';
+        archiveList.style.display = '';
+        savedSearch.style.display = 'none';
+        archiveSearch.style.display = '';
+        // Load archived forms when switching to tab
+        loadArchivedTab();
+    }
+}
+
+async function loadArchivedTab() {
+    const listEl = document.getElementById('archive-list');
+    listEl.innerHTML = '<div class="no-saved">Laster...</div>';
+
+    const archived = await getArchivedForms();
+    loadedArchivedForms = archived;
+
+    if (archived.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">Ingen arkiverte skjemaer</div>';
+    } else {
+        listEl.innerHTML = archived.map((item, index) => {
+            const prosjektnavn = item.prosjektnavn || '';
+            const ordrenr = item.ordreseddelNr || '';
+            const oppdragsgiver = item.oppdragsgiver || '';
+            const dato = item.dato || '';
+            const prosjektnr = item.prosjektnr || '';
+
+            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || 'Uten navn';
+            const row2 = [dato, prosjektnr].filter(x => x).join(' • ');
+            const row3 = ordrenr ? `Ordre: ${ordrenr}` : '';
+
+            return `
+                <div class="saved-item" onclick="loadArchivedForm(${index})">
+                    <div class="saved-item-info">
+                        <div class="saved-item-row1">${row1}</div>
+                        ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
+                        ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
+                    </div>
+                    <div class="saved-item-buttons">
+                        <button class="saved-item-icon-btn restore" onclick="restoreForm(event, ${index})" title="Gjenopprett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+                        <button class="saved-item-icon-btn delete" onclick="deleteArchivedForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+// Action popup
+function showActionPopup(title, actions) {
+    const popup = document.getElementById('action-popup');
+    document.getElementById('action-popup-title').textContent = title;
+    const buttonsEl = document.getElementById('action-popup-buttons');
+    buttonsEl.innerHTML = '<div class="confirm-modal-buttons">' + actions.map(a =>
+        `<button class="confirm-btn-ok" style="background:#1abc9c" onclick="${a.onclick}; closeActionPopup()">${a.label}</button>`
+    ).join('') + '</div>' +
+    '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">Avbryt</button></div>';
+    popup.classList.add('active');
+}
+
+function closeActionPopup(e) {
+    if (e && e.target !== document.getElementById('action-popup')) return;
+    document.getElementById('action-popup').classList.remove('active');
+}
+
+function showSaveMenu() {
+    showActionPopup('Lagre skjema', [
+        { label: 'Lagre', onclick: 'saveForm()' },
+        { label: 'Lagre som mal', onclick: 'saveAsTemplate()' }
+    ]);
+}
+
+function showExportMenu() {
+    showActionPopup('Eksporter som', [
+        { label: 'PDF', onclick: 'exportPDF()' },
+        { label: 'JPG', onclick: 'exportJPG()' }
+    ]);
+}
+
+// Keep old names for compatibility
+function closeSaveMenu() { closeActionPopup(); }
+function closeExportMenu() { closeActionPopup(); }
 
 function filterSavedForms() {
     const searchTerm = document.getElementById('saved-search').value.toLowerCase();
@@ -822,7 +924,8 @@ let loadedArchivedForms = [];
 async function showArchivedForms() {
     const listEl = document.getElementById('archive-list');
     listEl.innerHTML = '<div class="no-saved">Laster...</div>';
-    document.getElementById('archive-modal').classList.add('active');
+    document.getElementById('saved-modal').classList.add('active');
+    switchHentTab('archived');
 
     const archived = await getArchivedForms();
     loadedArchivedForms = archived;
@@ -915,8 +1018,7 @@ function deleteArchivedForm(event, index) {
 }
 
 function closeArchiveModal() {
-    document.getElementById('archive-modal').classList.remove('active');
-    document.getElementById('archive-search').value = '';
+    closeModal();
 }
 
 // ============================================
