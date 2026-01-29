@@ -317,6 +317,17 @@ function updateDeleteButtonStates() {
     });
 }
 
+// Renumber visible lines sequentially (Linje 1, Linje 2, ...)
+function renumberLines() {
+    const visibleLines = document.querySelectorAll('#mobile-work-lines .mobile-work-line.visible');
+    visibleLines.forEach((line, index) => {
+        const span = line.querySelector('.mobile-work-line-header span');
+        if (span) {
+            span.textContent = 'Linje ' + (index + 1);
+        }
+    });
+}
+
 // Add another mobile work line (show next hidden line)
 function addMobileLine() {
     const lines = document.querySelectorAll('#mobile-work-lines .mobile-work-line');
@@ -334,6 +345,7 @@ function addMobileLine() {
     }
     // Update delete button states
     updateDeleteButtonStates();
+    renumberLines();
 }
 
 // Remove a mobile work line
@@ -352,6 +364,7 @@ function removeMobileLine(button) {
 
         // Update delete button states
         updateDeleteButtonStates();
+        renumberLines();
 
         // Sync to original form
         syncMobileToOriginal();
