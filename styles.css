@@ -32,9 +32,8 @@ body {
 }
 
 .toolbar button {
-    flex: 1 1 calc(25% - 6px);
-    max-width: calc(25% - 6px);
-    padding: 11px 14px;
+    flex: 1;
+    padding: 11px 8px;
     border: none;
     border-radius: 8px;
     font-size: 13px;
@@ -67,16 +66,6 @@ body {
     background: #157347;
 }
 
-/* Eksporter-knapp */
-.btn-export {
-    background: transparent !important;
-    border: 1.5px solid #495057 !important;
-    color: #495057 !important;
-}
-
-.btn-export:hover {
-    background: #e9ecef !important;
-}
 
 
 .btn-login {

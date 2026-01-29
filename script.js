@@ -861,16 +861,10 @@ function showSaveMenu() {
     ]);
 }
 
-function showExportMenu() {
-    showActionPopup('Eksporter som', [
-        { label: 'PDF', onclick: 'exportPDF()' },
-        { label: 'JPG', onclick: 'exportJPG()' }
-    ]);
-}
-
 // Keep old names for compatibility
 function closeSaveMenu() { closeActionPopup(); }
 function closeExportMenu() { closeActionPopup(); }
+function showExportMenu() { showShareMenu(); }
 
 function filterSavedForms() {
     const searchTerm = document.getElementById('saved-search').value.toLowerCase();
@@ -1262,85 +1256,81 @@ function newForm() {
     }
 }
 
+// Felles canvas-rendering for eksport/deling
+async function renderFormToCanvas() {
+    if (isMobile()) {
+        syncMobileToOriginal();
+    }
+
+    const element = document.getElementById('form-container');
+    const originalDisplay = element.style.display;
+    const originalPosition = element.style.position;
+    const originalLeft = element.style.left;
+    const originalWidth = element.style.width;
+
+    element.style.display = 'block';
+    element.style.width = '800px';
+    element.style.visibility = 'hidden';
+    element.style.position = 'fixed';
+    element.style.top = '0';
+    element.style.left = '0';
+
+    await new Promise(resolve => requestAnimationFrame(() => {
+        requestAnimationFrame(resolve);
+    }));
+
+    const convertedElements = convertTextareasToDiv();
+
+    await new Promise(resolve => requestAnimationFrame(() => {
+        requestAnimationFrame(resolve);
+    }));
+
+    element.style.visibility = 'visible';
+    element.style.position = 'absolute';
+    element.style.left = '-9999px';
+    element.style.top = '';
+
+    const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+    });
+
+    restoreTextareas(convertedElements);
+
+    element.style.display = originalDisplay;
+    element.style.position = originalPosition;
+    element.style.left = originalLeft;
+    element.style.width = originalWidth;
+    element.style.visibility = '';
+    element.style.top = '';
+
+    if (isMobile()) {
+        element.style.display = 'none';
+    }
+
+    return canvas;
+}
+
+function getExportFilename(ext) {
+    const prosjektnr = document.getElementById('prosjektnr').value || 'ukjent';
+    const dato = document.getElementById('dato').value.replace(/\./g, '-') || formatDate(new Date()).replace(/\./g, '-');
+    return `ordreseddel_${prosjektnr}_${dato}.${ext}`;
+}
+
 async function exportPDF() {
     if (!validateRequiredFields()) return;
-
     const loading = document.getElementById('loading');
     loading.classList.add('active');
-
     try {
-        // Sync mobile form to original if on mobile
-        if (isMobile()) {
-            syncMobileToOriginal();
-        }
-
-        const element = document.getElementById('form-container');
-
-        // Temporarily show form-container at full size for export
-        const originalDisplay = element.style.display;
-        const originalPosition = element.style.position;
-        const originalLeft = element.style.left;
-        const originalWidth = element.style.width;
-
-        // First show element with proper width to calculate sizes
-        element.style.display = 'block';
-        element.style.width = '800px';
-        element.style.visibility = 'hidden';
-        element.style.position = 'fixed';
-        element.style.top = '0';
-        element.style.left = '0';
-
-        // Wait for layout to be calculated
-        await new Promise(resolve => requestAnimationFrame(() => {
-            requestAnimationFrame(resolve);
-        }));
-
-        // Convert textareas to divs for proper text wrapping
-        const convertedElements = convertTextareasToDiv();
-
-        // Wait for conversion to take effect
-        await new Promise(resolve => requestAnimationFrame(() => {
-            requestAnimationFrame(resolve);
-        }));
-
-        // Now move off-screen for capture
-        element.style.visibility = 'visible';
-        element.style.position = 'absolute';
-        element.style.left = '-9999px';
-        element.style.top = '';
-
-        const canvas = await html2canvas(element, {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff'
-        });
-
-        // Restore textareas
-        restoreTextareas(convertedElements);
-
-        // Restore original styles
-        element.style.display = originalDisplay;
-        element.style.position = originalPosition;
-        element.style.left = originalLeft;
-        element.style.width = originalWidth;
-        element.style.visibility = '';
-        element.style.top = '';
-
-        // On mobile, hide it again
-        if (isMobile()) {
-            element.style.display = 'none';
-        }
-
+        const canvas = await renderFormToCanvas();
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'a4');
         const imgWidth = 210;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
-
-        const prosjektnr = document.getElementById('prosjektnr').value || 'ukjent';
-        const dato = document.getElementById('dato').value.replace(/\./g, '-') || formatDate(new Date()).replace(/\./g, '-');
-        pdf.save(`ordreseddel_${prosjektnr}_${dato}.pdf`);
+        pdf.save(getExportFilename('pdf'));
     } catch (error) {
         alert('Feil ved generering av PDF: ' + error.message);
     } finally {
@@ -1350,78 +1340,12 @@ async function exportPDF() {
 
 async function exportJPG() {
     if (!validateRequiredFields()) return;
-
     const loading = document.getElementById('loading');
     loading.classList.add('active');
-
     try {
-        // Sync mobile form to original if on mobile
-        if (isMobile()) {
-            syncMobileToOriginal();
-        }
-
-        const element = document.getElementById('form-container');
-
-        // Temporarily show form-container at full size for export
-        const originalDisplay = element.style.display;
-        const originalPosition = element.style.position;
-        const originalLeft = element.style.left;
-        const originalWidth = element.style.width;
-
-        // First show element with proper width to calculate sizes
-        element.style.display = 'block';
-        element.style.width = '800px';
-        element.style.visibility = 'hidden';
-        element.style.position = 'fixed';
-        element.style.top = '0';
-        element.style.left = '0';
-
-        // Wait for layout to be calculated
-        await new Promise(resolve => requestAnimationFrame(() => {
-            requestAnimationFrame(resolve);
-        }));
-
-        // Convert textareas to divs for proper text wrapping
-        const convertedElements = convertTextareasToDiv();
-
-        // Wait for conversion to take effect
-        await new Promise(resolve => requestAnimationFrame(() => {
-            requestAnimationFrame(resolve);
-        }));
-
-        // Now move off-screen for capture
-        element.style.visibility = 'visible';
-        element.style.position = 'absolute';
-        element.style.left = '-9999px';
-        element.style.top = '';
-
-        const canvas = await html2canvas(element, {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff'
-        });
-
-        // Restore textareas
-        restoreTextareas(convertedElements);
-
-        // Restore original styles
-        element.style.display = originalDisplay;
-        element.style.position = originalPosition;
-        element.style.left = originalLeft;
-        element.style.width = originalWidth;
-        element.style.visibility = '';
-        element.style.top = '';
-
-        // On mobile, hide it again
-        if (isMobile()) {
-            element.style.display = 'none';
-        }
-
+        const canvas = await renderFormToCanvas();
         const link = document.createElement('a');
-        const prosjektnr = document.getElementById('prosjektnr').value || 'ukjent';
-        const dato = document.getElementById('dato').value.replace(/\./g, '-') || formatDate(new Date()).replace(/\./g, '-');
-        link.download = `ordreseddel_${prosjektnr}_${dato}.jpg`;
+        link.download = getExportFilename('jpg');
         link.href = canvas.toDataURL('image/jpeg', 0.95);
         link.click();
     } catch (error) {
@@ -1429,6 +1353,66 @@ async function exportJPG() {
     } finally {
         loading.classList.remove('active');
     }
+}
+
+// Del via Web Share API med fallback til nedlasting
+async function shareOrDownload(format) {
+    if (!validateRequiredFields()) return;
+    const loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        const canvas = await renderFormToCanvas();
+        const filename = getExportFilename(format);
+
+        let file;
+        if (format === 'pdf') {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgWidth = 210;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
+            const blob = pdf.output('blob');
+            file = new File([blob], filename, { type: 'application/pdf' });
+        } else {
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+            file = new File([blob], filename, { type: 'image/jpeg' });
+        }
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                files: [file],
+                title: filename
+            });
+        } else {
+            // Fallback til vanlig nedlasting
+            if (format === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgWidth = 210;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
+                pdf.save(filename);
+            } else {
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+            }
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            alert('Feil ved deling: ' + error.message);
+        }
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+function showShareMenu() {
+    showActionPopup('Del som', [
+        { label: 'PDF', onclick: "shareOrDownload('pdf')" },
+        { label: 'JPG', onclick: "shareOrDownload('jpg')" }
+    ]);
 }
 
 document.getElementById('saved-modal').addEventListener('click', function(e) {
