@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <rect width="512" height="512" rx="80" fill="#E8501A"/>
-  <!-- F top-left -->
-  <text x="120" y="210" font-family="Arial, Helvetica, sans-serif" font-size="180" font-weight="bold" fill="white">F</text>
-  <!-- / diagonal center -->
-  <line x1="330" y1="100" x2="182" y2="412" stroke="white" stroke-width="18" stroke-linecap="round"/>
-  <!-- O bottom-right -->
-  <text x="285" y="405" font-family="Arial, Helvetica, sans-serif" font-size="180" font-weight="bold" fill="white">O</text>
+  <!-- F upper-left -->
+  <text x="113" y="245" font-family="Arial, Helvetica, sans-serif" font-size="154" font-weight="bold" fill="white">F</text>
+  <!-- / short diagonal -->
+  <line x1="292" y1="143" x2="220" y2="369" stroke="white" stroke-width="15" stroke-linecap="round"/>
+  <!-- O lower-right -->
+  <text x="399" y="420" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="154" font-weight="bold" fill="white">O</text>
 </svg>

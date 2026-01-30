@@ -41,30 +41,35 @@ function drawIcon(canvas) {
   ctx.fillRect(0, 0, size, size);
 
   ctx.fillStyle = '#FFFFFF';
+  const fontSize = Math.round(size * 0.34);
+  ctx.font = '900 ' + fontSize + 'px Arial, Helvetica, sans-serif';
 
-  // "F" top-left
-  const fSize = Math.round(size * 0.35);
-  ctx.font = 'bold ' + fSize + 'px Arial, Helvetica, sans-serif';
+  // "F" upper-left — top aligned with top of slash (0.18)
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText('F', size * 0.43, size * 0.18);
+
+  // "/" diagonal with horizontal flat ends (parallelogram shape)
+  const sw = size * 0.035; // stroke visual width
+  const topY = size * 0.20;
+  const botY = size * 0.77;
+  const topCx = size * 0.68;
+  const botCx = size * 0.32;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.moveTo(topCx - sw, topY);    // top-left
+  ctx.lineTo(topCx + sw, topY);    // top-right
+  ctx.lineTo(botCx + sw, botY);    // bottom-right
+  ctx.lineTo(botCx - sw, botY);    // bottom-left
+  ctx.closePath();
+  ctx.fill();
+
+  // "O" lower-right
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '900 ' + fontSize + 'px Arial, Helvetica, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('F', size * 0.14, size * 0.10);
-
-  // "/" diagonal line
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = Math.round(size * 0.035);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(size * 0.64, size * 0.18);
-  ctx.lineTo(size * 0.36, size * 0.82);
-  ctx.stroke();
-
-  // "O" bottom-right
-  const oSize = Math.round(size * 0.35);
-  ctx.font = 'bold ' + oSize + 'px Arial, Helvetica, sans-serif';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText('O', size * 0.86, size * 0.90);
+  ctx.fillText('O', size * 0.55, size * 0.50);
 }
 
 drawIcon(document.getElementById('c192'));
