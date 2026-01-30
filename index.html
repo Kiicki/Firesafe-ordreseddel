@@ -2,7 +2,7 @@
 <html lang="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=overlays-content">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
     <title>Firesafe Ordreseddel</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#E8501A">
@@ -20,14 +20,6 @@
     <div class="container">
         <div class="top-bar">
             <button class="btn-login" id="btn-login" onclick="handleAuth()" data-i18n="login">Logg inn</button>
-        </div>
-
-        <div class="toolbar">
-            <button class="btn-new" onclick="newForm()" data-i18n="toolbar_new">Ny</button>
-            <button class="btn-save" onclick="showSaveMenu()" data-i18n="toolbar_save">Lagre</button>
-            <button class="btn-load" onclick="showSavedForms()" data-i18n="toolbar_load">Hent</button>
-            <button class="btn-export" onclick="showExportMenu()" data-i18n="toolbar_export">Eksport</button>
-            <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
         </div>
 
         <div id="sent-banner" class="sent-banner" style="display:none;">
@@ -234,6 +226,14 @@
                 <div class="footer-bottom-right">Kopi: Kunden</div>
             </div>
             <div class="footer-staples"><span class="staples-nr">42789</span> Staples - Tlf.: 02272</div>
+        </div>
+
+        <div class="toolbar">
+            <button class="btn-new" onclick="newForm()" data-i18n="toolbar_new">Ny</button>
+            <button class="btn-save" onclick="showSaveMenu()" data-i18n="toolbar_save">Lagre</button>
+            <button class="btn-load" onclick="showSavedForms()" data-i18n="toolbar_load">Hent</button>
+            <button class="btn-export" onclick="showExportMenu()" data-i18n="toolbar_export">Eksport</button>
+            <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
         </div>
 
     </div>
