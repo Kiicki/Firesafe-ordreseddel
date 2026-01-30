@@ -1870,3 +1870,20 @@ window.addEventListener('load', function() {
     // Apply saved language
     applyTranslations();
 });
+
+// Keyboard-aware toolbar: sticky when no keyboard, static when keyboard open
+(function() {
+    if (!window.visualViewport) return;
+    var toolbar = document.querySelector('.toolbar');
+    if (!toolbar) return;
+    function onViewportChange() {
+        var offset = window.innerHeight - visualViewport.height - visualViewport.offsetTop;
+        if (offset > 50) {
+            toolbar.classList.add('keyboard-open');
+        } else {
+            toolbar.classList.remove('keyboard-open');
+        }
+    }
+    visualViewport.addEventListener('resize', onViewportChange);
+    visualViewport.addEventListener('scroll', onViewportChange);
+})();
