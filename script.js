@@ -1870,20 +1870,14 @@ window.addEventListener('load', function() {
     // Apply saved language
     applyTranslations();
 
-    // Hide toolbar when mobile keyboard is open
-    let keyboardFocused = false;
-    document.addEventListener('focusin', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            keyboardFocused = true;
-            document.body.classList.add('keyboard-open');
+    // Keep toolbar above keyboard on mobile
+    if (window.visualViewport) {
+        const toolbar = document.querySelector('.toolbar');
+        function repositionToolbar() {
+            const offset = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+            toolbar.style.bottom = Math.max(0, offset) + 'px';
         }
-    });
-    document.addEventListener('focusout', () => {
-        keyboardFocused = false;
-        setTimeout(() => {
-            if (!keyboardFocused) {
-                document.body.classList.remove('keyboard-open');
-            }
-        }, 300);
-    });
+        window.visualViewport.addEventListener('resize', repositionToolbar);
+        window.visualViewport.addEventListener('scroll', repositionToolbar);
+    }
 });

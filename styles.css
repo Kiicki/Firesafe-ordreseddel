@@ -1505,11 +1505,6 @@ body {
     text-align: center;
 }
 
-/* Hide toolbar when keyboard is open */
-body.keyboard-open .toolbar {
-    display: none;
-}
-
 /* Mobile responsive */
 @media screen and (max-width: 600px) {
     body {
