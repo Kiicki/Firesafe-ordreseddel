@@ -1507,7 +1507,7 @@ body {
 
 /* Hide toolbar when keyboard is open */
 body.keyboard-open .toolbar {
-    display: none !important;
+    display: none;
 }
 
 /* Mobile responsive */
