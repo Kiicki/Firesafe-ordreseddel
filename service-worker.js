@@ -1,0 +1,48 @@
+const CACHE_NAME = 'firesafe-v1';
+const ASSETS = [
+    '/Firesafe-ordreseddel/',
+    '/Firesafe-ordreseddel/index.html',
+    '/Firesafe-ordreseddel/styles.css',
+    '/Firesafe-ordreseddel/script.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+];
+
+self.addEventListener('install', event => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    );
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+    event.waitUntil(
+        caches.keys().then(keys =>
+            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+        )
+    );
+    self.clients.claim();
+});
+
+self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+
+    // Let Firebase requests go to network always
+    if (url.hostname.includes('googleapis.com') || url.hostname.includes('gstatic.com') || url.hostname.includes('firebaseapp.com')) {
+        return;
+    }
+
+    event.respondWith(
+        caches.match(event.request).then(cached => {
+            const fetchPromise = fetch(event.request).then(response => {
+                if (response.ok) {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                }
+                return response;
+            }).catch(() => cached);
+
+            return cached || fetchPromise;
+        })
+    );
+});

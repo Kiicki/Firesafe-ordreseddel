@@ -8,7 +8,11 @@
       "Bash(git branch:*)",
       "Bash(git reset:*)",
       "Bash(git restore:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(dpkg:*)",
+      "Bash(apt list:*)"
     ]
   }
 }

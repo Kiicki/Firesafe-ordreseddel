@@ -76,7 +76,7 @@ body {
     padding: 8px 12px;
     padding-bottom: max(8px, env(safe-area-inset-bottom));
     background: #f8f9fa;
-    border-top: 2px solid #1abc9c;
+    border-top: 2px solid #E8501A;
     max-width: 600px;
     position: fixed;
     bottom: 0;
@@ -114,16 +114,16 @@ body {
 .btn-new,
 .btn-save,
 .btn-load {
-    background: #1abc9c;
+    background: #2c3e50;
     color: #fff;
-    border-color: #1abc9c;
+    border-color: #2c3e50;
 }
 
 .btn-new:hover,
 .btn-save:hover,
 .btn-load:hover {
-    background: #16a085;
-    border-color: #16a085;
+    background: #1a252f;
+    border-color: #1a252f;
 }
 
 .btn-settings {
@@ -141,7 +141,7 @@ body {
 }
 
 .btn-login {
-    background: #4285f4;
+    background: #E8501A;
     width: 100%;
     padding: 11px 8px;
     border: none;
@@ -153,11 +153,11 @@ body {
 }
 
 .btn-login:hover {
-    background: #3367d6;
+    background: #C94615;
 }
 
 .btn-login.logged-in {
-    background: #1abc9c;
+    background: #E8501A;
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -609,7 +609,7 @@ body {
 }
 
 .modal-search input:focus {
-    border-color: #1abc9c;
+    border-color: #E8501A;
 }
 
 .modal-footer-skip {
@@ -655,7 +655,7 @@ body {
 
 .saved-item:hover {
     background: #f8f9fa;
-    border-color: #1abc9c;
+    border-color: #E8501A;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
@@ -676,7 +676,7 @@ body {
 }
 
 .saved-item-row3 {
-    color: #1abc9c;
+    color: #E8501A;
     font-size: 13px;
     font-weight: 600;
 }
@@ -707,8 +707,8 @@ body {
 .saved-item-sent {
     padding: 8px 12px;
     background: transparent;
-    color: #1abc9c;
-    border: 1px solid #1abc9c;
+    color: #555;
+    border: 1px solid #555;
     border-radius: 6px;
     font-size: 12px;
     font-weight: 500;
@@ -717,15 +717,15 @@ body {
 }
 
 .saved-item-sent:hover {
-    background: #1abc9c;
+    background: #555;
     color: white;
 }
 
 .saved-item-restore {
     padding: 8px 12px;
     background: transparent;
-    color: #3498db;
-    border: 1px solid #3498db;
+    color: #333;
+    border: 1px solid #333;
     border-radius: 6px;
     font-size: 12px;
     font-weight: 500;
@@ -734,7 +734,7 @@ body {
 }
 
 .saved-item-restore:hover {
-    background: #3498db;
+    background: #333;
     color: white;
 }
 
@@ -752,22 +752,32 @@ body {
 }
 
 .saved-item-icon-btn.sent {
-    color: #1abc9c;
-    border-color: #1abc9c;
+    color: #555;
+    border-color: #555;
 }
 
 .saved-item-icon-btn.sent:hover {
-    background: #1abc9c;
+    background: #555;
     color: white;
 }
 
 .saved-item-icon-btn.restore {
-    color: #3498db;
-    border-color: #3498db;
+    color: #333;
+    border-color: #333;
 }
 
 .saved-item-icon-btn.restore:hover {
-    background: #3498db;
+    background: #333;
+    color: white;
+}
+
+.saved-item-icon-btn.duplicate {
+    color: #2c3e50;
+    border-color: #2c3e50;
+}
+
+.saved-item-icon-btn.duplicate:hover {
+    background: #2c3e50;
     color: white;
 }
 
@@ -832,7 +842,7 @@ body {
     margin-bottom: 10px;
     padding-top: 2px;
     padding-bottom: 3px;
-    border-bottom: 2px solid #e74c3c;
+    border-bottom: 2px solid #E8501A;
 }
 
 .mobile-form-header h1 {
@@ -914,8 +924,8 @@ body {
 .mobile-field input:focus,
 .mobile-field textarea:focus {
     outline: none;
-    border-color: #e74c3c;
-    box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+    border-color: #E8501A;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2);
 }
 
 .mobile-work-row {
@@ -931,8 +941,8 @@ body {
     width: 100%;
     padding: 10px;
     background: transparent;
-    color: #1abc9c;
-    border: 1px dashed #1abc9c;
+    color: #555;
+    border: 1px dashed #555;
     border-radius: 6px;
     font-size: 14px;
     font-weight: 600;
@@ -941,13 +951,13 @@ body {
 }
 
 .mobile-add-line-btn:active {
-    background: rgba(26, 188, 156, 0.1);
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .mobile-save-bottom-btn {
     width: 100%;
     padding: 12px;
-    background: #1abc9c;
+    background: #2c3e50;
     color: white;
     border: none;
     border-radius: 6px;
@@ -1101,8 +1111,8 @@ body {
 .mobile-add-mat-btn {
     padding: 8px 12px;
     background: transparent;
-    color: #1abc9c;
-    border: 1px dashed #1abc9c;
+    color: #555;
+    border: 1px dashed #555;
     border-radius: 6px;
     font-size: 13px;
     font-weight: 500;
@@ -1112,7 +1122,7 @@ body {
 }
 
 .mobile-add-mat-btn:active {
-    background: #f0faf8;
+    background: #f0f0f0;
 }
 
 
@@ -1216,12 +1226,12 @@ body {
     pointer-events: auto;
 }
 
-/* Success mode: green circle with checkmark, top-right */
+/* Success mode: circle with checkmark, top-right */
 .toast.success {
     left: auto;
     right: 16px;
     transform: translateY(-100px);
-    background: #1abc9c;
+    background: #2c3e50;
     color: white;
     padding: 0;
     border-radius: 50%;
@@ -1230,7 +1240,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: 0 2px 8px rgba(26,188,156,0.4);
+    box-shadow: 0 2px 8px rgba(44,62,80,0.4);
 }
 
 .toast.success .toast-check {
@@ -1283,7 +1293,7 @@ body {
 }
 
 .text-editor-done {
-    background: #1abc9c;
+    background: #E8501A;
     color: white;
     border: none;
     padding: 6px 16px;
@@ -1294,7 +1304,7 @@ body {
 }
 
 .text-editor-done:active {
-    background: #16a085;
+    background: #C94615;
 }
 
 .text-editor-textarea {
@@ -1330,7 +1340,7 @@ body {
 
 .settings-menu-item:hover {
     background: #eee;
-    border-color: #1abc9c;
+    border-color: #E8501A;
 }
 
 .settings-menu-arrow {
@@ -1345,7 +1355,7 @@ body {
     font-size: 20px;
     cursor: pointer;
     padding: 0 8px 0 0;
-    color: #1abc9c;
+    color: #E8501A;
     display: flex;
     align-items: center;
 }
@@ -1401,7 +1411,7 @@ body {
 }
 
 .settings-add-btn {
-    background: #1abc9c;
+    background: #E8501A;
     color: white;
     border: none;
     border-radius: 6px;
@@ -1426,7 +1436,7 @@ body {
 .settings-save-btn {
     width: 100%;
     padding: 12px;
-    background: #1abc9c;
+    background: #E8501A;
     color: white;
     border: none;
     border-radius: 6px;
@@ -1460,7 +1470,7 @@ body {
 
 .settings-default-label input:focus {
     outline: none;
-    border-color: #1abc9c;
+    border-color: #E8501A;
 }
 
 /* Mobile responsive */

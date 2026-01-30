@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Generate Firesafe Icons</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 40px; background: #f5f5f5; }
+  h1 { color: #333; }
+  .preview { display: flex; gap: 30px; margin: 20px 0; align-items: flex-end; }
+  .preview div { text-align: center; }
+  canvas { border: 1px solid #ccc; background: #fff; }
+  button { padding: 12px 24px; font-size: 16px; background: #E8501A; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin: 20px 10px 20px 0; }
+  button:hover { background: #c94415; }
+  .done { color: green; font-weight: bold; display: none; margin-top: 10px; }
+</style>
+</head>
+<body>
+<h1>Firesafe PWA Icon Generator</h1>
+<p>Click the button below to download both icons.</p>
+
+<div class="preview">
+  <div>
+    <canvas id="c192" width="192" height="192"></canvas>
+    <p>icon-192.png (192x192)</p>
+  </div>
+  <div>
+    <canvas id="c512" width="512" height="512"></canvas>
+    <p>icon-512.png (512x512)</p>
+  </div>
+</div>
+
+<button onclick="downloadAll()">Download Both Icons</button>
+<p class="done" id="done">Icons downloaded!</p>
+
+<script>
+function drawIcon(canvas) {
+  const size = canvas.width;
+  const ctx = canvas.getContext('2d');
+  const pad = Math.round(size * 0.08);
+  const r = Math.round(size * 0.1);
+
+  // White background
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, size, size);
+
+  // Orange rounded rectangle
+  const x = pad, y = pad, w = size - pad * 2, h = size - pad * 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fillStyle = '#E8501A';
+  ctx.fill();
+
+  // "FS" text
+  const fontSize = Math.round(size * 0.38);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold ' + fontSize + 'px Arial, Helvetica, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('FS', size / 2, size / 2 + size * 0.02);
+}
+
+drawIcon(document.getElementById('c192'));
+drawIcon(document.getElementById('c512'));
+
+function download(canvas, filename) {
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+function downloadAll() {
+  download(document.getElementById('c192'), 'icon-192.png');
+  setTimeout(() => {
+    download(document.getElementById('c512'), 'icon-512.png');
+    document.getElementById('done').style.display = 'block';
+  }, 500);
+}
+</script>
+</body>
+</html>

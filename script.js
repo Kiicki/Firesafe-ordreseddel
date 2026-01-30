@@ -35,6 +35,8 @@ if (auth) {
     auth.onAuthStateChanged((user) => {
         currentUser = user;
         updateLoginButton();
+        loadedForms = [];
+        loadedSentForms = [];
     });
 }
 
@@ -218,9 +220,6 @@ function autoResizeTextarea(textarea) {
     textarea.style.height = Math.max(textarea.scrollHeight, minHeight) + 'px';
 }
 
-// No longer needed - desktop form is dynamically generated
-function initAutoResize() {}
-function resizeAllTextareas() {}
 
 // Convert textareas to divs for export (divs wrap text properly)
 function convertTextareasToDiv() {
@@ -686,73 +685,85 @@ function validateRequiredFields() {
 async function saveForm() {
     if (!validateRequiredFields()) return;
 
-    const data = getFormData();
+    const saveBtn = document.querySelector('.btn-save');
+    if (saveBtn.disabled) return;
+    saveBtn.disabled = true;
 
-    if (currentUser && db) {
-        // Lagre til Firestore
-        try {
-            const formsRef = db.collection('users').doc(currentUser.uid).collection('forms');
-            const existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
+    try {
+        const data = getFormData();
 
-            // Sjekk også sendte for duplikater
-            const archiveRef = db.collection('users').doc(currentUser.uid).collection('archive');
-            const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
-            if (!existingArchive.empty) {
+        if (currentUser && db) {
+            // Lagre til Firestore
+            try {
+                const formsRef = db.collection('users').doc(currentUser.uid).collection('forms');
+                const existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
+
+                // Sjekk også sendte for duplikater
+                const archiveRef = db.collection('users').doc(currentUser.uid).collection('archive');
+                const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
+                if (!existingArchive.empty) {
+                    showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i sendte.');
+                    return;
+                }
+
+                if (!existing.empty) {
+                    showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', async function() {
+                        await formsRef.doc(existing.docs[0].id).set(data);
+                        loadedForms = [];
+                        lastSavedData = getFormDataSnapshot();
+                        showNotificationModal('Skjema oppdatert!', true);
+                    }, 'Oppdater', '#E8501A');
+                } else {
+                    showConfirmModal('Er du sikker på at du vil lagre skjemaet?', async function() {
+                        data.id = Date.now().toString();
+                        await formsRef.doc(data.id).set(data);
+                        loadedForms = [];
+                        lastSavedData = getFormDataSnapshot();
+                        showNotificationModal('Skjema lagret!', true);
+                    }, 'Lagre', '#E8501A');
+                }
+            } catch (e) {
+                console.error('Firestore save error:', e);
+                showNotificationModal('Feil ved lagring: ' + e.message);
+            }
+        } else {
+            // Fallback til localStorage
+            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+
+            // Sjekk sendte for duplikater
+            if (archived.some(item => item.ordreseddelNr === data.ordreseddelNr)) {
                 showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i sendte.');
                 return;
             }
 
-            if (!existing.empty) {
-                showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', async function() {
-                    await formsRef.doc(existing.docs[0].id).set(data);
+            const existingIndex = saved.findIndex(item =>
+                item.ordreseddelNr === data.ordreseddelNr
+            );
+
+            if (existingIndex !== -1) {
+                showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', function() {
+                    data.id = saved[existingIndex].id;
+                    saved[existingIndex] = data;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                    loadedForms = [];
                     lastSavedData = getFormDataSnapshot();
                     showNotificationModal('Skjema oppdatert!', true);
-                }, 'Oppdater', '#1abc9c');
+                }, 'Oppdater', '#E8501A');
             } else {
-                showConfirmModal('Er du sikker på at du vil lagre skjemaet?', async function() {
+                showConfirmModal('Er du sikker på at du vil lagre skjemaet?', function() {
                     data.id = Date.now().toString();
-                    await formsRef.doc(data.id).set(data);
+                    saved.unshift(data);
+                    if (saved.length > 50) saved.pop();
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                    loadedForms = [];
                     lastSavedData = getFormDataSnapshot();
                     showNotificationModal('Skjema lagret!', true);
-                }, 'Lagre', '#1abc9c');
+                }, 'Lagre', '#E8501A');
             }
-        } catch (e) {
-            console.error('Firestore save error:', e);
-            showNotificationModal('Feil ved lagring: ' + e.message);
         }
-    } else {
-        // Fallback til localStorage
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-
-        // Sjekk sendte for duplikater
-        if (archived.some(item => item.ordreseddelNr === data.ordreseddelNr)) {
-            showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i sendte.');
-            return;
-        }
-
-        const existingIndex = saved.findIndex(item =>
-            item.ordreseddelNr === data.ordreseddelNr
-        );
-
-        if (existingIndex !== -1) {
-            showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', function() {
-                data.id = saved[existingIndex].id;
-                saved[existingIndex] = data;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-                lastSavedData = getFormDataSnapshot();
-                showNotificationModal('Skjema oppdatert!', true);
-            }, 'Oppdater', '#1abc9c');
-        } else {
-            showConfirmModal('Er du sikker på at du vil lagre skjemaet?', function() {
-                data.id = Date.now().toString();
-                saved.unshift(data);
-                if (saved.length > 50) saved.pop();
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-                lastSavedData = getFormDataSnapshot();
-                showNotificationModal('Skjema lagret!', true);
-            }, 'Lagre', '#1abc9c');
-        }
+    } finally {
+        saveBtn.disabled = false;
     }
 }
 
@@ -763,6 +774,12 @@ async function showSavedForms() {
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">Laster...</div>';
     document.getElementById('saved-modal').classList.add('active');
+
+    // Åpne sendte-fanen hvis vi ser på et sendt skjema
+    const isSent = document.getElementById('sent-banner').style.display !== 'none';
+    if (isSent) {
+        switchHentTab('archived');
+    }
 
     const saved = await getSavedForms();
     loadedForms = saved; // Cache for loadForm/deleteForm
@@ -789,6 +806,7 @@ async function showSavedForms() {
                         ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
+                        <button class="saved-item-icon-btn duplicate" onclick="duplicateForm(event, ${index})" title="Dupliser"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
                         <button class="saved-item-icon-btn delete" onclick="deleteForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
                     </div>
                 </div>
@@ -801,7 +819,6 @@ function setFormReadOnly(readOnly) {
     const fields = document.querySelectorAll('#mobile-form input, #mobile-form textarea, #mobile-form select, #form-container input, #form-container textarea, #form-container select');
     fields.forEach(el => el.disabled = readOnly);
     document.querySelector('.btn-save').disabled = readOnly;
-    document.querySelector('.btn-export').disabled = readOnly;
     document.getElementById('sent-banner').style.display = readOnly ? 'block' : 'none';
 }
 
@@ -812,6 +829,22 @@ function loadForm(index) {
         setFormReadOnly(false);
         closeModal();
     }
+}
+
+async function duplicateForm(event, index) {
+    event.stopPropagation();
+    const form = loadedForms[index];
+    if (!form) return;
+
+    setFormData(form);
+    // Tøm ordrenummer og sett nytt
+    document.getElementById('ordreseddel-nr').value = '';
+    document.getElementById('mobile-ordreseddel-nr').value = '';
+    await autoFillOrderNumber();
+    lastSavedData = null;
+    setFormReadOnly(false);
+    closeModal();
+    showNotificationModal('Skjema duplisert — husk å lagre!', true);
 }
 
 function deleteForm(event, index) {
@@ -913,7 +946,7 @@ function showActionPopup(title, actions) {
     document.getElementById('action-popup-title').textContent = title;
     const buttonsEl = document.getElementById('action-popup-buttons');
     buttonsEl.innerHTML = '<div class="confirm-modal-buttons">' + actions.map(a =>
-        `<button class="confirm-btn-ok" style="background:#1abc9c" onclick="${a.onclick}; closeActionPopup()">${a.label}</button>`
+        `<button class="confirm-btn-ok" style="background:#2c3e50" onclick="${a.onclick}; closeActionPopup()">${a.label}</button>`
     ).join('') + '</div>' +
     '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">Avbryt</button></div>';
     popup.classList.add('active');
@@ -935,21 +968,27 @@ function showSaveMenu() {
 function closeSaveMenu() { closeActionPopup(); }
 function closeExportMenu() { closeActionPopup(); }
 function showExportMenu() {
+    const isSent = document.getElementById('sent-banner').style.display !== 'none';
     const popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = 'Eksporter som';
     const buttonsEl = document.getElementById('action-popup-buttons');
-    buttonsEl.innerHTML =
-        '<div style="font-size:12px;color:#888;margin-bottom:4px;">Kun eksporter</div>' +
-        '<div class="confirm-modal-buttons">' +
-            '<button class="confirm-btn-ok" style="background:#1abc9c" onclick="doExportPDF(); closeActionPopup()">PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#1abc9c" onclick="doExportJPG(); closeActionPopup()">JPG</button>' +
-        '</div>' +
-        '<div style="font-size:12px;color:#888;margin:10px 0 4px;">Eksporter + marker som sendt</div>' +
-        '<div class="confirm-modal-buttons">' +
-            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="markAsSentAndExport(\'pdf\'); closeActionPopup()">PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="markAsSentAndExport(\'jpg\'); closeActionPopup()">JPG</button>' +
-        '</div>' +
-        '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">Avbryt</button></div>';
+    let html = '';
+    if (!isSent) {
+        html += '<div style="font-size:12px;color:#888;margin-bottom:4px;">Kun eksporter</div>';
+    }
+    html += '<div class="confirm-modal-buttons">' +
+            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPDF(); closeActionPopup()">PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportJPG(); closeActionPopup()">JPG</button>' +
+        '</div>';
+    if (!isSent) {
+        html += '<div style="font-size:12px;color:#888;margin:10px 0 4px;">Eksporter + marker som sendt</div>' +
+            '<div class="confirm-modal-buttons">' +
+                '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'pdf\'); closeActionPopup()">PDF</button>' +
+                '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'jpg\'); closeActionPopup()">JPG</button>' +
+            '</div>';
+    }
+    html += '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">Avbryt</button></div>';
+    buttonsEl.innerHTML = html;
     popup.classList.add('active');
 }
 
@@ -1033,46 +1072,6 @@ async function moveCurrentToSaved() {
 // Cache for sent forms
 let loadedSentForms = [];
 
-async function showSentForms() {
-    const listEl = document.getElementById('sent-list');
-    listEl.innerHTML = '<div class="no-saved">Laster...</div>';
-    document.getElementById('saved-modal').classList.add('active');
-    switchHentTab('archived');
-
-    const archived = await getSentForms();
-    loadedSentForms = archived;
-
-    if (archived.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">Ingen sendte skjemaer</div>';
-    } else {
-        listEl.innerHTML = archived.map((item, index) => {
-            const prosjektnavn = item.prosjektnavn || '';
-            const ordrenr = item.ordreseddelNr || '';
-            const oppdragsgiver = item.oppdragsgiver || '';
-            const dato = item.dato || '';
-            const prosjektnr = item.prosjektnr || '';
-
-            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || 'Uten navn';
-            const row2 = [dato, prosjektnr].filter(x => x).join(' • ');
-            const row3 = ordrenr ? `Ordre: ${ordrenr}` : '';
-
-            return `
-                <div class="saved-item" onclick="loadSentForm(${index})">
-                    <div class="saved-item-info">
-                        <div class="saved-item-row1">${row1}</div>
-                        ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
-                        ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
-                    </div>
-                    <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn restore" onclick="moveToSaved(event, ${index})" title="Flytt til lagrede"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-                        <button class="saved-item-icon-btn delete" onclick="deleteSentForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-}
-
 function loadSentForm(index) {
     if (loadedSentForms[index]) {
         setFormData(loadedSentForms[index]);
@@ -1104,9 +1103,16 @@ function moveToSaved(event, index) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
         }
 
-        showSentForms();
+        // Hvis det åpne skjemaet er det som ble flyttet, fjern sendt-modus
+        const currentOrdrenr = document.getElementById('mobile-ordreseddel-nr').value;
+        if (currentOrdrenr && form.ordreseddelNr === currentOrdrenr) {
+            setFormReadOnly(false);
+        }
+
+        await showSavedForms();
+        switchHentTab('saved');
         showNotificationModal('Skjema flyttet til lagrede!', true);
-    }, 'Flytt', '#3498db');
+    }, 'Flytt', '#333');
 }
 
 function deleteSentForm(event, index) {
@@ -1126,7 +1132,7 @@ function deleteSentForm(event, index) {
             archived.splice(index, 1);
             localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
         }
-        showSentForms();
+        loadSentTab();
     });
 }
 
@@ -1184,7 +1190,7 @@ async function saveAsTemplate() {
                 showConfirmModal('En mal med prosjektnavn «' + templateData.prosjektnavn + '» finnes allerede. Vil du oppdatere den?', async function() {
                     await templatesRef.doc(existing.docs[0].id).set(templateData);
                     showNotificationModal('Mal oppdatert!', true);
-                }, 'Oppdater', '#1abc9c');
+                }, 'Oppdater', '#E8501A');
             } else {
                 const docId = Date.now().toString();
                 await templatesRef.doc(docId).set(templateData);
@@ -1205,7 +1211,7 @@ async function saveAsTemplate() {
                 templates[existingIndex] = templateData;
                 localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
                 showNotificationModal('Mal oppdatert!', true);
-            }, 'Oppdater', '#1abc9c');
+            }, 'Oppdater', '#E8501A');
         } else {
             templateData.id = Date.now().toString();
             templates.push(templateData);
@@ -1513,6 +1519,11 @@ async function addSettingsRange() {
         showNotificationModal('"Fra" må være mindre enn eller lik "Til".');
         return;
     }
+    const overlaps = settingsRanges.some(r => start <= r.end && end >= r.start);
+    if (overlaps) {
+        showNotificationModal('Området overlapper med et eksisterende nummerområde.');
+        return;
+    }
     settingsRanges.push({ start, end });
     startInput.value = '';
     endInput.value = '';
@@ -1639,7 +1650,7 @@ function newForm() {
         : hasAnyFormData();
 
     if (hasUnsavedChanges) {
-        showConfirmModal('Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.', doNewForm, 'Start ny', '#1abc9c');
+        showConfirmModal('Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.', doNewForm, 'Start ny', '#E8501A');
     } else {
         doNewForm();
     }
@@ -1748,10 +1759,11 @@ async function markAsSentAndExport(type) {
     if (!validateRequiredFields()) return;
     await markAsSent();
     if (type === 'pdf') {
-        doExportPDF();
+        await doExportPDF();
     } else {
-        doExportJPG();
+        await doExportJPG();
     }
+    setFormReadOnly(true);
 }
 
 
@@ -1780,7 +1792,7 @@ window.addEventListener('load', function() {
     if (current) {
         try {
             const data = JSON.parse(current);
-            if (data.oppdragsgiver || data.prosjektnavn || data.prosjektnr) {
+            if (data.oppdragsgiver || data.prosjektnavn || data.prosjektnr || (data.orders && data.orders.length > 0)) {
                 setFormData(data);
             }
         } catch (e) {}
