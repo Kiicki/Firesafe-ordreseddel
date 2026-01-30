@@ -318,7 +318,7 @@ body {
     padding: 6px 8px 6px 25px;
     font-size: 14px;
     font-family: inherit;
-    -webkit-appearance: none;
+    appearance: none;
     background: transparent;
 }
 
@@ -356,9 +356,6 @@ body {
     width: 100px;
     padding: 10px 10px;
     text-align: center;
-}
-
-.work-lines {
 }
 
 .work-line {
@@ -918,7 +915,7 @@ body {
     border: 1px solid #ccc;
     border-radius: 6px;
     background: #fff;
-    -webkit-appearance: none;
+    appearance: none;
 }
 
 .mobile-field input:focus,

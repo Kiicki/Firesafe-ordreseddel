@@ -1870,14 +1870,16 @@ window.addEventListener('load', function() {
     // Apply saved language
     applyTranslations();
 
-    // Keep toolbar above keyboard on mobile
+    // Hide toolbar when mobile keyboard is open
     if (window.visualViewport) {
         const toolbar = document.querySelector('.toolbar');
-        function repositionToolbar() {
-            const offset = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
-            toolbar.style.bottom = Math.max(0, offset) + 'px';
-        }
-        window.visualViewport.addEventListener('resize', repositionToolbar);
-        window.visualViewport.addEventListener('scroll', repositionToolbar);
+        window.visualViewport.addEventListener('resize', function() {
+            const heightDiff = window.screen.height - window.visualViewport.height;
+            if (heightDiff > 200) {
+                toolbar.style.display = 'none';
+            } else {
+                toolbar.style.display = '';
+            }
+        });
     }
 });
