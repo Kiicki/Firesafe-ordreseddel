@@ -1881,10 +1881,8 @@ window.addEventListener('load', function() {
         var offset = window.innerHeight - visualViewport.height - visualViewport.offsetTop;
         if (offset > 50) {
             toolbar.classList.add('keyboard-open');
-            container.style.paddingBottom = offset + 'px';
         } else {
             toolbar.classList.remove('keyboard-open');
-            container.style.paddingBottom = '';
         }
     }
     visualViewport.addEventListener('resize', onViewportChange);
