@@ -1869,17 +1869,4 @@ window.addEventListener('load', function() {
 
     // Apply saved language
     applyTranslations();
-
-    // Hide toolbar when mobile keyboard is open
-    if (window.visualViewport) {
-        const toolbar = document.querySelector('.toolbar');
-        window.visualViewport.addEventListener('resize', function() {
-            const heightDiff = window.screen.height - window.visualViewport.height;
-            if (heightDiff > 200) {
-                toolbar.style.display = 'none';
-            } else {
-                toolbar.style.display = '';
-            }
-        });
-    }
 });
