@@ -2,6 +2,7 @@ const STORAGE_KEY = 'firesafe_ordresedler';
 const ARCHIVE_KEY = 'firesafe_arkiv';
 const TEMPLATE_KEY = 'firesafe_maler';
 const SETTINGS_KEY = 'firesafe_settings';
+const DEFAULTS_KEY = 'firesafe_defaults';
 
 // ============================================
 // FIREBASE KONFIGURASJON
@@ -101,8 +102,8 @@ async function setSavedForms(forms) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(forms));
 }
 
-// Helper: Get archived forms
-async function getArchivedForms() {
+// Helper: Get sent forms
+async function getSentForms() {
     if (currentUser && db) {
         try {
             const snapshot = await db.collection('users').doc(currentUser.uid).collection('archive').orderBy('savedAt', 'desc').get();
@@ -693,11 +694,11 @@ async function saveForm() {
             const formsRef = db.collection('users').doc(currentUser.uid).collection('forms');
             const existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
 
-            // Sjekk også arkivet for duplikater
+            // Sjekk også sendte for duplikater
             const archiveRef = db.collection('users').doc(currentUser.uid).collection('archive');
             const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
             if (!existingArchive.empty) {
-                showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i arkivet.');
+                showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i sendte.');
                 return;
             }
 
@@ -724,9 +725,9 @@ async function saveForm() {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
         const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
 
-        // Sjekk arkivet for duplikater
+        // Sjekk sendte for duplikater
         if (archived.some(item => item.ordreseddelNr === data.ordreseddelNr)) {
-            showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i arkivet.');
+            showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i sendte.');
             return;
         }
 
@@ -788,7 +789,6 @@ async function showSavedForms() {
                         ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn archive" onclick="archiveForm(event, ${index})" title="Arkiver"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg></button>
                         <button class="saved-item-icon-btn delete" onclick="deleteForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
                     </div>
                 </div>
@@ -797,10 +797,19 @@ async function showSavedForms() {
     }
 }
 
+function setFormReadOnly(readOnly) {
+    const fields = document.querySelectorAll('#mobile-form input, #mobile-form textarea, #mobile-form select, #form-container input, #form-container textarea, #form-container select');
+    fields.forEach(el => el.disabled = readOnly);
+    document.querySelector('.btn-save').disabled = readOnly;
+    document.querySelector('.btn-export').disabled = readOnly;
+    document.getElementById('sent-banner').style.display = readOnly ? 'block' : 'none';
+}
+
 function loadForm(index) {
     if (loadedForms[index]) {
         setFormData(loadedForms[index]);
         lastSavedData = getFormDataSnapshot();
+        setFormReadOnly(false);
         closeModal();
     }
 }
@@ -829,7 +838,7 @@ function deleteForm(event, index) {
 function closeModal() {
     document.getElementById('saved-modal').classList.remove('active');
     document.getElementById('saved-search').value = '';
-    document.getElementById('archive-search').value = '';
+    document.getElementById('sent-search').value = '';
     // Reset to saved tab
     switchHentTab('saved');
 }
@@ -839,36 +848,36 @@ function switchHentTab(tab) {
     tabs.forEach(t => t.classList.remove('active'));
 
     const savedList = document.getElementById('saved-list');
-    const archiveList = document.getElementById('archive-list');
+    const sentList = document.getElementById('sent-list');
     const savedSearch = document.getElementById('saved-search').closest('.modal-search');
-    const archiveSearch = document.getElementById('archive-search-wrap');
+    const sentSearch = document.getElementById('sent-search-wrap');
 
     if (tab === 'saved') {
         tabs[0].classList.add('active');
         savedList.style.display = '';
-        archiveList.style.display = 'none';
+        sentList.style.display = 'none';
         savedSearch.style.display = '';
-        archiveSearch.style.display = 'none';
+        sentSearch.style.display = 'none';
     } else {
         tabs[1].classList.add('active');
         savedList.style.display = 'none';
-        archiveList.style.display = '';
+        sentList.style.display = '';
         savedSearch.style.display = 'none';
-        archiveSearch.style.display = '';
-        // Load archived forms when switching to tab
-        loadArchivedTab();
+        sentSearch.style.display = '';
+        // Load sent forms when switching to tab
+        loadSentTab();
     }
 }
 
-async function loadArchivedTab() {
-    const listEl = document.getElementById('archive-list');
+async function loadSentTab() {
+    const listEl = document.getElementById('sent-list');
     listEl.innerHTML = '<div class="no-saved">Laster...</div>';
 
-    const archived = await getArchivedForms();
-    loadedArchivedForms = archived;
+    const archived = await getSentForms();
+    loadedSentForms = archived;
 
     if (archived.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">Ingen arkiverte skjemaer</div>';
+        listEl.innerHTML = '<div class="no-saved">Ingen sendte skjemaer</div>';
     } else {
         listEl.innerHTML = archived.map((item, index) => {
             const prosjektnavn = item.prosjektnavn || '';
@@ -882,15 +891,15 @@ async function loadArchivedTab() {
             const row3 = ordrenr ? `Ordre: ${ordrenr}` : '';
 
             return `
-                <div class="saved-item" onclick="loadArchivedForm(${index})">
+                <div class="saved-item" onclick="loadSentForm(${index})">
                     <div class="saved-item-info">
                         <div class="saved-item-row1">${row1}</div>
                         ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
                         ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn restore" onclick="restoreForm(event, ${index})" title="Gjenopprett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-                        <button class="saved-item-icon-btn delete" onclick="deleteArchivedForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                        <button class="saved-item-icon-btn restore" onclick="moveToSaved(event, ${index})" title="Flytt til lagrede"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+                        <button class="saved-item-icon-btn delete" onclick="deleteSentForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
                     </div>
                 </div>
             `;
@@ -926,10 +935,22 @@ function showSaveMenu() {
 function closeSaveMenu() { closeActionPopup(); }
 function closeExportMenu() { closeActionPopup(); }
 function showExportMenu() {
-    showActionPopup('Eksporter som', [
-        { label: 'PDF', onclick: 'exportPDF()' },
-        { label: 'JPG', onclick: 'exportJPG()' }
-    ]);
+    const popup = document.getElementById('action-popup');
+    document.getElementById('action-popup-title').textContent = 'Eksporter som';
+    const buttonsEl = document.getElementById('action-popup-buttons');
+    buttonsEl.innerHTML =
+        '<div style="font-size:12px;color:#888;margin-bottom:4px;">Kun eksporter</div>' +
+        '<div class="confirm-modal-buttons">' +
+            '<button class="confirm-btn-ok" style="background:#1abc9c" onclick="doExportPDF(); closeActionPopup()">PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#1abc9c" onclick="doExportJPG(); closeActionPopup()">JPG</button>' +
+        '</div>' +
+        '<div style="font-size:12px;color:#888;margin:10px 0 4px;">Eksporter + marker som sendt</div>' +
+        '<div class="confirm-modal-buttons">' +
+            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="markAsSentAndExport(\'pdf\'); closeActionPopup()">PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="markAsSentAndExport(\'jpg\'); closeActionPopup()">JPG</button>' +
+        '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">Avbryt</button></div>';
+    popup.classList.add('active');
 }
 
 function filterSavedForms() {
@@ -941,57 +962,88 @@ function filterSavedForms() {
     });
 }
 
-function filterArchivedForms() {
-    const searchTerm = document.getElementById('archive-search').value.toLowerCase();
-    const items = document.querySelectorAll('#archive-list .saved-item');
+function filterSentForms() {
+    const searchTerm = document.getElementById('sent-search').value.toLowerCase();
+    const items = document.querySelectorAll('#sent-list .saved-item');
     items.forEach(item => {
         const text = item.textContent.toLowerCase();
         item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
     });
 }
 
-function archiveForm(event, index) {
-    event.stopPropagation();
-    showConfirmModal('Vil du arkivere dette skjemaet?', async function() {
-        const form = loadedForms[index];
-        if (!form) return;
+async function markAsSent() {
+    const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
+    if (!ordrenr) return;
 
-        if (currentUser && db) {
-            try {
-                // Flytt fra forms til archive
-                await db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).set(form);
-                await db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).delete();
-            } catch (e) {
-                console.error('Archive error:', e);
-            }
-        } else {
-            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-            const f = saved.splice(index, 1)[0];
-            archived.unshift(f);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
+    const saved = await getSavedForms();
+    const formIndex = saved.findIndex(f => f.ordreseddelNr === ordrenr);
+    if (formIndex === -1) return;
+
+    const form = saved[formIndex];
+
+    if (currentUser && db) {
+        try {
+            await db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).set(form);
+            await db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).delete();
+        } catch (e) {
+            console.error('Mark as sent error:', e);
         }
+    } else {
+        const localSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        const f = localSaved.splice(formIndex, 1)[0];
+        archived.unshift(f);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(localSaved));
+        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
+    }
 
-        showSavedForms();
-        showNotificationModal('Skjema arkivert!', true);
-    }, 'Arkiver', '#1abc9c');
+    showNotificationModal('Skjema markert som sendt!', true);
 }
 
-// Cache for archived forms
-let loadedArchivedForms = [];
+async function moveCurrentToSaved() {
+    const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
+    if (!ordrenr) return;
 
-async function showArchivedForms() {
-    const listEl = document.getElementById('archive-list');
+    const sent = await getSentForms();
+    const formIndex = sent.findIndex(f => f.ordreseddelNr === ordrenr);
+    if (formIndex === -1) return;
+
+    const form = sent[formIndex];
+
+    if (currentUser && db) {
+        try {
+            await db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).set(form);
+            await db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).delete();
+        } catch (e) {
+            console.error('Move to saved error:', e);
+        }
+    } else {
+        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const f = archived.splice(formIndex, 1)[0];
+        saved.unshift(f);
+        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    }
+
+    setFormReadOnly(false);
+    showNotificationModal('Skjema flyttet til lagrede!', true);
+}
+
+// Cache for sent forms
+let loadedSentForms = [];
+
+async function showSentForms() {
+    const listEl = document.getElementById('sent-list');
     listEl.innerHTML = '<div class="no-saved">Laster...</div>';
     document.getElementById('saved-modal').classList.add('active');
     switchHentTab('archived');
 
-    const archived = await getArchivedForms();
-    loadedArchivedForms = archived;
+    const archived = await getSentForms();
+    loadedSentForms = archived;
 
     if (archived.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">Ingen arkiverte skjemaer</div>';
+        listEl.innerHTML = '<div class="no-saved">Ingen sendte skjemaer</div>';
     } else {
         listEl.innerHTML = archived.map((item, index) => {
             const prosjektnavn = item.prosjektnavn || '';
@@ -1005,15 +1057,15 @@ async function showArchivedForms() {
             const row3 = ordrenr ? `Ordre: ${ordrenr}` : '';
 
             return `
-                <div class="saved-item" onclick="loadArchivedForm(${index})">
+                <div class="saved-item" onclick="loadSentForm(${index})">
                     <div class="saved-item-info">
                         <div class="saved-item-row1">${row1}</div>
                         ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
                         ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn restore" onclick="restoreForm(event, ${index})" title="Gjenopprett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-                        <button class="saved-item-icon-btn delete" onclick="deleteArchivedForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                        <button class="saved-item-icon-btn restore" onclick="moveToSaved(event, ${index})" title="Flytt til lagrede"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+                        <button class="saved-item-icon-btn delete" onclick="deleteSentForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
                     </div>
                 </div>
             `;
@@ -1021,18 +1073,19 @@ async function showArchivedForms() {
     }
 }
 
-function loadArchivedForm(index) {
-    if (loadedArchivedForms[index]) {
-        setFormData(loadedArchivedForms[index]);
+function loadSentForm(index) {
+    if (loadedSentForms[index]) {
+        setFormData(loadedSentForms[index]);
         lastSavedData = getFormDataSnapshot();
-        closeArchiveModal();
+        setFormReadOnly(true);
+        closeSentModal();
     }
 }
 
-function restoreForm(event, index) {
+function moveToSaved(event, index) {
     event.stopPropagation();
-    showConfirmModal('Vil du gjenopprette dette skjemaet?', async function() {
-        const form = loadedArchivedForms[index];
+    showConfirmModal('Vil du flytte dette skjemaet til lagrede?', async function() {
+        const form = loadedSentForms[index];
         if (!form) return;
 
         if (currentUser && db) {
@@ -1051,15 +1104,15 @@ function restoreForm(event, index) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
         }
 
-        showArchivedForms();
-        showNotificationModal('Skjema gjenopprettet!', true);
-    }, 'Gjenopprett', '#3498db');
+        showSentForms();
+        showNotificationModal('Skjema flyttet til lagrede!', true);
+    }, 'Flytt', '#3498db');
 }
 
-function deleteArchivedForm(event, index) {
+function deleteSentForm(event, index) {
     event.stopPropagation();
     showConfirmModal('Er du sikker på at du vil slette dette skjemaet permanent?', async function() {
-        const form = loadedArchivedForms[index];
+        const form = loadedSentForms[index];
         if (!form) return;
 
         if (currentUser && db) {
@@ -1073,11 +1126,11 @@ function deleteArchivedForm(event, index) {
             archived.splice(index, 1);
             localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
         }
-        showArchivedForms();
+        showSentForms();
     });
 }
 
-function closeArchiveModal() {
+function closeSentModal() {
     closeModal();
 }
 
@@ -1208,6 +1261,7 @@ function loadTemplate(index) {
 
     preNewFormData = null;
     clearForm();
+    setFormReadOnly(false);
 
     // Fill the 5 fields in both forms
     document.getElementById('oppdragsgiver').value = template.oppdragsgiver || '';
@@ -1256,7 +1310,9 @@ function closeTemplateModal() {
     if (preNewFormData) {
         clearForm();
         preNewFormData = null;
+        setFormReadOnly(false);
         autoFillOrderNumber();
+        autoFillDefaults();
     }
     document.getElementById('template-modal').classList.remove('active');
     document.getElementById('template-search').value = '';
@@ -1327,18 +1383,110 @@ async function saveOrderNrSettings() {
     closeSettingsModal();
 }
 
+const settingsPageTitles = {
+    ordrenr: 'Ordreseddelnummer',
+    defaults: 'Standardverdier'
+};
+
 async function showSettingsModal() {
-    const settings = await getOrderNrSettings();
-    settingsRanges = (settings && settings.ranges) ? settings.ranges.slice() : [];
-    renderSettingsRanges();
-    document.getElementById('settings-new-start').value = '';
-    document.getElementById('settings-new-end').value = '';
+    showSettingsMenu();
     document.getElementById('settings-modal').classList.add('active');
-    updateSettingsStatus();
 }
 
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.remove('active');
+    showSettingsMenu();
+}
+
+function showSettingsMenu() {
+    document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
+    document.getElementById('settings-page-menu').style.display = 'block';
+    document.getElementById('settings-header-title').textContent = 'Innstillinger';
+    const header = document.getElementById('settings-header');
+    const existingBack = header.querySelector('.settings-back-btn');
+    if (existingBack) existingBack.remove();
+}
+
+async function showSettingsPage(page) {
+    document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
+    document.getElementById('settings-page-' + page).style.display = 'block';
+    document.getElementById('settings-header-title').textContent = settingsPageTitles[page] || '';
+
+    const header = document.getElementById('settings-header');
+    if (!header.querySelector('.settings-back-btn')) {
+        const backBtn = document.createElement('button');
+        backBtn.className = 'settings-back-btn';
+        backBtn.innerHTML = '&lsaquo;';
+        backBtn.onclick = showSettingsMenu;
+        header.insertBefore(backBtn, header.firstChild);
+    }
+
+    if (page === 'ordrenr') {
+        const settings = await getOrderNrSettings();
+        settingsRanges = (settings && settings.ranges) ? settings.ranges.slice() : [];
+        renderSettingsRanges();
+        document.getElementById('settings-new-start').value = '';
+        document.getElementById('settings-new-end').value = '';
+        updateSettingsStatus();
+    } else if (page === 'defaults') {
+        await loadDefaultSettingsToModal();
+    }
+}
+
+// ============================================
+// STANDARDVERDIER (AUTOFYLL)
+// ============================================
+
+const DEFAULT_FIELDS = ['montor', 'avdeling', 'oppdragsgiver', 'kundens-ref', 'fakturaadresse', 'prosjektnr', 'prosjektnavn', 'sted'];
+
+async function getDefaultSettings() {
+    if (currentUser && db) {
+        try {
+            const doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
+            if (doc.exists) return doc.data();
+        } catch (e) {
+            console.error('Defaults error:', e);
+        }
+    }
+    const stored = localStorage.getItem(DEFAULTS_KEY);
+    return stored ? JSON.parse(stored) : {};
+}
+
+async function saveDefaultSettings() {
+    const defaults = {};
+    DEFAULT_FIELDS.forEach(field => {
+        const val = document.getElementById('default-' + field).value.trim();
+        if (val) defaults[field] = val;
+    });
+
+    if (currentUser && db) {
+        try {
+            await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').set(defaults);
+        } catch (e) {
+            console.error('Save defaults error:', e);
+        }
+    }
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+    showNotificationModal('Standardverdier lagret!', true);
+}
+
+async function loadDefaultSettingsToModal() {
+    const defaults = await getDefaultSettings();
+    DEFAULT_FIELDS.forEach(field => {
+        document.getElementById('default-' + field).value = defaults[field] || '';
+    });
+}
+
+async function autoFillDefaults() {
+    const defaults = await getDefaultSettings();
+    DEFAULT_FIELDS.forEach(field => {
+        if (defaults[field]) {
+            const el = document.getElementById(field);
+            const mobileEl = document.getElementById('mobile-' + field);
+            if (el) el.value = defaults[field];
+            if (mobileEl) mobileEl.value = defaults[field];
+        }
+    });
 }
 
 function renderSettingsRanges() {
@@ -1418,7 +1566,7 @@ async function updateSettingsStatus() {
 
 async function getUsedOrderNumbers() {
     const saved = await getSavedForms();
-    const archived = await getArchivedForms();
+    const archived = await getSentForms();
     const used = new Set();
     saved.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
     archived.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
@@ -1560,7 +1708,7 @@ function getExportFilename(ext) {
     return `ordreseddel_${prosjektnr}_${dato}.${ext}`;
 }
 
-async function exportPDF() {
+async function doExportPDF() {
     if (!validateRequiredFields()) return;
     const loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -1579,7 +1727,7 @@ async function exportPDF() {
     }
 }
 
-async function exportJPG() {
+async function doExportJPG() {
     if (!validateRequiredFields()) return;
     const loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -1593,6 +1741,16 @@ async function exportJPG() {
         alert('Feil ved generering av JPG: ' + error.message);
     } finally {
         loading.classList.remove('active');
+    }
+}
+
+async function markAsSentAndExport(type) {
+    if (!validateRequiredFields()) return;
+    await markAsSent();
+    if (type === 'pdf') {
+        doExportPDF();
+    } else {
+        doExportJPG();
     }
 }
 

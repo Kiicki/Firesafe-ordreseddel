@@ -16,13 +16,21 @@
     <div class="loading" id="loading">Genererer fil...</div>
 
     <div class="container">
+        <div class="top-bar">
+            <button class="btn-login" id="btn-login" onclick="handleAuth()">Logg inn</button>
+        </div>
+
         <div class="toolbar">
             <button class="btn-new" onclick="newForm()">Ny</button>
             <button class="btn-save" onclick="showSaveMenu()">Lagre</button>
             <button class="btn-load" onclick="showSavedForms()">Hent</button>
             <button class="btn-export" onclick="showExportMenu()">Eksport</button>
-            <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg></button>
-            <button class="btn-login" id="btn-login" onclick="handleAuth()">Logg inn</button>
+            <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
+        </div>
+
+        <div id="sent-banner" class="sent-banner" style="display:none;">
+            Dette skjemaet er sendt og kan ikke redigeres
+            <button class="sent-banner-btn" onclick="moveCurrentToSaved()">Flytt til lagrede</button>
         </div>
 
         <!-- Mobile-friendly input form (visible on mobile only) -->
@@ -262,16 +270,16 @@
             </div>
             <div class="modal-tabs">
                 <button class="modal-tab active" onclick="switchHentTab('saved')">Lagrede</button>
-                <button class="modal-tab" onclick="switchHentTab('archived')">Arkiverte</button>
+                <button class="modal-tab" onclick="switchHentTab('archived')">Sendte</button>
             </div>
             <div class="modal-search">
                 <input type="text" id="saved-search" placeholder="Søk ordrenummer..." oninput="filterSavedForms()">
             </div>
             <div class="modal-body" id="saved-list"></div>
-            <div class="modal-search" id="archive-search-wrap" style="display:none;">
-                <input type="text" id="archive-search" placeholder="Søk ordrenummer..." oninput="filterArchivedForms()">
+            <div class="modal-search" id="sent-search-wrap" style="display:none;">
+                <input type="text" id="sent-search" placeholder="Søk ordrenummer..." oninput="filterSentForms()">
             </div>
-            <div class="modal-body" id="archive-list" style="display:none;"></div>
+            <div class="modal-body" id="sent-list" style="display:none;"></div>
         </div>
     </div>
 
@@ -279,7 +287,7 @@
     <div class="modal" id="template-modal" onclick="cancelTemplateModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <span>Velg prosjekt</span>
+                <span>Velg prosjektmal</span>
                 <button class="modal-close" onclick="cancelTemplateModal()">&times;</button>
             </div>
             <div class="modal-search">
@@ -287,7 +295,7 @@
             </div>
             <div class="modal-body" id="template-list"></div>
             <div class="modal-footer-skip">
-                <button class="btn-skip-template" onclick="closeTemplateModal()">Blankt skjema</button>
+                <button class="btn-skip-template" onclick="closeTemplateModal()">Nytt skjema</button>
             </div>
         </div>
     </div>
@@ -304,20 +312,47 @@
     <!-- Settings Modal -->
     <div class="modal" id="settings-modal" onclick="closeSettingsModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span>Innstillinger</span>
+            <div class="modal-header" id="settings-header">
+                <span id="settings-header-title">Innstillinger</span>
                 <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
             </div>
             <div class="modal-body" style="padding: 16px;">
-                <div class="settings-section-title">Ordreseddelnummer</div>
-                <div id="settings-ranges"></div>
-                <div class="settings-add-row">
-                    <input type="text" id="settings-new-start" inputmode="numeric" placeholder="Fra">
-                    <input type="text" id="settings-new-end" inputmode="numeric" placeholder="Til">
-                    <button type="button" class="settings-add-btn" onclick="addSettingsRange()">+</button>
+                <!-- Hovedmeny -->
+                <div id="settings-page-menu" class="settings-page">
+                    <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">
+                        Ordreseddelnummer
+                        <span class="settings-menu-arrow">&rsaquo;</span>
+                    </div>
+                    <div class="settings-menu-item" onclick="showSettingsPage('defaults')">
+                        Standardverdier
+                        <span class="settings-menu-arrow">&rsaquo;</span>
+                    </div>
                 </div>
-                <div class="settings-status" id="settings-status"></div>
-                <button class="settings-save-btn" onclick="saveOrderNrSettings()">Lagre</button>
+
+                <!-- Ordreseddelnummer-side -->
+                <div id="settings-page-ordrenr" class="settings-page" style="display:none;">
+                    <div id="settings-ranges"></div>
+                    <div class="settings-add-row">
+                        <input type="text" id="settings-new-start" inputmode="numeric" placeholder="Fra">
+                        <input type="text" id="settings-new-end" inputmode="numeric" placeholder="Til">
+                        <button type="button" class="settings-add-btn" onclick="addSettingsRange()">+</button>
+                    </div>
+                    <div class="settings-status" id="settings-status"></div>
+                    <button class="settings-save-btn" onclick="saveOrderNrSettings()">Lagre</button>
+                </div>
+
+                <!-- Standardverdier-side -->
+                <div id="settings-page-defaults" class="settings-page" style="display:none;">
+                    <label class="settings-default-label">Montør<input type="text" id="default-montor"></label>
+                    <label class="settings-default-label">Avdeling<input type="text" id="default-avdeling"></label>
+                    <label class="settings-default-label">Oppdragsgiver<input type="text" id="default-oppdragsgiver"></label>
+                    <label class="settings-default-label">Kundens ref.<input type="text" id="default-kundens-ref"></label>
+                    <label class="settings-default-label">Fakturaadresse<input type="text" id="default-fakturaadresse"></label>
+                    <label class="settings-default-label">Prosjektnr.<input type="text" id="default-prosjektnr"></label>
+                    <label class="settings-default-label">Prosjektnavn<input type="text" id="default-prosjektnavn"></label>
+                    <label class="settings-default-label">Sted<input type="text" id="default-sted"></label>
+                    <button class="settings-save-btn" onclick="saveDefaultSettings()">Lagre</button>
+                </div>
             </div>
         </div>
     </div>

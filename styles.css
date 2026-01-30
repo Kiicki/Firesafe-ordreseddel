@@ -14,39 +14,96 @@ body {
 .container {
     max-width: 800px;
     margin: 0 auto;
+    padding-bottom: 70px;
+}
+
+.sent-banner {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    max-width: 600px;
+    margin: 0 auto 8px;
+}
+
+.sent-banner-btn {
+    display: block;
+    margin: 8px auto 0;
+    padding: 6px 16px;
+    background: #856404;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sent-banner-btn:active {
+    opacity: 0.8;
+}
+
+.mobile-form input:disabled,
+.mobile-form textarea:disabled,
+.mobile-form select:disabled,
+#form-container input:disabled,
+#form-container textarea:disabled,
+#form-container select:disabled {
+    background: #f0f0f0;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.toolbar button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.top-bar {
+    max-width: 600px;
+    margin: 0 auto 8px;
 }
 
 /* Toolbar - only visible on screen */
 .toolbar {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
-    margin-bottom: 2px;
-    padding: 12px;
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
     background: #f8f9fa;
-    border-radius: 10px;
+    border-top: 2px solid #1abc9c;
     max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
-    position: relative;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 20px);
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
+    z-index: 100;
 }
 
 .toolbar button {
     flex: 1;
-    padding: 11px 8px;
-    border: none;
+    padding: 10px 6px;
+    border: 1.5px solid #dee2e6;
     border-radius: 8px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    background: #495057;
-    color: white;
+    background: #fff;
+    color: #495057;
     transition: all 0.15s ease;
     text-align: center;
 }
 
 .toolbar button:hover {
-    background: #343a40;
+    background: #f0f0f0;
+    border-color: #ccc;
 }
 
 .toolbar button:active {
@@ -57,35 +114,42 @@ body {
 .btn-new,
 .btn-save,
 .btn-load {
-    background: #198754;
+    background: #1abc9c;
+    color: #fff;
+    border-color: #1abc9c;
 }
 
 .btn-new:hover,
 .btn-save:hover,
 .btn-load:hover {
-    background: #157347;
+    background: #16a085;
+    border-color: #16a085;
 }
 
-
-
 .btn-settings {
-    background: #555;
+    background: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto !important;
-    min-width: 36px;
-    padding: 6px !important;
+    min-width: 40px;
+    padding: 8px !important;
 }
 
 .btn-settings svg {
-    fill: white;
+    fill: #495057;
 }
 
 .btn-login {
     background: #4285f4;
-    flex: 1 1 100% !important;
-    max-width: 100% !important;
+    width: 100%;
+    padding: 11px 8px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: white;
 }
 
 .btn-login:hover {
@@ -526,7 +590,7 @@ body {
 
 .modal-body {
     padding: 15px;
-    max-height: 60vh;
+    max-height: 80vh;
     overflow-y: auto;
 }
 
@@ -640,7 +704,7 @@ body {
     color: white;
 }
 
-.saved-item-archive {
+.saved-item-sent {
     padding: 8px 12px;
     background: transparent;
     color: #1abc9c;
@@ -652,7 +716,7 @@ body {
     transition: all 0.15s ease;
 }
 
-.saved-item-archive:hover {
+.saved-item-sent:hover {
     background: #1abc9c;
     color: white;
 }
@@ -687,12 +751,12 @@ body {
     transition: all 0.15s ease;
 }
 
-.saved-item-icon-btn.archive {
+.saved-item-icon-btn.sent {
     color: #1abc9c;
     border-color: #1abc9c;
 }
 
-.saved-item-icon-btn.archive:hover {
+.saved-item-icon-btn.sent:hover {
     background: #1abc9c;
     color: white;
 }
@@ -744,7 +808,7 @@ body {
 
 /* Hide buttons on export */
 @media print {
-    .toolbar, .modal {
+    .toolbar, .top-bar, .modal {
         display: none !important;
     }
     body {
@@ -1248,6 +1312,44 @@ body {
 }
 
 /* Settings modal */
+.settings-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 500;
+    color: #333;
+    transition: all 0.15s ease;
+}
+
+.settings-menu-item:hover {
+    background: #eee;
+    border-color: #1abc9c;
+}
+
+.settings-menu-arrow {
+    font-size: 20px;
+    color: #999;
+    font-weight: 300;
+}
+
+.settings-back-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 8px 0 0;
+    color: #1abc9c;
+    display: flex;
+    align-items: center;
+}
+
 .settings-section-title {
     font-weight: 600;
     font-size: 14px;
@@ -1335,6 +1437,30 @@ body {
 
 .settings-save-btn:active {
     opacity: 0.8;
+}
+
+.settings-default-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.settings-default-label input {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.settings-default-label input:focus {
+    outline: none;
+    border-color: #1abc9c;
 }
 
 /* Mobile responsive */
