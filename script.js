@@ -1876,6 +1876,7 @@ window.addEventListener('load', function() {
     var toolbar = document.querySelector('.toolbar');
     if (!toolbar) return;
     var focusTimeout;
+    var initialHeight = window.innerHeight;
     document.addEventListener('focusin', function(e) {
         clearTimeout(focusTimeout);
         if (e.target.matches('input, textarea, select, [contenteditable]')) {
@@ -1886,5 +1887,12 @@ window.addEventListener('load', function() {
         focusTimeout = setTimeout(function() {
             toolbar.classList.remove('keyboard-open');
         }, 100);
+    });
+    // Detect keyboard close without focusout (e.g. iOS "Done" button)
+    window.addEventListener('resize', function() {
+        if (window.innerHeight > initialHeight - 50) {
+            toolbar.classList.remove('keyboard-open');
+            initialHeight = window.innerHeight;
+        }
     });
 })();
