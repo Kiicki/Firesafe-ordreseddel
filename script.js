@@ -1873,18 +1873,18 @@ window.addEventListener('load', function() {
 
 // Keyboard-aware toolbar: sticky when no keyboard, static when keyboard open
 (function() {
-    if (!window.visualViewport) return;
     var toolbar = document.querySelector('.toolbar');
-    var container = document.querySelector('.container');
-    if (!toolbar || !container) return;
-    function onViewportChange() {
-        var offset = window.innerHeight - visualViewport.height - visualViewport.offsetTop;
-        if (offset > 50) {
+    if (!toolbar) return;
+    var focusTimeout;
+    document.addEventListener('focusin', function(e) {
+        clearTimeout(focusTimeout);
+        if (e.target.matches('input, textarea, select, [contenteditable]')) {
             toolbar.classList.add('keyboard-open');
-        } else {
-            toolbar.classList.remove('keyboard-open');
         }
-    }
-    visualViewport.addEventListener('resize', onViewportChange);
-    visualViewport.addEventListener('scroll', onViewportChange);
+    });
+    document.addEventListener('focusout', function() {
+        focusTimeout = setTimeout(function() {
+            toolbar.classList.remove('keyboard-open');
+        }, 100);
+    });
 })();
