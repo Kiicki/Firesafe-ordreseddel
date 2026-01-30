@@ -14,7 +14,8 @@
       "Bash(dpkg:*)",
       "Bash(apt list:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(qlmanage:*)"
     ]
   }
 }
