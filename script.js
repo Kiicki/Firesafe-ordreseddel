@@ -1871,22 +1871,19 @@ window.addEventListener('load', function() {
     applyTranslations();
 
     // Hide toolbar when mobile keyboard is open
-    if (window.visualViewport) {
-        let initialHeight = window.visualViewport.height;
-        window.visualViewport.addEventListener('resize', () => {
-            const keyboardOpen = window.visualViewport.height < initialHeight * 0.75;
-            document.body.classList.toggle('keyboard-open', keyboardOpen);
-        });
-    } else {
-        document.addEventListener('focusin', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                document.body.classList.add('keyboard-open');
-            }
-        });
-        document.addEventListener('focusout', () => {
-            setTimeout(() => {
+    let keyboardFocused = false;
+    document.addEventListener('focusin', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            keyboardFocused = true;
+            document.body.classList.add('keyboard-open');
+        }
+    });
+    document.addEventListener('focusout', () => {
+        keyboardFocused = false;
+        setTimeout(() => {
+            if (!keyboardFocused) {
                 document.body.classList.remove('keyboard-open');
-            }, 200);
-        });
-    }
+            }
+        }, 300);
+    });
 });
