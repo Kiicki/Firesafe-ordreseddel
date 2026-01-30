@@ -12,7 +12,9 @@
       "Bash(python3:*)",
       "Bash(pip3 install:*)",
       "Bash(dpkg:*)",
-      "Bash(apt list:*)"
+      "Bash(apt list:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
