@@ -1871,11 +1871,17 @@ window.addEventListener('load', function() {
     applyTranslations();
 
     // Hide toolbar when mobile keyboard is open
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', () => {
-            const toolbar = document.querySelector('.toolbar');
-            const keyboardOpen = window.visualViewport.height < window.innerHeight * 0.75;
-            toolbar.style.display = keyboardOpen ? 'none' : 'flex';
-        });
-    }
+    const toolbar = document.querySelector('.toolbar');
+    document.addEventListener('focusin', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            toolbar.style.display = 'none';
+        }
+    });
+    document.addEventListener('focusout', () => {
+        setTimeout(() => {
+            if (!document.activeElement || (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA')) {
+                toolbar.style.display = 'flex';
+            }
+        }, 100);
+    });
 });
