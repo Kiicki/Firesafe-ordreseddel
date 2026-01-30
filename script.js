@@ -5,6 +5,45 @@ const SETTINGS_KEY = 'firesafe_settings';
 const DEFAULTS_KEY = 'firesafe_defaults';
 
 // ============================================
+// FLERSPRÅK
+// ============================================
+let currentLang = localStorage.getItem('firesafe_lang') || 'no';
+
+function t(key, ...args) {
+    let str = (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || (TRANSLATIONS['no'] && TRANSLATIONS['no'][key]) || key;
+    args.forEach((val, i) => { str = str.replace('{' + i + '}', val); });
+    return str;
+}
+
+function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('firesafe_lang', lang);
+    applyTranslations();
+    // Save to Firebase if logged in
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('language').set({ lang }).catch(() => {});
+    }
+}
+
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.getAttribute('data-i18n'));
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+    // Update login button
+    updateLoginButton();
+    // Update language checkmarks
+    const checkNo = document.getElementById('lang-check-no');
+    const checkEn = document.getElementById('lang-check-en');
+    if (checkNo) checkNo.textContent = currentLang === 'no' ? '\u2713' : '';
+    if (checkEn) checkEn.textContent = currentLang === 'en' ? '\u2713' : '';
+    // Re-number order cards
+    renumberOrders();
+}
+
+// ============================================
 // FIREBASE KONFIGURASJON
 // Fyll inn dine egne verdier fra Firebase Console
 // ============================================
@@ -32,11 +71,22 @@ try {
 
 // Auth state listener
 if (auth) {
-    auth.onAuthStateChanged((user) => {
+    auth.onAuthStateChanged(async (user) => {
         currentUser = user;
         updateLoginButton();
         loadedForms = [];
         loadedSentForms = [];
+        // Load language preference from Firebase
+        if (user && db) {
+            try {
+                const doc = await db.collection('users').doc(user.uid).collection('settings').doc('language').get();
+                if (doc.exists && doc.data().lang) {
+                    currentLang = doc.data().lang;
+                    localStorage.setItem('firesafe_lang', currentLang);
+                    applyTranslations();
+                }
+            } catch (e) {}
+        }
     });
 }
 
@@ -45,37 +95,37 @@ function updateLoginButton() {
     if (!btn) return;
 
     if (currentUser) {
-        btn.textContent = currentUser.email || currentUser.displayName || 'Logget inn';
+        btn.textContent = currentUser.email || currentUser.displayName || t('login');
         btn.classList.add('logged-in');
     } else {
-        btn.textContent = 'Logg inn';
+        btn.textContent = t('login');
         btn.classList.remove('logged-in');
     }
 }
 
 function handleAuth() {
     if (!auth) {
-        showNotificationModal('Firebase er ikke konfigurert. Sjekk firebaseConfig i script.js');
+        showNotificationModal(t('firebase_not_configured'));
         return;
     }
 
     if (currentUser) {
         // Logg ut
-        showConfirmModal('Vil du logge ut?', () => {
+        showConfirmModal(t('logout_confirm'), () => {
             auth.signOut().then(() => {
-                showNotificationModal('Du er nå logget ut', true);
+                showNotificationModal(t('logout_success'), true);
             });
-        }, 'Logg ut', '#6c757d');
+        }, t('logout'), '#6c757d');
     } else {
         // Logg inn med Google
         const provider = new firebase.auth.GoogleAuthProvider();
         auth.signInWithPopup(provider)
             .then((result) => {
-                showNotificationModal('Logget inn som ' + result.user.email, true);
+                showNotificationModal(t('login_success') + result.user.email, true);
             })
             .catch((error) => {
                 if (error.code !== 'auth/popup-closed-by-user') {
-                    showNotificationModal('Innlogging feilet: ' + error.message);
+                    showNotificationModal(t('login_failed') + error.message);
                 }
             });
     }
@@ -134,7 +184,7 @@ let pendingConfirmAction = null;
 function showConfirmModal(message, onConfirm, buttonText, buttonColor) {
     document.getElementById('confirm-modal-text').textContent = message;
     const okBtn = document.getElementById('confirm-btn-ok');
-    okBtn.textContent = buttonText || 'Fjern';
+    okBtn.textContent = buttonText || t('btn_remove');
     okBtn.style.backgroundColor = buttonColor || '#e74c3c';
     pendingConfirmAction = onConfirm;
     document.getElementById('confirm-modal').classList.add('active');
@@ -268,22 +318,22 @@ function createOrderCard(orderData, expanded) {
     card.innerHTML = `
         <div class="mobile-order-header" onclick="toggleOrder(this)">
             <span class="mobile-order-arrow">${expanded ? '&#9650;' : '&#9660;'}</span>
-            <span class="mobile-order-title">Beskrivelse</span>
+            <span class="mobile-order-title">${t('order_description')}</span>
             <button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeOrder(this)">${deleteIcon}</button>
         </div>
         <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
             <div class="mobile-field">
-                <label>Beskrivelse <span class="required">*</span></label>
+                <label><span data-i18n="order_description">${t('order_description')}</span> <span class="required">*</span></label>
                 <input type="text" class="mobile-order-desc" readonly autocapitalize="sentences">
             </div>
             <div class="mobile-order-materials-section">
-                <label class="mobile-order-sublabel">Materialer</label>
+                <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
                 <div class="mobile-order-materials"></div>
-                <button type="button" class="mobile-add-mat-btn" onclick="addMaterialToOrder(this)">+ Material</button>
+                <button type="button" class="mobile-add-mat-btn" onclick="addMaterialToOrder(this)" data-i18n="order_add_material">${t('order_add_material')}</button>
             </div>
             <div class="mobile-work-row">
                 <div class="mobile-field" style="flex:1">
-                    <label>Timer</label>
+                    <label data-i18n="order_hours">${t('order_hours')}</label>
                     <input type="text" class="mobile-order-timer" inputmode="decimal">
                 </div>
             </div>
@@ -308,7 +358,7 @@ function createOrderCard(orderData, expanded) {
 
     // Set up description click → text editor
     descInput.addEventListener('click', function() {
-        openTextEditor(this, 'Beskrivelse');
+        openTextEditor(this, t('order_description'));
     });
 
     return card;
@@ -318,10 +368,10 @@ function createMaterialRow(m) {
     const div = document.createElement('div');
     div.className = 'mobile-material-row';
     div.innerHTML = `
-        <div class="mobile-field"><input type="text" class="mobile-mat-name" placeholder="Materiale" autocapitalize="sentences" value="${(m.name || '').replace(/"/g, '&quot;')}"></div>
+        <div class="mobile-field"><input type="text" class="mobile-mat-name" placeholder="${t('placeholder_material')}" data-i18n-placeholder="placeholder_material" autocapitalize="sentences" value="${(m.name || '').replace(/"/g, '&quot;')}"></div>
         <div class="mobile-work-row">
-            <div class="mobile-field"><input type="text" class="mobile-mat-antall" placeholder="Antall" value="${(m.antall || '').replace(/"/g, '&quot;')}"></div>
-            <div class="mobile-field"><input type="text" class="mobile-mat-enhet" placeholder="Enhet" autocapitalize="sentences" value="${(m.enhet || '').replace(/"/g, '&quot;')}"></div>
+            <div class="mobile-field"><input type="text" class="mobile-mat-antall" placeholder="${t('placeholder_quantity')}" data-i18n-placeholder="placeholder_quantity" value="${(m.antall || '').replace(/"/g, '&quot;')}"></div>
+            <div class="mobile-field"><input type="text" class="mobile-mat-enhet" placeholder="${t('placeholder_unit')}" data-i18n-placeholder="placeholder_unit" autocapitalize="sentences" value="${(m.enhet || '').replace(/"/g, '&quot;')}"></div>
             <button type="button" class="mobile-mat-remove" onclick="removeMaterialFromOrder(this)">${deleteIcon}</button>
         </div>`;
     return div;
@@ -364,7 +414,7 @@ function toggleOrder(headerEl) {
 
 function renumberOrders() {
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach((card, idx) => {
-        card.querySelector('.mobile-order-title').textContent = 'Beskrivelse ' + (idx + 1);
+        card.querySelector('.mobile-order-title').textContent = t('order_description') + ' ' + (idx + 1);
     });
 }
 
@@ -387,7 +437,7 @@ function addOrder() {
 
 function removeOrder(btn) {
     const card = btn.closest('.mobile-order-card');
-    showConfirmModal('Slett denne bestillingen?', function() {
+    showConfirmModal(t('order_delete_confirm'), function() {
         card.remove();
         updateOrderDeleteStates();
         renumberOrders();
@@ -646,35 +696,34 @@ function setFormData(data) {
 // Validering av påkrevde felter
 function validateRequiredFields() {
     const fields = [
-        { id: 'mobile-ordreseddel-nr', name: 'Ordreseddel nr.' },
-        { id: 'mobile-dato', name: 'Dato' },
-        { id: 'mobile-oppdragsgiver', name: 'Oppdragsgiver' },
-        { id: 'mobile-prosjektnr', name: 'Prosjektnr.' },
-        { id: 'mobile-prosjektnavn', name: 'Prosjektnavn' },
-        { id: 'mobile-montor', name: 'Montør' },
-        { id: 'mobile-avdeling', name: 'Avdeling' },
-        { id: 'mobile-sted', name: 'Sted' },
-        { id: 'mobile-signering-dato', name: 'Signering dato' }
+        { id: 'mobile-ordreseddel-nr', key: 'validation_ordreseddel_nr' },
+        { id: 'mobile-dato', key: 'validation_dato' },
+        { id: 'mobile-oppdragsgiver', key: 'validation_oppdragsgiver' },
+        { id: 'mobile-prosjektnr', key: 'validation_prosjektnr' },
+        { id: 'mobile-prosjektnavn', key: 'validation_prosjektnavn' },
+        { id: 'mobile-montor', key: 'validation_montor' },
+        { id: 'mobile-avdeling', key: 'validation_avdeling' },
+        { id: 'mobile-sted', key: 'validation_sted' },
+        { id: 'mobile-signering-dato', key: 'validation_signering_dato' }
     ];
 
     for (const field of fields) {
         if (!document.getElementById(field.id).value.trim()) {
-            showNotificationModal('Du må fylle inn ' + field.name);
+            showNotificationModal(t('required_field', t(field.key)));
             return false;
         }
     }
 
-    // Sjekk at minst én bestilling har beskrivelse
     const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
     if (orderCards.length === 0) {
-        showNotificationModal('Du må legge til minst én bestilling');
+        showNotificationModal(t('required_order'));
         return false;
     }
     for (let i = 0; i < orderCards.length; i++) {
         const descInput = orderCards[i].querySelector('.mobile-order-desc');
         const descVal = descInput.getAttribute('data-full-value') || descInput.value;
         if (!descVal.trim()) {
-            showNotificationModal('Beskrivelse mangler for bestilling ' + (i + 1));
+            showNotificationModal(t('required_description', i + 1));
             return false;
         }
     }
@@ -702,29 +751,29 @@ async function saveForm() {
                 const archiveRef = db.collection('users').doc(currentUser.uid).collection('archive');
                 const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
                 if (!existingArchive.empty) {
-                    showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i sendte.');
+                    showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
                     return;
                 }
 
                 if (!existing.empty) {
-                    showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', async function() {
+                    showConfirmModal(t('confirm_update'), async function() {
                         await formsRef.doc(existing.docs[0].id).set(data);
                         loadedForms = [];
                         lastSavedData = getFormDataSnapshot();
-                        showNotificationModal('Skjema oppdatert!', true);
-                    }, 'Oppdater', '#E8501A');
+                        showNotificationModal(t('update_success'), true);
+                    }, t('btn_update'), '#E8501A');
                 } else {
-                    showConfirmModal('Er du sikker på at du vil lagre skjemaet?', async function() {
+                    showConfirmModal(t('confirm_save'), async function() {
                         data.id = Date.now().toString();
                         await formsRef.doc(data.id).set(data);
                         loadedForms = [];
                         lastSavedData = getFormDataSnapshot();
-                        showNotificationModal('Skjema lagret!', true);
-                    }, 'Lagre', '#E8501A');
+                        showNotificationModal(t('save_success'), true);
+                    }, t('btn_save'), '#E8501A');
                 }
             } catch (e) {
                 console.error('Firestore save error:', e);
-                showNotificationModal('Feil ved lagring: ' + e.message);
+                showNotificationModal(t('save_error') + e.message);
             }
         } else {
             // Fallback til localStorage
@@ -733,7 +782,7 @@ async function saveForm() {
 
             // Sjekk sendte for duplikater
             if (archived.some(item => item.ordreseddelNr === data.ordreseddelNr)) {
-                showNotificationModal('Ordreseddel nr. ' + data.ordreseddelNr + ' finnes allerede i sendte.');
+                showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
                 return;
             }
 
@@ -742,24 +791,24 @@ async function saveForm() {
             );
 
             if (existingIndex !== -1) {
-                showConfirmModal('Dette ordrenummeret finnes allerede. Vil du oppdatere det?', function() {
+                showConfirmModal(t('confirm_update'), function() {
                     data.id = saved[existingIndex].id;
                     saved[existingIndex] = data;
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
                     loadedForms = [];
                     lastSavedData = getFormDataSnapshot();
-                    showNotificationModal('Skjema oppdatert!', true);
-                }, 'Oppdater', '#E8501A');
+                    showNotificationModal(t('update_success'), true);
+                }, t('btn_update'), '#E8501A');
             } else {
-                showConfirmModal('Er du sikker på at du vil lagre skjemaet?', function() {
+                showConfirmModal(t('confirm_save'), function() {
                     data.id = Date.now().toString();
                     saved.unshift(data);
                     if (saved.length > 50) saved.pop();
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
                     loadedForms = [];
                     lastSavedData = getFormDataSnapshot();
-                    showNotificationModal('Skjema lagret!', true);
-                }, 'Lagre', '#E8501A');
+                    showNotificationModal(t('save_success'), true);
+                }, t('btn_save'), '#E8501A');
             }
         }
     } finally {
@@ -772,7 +821,7 @@ let loadedForms = [];
 
 async function showSavedForms() {
     const listEl = document.getElementById('saved-list');
-    listEl.innerHTML = '<div class="no-saved">Laster...</div>';
+    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
 
     // Åpne sendte-fanen hvis vi ser på et sendt skjema
@@ -785,7 +834,7 @@ async function showSavedForms() {
     loadedForms = saved; // Cache for loadForm/deleteForm
 
     if (saved.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">Ingen lagrede skjemaer</div>';
+        listEl.innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
     } else {
         listEl.innerHTML = saved.map((item, index) => {
             const prosjektnavn = item.prosjektnavn || '';
@@ -794,9 +843,9 @@ async function showSavedForms() {
             const dato = item.dato || '';
             const prosjektnr = item.prosjektnr || '';
 
-            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || 'Uten navn';
+            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || t('no_name');
             const row2 = [dato, prosjektnr].filter(x => x).join(' • ');
-            const row3 = ordrenr ? `Ordre: ${ordrenr}` : '';
+            const row3 = ordrenr ? `${t('order_prefix')}${ordrenr}` : '';
 
             return `
                 <div class="saved-item" onclick="loadForm(${index})">
@@ -844,12 +893,12 @@ async function duplicateForm(event, index) {
     lastSavedData = null;
     setFormReadOnly(false);
     closeModal();
-    showNotificationModal('Skjema duplisert — husk å lagre!', true);
+    showNotificationModal(t('duplicated_success'), true);
 }
 
 function deleteForm(event, index) {
     event.stopPropagation();
-    showConfirmModal('Er du sikker på at du vil slette dette skjemaet?', async function() {
+    showConfirmModal(t('delete_confirm'), async function() {
         const form = loadedForms[index];
         if (!form) return;
 
@@ -904,13 +953,13 @@ function switchHentTab(tab) {
 
 async function loadSentTab() {
     const listEl = document.getElementById('sent-list');
-    listEl.innerHTML = '<div class="no-saved">Laster...</div>';
+    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
 
     const archived = await getSentForms();
     loadedSentForms = archived;
 
     if (archived.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">Ingen sendte skjemaer</div>';
+        listEl.innerHTML = '<div class="no-saved">' + t('no_sent_forms') + '</div>';
     } else {
         listEl.innerHTML = archived.map((item, index) => {
             const prosjektnavn = item.prosjektnavn || '';
@@ -919,9 +968,9 @@ async function loadSentTab() {
             const dato = item.dato || '';
             const prosjektnr = item.prosjektnr || '';
 
-            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || 'Uten navn';
+            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || t('no_name');
             const row2 = [dato, prosjektnr].filter(x => x).join(' • ');
-            const row3 = ordrenr ? `Ordre: ${ordrenr}` : '';
+            const row3 = ordrenr ? `${t('order_prefix')}${ordrenr}` : '';
 
             return `
                 <div class="saved-item" onclick="loadSentForm(${index})">
@@ -948,7 +997,7 @@ function showActionPopup(title, actions) {
     buttonsEl.innerHTML = '<div class="confirm-modal-buttons">' + actions.map(a =>
         `<button class="confirm-btn-ok" style="background:#2c3e50" onclick="${a.onclick}; closeActionPopup()">${a.label}</button>`
     ).join('') + '</div>' +
-    '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">Avbryt</button></div>';
+    '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button></div>';
     popup.classList.add('active');
 }
 
@@ -958,9 +1007,9 @@ function closeActionPopup(e) {
 }
 
 function showSaveMenu() {
-    showActionPopup('Lagre skjema', [
-        { label: 'Lagre', onclick: 'saveForm()' },
-        { label: 'Lagre som mal', onclick: 'saveAsTemplate()' }
+    showActionPopup(t('save_menu_title'), [
+        { label: t('save_option'), onclick: 'saveForm()' },
+        { label: t('save_as_template'), onclick: 'saveAsTemplate()' }
     ]);
 }
 
@@ -970,24 +1019,24 @@ function closeExportMenu() { closeActionPopup(); }
 function showExportMenu() {
     const isSent = document.getElementById('sent-banner').style.display !== 'none';
     const popup = document.getElementById('action-popup');
-    document.getElementById('action-popup-title').textContent = 'Eksporter som';
+    document.getElementById('action-popup-title').textContent = t('export_title');
     const buttonsEl = document.getElementById('action-popup-buttons');
     let html = '';
     if (!isSent) {
-        html += '<div style="font-size:12px;color:#888;margin-bottom:4px;">Kun eksporter</div>';
+        html += '<div style="font-size:12px;color:#888;margin-bottom:4px;">' + t('export_only_label') + '</div>';
     }
     html += '<div class="confirm-modal-buttons">' +
             '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPDF(); closeActionPopup()">PDF</button>' +
             '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportJPG(); closeActionPopup()">JPG</button>' +
         '</div>';
     if (!isSent) {
-        html += '<div style="font-size:12px;color:#888;margin:10px 0 4px;">Eksporter + marker som sendt</div>' +
+        html += '<div style="font-size:12px;color:#888;margin:10px 0 4px;">' + t('export_and_mark_label') + '</div>' +
             '<div class="confirm-modal-buttons">' +
                 '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'pdf\'); closeActionPopup()">PDF</button>' +
                 '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'jpg\'); closeActionPopup()">JPG</button>' +
             '</div>';
     }
-    html += '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">Avbryt</button></div>';
+    html += '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button></div>';
     buttonsEl.innerHTML = html;
     popup.classList.add('active');
 }
@@ -1036,7 +1085,7 @@ async function markAsSent() {
         localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
     }
 
-    showNotificationModal('Skjema markert som sendt!', true);
+    showNotificationModal(t('marked_as_sent'), true);
 }
 
 async function moveCurrentToSaved() {
@@ -1066,7 +1115,7 @@ async function moveCurrentToSaved() {
     }
 
     setFormReadOnly(false);
-    showNotificationModal('Skjema flyttet til lagrede!', true);
+    showNotificationModal(t('move_to_saved_success'), true);
 }
 
 // Cache for sent forms
@@ -1083,7 +1132,7 @@ function loadSentForm(index) {
 
 function moveToSaved(event, index) {
     event.stopPropagation();
-    showConfirmModal('Vil du flytte dette skjemaet til lagrede?', async function() {
+    showConfirmModal(t('move_to_saved_confirm'), async function() {
         const form = loadedSentForms[index];
         if (!form) return;
 
@@ -1111,13 +1160,13 @@ function moveToSaved(event, index) {
 
         await showSavedForms();
         switchHentTab('saved');
-        showNotificationModal('Skjema flyttet til lagrede!', true);
-    }, 'Flytt', '#333');
+        showNotificationModal(t('move_to_saved_success'), true);
+    }, t('btn_move'), '#333');
 }
 
 function deleteSentForm(event, index) {
     event.stopPropagation();
-    showConfirmModal('Er du sikker på at du vil slette dette skjemaet permanent?', async function() {
+    showConfirmModal(t('delete_sent_confirm'), async function() {
         const form = loadedSentForms[index];
         if (!form) return;
 
@@ -1167,7 +1216,7 @@ async function saveAsTemplate() {
 
     const prosjektnavn = document.getElementById('prosjektnavn').value.trim();
     if (!prosjektnavn) {
-        showNotificationModal('Du må fylle inn prosjektnavn for å lagre som mal');
+        showNotificationModal(t('template_name_required'));
         return;
     }
 
@@ -1187,18 +1236,18 @@ async function saveAsTemplate() {
             const existing = await templatesRef.where('prosjektnavn', '==', templateData.prosjektnavn).get();
 
             if (!existing.empty) {
-                showConfirmModal('En mal med prosjektnavn «' + templateData.prosjektnavn + '» finnes allerede. Vil du oppdatere den?', async function() {
+                showConfirmModal(t('template_exists', templateData.prosjektnavn), async function() {
                     await templatesRef.doc(existing.docs[0].id).set(templateData);
-                    showNotificationModal('Mal oppdatert!', true);
-                }, 'Oppdater', '#E8501A');
+                    showNotificationModal(t('template_update_success'), true);
+                }, t('btn_update'), '#E8501A');
             } else {
                 const docId = Date.now().toString();
                 await templatesRef.doc(docId).set(templateData);
-                showNotificationModal('Prosjektmal lagret!', true);
+                showNotificationModal(t('template_save_success'), true);
             }
         } catch (e) {
             console.error('Save template error:', e);
-            showNotificationModal('Feil ved lagring av mal: ' + e.message);
+            showNotificationModal(t('template_save_error') + e.message);
         }
     } else {
         // localStorage fallback
@@ -1206,34 +1255,34 @@ async function saveAsTemplate() {
         const existingIndex = templates.findIndex(t => t.prosjektnavn.toLowerCase() === templateData.prosjektnavn.toLowerCase());
 
         if (existingIndex !== -1) {
-            showConfirmModal('En mal med prosjektnavn «' + templateData.prosjektnavn + '» finnes allerede. Vil du oppdatere den?', function() {
+            showConfirmModal(t('template_exists', templateData.prosjektnavn), function() {
                 templateData.id = templates[existingIndex].id;
                 templates[existingIndex] = templateData;
                 localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-                showNotificationModal('Mal oppdatert!', true);
-            }, 'Oppdater', '#E8501A');
+                showNotificationModal(t('template_update_success'), true);
+            }, t('btn_update'), '#E8501A');
         } else {
             templateData.id = Date.now().toString();
             templates.push(templateData);
             localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-            showNotificationModal('Prosjektmal lagret!', true);
+            showNotificationModal(t('template_save_success'), true);
         }
     }
 }
 
 async function showTemplateModal() {
     const listEl = document.getElementById('template-list');
-    listEl.innerHTML = '<div class="no-saved">Laster...</div>';
+    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('template-modal').classList.add('active');
 
     const templates = await getTemplates();
     loadedTemplates = templates;
 
     if (templates.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">Ingen prosjektmaler</div>';
+        listEl.innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
     } else {
         listEl.innerHTML = templates.map((item, index) => {
-            const row1 = item.prosjektnavn || 'Uten navn';
+            const row1 = item.prosjektnavn || t('no_name');
             const row2 = [item.oppdragsgiver, item.prosjektnr].filter(x => x).join(' • ');
             const row3 = [item.avdeling, item.sted].filter(x => x).join(' • ');
 
@@ -1290,7 +1339,7 @@ function loadTemplate(index) {
 
 function deleteTemplate(event, index) {
     event.stopPropagation();
-    showConfirmModal('Er du sikker på at du vil slette denne malen?', async function() {
+    showConfirmModal(t('template_delete_confirm'), async function() {
         const template = loadedTemplates[index];
         if (!template) return;
 
@@ -1372,7 +1421,7 @@ async function getOrderNrSettings() {
 
 async function saveOrderNrSettings() {
     if (settingsRanges.length === 0) {
-        showNotificationModal('Legg til minst ett nummerområde.');
+        showNotificationModal(t('settings_add_range'));
         return;
     }
     const settings = { ranges: settingsRanges.slice() };
@@ -1385,14 +1434,18 @@ async function saveOrderNrSettings() {
         }
     }
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    showNotificationModal('Innstillinger lagret!', true);
+    showNotificationModal(t('settings_saved'), true);
     closeSettingsModal();
 }
 
-const settingsPageTitles = {
-    ordrenr: 'Ordreseddelnummer',
-    defaults: 'Standardverdier'
-};
+function getSettingsPageTitle(page) {
+    const titles = {
+        ordrenr: t('settings_ordrenr'),
+        defaults: t('settings_defaults'),
+        language: t('settings_language')
+    };
+    return titles[page] || '';
+}
 
 async function showSettingsModal() {
     showSettingsMenu();
@@ -1407,7 +1460,7 @@ function closeSettingsModal() {
 function showSettingsMenu() {
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     document.getElementById('settings-page-menu').style.display = 'block';
-    document.getElementById('settings-header-title').textContent = 'Innstillinger';
+    document.getElementById('settings-header-title').textContent = t('settings_title');
     const header = document.getElementById('settings-header');
     const existingBack = header.querySelector('.settings-back-btn');
     if (existingBack) existingBack.remove();
@@ -1416,7 +1469,7 @@ function showSettingsMenu() {
 async function showSettingsPage(page) {
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     document.getElementById('settings-page-' + page).style.display = 'block';
-    document.getElementById('settings-header-title').textContent = settingsPageTitles[page] || '';
+    document.getElementById('settings-header-title').textContent = getSettingsPageTitle(page);
 
     const header = document.getElementById('settings-header');
     if (!header.querySelector('.settings-back-btn')) {
@@ -1436,6 +1489,9 @@ async function showSettingsPage(page) {
         updateSettingsStatus();
     } else if (page === 'defaults') {
         await loadDefaultSettingsToModal();
+    } else if (page === 'language') {
+        document.getElementById('lang-check-no').textContent = currentLang === 'no' ? '\u2713' : '';
+        document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
     }
 }
 
@@ -1473,7 +1529,7 @@ async function saveDefaultSettings() {
         }
     }
     localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
-    showNotificationModal('Standardverdier lagret!', true);
+    showNotificationModal(t('settings_defaults_saved'), true);
 }
 
 async function loadDefaultSettingsToModal() {
@@ -1498,13 +1554,13 @@ async function autoFillDefaults() {
 function renderSettingsRanges() {
     const container = document.getElementById('settings-ranges');
     if (settingsRanges.length === 0) {
-        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">Ingen nummerområder lagt til</div>';
+        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_ranges') + '</div>';
         return;
     }
     container.innerHTML = settingsRanges.map((r, idx) =>
         `<div class="settings-range-item">
             <span>${r.start} – ${r.end}</span>
-            <button onclick="removeSettingsRange(${idx})" title="Fjern"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+            <button onclick="removeSettingsRange(${idx})" title="${t('btn_remove')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div>`
     ).join('');
 }
@@ -1516,12 +1572,12 @@ async function addSettingsRange() {
     const end = parseInt(endInput.value);
 
     if (isNaN(start) || isNaN(end) || start > end) {
-        showNotificationModal('"Fra" må være mindre enn eller lik "Til".');
+        showNotificationModal(t('settings_range_error'));
         return;
     }
     const overlaps = settingsRanges.some(r => start <= r.end && end >= r.start);
     if (overlaps) {
-        showNotificationModal('Området overlapper med et eksisterende nummerområde.');
+        showNotificationModal(t('settings_range_overlap'));
         return;
     }
     settingsRanges.push({ start, end });
@@ -1535,12 +1591,12 @@ async function addSettingsRange() {
         try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
     }
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    showNotificationModal('Nummerområde lagt til!', true);
+    showNotificationModal(t('settings_range_added'), true);
 }
 
 function removeSettingsRange(idx) {
     const r = settingsRanges[idx];
-    showConfirmModal(`Fjerne nummerområde ${r.start} – ${r.end}?`, async function() {
+    showConfirmModal(t('settings_range_remove', r.start, r.end), async function() {
         settingsRanges.splice(idx, 1);
         renderSettingsRanges();
         updateSettingsStatus();
@@ -1572,7 +1628,7 @@ async function updateSettingsStatus() {
     });
 
     const nextNr = findNextInRanges(settingsRanges, usedNumbers);
-    statusEl.textContent = `Brukt: ${usedCount} av ${total}` + (nextNr ? ` · Neste: ${nextNr}` : ' · Alle brukt!');
+    statusEl.textContent = t('settings_used', usedCount, total) + (nextNr ? ' · ' + t('settings_next', nextNr) : ' · ' + t('settings_all_used'));
 }
 
 async function getUsedOrderNumbers() {
@@ -1650,7 +1706,7 @@ function newForm() {
         : hasAnyFormData();
 
     if (hasUnsavedChanges) {
-        showConfirmModal('Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.', doNewForm, 'Start ny', '#E8501A');
+        showConfirmModal(t('new_form_confirm'), doNewForm, t('btn_start_new'), '#E8501A');
     } else {
         doNewForm();
     }
@@ -1732,7 +1788,7 @@ async function doExportPDF() {
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
         pdf.save(getExportFilename('pdf'));
     } catch (error) {
-        alert('Feil ved generering av PDF: ' + error.message);
+        alert(t('export_pdf_error') + error.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -1749,7 +1805,7 @@ async function doExportJPG() {
         link.href = canvas.toDataURL('image/jpeg', 0.95);
         link.click();
     } catch (error) {
-        alert('Feil ved generering av JPG: ' + error.message);
+        alert(t('export_jpg_error') + error.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -1810,4 +1866,7 @@ window.addEventListener('load', function() {
         ordersContainer.appendChild(createOrderCard({ description: '', materials: [], timer: '' }, true));
         updateOrderDeleteStates();
     }
+
+    // Apply saved language
+    applyTranslations();
 });

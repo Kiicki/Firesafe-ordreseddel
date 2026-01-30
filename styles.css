@@ -1473,6 +1473,38 @@ body {
     border-color: #E8501A;
 }
 
+/* Language settings */
+.settings-lang-options {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-lang-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: #f8f8f8;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 500;
+    transition: background 0.15s;
+}
+
+.settings-lang-option:active {
+    background: #eee;
+}
+
+.settings-lang-check {
+    color: #E8501A;
+    font-size: 18px;
+    font-weight: 700;
+    min-width: 20px;
+    text-align: center;
+}
+
 /* Mobile responsive */
 @media screen and (max-width: 600px) {
     body {

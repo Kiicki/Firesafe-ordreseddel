@@ -1,9 +1,10 @@
-const CACHE_NAME = 'firesafe-v1';
+const CACHE_NAME = 'firesafe-v2';
 const ASSETS = [
     '/Firesafe-ordreseddel/',
     '/Firesafe-ordreseddel/index.html',
     '/Firesafe-ordreseddel/styles.css',
     '/Firesafe-ordreseddel/script.js',
+    '/Firesafe-ordreseddel/lang.js',
     'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];

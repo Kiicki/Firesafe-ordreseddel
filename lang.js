@@ -1,0 +1,344 @@
+const TRANSLATIONS = {
+    no: {
+        // Toolbar
+        toolbar_new: 'Ny',
+        toolbar_save: 'Lagre',
+        toolbar_load: 'Hent',
+        toolbar_export: 'Eksport',
+
+        // Login
+        login: 'Logg inn',
+        logout: 'Logg ut',
+        logout_confirm: 'Vil du logge ut?',
+        logout_success: 'Du er nå logget ut',
+        login_success: 'Logget inn som ',
+        login_failed: 'Innlogging feilet: ',
+        firebase_not_configured: 'Firebase er ikke konfigurert. Sjekk firebaseConfig i script.js',
+
+        // Loading
+        generating_file: 'Genererer fil...',
+
+        // Sent banner
+        sent_banner_text: 'Dette skjemaet er sendt og kan ikke redigeres',
+        sent_banner_move: 'Flytt til lagrede',
+
+        // Mobile form header
+        form_subtitle: 'Ordreseddel',
+        beta_label: 'Beta',
+
+        // Field labels
+        label_ordreseddel_nr: 'Ordreseddel nr.',
+        label_uke: 'Uke',
+        label_montor: 'Montør',
+        label_avdeling: 'Avdeling',
+        label_oppdragsgiver: 'Oppdragsgiver',
+        label_kundens_ref: 'Kundens ref.',
+        label_fakturaadresse: 'Fakturaadresse',
+        label_prosjektnr: 'Prosjektnr.',
+        label_prosjektnavn: 'Prosjektnavn',
+        label_sted: 'Sted',
+        label_dato: 'Dato',
+        label_kundens_underskrift: 'Kundens underskrift',
+
+        // Sections
+        section_work: 'Utførte arbeider',
+        section_signing: 'Signering',
+
+        // Order cards
+        order_description: 'Beskrivelse',
+        order_materials_label: 'Materialer',
+        order_add_material: '+ Material',
+        order_hours: 'Timer',
+        order_add: '+ Legg til bestilling',
+        order_delete_confirm: 'Slett denne bestillingen?',
+
+        // Material placeholders
+        placeholder_material: 'Materiale',
+        placeholder_quantity: 'Antall',
+        placeholder_unit: 'Enhet',
+
+        // Text editor
+        text_editor_done: 'Ferdig',
+        text_editor_placeholder: 'Beskriv utført arbeid...',
+
+        // Save menu
+        save_menu_title: 'Lagre skjema',
+        save_option: 'Lagre',
+        save_as_template: 'Lagre som mal',
+
+        // Save confirmations
+        confirm_save: 'Er du sikker på at du vil lagre skjemaet?',
+        confirm_update: 'Dette ordrenummeret finnes allerede. Vil du oppdatere det?',
+        save_success: 'Skjema lagret!',
+        update_success: 'Skjema oppdatert!',
+        save_error: 'Feil ved lagring: ',
+        duplicate_in_sent: 'Ordreseddel nr. {0} finnes allerede i sendte.',
+        btn_save: 'Lagre',
+        btn_update: 'Oppdater',
+
+        // Export menu
+        export_title: 'Eksporter som',
+        export_only_label: 'Kun eksporter',
+        export_and_mark_label: 'Eksporter + marker som sendt',
+        btn_cancel: 'Avbryt',
+        export_pdf_error: 'Feil ved generering av PDF: ',
+        export_jpg_error: 'Feil ved generering av JPG: ',
+
+        // Hent modal
+        modal_load_title: 'Hent skjema',
+        tab_saved: 'Lagrede',
+        tab_sent: 'Sendte',
+        search_placeholder: 'Søk ordrenummer...',
+        search_template_placeholder: 'Søk prosjekt...',
+        loading: 'Laster...',
+        no_saved_forms: 'Ingen lagrede skjemaer',
+        no_sent_forms: 'Ingen sendte skjemaer',
+        no_templates: 'Ingen prosjektmaler',
+
+        // List items
+        no_name: 'Uten navn',
+        order_prefix: 'Ordre: ',
+
+        // Form actions
+        delete_confirm: 'Er du sikker på at du vil slette dette skjemaet?',
+        delete_sent_confirm: 'Er du sikker på at du vil slette dette skjemaet permanent?',
+        move_to_saved_confirm: 'Vil du flytte dette skjemaet til lagrede?',
+        move_to_saved_success: 'Skjema flyttet til lagrede!',
+        marked_as_sent: 'Skjema markert som sendt!',
+        btn_move: 'Flytt',
+        duplicated_success: 'Skjema duplisert — husk å lagre!',
+
+        // New form
+        new_form_confirm: 'Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.',
+        btn_start_new: 'Start ny',
+
+        // Templates
+        template_modal_title: 'Velg prosjektmal',
+        template_new_form: 'Nytt skjema',
+        template_save_success: 'Prosjektmal lagret!',
+        template_update_success: 'Mal oppdatert!',
+        template_exists: 'En mal med prosjektnavn «{0}» finnes allerede. Vil du oppdatere den?',
+        template_name_required: 'Du må fylle inn prosjektnavn for å lagre som mal',
+        template_save_error: 'Feil ved lagring av mal: ',
+        template_delete_confirm: 'Er du sikker på at du vil slette denne malen?',
+
+        // Settings
+        settings_title: 'Innstillinger',
+        settings_ordrenr: 'Ordreseddelnummer',
+        settings_defaults: 'Standardverdier',
+        settings_language: 'Språk / Language',
+        settings_saved: 'Innstillinger lagret!',
+        settings_add_range: 'Legg til minst ett nummerområde.',
+        settings_range_error: '"Fra" må være mindre enn eller lik "Til".',
+        settings_range_overlap: 'Området overlapper med et eksisterende nummerområde.',
+        settings_range_added: 'Nummerområde lagt til!',
+        settings_range_remove: 'Fjerne nummerområde {0} – {1}?',
+        settings_no_ranges: 'Ingen nummerområder lagt til',
+        settings_used: 'Brukt: {0} av {1}',
+        settings_next: 'Neste: {0}',
+        settings_all_used: 'Alle brukt!',
+        settings_defaults_saved: 'Standardverdier lagret!',
+        placeholder_from: 'Fra',
+        placeholder_to: 'Til',
+        btn_save_settings: 'Lagre',
+
+        // Language page
+        lang_norwegian: 'Norsk',
+        lang_english: 'English',
+
+        // Validation
+        required_field: 'Du må fylle inn {0}',
+        required_order: 'Du må legge til minst én bestilling',
+        required_description: 'Beskrivelse mangler for bestilling {0}',
+        validation_ordreseddel_nr: 'Ordreseddel nr.',
+        validation_dato: 'Dato',
+        validation_oppdragsgiver: 'Oppdragsgiver',
+        validation_prosjektnr: 'Prosjektnr.',
+        validation_prosjektnavn: 'Prosjektnavn',
+        validation_montor: 'Montør',
+        validation_avdeling: 'Avdeling',
+        validation_sted: 'Sted',
+        validation_signering_dato: 'Signering dato',
+
+        // Confirm modal defaults
+        confirm_default: 'Er du sikker?',
+        btn_remove: 'Fjern',
+
+        // Desktop export labels (used in buildDesktopWorkLines)
+        export_materials: 'Materiell:',
+        export_hours: 'Timer:',
+        export_hours_unit: 'timer',
+        export_total: 'Totalt:',
+    },
+    en: {
+        // Toolbar
+        toolbar_new: 'New',
+        toolbar_save: 'Save',
+        toolbar_load: 'Load',
+        toolbar_export: 'Export',
+
+        // Login
+        login: 'Log in',
+        logout: 'Log out',
+        logout_confirm: 'Do you want to log out?',
+        logout_success: 'You are now logged out',
+        login_success: 'Logged in as ',
+        login_failed: 'Login failed: ',
+        firebase_not_configured: 'Firebase is not configured. Check firebaseConfig in script.js',
+
+        // Loading
+        generating_file: 'Generating file...',
+
+        // Sent banner
+        sent_banner_text: 'This form has been sent and cannot be edited',
+        sent_banner_move: 'Move to saved',
+
+        // Mobile form header
+        form_subtitle: 'Order Form',
+        beta_label: 'Beta',
+
+        // Field labels
+        label_ordreseddel_nr: 'Order no.',
+        label_uke: 'Week',
+        label_montor: 'Technician',
+        label_avdeling: 'Department',
+        label_oppdragsgiver: 'Client',
+        label_kundens_ref: 'Customer ref.',
+        label_fakturaadresse: 'Invoice address',
+        label_prosjektnr: 'Project no.',
+        label_prosjektnavn: 'Project name',
+        label_sted: 'Location',
+        label_dato: 'Date',
+        label_kundens_underskrift: 'Customer signature',
+
+        // Sections
+        section_work: 'Completed work',
+        section_signing: 'Signing',
+
+        // Order cards
+        order_description: 'Description',
+        order_materials_label: 'Materials',
+        order_add_material: '+ Material',
+        order_hours: 'Hours',
+        order_add: '+ Add order',
+        order_delete_confirm: 'Delete this order?',
+
+        // Material placeholders
+        placeholder_material: 'Material',
+        placeholder_quantity: 'Quantity',
+        placeholder_unit: 'Unit',
+
+        // Text editor
+        text_editor_done: 'Done',
+        text_editor_placeholder: 'Describe completed work...',
+
+        // Save menu
+        save_menu_title: 'Save form',
+        save_option: 'Save',
+        save_as_template: 'Save as template',
+
+        // Save confirmations
+        confirm_save: 'Are you sure you want to save the form?',
+        confirm_update: 'This order number already exists. Do you want to update it?',
+        save_success: 'Form saved!',
+        update_success: 'Form updated!',
+        save_error: 'Error saving: ',
+        duplicate_in_sent: 'Order no. {0} already exists in sent.',
+        btn_save: 'Save',
+        btn_update: 'Update',
+
+        // Export menu
+        export_title: 'Export as',
+        export_only_label: 'Export only',
+        export_and_mark_label: 'Export + mark as sent',
+        btn_cancel: 'Cancel',
+        export_pdf_error: 'Error generating PDF: ',
+        export_jpg_error: 'Error generating JPG: ',
+
+        // Hent modal
+        modal_load_title: 'Load form',
+        tab_saved: 'Saved',
+        tab_sent: 'Sent',
+        search_placeholder: 'Search order number...',
+        search_template_placeholder: 'Search project...',
+        loading: 'Loading...',
+        no_saved_forms: 'No saved forms',
+        no_sent_forms: 'No sent forms',
+        no_templates: 'No project templates',
+
+        // List items
+        no_name: 'Untitled',
+        order_prefix: 'Order: ',
+
+        // Form actions
+        delete_confirm: 'Are you sure you want to delete this form?',
+        delete_sent_confirm: 'Are you sure you want to permanently delete this form?',
+        move_to_saved_confirm: 'Do you want to move this form to saved?',
+        move_to_saved_success: 'Form moved to saved!',
+        marked_as_sent: 'Form marked as sent!',
+        btn_move: 'Move',
+        duplicated_success: 'Form duplicated — remember to save!',
+
+        // New form
+        new_form_confirm: 'Start a new form? Unsaved changes will be lost.',
+        btn_start_new: 'Start new',
+
+        // Templates
+        template_modal_title: 'Choose project template',
+        template_new_form: 'New form',
+        template_save_success: 'Project template saved!',
+        template_update_success: 'Template updated!',
+        template_exists: 'A template with project name "{0}" already exists. Do you want to update it?',
+        template_name_required: 'You must fill in the project name to save as a template',
+        template_save_error: 'Error saving template: ',
+        template_delete_confirm: 'Are you sure you want to delete this template?',
+
+        // Settings
+        settings_title: 'Settings',
+        settings_ordrenr: 'Order numbers',
+        settings_defaults: 'Default values',
+        settings_language: 'Språk / Language',
+        settings_saved: 'Settings saved!',
+        settings_add_range: 'Add at least one number range.',
+        settings_range_error: '"From" must be less than or equal to "To".',
+        settings_range_overlap: 'The range overlaps with an existing number range.',
+        settings_range_added: 'Number range added!',
+        settings_range_remove: 'Remove number range {0} – {1}?',
+        settings_no_ranges: 'No number ranges added',
+        settings_used: 'Used: {0} of {1}',
+        settings_next: 'Next: {0}',
+        settings_all_used: 'All used!',
+        settings_defaults_saved: 'Default values saved!',
+        placeholder_from: 'From',
+        placeholder_to: 'To',
+        btn_save_settings: 'Save',
+
+        // Language page
+        lang_norwegian: 'Norsk',
+        lang_english: 'English',
+
+        // Validation
+        required_field: 'You must fill in {0}',
+        required_order: 'You must add at least one order',
+        required_description: 'Description missing for order {0}',
+        validation_ordreseddel_nr: 'Order no.',
+        validation_dato: 'Date',
+        validation_oppdragsgiver: 'Client',
+        validation_prosjektnr: 'Project no.',
+        validation_prosjektnavn: 'Project name',
+        validation_montor: 'Technician',
+        validation_avdeling: 'Department',
+        validation_sted: 'Location',
+        validation_signering_dato: 'Signing date',
+
+        // Confirm modal defaults
+        confirm_default: 'Are you sure?',
+        btn_remove: 'Remove',
+
+        // Desktop export labels (used in buildDesktopWorkLines)
+        export_materials: 'Materials:',
+        export_hours: 'Hours:',
+        export_hours_unit: 'hours',
+        export_total: 'Total:',
+    }
+};
