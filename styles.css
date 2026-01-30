@@ -14,9 +14,6 @@ body {
 .container {
     max-width: 800px;
     margin: 0 auto;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
 }
 
 .sent-banner {
@@ -82,7 +79,6 @@ body {
     max-width: 600px;
     width: 100%;
     margin: 0 auto;
-    margin-top: auto;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
 }
 
@@ -826,7 +822,6 @@ body {
 /* Mobile form - visible on all devices */
 .mobile-form {
     display: block;
-    flex: 1;
     background: white;
     border-radius: 8px;
     padding: 2px 15px 5px 15px;
