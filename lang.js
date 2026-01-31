@@ -47,7 +47,7 @@ const TRANSLATIONS = {
         // Order cards
         order_description: 'Beskrivelse',
         order_materials_label: 'Materialer',
-        order_add_material: '+ Material',
+        order_add_material: 'Materialer',
         order_hours: 'Timer',
         order_add: '+ Legg til bestilling',
         order_delete_confirm: 'Slett denne bestillingen?',
@@ -86,13 +86,16 @@ const TRANSLATIONS = {
 
         // Hent modal
         modal_load_title: 'Hent skjema',
+        tab_own: 'Egne',
         tab_saved: 'Lagrede',
         tab_sent: 'Sendte',
+        tab_external: 'Eksterne',
         search_placeholder: 'Søk ordrenummer...',
         search_template_placeholder: 'Søk prosjekt...',
         loading: 'Laster...',
         no_saved_forms: 'Ingen lagrede skjemaer',
         no_sent_forms: 'Ingen sendte skjemaer',
+        no_external_forms: 'Ingen eksterne skjemaer',
         no_templates: 'Ingen prosjektmaler',
 
         // List items
@@ -143,6 +146,23 @@ const TRANSLATIONS = {
         placeholder_to: 'Til',
         btn_save_settings: 'Lagre',
 
+        // Materials & units settings
+        settings_materials: 'Materialer og enheter',
+        settings_materials_list: 'Materialer',
+        settings_units_list: 'Enheter',
+        placeholder_new_material: 'Nytt materiale',
+        placeholder_new_unit: 'Ny enhet',
+        settings_material_added: 'Materiale lagt til!',
+        settings_unit_added: 'Enhet lagt til!',
+        settings_material_exists: 'Dette materialet finnes allerede.',
+        settings_unit_exists: 'Denne enheten finnes allerede.',
+        settings_material_remove: 'Fjerne «{0}»?',
+        settings_no_materials: 'Ingen materialer lagt til',
+        settings_no_units: 'Ingen enheter lagt til',
+        picker_custom: 'Egendefinert',
+        picker_add: 'Legg til',
+        picker_search_placeholder: 'Søk eller legg til materiale...',
+
         // Language page
         lang_norwegian: 'Norsk',
         lang_english: 'English',
@@ -164,6 +184,12 @@ const TRANSLATIONS = {
         // Confirm modal defaults
         confirm_default: 'Er du sikker?',
         btn_remove: 'Fjern',
+
+        // External order
+        external_order_btn: 'Eksternt ordrenummer',
+        external_badge: 'Eksternt',
+        validation_nr_not_in_range: 'Ordrenummer {0} er ikke innenfor dine registrerte områder',
+        validation_nr_is_own: 'Dette nummeret tilhører dine egne områder. Bruk «Nytt skjema» i stedet.',
 
         // Desktop export labels (used in buildDesktopWorkLines)
         export_materials: 'Materiell:',
@@ -219,7 +245,7 @@ const TRANSLATIONS = {
         // Order cards
         order_description: 'Description',
         order_materials_label: 'Materials',
-        order_add_material: '+ Material',
+        order_add_material: 'Materials',
         order_hours: 'Hours',
         order_add: '+ Add order',
         order_delete_confirm: 'Delete this order?',
@@ -258,13 +284,16 @@ const TRANSLATIONS = {
 
         // Hent modal
         modal_load_title: 'Load form',
+        tab_own: 'Own',
         tab_saved: 'Saved',
         tab_sent: 'Sent',
+        tab_external: 'External',
         search_placeholder: 'Search order number...',
         search_template_placeholder: 'Search project...',
         loading: 'Loading...',
         no_saved_forms: 'No saved forms',
         no_sent_forms: 'No sent forms',
+        no_external_forms: 'No external forms',
         no_templates: 'No project templates',
 
         // List items
@@ -315,6 +344,23 @@ const TRANSLATIONS = {
         placeholder_to: 'To',
         btn_save_settings: 'Save',
 
+        // Materials & units settings
+        settings_materials: 'Materials and units',
+        settings_materials_list: 'Materials',
+        settings_units_list: 'Units',
+        placeholder_new_material: 'New material',
+        placeholder_new_unit: 'New unit',
+        settings_material_added: 'Material added!',
+        settings_unit_added: 'Unit added!',
+        settings_material_exists: 'This material already exists.',
+        settings_unit_exists: 'This unit already exists.',
+        settings_material_remove: 'Remove "{0}"?',
+        settings_no_materials: 'No materials added',
+        settings_no_units: 'No units added',
+        picker_custom: 'Custom',
+        picker_add: 'Add',
+        picker_search_placeholder: 'Search or add material...',
+
         // Language page
         lang_norwegian: 'Norsk',
         lang_english: 'English',
@@ -336,6 +382,12 @@ const TRANSLATIONS = {
         // Confirm modal defaults
         confirm_default: 'Are you sure?',
         btn_remove: 'Remove',
+
+        // External order
+        external_order_btn: 'External order number',
+        external_badge: 'External',
+        validation_nr_not_in_range: 'Order number {0} is not within your registered ranges',
+        validation_nr_is_own: 'This number belongs to your own ranges. Use "New form" instead.',
 
         // Desktop export labels (used in buildDesktopWorkLines)
         export_materials: 'Materials:',

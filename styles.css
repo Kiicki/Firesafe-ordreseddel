@@ -614,10 +614,12 @@ body {
 .modal-footer-skip {
     padding: 10px 15px;
     border-top: 1px solid #eee;
+    display: flex;
+    gap: 8px;
 }
 
 .btn-skip-template {
-    width: 100%;
+    flex: 1;
     padding: 12px;
     border: 1.5px solid #495057;
     background: transparent;
@@ -627,6 +629,27 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
+}
+
+.btn-external-order {
+    flex: 1;
+    padding: 12px;
+    border: 1.5px solid #E8501A;
+    background: transparent;
+    color: #E8501A;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-external-order:hover {
+    background: #fef0ea;
+}
+
+.btn-external-order:active {
+    transform: translateY(1px);
 }
 
 .btn-skip-template:hover {
@@ -965,6 +988,31 @@ body {
     color: #E8501A;
 }
 
+.external-badge {
+    position: absolute;
+    right: 40px;
+    font-size: 11px;
+    color: #E8501A;
+    background: #fef0ea;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+.status-dot.saved { background: #E8501A; }
+.status-dot.sent { background: #4CAF50; }
+
+
 .mobile-add-line-btn {
     width: 100%;
     padding: 10px;
@@ -1133,13 +1181,332 @@ body {
     height: 20px;
 }
 
-.mobile-add-mat-btn {
+/* Picker overlay for material/unit selection */
+.picker-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    background: white;
+    z-index: 4000;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.picker-overlay.active {
+    display: flex;
+}
+
+.picker-overlay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 8px 12px;
-    background: transparent;
-    color: #555;
-    border: 1px dashed #555;
-    border-radius: 6px;
+    border-bottom: 1px solid #ddd;
+    background: #f8f9fa;
+    flex-shrink: 0;
+}
+
+.picker-overlay-title {
+    font-weight: 600;
+    color: #333;
     font-size: 13px;
+}
+
+.picker-overlay-cancel {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 6px 8px;
+}
+
+.picker-overlay-done {
+    background: #E8501A;
+    color: white;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.picker-overlay-done:active {
+    background: #C94615;
+}
+
+.picker-overlay-search {
+    padding: 10px 12px;
+    border-top: 1px solid #eee;
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+}
+
+.picker-overlay-search input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    outline: none;
+    background: #fff;
+}
+
+.picker-overlay-search input:focus {
+    border-color: #E8501A;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2);
+}
+
+.picker-overlay-add-btn {
+    width: 44px;
+    flex-shrink: 0;
+    border: none;
+    background: #E8501A;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 22px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.picker-overlay-add-btn:active {
+    background: #C94615;
+}
+
+.picker-overlay-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.picker-mat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    opacity: 0.5;
+}
+
+.picker-mat-row.picker-mat-selected {
+    opacity: 1;
+    background: #f8fff8;
+}
+
+.picker-mat-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.picker-mat-check input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    accent-color: #E8501A;
+}
+
+.picker-mat-name {
+    font-size: 15px;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.picker-mat-antall {
+    width: 60px;
+    flex-shrink: 0;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.picker-mat-antall:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+
+.picker-mat-enhet-btn {
+    width: 90px;
+    flex-shrink: 0;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    text-align: center;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.picker-mat-enhet-btn.placeholder {
+    color: #999;
+}
+
+.picker-mat-enhet-btn:active {
+    background: #f5f5f5;
+}
+
+/* Unit picker bottom sheet */
+.unit-picker-backdrop {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 4000;
+    justify-content: center;
+    align-items: flex-end;
+}
+
+.unit-picker-backdrop.active {
+    display: flex;
+}
+
+.unit-picker-sheet {
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    width: 100%;
+    max-width: 500px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.unit-picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.unit-picker-header button {
+    background: none;
+    border: none;
+    color: #E8501A;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.unit-picker-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.unit-picker-item {
+    display: block;
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 16px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.unit-picker-item:active {
+    background: #f5f5f5;
+}
+
+.unit-picker-item-selected {
+    color: #E8501A;
+    font-weight: 600;
+}
+
+.unit-picker-custom {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid #eee;
+    flex-shrink: 0;
+}
+
+.unit-picker-custom input {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.unit-picker-custom input:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+
+.unit-picker-custom-ok {
+    padding: 10px 16px;
+    background: #E8501A;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.picker-mat-custom .picker-mat-check {
+    flex-wrap: wrap;
+}
+
+.picker-item-hint {
+    font-size: 11px;
+    color: #999;
+    margin-left: 4px;
+}
+
+/* Material summary rows in order card */
+.mat-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.mat-summary-name {
+    color: #333;
+    font-weight: 500;
+}
+
+.mat-summary-detail {
+    color: #777;
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.mobile-add-mat-btn {
+    padding: 10px 12px;
+    background: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     width: 100%;
@@ -1147,7 +1514,7 @@ body {
 }
 
 .mobile-add-mat-btn:active {
-    background: #f0f0f0;
+    background: #e8e8e8;
 }
 
 
@@ -1414,6 +1781,38 @@ body {
 }
 
 .settings-range-item button:active {
+    color: #e74c3c;
+}
+
+.settings-chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.settings-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: #f0f0f0;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #333;
+}
+
+.settings-chip button {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 0 0 2px;
+    line-height: 1;
+}
+
+.settings-chip button:active {
     color: #e74c3c;
 }
 

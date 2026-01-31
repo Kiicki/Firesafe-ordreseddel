@@ -3,6 +3,10 @@ const ARCHIVE_KEY = 'firesafe_arkiv';
 const TEMPLATE_KEY = 'firesafe_maler';
 const SETTINGS_KEY = 'firesafe_settings';
 const DEFAULTS_KEY = 'firesafe_defaults';
+const MATERIALS_KEY = 'firesafe_materials';
+const EXTERNAL_KEY = 'firesafe_external';
+const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
+function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 
 // ============================================
 // FLERSPRÅK
@@ -75,7 +79,7 @@ if (auth) {
         currentUser = user;
         updateLoginButton();
         loadedForms = [];
-        loadedSentForms = [];
+        loadedExternalForms = [];
         // Load language preference from Firebase
         if (user && db) {
             try {
@@ -168,9 +172,38 @@ async function getSentForms() {
     return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
 }
 
+// Helper: Get external forms
+async function getExternalForms() {
+    if (currentUser && db) {
+        try {
+            const snapshot = await db.collection('users').doc(currentUser.uid).collection('external').orderBy('savedAt', 'desc').get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.error('Firestore error:', e);
+            return JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
+        }
+    }
+    return JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
+}
+
+// Helper: Get external sent forms
+async function getExternalSentForms() {
+    if (currentUser && db) {
+        try {
+            const snapshot = await db.collection('users').doc(currentUser.uid).collection('externalArchive').orderBy('savedAt', 'desc').get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.error('Firestore error:', e);
+            return JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
+        }
+    }
+    return JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
+}
+
 // Track last saved form data for unsaved changes detection
 let lastSavedData = null;
 let preNewFormData = null;
+let isExternalForm = false;
 
 function getFormDataSnapshot() {
     const data = getFormData();
@@ -343,7 +376,7 @@ function createOrderCard(orderData, expanded) {
             <div class="mobile-order-materials-section">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
                 <div class="mobile-order-materials"></div>
-                <button type="button" class="mobile-add-mat-btn" onclick="addMaterialToOrder(this)" data-i18n="order_add_material">${t('order_add_material')}</button>
+                <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)" data-i18n="order_add_material">${t('order_add_material')}</button>
             </div>
             <div class="mobile-work-row">
                 <div class="mobile-field" style="flex:1">
@@ -364,11 +397,8 @@ function createOrderCard(orderData, expanded) {
 
     // Add materials
     const matContainer = card.querySelector('.mobile-order-materials');
-    const mats = orderData.materials && orderData.materials.length > 0 ? orderData.materials : [{ name: '', antall: '', enhet: '' }];
-    mats.forEach(m => {
-        matContainer.appendChild(createMaterialRow(m));
-    });
-    updateMatDeleteStates(matContainer);
+    const mats = orderData.materials && orderData.materials.length > 0 ? orderData.materials : [];
+    renderMaterialSummary(matContainer, mats);
 
     // Set up description click → text editor
     descInput.addEventListener('click', function() {
@@ -378,43 +408,284 @@ function createOrderCard(orderData, expanded) {
     return card;
 }
 
-function createMaterialRow(m) {
+function createMaterialSummaryRow(m) {
     const div = document.createElement('div');
     div.className = 'mobile-material-row';
+    div.setAttribute('data-mat-name', m.name || '');
+    div.setAttribute('data-mat-antall', m.antall || '');
+    div.setAttribute('data-mat-enhet', m.enhet || '');
+    const nameText = m.name || t('placeholder_material');
+    const detailParts = [];
+    if (m.antall) detailParts.push(m.antall);
+    if (m.enhet) detailParts.push(m.enhet);
+    const detail = detailParts.length > 0 ? detailParts.join(' ') : '';
     div.innerHTML = `
-        <div class="mobile-field mobile-mat-name-field">
-            <div class="input-with-delete">
-                <input type="text" class="mobile-mat-name" placeholder="${t('placeholder_material')}" data-i18n-placeholder="placeholder_material" autocapitalize="sentences" value="${(m.name || '').replace(/"/g, '&quot;')}">
-                <button type="button" class="mobile-mat-remove" onclick="removeMaterialFromOrder(this)">${deleteIcon}</button>
-            </div>
-        </div>
-        <div class="mobile-work-row">
-            <div class="mobile-field"><input type="text" class="mobile-mat-antall" placeholder="${t('placeholder_quantity')}" data-i18n-placeholder="placeholder_quantity" value="${(m.antall || '').replace(/"/g, '&quot;')}"></div>
-            <div class="mobile-field"><input type="text" class="mobile-mat-enhet" placeholder="${t('placeholder_unit')}" data-i18n-placeholder="placeholder_unit" autocapitalize="sentences" value="${(m.enhet || '').replace(/"/g, '&quot;')}"></div>
+        <div class="mat-summary-row">
+            <span class="mat-summary-name">${nameText}</span>
+            ${detail ? `<span class="mat-summary-detail">${detail}</span>` : ''}
         </div>`;
     return div;
 }
 
-function updateMatDeleteStates(matContainer) {
-    const rows = matContainer.querySelectorAll('.mobile-material-row');
-    const buttons = matContainer.querySelectorAll('.mobile-mat-remove');
-    buttons.forEach(btn => { btn.disabled = rows.length <= 1; });
+function renderMaterialSummary(matContainer, materials) {
+    matContainer.innerHTML = '';
+    materials.forEach(m => {
+        if (m.name || m.antall || m.enhet) {
+            matContainer.appendChild(createMaterialSummaryRow(m));
+        }
+    });
 }
 
-function addMaterialToOrder(btn) {
-    const matContainer = btn.closest('.mobile-order-body').querySelector('.mobile-order-materials');
-    const row = createMaterialRow({ name: '', antall: '', enhet: '' });
-    matContainer.appendChild(row);
-    updateMatDeleteStates(matContainer);
-    row.querySelector('.mobile-mat-name').focus();
+function getMaterialsFromContainer(matContainer) {
+    const materials = [];
+    matContainer.querySelectorAll('.mobile-material-row').forEach(row => {
+        const name = row.getAttribute('data-mat-name') || '';
+        const antall = row.getAttribute('data-mat-antall') || '';
+        const enhet = row.getAttribute('data-mat-enhet') || '';
+        if (name || antall || enhet) {
+            materials.push({ name, antall, enhet });
+        }
+    });
+    return materials;
 }
 
-function removeMaterialFromOrder(btn) {
-    const row = btn.closest('.mobile-material-row');
-    const matContainer = row.closest('.mobile-order-materials');
-    row.remove();
-    updateMatDeleteStates(matContainer);
+// Material picker overlay
+let pickerOrderCard = null;
+let pickerState = {}; // { "materialenavn": { checked: true, antall: "5", enhet: "stk" } }
+
+function openMaterialPicker(btn) {
+    const card = btn.closest('.mobile-order-card');
+    pickerOrderCard = card;
+    const matContainer = card.querySelector('.mobile-order-materials');
+    const existing = getMaterialsFromContainer(matContainer);
+
+    const allMaterials = cachedMaterialOptions || [];
+    const allUnits = cachedUnitOptions || [];
+
+    const modal = document.getElementById('picker-overlay');
+    const searchInput = document.getElementById('picker-overlay-search');
+    const list = document.getElementById('picker-overlay-list');
+
+    searchInput.value = '';
+
+    // Initialize pickerState from existing materials
+    pickerState = {};
+    existing.forEach(m => {
+        if (m.name) {
+            pickerState[m.name] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+        }
+    });
+
+    function esc(s) { return (s || '').replace(/"/g, '&quot;'); }
+
+    function buildRow(name, isChecked, antall, enhet) {
+        const enhetLabel = enhet || t('placeholder_unit');
+        const enhetClass = enhet ? '' : ' placeholder';
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}">
+            <label class="picker-mat-check"><input type="checkbox" ${isChecked ? 'checked' : ''} data-mat-name="${esc(name)}"><span class="picker-mat-name">${name}</span></label>
+            <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}">
+            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}">${enhetLabel}</button>
+        </div>`;
+    }
+
+    function renderPickerList() {
+        let htmlChecked = '';
+        let htmlUnchecked = '';
+
+        // Collect all material names: configured + any checked custom ones
+        const allNames = [...allMaterials];
+        Object.keys(pickerState).forEach(name => {
+            if (pickerState[name].checked && !allMaterials.some(o => o.toLowerCase() === name.toLowerCase())) {
+                allNames.push(name);
+            }
+        });
+
+        allNames.forEach(name => {
+            const state = pickerState[name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === name.toLowerCase())];
+            const isChecked = state && state.checked;
+            const antall = state ? (state.antall || '') : '';
+            const enhet = state ? (state.enhet || '') : '';
+
+            const rowHtml = buildRow(name, isChecked, antall, enhet);
+            if (isChecked) {
+                htmlChecked += rowHtml;
+            } else {
+                htmlUnchecked += rowHtml;
+            }
+        });
+
+        let html = htmlChecked + htmlUnchecked;
+        if (!html) {
+            html = '<div style="padding:16px;color:#999;text-align:center;">' + t('settings_no_materials') + '</div>';
+        }
+
+        list.innerHTML = html;
+        attachRowListeners();
+    }
+
+    function attachRowListeners() {
+        list.querySelectorAll('.picker-mat-row').forEach(row => {
+            const cb = row.querySelector('input[type="checkbox"]');
+            const antallInput = row.querySelector('.picker-mat-antall');
+            const enhetBtn = row.querySelector('.picker-mat-enhet-btn');
+            const name = cb.getAttribute('data-mat-name');
+
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    pickerState[name] = pickerState[name] || { checked: false, antall: '', enhet: '' };
+                    pickerState[name].checked = true;
+                    pickerState[name].antall = antallInput.value;
+                    pickerState[name].enhet = enhetBtn.getAttribute('data-enhet') || '';
+                } else {
+                    if (pickerState[name]) pickerState[name].checked = false;
+                }
+                renderPickerList();
+            });
+
+            antallInput.addEventListener('input', function() {
+                if (!pickerState[name]) pickerState[name] = { checked: false, antall: '', enhet: '' };
+                pickerState[name].antall = this.value;
+            });
+
+            enhetBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                openUnitPicker(name, this);
+            });
+        });
+    }
+
+    function addCustomMaterial() {
+        const val = searchInput.value.trim();
+        if (!val) return;
+        // Check if already exists
+        if (allMaterials.some(o => o.toLowerCase() === val.toLowerCase()) ||
+            (pickerState[val] && pickerState[val].checked)) {
+            searchInput.value = '';
+            return;
+        }
+        pickerState[val] = { checked: true, antall: '', enhet: '' };
+        // Save to settings so it appears in future pickers
+        // Use cached options (synced at startup) instead of async getMaterialSettings()
+        settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
+        settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
+        if (!settingsMaterials.some(m => m.toLowerCase() === val.toLowerCase())) {
+            settingsMaterials.push(val);
+            sortAlpha(settingsMaterials);
+            cachedMaterialOptions = settingsMaterials.slice();
+            allMaterials.length = 0;
+            allMaterials.push(...cachedMaterialOptions);
+            saveMaterialSettings();
+        }
+        searchInput.value = '';
+        renderPickerList();
+    }
+
+    renderPickerList();
+
+    // Add custom material on Enter
+    searchInput.oninput = null;
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addCustomMaterial();
+        }
+    });
+
+    // Add button next to search field
+    const addBtn = document.getElementById('picker-overlay-add-btn');
+    if (addBtn) {
+        addBtn.onclick = function() { addCustomMaterial(); };
+    }
+
+    modal.classList.add('active');
+}
+
+function closePickerOverlay() {
+    document.getElementById('picker-overlay').classList.remove('active');
+    pickerOrderCard = null;
+}
+
+function pickerOverlayConfirm() {
+    if (!pickerOrderCard) { closePickerOverlay(); return; }
+
+    const materials = [];
+    for (const [name, state] of Object.entries(pickerState)) {
+        if (state.checked) {
+            materials.push({ name, antall: state.antall || '', enhet: state.enhet || '' });
+        }
+    }
+
+    const matContainer = pickerOrderCard.querySelector('.mobile-order-materials');
+    renderMaterialSummary(matContainer, materials);
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    closePickerOverlay();
+}
+
+// Unit picker overlay
+let unitPickerCallback = null;
+
+function openUnitPicker(matName, btnEl) {
+    const allUnits = cachedUnitOptions || [];
+    const overlay = document.getElementById('unit-picker-overlay');
+    const listEl = document.getElementById('unit-picker-list');
+    const currentEnhet = btnEl.getAttribute('data-enhet') || '';
+
+    let html = '';
+    allUnits.forEach(u => {
+        const selected = u === currentEnhet ? ' unit-picker-item-selected' : '';
+        html += `<button type="button" class="unit-picker-item${selected}">${u}</button>`;
+    });
+
+    listEl.innerHTML = html;
+
+    // Custom input row (outside scrollable list)
+    const isCustom = currentEnhet && !allUnits.some(u => u.toLowerCase() === currentEnhet.toLowerCase());
+    const customEl = overlay.querySelector('.unit-picker-custom');
+    const customInput = customEl.querySelector('input');
+    customInput.value = isCustom ? currentEnhet : '';
+    customInput.placeholder = t('picker_custom') + '...';
+
+    unitPickerCallback = function(value) {
+        btnEl.setAttribute('data-enhet', value);
+        btnEl.textContent = value || t('placeholder_unit');
+        btnEl.classList.toggle('placeholder', !value);
+        if (!pickerState[matName]) pickerState[matName] = { checked: false, antall: '', enhet: '' };
+        pickerState[matName].enhet = value;
+        // Save custom unit to settings
+        if (value && !(cachedUnitOptions || []).some(u => u.toLowerCase() === value.toLowerCase())) {
+            settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
+            settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
+            settingsUnits.push(value);
+            sortAlpha(settingsUnits);
+            cachedUnitOptions = settingsUnits.slice();
+            saveMaterialSettings();
+        }
+    };
+
+    // Unit item click
+    listEl.querySelectorAll('.unit-picker-item').forEach(item => {
+        item.addEventListener('click', function() {
+            unitPickerCallback(this.textContent);
+            closeUnitPicker();
+        });
+    });
+
+    // Custom OK click
+    const customOk = customEl.querySelector('.unit-picker-custom-ok');
+    customOk.addEventListener('click', function() {
+        const val = customInput.value.trim();
+        if (val) {
+            unitPickerCallback(val);
+            closeUnitPicker();
+        }
+    });
+
+    overlay.classList.add('active');
+}
+
+function closeUnitPicker() {
+    document.getElementById('unit-picker-overlay').classList.remove('active');
+    unitPickerCallback = null;
 }
 
 function toggleOrder(headerEl) {
@@ -476,15 +747,8 @@ function getOrdersData() {
         const descInput = card.querySelector('.mobile-order-desc');
         const description = descInput.getAttribute('data-full-value') || descInput.value;
         const timer = card.querySelector('.mobile-order-timer').value;
-        const materials = [];
-        card.querySelectorAll('.mobile-material-row').forEach(row => {
-            const name = row.querySelector('.mobile-mat-name').value;
-            const antall = row.querySelector('.mobile-mat-antall').value;
-            const enhet = row.querySelector('.mobile-mat-enhet').value;
-            if (name || antall || enhet) {
-                materials.push({ name, antall, enhet });
-            }
-        });
+        const matContainer = card.querySelector('.mobile-order-materials');
+        const materials = getMaterialsFromContainer(matContainer);
         orders.push({ description, materials, timer });
     });
     return orders;
@@ -648,6 +912,7 @@ function getFormData() {
         sted: document.getElementById('sted').value,
         signeringDato: document.getElementById('signering-dato').value,
         kundensUnderskrift: document.getElementById('kundens-underskrift').value,
+        isExternal: isExternalForm,
         savedAt: new Date().toISOString()
     };
 }
@@ -666,6 +931,9 @@ function setFormData(data) {
     document.getElementById('sted').value = data.sted || '';
     document.getElementById('signering-dato').value = data.signeringDato || '';
     document.getElementById('kundens-underskrift').value = data.kundensUnderskrift || '';
+
+    isExternalForm = !!data.isExternal;
+    updateExternalBadge();
 
     syncOriginalToMobile();
 
@@ -752,6 +1020,21 @@ function validateRequiredFields() {
 async function saveForm() {
     if (!validateRequiredFields()) return;
 
+    // Validate order number against registered ranges
+    const orderNr = document.getElementById('mobile-ordreseddel-nr').value.trim();
+    const orderSettings = await getOrderNrSettings();
+    const ranges = (orderSettings && orderSettings.ranges) ? orderSettings.ranges : [];
+    if (ranges.length > 0) {
+        if (!isExternalForm && !isNumberInRanges(orderNr, ranges)) {
+            showNotificationModal(t('validation_nr_not_in_range', orderNr));
+            return;
+        }
+        if (isExternalForm && isNumberInRanges(orderNr, ranges)) {
+            showNotificationModal(t('validation_nr_is_own'));
+            return;
+        }
+    }
+
     const saveBtn = document.querySelector('.btn-save');
     if (saveBtn.disabled) return;
     saveBtn.disabled = true;
@@ -759,14 +1042,19 @@ async function saveForm() {
     try {
         const data = getFormData();
 
+        const formsCollection = isExternalForm ? 'external' : 'forms';
+        const archiveCollection = isExternalForm ? 'externalArchive' : 'archive';
+        const storageKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
+        const archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
+
         if (currentUser && db) {
             // Lagre til Firestore
             try {
-                const formsRef = db.collection('users').doc(currentUser.uid).collection('forms');
+                const formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
                 const existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
 
                 // Sjekk også sendte for duplikater
-                const archiveRef = db.collection('users').doc(currentUser.uid).collection('archive');
+                const archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
                 const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
                 if (!existingArchive.empty) {
                     showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
@@ -777,6 +1065,7 @@ async function saveForm() {
                     showConfirmModal(t('confirm_update'), async function() {
                         await formsRef.doc(existing.docs[0].id).set(data);
                         loadedForms = [];
+                        loadedExternalForms = [];
                         lastSavedData = getFormDataSnapshot();
                         showNotificationModal(t('update_success'), true);
                     }, t('btn_update'), '#E8501A');
@@ -785,6 +1074,7 @@ async function saveForm() {
                         data.id = Date.now().toString();
                         await formsRef.doc(data.id).set(data);
                         loadedForms = [];
+                        loadedExternalForms = [];
                         lastSavedData = getFormDataSnapshot();
                         showNotificationModal(t('save_success'), true);
                     }, t('btn_save'), '#E8501A');
@@ -795,8 +1085,8 @@ async function saveForm() {
             }
         } else {
             // Fallback til localStorage
-            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
 
             // Sjekk sendte for duplikater
             if (archived.some(item => item.ordreseddelNr === data.ordreseddelNr)) {
@@ -812,8 +1102,9 @@ async function saveForm() {
                 showConfirmModal(t('confirm_update'), function() {
                     data.id = saved[existingIndex].id;
                     saved[existingIndex] = data;
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                    localStorage.setItem(storageKey, JSON.stringify(saved));
                     loadedForms = [];
+                    loadedExternalForms = [];
                     lastSavedData = getFormDataSnapshot();
                     showNotificationModal(t('update_success'), true);
                 }, t('btn_update'), '#E8501A');
@@ -822,8 +1113,9 @@ async function saveForm() {
                     data.id = Date.now().toString();
                     saved.unshift(data);
                     if (saved.length > 50) saved.pop();
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                    localStorage.setItem(storageKey, JSON.stringify(saved));
                     loadedForms = [];
+                    loadedExternalForms = [];
                     lastSavedData = getFormDataSnapshot();
                     showNotificationModal(t('save_success'), true);
                 }, t('btn_save'), '#E8501A');
@@ -836,45 +1128,53 @@ async function saveForm() {
 
 // Cache for loaded forms (to use with index-based functions)
 let loadedForms = [];
+let loadedExternalForms = [];
 
 async function showSavedForms() {
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
 
-    // Åpne sendte-fanen hvis vi ser på et sendt skjema
-    const isSent = document.getElementById('sent-banner').style.display !== 'none';
-    if (isSent) {
-        switchHentTab('archived');
+    // Åpne riktig fane basert på gjeldende skjema
+    if (isExternalForm) {
+        switchHentTab('external');
     }
 
     const saved = await getSavedForms();
-    loadedForms = saved; // Cache for loadForm/deleteForm
+    const sent = await getSentForms();
+    loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
 
-    if (saved.length === 0) {
+    if (loadedForms.length === 0) {
         listEl.innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
     } else {
-        listEl.innerHTML = saved.map((item, index) => {
+        listEl.innerHTML = loadedForms.map((item, index) => {
             const prosjektnavn = item.prosjektnavn || '';
             const ordrenr = item.ordreseddelNr || '';
             const oppdragsgiver = item.oppdragsgiver || '';
             const dato = item.dato || '';
             const prosjektnr = item.prosjektnr || '';
+            const isSent = item._isSent;
 
+            const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
             const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || t('no_name');
             const row2 = [dato, prosjektnr].filter(x => x).join(' • ');
             const row3 = ordrenr ? `${t('order_prefix')}${ordrenr}` : '';
 
+            const buttons = isSent
+                ? `<button class="saved-item-icon-btn restore" onclick="moveToSaved(event, ${index})" title="${t('sent_banner_move')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+                   <button class="saved-item-icon-btn delete" onclick="deleteForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>`
+                : `<button class="saved-item-icon-btn duplicate" onclick="duplicateForm(event, ${index})" title="Dupliser"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+                   <button class="saved-item-icon-btn delete" onclick="deleteForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>`;
+
             return `
                 <div class="saved-item" onclick="loadForm(${index})">
                     <div class="saved-item-info">
-                        <div class="saved-item-row1">${row1}</div>
+                        <div class="saved-item-row1">${dot}${row1}</div>
                         ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
                         ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn duplicate" onclick="duplicateForm(event, ${index})" title="Dupliser"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
-                        <button class="saved-item-icon-btn delete" onclick="deleteForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                        ${buttons}
                     </div>
                 </div>
             `;
@@ -893,7 +1193,7 @@ function loadForm(index) {
     if (loadedForms[index]) {
         setFormData(loadedForms[index]);
         lastSavedData = getFormDataSnapshot();
-        setFormReadOnly(false);
+        setFormReadOnly(!!loadedForms[index]._isSent);
         closeModal();
     }
 }
@@ -907,6 +1207,8 @@ async function duplicateForm(event, index) {
     // Tøm ordrenummer og sett nytt
     document.getElementById('ordreseddel-nr').value = '';
     document.getElementById('mobile-ordreseddel-nr').value = '';
+    isExternalForm = false;
+    updateExternalBadge();
     await autoFillOrderNumber();
     lastSavedData = null;
     setFormReadOnly(false);
@@ -916,20 +1218,28 @@ async function duplicateForm(event, index) {
 
 function deleteForm(event, index) {
     event.stopPropagation();
-    showConfirmModal(t('delete_confirm'), async function() {
-        const form = loadedForms[index];
-        if (!form) return;
+    const form = loadedForms[index];
+    if (!form) return;
+    const isSent = form._isSent;
+    const confirmMsg = isSent ? t('delete_sent_confirm') : t('delete_confirm');
+
+    showConfirmModal(confirmMsg, async function() {
+        const col = isSent ? 'archive' : 'forms';
+        const lsKey = isSent ? ARCHIVE_KEY : STORAGE_KEY;
 
         if (currentUser && db) {
             try {
-                await db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).delete();
+                await db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete();
             } catch (e) {
                 console.error('Delete error:', e);
             }
         } else {
-            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            saved.splice(index, 1);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+            const list = JSON.parse(localStorage.getItem(lsKey) || '[]');
+            const idx = list.findIndex(f => f.id === form.id);
+            if (idx !== -1) {
+                list.splice(idx, 1);
+                localStorage.setItem(lsKey, JSON.stringify(list));
+            }
         }
         showSavedForms();
     });
@@ -938,9 +1248,9 @@ function deleteForm(event, index) {
 function closeModal() {
     document.getElementById('saved-modal').classList.remove('active');
     document.getElementById('saved-search').value = '';
-    document.getElementById('sent-search').value = '';
-    // Reset to saved tab
-    switchHentTab('saved');
+    document.getElementById('external-search').value = '';
+    // Reset to own tab
+    switchHentTab('own');
 }
 
 function switchHentTab(tab) {
@@ -948,62 +1258,24 @@ function switchHentTab(tab) {
     tabs.forEach(t => t.classList.remove('active'));
 
     const savedList = document.getElementById('saved-list');
-    const sentList = document.getElementById('sent-list');
-    const savedSearch = document.getElementById('saved-search').closest('.modal-search');
-    const sentSearch = document.getElementById('sent-search-wrap');
+    const externalList = document.getElementById('external-list');
+    const ownSearch = document.getElementById('own-search-wrap');
+    const externalSearch = document.getElementById('external-search-wrap');
 
-    if (tab === 'saved') {
+    savedList.style.display = 'none';
+    externalList.style.display = 'none';
+    ownSearch.style.display = 'none';
+    externalSearch.style.display = 'none';
+
+    if (tab === 'own') {
         tabs[0].classList.add('active');
         savedList.style.display = '';
-        sentList.style.display = 'none';
-        savedSearch.style.display = '';
-        sentSearch.style.display = 'none';
-    } else {
+        ownSearch.style.display = '';
+    } else if (tab === 'external') {
         tabs[1].classList.add('active');
-        savedList.style.display = 'none';
-        sentList.style.display = '';
-        savedSearch.style.display = 'none';
-        sentSearch.style.display = '';
-        // Load sent forms when switching to tab
-        loadSentTab();
-    }
-}
-
-async function loadSentTab() {
-    const listEl = document.getElementById('sent-list');
-    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
-
-    const archived = await getSentForms();
-    loadedSentForms = archived;
-
-    if (archived.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_sent_forms') + '</div>';
-    } else {
-        listEl.innerHTML = archived.map((item, index) => {
-            const prosjektnavn = item.prosjektnavn || '';
-            const ordrenr = item.ordreseddelNr || '';
-            const oppdragsgiver = item.oppdragsgiver || '';
-            const dato = item.dato || '';
-            const prosjektnr = item.prosjektnr || '';
-
-            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || t('no_name');
-            const row2 = [dato, prosjektnr].filter(x => x).join(' • ');
-            const row3 = ordrenr ? `${t('order_prefix')}${ordrenr}` : '';
-
-            return `
-                <div class="saved-item" onclick="loadSentForm(${index})">
-                    <div class="saved-item-info">
-                        <div class="saved-item-row1">${row1}</div>
-                        ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
-                        ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
-                    </div>
-                    <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn restore" onclick="moveToSaved(event, ${index})" title="Flytt til lagrede"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-                        <button class="saved-item-icon-btn delete" onclick="deleteSentForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        externalList.style.display = '';
+        externalSearch.style.display = '';
+        loadExternalTab();
     }
 }
 
@@ -1059,18 +1331,9 @@ function showExportMenu() {
     popup.classList.add('active');
 }
 
-function filterSavedForms() {
+function filterOwnForms() {
     const searchTerm = document.getElementById('saved-search').value.toLowerCase();
     const items = document.querySelectorAll('#saved-list .saved-item');
-    items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
-    });
-}
-
-function filterSentForms() {
-    const searchTerm = document.getElementById('sent-search').value.toLowerCase();
-    const items = document.querySelectorAll('#sent-list .saved-item');
     items.forEach(item => {
         const text = item.textContent.toLowerCase();
         item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
@@ -1081,7 +1344,12 @@ async function markAsSent() {
     const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
     if (!ordrenr) return;
 
-    const saved = await getSavedForms();
+    const formsCol = isExternalForm ? 'external' : 'forms';
+    const archiveCol = isExternalForm ? 'externalArchive' : 'archive';
+    const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
+    const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
+
+    const saved = isExternalForm ? await getExternalForms() : await getSavedForms();
     const formIndex = saved.findIndex(f => f.ordreseddelNr === ordrenr);
     if (formIndex === -1) return;
 
@@ -1089,18 +1357,18 @@ async function markAsSent() {
 
     if (currentUser && db) {
         try {
-            await db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).set(form);
-            await db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).delete();
+            await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).set(form);
+            await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).delete();
         } catch (e) {
             console.error('Mark as sent error:', e);
         }
     } else {
-        const localSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        const localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
+        const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
         const f = localSaved.splice(formIndex, 1)[0];
         archived.unshift(f);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(localSaved));
-        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
+        localStorage.setItem(sKey, JSON.stringify(localSaved));
+        localStorage.setItem(aKey, JSON.stringify(archived));
     }
 
     showNotificationModal(t('marked_as_sent'), true);
@@ -1110,7 +1378,12 @@ async function moveCurrentToSaved() {
     const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
     if (!ordrenr) return;
 
-    const sent = await getSentForms();
+    const formsCol = isExternalForm ? 'external' : 'forms';
+    const archiveCol = isExternalForm ? 'externalArchive' : 'archive';
+    const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
+    const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
+
+    const sent = isExternalForm ? await getExternalSentForms() : await getSentForms();
     const formIndex = sent.findIndex(f => f.ordreseddelNr === ordrenr);
     if (formIndex === -1) return;
 
@@ -1118,40 +1391,28 @@ async function moveCurrentToSaved() {
 
     if (currentUser && db) {
         try {
-            await db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).set(form);
-            await db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).delete();
+            await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).set(form);
+            await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).delete();
         } catch (e) {
             console.error('Move to saved error:', e);
         }
     } else {
-        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+        const saved = JSON.parse(localStorage.getItem(sKey) || '[]');
         const f = archived.splice(formIndex, 1)[0];
         saved.unshift(f);
-        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+        localStorage.setItem(aKey, JSON.stringify(archived));
+        localStorage.setItem(sKey, JSON.stringify(saved));
     }
 
     setFormReadOnly(false);
     showNotificationModal(t('move_to_saved_success'), true);
 }
 
-// Cache for sent forms
-let loadedSentForms = [];
-
-function loadSentForm(index) {
-    if (loadedSentForms[index]) {
-        setFormData(loadedSentForms[index]);
-        lastSavedData = getFormDataSnapshot();
-        setFormReadOnly(true);
-        closeSentModal();
-    }
-}
-
 function moveToSaved(event, index) {
     event.stopPropagation();
     showConfirmModal(t('move_to_saved_confirm'), async function() {
-        const form = loadedSentForms[index];
+        const form = loadedForms[index];
         if (!form) return;
 
         if (currentUser && db) {
@@ -1164,10 +1425,13 @@ function moveToSaved(event, index) {
         } else {
             const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
             const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            const f = archived.splice(index, 1)[0];
-            saved.unshift(f);
-            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+            const idx = archived.findIndex(f => f.id === form.id);
+            if (idx !== -1) {
+                const f = archived.splice(idx, 1)[0];
+                saved.unshift(f);
+                localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+            }
         }
 
         // Hvis det åpne skjemaet er det som ble flyttet, fjern sendt-modus
@@ -1177,29 +1441,96 @@ function moveToSaved(event, index) {
         }
 
         await showSavedForms();
-        switchHentTab('saved');
         showNotificationModal(t('move_to_saved_success'), true);
     }, t('btn_move'), '#333');
 }
 
-function deleteSentForm(event, index) {
+// === External forms tab ===
+
+async function loadExternalTab() {
+    const listEl = document.getElementById('external-list');
+    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
+
+    const forms = await getExternalForms();
+    const sentForms = await getExternalSentForms();
+    loadedExternalForms = forms.concat(sentForms.map(f => ({ ...f, _isSent: true })));
+
+    if (loadedExternalForms.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
+    } else {
+        listEl.innerHTML = loadedExternalForms.map((item, index) => {
+            const prosjektnavn = item.prosjektnavn || '';
+            const ordrenr = item.ordreseddelNr || '';
+            const oppdragsgiver = item.oppdragsgiver || '';
+            const dato = item.dato || '';
+            const prosjektnr = item.prosjektnr || '';
+            const isSent = item._isSent;
+
+            const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
+            const row1 = [prosjektnavn, oppdragsgiver].filter(x => x).join(' • ') || t('no_name');
+            const row2 = [dato, prosjektnr].filter(x => x).join(' • ');
+            const row3 = ordrenr ? `${t('order_prefix')}${ordrenr}` : '';
+
+            return `
+                <div class="saved-item" onclick="loadExternalForm(${index})">
+                    <div class="saved-item-info">
+                        <div class="saved-item-row1">${dot}${row1}</div>
+                        ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
+                        ${row3 ? `<div class="saved-item-row3">${row3}</div>` : ''}
+                    </div>
+                    <div class="saved-item-buttons">
+                        <button class="saved-item-icon-btn delete" onclick="deleteExternalForm(event, ${index})" title="Slett"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+function loadExternalForm(index) {
+    const form = loadedExternalForms[index];
+    if (!form) return;
+    setFormData(form);
+    lastSavedData = getFormDataSnapshot();
+    setFormReadOnly(!!form._isSent);
+    closeModal();
+}
+
+function deleteExternalForm(event, index) {
     event.stopPropagation();
-    showConfirmModal(t('delete_sent_confirm'), async function() {
-        const form = loadedSentForms[index];
-        if (!form) return;
+    const form = loadedExternalForms[index];
+    if (!form) return;
+    const isSent = form._isSent;
+    const confirmMsg = isSent ? t('delete_sent_confirm') : t('delete_confirm');
+
+    showConfirmModal(confirmMsg, async function() {
+        const col = isSent ? 'externalArchive' : 'external';
+        const lsKey = isSent ? EXTERNAL_ARCHIVE_KEY : EXTERNAL_KEY;
 
         if (currentUser && db) {
             try {
-                await db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).delete();
+                await db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete();
             } catch (e) {
-                console.error('Delete archived error:', e);
+                console.error('Delete external error:', e);
             }
         } else {
-            const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-            archived.splice(index, 1);
-            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
+            const list = JSON.parse(localStorage.getItem(lsKey) || '[]');
+            const idx = list.findIndex(f => f.id === form.id);
+            if (idx !== -1) {
+                list.splice(idx, 1);
+                localStorage.setItem(lsKey, JSON.stringify(list));
+            }
         }
-        loadSentTab();
+        loadExternalTab();
+    });
+}
+
+function filterExternalForms() {
+    const searchTerm = document.getElementById('external-search').value.toLowerCase();
+    const items = document.querySelectorAll('#external-list .saved-item');
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
     });
 }
 
@@ -1460,7 +1791,8 @@ function getSettingsPageTitle(page) {
     const titles = {
         ordrenr: t('settings_ordrenr'),
         defaults: t('settings_defaults'),
-        language: t('settings_language')
+        language: t('settings_language'),
+        materials: t('settings_materials')
     };
     return titles[page] || '';
 }
@@ -1510,8 +1842,146 @@ async function showSettingsPage(page) {
     } else if (page === 'language') {
         document.getElementById('lang-check-no').textContent = currentLang === 'no' ? '\u2713' : '';
         document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
+    } else if (page === 'materials') {
+        await loadMaterialSettingsToModal();
     }
 }
+
+// ============================================
+// MATERIALER OG ENHETER INNSTILLINGER
+// ============================================
+
+let settingsMaterials = [];
+let settingsUnits = [];
+
+async function getMaterialSettings() {
+    if (currentUser && db) {
+        try {
+            const doc = await db.collection('settings').doc('materials').get();
+            if (doc.exists) return doc.data();
+        } catch (e) {
+            console.error('Materials settings error:', e);
+        }
+    }
+    const stored = localStorage.getItem(MATERIALS_KEY);
+    return stored ? JSON.parse(stored) : { materials: [], units: [] };
+}
+
+async function saveMaterialSettings() {
+    const data = { materials: settingsMaterials.slice(), units: settingsUnits.slice() };
+    if (currentUser && db) {
+        try {
+            await db.collection('settings').doc('materials').set(data);
+        } catch (e) {
+            console.error('Save materials settings error:', e);
+        }
+    }
+    localStorage.setItem(MATERIALS_KEY, JSON.stringify(data));
+    // Refresh dropdown cache
+    cachedMaterialOptions = settingsMaterials.slice();
+    cachedUnitOptions = settingsUnits.slice();
+}
+
+async function loadMaterialSettingsToModal() {
+    const data = await getMaterialSettings();
+    settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
+    settingsUnits = (data && data.units) ? data.units.slice() : [];
+    sortAlpha(settingsMaterials);
+    sortAlpha(settingsUnits);
+    renderMaterialSettingsItems();
+    renderUnitSettingsItems();
+    document.getElementById('settings-new-material').value = '';
+    document.getElementById('settings-new-unit').value = '';
+}
+
+function renderMaterialSettingsItems() {
+    const container = document.getElementById('settings-material-items');
+    if (settingsMaterials.length === 0) {
+        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
+        return;
+    }
+    container.innerHTML = settingsMaterials.map((item, idx) =>
+        `<span class="settings-chip">${item}<button onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">&times;</button></span>`
+    ).join('');
+}
+
+function renderUnitSettingsItems() {
+    const container = document.getElementById('settings-unit-items');
+    if (settingsUnits.length === 0) {
+        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_units') + '</div>';
+        return;
+    }
+    container.innerHTML = settingsUnits.map((item, idx) =>
+        `<span class="settings-chip">${item}<button onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">&times;</button></span>`
+    ).join('');
+}
+
+async function addSettingsMaterial() {
+    const input = document.getElementById('settings-new-material');
+    const val = input.value.trim();
+    if (!val) return;
+    if (settingsMaterials.some(m => m.toLowerCase() === val.toLowerCase())) {
+        showNotificationModal(t('settings_material_exists'));
+        return;
+    }
+    settingsMaterials.push(val);
+    sortAlpha(settingsMaterials);
+    input.value = '';
+    renderMaterialSettingsItems();
+    await saveMaterialSettings();
+    showNotificationModal(t('settings_material_added'), true);
+}
+
+async function addSettingsUnit() {
+    const input = document.getElementById('settings-new-unit');
+    const val = input.value.trim();
+    if (!val) return;
+    if (settingsUnits.some(u => u.toLowerCase() === val.toLowerCase())) {
+        showNotificationModal(t('settings_unit_exists'));
+        return;
+    }
+    settingsUnits.push(val);
+    sortAlpha(settingsUnits);
+    input.value = '';
+    renderUnitSettingsItems();
+    await saveMaterialSettings();
+    showNotificationModal(t('settings_unit_added'), true);
+}
+
+function removeSettingsMaterial(idx) {
+    const item = settingsMaterials[idx];
+    showConfirmModal(t('settings_material_remove', item), async function() {
+        settingsMaterials.splice(idx, 1);
+        renderMaterialSettingsItems();
+        await saveMaterialSettings();
+    });
+}
+
+function removeSettingsUnit(idx) {
+    const item = settingsUnits[idx];
+    showConfirmModal(t('settings_material_remove', item), async function() {
+        settingsUnits.splice(idx, 1);
+        renderUnitSettingsItems();
+        await saveMaterialSettings();
+    });
+}
+
+// ============================================
+// DROPDOWN FOR MATERIALE OG ENHET
+// ============================================
+
+// Cache for dropdown options
+let cachedMaterialOptions = null;
+let cachedUnitOptions = null;
+
+async function getDropdownOptions() {
+    const data = await getMaterialSettings();
+    cachedMaterialOptions = (data && data.materials) ? data.materials : [];
+    cachedUnitOptions = (data && data.units) ? data.units : [];
+    sortAlpha(cachedMaterialOptions);
+    sortAlpha(cachedUnitOptions);
+}
+
 
 // ============================================
 // STANDARDVERDIER (AUTOFYLL)
@@ -1674,6 +2144,32 @@ async function getNextOrderNumber() {
     return findNextInRanges(settings.ranges, usedNumbers);
 }
 
+function isNumberInRanges(nr, ranges) {
+    const n = parseInt(nr, 10);
+    if (isNaN(n)) return false;
+    for (const r of ranges) {
+        if (n >= r.start && n <= r.end) return true;
+    }
+    return false;
+}
+
+function updateExternalBadge() {
+    const badge = document.getElementById('external-badge');
+    if (badge) badge.style.display = isExternalForm ? '' : 'none';
+}
+
+function startExternalOrder() {
+    document.getElementById('template-modal').classList.remove('active');
+    document.getElementById('template-search').value = '';
+    if (preNewFormData) {
+        clearForm();
+        preNewFormData = null;
+        setFormReadOnly(false);
+    }
+    isExternalForm = true;
+    updateExternalBadge();
+}
+
 function hasAnyFormData() {
     const fields = ['mobile-ordreseddel-nr', 'mobile-oppdragsgiver', 'mobile-prosjektnr', 'mobile-prosjektnavn', 'mobile-montor', 'mobile-avdeling', 'mobile-dato'];
     for (const id of fields) {
@@ -1701,6 +2197,8 @@ function clearForm() {
 
     sessionStorage.removeItem('firesafe_current');
     lastSavedData = null;
+    isExternalForm = false;
+    updateExternalBadge();
 
     // Reset orders to 1 empty card
     const container = document.getElementById('mobile-orders');
@@ -1887,30 +2385,24 @@ window.addEventListener('load', function() {
 
     // Apply saved language
     applyTranslations();
+
+    // Load dropdown options for materials/units
+    getDropdownOptions();
 });
 
-// Keyboard-aware toolbar: sticky when no keyboard, static when keyboard open
+/// Keyboard-aware toolbar: sticky when no keyboard, static when keyboard open
 (function() {
     var toolbar = document.querySelector('.toolbar');
     if (!toolbar) return;
-    var focusTimeout;
-    var initialHeight = window.innerHeight;
-    document.addEventListener('focusin', function(e) {
-        clearTimeout(focusTimeout);
-        if (e.target.matches('input, textarea, select, [contenteditable]')) {
-            toolbar.classList.add('keyboard-open');
-        }
-    });
-    document.addEventListener('focusout', function() {
-        focusTimeout = setTimeout(function() {
-            toolbar.classList.remove('keyboard-open');
-        }, 100);
-    });
-    // Detect keyboard close without focusout (e.g. iOS "Done" button)
-    window.addEventListener('resize', function() {
-        if (window.innerHeight > initialHeight - 50) {
-            toolbar.classList.remove('keyboard-open');
-            initialHeight = window.innerHeight;
-        }
-    });
+
+    if (window.visualViewport) {
+        var initialHeight = visualViewport.height;
+        visualViewport.addEventListener('resize', function() {
+            if (visualViewport.height < initialHeight * 0.75) {
+                toolbar.classList.add('keyboard-open');
+            } else {
+                toolbar.classList.remove('keyboard-open');
+            }
+        });
+    }
 })();
