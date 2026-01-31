@@ -107,6 +107,7 @@ const TRANSLATIONS = {
         marked_as_sent: 'Skjema markert som sendt!',
         btn_move: 'Flytt',
         duplicated_success: 'Skjema duplisert — husk å lagre!',
+        copied_to_clipboard: 'Kopiert!',
 
         // New form
         new_form_confirm: 'Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.',
@@ -278,6 +279,7 @@ const TRANSLATIONS = {
         marked_as_sent: 'Form marked as sent!',
         btn_move: 'Move',
         duplicated_success: 'Form duplicated — remember to save!',
+        copied_to_clipboard: 'Copied!',
 
         // New form
         new_form_confirm: 'Start a new form? Unsaved changes will be lost.',

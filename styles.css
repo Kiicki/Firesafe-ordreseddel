@@ -937,6 +937,34 @@ body {
     flex: 1;
 }
 
+.input-with-copy {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-with-copy input {
+    padding-right: 40px;
+}
+
+.copy-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.copy-btn:active {
+    color: #E8501A;
+}
+
 .mobile-add-line-btn {
     width: 100%;
     padding: 10px;
@@ -954,22 +982,6 @@ body {
     background: rgba(0, 0, 0, 0.05);
 }
 
-.mobile-save-bottom-btn {
-    width: 100%;
-    padding: 12px;
-    background: #2c3e50;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    margin-top: 16px;
-}
-
-.mobile-save-bottom-btn:active {
-    opacity: 0.8;
-}
 
 /* Order cards */
 .mobile-order-card {
@@ -1079,9 +1091,21 @@ body {
     flex: 1;
 }
 
+.input-with-delete {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-with-delete input {
+    padding-right: 40px;
+}
+
 .mobile-mat-remove {
-    width: 36px;
-    height: 36px;
+    position: absolute;
+    right: 8px;
+    width: 28px;
+    height: 28px;
     border: none;
     background: transparent;
     color: #e74c3c;
@@ -1091,6 +1115,7 @@ body {
     justify-content: center;
     padding: 0;
     flex-shrink: 0;
+    border-radius: 4px;
 }
 
 .mobile-mat-remove:active {
