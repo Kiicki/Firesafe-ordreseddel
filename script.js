@@ -1351,26 +1351,43 @@ async function markAsSent() {
 
     const saved = isExternalForm ? await getExternalForms() : await getSavedForms();
     const formIndex = saved.findIndex(f => f.ordreseddelNr === ordrenr);
-    if (formIndex === -1) return;
 
-    const form = saved[formIndex];
-
-    if (currentUser && db) {
-        try {
-            await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).set(form);
-            await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).delete();
-        } catch (e) {
-            console.error('Mark as sent error:', e);
+    if (formIndex !== -1) {
+        // Skjemaet er lagret — flytt fra lagrede til sendte
+        const form = saved[formIndex];
+        if (currentUser && db) {
+            try {
+                await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).set(form);
+                await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).delete();
+            } catch (e) {
+                console.error('Mark as sent error:', e);
+            }
+        } else {
+            const localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
+            const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+            const f = localSaved.splice(formIndex, 1)[0];
+            archived.unshift(f);
+            localStorage.setItem(sKey, JSON.stringify(localSaved));
+            localStorage.setItem(aKey, JSON.stringify(archived));
         }
     } else {
-        const localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
-        const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
-        const f = localSaved.splice(formIndex, 1)[0];
-        archived.unshift(f);
-        localStorage.setItem(sKey, JSON.stringify(localSaved));
-        localStorage.setItem(aKey, JSON.stringify(archived));
+        // Skjemaet er ikke lagret ennå — lagre direkte til sendte
+        const data = getFormData();
+        data.id = Date.now().toString();
+        if (currentUser && db) {
+            try {
+                await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(data.id).set(data);
+            } catch (e) {
+                console.error('Mark as sent error:', e);
+            }
+        } else {
+            const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+            archived.unshift(data);
+            localStorage.setItem(aKey, JSON.stringify(archived));
+        }
     }
 
+    lastSavedData = getFormDataSnapshot();
     showNotificationModal(t('marked_as_sent'), true);
 }
 
