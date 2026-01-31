@@ -368,11 +368,13 @@ function createMaterialRow(m) {
     const div = document.createElement('div');
     div.className = 'mobile-material-row';
     div.innerHTML = `
-        <div class="mobile-field"><input type="text" class="mobile-mat-name" placeholder="${t('placeholder_material')}" data-i18n-placeholder="placeholder_material" autocapitalize="sentences" value="${(m.name || '').replace(/"/g, '&quot;')}"></div>
+        <div class="mobile-work-row">
+            <div class="mobile-field" style="flex:1"><input type="text" class="mobile-mat-name" placeholder="${t('placeholder_material')}" data-i18n-placeholder="placeholder_material" autocapitalize="sentences" value="${(m.name || '').replace(/"/g, '&quot;')}"></div>
+            <button type="button" class="mobile-mat-remove" onclick="removeMaterialFromOrder(this)">${deleteIcon}</button>
+        </div>
         <div class="mobile-work-row">
             <div class="mobile-field"><input type="text" class="mobile-mat-antall" placeholder="${t('placeholder_quantity')}" data-i18n-placeholder="placeholder_quantity" value="${(m.antall || '').replace(/"/g, '&quot;')}"></div>
             <div class="mobile-field"><input type="text" class="mobile-mat-enhet" placeholder="${t('placeholder_unit')}" data-i18n-placeholder="placeholder_unit" autocapitalize="sentences" value="${(m.enhet || '').replace(/"/g, '&quot;')}"></div>
-            <button type="button" class="mobile-mat-remove" onclick="removeMaterialFromOrder(this)">${deleteIcon}</button>
         </div>`;
     return div;
 }
