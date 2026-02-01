@@ -57,12 +57,42 @@ Og innloggingsknappen:
 ## Filstruktur
 
 ```
-/ORdresedel/
+/Firesafe-ordreseddel/
 ├── index.html    - HTML-struktur + Firebase SDK
 ├── styles.css    - All CSS-styling
-├── script.js     - JavaScript + Firebase-integrasjon
+├── script.js     - Kjerne-JavaScript + Firebase-integrasjon
+├── script-ui.js  - UI-funksjoner, innstillinger, eksport
+├── lang.js       - Språkfiler (oversettelser)
+├── manifest.json - PWA-manifest
 └── CLAUDE.md     - Denne filen
 ```
+
+## JavaScript-filsplitt (script.js / script-ui.js)
+
+Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på kategori.
+
+**`script.js`** — Kjerne-logikk (lastes først):
+- Firebase config, init, auth (IKKE ENDRE)
+- Språk/i18n-system (`t()`, `applyTranslations`)
+- Modal- og notifikasjonsfunksjoner
+- Teksteditor (fullskjerm)
+- Hjelpefunksjoner (`formatDate`, `isMobile`, `autoResizeTextarea`)
+- Ordrekort-UI og material/enhet-pickers
+- Ordrehåndtering (legg til/fjern/toggle/sync)
+- `getFormData()` / `setFormData()`
+- `validateRequiredFields()`
+- `saveForm()`
+
+**`script-ui.js`** — UI-funksjoner (lastes etter script.js):
+- Last/administrer lagrede skjemaer
+- Sletting, duplisering, eksterne skjemaer
+- Maler (templates)
+- Innstillinger (ordrenummer, materialer, enheter, standardverdier)
+- Eksport/PDF/JPG-funksjoner
+- DOMContentLoaded event listeners og sideinit
+- Tastatur-aware toolbar-logikk
+
+**Regel: Ny kode plasseres i filen som matcher kategorien. Ved tvil, bruk `script-ui.js`.**
 
 ## GitHub Pages
 Nettsiden hostes på: https://kiicki.github.io/Firesafe-ordreseddel/

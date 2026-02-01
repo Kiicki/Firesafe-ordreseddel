@@ -301,8 +301,8 @@
             </div>
             <div class="modal-body" id="template-list"></div>
             <div class="modal-footer-skip">
-                <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_new_form">Nytt skjema</button>
-                <button class="btn-external-order" onclick="startExternalOrder()" data-i18n="external_order_btn">Eksternt ordrenummer</button>
+                <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_new_form">Ny</button>
+                <button class="btn-external-order" onclick="startExternalOrder()" data-i18n="external_order_btn">Ekstern</button>
             </div>
         </div>
     </div>
@@ -333,12 +333,12 @@
                         <span data-i18n="settings_defaults">Standardverdier</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('language')">
-                        <span data-i18n="settings_language">Språk / Language</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
-                    </div>
                     <div class="settings-menu-item" onclick="showSettingsPage('materials')">
                         <span data-i18n="settings_materials">Materialer og enheter</span>
+                        <span class="settings-menu-arrow">&rsaquo;</span>
+                    </div>
+                    <div class="settings-menu-item" onclick="showSettingsPage('language')">
+                        <span data-i18n="settings_language">Språk / Language</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
                 </div>
@@ -370,17 +370,27 @@
 
                 <!-- Materialer og enheter-side -->
                 <div id="settings-page-materials" class="settings-page" style="display:none;">
-                    <div class="settings-section-title" data-i18n="settings_materials_list">Materialer</div>
-                    <div id="settings-material-items" class="settings-chips-container"></div>
-                    <div class="settings-add-row">
-                        <input type="text" id="settings-new-material" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale" autocapitalize="sentences">
-                        <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()">+</button>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('materials')">
+                        <span data-i18n="settings_materials_list">Materialer</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-materials">&rsaquo;</span>
                     </div>
-                    <div class="settings-section-title" style="margin-top:16px" data-i18n="settings_units_list">Enheter</div>
-                    <div id="settings-unit-items" class="settings-chips-container"></div>
-                    <div class="settings-add-row">
-                        <input type="text" id="settings-new-unit" data-i18n-placeholder="placeholder_new_unit" placeholder="Ny enhet" autocapitalize="sentences">
-                        <button type="button" class="settings-add-btn" onclick="addSettingsUnit()">+</button>
+                    <div class="settings-collapsible-body" id="settings-body-materials">
+                        <div id="settings-material-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-material" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale" autocapitalize="sentences">
+                            <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()">+</button>
+                        </div>
+                    </div>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('units')">
+                        <span data-i18n="settings_units_list">Enheter</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-units">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-units">
+                        <div id="settings-unit-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-unit" data-i18n-placeholder="placeholder_new_unit" placeholder="Ny enhet" autocapitalize="sentences">
+                            <button type="button" class="settings-add-btn" onclick="addSettingsUnit()">+</button>
+                        </div>
                     </div>
                 </div>
 
@@ -433,6 +443,7 @@
 
     <script src="lang.js"></script>
     <script src="script.js"></script>
+    <script src="script-ui.js"></script>
     <script>
         if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
             navigator.serviceWorker.register('service-worker.js');

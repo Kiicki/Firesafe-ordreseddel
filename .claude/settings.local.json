@@ -15,7 +15,8 @@
       "Bash(apt list:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(qlmanage:*)"
+      "Bash(qlmanage:*)",
+      "Bash(pip3 show:*)"
     ]
   }
 }

@@ -81,6 +81,8 @@ const TRANSLATIONS = {
         export_only_label: 'Kun eksporter',
         export_and_mark_label: 'Eksporter + marker som sendt',
         btn_cancel: 'Avbryt',
+        duplicate_btn: 'Dupliser',
+        delete_btn: 'Slett',
         export_pdf_error: 'Feil ved generering av PDF: ',
         export_jpg_error: 'Feil ved generering av JPG: ',
 
@@ -118,7 +120,7 @@ const TRANSLATIONS = {
 
         // Templates
         template_modal_title: 'Velg prosjektmal',
-        template_new_form: 'Nytt skjema',
+        template_new_form: 'Ny',
         template_save_success: 'Prosjektmal lagret!',
         template_update_success: 'Mal oppdatert!',
         template_exists: 'En mal med prosjektnavn «{0}» finnes allerede. Vil du oppdatere den?',
@@ -186,7 +188,7 @@ const TRANSLATIONS = {
         btn_remove: 'Fjern',
 
         // External order
-        external_order_btn: 'Eksternt ordrenummer',
+        external_order_btn: 'Ekstern',
         external_badge: 'Eksternt',
         validation_nr_not_in_range: 'Ordrenummer {0} er ikke innenfor dine registrerte områder',
         validation_nr_is_own: 'Dette nummeret tilhører dine egne områder. Bruk «Nytt skjema» i stedet.',
@@ -279,6 +281,8 @@ const TRANSLATIONS = {
         export_only_label: 'Export only',
         export_and_mark_label: 'Export + mark as sent',
         btn_cancel: 'Cancel',
+        duplicate_btn: 'Duplicate',
+        delete_btn: 'Delete',
         export_pdf_error: 'Error generating PDF: ',
         export_jpg_error: 'Error generating JPG: ',
 
@@ -316,7 +320,7 @@ const TRANSLATIONS = {
 
         // Templates
         template_modal_title: 'Choose project template',
-        template_new_form: 'New form',
+        template_new_form: 'New',
         template_save_success: 'Project template saved!',
         template_update_success: 'Template updated!',
         template_exists: 'A template with project name "{0}" already exists. Do you want to update it?',
@@ -384,7 +388,7 @@ const TRANSLATIONS = {
         btn_remove: 'Remove',
 
         // External order
-        external_order_btn: 'External order number',
+        external_order_btn: 'External',
         external_badge: 'External',
         validation_nr_not_in_range: 'Order number {0} is not within your registered ranges',
         validation_nr_is_own: 'This number belongs to your own ranges. Use "New form" instead.',

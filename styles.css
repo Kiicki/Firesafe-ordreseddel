@@ -14,6 +14,11 @@ body {
 .container {
     max-width: 800px;
     margin: 0 auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 56px;
 }
 
 .sent-banner {
@@ -26,6 +31,7 @@ body {
     font-size: 13px;
     font-weight: 600;
     max-width: 600px;
+    width: 100%;
     margin: 0 auto 8px;
 }
 
@@ -64,6 +70,7 @@ body {
 
 .top-bar {
     max-width: 600px;
+    width: 100%;
     margin: 0 auto 8px;
 }
 
@@ -79,10 +86,13 @@ body {
     max-width: 600px;
     width: 100%;
     margin: 0 auto;
+    margin-top: auto;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
-    position: sticky;
+    position: fixed;
     bottom: 0;
-    z-index: 100;
+    left: 0;
+    right: 0;
+    z-index: 1100;
 }
 
 .toolbar.keyboard-open {
@@ -500,22 +510,24 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.7);
+    padding-bottom: 56px;
+    background: #fff;
     z-index: 1000;
-    padding: 20px;
     overflow-y: auto;
 }
 
 .modal.active {
-    display: block;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-content {
     background: white;
-    max-width: 500px;
-    margin: 20px auto;
-    border-radius: 8px;
+    width: 100%;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
 }
 
 .modal-header {
@@ -589,8 +601,9 @@ body {
 
 .modal-body {
     padding: 15px;
-    max-height: 80vh;
+    flex: 1;
     overflow-y: auto;
+    min-height: 0;
 }
 
 .modal-search {
@@ -612,7 +625,7 @@ body {
 }
 
 .modal-footer-skip {
-    padding: 10px 15px;
+    padding: 8px 15px;
     border-top: 1px solid #eee;
     display: flex;
     gap: 8px;
@@ -620,12 +633,12 @@ body {
 
 .btn-skip-template {
     flex: 1;
-    padding: 12px;
+    padding: 8px;
     border: 1.5px solid #495057;
     background: transparent;
     color: #495057;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -633,12 +646,12 @@ body {
 
 .btn-external-order {
     flex: 1;
-    padding: 12px;
+    padding: 8px;
     border: 1.5px solid #E8501A;
     background: transparent;
     color: #E8501A;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -681,9 +694,29 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
+#saved-list .saved-item,
+#external-list .saved-item {
+    padding: 8px 12px;
+    margin-bottom: 6px;
+}
+
 .saved-item-info {
     flex: 1;
     min-width: 0;
+}
+
+#saved-list .saved-item-info,
+#external-list .saved-item-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.saved-item-date {
+    color: #888;
+    font-size: 12px;
+    margin-left: auto;
+    white-space: nowrap;
 }
 
 .saved-item-row1 {
@@ -761,56 +794,27 @@ body {
 }
 
 .saved-item-icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-radius: 6px;
-    border: 1px solid;
+    border: none;
     background: transparent;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 20px;
+    color: #666;
     transition: all 0.15s ease;
 }
 
-.saved-item-icon-btn.sent {
-    color: #555;
-    border-color: #555;
-}
-
-.saved-item-icon-btn.sent:hover {
-    background: #555;
-    color: white;
-}
-
-.saved-item-icon-btn.restore {
+.saved-item-icon-btn:hover {
+    background: #f0f0f0;
     color: #333;
-    border-color: #333;
 }
 
-.saved-item-icon-btn.restore:hover {
-    background: #333;
-    color: white;
-}
-
-.saved-item-icon-btn.duplicate {
-    color: #2c3e50;
-    border-color: #2c3e50;
-}
-
-.saved-item-icon-btn.duplicate:hover {
-    background: #2c3e50;
-    color: white;
-}
-
-.saved-item-icon-btn.delete {
-    color: #e74c3c;
-    border-color: #e74c3c;
-}
-
-.saved-item-icon-btn.delete:hover {
-    background: #e74c3c;
-    color: white;
+.saved-item-icon-btn:active {
+    background: #e0e0e0;
 }
 
 .no-saved {
@@ -1547,9 +1551,10 @@ body {
 }
 
 .confirm-modal-text {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     font-size: 16px;
-    color: #333;
+    font-weight: 700;
+    color: #222;
 }
 
 .confirm-modal-buttons {
@@ -1813,6 +1818,79 @@ body {
 }
 
 .settings-chip button:active {
+    color: #e74c3c;
+}
+
+/* Collapsible sections */
+.settings-collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+}
+
+.settings-collapsible-header:active {
+    background: #eee;
+}
+
+.settings-collapsible-arrow {
+    font-size: 20px;
+    color: #999;
+    font-weight: 300;
+    transition: transform 0.2s ease;
+}
+
+.settings-collapsible-arrow.open {
+    transform: rotate(90deg);
+}
+
+.settings-collapsible-body {
+    display: none;
+    padding: 8px 0 12px;
+}
+
+.settings-collapsible-body.open {
+    display: block;
+}
+
+/* List style for materials/units */
+.settings-list-container {
+    margin-bottom: 8px;
+}
+
+.settings-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+    color: #333;
+}
+
+.settings-list-item:last-child {
+    border-bottom: none;
+}
+
+.settings-list-item button {
+    background: none;
+    border: none;
+    color: #bbb;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.settings-list-item button:active {
     color: #e74c3c;
 }
 
