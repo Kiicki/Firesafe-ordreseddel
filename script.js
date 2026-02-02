@@ -68,6 +68,9 @@ let currentUser = null;
 try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
+    db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+        console.log('Persistence failed:', err.code);
+    });
     auth = firebase.auth();
 } catch (e) {
     console.log('Firebase ikke konfigurert ennå');

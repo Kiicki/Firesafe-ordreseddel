@@ -1343,6 +1343,10 @@ async function renderFormToCanvas() {
 
     const convertedElements = convertTextareasToDiv();
 
+    // Midlertidig fjern disabled for ren eksport
+    const disabledFields = element.querySelectorAll('input:disabled, textarea:disabled, select:disabled');
+    disabledFields.forEach(el => el.disabled = false);
+
     await new Promise(resolve => requestAnimationFrame(() => {
         requestAnimationFrame(resolve);
     }));
@@ -1359,6 +1363,8 @@ async function renderFormToCanvas() {
         backgroundColor: '#ffffff'
     });
 
+    // Gjenopprett disabled-tilstand
+    disabledFields.forEach(el => el.disabled = true);
     restoreTextareas(convertedElements);
 
     element.style.display = originalDisplay;
