@@ -284,6 +284,14 @@ function formatDate(date) {
     return `${d}.${m}.${y}`;
 }
 
+// Get ISO 8601 week number
+function getWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
 // Always use mobile form for input
 function isMobile() {
     return true;
@@ -355,6 +363,8 @@ function copyOrderNumber() {
 
 // --- Order card functions ---
 const deleteIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+const copyIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+const moveIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>';
 
 function createOrderCard(orderData, expanded) {
     const card = document.createElement('div');
@@ -481,17 +491,14 @@ function openMaterialPicker(btn) {
     function buildRow(name, isChecked, antall, enhet) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}">
-            <label class="picker-mat-check"><input type="checkbox" ${isChecked ? 'checked' : ''} data-mat-name="${esc(name)}"><span class="picker-mat-name">${name}</span></label>
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${esc(name)}">
+            <div class="picker-mat-check"><span class="picker-mat-name">${name}</span></div>
             <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}">
             <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}">${enhetLabel}</button>
         </div>`;
     }
 
     function renderPickerList() {
-        let htmlChecked = '';
-        let htmlUnchecked = '';
-
         // Collect all material names: configured + any checked custom ones
         const allNames = [...allMaterials];
         Object.keys(pickerState).forEach(name => {
@@ -500,21 +507,18 @@ function openMaterialPicker(btn) {
             }
         });
 
+        // Always alphabetical order
+        allNames.sort((a, b) => a.localeCompare(b, 'nb'));
+
+        let html = '';
         allNames.forEach(name => {
             const state = pickerState[name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === name.toLowerCase())];
             const isChecked = state && state.checked;
             const antall = state ? (state.antall || '') : '';
             const enhet = state ? (state.enhet || '') : '';
-
-            const rowHtml = buildRow(name, isChecked, antall, enhet);
-            if (isChecked) {
-                htmlChecked += rowHtml;
-            } else {
-                htmlUnchecked += rowHtml;
-            }
+            html += buildRow(name, isChecked, antall, enhet);
         });
 
-        let html = htmlChecked + htmlUnchecked;
         if (!html) {
             html = '<div style="padding:16px;color:#999;text-align:center;">' + t('settings_no_materials') + '</div>';
         }
@@ -525,19 +529,20 @@ function openMaterialPicker(btn) {
 
     function attachRowListeners() {
         list.querySelectorAll('.picker-mat-row').forEach(row => {
-            const cb = row.querySelector('input[type="checkbox"]');
+            const nameDiv = row.querySelector('.picker-mat-check');
             const antallInput = row.querySelector('.picker-mat-antall');
             const enhetBtn = row.querySelector('.picker-mat-enhet-btn');
-            const name = cb.getAttribute('data-mat-name');
+            const name = row.getAttribute('data-mat-name');
 
-            cb.addEventListener('change', function() {
-                if (this.checked) {
+            nameDiv.addEventListener('click', function() {
+                const isChecked = pickerState[name] && pickerState[name].checked;
+                if (isChecked) {
+                    pickerState[name].checked = false;
+                } else {
                     pickerState[name] = pickerState[name] || { checked: false, antall: '', enhet: '' };
                     pickerState[name].checked = true;
                     pickerState[name].antall = antallInput.value;
                     pickerState[name].enhet = enhetBtn.getAttribute('data-enhet') || '';
-                } else {
-                    if (pickerState[name]) pickerState[name].checked = false;
                 }
                 renderPickerList();
             });
@@ -780,8 +785,243 @@ function syncMobileToOriginal() {
         }
     }
 
+    // Sync signature image for export
+    const sigData = document.getElementById('mobile-kundens-underskrift').value;
+    const sigImg = document.getElementById('kundens-underskrift-img');
+    if (sigData && sigData.startsWith('data:image')) {
+        sigImg.src = sigData;
+        sigImg.style.display = 'block';
+    } else {
+        sigImg.src = '';
+        sigImg.style.display = 'none';
+    }
+
     // Build desktop work lines dynamically
     buildDesktopWorkLines();
+}
+
+// ============================================
+// SIGNATURE PAD
+// ============================================
+
+let signatureDrawing = false;
+let signatureCtx = null;
+let signatureLastX = 0;
+let signatureLastY = 0;
+
+function openSignaturePad() {
+    const overlay = document.getElementById('signature-overlay');
+    const canvas = document.getElementById('signature-canvas');
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Size canvas to fill available space
+    setTimeout(() => {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * 2;
+        canvas.height = rect.height * 2;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+
+        signatureCtx = canvas.getContext('2d');
+        signatureCtx.scale(2, 2);
+        signatureCtx.strokeStyle = '#000';
+        signatureCtx.lineWidth = 5;
+        signatureCtx.lineCap = 'round';
+        signatureCtx.lineJoin = 'round';
+
+        // Load existing signature if any
+        const existing = document.getElementById('mobile-kundens-underskrift').value;
+        if (existing && existing.startsWith('data:image')) {
+            const img = new Image();
+            img.onload = function() {
+                signatureCtx.drawImage(img, 0, 0, rect.width, rect.height);
+            };
+            img.src = existing;
+        }
+    }, 50);
+
+    // Touch events
+    canvas.addEventListener('touchstart', sigTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', sigTouchMove, { passive: false });
+    canvas.addEventListener('touchend', sigTouchEnd);
+
+    // Mouse events
+    canvas.addEventListener('mousedown', sigMouseDown);
+    canvas.addEventListener('mousemove', sigMouseMove);
+    canvas.addEventListener('mouseup', sigMouseUp);
+    canvas.addEventListener('mouseleave', sigMouseUp);
+}
+
+function closeSignaturePad() {
+    const overlay = document.getElementById('signature-overlay');
+    const canvas = document.getElementById('signature-canvas');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+
+    canvas.removeEventListener('touchstart', sigTouchStart);
+    canvas.removeEventListener('touchmove', sigTouchMove);
+    canvas.removeEventListener('touchend', sigTouchEnd);
+    canvas.removeEventListener('mousedown', sigMouseDown);
+    canvas.removeEventListener('mousemove', sigMouseMove);
+    canvas.removeEventListener('mouseup', sigMouseUp);
+    canvas.removeEventListener('mouseleave', sigMouseUp);
+}
+
+function clearSignatureCanvas() {
+    const canvas = document.getElementById('signature-canvas');
+    if (signatureCtx) {
+        signatureCtx.save();
+        signatureCtx.setTransform(1, 0, 0, 1, 0, 0);
+        signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
+        signatureCtx.restore();
+    }
+}
+
+function trimSignatureCanvas(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const data = imageData.data;
+    let top = h, left = w, right = 0, bottom = 0;
+    let hasContent = false;
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const alpha = data[(y * w + x) * 4 + 3];
+            if (alpha > 0) {
+                hasContent = true;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+                if (x < left) left = x;
+                if (x > right) right = x;
+            }
+        }
+    }
+
+    if (!hasContent) return null;
+
+    const pad = 20;
+    top = Math.max(0, top - pad);
+    left = Math.max(0, left - pad);
+    right = Math.min(w - 1, right + pad);
+    bottom = Math.min(h - 1, bottom + pad);
+
+    const trimmed = document.createElement('canvas');
+    trimmed.width = right - left + 1;
+    trimmed.height = bottom - top + 1;
+    const tCtx = trimmed.getContext('2d');
+    tCtx.fillStyle = '#ffffff';
+    tCtx.fillRect(0, 0, trimmed.width, trimmed.height);
+    tCtx.drawImage(canvas, left, top, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+    return trimmed;
+}
+
+function confirmSignature() {
+    const canvas = document.getElementById('signature-canvas');
+
+    const trimmed = trimSignatureCanvas(canvas);
+
+    if (!trimmed) {
+        document.getElementById('mobile-kundens-underskrift').value = '';
+        document.getElementById('kundens-underskrift').value = '';
+        clearSignaturePreview();
+    } else {
+        const dataURL = trimmed.toDataURL('image/png');
+        document.getElementById('mobile-kundens-underskrift').value = dataURL;
+        document.getElementById('kundens-underskrift').value = dataURL;
+        showSignaturePreview(dataURL);
+    }
+
+    closeSignaturePad();
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+}
+
+function showSignaturePreview(dataURL) {
+    const preview = document.getElementById('mobile-signature-preview');
+    if (preview) {
+        preview.innerHTML = '<img src="' + dataURL + '" alt="Signatur">';
+    }
+    const desktopImg = document.getElementById('kundens-underskrift-img');
+    if (desktopImg) {
+        desktopImg.src = dataURL;
+        desktopImg.style.display = 'block';
+    }
+}
+
+function clearSignaturePreview() {
+    const preview = document.getElementById('mobile-signature-preview');
+    if (preview) {
+        preview.innerHTML = '<span class="signature-placeholder">' + t('signature_tap_to_sign') + '</span>';
+    }
+    const desktopImg = document.getElementById('kundens-underskrift-img');
+    if (desktopImg) {
+        desktopImg.src = '';
+        desktopImg.style.display = 'none';
+    }
+}
+
+function getSignaturePos(canvas, e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+function sigStart(pos) {
+    signatureDrawing = true;
+    signatureLastX = pos.x;
+    signatureLastY = pos.y;
+    signatureCtx.beginPath();
+    signatureCtx.moveTo(pos.x, pos.y);
+}
+
+function sigMove(pos) {
+    if (!signatureDrawing) return;
+    var midX = (signatureLastX + pos.x) / 2;
+    var midY = (signatureLastY + pos.y) / 2;
+    signatureCtx.quadraticCurveTo(signatureLastX, signatureLastY, midX, midY);
+    signatureCtx.stroke();
+    signatureCtx.beginPath();
+    signatureCtx.moveTo(midX, midY);
+    signatureLastX = pos.x;
+    signatureLastY = pos.y;
+}
+
+function sigEnd() {
+    signatureDrawing = false;
+}
+
+function sigTouchStart(e) {
+    e.preventDefault();
+    const pos = getSignaturePos(e.target, e.touches[0]);
+    sigStart(pos);
+}
+
+function sigTouchMove(e) {
+    e.preventDefault();
+    const pos = getSignaturePos(e.target, e.touches[0]);
+    sigMove(pos);
+}
+
+function sigTouchEnd(e) {
+    sigEnd();
+}
+
+function sigMouseDown(e) {
+    const pos = getSignaturePos(e.target, e);
+    sigStart(pos);
+}
+
+function sigMouseMove(e) {
+    const pos = getSignaturePos(e.target, e);
+    sigMove(pos);
+}
+
+function sigMouseUp(e) {
+    sigEnd();
 }
 
 // Build the desktop form work lines from orders data (for PDF export)
@@ -801,7 +1041,10 @@ function buildDesktopWorkLines() {
         descContent.textContent = descText || '';
         if (options && options.bold) descContent.style.fontWeight = 'bold';
         if (options && options.italic) descContent.style.fontStyle = 'italic';
-        if (options && options.alignRight) descContent.style.textAlign = 'right';
+        if (options && options.alignRight) {
+            descContent.style.textAlign = 'right';
+            descContent.style.paddingRight = '20px';
+        }
         descDiv.appendChild(descContent);
         row.appendChild(descDiv);
 
@@ -838,15 +1081,15 @@ function buildDesktopWorkLines() {
         // Materials
         const filledMats = (order.materials || []).filter(m => m.name || m.antall || m.enhet);
         if (filledMats.length > 0) {
-            addRow('Materiell:', '', '', { bold: true });
+            addRow('Materiell:', '', '', { bold: true, alignRight: true });
             filledMats.forEach(m => {
-                addRow(m.name, m.antall, m.enhet);
+                addRow(m.name, m.antall, m.enhet, { alignRight: true });
             });
         }
 
         // Timer
         if (order.timer) {
-            addRow('Timer:', order.timer, 'timer', { bold: true });
+            addRow('Timer:', order.timer, 'timer', { bold: true, alignRight: true });
             const val = parseFloat((order.timer || '').replace(',', '.'));
             if (!isNaN(val)) totalTimer += val;
         }
@@ -889,6 +1132,14 @@ function syncOriginalToMobile() {
             mobileEl.value = originalEl.value;
         }
     }
+
+    // Sync signature preview
+    const sigData = document.getElementById('kundens-underskrift').value;
+    if (sigData && sigData.startsWith('data:image')) {
+        showSignaturePreview(sigData);
+    } else {
+        clearSignaturePreview();
+    }
 }
 
 
@@ -930,7 +1181,13 @@ function setFormData(data) {
     document.getElementById('avdeling').value = data.avdeling || '';
     document.getElementById('sted').value = data.sted || '';
     document.getElementById('signering-dato').value = data.signeringDato || '';
-    document.getElementById('kundens-underskrift').value = data.kundensUnderskrift || '';
+    const sigData = data.kundensUnderskrift || '';
+    document.getElementById('kundens-underskrift').value = sigData;
+    if (sigData && sigData.startsWith('data:image')) {
+        showSignaturePreview(sigData);
+    } else {
+        clearSignaturePreview();
+    }
 
     isExternalForm = !!data.isExternal;
     updateExternalBadge();

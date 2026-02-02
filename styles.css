@@ -452,6 +452,13 @@ body {
     min-height: 30px;
 }
 
+.signature-input:has(img) {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    border-bottom: 1px solid #000;
+}
+
 .signature-input input {
     width: 100%;
     border: none;
@@ -695,7 +702,8 @@ body {
 }
 
 #saved-list .saved-item,
-#external-list .saved-item {
+#external-list .saved-item,
+#template-list .saved-item {
     padding: 8px 12px;
     margin-bottom: 6px;
 }
@@ -738,8 +746,55 @@ body {
 
 .saved-item-buttons {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     flex-shrink: 0;
+}
+
+.saved-item-action-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.saved-item-action-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.saved-item-action-btn.copy {
+    color: #666;
+}
+
+.saved-item-action-btn.copy:active:not(:disabled) {
+    color: #E8501A;
+}
+
+.saved-item-action-btn.disabled {
+    opacity: 0.25;
+    pointer-events: none;
+}
+
+.saved-item-action-btn.move {
+    color: #666;
+}
+
+.saved-item-action-btn.move:active {
+    color: #4CAF50;
+}
+
+.saved-item-action-btn.delete {
+    color: #e74c3c;
+}
+
+.saved-item-action-btn.delete:active {
+    opacity: 0.6;
 }
 
 .saved-item-delete {
@@ -1295,38 +1350,34 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 6px 12px;
     border-bottom: 1px solid #f0f0f0;
+    border-left: 4px solid transparent;
     opacity: 0.5;
 }
 
 .picker-mat-row.picker-mat-selected {
     opacity: 1;
     background: #f8fff8;
+    border-left: 4px solid #E8501A;
 }
 
 .picker-mat-check {
     display: flex;
     align-items: center;
-    gap: 8px;
     flex: 1;
     min-width: 0;
     cursor: pointer;
 }
 
-.picker-mat-check input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    accent-color: #E8501A;
-}
-
 .picker-mat-name {
     font-size: 15px;
     color: #333;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    word-break: break-word;
 }
 
 .picker-mat-antall {
@@ -1870,28 +1921,50 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 4px 4px 4px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-bottom: 6px;
     font-size: 14px;
     color: #333;
 }
 
-.settings-list-item:last-child {
-    border-bottom: none;
+.settings-list-item span {
+    cursor: pointer;
+    flex: 1;
 }
 
-.settings-list-item button {
+.settings-list-edit-input {
+    flex: 1;
+    font-size: 14px;
+    padding: 4px 8px;
+    border: 1px solid #e55a00;
+    border-radius: 4px;
+    outline: none;
+    color: #333;
+}
+
+.settings-delete-btn {
     background: none;
     border: none;
-    color: #bbb;
-    font-size: 18px;
+    color: #e74c3c;
     cursor: pointer;
     padding: 0;
-    line-height: 1;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
-.settings-list-item button:active {
-    color: #e74c3c;
+.settings-delete-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.settings-delete-btn:active {
+    opacity: 0.6;
 }
 
 .settings-add-row {
@@ -2005,6 +2078,111 @@ body {
     font-weight: 700;
     min-width: 20px;
     text-align: center;
+}
+
+/* ============================================
+   SIGNATURE PAD
+   ============================================ */
+
+.signature-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #fff;
+    z-index: 10000;
+    flex-direction: column;
+}
+
+.signature-overlay.active {
+    display: flex;
+}
+
+.signature-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #333;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.signature-overlay-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 8px 12px;
+}
+
+.signature-overlay-confirm {
+    background: #E8501A;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+#signature-canvas {
+    flex: 1;
+    touch-action: none;
+    cursor: crosshair;
+    background: #fff;
+    border-top: 1px solid #eee;
+}
+
+.signature-overlay-footer {
+    display: flex;
+    justify-content: center;
+    padding: 12px 16px;
+    background: #f5f5f5;
+    border-top: 1px solid #ddd;
+    flex-shrink: 0;
+}
+
+.signature-overlay-clear {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    color: #666;
+    font-size: 14px;
+    padding: 10px 24px;
+    cursor: pointer;
+}
+
+.signature-overlay-clear:active {
+    background: #eee;
+}
+
+/* Signature preview in mobile form */
+.signature-preview {
+    min-height: 60px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: #fafafa;
+    padding: 8px;
+}
+
+.signature-preview:active {
+    background: #f0f0f0;
+}
+
+.signature-preview img {
+    max-height: 50px;
+    max-width: 100%;
+}
+
+.signature-placeholder {
+    color: #999;
+    font-size: 14px;
 }
 
 /* Mobile responsive */

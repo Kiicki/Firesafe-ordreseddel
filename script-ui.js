@@ -6,11 +6,17 @@ function closeAllModals() {
     document.querySelectorAll('.modal.active').forEach(function(m) { m.classList.remove('active'); });
 }
 
+function isModalOpen() {
+    return document.querySelector('.modal.active') !== null;
+}
+
 async function showSavedForms() {
     closeAllModals();
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
+    document.getElementById('saved-list').scrollTop = 0;
+    document.getElementById('external-list').scrollTop = 0;
 
     // Åpne riktig fane basert på gjeldende skjema
     if (isExternalForm) {
@@ -31,6 +37,10 @@ async function showSavedForms() {
 
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
 
+            const actionBtn = isSent
+                ? `<button class="saved-item-action-btn copy disabled" onclick="event.stopPropagation()" disabled title="${t('duplicate_btn')}">${copyIcon}</button>`
+                : `<button class="saved-item-action-btn copy" onclick="event.stopPropagation(); duplicateForm(null, ${index})" title="${t('duplicate_btn')}">${copyIcon}</button>`;
+
             return `
                 <div class="saved-item" onclick="loadForm(${index})">
                     <div class="saved-item-info">
@@ -38,7 +48,8 @@ async function showSavedForms() {
                         ${dato ? `<div class="saved-item-date">${dato}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn more" onclick="showItemMenu(event, 'form', ${index}, ${isSent})">\u22EE</button>
+                        ${actionBtn}
+                        <button class="saved-item-action-btn delete" onclick="event.stopPropagation(); deleteForm(null, ${index})" title="${t('delete_btn')}">${deleteIcon}</button>
                     </div>
                 </div>
             `;
@@ -59,11 +70,12 @@ function loadForm(index) {
         lastSavedData = getFormDataSnapshot();
         setFormReadOnly(!!loadedForms[index]._isSent);
         closeModal();
+        window.scrollTo(0, 0);
     }
 }
 
 async function duplicateForm(event, index) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
     const form = loadedForms[index];
     if (!form) return;
 
@@ -74,14 +86,39 @@ async function duplicateForm(event, index) {
     isExternalForm = false;
     updateExternalBadge();
     await autoFillOrderNumber();
+
+    // Sett uke til nåværende
+    const now = new Date();
+    const week = 'Uke ' + getWeekNumber(now);
+    document.getElementById('dato').value = week;
+    document.getElementById('mobile-dato').value = week;
+
+    // Sett signeringsdato til i dag
+    const today = formatDate(now);
+    document.getElementById('signering-dato').value = today;
+    document.getElementById('mobile-signering-dato').value = today;
+
+    // Tøm kundens underskrift
+    document.getElementById('kundens-underskrift').value = '';
+    document.getElementById('mobile-kundens-underskrift').value = '';
+    clearSignaturePreview();
+
+    // Reset bestillinger til 1 tomt ordrekort
+    const container = document.getElementById('mobile-orders');
+    container.innerHTML = '';
+    container.appendChild(createOrderCard({ description: '', materials: [], timer: '' }, true));
+    updateOrderDeleteStates();
+    document.getElementById('work-lines').innerHTML = '';
+
     lastSavedData = null;
     setFormReadOnly(false);
     closeModal();
+    window.scrollTo(0, 0);
     showNotificationModal(t('duplicated_success'), true);
 }
 
 function deleteForm(event, index) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
     const form = loadedForms[index];
     if (!form) return;
     const isSent = form._isSent;
@@ -135,10 +172,12 @@ function switchHentTab(tab) {
         tabs[0].classList.add('active');
         savedList.style.display = '';
         ownSearch.style.display = '';
+        savedList.scrollTop = 0;
     } else if (tab === 'external') {
         tabs[1].classList.add('active');
         externalList.style.display = '';
         externalSearch.style.display = '';
+        externalList.scrollTop = 0;
         loadExternalTab();
     }
 }
@@ -191,6 +230,7 @@ function closeActionPopup(e) {
 }
 
 function showSaveMenu() {
+    if (isModalOpen()) return;
     showActionPopup(t('save_menu_title'), [
         { label: t('save_option'), onclick: 'saveForm()' },
         { label: t('save_as_template'), onclick: 'saveAsTemplate()' }
@@ -201,6 +241,7 @@ function showSaveMenu() {
 function closeSaveMenu() { closeActionPopup(); }
 function closeExportMenu() { closeActionPopup(); }
 function showExportMenu() {
+    if (isModalOpen()) return;
     const isSent = document.getElementById('sent-banner').style.display !== 'none';
     const popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('export_title');
@@ -321,7 +362,7 @@ async function moveCurrentToSaved() {
 }
 
 function moveToSaved(event, index) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
     showConfirmModal(t('move_to_saved_confirm'), async function() {
         const form = loadedForms[index];
         if (!form) return;
@@ -383,7 +424,7 @@ async function loadExternalTab() {
                         ${dato ? `<div class="saved-item-date">${dato}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn more" onclick="showItemMenu(event, 'external', ${index}, false)">\u22EE</button>
+                        <button class="saved-item-action-btn delete" onclick="event.stopPropagation(); deleteExternalForm(null, ${index})" title="${t('delete_btn')}">${deleteIcon}</button>
                     </div>
                 </div>
             `;
@@ -398,10 +439,11 @@ function loadExternalForm(index) {
     lastSavedData = getFormDataSnapshot();
     setFormReadOnly(!!form._isSent);
     closeModal();
+    window.scrollTo(0, 0);
 }
 
 function deleteExternalForm(event, index) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
     const form = loadedExternalForms[index];
     if (!form) return;
     const isSent = form._isSent;
@@ -486,40 +528,19 @@ async function saveAsTemplate() {
     if (currentUser && db) {
         try {
             const templatesRef = db.collection('users').doc(currentUser.uid).collection('templates');
-            const existing = await templatesRef.where('prosjektnavn', '==', templateData.prosjektnavn).get();
-
-            if (!existing.empty) {
-                showConfirmModal(t('template_exists', templateData.prosjektnavn), async function() {
-                    await templatesRef.doc(existing.docs[0].id).set(templateData);
-                    showNotificationModal(t('template_update_success'), true);
-                }, t('btn_update'), '#E8501A');
-            } else {
-                const docId = Date.now().toString();
-                await templatesRef.doc(docId).set(templateData);
-                showNotificationModal(t('template_save_success'), true);
-            }
+            const docId = Date.now().toString();
+            await templatesRef.doc(docId).set(templateData);
+            showNotificationModal(t('template_save_success'), true);
         } catch (e) {
             console.error('Save template error:', e);
             showNotificationModal(t('template_save_error') + e.message);
         }
     } else {
-        // localStorage fallback
         const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-        const existingIndex = templates.findIndex(t => t.prosjektnavn.toLowerCase() === templateData.prosjektnavn.toLowerCase());
-
-        if (existingIndex !== -1) {
-            showConfirmModal(t('template_exists', templateData.prosjektnavn), function() {
-                templateData.id = templates[existingIndex].id;
-                templates[existingIndex] = templateData;
-                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-                showNotificationModal(t('template_update_success'), true);
-            }, t('btn_update'), '#E8501A');
-        } else {
-            templateData.id = Date.now().toString();
-            templates.push(templateData);
-            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-            showNotificationModal(t('template_save_success'), true);
-        }
+        templateData.id = Date.now().toString();
+        templates.push(templateData);
+        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        showNotificationModal(t('template_save_success'), true);
     }
 }
 
@@ -546,7 +567,7 @@ async function showTemplateModal() {
                         ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-icon-btn more" onclick="showItemMenu(event, 'template', ${index}, false)">\u22EE</button>
+                        <button class="saved-item-action-btn delete" onclick="event.stopPropagation(); deleteTemplate(null, ${index})" title="${t('delete_btn')}">${deleteIcon}</button>
                     </div>
                 </div>
             `;
@@ -587,6 +608,7 @@ function loadTemplate(index) {
 
     document.getElementById('template-modal').classList.remove('active');
     document.getElementById('template-search').value = '';
+    window.scrollTo(0, 0);
 }
 
 function deleteTemplate(event, index) {
@@ -833,7 +855,7 @@ function renderMaterialSettingsItems() {
         return;
     }
     container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span>${item}</span><button onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">&times;</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${item}</span><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
@@ -844,7 +866,7 @@ function renderUnitSettingsItems() {
         return;
     }
     container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item"><span>${item}</span><button onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">&times;</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${item}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
@@ -902,6 +924,82 @@ function removeSettingsUnit(idx) {
         settingsUnits.splice(idx, 1);
         renderUnitSettingsItems();
         await saveMaterialSettings();
+    });
+}
+
+function editSettingsMaterial(idx) {
+    const container = document.getElementById('settings-material-items');
+    const item = container.children[idx];
+    const span = item.querySelector('span');
+    const oldVal = settingsMaterials[idx];
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'settings-list-edit-input';
+    input.value = oldVal;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+    let saved = false;
+    async function save() {
+        if (saved) return;
+        saved = true;
+        const newVal = input.value.trim();
+        if (!newVal || newVal === oldVal) {
+            renderMaterialSettingsItems();
+            return;
+        }
+        if (settingsMaterials.some((m, i) => i !== idx && m.toLowerCase() === newVal.toLowerCase())) {
+            showNotificationModal(t('settings_material_exists'));
+            renderMaterialSettingsItems();
+            return;
+        }
+        settingsMaterials[idx] = newVal;
+        sortAlpha(settingsMaterials);
+        renderMaterialSettingsItems();
+        await saveMaterialSettings();
+    }
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { saved = true; renderMaterialSettingsItems(); }
+    });
+}
+
+function editSettingsUnit(idx) {
+    const container = document.getElementById('settings-unit-items');
+    const item = container.children[idx];
+    const span = item.querySelector('span');
+    const oldVal = settingsUnits[idx];
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'settings-list-edit-input';
+    input.value = oldVal;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+    let saved = false;
+    async function save() {
+        if (saved) return;
+        saved = true;
+        const newVal = input.value.trim();
+        if (!newVal || newVal === oldVal) {
+            renderUnitSettingsItems();
+            return;
+        }
+        if (settingsUnits.some((u, i) => i !== idx && u.toLowerCase() === newVal.toLowerCase())) {
+            showNotificationModal(t('settings_unit_exists'));
+            renderUnitSettingsItems();
+            return;
+        }
+        settingsUnits[idx] = newVal;
+        sortAlpha(settingsUnits);
+        renderUnitSettingsItems();
+        await saveMaterialSettings();
+    }
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { saved = true; renderUnitSettingsItems(); }
     });
 }
 
@@ -1130,9 +1228,14 @@ function clearForm() {
         el.removeAttribute('data-full-value');
     });
 
-    const today = formatDate(new Date());
+    const now = new Date();
+    const today = formatDate(now);
     document.getElementById('signering-dato').value = today;
     document.getElementById('mobile-signering-dato').value = today;
+
+    const week = 'Uke ' + getWeekNumber(now);
+    document.getElementById('dato').value = week;
+    document.getElementById('mobile-dato').value = week;
 
     sessionStorage.removeItem('firesafe_current');
     lastSavedData = null;
@@ -1147,6 +1250,8 @@ function clearForm() {
 
     // Clear desktop work lines
     document.getElementById('work-lines').innerHTML = '';
+
+    window.scrollTo(0, 0);
 }
 
 function doNewForm() {
@@ -1155,6 +1260,7 @@ function doNewForm() {
 }
 
 function newForm() {
+    if (isModalOpen()) return;
     const currentData = getFormDataSnapshot();
     const hasUnsavedChanges = lastSavedData !== null
         ? currentData !== lastSavedData
@@ -1178,10 +1284,27 @@ function duplicateCurrentForm() {
     // Clear order number and signature fields
     document.getElementById('ordreseddel-nr').value = '';
     document.getElementById('mobile-ordreseddel-nr').value = '';
-    document.getElementById('signering-dato').value = '';
-    document.getElementById('mobile-signering-dato').value = '';
     document.getElementById('kundens-underskrift').value = '';
     document.getElementById('mobile-kundens-underskrift').value = '';
+    clearSignaturePreview();
+
+    // Sett uke til nåværende
+    var now = new Date();
+    var week = 'Uke ' + getWeekNumber(now);
+    document.getElementById('dato').value = week;
+    document.getElementById('mobile-dato').value = week;
+
+    // Sett signeringsdato til i dag
+    var today = formatDate(now);
+    document.getElementById('signering-dato').value = today;
+    document.getElementById('mobile-signering-dato').value = today;
+
+    // Reset bestillinger til 1 tomt ordrekort
+    var container = document.getElementById('mobile-orders');
+    container.innerHTML = '';
+    container.appendChild(createOrderCard({ description: '', materials: [], timer: '' }, true));
+    updateOrderDeleteStates();
+    document.getElementById('work-lines').innerHTML = '';
 
     // Mark as unsaved
     lastSavedData = null;
@@ -1192,6 +1315,7 @@ function duplicateCurrentForm() {
 
     // Auto-fill next order number
     autoFillOrderNumber();
+    window.scrollTo(0, 0);
 }
 
 // Felles canvas-rendering for eksport/deling
@@ -1229,7 +1353,7 @@ async function renderFormToCanvas() {
     element.style.top = '';
 
     const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff'
@@ -1267,7 +1391,7 @@ async function doExportPDF() {
         const pdf = new jsPDF('p', 'mm', 'a4');
         const imgWidth = 210;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
         pdf.save(getExportFilename('pdf'));
     } catch (error) {
         alert(t('export_pdf_error') + error.message);
@@ -1283,8 +1407,8 @@ async function doExportJPG() {
     try {
         const canvas = await renderFormToCanvas();
         const link = document.createElement('a');
-        link.download = getExportFilename('jpg');
-        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        link.download = getExportFilename('png');
+        link.href = canvas.toDataURL('image/png');
         link.click();
     } catch (error) {
         alert(t('export_jpg_error') + error.message);

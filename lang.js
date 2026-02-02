@@ -39,6 +39,9 @@ const TRANSLATIONS = {
         label_sted: 'Sted',
         label_dato: 'Dato',
         label_kundens_underskrift: 'Kundens underskrift',
+        signature_tap_to_sign: 'Trykk for å signere',
+        signature_clear: 'Slett signatur',
+        signature_confirm: 'Bekreft',
 
         // Sections
         section_work: 'Utførte arbeider',
@@ -239,6 +242,9 @@ const TRANSLATIONS = {
         label_sted: 'Location',
         label_dato: 'Date',
         label_kundens_underskrift: 'Customer signature',
+        signature_tap_to_sign: 'Tap to sign',
+        signature_clear: 'Clear signature',
+        signature_confirm: 'Confirm',
 
         // Sections
         section_work: 'Completed work',

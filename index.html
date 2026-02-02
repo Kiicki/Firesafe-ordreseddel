@@ -96,7 +96,10 @@
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_kundens_underskrift">Kundens underskrift</label>
-                    <input type="text" id="mobile-kundens-underskrift" autocapitalize="sentences">
+                    <div class="signature-preview" id="mobile-signature-preview" onclick="openSignaturePad()">
+                        <span class="signature-placeholder" data-i18n="signature_tap_to_sign">Trykk for å signere</span>
+                    </div>
+                    <input type="hidden" id="mobile-kundens-underskrift">
                 </div>
             </div>
 
@@ -217,7 +220,8 @@
                 </div>
                 <div class="footer-cell signature-cell">
                     <div class="signature-input">
-                        <input type="text" id="kundens-underskrift">
+                        <img id="kundens-underskrift-img" src="" style="display:none; max-height:30px; margin: 0 auto;">
+                        <input type="hidden" id="kundens-underskrift">
                     </div>
                     <div class="signature-label">Kundens underskrift</div>
                 </div>
@@ -442,6 +446,19 @@
     </div>
 
     <script src="lang.js"></script>
+    <!-- Signature pad overlay -->
+    <div class="signature-overlay" id="signature-overlay">
+        <div class="signature-overlay-header">
+            <button class="signature-overlay-btn" onclick="closeSignaturePad()" data-i18n="btn_cancel">Avbryt</button>
+            <span data-i18n="label_kundens_underskrift">Kundens underskrift</span>
+            <button class="signature-overlay-btn signature-overlay-confirm" onclick="confirmSignature()" data-i18n="signature_confirm">Bekreft</button>
+        </div>
+        <canvas id="signature-canvas"></canvas>
+        <div class="signature-overlay-footer">
+            <button class="signature-overlay-clear" onclick="clearSignatureCanvas()" data-i18n="signature_clear">Slett signatur</button>
+        </div>
+    </div>
+
     <script src="script.js"></script>
     <script src="script-ui.js"></script>
     <script>
