@@ -35,41 +35,44 @@
 <script>
 function drawIcon(canvas) {
   const size = canvas.width;
+  const s = size / 512; // scale factor from SVG coordinates
   const ctx = canvas.getContext('2d');
+
   // Fill entire canvas with orange (no transparency)
   ctx.fillStyle = '#E8501A';
   ctx.fillRect(0, 0, size, size);
 
+  // Font settings matching SVG
+  const fontSize = Math.round(155 * s);
   ctx.fillStyle = '#FFFFFF';
-  const fontSize = Math.round(size * 0.34);
-  ctx.font = '900 ' + fontSize + 'px Arial, Helvetica, sans-serif';
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 12 * s;
+  ctx.lineJoin = 'round';
+  ctx.font = 'bold ' + fontSize + 'px Arial, Helvetica, sans-serif';
 
-  // "F" upper-left — top aligned with top of slash (0.18)
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'top';
-  ctx.fillText('F', size * 0.43, size * 0.18);
+  // "F" upper-left (SVG: x=110, y=232, baseline=alphabetic)
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('F', 110 * s, 232 * s);
+  ctx.strokeText('F', 110 * s, 232 * s);
 
-  // "/" diagonal with horizontal flat ends (parallelogram shape)
-  const sw = size * 0.035; // stroke visual width
-  const topY = size * 0.20;
-  const botY = size * 0.77;
-  const topCx = size * 0.68;
-  const botCx = size * 0.32;
+  // "/" diagonal slash (polygon from SVG)
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo(topCx - sw, topY);    // top-left
-  ctx.lineTo(topCx + sw, topY);    // top-right
-  ctx.lineTo(botCx + sw, botY);    // bottom-right
-  ctx.lineTo(botCx - sw, botY);    // bottom-left
+  ctx.moveTo(340 * s, 115 * s);
+  ctx.lineTo(366 * s, 115 * s);
+  ctx.lineTo(182 * s, 412 * s);
+  ctx.lineTo(156 * s, 412 * s);
   ctx.closePath();
   ctx.fill();
 
-  // "O" lower-right
+  // "O" lower-right (SVG: x=435, y=404, text-anchor=end)
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '900 ' + fontSize + 'px Arial, Helvetica, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('O', size * 0.55, size * 0.50);
+  ctx.font = 'bold ' + fontSize + 'px Arial, Helvetica, sans-serif';
+  ctx.textAlign = 'end';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('O', 435 * s, 404 * s);
+  ctx.strokeText('O', 435 * s, 404 * s);
 }
 
 drawIcon(document.getElementById('c192'));
