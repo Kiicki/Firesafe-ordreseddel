@@ -43,36 +43,36 @@ function drawIcon(canvas) {
   ctx.fillRect(0, 0, size, size);
 
   // Font settings matching SVG
-  const fontSize = Math.round(155 * s);
+  const fontSize = Math.round(125 * s);
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 12 * s;
+  ctx.lineWidth = 10 * s;
   ctx.lineJoin = 'round';
   ctx.font = 'bold ' + fontSize + 'px Arial, Helvetica, sans-serif';
 
-  // "F" upper-left (SVG: x=110, y=232, baseline=alphabetic)
+  // "F" upper-left (SVG: x=139, y=237, baseline=alphabetic)
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('F', 110 * s, 232 * s);
-  ctx.strokeText('F', 110 * s, 232 * s);
+  ctx.fillText('F', 139 * s, 237 * s);
+  ctx.strokeText('F', 139 * s, 237 * s);
 
   // "/" diagonal slash (polygon from SVG)
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo(340 * s, 115 * s);
-  ctx.lineTo(366 * s, 115 * s);
-  ctx.lineTo(182 * s, 412 * s);
-  ctx.lineTo(156 * s, 412 * s);
+  ctx.moveTo(323 * s, 143 * s);
+  ctx.lineTo(344 * s, 143 * s);
+  ctx.lineTo(203 * s, 394 * s);
+  ctx.lineTo(182 * s, 394 * s);
   ctx.closePath();
   ctx.fill();
 
-  // "O" lower-right (SVG: x=435, y=404, text-anchor=end)
+  // "O" lower-right (SVG: x=399, y=374, text-anchor=end)
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold ' + fontSize + 'px Arial, Helvetica, sans-serif';
   ctx.textAlign = 'end';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('O', 435 * s, 404 * s);
-  ctx.strokeText('O', 435 * s, 404 * s);
+  ctx.fillText('O', 399 * s, 374 * s);
+  ctx.strokeText('O', 399 * s, 374 * s);
 }
 
 drawIcon(document.getElementById('c192'));
