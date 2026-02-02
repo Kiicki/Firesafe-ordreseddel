@@ -1519,9 +1519,9 @@ async function renderFormToCanvas() {
 }
 
 function getExportFilename(ext) {
-    const prosjektnr = document.getElementById('prosjektnr').value || 'ukjent';
+    const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value || 'ukjent';
     const dato = document.getElementById('dato').value.replace(/\./g, '-') || formatDate(new Date()).replace(/\./g, '-');
-    return `ordreseddel_${prosjektnr}_${dato}.${ext}`;
+    return `ordreseddel_${ordrenr}_${dato}.${ext}`;
 }
 
 async function doExportPDF() {
