@@ -55,20 +55,24 @@ function drawIcon(canvas, maskable) {
   ctx.fillStyle = '#E8501A';
   ctx.fillRect(0, 0, size, size);
 
-  // For maskable: scale down to ~66% and center (safe zone)
-  // For standard: use full SVG coordinates
   var s = size / 512;
+  var strokeW = 10;
+  var slashExtra = 0;
+
   if (maskable) {
-    s = s * 1.15;
+    // Bigger, bolder for Android adaptive icon
+    s = s * 1.25;
+    strokeW = 22;
+    slashExtra = 8; // extra width on slash polygon
     ctx.save();
-    ctx.translate(size * -0.075, size * -0.075);
+    ctx.translate(size * -0.125, size * -0.125);
   }
 
-  // Font settings matching SVG
+  // Font settings
   const fontSize = Math.round(125 * s);
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 10 * s;
+  ctx.lineWidth = strokeW * s;
   ctx.lineJoin = 'round';
   ctx.font = 'bold ' + fontSize + 'px Arial, Helvetica, sans-serif';
 
@@ -78,13 +82,13 @@ function drawIcon(canvas, maskable) {
   ctx.fillText('F', 139 * s, 237 * s);
   ctx.strokeText('F', 139 * s, 237 * s);
 
-  // "/" diagonal slash
+  // "/" diagonal slash (wider for maskable)
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo(323 * s, 143 * s);
-  ctx.lineTo(344 * s, 143 * s);
-  ctx.lineTo(203 * s, 394 * s);
-  ctx.lineTo(182 * s, 394 * s);
+  ctx.moveTo((323 + slashExtra) * s, 143 * s);
+  ctx.lineTo((344 + slashExtra) * s, 143 * s);
+  ctx.lineTo((203 - slashExtra) * s, 394 * s);
+  ctx.lineTo((182 - slashExtra) * s, 394 * s);
   ctx.closePath();
   ctx.fill();
 
