@@ -349,13 +349,31 @@
 
                 <!-- Ordreseddelnummer-side -->
                 <div id="settings-page-ordrenr" class="settings-page" style="display:none;">
-                    <div id="settings-ranges"></div>
-                    <div class="settings-add-row">
-                        <input type="text" id="settings-new-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
-                        <input type="text" id="settings-new-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
-                        <button type="button" class="settings-add-btn" onclick="addSettingsRange()">+</button>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('ranges')">
+                        <span><span data-i18n="settings_my_numbers">Mine numre</span> <span class="settings-collapsible-count" id="settings-count-ranges"></span></span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-ranges">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body open" id="settings-body-ranges">
+                        <div id="settings-ranges"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
+                            <input type="text" id="settings-new-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
+                            <button type="button" class="settings-add-btn" onclick="addSettingsRange()">+</button>
+                        </div>
                     </div>
                     <div class="settings-status" id="settings-status"></div>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('giveaway')">
+                        <span><span data-i18n="settings_given_away">Gitt bort</span> <span class="settings-collapsible-count" id="settings-count-giveaway"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-giveaway">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-giveaway">
+                        <div id="settings-given-away"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-give-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
+                            <input type="text" id="settings-give-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
+                            <button type="button" class="settings-give-btn" onclick="addGivenAwayRange()" data-i18n="settings_give_btn">Gi bort</button>
+                        </div>
+                    </div>
                     <button class="settings-save-btn" onclick="saveOrderNrSettings()" data-i18n="btn_save_settings">Lagre</button>
                 </div>
 
@@ -435,7 +453,10 @@
         <div class="unit-picker-sheet">
             <div class="unit-picker-header">
                 <span data-i18n="placeholder_unit">Enhet</span>
-                <button type="button" onclick="closeUnitPicker()" data-i18n="btn_cancel">Avbryt</button>
+                <div class="unit-picker-header-actions">
+                    <button type="button" id="unit-picker-clear-btn" class="unit-picker-header-clear" style="display:none" data-i18n="btn_clear">Fjern</button>
+                    <button type="button" onclick="closeUnitPicker()" data-i18n="btn_cancel">Avbryt</button>
+                </div>
             </div>
             <div class="unit-picker-list" id="unit-picker-list"></div>
             <div class="unit-picker-custom">

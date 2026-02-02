@@ -465,6 +465,7 @@ function getMaterialsFromContainer(matContainer) {
 // Material picker overlay
 let pickerOrderCard = null;
 let pickerState = {}; // { "materialenavn": { checked: true, antall: "5", enhet: "stk" } }
+let pickerRenderFn = null; // Reference to renderPickerList inside closure
 
 function openMaterialPicker(btn) {
     const card = btn.closest('.mobile-order-card');
@@ -494,7 +495,7 @@ function openMaterialPicker(btn) {
     function buildRow(name, isChecked, antall, enhet, needsSpec) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
-        const specBadge = needsSpec ? '<span class="picker-mat-spec-badge">Spec</span>' : '';
+        const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${esc(name)}" data-needs-spec="${needsSpec ? '1' : '0'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${name}</span>${specBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}">
@@ -508,6 +509,7 @@ function openMaterialPicker(btn) {
     }
 
     function renderPickerList() {
+        pickerRenderFn = renderPickerList; // Expose for unitPickerCallback
         // Build list: configured materials + checked spec-derived entries + checked custom entries
         const entries = []; // { name, isChecked, antall, enhet, needsSpec, isSpecDerived }
 
@@ -585,6 +587,11 @@ function openMaterialPicker(btn) {
             antallInput.addEventListener('input', function() {
                 if (!pickerState[name]) pickerState[name] = { checked: false, antall: '', enhet: '' };
                 pickerState[name].antall = this.value;
+                // Auto-select when both antall and enhet are filled
+                if (this.value && pickerState[name].enhet && !pickerState[name].checked) {
+                    pickerState[name].checked = true;
+                    renderPickerList();
+                }
             });
 
             enhetBtn.addEventListener('click', function(e) {
@@ -676,6 +683,29 @@ function confirmSpecPopup() {
 function pickerOverlayConfirm() {
     if (!pickerOrderCard) { closePickerOverlay(); return; }
 
+    // Auto-check materials that have both antall and enhet filled
+    for (const [name, state] of Object.entries(pickerState)) {
+        if (!state.checked && state.antall && state.enhet) {
+            state.checked = true;
+        }
+    }
+
+    // Validate: warn if any material has partial data (antall or enhet but not both)
+    const incomplete = [];
+    for (const [name, state] of Object.entries(pickerState)) {
+        const hasAntall = !!state.antall;
+        const hasEnhet = !!state.enhet;
+        if (state.checked && (!hasAntall || !hasEnhet)) {
+            incomplete.push(name);
+        } else if (!state.checked && (hasAntall !== hasEnhet)) {
+            incomplete.push(name);
+        }
+    }
+    if (incomplete.length > 0) {
+        showNotificationModal(t('picker_incomplete', incomplete.join(', ')));
+        return;
+    }
+
     const materials = [];
     for (const [name, state] of Object.entries(pickerState)) {
         if (state.checked) {
@@ -706,6 +736,16 @@ function openUnitPicker(matName, btnEl) {
 
     listEl.innerHTML = html;
 
+    // Show/hide clear button in header
+    const headerClearBtn = document.getElementById('unit-picker-clear-btn');
+    if (headerClearBtn) {
+        headerClearBtn.style.display = currentEnhet ? '' : 'none';
+        headerClearBtn.onclick = function() {
+            unitPickerCallback('');
+            closeUnitPicker();
+        };
+    }
+
     // Custom input row (outside scrollable list)
     const isCustom = currentEnhet && !allUnits.some(u => u.toLowerCase() === currentEnhet.toLowerCase());
     const customEl = overlay.querySelector('.unit-picker-custom');
@@ -719,6 +759,11 @@ function openUnitPicker(matName, btnEl) {
         btnEl.classList.toggle('placeholder', !value);
         if (!pickerState[matName]) pickerState[matName] = { checked: false, antall: '', enhet: '' };
         pickerState[matName].enhet = value;
+        // Auto-select when both antall and enhet are filled
+        if (value && pickerState[matName].antall && !pickerState[matName].checked) {
+            pickerState[matName].checked = true;
+            if (pickerRenderFn) pickerRenderFn();
+        }
         // Save custom unit to settings
         if (value && !(cachedUnitOptions || []).some(u => u.toLowerCase() === value.toLowerCase())) {
             settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];

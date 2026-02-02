@@ -701,6 +701,7 @@ function filterTemplates() {
 
 // In-memory ranges for settings modal editing
 let settingsRanges = [];
+let settingsGivenAway = [];
 
 async function getOrderNrSettings() {
     let data = null;
@@ -720,6 +721,7 @@ async function getOrderNrSettings() {
     if (data && !data.ranges && data.nrStart != null) {
         data = { ranges: [{ start: data.nrStart, end: data.nrEnd }] };
     }
+    if (data && !data.givenAway) data.givenAway = [];
     return data;
 }
 
@@ -728,7 +730,7 @@ async function saveOrderNrSettings() {
         showNotificationModal(t('settings_add_range'));
         return;
     }
-    const settings = { ranges: settingsRanges.slice() };
+    const settings = buildOrderNrSettings();
 
     if (currentUser && db) {
         try {
@@ -740,6 +742,10 @@ async function saveOrderNrSettings() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     showNotificationModal(t('settings_saved'), true);
     closeSettingsModal();
+}
+
+function buildOrderNrSettings() {
+    return { ranges: settingsRanges.slice(), givenAway: settingsGivenAway.slice() };
 }
 
 function getSettingsPageTitle(page) {
@@ -789,9 +795,13 @@ async function showSettingsPage(page) {
     if (page === 'ordrenr') {
         const settings = await getOrderNrSettings();
         settingsRanges = (settings && settings.ranges) ? settings.ranges.slice() : [];
+        settingsGivenAway = (settings && settings.givenAway) ? settings.givenAway.slice() : [];
         renderSettingsRanges();
+        renderGivenAwayRanges();
         document.getElementById('settings-new-start').value = '';
         document.getElementById('settings-new-end').value = '';
+        document.getElementById('settings-give-start').value = '';
+        document.getElementById('settings-give-end').value = '';
         updateSettingsStatus();
     } else if (page === 'defaults') {
         await loadDefaultSettingsToModal();
@@ -1095,8 +1105,10 @@ async function autoFillDefaults() {
 
 function renderSettingsRanges() {
     const container = document.getElementById('settings-ranges');
+    const countEl = document.getElementById('settings-count-ranges');
     if (settingsRanges.length === 0) {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_ranges') + '</div>';
+        if (countEl) countEl.textContent = '';
         return;
     }
     container.innerHTML = settingsRanges.map((r, idx) =>
@@ -1105,6 +1117,11 @@ function renderSettingsRanges() {
             <button onclick="removeSettingsRange(${idx})" title="${t('btn_remove')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div>`
     ).join('');
+    if (countEl) {
+        let total = 0;
+        settingsRanges.forEach(r => { total += r.end - r.start + 1; });
+        countEl.textContent = '(' + settingsRanges.length + (settingsRanges.length === 1 ? ' serie, ' : ' serier, ') + total + ' nr)';
+    }
 }
 
 async function addSettingsRange() {
@@ -1128,7 +1145,7 @@ async function addSettingsRange() {
     renderSettingsRanges();
     updateSettingsStatus();
     // Auto-save
-    const settings = { ranges: settingsRanges.slice() };
+    const settings = buildOrderNrSettings();
     if (currentUser && db) {
         try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
     }
@@ -1143,12 +1160,102 @@ function removeSettingsRange(idx) {
         renderSettingsRanges();
         updateSettingsStatus();
         // Auto-save
-        const settings = { ranges: settingsRanges.slice() };
+        const settings = buildOrderNrSettings();
         if (currentUser && db) {
             try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
         }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     });
+}
+
+function renderGivenAwayRanges() {
+    const container = document.getElementById('settings-given-away');
+    const countEl = document.getElementById('settings-count-giveaway');
+    if (!container) return;
+    if (settingsGivenAway.length === 0) {
+        container.innerHTML = '';
+        if (countEl) countEl.textContent = '';
+        return;
+    }
+    container.innerHTML = settingsGivenAway.map((r, idx) =>
+        `<div class="settings-range-item settings-given-item">
+            <span>${r.start === r.end ? r.start : r.start + ' – ' + r.end}</span>
+            <button onclick="removeGivenAway(${idx})" title="${t('btn_remove')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+        </div>`
+    ).join('');
+    if (countEl) {
+        let total = 0;
+        settingsGivenAway.forEach(r => { total += r.end - r.start + 1; });
+        countEl.textContent = '(' + total + ' nr)';
+    }
+}
+
+async function addGivenAwayRange() {
+    const startInput = document.getElementById('settings-give-start');
+    const endInput = document.getElementById('settings-give-end');
+    const start = parseInt(startInput.value);
+    const end = endInput.value.trim() === '' ? start : parseInt(endInput.value);
+
+    if (isNaN(start) || isNaN(end) || start > end) {
+        showNotificationModal(t('settings_range_error'));
+        return;
+    }
+    // Must be within an existing range
+    if (!isNumberInRanges(start, settingsRanges) || !isNumberInRanges(end, settingsRanges)) {
+        showNotificationModal(t('settings_give_not_in_range'));
+        return;
+    }
+    // Check overlap with already given-away
+    const overlapsGiven = settingsGivenAway.some(r => start <= r.end && end >= r.start);
+    if (overlapsGiven) {
+        showNotificationModal(t('settings_give_overlap'));
+        return;
+    }
+    // Check if any numbers are already used (saved/sent)
+    const usedNumbers = await getUsedOrderNumbers();
+    for (let n = start; n <= end; n++) {
+        if (usedNumbers.has(String(n))) {
+            showNotificationModal(t('settings_give_already_used', n));
+            return;
+        }
+    }
+    settingsGivenAway.push({ start, end });
+    settingsGivenAway.sort((a, b) => a.start - b.start);
+    startInput.value = '';
+    endInput.value = '';
+    renderGivenAwayRanges();
+    updateSettingsStatus();
+    // Auto-save
+    const settings = buildOrderNrSettings();
+    if (currentUser && db) {
+        try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    showNotificationModal(t('settings_give_added'), true);
+}
+
+function removeGivenAway(idx) {
+    const r = settingsGivenAway[idx];
+    const label = r.start === r.end ? String(r.start) : r.start + ' – ' + r.end;
+    showConfirmModal(t('settings_give_remove', label), async function() {
+        settingsGivenAway.splice(idx, 1);
+        renderGivenAwayRanges();
+        updateSettingsStatus();
+        // Auto-save
+        const settings = buildOrderNrSettings();
+        if (currentUser && db) {
+            try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
+        }
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    });
+}
+
+function getGivenAwayNumbers() {
+    const given = new Set();
+    settingsGivenAway.forEach(r => {
+        for (let n = r.start; n <= r.end; n++) given.add(String(n));
+    });
+    return given;
 }
 
 async function updateSettingsStatus() {
@@ -1162,15 +1269,23 @@ async function updateSettingsStatus() {
     settingsRanges.forEach(r => { total += r.end - r.start + 1; });
 
     const usedNumbers = await getUsedOrderNumbers();
+    const givenNumbers = getGivenAwayNumbers();
     let usedCount = 0;
+    let givenCount = 0;
     settingsRanges.forEach(r => {
         for (let n = r.start; n <= r.end; n++) {
-            if (usedNumbers.has(String(n))) usedCount++;
+            if (givenNumbers.has(String(n))) givenCount++;
+            else if (usedNumbers.has(String(n))) usedCount++;
         }
     });
 
-    const nextNr = findNextInRanges(settingsRanges, usedNumbers);
-    statusEl.textContent = t('settings_used', usedCount, total) + (nextNr ? ' · ' + t('settings_next', nextNr) : ' · ' + t('settings_all_used'));
+    // Merge given into used for "next" calculation
+    const allUnavailable = new Set([...usedNumbers, ...givenNumbers]);
+    const nextNr = findNextInRanges(settingsRanges, allUnavailable);
+    let statusText = t('settings_used', usedCount, total);
+    if (givenCount > 0) statusText += ' · ' + t('settings_given_away_count', givenCount);
+    statusText += nextNr ? ' · ' + t('settings_next', nextNr) : ' · ' + t('settings_all_used');
+    statusEl.textContent = statusText;
 }
 
 async function getUsedOrderNumbers() {
@@ -1195,6 +1310,11 @@ async function getNextOrderNumber() {
     const settings = await getOrderNrSettings();
     if (!settings || !settings.ranges || settings.ranges.length === 0) return null;
     const usedNumbers = await getUsedOrderNumbers();
+    // Also exclude given-away numbers
+    const givenAway = settings.givenAway || [];
+    givenAway.forEach(r => {
+        for (let n = r.start; n <= r.end; n++) usedNumbers.add(String(n));
+    });
     return findNextInRanges(settings.ranges, usedNumbers);
 }
 
