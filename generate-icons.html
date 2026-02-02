@@ -59,9 +59,9 @@ function drawIcon(canvas, maskable) {
   // For standard: use full SVG coordinates
   var s = size / 512;
   if (maskable) {
-    s = s * 0.95;
+    s = s * 1.15;
     ctx.save();
-    ctx.translate(size * 0.025, size * 0.025);
+    ctx.translate(size * -0.075, size * -0.075);
   }
 
   // Font settings matching SVG
