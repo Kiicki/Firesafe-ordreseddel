@@ -491,35 +491,57 @@ function openMaterialPicker(btn) {
 
     function esc(s) { return (s || '').replace(/"/g, '&quot;'); }
 
-    function buildRow(name, isChecked, antall, enhet) {
+    function buildRow(name, isChecked, antall, enhet, needsSpec) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${esc(name)}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${name}</span></div>
+        const specBadge = needsSpec ? '<span class="picker-mat-spec-badge">Spec</span>' : '';
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${esc(name)}" data-needs-spec="${needsSpec ? '1' : '0'}">
+            <div class="picker-mat-check"><span class="picker-mat-name">${name}</span>${specBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}">
             <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}">${enhetLabel}</button>
         </div>`;
     }
 
+    // Helper: find base material object for a name (checks if it's a spec-derived name)
+    function findBaseMaterial(name) {
+        return allMaterials.find(m => m.needsSpec && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
+    }
+
     function renderPickerList() {
-        // Collect all material names: configured + any checked custom ones
-        const allNames = [...allMaterials];
-        Object.keys(pickerState).forEach(name => {
-            if (pickerState[name].checked && !allMaterials.some(o => o.toLowerCase() === name.toLowerCase())) {
-                allNames.push(name);
+        // Build list: configured materials + checked spec-derived entries + checked custom entries
+        const entries = []; // { name, isChecked, antall, enhet, needsSpec, isSpecDerived }
+
+        // Add all configured materials
+        allMaterials.forEach(matObj => {
+            if (matObj.needsSpec) {
+                // Base spec material: always show as unchecked launcher
+                entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', needsSpec: true, isSpecDerived: false });
+            } else {
+                const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
+                const isChecked = state && state.checked;
+                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: state ? (state.enhet || '') : '', needsSpec: false, isSpecDerived: false });
             }
         });
 
-        // Always alphabetical order
-        allNames.sort((a, b) => a.localeCompare(b, 'nb'));
+        // Add pickerState entries that are spec-derived or custom
+        Object.keys(pickerState).forEach(name => {
+            const state = pickerState[name];
+            const baseMat = findBaseMaterial(name);
+            if (baseMat) {
+                // Spec-derived entry (e.g. "Kabelhylser Ø50") — always show while in pickerState
+                entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: true });
+            } else if (state.checked && !allMaterials.some(m => m.name.toLowerCase() === name.toLowerCase())) {
+                // Custom entry not in settings — only show when checked
+                entries.push({ name, isChecked: true, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: false });
+            }
+        });
+
+        // Sort alphabetically
+        entries.sort((a, b) => a.name.localeCompare(b.name, 'nb'));
 
         let html = '';
-        allNames.forEach(name => {
-            const state = pickerState[name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === name.toLowerCase())];
-            const isChecked = state && state.checked;
-            const antall = state ? (state.antall || '') : '';
-            const enhet = state ? (state.enhet || '') : '';
-            html += buildRow(name, isChecked, antall, enhet);
+        entries.forEach(e => {
+            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.needsSpec);
         });
 
         if (!html) {
@@ -536,8 +558,18 @@ function openMaterialPicker(btn) {
             const antallInput = row.querySelector('.picker-mat-antall');
             const enhetBtn = row.querySelector('.picker-mat-enhet-btn');
             const name = row.getAttribute('data-mat-name');
+            const needsSpec = row.getAttribute('data-needs-spec') === '1';
 
             nameDiv.addEventListener('click', function() {
+                if (needsSpec) {
+                    // Open spec popup instead of toggling
+                    openSpecPopup(name, function(spec) {
+                        const fullName = name + ' ' + spec;
+                        pickerState[fullName] = { checked: true, antall: '', enhet: '' };
+                        renderPickerList();
+                    });
+                    return;
+                }
                 const isChecked = pickerState[name] && pickerState[name].checked;
                 if (isChecked) {
                     pickerState[name].checked = false;
@@ -566,19 +598,18 @@ function openMaterialPicker(btn) {
         const val = searchInput.value.trim();
         if (!val) return;
         // Check if already exists
-        if (allMaterials.some(o => o.toLowerCase() === val.toLowerCase()) ||
+        if (allMaterials.some(o => o.name.toLowerCase() === val.toLowerCase()) ||
             (pickerState[val] && pickerState[val].checked)) {
             searchInput.value = '';
             return;
         }
         pickerState[val] = { checked: true, antall: '', enhet: '' };
         // Save to settings so it appears in future pickers
-        // Use cached options (synced at startup) instead of async getMaterialSettings()
         settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
         settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
-        if (!settingsMaterials.some(m => m.toLowerCase() === val.toLowerCase())) {
-            settingsMaterials.push(val);
-            sortAlpha(settingsMaterials);
+        if (!settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
+            settingsMaterials.push({ name: val, needsSpec: false });
+            settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
             cachedMaterialOptions = settingsMaterials.slice();
             allMaterials.length = 0;
             allMaterials.push(...cachedMaterialOptions);
@@ -611,6 +642,35 @@ function openMaterialPicker(btn) {
 function closePickerOverlay() {
     document.getElementById('picker-overlay').classList.remove('active');
     pickerOrderCard = null;
+}
+
+// Spec popup for materials that need a specification (e.g. size)
+let specPopupCallback = null;
+
+function openSpecPopup(baseName, callback) {
+    document.getElementById('spec-popup-title').textContent = baseName;
+    const input = document.getElementById('spec-popup-input');
+    input.value = '';
+    input.placeholder = t('spec_popup_placeholder');
+    specPopupCallback = callback;
+    input.onkeydown = function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); confirmSpecPopup(); }
+        if (e.key === 'Escape') { e.preventDefault(); closeSpecPopup(); }
+    };
+    document.getElementById('spec-popup').classList.add('active');
+    setTimeout(function() { input.focus(); }, 100);
+}
+
+function closeSpecPopup() {
+    document.getElementById('spec-popup').classList.remove('active');
+    specPopupCallback = null;
+}
+
+function confirmSpecPopup() {
+    const spec = document.getElementById('spec-popup-input').value.trim();
+    if (!spec) return;
+    if (specPopupCallback) specPopupCallback(spec);
+    closeSpecPopup();
 }
 
 function pickerOverlayConfirm() {

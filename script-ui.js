@@ -810,21 +810,30 @@ async function showSettingsPage(page) {
 let settingsMaterials = [];
 let settingsUnits = [];
 
+function normalizeMaterialData(data) {
+    if (!data) return { materials: [], units: [] };
+    let materials = data.materials || [];
+    if (materials.length > 0 && typeof materials[0] === 'string') {
+        materials = materials.map(name => ({ name: name, needsSpec: false }));
+    }
+    return { materials, units: data.units || [] };
+}
+
 async function getMaterialSettings() {
     if (currentUser && db) {
         try {
             const doc = await db.collection('settings').doc('materials').get();
-            if (doc.exists) return doc.data();
+            if (doc.exists) return normalizeMaterialData(doc.data());
         } catch (e) {
             console.error('Materials settings error:', e);
         }
     }
     const stored = localStorage.getItem(MATERIALS_KEY);
-    return stored ? JSON.parse(stored) : { materials: [], units: [] };
+    return normalizeMaterialData(stored ? JSON.parse(stored) : null);
 }
 
 async function saveMaterialSettings() {
-    const data = { materials: settingsMaterials.slice(), units: settingsUnits.slice() };
+    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec })), units: settingsUnits.slice() };
     if (currentUser && db) {
         try {
             await db.collection('settings').doc('materials').set(data);
@@ -834,7 +843,7 @@ async function saveMaterialSettings() {
     }
     localStorage.setItem(MATERIALS_KEY, JSON.stringify(data));
     // Refresh dropdown cache
-    cachedMaterialOptions = settingsMaterials.slice();
+    cachedMaterialOptions = data.materials.slice();
     cachedUnitOptions = settingsUnits.slice();
 }
 
@@ -842,7 +851,7 @@ async function loadMaterialSettingsToModal() {
     const data = await getMaterialSettings();
     settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
     settingsUnits = (data && data.units) ? data.units.slice() : [];
-    sortAlpha(settingsMaterials);
+    settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     sortAlpha(settingsUnits);
     renderMaterialSettingsItems();
     renderUnitSettingsItems();
@@ -857,7 +866,7 @@ function renderMaterialSettingsItems() {
         return;
     }
     container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${item}</span><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${item.name}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
@@ -883,12 +892,12 @@ async function addSettingsMaterial() {
     const input = document.getElementById('settings-new-material');
     const val = input.value.trim();
     if (!val) return;
-    if (settingsMaterials.some(m => m.toLowerCase() === val.toLowerCase())) {
+    if (settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
         showNotificationModal(t('settings_material_exists'));
         return;
     }
-    settingsMaterials.push(val);
-    sortAlpha(settingsMaterials);
+    settingsMaterials.push({ name: val, needsSpec: false });
+    settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     input.value = '';
     renderMaterialSettingsItems();
     await saveMaterialSettings();
@@ -913,7 +922,7 @@ async function addSettingsUnit() {
 
 function removeSettingsMaterial(idx) {
     const item = settingsMaterials[idx];
-    showConfirmModal(t('settings_material_remove', item), async function() {
+    showConfirmModal(t('settings_material_remove', item.name), async function() {
         settingsMaterials.splice(idx, 1);
         renderMaterialSettingsItems();
         await saveMaterialSettings();
@@ -933,7 +942,7 @@ function editSettingsMaterial(idx) {
     const container = document.getElementById('settings-material-items');
     const item = container.children[idx];
     const span = item.querySelector('span');
-    const oldVal = settingsMaterials[idx];
+    const oldVal = settingsMaterials[idx].name;
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'settings-list-edit-input';
@@ -950,13 +959,13 @@ function editSettingsMaterial(idx) {
             renderMaterialSettingsItems();
             return;
         }
-        if (settingsMaterials.some((m, i) => i !== idx && m.toLowerCase() === newVal.toLowerCase())) {
+        if (settingsMaterials.some((m, i) => i !== idx && m.name.toLowerCase() === newVal.toLowerCase())) {
             showNotificationModal(t('settings_material_exists'));
             renderMaterialSettingsItems();
             return;
         }
-        settingsMaterials[idx] = newVal;
-        sortAlpha(settingsMaterials);
+        settingsMaterials[idx].name = newVal;
+        settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
         renderMaterialSettingsItems();
         await saveMaterialSettings();
     }
@@ -965,6 +974,12 @@ function editSettingsMaterial(idx) {
         if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
         if (e.key === 'Escape') { saved = true; renderMaterialSettingsItems(); }
     });
+}
+
+async function toggleMaterialSpec(idx) {
+    settingsMaterials[idx].needsSpec = !settingsMaterials[idx].needsSpec;
+    renderMaterialSettingsItems();
+    await saveMaterialSettings();
 }
 
 function editSettingsUnit(idx) {
@@ -1017,7 +1032,7 @@ async function getDropdownOptions() {
     const data = await getMaterialSettings();
     cachedMaterialOptions = (data && data.materials) ? data.materials : [];
     cachedUnitOptions = (data && data.units) ? data.units : [];
-    sortAlpha(cachedMaterialOptions);
+    cachedMaterialOptions.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     sortAlpha(cachedUnitOptions);
 }
 

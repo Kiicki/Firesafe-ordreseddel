@@ -445,6 +445,22 @@
         </div>
     </div>
 
+    <!-- Spec input popup -->
+    <div class="spec-popup-backdrop" id="spec-popup" onclick="if(event.target===this)closeSpecPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span id="spec-popup-title"></span>
+            </div>
+            <div class="spec-popup-body">
+                <input type="text" id="spec-popup-input" placeholder="f.eks. Ø50" autocapitalize="off">
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeSpecPopup()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-ok" onclick="confirmSpecPopup()">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script src="lang.js"></script>
     <!-- Signature pad overlay -->
     <div class="signature-overlay" id="signature-overlay">

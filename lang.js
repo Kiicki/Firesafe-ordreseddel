@@ -167,6 +167,8 @@ const TRANSLATIONS = {
         picker_custom: 'Egendefinert',
         picker_add: 'Legg til',
         picker_search_placeholder: 'Søk eller legg til materiale...',
+        settings_spec_toggle: 'Trenger spesifikasjon',
+        spec_popup_placeholder: 'f.eks. Ø50',
 
         // Language page
         lang_norwegian: 'Norsk',
@@ -370,6 +372,8 @@ const TRANSLATIONS = {
         picker_custom: 'Custom',
         picker_add: 'Add',
         picker_search_placeholder: 'Search or add material...',
+        settings_spec_toggle: 'Needs specification',
+        spec_popup_placeholder: 'e.g. Ø50',
 
         // Language page
         lang_norwegian: 'Norsk',
