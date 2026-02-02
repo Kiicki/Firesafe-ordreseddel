@@ -61,15 +61,15 @@ function drawIcon(canvas, maskable) {
 
   if (maskable) {
     // Bigger for Android adaptive icon safe zone
-    s = s * 1.25;
+    s = s * 1.1;
     strokeW = 6;
     slashExtra = 4;
     ctx.save();
-    ctx.translate(size * -0.125, size * -0.125);
+    ctx.translate(size * -0.05, size * -0.05);
   }
 
   // Font settings
-  const fontSize = Math.round(125 * s);
+  const fontSize = Math.round(95 * s);
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = '#FFFFFF';
   ctx.lineWidth = strokeW * s;
@@ -79,27 +79,27 @@ function drawIcon(canvas, maskable) {
   // "F" upper-left
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('F', 139 * s, 237 * s);
-  ctx.strokeText('F', 139 * s, 237 * s);
+  ctx.fillText('F', 167 * s, 242 * s);
+  ctx.strokeText('F', 167 * s, 242 * s);
 
   // "/" diagonal slash (wider for maskable)
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo((323 + slashExtra) * s, 143 * s);
-  ctx.lineTo((344 + slashExtra) * s, 143 * s);
-  ctx.lineTo((203 - slashExtra) * s, 394 * s);
-  ctx.lineTo((182 - slashExtra) * s, 394 * s);
+  ctx.moveTo((307 + slashExtra) * s, 170 * s);
+  ctx.lineTo((323 + slashExtra) * s, 170 * s);
+  ctx.lineTo((216 - slashExtra) * s, 361 * s);
+  ctx.lineTo((200 - slashExtra) * s, 361 * s);
   ctx.closePath();
   ctx.fill();
 
   // "O" lower-right
-  var oYOffset = maskable ? 14 : 0;
+  var oYOffset = maskable ? 10 : 0;
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold ' + fontSize + 'px Arial, Helvetica, sans-serif';
   ctx.textAlign = 'end';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('O', 399 * s, (374 + oYOffset) * s);
-  ctx.strokeText('O', 399 * s, (374 + oYOffset) * s);
+  ctx.fillText('O', 365 * s, (346 + oYOffset) * s);
+  ctx.strokeText('O', 365 * s, (346 + oYOffset) * s);
 
   if (maskable) ctx.restore();
 }
