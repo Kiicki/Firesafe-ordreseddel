@@ -516,8 +516,7 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 0;
-    padding-bottom: 56px;
+    bottom: 56px;
     background: #fff;
     z-index: 1000;
     overflow-y: auto;
@@ -1000,6 +999,7 @@ body {
     border: 1px solid #ccc;
     border-radius: 6px;
     background: #fff;
+    -webkit-appearance: none;
     appearance: none;
 }
 

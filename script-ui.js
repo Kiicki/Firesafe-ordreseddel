@@ -4,6 +4,8 @@ let loadedExternalForms = [];
 
 function closeAllModals() {
     document.querySelectorAll('.modal.active').forEach(function(m) { m.classList.remove('active'); });
+    var actionPopup = document.getElementById('action-popup');
+    if (actionPopup) actionPopup.classList.remove('active');
 }
 
 function isModalOpen() {
@@ -1260,7 +1262,7 @@ function doNewForm() {
 }
 
 function newForm() {
-    if (isModalOpen()) return;
+    closeAllModals();
     const currentData = getFormDataSnapshot();
     const hasUnsavedChanges = lastSavedData !== null
         ? currentData !== lastSavedData
@@ -1492,13 +1494,14 @@ window.addEventListener('load', function() {
     if (!toolbar) return;
 
     if (window.visualViewport) {
-        var initialHeight = window.innerHeight;
+        var initialHeight = window.screen.height || window.innerHeight;
         visualViewport.addEventListener('resize', function() {
-            if (visualViewport.height < initialHeight * 0.75) {
+            var currentHeight = visualViewport.height;
+            var screenHeight = window.screen.height || initialHeight;
+            if (currentHeight < screenHeight * 0.75) {
                 toolbar.classList.add('keyboard-open');
             } else {
                 toolbar.classList.remove('keyboard-open');
-                initialHeight = visualViewport.height;
             }
         });
     }
