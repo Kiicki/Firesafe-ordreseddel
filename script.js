@@ -384,7 +384,7 @@ function createOrderCard(orderData, expanded) {
         <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
             <div class="mobile-field">
                 <label><span data-i18n="order_description">${t('order_description')}</span> <span class="required">*</span></label>
-                <input type="text" class="mobile-order-desc" readonly autocapitalize="sentences">
+                <textarea class="mobile-order-desc" readonly autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
@@ -403,7 +403,8 @@ function createOrderCard(orderData, expanded) {
     const descInput = card.querySelector('.mobile-order-desc');
     descInput.setAttribute('data-full-value', desc);
     const descLines = desc.split('\n').filter(l => l.trim());
-    descInput.value = descLines.length > 1 ? descLines[0] + '...' : (descLines[0] || '');
+    const preview = descLines.slice(0, 4).join('\n');
+    descInput.value = descLines.length > 4 ? preview + '...' : preview;
 
     // Set timer
     card.querySelector('.mobile-order-timer').value = orderData.timer || '';

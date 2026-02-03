@@ -1010,6 +1010,13 @@ body {
     box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2);
 }
 
+.mobile-order-desc {
+    height: 90px;
+    resize: none;
+    overflow: hidden;
+    font-family: inherit;
+}
+
 .mobile-work-row {
     display: flex;
     gap: 10px;

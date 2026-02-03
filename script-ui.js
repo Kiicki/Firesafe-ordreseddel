@@ -34,7 +34,16 @@ async function showSavedForms() {
     } else {
         listEl.innerHTML = loadedForms.map((item, index) => {
             const ordrenr = item.ordreseddelNr || '';
-            const dato = item.signeringDato || '';
+            let dato = '';
+            if (item.savedAt) {
+                const d = new Date(item.savedAt);
+                const day = d.getDate().toString().padStart(2, '0');
+                const month = (d.getMonth() + 1).toString().padStart(2, '0');
+                const year = d.getFullYear();
+                const hours = d.getHours().toString().padStart(2, '0');
+                const mins = d.getMinutes().toString().padStart(2, '0');
+                dato = `${day}.${month}.${year}, ${hours}:${mins}`;
+            }
             const isSent = item._isSent;
 
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
@@ -414,7 +423,16 @@ async function loadExternalTab() {
     } else {
         listEl.innerHTML = loadedExternalForms.map((item, index) => {
             const ordrenr = item.ordreseddelNr || '';
-            const dato = item.signeringDato || '';
+            let dato = '';
+            if (item.savedAt) {
+                const d = new Date(item.savedAt);
+                const day = d.getDate().toString().padStart(2, '0');
+                const month = (d.getMonth() + 1).toString().padStart(2, '0');
+                const year = d.getFullYear();
+                const hours = d.getHours().toString().padStart(2, '0');
+                const mins = d.getMinutes().toString().padStart(2, '0');
+                dato = `${day}.${month}.${year}, ${hours}:${mins}`;
+            }
             const isSent = item._isSent;
 
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
