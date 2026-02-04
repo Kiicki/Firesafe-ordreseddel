@@ -21,10 +21,8 @@ async function showSavedForms() {
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
-    // Mark that we need refresh if auth isn't ready yet
-    if (!currentUser) {
-        pendingAuthRefresh = 'saved';
-    }
+    // Track if we need refresh when auth is ready
+    pendingAuthRefresh = currentUser ? null : 'saved';
 
     // Åpne riktig fane basert på gjeldende skjema
     if (isExternalForm) {
@@ -595,10 +593,8 @@ async function showTemplateModal() {
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('template-modal').classList.add('active');
 
-    // Mark that we need refresh if auth isn't ready yet
-    if (!currentUser) {
-        pendingAuthRefresh = 'templates';
-    }
+    // Track if we need refresh when auth is ready
+    pendingAuthRefresh = currentUser ? null : 'templates';
 
     const templates = await getTemplates();
     loadedTemplates = templates;
