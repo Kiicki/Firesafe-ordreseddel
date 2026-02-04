@@ -85,6 +85,8 @@ function loadForm(index) {
         // Set hash based on form type
         window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
         sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+        // Update form header title
+        document.getElementById('form-header-title').textContent = t(isExternalForm ? 'external_form_title' : 'form_title');
         window.scrollTo(0, 0);
     }
 }
@@ -131,6 +133,8 @@ async function duplicateForm(event, index) {
     // Duplicated form is always regular (not external)
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    // Update form header title
+    document.getElementById('form-header-title').textContent = t('form_title');
     window.scrollTo(0, 0);
     showNotificationModal(t('duplicated_success'), true);
 }
@@ -471,6 +475,8 @@ function loadExternalForm(index) {
     // External form = #ekstern
     window.location.hash = 'ekstern';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    // Update form header title
+    document.getElementById('form-header-title').textContent = t('external_form_title');
     window.scrollTo(0, 0);
 }
 
@@ -645,6 +651,8 @@ function loadTemplate(index) {
     // Template loaded = regular form
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    // Update form header title
+    document.getElementById('form-header-title').textContent = t('form_title');
     window.scrollTo(0, 0);
 }
 
@@ -713,6 +721,14 @@ function closeTemplateModal() {
     // Blank form = #skjema
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    // Update form header title
+    document.getElementById('form-header-title').textContent = t('form_title');
+}
+
+function goToHome() {
+    // Go to template modal (home)
+    history.replaceState(null, '', window.location.pathname);
+    showTemplateModal();
 }
 
 function cancelTemplateModal() {
@@ -1370,19 +1386,35 @@ function startExternalOrder() {
     // External form = #ekstern
     window.location.hash = 'ekstern';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    // Update form header title
+    document.getElementById('form-header-title').textContent = t('external_form_title');
 }
 
 function hasAnyFormData() {
-    const fields = ['mobile-ordreseddel-nr', 'mobile-oppdragsgiver', 'mobile-prosjektnr', 'mobile-prosjektnavn', 'mobile-montor', 'mobile-avdeling', 'mobile-dato'];
-    for (const id of fields) {
-        if (document.getElementById(id).value.trim()) return true;
+    // Hent standardverdier for sammenligning
+    const defaults = JSON.parse(localStorage.getItem('firesafe_defaults') || '{}');
+
+    // Felt som MÅ ha bruker-input (ikke standardverdier)
+    const requiredFields = [
+        { id: 'mobile-ordreseddel-nr', default: '' },
+        { id: 'mobile-oppdragsgiver', default: defaults.oppdragsgiver || '' },
+        { id: 'mobile-prosjektnr', default: defaults.prosjektnr || '' },
+        { id: 'mobile-prosjektnavn', default: defaults.prosjektnavn || '' }
+    ];
+
+    for (const field of requiredFields) {
+        const value = document.getElementById(field.id).value.trim();
+        if (value && value !== field.default) return true;
     }
+
+    // Sjekk orders - har de beskrivelse?
     const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
     for (const card of orderCards) {
         const descInput = card.querySelector('.mobile-order-desc');
         const descVal = descInput.getAttribute('data-full-value') || descInput.value;
         if (descVal.trim()) return true;
     }
+
     return false;
 }
 
@@ -1420,12 +1452,23 @@ function clearForm() {
 }
 
 function doNewForm() {
+    closeAllModals();
     preNewFormData = getFormData();
     showTemplateModal();
 }
 
 function newForm() {
-    closeAllModals();
+    // Sjekk om vi er på skjema-siden (ikke modal)
+    const isOnFormPage = !document.getElementById('saved-modal').classList.contains('active')
+        && !document.getElementById('settings-modal').classList.contains('active')
+        && !document.getElementById('template-modal').classList.contains('active');
+
+    if (!isOnFormPage) {
+        // Fra modal - gå direkte til prosjektmal
+        doNewForm();
+        return;
+    }
+
     const currentData = getFormDataSnapshot();
     const hasUnsavedChanges = lastSavedData !== null
         ? currentData !== lastSavedData
@@ -1650,9 +1693,11 @@ window.addEventListener('load', function() {
     } else if (hash === 'skjema') {
         // Regular form - already loaded via sessionStorage
         closeAllModals();
+        document.getElementById('form-header-title').textContent = t('form_title');
     } else if (hash === 'ekstern') {
         // External form - already loaded via sessionStorage
         closeAllModals();
+        document.getElementById('form-header-title').textContent = t('external_form_title');
     } else {
         // No hash = home = template modal
         showTemplateModal();
@@ -1667,8 +1712,10 @@ window.addEventListener('hashchange', function() {
         showSavedForms();
     } else if (hash === 'settings') {
         showSettingsModal();
-    } else if (hash === 'skjema' || hash === 'ekstern') {
-        // Form views - just close modals
+    } else if (hash === 'skjema') {
+        document.getElementById('form-header-title').textContent = t('form_title');
+    } else if (hash === 'ekstern') {
+        document.getElementById('form-header-title').textContent = t('external_form_title');
     } else {
         // No hash = home = template modal
         showTemplateModal();
