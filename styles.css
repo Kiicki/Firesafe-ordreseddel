@@ -2346,3 +2346,50 @@ body {
         padding: 5px;
     }
 }
+
+/* Base overlay content wrapper */
+.overlay-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Tablet/PC: Constrain overlays to match form width */
+@media screen and (min-width: 601px) {
+    /* Modal overlays - use existing .modal-content wrapper */
+    .modal {
+        background: #f0f0f0;
+    }
+    .modal-content {
+        max-width: 600px;
+        margin: 0 auto;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    /* Overlays with .overlay-content wrapper */
+    .picker-overlay,
+    .text-editor-modal,
+    .signature-overlay {
+        background: #f0f0f0;
+        align-items: center; /* Center overlay-content horizontally */
+    }
+    .picker-overlay > .overlay-content,
+    .text-editor-modal > .overlay-content,
+    .signature-overlay > .overlay-content {
+        max-width: 600px;
+        width: 100%;
+        background: white;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+}
+
+/* PC: Inline editable description textarea */
+@media screen and (min-width: 1025px) {
+    .mobile-order-desc {
+        resize: vertical;
+        min-height: 80px;
+        cursor: text;
+    }
+}

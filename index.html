@@ -264,11 +264,13 @@
 
     <!-- Fullskjerm tekst-editor Modal -->
     <div class="text-editor-modal" id="text-editor-modal">
-        <div class="text-editor-header">
-            <span class="text-editor-title" id="text-editor-title">Beskrivelse</span>
-            <button class="text-editor-done" onclick="closeTextEditor()" data-i18n="text_editor_done">Ferdig</button>
+        <div class="overlay-content">
+            <div class="text-editor-header">
+                <span class="text-editor-title" id="text-editor-title">Beskrivelse</span>
+                <button class="text-editor-done" onclick="closeTextEditor()" data-i18n="text_editor_done">Ferdig</button>
+            </div>
+            <textarea class="text-editor-textarea" id="text-editor-textarea" autocapitalize="sentences" data-i18n-placeholder="text_editor_placeholder" placeholder="Beskriv utført arbeid..."></textarea>
         </div>
-        <textarea class="text-editor-textarea" id="text-editor-textarea" autocapitalize="sentences" data-i18n-placeholder="text_editor_placeholder" placeholder="Beskriv utført arbeid..."></textarea>
     </div>
 
     <!-- Modal -->
@@ -436,15 +438,17 @@
 
     <!-- Material picker overlay -->
     <div class="picker-overlay" id="picker-overlay">
-        <div class="picker-overlay-header">
-            <button class="picker-overlay-cancel" onclick="closePickerOverlay()" data-i18n="btn_cancel">Avbryt</button>
-            <span class="picker-overlay-title" data-i18n="order_materials_label">Materialer</span>
-            <button class="picker-overlay-done" onclick="pickerOverlayConfirm()" data-i18n="picker_add">Legg til</button>
-        </div>
-        <div class="picker-overlay-list" id="picker-overlay-list"></div>
-        <div class="picker-overlay-search">
-            <input type="text" id="picker-overlay-search" autocapitalize="sentences" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale">
-            <button type="button" class="picker-overlay-add-btn" id="picker-overlay-add-btn">+</button>
+        <div class="overlay-content">
+            <div class="picker-overlay-header">
+                <button class="picker-overlay-cancel" onclick="closePickerOverlay()" data-i18n="btn_cancel">Avbryt</button>
+                <span class="picker-overlay-title" data-i18n="order_materials_label">Materialer</span>
+                <button class="picker-overlay-done" onclick="pickerOverlayConfirm()" data-i18n="picker_add">Legg til</button>
+            </div>
+            <div class="picker-overlay-list" id="picker-overlay-list"></div>
+            <div class="picker-overlay-search">
+                <input type="text" id="picker-overlay-search" autocapitalize="sentences" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale">
+                <button type="button" class="picker-overlay-add-btn" id="picker-overlay-add-btn">+</button>
+            </div>
         </div>
     </div>
 
@@ -485,14 +489,16 @@
     <script src="lang.js"></script>
     <!-- Signature pad overlay -->
     <div class="signature-overlay" id="signature-overlay">
-        <div class="signature-overlay-header">
-            <button class="signature-overlay-btn" onclick="closeSignaturePad()" data-i18n="btn_cancel">Avbryt</button>
-            <span data-i18n="label_kundens_underskrift">Kundens underskrift</span>
-            <button class="signature-overlay-btn signature-overlay-confirm" onclick="confirmSignature()" data-i18n="signature_confirm">Bekreft</button>
-        </div>
-        <canvas id="signature-canvas"></canvas>
-        <div class="signature-overlay-footer">
-            <button class="signature-overlay-clear" onclick="clearSignatureCanvas()" data-i18n="signature_clear">Slett signatur</button>
+        <div class="overlay-content">
+            <div class="signature-overlay-header">
+                <button class="signature-overlay-btn" onclick="closeSignaturePad()" data-i18n="btn_cancel">Avbryt</button>
+                <span data-i18n="label_kundens_underskrift">Kundens underskrift</span>
+                <button class="signature-overlay-btn signature-overlay-confirm" onclick="confirmSignature()" data-i18n="signature_confirm">Bekreft</button>
+            </div>
+            <canvas id="signature-canvas"></canvas>
+            <div class="signature-overlay-footer">
+                <button class="signature-overlay-clear" onclick="clearSignatureCanvas()" data-i18n="signature_clear">Slett signatur</button>
+            </div>
         </div>
     </div>
 

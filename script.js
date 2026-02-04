@@ -295,9 +295,9 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-// Always use mobile form for input
+// Check if mobile/tablet (≤1024px) or PC (>1024px)
 function isMobile() {
-    return true;
+    return window.innerWidth <= 1024;
 }
 
 // Auto-resize textarea to fit content
@@ -399,12 +399,26 @@ function createOrderCard(orderData, expanded) {
             </div>
         </div>`;
 
-    // Set description with data-full-value
+    // Set description
     const descInput = card.querySelector('.mobile-order-desc');
-    descInput.setAttribute('data-full-value', desc);
-    const descLines = desc.split('\n').filter(l => l.trim());
-    const preview = descLines.slice(0, 4).join('\n');
-    descInput.value = descLines.length > 4 ? preview + '...' : preview;
+
+    if (isMobile()) {
+        // Mobile/tablet: use preview + fullscreen modal
+        descInput.setAttribute('data-full-value', desc);
+        const descLines = desc.split('\n').filter(l => l.trim());
+        const preview = descLines.slice(0, 4).join('\n');
+        descInput.value = descLines.length > 4 ? preview + '...' : preview;
+
+        descInput.addEventListener('click', function() {
+            openTextEditor(this, t('order_description'));
+        });
+    } else {
+        // PC: inline editable, no modal
+        descInput.value = desc;
+        descInput.removeAttribute('readonly');
+        descInput.style.resize = 'vertical';
+        descInput.style.minHeight = '80px';
+    }
 
     // Set timer
     card.querySelector('.mobile-order-timer').value = orderData.timer || '';
@@ -413,11 +427,6 @@ function createOrderCard(orderData, expanded) {
     const matContainer = card.querySelector('.mobile-order-materials');
     const mats = orderData.materials && orderData.materials.length > 0 ? orderData.materials : [];
     renderMaterialSummary(matContainer, mats);
-
-    // Set up description click → text editor
-    descInput.addEventListener('click', function() {
-        openTextEditor(this, t('order_description'));
-    });
 
     return card;
 }
