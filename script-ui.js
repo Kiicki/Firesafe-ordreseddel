@@ -294,11 +294,11 @@ function showExportMenu() {
 }
 
 function filterOwnForms() {
-    const searchTerm = document.getElementById('saved-search').value.toLowerCase();
+    const searchTerm = document.getElementById('saved-search').value.toLowerCase().trim();
     const items = document.querySelectorAll('#saved-list .saved-item');
     items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
+        const ordrenr = item.querySelector('.saved-item-row1')?.textContent.toLowerCase() || '';
+        item.style.display = ordrenr.startsWith(searchTerm) ? 'flex' : 'none';
     });
 }
 
@@ -513,11 +513,11 @@ function deleteExternalForm(event, index) {
 }
 
 function filterExternalForms() {
-    const searchTerm = document.getElementById('external-search').value.toLowerCase();
+    const searchTerm = document.getElementById('external-search').value.toLowerCase().trim();
     const items = document.querySelectorAll('#external-list .saved-item');
     items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
+        const ordrenr = item.querySelector('.saved-item-row1')?.textContent.toLowerCase() || '';
+        item.style.display = ordrenr.startsWith(searchTerm) ? 'flex' : 'none';
     });
 }
 
@@ -750,11 +750,11 @@ function cancelTemplateModal() {
 }
 
 function filterTemplates() {
-    const searchTerm = document.getElementById('template-search').value.toLowerCase();
+    const searchTerm = document.getElementById('template-search').value.toLowerCase().trim();
     const items = document.querySelectorAll('#template-list .saved-item');
     items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
+        const prosjektnavn = item.querySelector('.saved-item-row1')?.textContent.toLowerCase() || '';
+        item.style.display = prosjektnavn.startsWith(searchTerm) ? 'flex' : 'none';
     });
 }
 

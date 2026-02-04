@@ -1983,6 +1983,11 @@ body {
     align-items: center;
 }
 
+#settings-header:has(.settings-back-btn) {
+    justify-content: flex-start;
+    gap: 8px;
+}
+
 .settings-section-title {
     font-weight: 600;
     font-size: 14px;
@@ -2439,7 +2444,7 @@ body {
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
     #template-modal .modal-content {
-        border-radius: 8px;
+        border-radius: 0 0 8px 8px; /* Only bottom corners rounded */
     }
 
     /* Overlays with .overlay-content wrapper */
