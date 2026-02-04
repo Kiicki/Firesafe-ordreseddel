@@ -94,6 +94,14 @@ if (auth) {
                 }
             } catch (e) {}
         }
+        // Refresh data if on a modal that needs Firebase (auth state ready after page load)
+        const templateModal = document.getElementById('template-modal');
+        const savedModal = document.getElementById('saved-modal');
+        if (templateModal && templateModal.classList.contains('active') && typeof showTemplateModal === 'function') {
+            showTemplateModal();
+        } else if (savedModal && savedModal.classList.contains('active') && typeof showSavedForms === 'function') {
+            showSavedForms();
+        }
     });
 }
 
