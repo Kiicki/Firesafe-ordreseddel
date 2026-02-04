@@ -1442,17 +1442,16 @@ async function saveForm() {
                         loadedForms = [];
                         loadedExternalForms = [];
                         lastSavedData = getFormDataSnapshot();
-                        showPostSavePrompt();
+                        showNotificationModal(t('save_success'), true); showSavedForms();
                     }, t('btn_update'), '#E8501A');
                 } else {
-                    showConfirmModal(t('confirm_save'), async function() {
-                        data.id = Date.now().toString();
-                        await formsRef.doc(data.id).set(data);
-                        loadedForms = [];
-                        loadedExternalForms = [];
-                        lastSavedData = getFormDataSnapshot();
-                        showPostSavePrompt();
-                    }, t('btn_save'), '#E8501A');
+                    // Save new form directly (no confirmation needed)
+                    data.id = Date.now().toString();
+                    await formsRef.doc(data.id).set(data);
+                    loadedForms = [];
+                    loadedExternalForms = [];
+                    lastSavedData = getFormDataSnapshot();
+                    showNotificationModal(t('save_success'), true); showSavedForms();
                 }
             } catch (e) {
                 console.error('Firestore save error:', e);
@@ -1481,19 +1480,18 @@ async function saveForm() {
                     loadedForms = [];
                     loadedExternalForms = [];
                     lastSavedData = getFormDataSnapshot();
-                    showPostSavePrompt();
+                    showNotificationModal(t('save_success'), true); showSavedForms();
                 }, t('btn_update'), '#E8501A');
             } else {
-                showConfirmModal(t('confirm_save'), function() {
-                    data.id = Date.now().toString();
-                    saved.unshift(data);
-                    if (saved.length > 50) saved.pop();
-                    localStorage.setItem(storageKey, JSON.stringify(saved));
-                    loadedForms = [];
-                    loadedExternalForms = [];
-                    lastSavedData = getFormDataSnapshot();
-                    showPostSavePrompt();
-                }, t('btn_save'), '#E8501A');
+                // Save new form directly (no confirmation needed)
+                data.id = Date.now().toString();
+                saved.unshift(data);
+                if (saved.length > 50) saved.pop();
+                localStorage.setItem(storageKey, JSON.stringify(saved));
+                loadedForms = [];
+                loadedExternalForms = [];
+                lastSavedData = getFormDataSnapshot();
+                showNotificationModal(t('save_success'), true); showSavedForms();
             }
         }
     } finally {

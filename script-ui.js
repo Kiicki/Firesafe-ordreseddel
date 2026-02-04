@@ -14,6 +14,7 @@ function isModalOpen() {
 
 async function showSavedForms() {
     closeAllModals();
+    window.location.hash = 'hent';
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
@@ -163,6 +164,8 @@ function closeModal() {
     document.getElementById('external-search').value = '';
     // Reset to own tab
     switchHentTab('own');
+    // Clear URL hash
+    history.replaceState(null, '', window.location.pathname);
 }
 
 function switchHentTab(tab) {
@@ -743,25 +746,6 @@ async function getOrderNrSettings() {
     return data;
 }
 
-async function saveOrderNrSettings() {
-    if (settingsRanges.length === 0) {
-        showNotificationModal(t('settings_add_range'));
-        return;
-    }
-    const settings = buildOrderNrSettings();
-
-    if (currentUser && db) {
-        try {
-            await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings);
-        } catch (e) {
-            console.error('Save settings error:', e);
-        }
-    }
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    showNotificationModal(t('settings_saved'), true);
-    closeSettingsModal();
-}
-
 function buildOrderNrSettings() {
     return { ranges: settingsRanges.slice(), givenAway: settingsGivenAway.slice() };
 }
@@ -778,6 +762,7 @@ function getSettingsPageTitle(page) {
 
 async function showSettingsModal() {
     closeAllModals();
+    window.location.hash = 'settings';
     showSettingsMenu();
     document.getElementById('settings-modal').classList.add('active');
 }
@@ -785,6 +770,8 @@ async function showSettingsModal() {
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.remove('active');
     showSettingsMenu();
+    // Clear URL hash
+    history.replaceState(null, '', window.location.pathname);
 }
 
 function showSettingsMenu() {
@@ -1416,6 +1403,7 @@ function doNewForm() {
 
 function newForm() {
     closeAllModals();
+    history.replaceState(null, '', window.location.pathname); // Clear URL hash
     const currentData = getFormDataSnapshot();
     const hasUnsavedChanges = lastSavedData !== null
         ? currentData !== lastSavedData
@@ -1426,13 +1414,6 @@ function newForm() {
     } else {
         doNewForm();
     }
-}
-
-function showPostSavePrompt() {
-    showActionPopup(t('save_success'), [
-        { label: t('toolbar_new'), onclick: 'newForm()' },
-        { label: t('duplicate_btn'), onclick: 'duplicateCurrentForm()' }
-    ]);
 }
 
 function duplicateCurrentForm() {
@@ -1615,9 +1596,7 @@ window.addEventListener('load', function() {
     if (current) {
         try {
             const data = JSON.parse(current);
-            if (data.oppdragsgiver || data.prosjektnavn || data.prosjektnr || (data.orders && data.orders.length > 0)) {
-                setFormData(data);
-            }
+            setFormData(data);
         } catch (e) {}
     }
     // Alltid sett signering-dato til dagens dato og tøm kundens underskrift ved oppstart
@@ -1639,6 +1618,25 @@ window.addEventListener('load', function() {
 
     // Load dropdown options for materials/units
     getDropdownOptions();
+
+    // Hash routing: restore view state on refresh
+    const hash = window.location.hash.slice(1);
+    if (hash === 'hent') {
+        showSavedForms();
+    } else if (hash === 'settings') {
+        showSettingsModal();
+    }
+});
+
+// Handle browser back/forward buttons
+window.addEventListener('hashchange', function() {
+    const hash = window.location.hash.slice(1);
+    closeAllModals();
+    if (hash === 'hent') {
+        showSavedForms();
+    } else if (hash === 'settings') {
+        showSettingsModal();
+    }
 });
 
 /// Keyboard-aware toolbar: sticky when no keyboard, static when keyboard open
