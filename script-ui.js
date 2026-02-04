@@ -21,6 +21,11 @@ async function showSavedForms() {
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
+    // Mark that we need refresh if auth isn't ready yet
+    if (!currentUser) {
+        pendingAuthRefresh = 'saved';
+    }
+
     // Åpne riktig fane basert på gjeldende skjema
     if (isExternalForm) {
         switchHentTab('external');
@@ -589,6 +594,11 @@ async function showTemplateModal() {
     const listEl = document.getElementById('template-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('template-modal').classList.add('active');
+
+    // Mark that we need refresh if auth isn't ready yet
+    if (!currentUser) {
+        pendingAuthRefresh = 'templates';
+    }
 
     const templates = await getTemplates();
     loadedTemplates = templates;

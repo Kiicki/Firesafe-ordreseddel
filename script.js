@@ -6,6 +6,9 @@ const DEFAULTS_KEY = 'firesafe_defaults';
 const MATERIALS_KEY = 'firesafe_materials';
 const EXTERNAL_KEY = 'firesafe_external';
 const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
+
+// Flag to track if we need to refresh data when auth is ready
+let pendingAuthRefresh = null; // 'templates' | 'saved' | null
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 
 // ============================================
@@ -94,13 +97,14 @@ if (auth) {
                 }
             } catch (e) {}
         }
-        // Refresh data if on a modal that needs Firebase (auth state ready after page load)
-        const templateModal = document.getElementById('template-modal');
-        const savedModal = document.getElementById('saved-modal');
-        if (templateModal && templateModal.classList.contains('active') && typeof showTemplateModal === 'function') {
-            showTemplateModal();
-        } else if (savedModal && savedModal.classList.contains('active') && typeof showSavedForms === 'function') {
-            showSavedForms();
+        // Refresh data if we were waiting for auth
+        if (user && pendingAuthRefresh) {
+            if (pendingAuthRefresh === 'templates' && typeof showTemplateModal === 'function') {
+                showTemplateModal();
+            } else if (pendingAuthRefresh === 'saved' && typeof showSavedForms === 'function') {
+                showSavedForms();
+            }
+            pendingAuthRefresh = null;
         }
     });
 }
