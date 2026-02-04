@@ -612,6 +612,49 @@ body {
     min-height: 0;
 }
 
+.template-home-wrapper {
+    padding: 2px 15px 5px 15px;
+}
+
+/* Template modal (home page) styling to match form page */
+#template-modal {
+    background: #f0f0f0;
+}
+
+#template-modal > .top-bar {
+    max-width: 600px;
+    margin: 0 auto 8px;
+    padding: 8px 15px 0 15px;
+}
+
+#template-modal > .modal-content {
+    border-radius: 8px;
+}
+
+/* Kompakt header for template-modal */
+#template-modal .mobile-form-header {
+    margin-bottom: 5px;
+    padding-top: 5px;
+    padding-bottom: 2px;
+}
+
+#template-modal .mobile-form-header h1 {
+    font-size: 20px;
+}
+
+#template-modal .mobile-form-header .mobile-logo-slash {
+    height: 40px;
+    top: 4px;
+}
+
+#template-modal .mobile-form-header p {
+    font-size: 10px;
+}
+
+#template-modal .modal-footer-skip {
+    border-top: none;
+}
+
 .modal-search {
     padding: 10px 15px;
     border-bottom: 1px solid #eee;
@@ -912,7 +955,7 @@ body {
     display: block;
     background: white;
     border-radius: 8px;
-    padding: 2px 15px 5px 15px;
+    padding: 15px 15px 5px 15px;
     max-width: 600px;
     margin: 0 auto;
     width: 100%;

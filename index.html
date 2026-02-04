@@ -18,23 +18,13 @@
     <div class="loading" id="loading" data-i18n="generating_file">Genererer fil...</div>
 
     <div class="container">
-        <div class="top-bar">
-            <button class="btn-login" id="btn-login" onclick="handleAuth()" data-i18n="login">Logg inn</button>
-        </div>
-
         <div id="sent-banner" class="sent-banner" style="display:none;">
             <span data-i18n="sent_banner_text">Dette skjemaet er sendt og kan ikke redigeres</span>
             <button class="sent-banner-btn" onclick="moveCurrentToSaved()" data-i18n="sent_banner_move">Flytt til lagrede</button>
         </div>
 
-        <!-- Mobile-friendly input form (visible on mobile only) -->
+        <!-- Mobile-friendly input form -->
         <div class="mobile-form" id="mobile-form">
-            <div class="mobile-form-header">
-                <h1>FIRESAFE<span class="mobile-logo-slash"></span></h1>
-                <p data-i18n="form_subtitle">Ordreseddel</p>
-                <div class="beta-label" data-i18n="beta_label">Beta</div>
-            </div>
-
             <div class="mobile-section">
                 <div class="mobile-field">
                     <label><span data-i18n="label_ordreseddel_nr">Ordreseddel nr.</span> <span class="required">*</span></label>
@@ -295,12 +285,18 @@
         </div>
     </div>
 
-    <!-- Template Modal -->
+    <!-- Template Modal (Home Page) -->
     <div class="modal" id="template-modal" onclick="cancelTemplateModal()">
+        <div class="top-bar" onclick="event.stopPropagation()">
+            <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login">Logg inn</button>
+        </div>
         <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span data-i18n="template_modal_title">Velg prosjektmal</span>
-                <button class="modal-close" onclick="cancelTemplateModal()">&times;</button>
+            <div class="template-home-wrapper">
+                <div class="mobile-form-header">
+                    <h1>FIRESAFE<span class="mobile-logo-slash"></span></h1>
+                    <p data-i18n="form_subtitle">Ordreseddel</p>
+                    <div class="beta-label" data-i18n="beta_label">Beta</div>
+                </div>
             </div>
             <div class="modal-search">
                 <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjekt..." oninput="filterTemplates()">

@@ -98,7 +98,7 @@ if (auth) {
 }
 
 function updateLoginButton() {
-    const btn = document.getElementById('btn-login');
+    const btn = document.getElementById('btn-login-home');
     if (!btn) return;
 
     if (currentUser) {
