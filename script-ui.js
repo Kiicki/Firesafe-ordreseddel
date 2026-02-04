@@ -82,6 +82,9 @@ function loadForm(index) {
         lastSavedData = getFormDataSnapshot();
         setFormReadOnly(!!loadedForms[index]._isSent);
         closeModal();
+        // Set hash based on form type
+        window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
+        sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
         window.scrollTo(0, 0);
     }
 }
@@ -125,6 +128,9 @@ async function duplicateForm(event, index) {
     lastSavedData = null;
     setFormReadOnly(false);
     closeModal();
+    // Duplicated form is always regular (not external)
+    window.location.hash = 'skjema';
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     window.scrollTo(0, 0);
     showNotificationModal(t('duplicated_success'), true);
 }
@@ -462,6 +468,9 @@ function loadExternalForm(index) {
     lastSavedData = getFormDataSnapshot();
     setFormReadOnly(!!form._isSent);
     closeModal();
+    // External form = #ekstern
+    window.location.hash = 'ekstern';
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     window.scrollTo(0, 0);
 }
 
@@ -569,6 +578,8 @@ async function saveAsTemplate() {
 
 async function showTemplateModal() {
     closeAllModals();
+    // No hash - template modal is the home page
+    history.replaceState(null, '', window.location.pathname);
     const listEl = document.getElementById('template-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('template-modal').classList.add('active');
@@ -631,6 +642,9 @@ function loadTemplate(index) {
 
     document.getElementById('template-modal').classList.remove('active');
     document.getElementById('template-search').value = '';
+    // Template loaded = regular form
+    window.location.hash = 'skjema';
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     window.scrollTo(0, 0);
 }
 
@@ -696,13 +710,19 @@ function closeTemplateModal() {
     }
     document.getElementById('template-modal').classList.remove('active');
     document.getElementById('template-search').value = '';
+    // Blank form = #skjema
+    window.location.hash = 'skjema';
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
 }
 
 function cancelTemplateModal() {
     if (preNewFormData) {
         setFormData(preNewFormData);
         preNewFormData = null;
+        // Return to the form they were on
+        window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
     }
+    // If no preNewFormData, stay at home (no hash)
     document.getElementById('template-modal').classList.remove('active');
     document.getElementById('template-search').value = '';
 }
@@ -1347,6 +1367,9 @@ function startExternalOrder() {
     }
     isExternalForm = true;
     updateExternalBadge();
+    // External form = #ekstern
+    window.location.hash = 'ekstern';
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
 }
 
 function hasAnyFormData() {
@@ -1403,7 +1426,6 @@ function doNewForm() {
 
 function newForm() {
     closeAllModals();
-    history.replaceState(null, '', window.location.pathname); // Clear URL hash
     const currentData = getFormDataSnapshot();
     const hasUnsavedChanges = lastSavedData !== null
         ? currentData !== lastSavedData
@@ -1625,6 +1647,15 @@ window.addEventListener('load', function() {
         showSavedForms();
     } else if (hash === 'settings') {
         showSettingsModal();
+    } else if (hash === 'skjema') {
+        // Regular form - already loaded via sessionStorage
+        closeAllModals();
+    } else if (hash === 'ekstern') {
+        // External form - already loaded via sessionStorage
+        closeAllModals();
+    } else {
+        // No hash = home = template modal
+        showTemplateModal();
     }
 });
 
@@ -1636,6 +1667,11 @@ window.addEventListener('hashchange', function() {
         showSavedForms();
     } else if (hash === 'settings') {
         showSettingsModal();
+    } else if (hash === 'skjema' || hash === 'ekstern') {
+        // Form views - just close modals
+    } else {
+        // No hash = home = template modal
+        showTemplateModal();
     }
 });
 

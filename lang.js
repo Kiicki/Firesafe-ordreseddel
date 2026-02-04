@@ -124,7 +124,7 @@ const TRANSLATIONS = {
 
         // Templates
         template_modal_title: 'Velg prosjektmal',
-        template_new_form: 'Ny',
+        template_new_form: 'Blankt skjema',
         template_save_success: 'Prosjektmal lagret!',
         template_update_success: 'Mal oppdatert!',
         template_exists: 'En mal med prosjektnavn «{0}» finnes allerede. Vil du oppdatere den?',
@@ -340,7 +340,7 @@ const TRANSLATIONS = {
 
         // Templates
         template_modal_title: 'Choose project template',
-        template_new_form: 'New',
+        template_new_form: 'Blank form',
         template_save_success: 'Project template saved!',
         template_update_success: 'Template updated!',
         template_exists: 'A template with project name "{0}" already exists. Do you want to update it?',
