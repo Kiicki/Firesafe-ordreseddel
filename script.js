@@ -97,12 +97,19 @@ if (auth) {
                 }
             } catch (e) {}
         }
-        // Refresh data if we were waiting for auth
-        if (user && pendingAuthRefresh) {
-            if (pendingAuthRefresh === 'templates' && typeof showTemplateModal === 'function') {
-                showTemplateModal();
-            } else if (pendingAuthRefresh === 'saved' && typeof showSavedForms === 'function') {
-                showSavedForms();
+        // Refresh data if we were waiting for auth OR if modal is currently active
+        if (user) {
+            const templateModal = document.getElementById('template-modal');
+            const savedModal = document.getElementById('saved-modal');
+
+            if (pendingAuthRefresh === 'templates' || (templateModal && templateModal.classList.contains('active'))) {
+                if (typeof showTemplateModal === 'function') {
+                    showTemplateModal();
+                }
+            } else if (pendingAuthRefresh === 'saved' || (savedModal && savedModal.classList.contains('active'))) {
+                if (typeof showSavedForms === 'function') {
+                    showSavedForms();
+                }
             }
             pendingAuthRefresh = null;
         }
