@@ -1789,12 +1789,19 @@ window.addEventListener('hashchange', function() {
                 toolbar.classList.add('keyboard-open');
                 if (activeModal) {
                     activeModal.classList.add('keyboard-scroll');
+                    // Set modal height to visual viewport to avoid gap above keyboard
+                    activeModal.style.height = currentHeight + 'px';
+                    activeModal.style.bottom = 'auto';
+                    activeModal.style.top = '0';
                     moveToolbarToModal(activeModal);
                 }
             } else {
                 toolbar.classList.remove('keyboard-open');
                 document.querySelectorAll('.modal').forEach(function(m) {
                     m.classList.remove('keyboard-scroll');
+                    m.style.height = '';
+                    m.style.bottom = '';
+                    m.style.top = '';
                 });
                 moveToolbarBack();
             }
