@@ -100,21 +100,21 @@ body {
     margin-top: 0 !important;
 }
 
-/* Remove padding/margin when keyboard is open (toolbar is static) */
+/* Reduce padding/margin when keyboard is open (toolbar is static) */
 .container.keyboard-open {
     padding-bottom: 0 !important;
 }
 
 .container.keyboard-open .mobile-form {
-    padding-bottom: 0 !important;
+    padding-bottom: 15px !important;
 }
 
 .container.keyboard-open .mobile-section {
-    margin-bottom: 0 !important;
+    margin-bottom: 10px !important;
 }
 
 .container.keyboard-open .mobile-field:last-child {
-    margin-bottom: 0 !important;
+    margin-bottom: 8px !important;
 }
 
 .toolbar button {
@@ -1010,7 +1010,7 @@ body.modal-active .container.form-view > .modal-content {
     display: block;
     background: white;
     padding: 15px;
-    padding-bottom: 45px;
+    padding-bottom: 80px;
     width: 100%;
 }
 
