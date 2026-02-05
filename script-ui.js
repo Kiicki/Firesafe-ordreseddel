@@ -1764,6 +1764,7 @@ window.addEventListener('hashchange', function() {
 // When keyboard closed: toolbar fixed at bottom, modal fits viewport
 (function() {
     var keyboardTimeout = null;
+    var lastViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
     function handleFocus(e) {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -1784,6 +1785,25 @@ window.addEventListener('hashchange', function() {
         }
     }
 
+    // Backup: detect keyboard close via viewport resize
+    // When keyboard closes, viewport height increases significantly
+    function handleViewportResize() {
+        var currentHeight = window.visualViewport.height;
+        var heightDiff = currentHeight - lastViewportHeight;
+
+        // If viewport grew by more than 100px, keyboard likely closed
+        if (heightDiff > 100) {
+            document.body.classList.remove('keyboard-open');
+        }
+
+        lastViewportHeight = currentHeight;
+    }
+
     document.addEventListener('focusin', handleFocus, true);
     document.addEventListener('focusout', handleBlur, true);
+
+    // Add viewport resize listener if available
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleViewportResize);
+    }
 })();

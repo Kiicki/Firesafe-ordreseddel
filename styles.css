@@ -2442,7 +2442,35 @@ body.modal-active .container.form-view > .modal-content {
     }
 }
 
-/* No special keyboard handling - let browser handle it natively */
+/* Keyboard åpen: ALT blir scrollbart dokument */
+/* Toolbar er nå SIST i DOM (etter alle modals), så den vises alltid på bunnen */
+
+body.keyboard-open .toolbar {
+    position: static;
+}
+
+body.keyboard-open .modal {
+    position: static;
+    height: auto;
+}
+
+body.keyboard-open .modal-content {
+    flex: none;
+}
+
+body.keyboard-open .modal-body {
+    flex: none;
+    overflow: visible;
+}
+
+body.keyboard-open .container.form-view {
+    position: static;
+    height: auto;
+}
+
+body.keyboard-open .mobile-form {
+    padding-bottom: 15px;
+}
 
 /* Base overlay content wrapper */
 .overlay-content {

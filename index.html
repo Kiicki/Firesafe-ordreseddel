@@ -228,14 +228,6 @@
             <div class="footer-staples"><span class="staples-nr">42789</span> Staples - Tlf.: 02272</div>
         </div>
 
-        <div class="toolbar">
-            <button class="btn-new" onclick="newForm()" data-i18n="toolbar_new">Ny</button>
-            <button class="btn-save" onclick="showSaveMenu()" data-i18n="toolbar_save">Lagre</button>
-            <button class="btn-load" onclick="showSavedForms()" data-i18n="toolbar_load">Hent</button>
-            <button class="btn-export" onclick="showExportMenu()" data-i18n="toolbar_export">Eksport</button>
-            <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
-        </div>
-
     </div>
 
     <!-- Confirmation Modal -->
@@ -480,6 +472,15 @@
                 <button type="button" class="spec-popup-ok" onclick="confirmSpecPopup()">OK</button>
             </div>
         </div>
+    </div>
+
+    <!-- Toolbar - alltid sist i DOM for riktig rekkefølge når keyboard er åpen -->
+    <div class="toolbar">
+        <button class="btn-new" onclick="newForm()" data-i18n="toolbar_new">Ny</button>
+        <button class="btn-save" onclick="showSaveMenu()" data-i18n="toolbar_save">Lagre</button>
+        <button class="btn-load" onclick="showSavedForms()" data-i18n="toolbar_load">Hent</button>
+        <button class="btn-export" onclick="showExportMenu()" data-i18n="toolbar_export">Eksport</button>
+        <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
     </div>
 
     <script src="lang.js"></script>

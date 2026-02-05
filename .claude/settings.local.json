@@ -22,7 +22,8 @@
       "Bash(ls:*)",
       "Bash(git pull:*)",
       "Bash(git stash:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(ipconfig getifaddr:*)"
     ]
   }
 }
