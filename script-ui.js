@@ -1750,18 +1750,15 @@ window.addEventListener('hashchange', function() {
             var screenHeight = window.screen.height || initialHeight;
             var keyboardOpen = currentHeight < screenHeight * 0.75;
 
+            var modalActive = document.querySelector('.modal.active');
+
             if (keyboardOpen) {
-                toolbar.classList.add('keyboard-open');
-                // Extend active modals to cover toolbar area
-                document.querySelectorAll('.modal.active').forEach(function(m) {
-                    m.style.bottom = '0';
-                });
+                // Only make toolbar static on form page (no modal)
+                if (!modalActive) {
+                    toolbar.classList.add('keyboard-open');
+                }
             } else {
                 toolbar.classList.remove('keyboard-open');
-                // Reset modals to leave space for toolbar
-                document.querySelectorAll('.modal.active').forEach(function(m) {
-                    m.style.bottom = '';
-                });
             }
         });
     }

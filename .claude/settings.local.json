@@ -19,7 +19,10 @@
       "Bash(pip3 show:*)",
       "Bash(git push)",
       "Bash(file:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git push:*)"
     ]
   }
 }
