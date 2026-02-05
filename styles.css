@@ -619,7 +619,11 @@ body.modal-active .container.form-view > .modal-content {
     min-height: 0;
 }
 
-/* When keyboard is open, let entire modal scroll instead of just modal-body */
+/* When keyboard is open on modal: hide toolbar, extend modal to bottom, let everything scroll */
+.modal.keyboard-scroll {
+    bottom: 0 !important;
+}
+
 .modal.keyboard-scroll .modal-content {
     flex: 0 0 auto;
     overflow: visible;
@@ -630,7 +634,10 @@ body.modal-active .container.form-view > .modal-content {
     flex: 0 0 auto;
 }
 
-/* Hide toolbar when modal is active and keyboard is open */
+.modal.keyboard-scroll .modal-footer-skip {
+    flex-shrink: 0;
+}
+
 body.modal-active .toolbar.keyboard-open {
     display: none;
 }
