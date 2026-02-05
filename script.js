@@ -913,17 +913,6 @@ function syncMobileToOriginal() {
         }
     }
 
-    // Sync signature image for export
-    const sigData = document.getElementById('mobile-kundens-underskrift').value;
-    const sigImg = document.getElementById('kundens-underskrift-img');
-    if (sigData && sigData.startsWith('data:image')) {
-        sigImg.src = sigData;
-        sigImg.style.display = 'block';
-    } else {
-        sigImg.src = '';
-        sigImg.style.display = 'none';
-    }
-
     // Build desktop work lines dynamically
     buildDesktopWorkLines();
 }
@@ -938,156 +927,36 @@ let signatureLastX = 0;
 let signatureLastY = 0;
 
 function openSignaturePad() {
-    const overlay = document.getElementById('signature-overlay');
-    const canvas = document.getElementById('signature-canvas');
-    overlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
-
-    // Size canvas to fill available space
-    setTimeout(() => {
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * 2;
-        canvas.height = rect.height * 2;
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
-
-        signatureCtx = canvas.getContext('2d');
-        signatureCtx.scale(2, 2);
-        signatureCtx.strokeStyle = '#000';
-        signatureCtx.lineWidth = 5;
-        signatureCtx.lineCap = 'round';
-        signatureCtx.lineJoin = 'round';
-
-        // Load existing signature if any
-        const existing = document.getElementById('mobile-kundens-underskrift').value;
-        if (existing && existing.startsWith('data:image')) {
-            const img = new Image();
-            img.onload = function() {
-                signatureCtx.drawImage(img, 0, 0, rect.width, rect.height);
-            };
-            img.src = existing;
-        }
-    }, 50);
-
-    // Touch events
-    canvas.addEventListener('touchstart', sigTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', sigTouchMove, { passive: false });
-    canvas.addEventListener('touchend', sigTouchEnd);
-
-    // Mouse events
-    canvas.addEventListener('mousedown', sigMouseDown);
-    canvas.addEventListener('mousemove', sigMouseMove);
-    canvas.addEventListener('mouseup', sigMouseUp);
-    canvas.addEventListener('mouseleave', sigMouseUp);
+    // Legacy function - signature is now text input
 }
 
 function closeSignaturePad() {
-    const overlay = document.getElementById('signature-overlay');
-    const canvas = document.getElementById('signature-canvas');
-    overlay.classList.remove('active');
-    document.body.style.overflow = '';
-
-    canvas.removeEventListener('touchstart', sigTouchStart);
-    canvas.removeEventListener('touchmove', sigTouchMove);
-    canvas.removeEventListener('touchend', sigTouchEnd);
-    canvas.removeEventListener('mousedown', sigMouseDown);
-    canvas.removeEventListener('mousemove', sigMouseMove);
-    canvas.removeEventListener('mouseup', sigMouseUp);
-    canvas.removeEventListener('mouseleave', sigMouseUp);
+    // Legacy function - signature is now text input
 }
 
 function clearSignatureCanvas() {
-    const canvas = document.getElementById('signature-canvas');
-    if (signatureCtx) {
-        signatureCtx.save();
-        signatureCtx.setTransform(1, 0, 0, 1, 0, 0);
-        signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
-        signatureCtx.restore();
-    }
+    // Legacy function - signature is now text input
 }
 
 function trimSignatureCanvas(canvas) {
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    const imageData = ctx.getImageData(0, 0, w, h);
-    const data = imageData.data;
-    let top = h, left = w, right = 0, bottom = 0;
-    let hasContent = false;
-
-    for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-            const alpha = data[(y * w + x) * 4 + 3];
-            if (alpha > 0) {
-                hasContent = true;
-                if (y < top) top = y;
-                if (y > bottom) bottom = y;
-                if (x < left) left = x;
-                if (x > right) right = x;
-            }
-        }
-    }
-
-    if (!hasContent) return null;
-
-    const pad = 20;
-    top = Math.max(0, top - pad);
-    left = Math.max(0, left - pad);
-    right = Math.min(w - 1, right + pad);
-    bottom = Math.min(h - 1, bottom + pad);
-
-    const trimmed = document.createElement('canvas');
-    trimmed.width = right - left + 1;
-    trimmed.height = bottom - top + 1;
-    const tCtx = trimmed.getContext('2d');
-    tCtx.fillStyle = '#ffffff';
-    tCtx.fillRect(0, 0, trimmed.width, trimmed.height);
-    tCtx.drawImage(canvas, left, top, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
-    return trimmed;
+    // Legacy function - signature is now text input
+    return null;
 }
 
 function confirmSignature() {
-    const canvas = document.getElementById('signature-canvas');
-
-    const trimmed = trimSignatureCanvas(canvas);
-
-    if (!trimmed) {
-        document.getElementById('mobile-kundens-underskrift').value = '';
-        document.getElementById('kundens-underskrift').value = '';
-        clearSignaturePreview();
-    } else {
-        const dataURL = trimmed.toDataURL('image/png');
-        document.getElementById('mobile-kundens-underskrift').value = dataURL;
-        document.getElementById('kundens-underskrift').value = dataURL;
-        showSignaturePreview(dataURL);
-    }
-
-    closeSignaturePad();
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    // Legacy function - signature is now text input
 }
 
 function showSignaturePreview(dataURL) {
-    const preview = document.getElementById('mobile-signature-preview');
-    if (preview) {
-        preview.innerHTML = '<img src="' + dataURL + '" alt="Signatur">';
-    }
-    const desktopImg = document.getElementById('kundens-underskrift-img');
-    if (desktopImg) {
-        desktopImg.src = dataURL;
-        desktopImg.style.display = 'block';
-    }
+    // Legacy function - signature is now text input
 }
 
 function clearSignaturePreview() {
-    const preview = document.getElementById('mobile-signature-preview');
-    if (preview) {
-        preview.innerHTML = '<span class="signature-placeholder">' + t('signature_tap_to_sign') + '</span>';
-    }
-    const desktopImg = document.getElementById('kundens-underskrift-img');
-    if (desktopImg) {
-        desktopImg.src = '';
-        desktopImg.style.display = 'none';
-    }
+    // Now using text input, just clear the values
+    const mobileInput = document.getElementById('mobile-kundens-underskrift');
+    if (mobileInput) mobileInput.value = '';
+    const desktopInput = document.getElementById('kundens-underskrift');
+    if (desktopInput) desktopInput.value = '';
 }
 
 function getSignaturePos(canvas, e) {
@@ -1261,13 +1130,6 @@ function syncOriginalToMobile() {
         }
     }
 
-    // Sync signature preview
-    const sigData = document.getElementById('kundens-underskrift').value;
-    if (sigData && sigData.startsWith('data:image')) {
-        showSignaturePreview(sigData);
-    } else {
-        clearSignaturePreview();
-    }
 }
 
 
@@ -1311,11 +1173,6 @@ function setFormData(data) {
     document.getElementById('signering-dato').value = data.signeringDato || '';
     const sigData = data.kundensUnderskrift || '';
     document.getElementById('kundens-underskrift').value = sigData;
-    if (sigData && sigData.startsWith('data:image')) {
-        showSignaturePreview(sigData);
-    } else {
-        clearSignaturePreview();
-    }
 
     isExternalForm = !!data.isExternal;
     updateExternalBadge();

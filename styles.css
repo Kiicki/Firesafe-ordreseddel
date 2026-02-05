@@ -95,9 +95,23 @@ body {
     z-index: 1100;
 }
 
-.toolbar.keyboard-open {
+/* Keyboard open state - controlled by body class */
+body.keyboard-open .toolbar {
     position: static;
-    margin-top: 0 !important;
+    margin-top: 0;
+}
+
+body.keyboard-open .container.form-view {
+    height: var(--viewport-height);
+}
+
+body.keyboard-open .modal {
+    height: var(--viewport-height);
+}
+
+body.keyboard-open .text-editor-modal,
+body.keyboard-open .picker-overlay {
+    height: var(--viewport-height);
 }
 
 .toolbar button {
@@ -518,7 +532,8 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 60px;
+    height: calc(100vh - 60px);
+    height: calc(100dvh - 60px);
     background: #fff;
     z-index: 1000;
     overflow-y: auto;
@@ -619,27 +634,6 @@ body.modal-active .container.form-view > .modal-content {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
-}
-
-/* When keyboard is open on modal: let everything scroll together */
-.modal.keyboard-scroll .modal-content {
-    flex: 0 0 auto;
-    overflow: visible;
-}
-
-.modal.keyboard-scroll .modal-body {
-    overflow-y: visible;
-    flex: 0 0 auto;
-}
-
-.modal.keyboard-scroll .modal-footer-skip {
-    flex-shrink: 0;
-}
-
-/* Toolbar inside modal when keyboard is open - make it part of the flow */
-.modal-content > .toolbar.keyboard-open {
-    position: static;
-    margin-top: 0;
 }
 
 .template-home-wrapper {
@@ -993,6 +987,7 @@ body.modal-active .container.form-view > .modal-content {
     display: block;
     background: white;
     padding: 15px;
+    padding-bottom: 70px;  /* Extra padding to ensure content visible above toolbar on iOS */
     width: 100%;
 }
 
@@ -1002,7 +997,8 @@ body.modal-active .container.form-view > .modal-content {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 60px;
+    height: calc(100vh - 60px);
+    height: calc(100dvh - 60px);
     background: #fff;
     margin: 0;
     padding: 0;
@@ -1069,6 +1065,10 @@ body.modal-active .container.form-view > .modal-content {
     margin-bottom: 20px;
 }
 
+.mobile-section:last-child {
+    margin-bottom: 0;
+}
+
 .mobile-section-title {
     font-size: 14px;
     font-weight: bold;
@@ -1080,6 +1080,10 @@ body.modal-active .container.form-view > .modal-content {
 
 .mobile-field {
     margin-bottom: 12px;
+}
+
+.mobile-field:last-child {
+    margin-bottom: 0;
 }
 
 .mobile-field label {

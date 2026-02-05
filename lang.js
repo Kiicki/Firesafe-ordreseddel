@@ -40,6 +40,7 @@ const TRANSLATIONS = {
         label_dato: 'Dato',
         label_kundens_underskrift: 'Kundens underskrift',
         signature_tap_to_sign: 'Trykk for å signere',
+        signature_name_placeholder: 'Skriv navn...',
         signature_clear: 'Slett signatur',
         signature_confirm: 'Bekreft',
 
@@ -258,6 +259,7 @@ const TRANSLATIONS = {
         label_dato: 'Date',
         label_kundens_underskrift: 'Customer signature',
         signature_tap_to_sign: 'Tap to sign',
+        signature_name_placeholder: 'Enter name...',
         signature_clear: 'Clear signature',
         signature_confirm: 'Confirm',
 

@@ -2,43 +2,13 @@
 let loadedForms = [];
 let loadedExternalForms = [];
 
-// Toolbar management for modals
-var toolbarOriginalParent = null;
-
-function moveToolbarToModal(modal) {
-    var toolbar = document.querySelector('.toolbar');
-    if (!toolbar || !modal) return;
-
-    if (!toolbarOriginalParent) {
-        toolbarOriginalParent = toolbar.parentNode;
-    }
-
-    // Move toolbar INSIDE modal-content (at the end)
-    var modalContent = modal.querySelector('.modal-content');
-    if (modalContent) {
-        modalContent.appendChild(toolbar);
-    }
-}
-
-function moveToolbarBack() {
-    var toolbar = document.querySelector('.toolbar');
-    if (!toolbar || !toolbarOriginalParent) return;
-
-    toolbarOriginalParent.appendChild(toolbar);
-    document.querySelectorAll('.modal').forEach(function(m) {
-        m.style.bottom = '';
-    });
-}
-
 function closeAllModals() {
     document.querySelectorAll('.modal.active').forEach(function(m) {
         m.classList.remove('active');
-        m.classList.remove('keyboard-scroll');
     });
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     document.body.classList.remove('modal-active');
-    moveToolbarBack();
 }
 
 function isModalOpen() {
@@ -1779,11 +1749,8 @@ window.addEventListener('hashchange', function() {
     }
 });
 
-/// Keyboard-aware: unified handling for all containers (form-view and modals)
+/// Keyboard-aware: simple CSS class + custom property approach
 (function() {
-    var toolbar = document.querySelector('.toolbar');
-    if (!toolbar) return;
-
     if (window.visualViewport) {
         var initialHeight = window.screen.height || window.innerHeight;
         visualViewport.addEventListener('resize', function() {
@@ -1791,60 +1758,12 @@ window.addEventListener('hashchange', function() {
             var screenHeight = window.screen.height || initialHeight;
             var keyboardOpen = currentHeight < screenHeight * 0.75;
 
-            // Find the current active container (priority: overlays > modals > form)
-            var textEditor = document.querySelector('.text-editor-modal.active');
-            var pickerOverlay = document.querySelector('.picker-overlay.active');
-            var activeModal = document.querySelector('.modal.active');
-            var formView = document.querySelector('.container.form-view');
-            var activeContainer = textEditor || pickerOverlay || activeModal || formView;
-
-            // All fullscreen overlays that need height adjustment
-            var allOverlays = [textEditor, pickerOverlay].filter(Boolean);
-
             if (keyboardOpen) {
-                toolbar.classList.add('keyboard-open');
-
-                if (activeContainer) {
-                    activeContainer.classList.add('keyboard-open');
-                    // Same fix for ALL containers
-                    activeContainer.style.height = currentHeight + 'px';
-                    activeContainer.style.bottom = 'auto';
-                    activeContainer.style.top = '0';
-                }
-
-                // Also adjust all active overlays
-                allOverlays.forEach(function(overlay) {
-                    overlay.classList.add('keyboard-open');
-                    overlay.style.height = currentHeight + 'px';
-                });
-
-                if (activeModal) {
-                    activeModal.classList.add('keyboard-scroll');
-                    moveToolbarToModal(activeModal);
-                }
+                document.body.classList.add('keyboard-open');
+                document.body.style.setProperty('--viewport-height', currentHeight + 'px');
             } else {
-                toolbar.classList.remove('keyboard-open');
-
-                // Reset ALL containers
-                if (formView) {
-                    formView.classList.remove('keyboard-open');
-                    formView.style.height = '';
-                    formView.style.bottom = '';
-                    formView.style.top = '';
-                }
-                document.querySelectorAll('.modal').forEach(function(m) {
-                    m.classList.remove('keyboard-scroll');
-                    m.classList.remove('keyboard-open');
-                    m.style.height = '';
-                    m.style.bottom = '';
-                    m.style.top = '';
-                });
-                // Reset overlays
-                document.querySelectorAll('.text-editor-modal, .picker-overlay').forEach(function(o) {
-                    o.classList.remove('keyboard-open');
-                    o.style.height = '';
-                });
-                moveToolbarBack();
+                document.body.classList.remove('keyboard-open');
+                document.body.style.removeProperty('--viewport-height');
             }
         });
     }
