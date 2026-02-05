@@ -2442,14 +2442,14 @@ body.modal-active .container.form-view > .modal-content {
     }
 }
 
-/* Keyboard open: elements in document flow, user scrolls to see them */
-body.keyboard-open .toolbar {
-    position: static;
-    margin-top: auto;
+/* Keyboard open: container/modal extends beyond visible viewport */
+body.keyboard-open .modal,
+body.keyboard-open .container.form-view {
+    height: 150vh;  /* Larger than visible area - user scrolls */
 }
 
-body.keyboard-open .modal {
-    height: 100vh;  /* Full height, not dvh - user scrolls */
+body.keyboard-open .toolbar {
+    position: static;
 }
 
 /* Base overlay content wrapper */
