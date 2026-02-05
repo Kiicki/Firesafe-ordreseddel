@@ -619,6 +619,12 @@ body.modal-active .container.form-view > .modal-content {
     min-height: 0;
 }
 
+/* When keyboard is open, let entire modal scroll instead of just modal-body */
+.modal.keyboard-scroll .modal-body {
+    overflow-y: visible;
+    flex: 0 0 auto;
+}
+
 .template-home-wrapper {
     padding: 2px 15px 5px 15px;
 }

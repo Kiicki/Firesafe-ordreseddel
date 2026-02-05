@@ -1793,8 +1793,15 @@ window.addEventListener('hashchange', function() {
 
             if (keyboardOpen) {
                 toolbar.classList.add('keyboard-open');
+                // Make entire modal scroll when keyboard is open
+                document.querySelectorAll('.modal.active').forEach(function(m) {
+                    m.classList.add('keyboard-scroll');
+                });
             } else {
                 toolbar.classList.remove('keyboard-open');
+                document.querySelectorAll('.modal').forEach(function(m) {
+                    m.classList.remove('keyboard-scroll');
+                });
             }
         });
     }
