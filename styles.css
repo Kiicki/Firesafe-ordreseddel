@@ -100,23 +100,6 @@ body {
     margin-top: 0 !important;
 }
 
-/* Reduce padding/margin when keyboard is open (toolbar is static) */
-.container.keyboard-open {
-    padding-bottom: 0 !important;
-}
-
-.container.keyboard-open .mobile-form {
-    padding-bottom: 15px !important;
-}
-
-.container.keyboard-open .mobile-section {
-    margin-bottom: 10px !important;
-}
-
-.container.keyboard-open .mobile-field:last-child {
-    margin-bottom: 8px !important;
-}
-
 .toolbar button {
     flex: 1;
     padding: 10px 6px;
@@ -656,7 +639,7 @@ body.modal-active .container.form-view > .modal-content {
 /* Toolbar inside modal when keyboard is open - make it part of the flow */
 .modal-content > .toolbar.keyboard-open {
     position: static;
-    margin-top: 8px;
+    margin-top: 0;
 }
 
 .template-home-wrapper {
@@ -1010,7 +993,6 @@ body.modal-active .container.form-view > .modal-content {
     display: block;
     background: white;
     padding: 15px;
-    padding-bottom: 80px;
     width: 100%;
 }
 
