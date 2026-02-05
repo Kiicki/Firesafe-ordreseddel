@@ -99,11 +99,6 @@ body {
     position: static;
 }
 
-/* Extend form container when toolbar is static (keyboard open) */
-.container.form-view:has(.toolbar.keyboard-open) {
-    bottom: 0;
-}
-
 .toolbar button {
     flex: 1;
     padding: 10px 6px;

@@ -1770,7 +1770,7 @@ window.addEventListener('hashchange', function() {
     }
 });
 
-/// Keyboard-aware: toolbar becomes static so user can scroll to it
+/// Keyboard-aware: unified handling for all containers (form-view and modals)
 (function() {
     var toolbar = document.querySelector('.toolbar');
     if (!toolbar) return;
@@ -1782,20 +1782,34 @@ window.addEventListener('hashchange', function() {
             var screenHeight = window.screen.height || initialHeight;
             var keyboardOpen = currentHeight < screenHeight * 0.75;
 
+            // Find the current active container
             var activeModal = document.querySelector('.modal.active');
+            var formView = document.querySelector('.container.form-view');
+            var activeContainer = activeModal || formView;
 
             if (keyboardOpen) {
                 toolbar.classList.add('keyboard-open');
+
+                if (activeContainer) {
+                    // Same fix for ALL containers
+                    activeContainer.style.height = currentHeight + 'px';
+                    activeContainer.style.bottom = 'auto';
+                    activeContainer.style.top = '0';
+                }
+
                 if (activeModal) {
                     activeModal.classList.add('keyboard-scroll');
-                    // Set modal height to visual viewport to avoid gap above keyboard
-                    activeModal.style.height = currentHeight + 'px';
-                    activeModal.style.bottom = 'auto';
-                    activeModal.style.top = '0';
                     moveToolbarToModal(activeModal);
                 }
             } else {
                 toolbar.classList.remove('keyboard-open');
+
+                // Reset ALL containers
+                if (formView) {
+                    formView.style.height = '';
+                    formView.style.bottom = '';
+                    formView.style.top = '';
+                }
                 document.querySelectorAll('.modal').forEach(function(m) {
                     m.classList.remove('keyboard-scroll');
                     m.style.height = '';
