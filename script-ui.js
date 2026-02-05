@@ -1,7 +1,3 @@
-// Immediately reset keyboard state on script load (fixes pull-to-refresh issues)
-document.body.classList.remove('keyboard-open');
-document.body.style.removeProperty('--viewport-height');
-
 // Cache for loaded forms (to use with index-based functions)
 let loadedForms = [];
 let loadedExternalForms = [];
@@ -1688,16 +1684,13 @@ document.getElementById('form-container').addEventListener('input', function() {
 });
 
 window.addEventListener('load', function() {
-    // Reset any stale keyboard state from previous session/refresh
-    document.body.classList.remove('keyboard-open');
-    document.body.style.removeProperty('--viewport-height');
-
-    // Force layout recalculation for PWA (fixes pull-to-refresh rendering issues)
+    // PWA pull-to-refresh workaround: Chrome PWA har en rendering-bug som gjør at
+    // noen elementer ikke vises etter refresh. Ved å toggle keyboard-open klassen
+    // tvinger vi browser til å re-kalkulere layout. Dette simulerer det som skjer
+    // når brukeren åpner og lukker keyboard.
     setTimeout(function() {
-        // Simulate what keyboard open/close does - this fixes PWA rendering
         document.body.classList.add('keyboard-open');
         document.body.style.setProperty('--viewport-height', window.innerHeight + 'px');
-
         requestAnimationFrame(function() {
             document.body.classList.remove('keyboard-open');
             document.body.style.removeProperty('--viewport-height');
