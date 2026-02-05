@@ -54,6 +54,26 @@ Og innloggingsknappen:
 - Endringer i HTML/CSS/design er alltid trygt
 - Nye funksjoner kan legges til uten å røre Firebase-koden
 
+## VIKTIG: Mobil og keyboard-oppførsel
+
+### Toolbar når keyboard er åpent
+- Toolbar skal ALDRI være fixed/floating over tastaturet
+- Toolbar skal være på bunnen av siden (i normal dokumentflyt)
+- Brukeren kommer til toolbar ved å scrolle ned
+- Tastaturet tar ~50% av skjermen - vi kan ikke ha fixed elementer i tillegg
+
+### Keyboard-håndtering
+- IKKE lag egendefinert JavaScript for keyboard-håndtering
+- La browseren håndtere keyboard nativt via `interactive-widget=resizes-content` i viewport meta
+- IKKE bruk `body.keyboard-open` klasser eller lignende
+- IKKE endre element-høyder basert på `visualViewport`
+
+### Hvorfor dette er viktig
+På mobil har vi begrenset plass. Når tastaturet er åpent:
+- Skjermen er allerede halvert av tastaturet
+- Fixed elementer over tastaturet gjør det umulig å se innholdet
+- Brukeren må kunne scrolle fritt for å se alt innhold
+
 ## Filstruktur
 
 ```
@@ -90,7 +110,6 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 - Innstillinger (ordrenummer, materialer, enheter, standardverdier)
 - Eksport/PDF/JPG-funksjoner
 - DOMContentLoaded event listeners og sideinit
-- Tastatur-aware toolbar-logikk
 
 **Regel: Ny kode plasseres i filen som matcher kategorien. Ved tvil, bruk `script-ui.js`.**
 

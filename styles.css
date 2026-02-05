@@ -968,7 +968,7 @@ body.modal-active .container.form-view > .modal-content {
     display: block;
     background: white;
     padding: 15px;
-    padding-bottom: 70px;  /* Extra padding to ensure content visible above toolbar on iOS */
+    padding-bottom: 15px;
     width: 100%;
 }
 
@@ -2439,6 +2439,11 @@ body.modal-active .container.form-view > .modal-content {
 @media screen and (max-width: 600px) {
     body {
         padding: 5px;
+    }
+    /* Toolbar in document flow on mobile - user scrolls to it */
+    .toolbar {
+        position: static;
+        margin-top: auto;
     }
 }
 
