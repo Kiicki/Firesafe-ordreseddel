@@ -95,25 +95,6 @@ body {
     z-index: 1100;
 }
 
-/* Keyboard open state - controlled by body class */
-body.keyboard-open .toolbar {
-    position: static;
-    margin-top: 0;
-}
-
-body.keyboard-open .container.form-view {
-    height: var(--viewport-height);
-}
-
-body.keyboard-open .modal {
-    height: var(--viewport-height);
-}
-
-body.keyboard-open .text-editor-modal,
-body.keyboard-open .picker-overlay {
-    height: var(--viewport-height);
-}
-
 .toolbar button {
     flex: 1;
     padding: 10px 6px;
