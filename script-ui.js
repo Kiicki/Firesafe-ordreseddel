@@ -1750,21 +1750,29 @@ window.addEventListener('hashchange', function() {
 });
 
 /// Keyboard-aware: simple CSS class + custom property approach
-(function() {
-    if (window.visualViewport) {
-        var initialHeight = window.screen.height || window.innerHeight;
-        visualViewport.addEventListener('resize', function() {
-            var currentHeight = visualViewport.height;
-            var screenHeight = window.screen.height || initialHeight;
-            var keyboardOpen = currentHeight < screenHeight * 0.75;
+// Wait for load event + delay to avoid false positives during pull-to-refresh
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        if (window.visualViewport) {
+            var initialHeight = window.screen.height || window.innerHeight;
 
-            if (keyboardOpen) {
-                document.body.classList.add('keyboard-open');
-                document.body.style.setProperty('--viewport-height', currentHeight + 'px');
-            } else {
-                document.body.classList.remove('keyboard-open');
-                document.body.style.removeProperty('--viewport-height');
-            }
-        });
-    }
-})();
+            visualViewport.addEventListener('resize', function() {
+                var currentHeight = visualViewport.height;
+                var screenHeight = window.screen.height || initialHeight;
+
+                // Keyboard detection: require input focus AND reduced viewport
+                var activeEl = document.activeElement;
+                var hasInputFocus = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+                var keyboardOpen = hasInputFocus && currentHeight < screenHeight * 0.75;
+
+                if (keyboardOpen) {
+                    document.body.classList.add('keyboard-open');
+                    document.body.style.setProperty('--viewport-height', currentHeight + 'px');
+                } else {
+                    document.body.classList.remove('keyboard-open');
+                    document.body.style.removeProperty('--viewport-height');
+                }
+            });
+        }
+    }, 300);
+});
