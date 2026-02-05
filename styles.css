@@ -527,6 +527,11 @@ body {
     flex-direction: column;
 }
 
+/* Hide form content (not toolbar) when any modal is active */
+body:has(.modal.active) .container.form-view > .modal-content {
+    display: none;
+}
+
 .modal-content {
     background: white;
     width: 100%;
