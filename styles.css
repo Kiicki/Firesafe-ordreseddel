@@ -999,6 +999,7 @@ body.modal-active .container.form-view > .modal-content {
     right: 0;
     height: calc(100vh - 60px);
     height: calc(100dvh - 60px);
+    min-height: 0;  /* Override .container min-height */
     background: #fff;
     margin: 0;
     padding: 0;
