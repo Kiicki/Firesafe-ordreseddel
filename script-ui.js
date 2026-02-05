@@ -1,3 +1,7 @@
+// Immediately reset keyboard state on script load (fixes pull-to-refresh issues)
+document.body.classList.remove('keyboard-open');
+document.body.style.removeProperty('--viewport-height');
+
 // Cache for loaded forms (to use with index-based functions)
 let loadedForms = [];
 let loadedExternalForms = [];
@@ -1684,6 +1688,10 @@ document.getElementById('form-container').addEventListener('input', function() {
 });
 
 window.addEventListener('load', function() {
+    // Reset any stale keyboard state from previous session/refresh
+    document.body.classList.remove('keyboard-open');
+    document.body.style.removeProperty('--viewport-height');
+
     const current = sessionStorage.getItem('firesafe_current');
     if (current) {
         try {
