@@ -1757,30 +1757,41 @@ window.addEventListener('hashchange', function() {
     }
 });
 
-/// Keyboard-aware: simple CSS class + custom property approach
-// Wait for load event + delay to avoid false positives during pull-to-refresh
-window.addEventListener('load', function() {
-    setTimeout(function() {
-        if (window.visualViewport) {
-            var initialHeight = window.screen.height || window.innerHeight;
+/// Keyboard-aware: use focus/blur events instead of visualViewport
+// This is more reliable for PWA standalone mode
+(function() {
+    var keyboardTimeout = null;
 
-            visualViewport.addEventListener('resize', function() {
-                var currentHeight = visualViewport.height;
-                var screenHeight = window.screen.height || initialHeight;
-
-                // Keyboard detection: require input focus AND reduced viewport
-                var activeEl = document.activeElement;
-                var hasInputFocus = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
-                var keyboardOpen = hasInputFocus && currentHeight < screenHeight * 0.75;
-
-                if (keyboardOpen) {
+    function handleFocus(e) {
+        var tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') {
+            // Small delay to let keyboard animation start
+            clearTimeout(keyboardTimeout);
+            keyboardTimeout = setTimeout(function() {
+                if (window.visualViewport) {
                     document.body.classList.add('keyboard-open');
-                    document.body.style.setProperty('--viewport-height', currentHeight + 'px');
-                } else {
+                    document.body.style.setProperty('--viewport-height', visualViewport.height + 'px');
+                }
+            }, 100);
+        }
+    }
+
+    function handleBlur(e) {
+        var tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') {
+            // Delay to handle focus moving between inputs
+            clearTimeout(keyboardTimeout);
+            keyboardTimeout = setTimeout(function() {
+                var activeEl = document.activeElement;
+                var stillInInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+                if (!stillInInput) {
                     document.body.classList.remove('keyboard-open');
                     document.body.style.removeProperty('--viewport-height');
                 }
-            });
+            }, 100);
         }
-    }, 300);
-});
+    }
+
+    document.addEventListener('focusin', handleFocus, true);
+    document.addEventListener('focusout', handleBlur, true);
+})();
