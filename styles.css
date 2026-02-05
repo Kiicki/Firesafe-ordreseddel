@@ -527,6 +527,11 @@ body {
     flex-direction: column;
 }
 
+/* When keyboard is open, extend modal to cover toolbar area */
+body:has(.toolbar.keyboard-open) .modal {
+    bottom: 0;
+}
+
 .modal-content {
     background: white;
     width: 100%;
