@@ -18,7 +18,6 @@ function moveToolbarToModal(modal) {
     if (modalContent) {
         modalContent.appendChild(toolbar);
     }
-    modal.style.bottom = '0';
 }
 
 function moveToolbarBack() {

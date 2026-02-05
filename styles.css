@@ -99,6 +99,11 @@ body {
     position: static;
 }
 
+/* Extend form container when toolbar is static (keyboard open) */
+.container.form-view:has(.toolbar.keyboard-open) {
+    bottom: 0;
+}
+
 .toolbar button {
     flex: 1;
     padding: 10px 6px;
@@ -619,11 +624,7 @@ body.modal-active .container.form-view > .modal-content {
     min-height: 0;
 }
 
-/* When keyboard is open on modal: hide toolbar, extend modal to bottom, let everything scroll */
-.modal.keyboard-scroll {
-    bottom: 0 !important;
-}
-
+/* When keyboard is open on modal: let everything scroll together */
 .modal.keyboard-scroll .modal-content {
     flex: 0 0 auto;
     overflow: visible;
