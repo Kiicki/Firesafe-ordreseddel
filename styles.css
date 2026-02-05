@@ -620,9 +620,19 @@ body.modal-active .container.form-view > .modal-content {
 }
 
 /* When keyboard is open, let entire modal scroll instead of just modal-body */
+.modal.keyboard-scroll .modal-content {
+    flex: 0 0 auto;
+    overflow: visible;
+}
+
 .modal.keyboard-scroll .modal-body {
     overflow-y: visible;
     flex: 0 0 auto;
+}
+
+/* Hide toolbar when modal is active and keyboard is open */
+body.modal-active .toolbar.keyboard-open {
+    display: none;
 }
 
 .template-home-wrapper {

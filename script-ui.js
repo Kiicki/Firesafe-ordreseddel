@@ -2,42 +2,11 @@
 let loadedForms = [];
 let loadedExternalForms = [];
 
-// Toolbar position management
-var toolbarOriginalParent = null;
-
-function moveToolbarToModal(modal) {
-    var toolbar = document.querySelector('.toolbar');
-    if (!toolbar || !modal) return;
-
-    // Store original parent if not stored
-    if (!toolbarOriginalParent) {
-        toolbarOriginalParent = toolbar.parentNode;
-    }
-
-    // Move toolbar to modal and extend modal to bottom
-    modal.appendChild(toolbar);
-    modal.style.bottom = '0';
-}
-
-function moveToolbarBack() {
-    var toolbar = document.querySelector('.toolbar');
-    if (!toolbar || !toolbarOriginalParent) return;
-
-    // Move toolbar back to original position
-    toolbarOriginalParent.appendChild(toolbar);
-
-    // Reset any modal bottom styles
-    document.querySelectorAll('.modal').forEach(function(m) {
-        m.style.bottom = '';
-    });
-}
-
 function closeAllModals() {
     document.querySelectorAll('.modal.active').forEach(function(m) { m.classList.remove('active'); });
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     document.body.classList.remove('modal-active');
-    moveToolbarBack();
 }
 
 function isModalOpen() {
@@ -49,10 +18,8 @@ async function showSavedForms() {
     window.location.hash = 'hent';
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
-    var savedModal = document.getElementById('saved-modal');
-    savedModal.classList.add('active');
+    document.getElementById('saved-modal').classList.add('active');
     document.body.classList.add('modal-active');
-    moveToolbarToModal(savedModal);
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
@@ -209,7 +176,6 @@ function deleteForm(event, index) {
 function closeModal() {
     document.getElementById('saved-modal').classList.remove('active');
     document.body.classList.remove('modal-active');
-    moveToolbarBack();
     document.getElementById('saved-search').value = '';
     document.getElementById('external-search').value = '';
     // Reset to own tab
@@ -628,10 +594,8 @@ async function showTemplateModal() {
     history.replaceState(null, '', window.location.pathname);
     const listEl = document.getElementById('template-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
-    var templateModal = document.getElementById('template-modal');
-    templateModal.classList.add('active');
+    document.getElementById('template-modal').classList.add('active');
     document.body.classList.add('modal-active');
-    moveToolbarToModal(templateModal);
 
     // Track if we need refresh when auth is ready
     pendingAuthRefresh = currentUser ? null : 'templates';
@@ -765,7 +729,6 @@ function closeTemplateModal() {
     }
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active');
-    moveToolbarBack();
     document.getElementById('template-search').value = '';
     // Blank form = #skjema
     window.location.hash = 'skjema';
@@ -790,7 +753,6 @@ function cancelTemplateModal() {
     // If no preNewFormData, stay at home (no hash)
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active');
-    moveToolbarBack();
     document.getElementById('template-search').value = '';
 }
 
@@ -851,16 +813,13 @@ async function showSettingsModal() {
     closeAllModals();
     window.location.hash = 'settings';
     showSettingsMenu();
-    var settingsModal = document.getElementById('settings-modal');
-    settingsModal.classList.add('active');
+    document.getElementById('settings-modal').classList.add('active');
     document.body.classList.add('modal-active');
-    moveToolbarToModal(settingsModal);
 }
 
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.remove('active');
     document.body.classList.remove('modal-active');
-    moveToolbarBack();
     showSettingsMenu();
     // Clear URL hash
     history.replaceState(null, '', window.location.pathname);
