@@ -968,7 +968,7 @@ body.modal-active .container.form-view > .modal-content {
     display: block;
     background: white;
     padding: 15px;
-    padding-bottom: 70px;  /* Space for fixed toolbar when keyboard closed */
+    padding-bottom: 75px;
     width: 100%;
 }
 
@@ -978,8 +978,8 @@ body.modal-active .container.form-view > .modal-content {
     top: 0;
     left: 0;
     right: 0;
-    height: calc(100vh - 60px);
-    height: calc(100dvh - 60px);
+    height: 100vh;
+    height: 100dvh;
     min-height: 0;  /* Override .container min-height */
     background: #fff;
     margin: 0;
@@ -2442,15 +2442,7 @@ body.modal-active .container.form-view > .modal-content {
     }
 }
 
-/* Keyboard open: container/modal extends beyond visible viewport */
-body.keyboard-open .modal,
-body.keyboard-open .container.form-view {
-    height: 150vh;  /* Larger than visible area - user scrolls */
-}
-
-body.keyboard-open .toolbar {
-    position: static;
-}
+/* No special keyboard handling - let browser handle it natively */
 
 /* Base overlay content wrapper */
 .overlay-content {
