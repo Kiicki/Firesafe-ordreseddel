@@ -1692,6 +1692,18 @@ window.addEventListener('load', function() {
     document.body.classList.remove('keyboard-open');
     document.body.style.removeProperty('--viewport-height');
 
+    // Force layout recalculation for PWA (fixes pull-to-refresh rendering issues)
+    setTimeout(function() {
+        // Simulate what keyboard open/close does - this fixes PWA rendering
+        document.body.classList.add('keyboard-open');
+        document.body.style.setProperty('--viewport-height', window.innerHeight + 'px');
+
+        requestAnimationFrame(function() {
+            document.body.classList.remove('keyboard-open');
+            document.body.style.removeProperty('--viewport-height');
+        });
+    }, 50);
+
     const current = sessionStorage.getItem('firesafe_current');
     if (current) {
         try {
