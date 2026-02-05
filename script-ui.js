@@ -2,11 +2,44 @@
 let loadedForms = [];
 let loadedExternalForms = [];
 
+// Toolbar management for modals
+var toolbarOriginalParent = null;
+
+function moveToolbarToModal(modal) {
+    var toolbar = document.querySelector('.toolbar');
+    if (!toolbar || !modal) return;
+
+    if (!toolbarOriginalParent) {
+        toolbarOriginalParent = toolbar.parentNode;
+    }
+
+    // Move toolbar INSIDE modal-content (at the end)
+    var modalContent = modal.querySelector('.modal-content');
+    if (modalContent) {
+        modalContent.appendChild(toolbar);
+    }
+    modal.style.bottom = '0';
+}
+
+function moveToolbarBack() {
+    var toolbar = document.querySelector('.toolbar');
+    if (!toolbar || !toolbarOriginalParent) return;
+
+    toolbarOriginalParent.appendChild(toolbar);
+    document.querySelectorAll('.modal').forEach(function(m) {
+        m.style.bottom = '';
+    });
+}
+
 function closeAllModals() {
-    document.querySelectorAll('.modal.active').forEach(function(m) { m.classList.remove('active'); });
+    document.querySelectorAll('.modal.active').forEach(function(m) {
+        m.classList.remove('active');
+        m.classList.remove('keyboard-scroll');
+    });
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     document.body.classList.remove('modal-active');
+    moveToolbarBack();
 }
 
 function isModalOpen() {
@@ -1750,17 +1783,20 @@ window.addEventListener('hashchange', function() {
             var screenHeight = window.screen.height || initialHeight;
             var keyboardOpen = currentHeight < screenHeight * 0.75;
 
+            var activeModal = document.querySelector('.modal.active');
+
             if (keyboardOpen) {
                 toolbar.classList.add('keyboard-open');
-                // Make entire modal scroll when keyboard is open
-                document.querySelectorAll('.modal.active').forEach(function(m) {
-                    m.classList.add('keyboard-scroll');
-                });
+                if (activeModal) {
+                    activeModal.classList.add('keyboard-scroll');
+                    moveToolbarToModal(activeModal);
+                }
             } else {
                 toolbar.classList.remove('keyboard-open');
                 document.querySelectorAll('.modal').forEach(function(m) {
                     m.classList.remove('keyboard-scroll');
                 });
+                moveToolbarBack();
             }
         });
     }
