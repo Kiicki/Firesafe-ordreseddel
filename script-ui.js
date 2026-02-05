@@ -1463,6 +1463,10 @@ function hasAnyFormData() {
         if (descVal.trim()) return true;
     }
 
+    // Sjekk om det er en signatur
+    const signature = document.getElementById('mobile-kundens-underskrift').value;
+    if (signature) return true;
+
     return false;
 }
 
@@ -1472,6 +1476,11 @@ function clearForm() {
         el.value = '';
         el.removeAttribute('data-full-value');
     });
+
+    // Clear signature
+    document.getElementById('kundens-underskrift').value = '';
+    document.getElementById('mobile-kundens-underskrift').value = '';
+    clearSignaturePreview();
 
     const now = new Date();
     const today = formatDate(now);
@@ -1782,10 +1791,15 @@ window.addEventListener('hashchange', function() {
             var screenHeight = window.screen.height || initialHeight;
             var keyboardOpen = currentHeight < screenHeight * 0.75;
 
-            // Find the current active container
+            // Find the current active container (priority: overlays > modals > form)
+            var textEditor = document.querySelector('.text-editor-modal.active');
+            var pickerOverlay = document.querySelector('.picker-overlay.active');
             var activeModal = document.querySelector('.modal.active');
             var formView = document.querySelector('.container.form-view');
-            var activeContainer = activeModal || formView;
+            var activeContainer = textEditor || pickerOverlay || activeModal || formView;
+
+            // All fullscreen overlays that need height adjustment
+            var allOverlays = [textEditor, pickerOverlay].filter(Boolean);
 
             if (keyboardOpen) {
                 toolbar.classList.add('keyboard-open');
@@ -1797,6 +1811,12 @@ window.addEventListener('hashchange', function() {
                     activeContainer.style.bottom = 'auto';
                     activeContainer.style.top = '0';
                 }
+
+                // Also adjust all active overlays
+                allOverlays.forEach(function(overlay) {
+                    overlay.classList.add('keyboard-open');
+                    overlay.style.height = currentHeight + 'px';
+                });
 
                 if (activeModal) {
                     activeModal.classList.add('keyboard-scroll');
@@ -1818,6 +1838,11 @@ window.addEventListener('hashchange', function() {
                     m.style.height = '';
                     m.style.bottom = '';
                     m.style.top = '';
+                });
+                // Reset overlays
+                document.querySelectorAll('.text-editor-modal, .picker-overlay').forEach(function(o) {
+                    o.classList.remove('keyboard-open');
+                    o.style.height = '';
                 });
                 moveToolbarBack();
             }
