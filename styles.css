@@ -527,16 +527,6 @@ body {
     flex-direction: column;
 }
 
-/* Hide form content when any modal is active */
-body:has(.modal.active) .container.form-view > .modal-content {
-    display: none;
-}
-
-/* Hide toolbar when keyboard is open AND modal is active */
-body:has(.modal.active) .toolbar.keyboard-open {
-    display: none;
-}
-
 .modal-content {
     background: white;
     width: 100%;
