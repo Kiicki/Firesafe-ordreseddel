@@ -527,9 +527,9 @@ body {
     flex-direction: column;
 }
 
-/* When keyboard is open, extend modal to cover toolbar area */
-body:has(.toolbar.keyboard-open) .modal {
-    bottom: 0;
+/* Hide form content when modal is active (JS adds this class) */
+body.modal-active .container.form-view > .modal-content {
+    display: none;
 }
 
 .modal-content {

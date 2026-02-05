@@ -6,6 +6,7 @@ function closeAllModals() {
     document.querySelectorAll('.modal.active').forEach(function(m) { m.classList.remove('active'); });
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
+    document.body.classList.remove('modal-active');
 }
 
 function isModalOpen() {
@@ -18,6 +19,7 @@ async function showSavedForms() {
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
+    document.body.classList.add('modal-active');
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
@@ -173,6 +175,7 @@ function deleteForm(event, index) {
 
 function closeModal() {
     document.getElementById('saved-modal').classList.remove('active');
+    document.body.classList.remove('modal-active');
     document.getElementById('saved-search').value = '';
     document.getElementById('external-search').value = '';
     // Reset to own tab
@@ -592,6 +595,7 @@ async function showTemplateModal() {
     const listEl = document.getElementById('template-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('template-modal').classList.add('active');
+    document.body.classList.add('modal-active');
 
     // Track if we need refresh when auth is ready
     pendingAuthRefresh = currentUser ? null : 'templates';
@@ -653,6 +657,7 @@ function loadTemplate(index) {
     autoFillOrderNumber();
 
     document.getElementById('template-modal').classList.remove('active');
+    document.body.classList.remove('modal-active');
     document.getElementById('template-search').value = '';
     // Template loaded = regular form
     window.location.hash = 'skjema';
@@ -723,6 +728,7 @@ function closeTemplateModal() {
         autoFillDefaults();
     }
     document.getElementById('template-modal').classList.remove('active');
+    document.body.classList.remove('modal-active');
     document.getElementById('template-search').value = '';
     // Blank form = #skjema
     window.location.hash = 'skjema';
@@ -746,6 +752,7 @@ function cancelTemplateModal() {
     }
     // If no preNewFormData, stay at home (no hash)
     document.getElementById('template-modal').classList.remove('active');
+    document.body.classList.remove('modal-active');
     document.getElementById('template-search').value = '';
 }
 
@@ -807,10 +814,12 @@ async function showSettingsModal() {
     window.location.hash = 'settings';
     showSettingsMenu();
     document.getElementById('settings-modal').classList.add('active');
+    document.body.classList.add('modal-active');
 }
 
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.remove('active');
+    document.body.classList.remove('modal-active');
     showSettingsMenu();
     // Clear URL hash
     history.replaceState(null, '', window.location.pathname);
@@ -1381,6 +1390,7 @@ function updateExternalBadge() {
 
 function startExternalOrder() {
     document.getElementById('template-modal').classList.remove('active');
+    document.body.classList.remove('modal-active');
     document.getElementById('template-search').value = '';
     if (preNewFormData) {
         clearForm();
@@ -1728,7 +1738,7 @@ window.addEventListener('hashchange', function() {
     }
 });
 
-/// Keyboard-aware toolbar: sticky when no keyboard, static when keyboard open
+/// Keyboard-aware: toolbar becomes static, modals extend to bottom
 (function() {
     var toolbar = document.querySelector('.toolbar');
     if (!toolbar) return;
@@ -1738,10 +1748,20 @@ window.addEventListener('hashchange', function() {
         visualViewport.addEventListener('resize', function() {
             var currentHeight = visualViewport.height;
             var screenHeight = window.screen.height || initialHeight;
-            if (currentHeight < screenHeight * 0.75) {
+            var keyboardOpen = currentHeight < screenHeight * 0.75;
+
+            if (keyboardOpen) {
                 toolbar.classList.add('keyboard-open');
+                // Extend active modals to cover toolbar area
+                document.querySelectorAll('.modal.active').forEach(function(m) {
+                    m.style.bottom = '0';
+                });
             } else {
                 toolbar.classList.remove('keyboard-open');
+                // Reset modals to leave space for toolbar
+                document.querySelectorAll('.modal.active').forEach(function(m) {
+                    m.style.bottom = '';
+                });
             }
         });
     }
