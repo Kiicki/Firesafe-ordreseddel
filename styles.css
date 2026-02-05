@@ -968,7 +968,7 @@ body.modal-active .container.form-view > .modal-content {
     display: block;
     background: white;
     padding: 15px;
-    padding-bottom: 15px;
+    padding-bottom: 70px;  /* Space for fixed toolbar when keyboard closed */
     width: 100%;
 }
 
@@ -2440,11 +2440,16 @@ body.modal-active .container.form-view > .modal-content {
     body {
         padding: 5px;
     }
-    /* Toolbar in document flow on mobile - user scrolls to it */
-    .toolbar {
-        position: static;
-        margin-top: auto;
-    }
+}
+
+/* Keyboard open: elements in document flow, user scrolls to see them */
+body.keyboard-open .toolbar {
+    position: static;
+    margin-top: auto;
+}
+
+body.keyboard-open .modal {
+    height: 100vh;  /* Full height, not dvh - user scrolls */
 }
 
 /* Base overlay content wrapper */

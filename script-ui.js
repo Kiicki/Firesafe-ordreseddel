@@ -1759,3 +1759,31 @@ window.addEventListener('hashchange', function() {
     }
 });
 
+// Keyboard detection: toggle body.keyboard-open class
+// When keyboard open: toolbar/modal become scrollable (not fixed over keyboard)
+// When keyboard closed: toolbar fixed at bottom, modal fits viewport
+(function() {
+    var keyboardTimeout = null;
+
+    function handleFocus(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            clearTimeout(keyboardTimeout);
+            document.body.classList.add('keyboard-open');
+        }
+    }
+
+    function handleBlur(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            clearTimeout(keyboardTimeout);
+            keyboardTimeout = setTimeout(function() {
+                var active = document.activeElement;
+                if (!active || (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA')) {
+                    document.body.classList.remove('keyboard-open');
+                }
+            }, 100);
+        }
+    }
+
+    document.addEventListener('focusin', handleFocus, true);
+    document.addEventListener('focusout', handleBlur, true);
+})();
