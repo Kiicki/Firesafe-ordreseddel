@@ -97,15 +97,24 @@ body {
 
 .toolbar.keyboard-open {
     position: static;
+    margin-top: 0 !important;
 }
 
-/* Remove padding when keyboard is open (toolbar is static) */
+/* Remove padding/margin when keyboard is open (toolbar is static) */
 .container.keyboard-open {
-    padding-bottom: 0;
+    padding-bottom: 0 !important;
 }
 
 .container.keyboard-open .mobile-form {
-    padding-bottom: 0;
+    padding-bottom: 0 !important;
+}
+
+.container.keyboard-open .mobile-section {
+    margin-bottom: 0 !important;
+}
+
+.container.keyboard-open .mobile-section:last-child {
+    margin-bottom: 0 !important;
 }
 
 .toolbar button {
