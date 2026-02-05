@@ -99,6 +99,15 @@ body {
     position: static;
 }
 
+/* Remove padding when keyboard is open (toolbar is static) */
+.container.keyboard-open {
+    padding-bottom: 0;
+}
+
+.container.keyboard-open .mobile-form {
+    padding-bottom: 0;
+}
+
 .toolbar button {
     flex: 1;
     padding: 10px 6px;

@@ -1791,6 +1791,7 @@ window.addEventListener('hashchange', function() {
                 toolbar.classList.add('keyboard-open');
 
                 if (activeContainer) {
+                    activeContainer.classList.add('keyboard-open');
                     // Same fix for ALL containers
                     activeContainer.style.height = currentHeight + 'px';
                     activeContainer.style.bottom = 'auto';
@@ -1806,12 +1807,14 @@ window.addEventListener('hashchange', function() {
 
                 // Reset ALL containers
                 if (formView) {
+                    formView.classList.remove('keyboard-open');
                     formView.style.height = '';
                     formView.style.bottom = '';
                     formView.style.top = '';
                 }
                 document.querySelectorAll('.modal').forEach(function(m) {
                     m.classList.remove('keyboard-scroll');
+                    m.classList.remove('keyboard-open');
                     m.style.height = '';
                     m.style.bottom = '';
                     m.style.top = '';
