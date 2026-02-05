@@ -491,7 +491,7 @@ body {
 }
 
 .footer-bottom {
-    display: flex;
+    display: none;
     font-size: 10px;
     padding: 4px 40px;
 }
@@ -507,6 +507,7 @@ body {
 }
 
 .footer-staples {
+    display: none;
     text-align: center;
     font-size: 10px;
     padding: 8px;
@@ -986,6 +987,12 @@ body.modal-active .container.form-view > .modal-content {
     body {
         background: white;
         padding: 0;
+    }
+    .footer-bottom {
+        display: flex !important;
+    }
+    .footer-staples {
+        display: block !important;
     }
 }
 
