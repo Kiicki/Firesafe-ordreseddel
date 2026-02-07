@@ -111,6 +111,32 @@ body.keyboard-open .toolbar {
     box-shadow: none;
 }
 
+/* Dark overlay on toolbar when popup is active */
+.toolbar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+body:has(.confirm-modal.active) .toolbar::before,
+body:has(#action-popup.active) .toolbar::before {
+    opacity: 1;
+}
+
+/* When overlay is active, reset disabled button opacity so all buttons look uniform */
+body:has(.confirm-modal.active) .toolbar button:disabled,
+body:has(#action-popup.active) .toolbar button:disabled {
+    opacity: 1;
+    transition: none;
+}
+
 .toolbar button {
     flex: 1;
     padding: 10px 6px;
@@ -592,23 +618,10 @@ body.keyboard-open #settings-modal.active {
     overflow-y: visible;
 }
 
-/* Hide toolbar when modal or overlay is active (except template-modal, saved-modal, settings-modal) */
-body.modal-active:not(.template-modal-open):not(.saved-modal-open):not(.settings-modal-open) .toolbar,
+/* Hide toolbar when fullscreen overlay is active */
 .text-editor-modal.active ~ .toolbar,
-.picker-overlay.active ~ .toolbar,
-.signature-overlay.active ~ .toolbar,
-.confirm-modal.active ~ .toolbar {
+.signature-overlay.active ~ .toolbar {
     display: none;
-}
-
-/* White background when toolbar is hidden (prevents gray showing through) */
-body:has(.text-editor-modal.active),
-body:has(.picker-overlay.active),
-body:has(.signature-overlay.active),
-body:has(.confirm-modal.active),
-body:has(#action-popup.active) {
-    padding-bottom: 0;
-    background: white;
 }
 
 /* Hide form content when modal is active (JS adds this class) */
@@ -909,7 +922,7 @@ body.modal-active .container.form-view > .modal-content {
 }
 
 .saved-item-action-btn.disabled {
-    opacity: 0.25;
+    opacity: 0.4;
     cursor: default;
 }
 
@@ -2050,6 +2063,9 @@ body.modal-active .container.form-view > .modal-content {
 #settings-modal .modal-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 16px 16px 0 16px !important;
 }
 
 .settings-page-with-footer[style*="block"] {
@@ -2057,19 +2073,21 @@ body.modal-active .container.form-view > .modal-content {
     flex-direction: column;
     flex: 1;
     min-height: 0;
+    height: 100%;
 }
 
 .settings-page-scroll {
     flex: 1;
     overflow-y: auto;
-    padding-bottom: 16px;
+    padding-bottom: 8px;
 }
 
 .settings-page-footer {
     flex-shrink: 0;
-    padding: 16px 0;
+    padding: 12px 0 16px 0;
     background: #fff;
     border-top: 1px solid #eee;
+    margin-top: auto;
 }
 
 body.keyboard-open .settings-page-footer {
@@ -2428,6 +2446,23 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-default-label input:focus {
     outline: none;
     border-color: #E8501A;
+}
+
+/* Two-column grid for default values on larger screens */
+.settings-defaults-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+}
+
+@media screen and (min-width: 500px) {
+    .settings-defaults-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 0 12px;
+    }
+    .settings-default-full {
+        grid-column: 1 / -1;
+    }
 }
 
 /* Language settings */

@@ -90,9 +90,13 @@ async function showSavedForms() {
 
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
 
-            const actionBtn = isSent
+            const copyBtn = isSent
                 ? `<button class="saved-item-action-btn copy disabled" title="${t('duplicate_btn')}">${copyIcon}</button>`
                 : `<button class="saved-item-action-btn copy" title="${t('duplicate_btn')}">${copyIcon}</button>`;
+
+            const deleteBtn = isSent
+                ? `<button class="saved-item-action-btn delete disabled" title="${t('delete_btn')}">${deleteIcon}</button>`
+                : `<button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>`;
 
             return `
                 <div class="saved-item" data-index="${index}">
@@ -101,8 +105,8 @@ async function showSavedForms() {
                         ${dato ? `<div class="saved-item-date">${dato}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        ${actionBtn}
-                        <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
+                        ${copyBtn}
+                        ${deleteBtn}
                     </div>
                 </div>
             `;
@@ -1806,7 +1810,8 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
     const btn = e.target.closest('button');
     if (btn) {
         e.stopPropagation();
-        if (btn.classList.contains('copy') && !btn.classList.contains('disabled')) {
+        if (btn.classList.contains('disabled')) return;
+        if (btn.classList.contains('copy')) {
             duplicateFormDirect(savedItem._formData);
         } else if (btn.classList.contains('delete')) {
             deleteFormDirect(savedItem._formData);
