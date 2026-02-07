@@ -80,10 +80,47 @@ async function showSavedForms() {
 }
 
 function setFormReadOnly(readOnly) {
+    // Disable all form fields
     const fields = document.querySelectorAll('#mobile-form input, #mobile-form textarea, #mobile-form select, #form-container input, #form-container textarea, #form-container select');
     fields.forEach(el => el.disabled = readOnly);
+
+    // Disable save button
     document.querySelector('.btn-save').disabled = readOnly;
+
+    // Show/hide sent banner
     document.getElementById('sent-banner').style.display = readOnly ? 'block' : 'none';
+
+    // Disable signature editing
+    const signaturePreview = document.getElementById('mobile-signature-preview');
+    if (signaturePreview) {
+        signaturePreview.style.pointerEvents = readOnly ? 'none' : '';
+        signaturePreview.style.opacity = readOnly ? '0.6' : '';
+    }
+
+    // Disable "add order" button
+    const addOrderBtn = document.querySelector('.mobile-add-line-btn');
+    if (addOrderBtn) {
+        addOrderBtn.disabled = readOnly;
+        addOrderBtn.style.opacity = readOnly ? '0.5' : '';
+    }
+
+    // Disable all "delete order" buttons
+    document.querySelectorAll('.mobile-order-header-delete').forEach(btn => {
+        btn.disabled = readOnly;
+        btn.style.opacity = readOnly ? '0.3' : '';
+        btn.style.pointerEvents = readOnly ? 'none' : '';
+    });
+
+    // Disable all "add material" buttons
+    document.querySelectorAll('.mobile-add-mat-btn').forEach(btn => {
+        btn.disabled = readOnly;
+        btn.style.opacity = readOnly ? '0.5' : '';
+    });
+
+    // Disable clicking on material rows to edit
+    document.querySelectorAll('.mobile-material-row').forEach(row => {
+        row.style.pointerEvents = readOnly ? 'none' : '';
+    });
 }
 
 function loadForm(index) {
