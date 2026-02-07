@@ -2446,30 +2446,34 @@ body.modal-active .container.form-view > .modal-content {
 /* Toolbar er nå SIST i DOM (etter alle modals), så den vises alltid på bunnen */
 
 body.keyboard-open .toolbar {
-    position: static;
+    position: static !important;
 }
 
 body.keyboard-open .modal {
-    position: static;
-    height: auto;
+    position: static !important;
+    height: auto !important;
 }
 
 body.keyboard-open .modal-content {
-    flex: none;
+    flex: none !important;
 }
 
 body.keyboard-open .modal-body {
-    flex: none;
-    overflow: visible;
+    flex: none !important;
+    overflow: visible !important;
+}
+
+body.keyboard-open .modal-footer-skip {
+    position: static !important;
 }
 
 body.keyboard-open .container.form-view {
-    position: static;
-    height: auto;
+    position: static !important;
+    height: auto !important;
 }
 
 body.keyboard-open .mobile-form {
-    padding-bottom: 15px;
+    padding-bottom: 15px !important;
 }
 
 /* Base overlay content wrapper */

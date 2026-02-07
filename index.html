@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-    <title>Firesafe Ordreseddel</title>
+    <title>TEST LOKAL 12345</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
@@ -16,6 +16,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+    <div style="background:red;color:white;padding:10px;text-align:center;font-weight:bold;">TEST - LOKAL VERSJON</div>
     <div class="loading" id="loading" data-i18n="generating_file">Genererer fil...</div>
 
     <div class="container form-view">
@@ -283,7 +284,7 @@
     <div class="modal" id="template-modal" onclick="cancelTemplateModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="top-bar">
-                <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login">Logg inn</button>
+                <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login">LOKAL TEST 123</button>
             </div>
             <div class="template-home-wrapper">
                 <div class="mobile-form-header">
@@ -318,6 +319,7 @@
                 <span id="settings-header-title" data-i18n="settings_title">Innstillinger</span>
             </div>
             <div class="modal-body" style="padding: 16px;">
+                <div style="background:red;color:white;padding:10px;margin-bottom:10px;">LOKAL VERSJON AKTIV</div>
                 <!-- Hovedmeny -->
                 <div id="settings-page-menu" class="settings-page">
                     <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">

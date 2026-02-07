@@ -1,7 +1,7 @@
 {
   "name": "Firesafe Ordreseddel",
   "short_name": "Ordreseddel",
-  "start_url": "/Firesafe-ordreseddel/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#E8501A",

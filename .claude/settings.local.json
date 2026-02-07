@@ -23,7 +23,14 @@
       "Bash(git pull:*)",
       "Bash(git stash:*)",
       "Bash(git push:*)",
-      "Bash(ipconfig getifaddr:*)"
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(curl:*)",
+      "Bash(brew list:*)",
+      "Bash(brew install:*)",
+      "Bash(/tmp/ngrok version:*)",
+      "Bash(lsof:*)",
+      "Bash(echo:*)",
+      "Bash(/tmp/ngrok config add-authtoken:*)"
     ]
   }
 }

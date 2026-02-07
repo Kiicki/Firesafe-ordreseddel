@@ -1685,13 +1685,31 @@ document.getElementById('form-container').addEventListener('input', function() {
 
 window.addEventListener('load', function() {
     // PWA pull-to-refresh workaround: Chrome PWA har en rendering-bug som gjør at
-    // noen elementer ikke vises etter refresh. Ved å endre opacity tvinger vi
-    // browser til å re-kalkulere layout.
+    // noen elementer ikke vises etter refresh. Tvinger re-kalkulering av layout.
     setTimeout(function() {
+        // Generell reflow
         document.body.style.opacity = '0.999';
         requestAnimationFrame(function() {
             document.body.style.opacity = '';
         });
+
+        // Spesifikk fix for modal-footer-skip (Blankt skjema/Ekstern knapper)
+        var footerSkip = document.querySelector('.modal-footer-skip');
+        if (footerSkip) {
+            footerSkip.style.display = 'none';
+            requestAnimationFrame(function() {
+                footerSkip.style.display = '';
+            });
+        }
+
+        // Fix for toolbar
+        var toolbar = document.querySelector('.toolbar');
+        if (toolbar) {
+            toolbar.style.display = 'none';
+            requestAnimationFrame(function() {
+                toolbar.style.display = '';
+            });
+        }
     }, 50);
 
     const current = sessionStorage.getItem('firesafe_current');
@@ -1762,9 +1780,12 @@ window.addEventListener('hashchange', function() {
 // Keyboard detection: toggle body.keyboard-open class
 // When keyboard open: toolbar/modal become scrollable (not fixed over keyboard)
 // When keyboard closed: toolbar fixed at bottom, modal fits viewport
+// Special handling for PWA standalone mode where viewport behaves differently
 (function() {
     var keyboardTimeout = null;
-    var lastViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    var initialHeight = window.innerHeight;
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone;
 
     function handleFocus(e) {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -1785,24 +1806,35 @@ window.addEventListener('hashchange', function() {
         }
     }
 
-    // Backup: detect keyboard close via viewport resize
-    // When keyboard closes, viewport height increases significantly
+    // For PWA standalone: use visualViewport to detect keyboard state
     function handleViewportResize() {
-        var currentHeight = window.visualViewport.height;
-        var heightDiff = currentHeight - lastViewportHeight;
+        if (!window.visualViewport) return;
 
-        // If viewport grew by more than 100px, keyboard likely closed
-        if (heightDiff > 100) {
-            document.body.classList.remove('keyboard-open');
+        var viewportHeight = window.visualViewport.height;
+        var screenHeight = window.innerHeight;
+
+        // Keyboard is likely open if viewport is less than 75% of screen height
+        var keyboardOpen = viewportHeight < screenHeight * 0.75;
+
+        if (keyboardOpen) {
+            document.body.classList.add('keyboard-open');
+        } else {
+            // Small delay to avoid flicker
+            setTimeout(function() {
+                var active = document.activeElement;
+                var stillInInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+                // Only remove if not focused on input OR viewport is back to normal
+                if (!stillInInput || window.visualViewport.height >= screenHeight * 0.9) {
+                    document.body.classList.remove('keyboard-open');
+                }
+            }, 50);
         }
-
-        lastViewportHeight = currentHeight;
     }
 
     document.addEventListener('focusin', handleFocus, true);
     document.addEventListener('focusout', handleBlur, true);
 
-    // Add viewport resize listener if available
+    // Use visualViewport for more reliable keyboard detection (especially in PWA standalone)
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', handleViewportResize);
     }
