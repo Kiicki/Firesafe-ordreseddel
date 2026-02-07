@@ -1945,14 +1945,16 @@ window.addEventListener('load', function() {
 // Handle browser back/forward buttons
 window.addEventListener('hashchange', function() {
     const hash = window.location.hash.slice(1);
-    closeAllModals();
+    // Don't close modals for hent/settings - those functions handle it themselves
     if (hash === 'hent') {
         showSavedForms();
     } else if (hash === 'settings') {
         showSettingsModal();
     } else if (hash === 'skjema') {
+        closeAllModals();
         document.getElementById('form-header-title').textContent = t('form_title');
     } else if (hash === 'ekstern') {
+        closeAllModals();
         document.getElementById('form-header-title').textContent = t('external_form_title');
     } else {
         // No hash = home = template modal
