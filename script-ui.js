@@ -749,7 +749,7 @@ function loadTemplate(index) {
     loadTemplateDirect(template);
 }
 
-function loadTemplateDirect(template) {
+async function loadTemplateDirect(template) {
     if (!template) return;
 
     preNewFormData = null;
@@ -769,7 +769,7 @@ function loadTemplateDirect(template) {
     document.getElementById('mobile-avdeling').value = template.avdeling || '';
     document.getElementById('mobile-sted').value = template.sted || '';
 
-    autoFillOrderNumber();
+    await autoFillOrderNumber();
 
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active', 'template-modal-open');
@@ -839,13 +839,13 @@ async function duplicateTemplate(index) {
     showTemplateModal();
 }
 
-function closeTemplateModal() {
+async function closeTemplateModal() {
     // Always clear and initialize form for blank form
     clearForm();
     preNewFormData = null;
     setFormReadOnly(false);
-    autoFillOrderNumber();
-    autoFillDefaults();
+    await autoFillOrderNumber();
+    await autoFillDefaults();
 
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active', 'template-modal-open');
