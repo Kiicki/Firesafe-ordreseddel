@@ -1,6 +1,7 @@
 // Cache for loaded forms (to use with index-based functions)
-let loadedForms = [];
-let loadedExternalForms = [];
+// Use window scope to ensure consistency
+if (!window.loadedForms) window.loadedForms = [];
+if (!window.loadedExternalForms) window.loadedExternalForms = [];
 
 // Helper: format date with time
 function formatDateWithTime(date) {
@@ -47,9 +48,17 @@ function updateToolbarState() {
     }
 }
 
+let showSavedFormsRunning = false;
+
 async function showSavedForms() {
+    if (showSavedFormsRunning) return;
+    showSavedFormsRunning = true;
+
     closeAllModals();
-    window.location.hash = 'hent';
+    // Only set hash if different to avoid triggering hashchange
+    if (window.location.hash !== '#hent') {
+        window.location.hash = 'hent';
+    }
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
@@ -68,12 +77,13 @@ async function showSavedForms() {
 
     const saved = await getSavedForms();
     const sent = await getSentForms();
-    loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
+    window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
+    showSavedFormsRunning = false;
 
-    if (loadedForms.length === 0) {
+    if (window.loadedForms.length === 0) {
         listEl.innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
     } else {
-        listEl.innerHTML = loadedForms.map((item, index) => {
+        listEl.innerHTML = window.loadedForms.map((item, index) => {
             const ordrenr = item.ordreseddelNr || '';
             const dato = formatDateWithTime(item.savedAt);
             const isSent = item._isSent;
@@ -81,22 +91,27 @@ async function showSavedForms() {
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
 
             const actionBtn = isSent
-                ? `<button class="saved-item-action-btn copy disabled" onclick="event.stopPropagation()" disabled title="${t('duplicate_btn')}">${copyIcon}</button>`
-                : `<button class="saved-item-action-btn copy" onclick="event.stopPropagation(); duplicateForm(null, ${index})" title="${t('duplicate_btn')}">${copyIcon}</button>`;
+                ? `<button class="saved-item-action-btn copy disabled" title="${t('duplicate_btn')}">${copyIcon}</button>`
+                : `<button class="saved-item-action-btn copy" title="${t('duplicate_btn')}">${copyIcon}</button>`;
 
             return `
-                <div class="saved-item" onclick="loadForm(${index})">
+                <div class="saved-item" data-index="${index}">
                     <div class="saved-item-info">
                         <div class="saved-item-row1">${dot}${ordrenr || t('no_name')}</div>
                         ${dato ? `<div class="saved-item-date">${dato}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
                         ${actionBtn}
-                        <button class="saved-item-action-btn delete" onclick="event.stopPropagation(); deleteForm(null, ${index})" title="${t('delete_btn')}">${deleteIcon}</button>
+                        <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
                     </div>
                 </div>
             `;
         }).join('');
+
+        // Store form data directly on DOM elements
+        listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+            el._formData = window.loadedForms[i];
+        });
     }
 }
 
@@ -145,25 +160,35 @@ function setFormReadOnly(readOnly) {
 }
 
 function loadForm(index) {
-    if (loadedForms[index]) {
-        setFormData(loadedForms[index]);
-        lastSavedData = getFormDataSnapshot();
-        const isSent = !!loadedForms[index]._isSent;
-        setFormReadOnly(isSent);
-        sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
-        closeModal();
-        // Set hash based on form type
-        window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
-        sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-        // Update form header title
-        document.getElementById('form-header-title').textContent = t(isExternalForm ? 'external_form_title' : 'form_title');
-        window.scrollTo(0, 0);
+    if (window.loadedForms[index]) {
+        loadFormDirect(window.loadedForms[index]);
     }
+}
+
+function loadFormDirect(formData) {
+    if (!formData) return;
+    setFormData(formData);
+    lastSavedData = getFormDataSnapshot();
+    const isSent = !!formData._isSent;
+    setFormReadOnly(isSent);
+    sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
+    closeModal();
+    // Set hash based on form type
+    window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    // Update form header title
+    document.getElementById('form-header-title').textContent = t(isExternalForm ? 'external_form_title' : 'form_title');
+    window.scrollTo(0, 0);
 }
 
 async function duplicateForm(event, index) {
     if (event) event.stopPropagation();
-    const form = loadedForms[index];
+    const form = window.loadedForms[index];
+    if (!form) return;
+    await duplicateFormDirect(form);
+}
+
+async function duplicateFormDirect(form) {
     if (!form) return;
 
     setFormData(form);
@@ -211,7 +236,12 @@ async function duplicateForm(event, index) {
 
 function deleteForm(event, index) {
     if (event) event.stopPropagation();
-    const form = loadedForms[index];
+    const form = window.loadedForms[index];
+    if (!form) return;
+    deleteFormDirect(form);
+}
+
+function deleteFormDirect(form) {
     if (!form) return;
     const isSent = form._isSent;
     const confirmMsg = isSent ? t('delete_sent_confirm') : t('delete_confirm');
@@ -284,7 +314,7 @@ function showItemMenu(event, type, index, isSent) {
     var actions = [];
     var title = '';
     if (type === 'form') {
-        var form = loadedForms[index];
+        var form = window.loadedForms[index];
         if (form) title = form.ordreseddelNr || '';
         if (isSent) {
             actions.push({ label: t('sent_banner_move'), onclick: 'moveToSaved(null, ' + index + ')' });
@@ -293,11 +323,11 @@ function showItemMenu(event, type, index, isSent) {
         }
         actions.push({ label: t('delete_btn'), onclick: 'deleteForm(null, ' + index + ')', disabled: isSent });
     } else if (type === 'external') {
-        var extForm = loadedExternalForms[index];
+        var extForm = window.loadedExternalForms[index];
         if (extForm) title = extForm.ordreseddelNr || '';
         actions.push({ label: t('delete_btn'), onclick: 'deleteExternalForm(null, ' + index + ')' });
     } else if (type === 'template') {
-        var tmpl = loadedTemplates[index];
+        var tmpl = window.loadedTemplates[index];
         if (tmpl) {
             title = [tmpl.prosjektnavn, tmpl.oppdragsgiver, tmpl.prosjektnr].filter(function(x) { return x; }).join(' • ');
         }
@@ -460,7 +490,7 @@ async function moveCurrentToSaved() {
 function moveToSaved(event, index) {
     if (event) event.stopPropagation();
     showConfirmModal(t('move_to_saved_confirm'), async function() {
-        const form = loadedForms[index];
+        const form = window.loadedForms[index];
         if (!form) return;
 
         if (currentUser && db) {
@@ -501,12 +531,12 @@ async function loadExternalTab() {
 
     const forms = await getExternalForms();
     const sentForms = await getExternalSentForms();
-    loadedExternalForms = forms.concat(sentForms.map(f => ({ ...f, _isSent: true })));
+    window.loadedExternalForms = forms.concat(sentForms.map(f => ({ ...f, _isSent: true })));
 
-    if (loadedExternalForms.length === 0) {
+    if (window.loadedExternalForms.length === 0) {
         listEl.innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
     } else {
-        listEl.innerHTML = loadedExternalForms.map((item, index) => {
+        listEl.innerHTML = window.loadedExternalForms.map((item, index) => {
             const ordrenr = item.ordreseddelNr || '';
             const dato = formatDateWithTime(item.savedAt);
             const isSent = item._isSent;
@@ -514,22 +544,32 @@ async function loadExternalTab() {
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
 
             return `
-                <div class="saved-item" onclick="loadExternalForm(${index})">
+                <div class="saved-item" data-index="${index}">
                     <div class="saved-item-info">
                         <div class="saved-item-row1">${dot}${ordrenr || t('no_name')}</div>
                         ${dato ? `<div class="saved-item-date">${dato}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-action-btn delete" onclick="event.stopPropagation(); deleteExternalForm(null, ${index})" title="${t('delete_btn')}">${deleteIcon}</button>
+                        <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
                     </div>
                 </div>
             `;
         }).join('');
+
+        // Store form data directly on DOM elements
+        listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+            el._formData = window.loadedExternalForms[i];
+        });
     }
 }
 
 function loadExternalForm(index) {
-    const form = loadedExternalForms[index];
+    const form = window.loadedExternalForms[index];
+    if (!form) return;
+    loadExternalFormDirect(form);
+}
+
+function loadExternalFormDirect(form) {
     if (!form) return;
     setFormData(form);
     lastSavedData = getFormDataSnapshot();
@@ -547,7 +587,12 @@ function loadExternalForm(index) {
 
 function deleteExternalForm(event, index) {
     if (event) event.stopPropagation();
-    const form = loadedExternalForms[index];
+    const form = window.loadedExternalForms[index];
+    if (!form) return;
+    deleteExternalFormDirect(form);
+}
+
+function deleteExternalFormDirect(form) {
     if (!form) return;
     const isSent = form._isSent;
     const confirmMsg = isSent ? t('delete_sent_confirm') : t('delete_confirm');
@@ -591,7 +636,7 @@ function closeSentModal() {
 // PROSJEKTMALER
 // ============================================
 
-let loadedTemplates = [];
+if (!window.loadedTemplates) window.loadedTemplates = [];
 
 async function getTemplates() {
     if (currentUser && db) {
@@ -661,7 +706,7 @@ async function showTemplateModal() {
     pendingAuthRefresh = currentUser ? null : 'templates';
 
     const templates = await getTemplates();
-    loadedTemplates = templates;
+    window.loadedTemplates = templates;
 
     if (templates.length === 0) {
         listEl.innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
@@ -671,17 +716,22 @@ async function showTemplateModal() {
             const row2 = [item.oppdragsgiver, item.prosjektnr].filter(x => x).join(' • ');
 
             return `
-                <div class="saved-item" onclick="loadTemplate(${index})">
+                <div class="saved-item" data-index="${index}">
                     <div class="saved-item-info">
                         <div class="saved-item-row1">${row1}</div>
                         ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
                     </div>
                     <div class="saved-item-buttons">
-                        <button class="saved-item-action-btn delete" onclick="event.stopPropagation(); deleteTemplate(null, ${index})" title="${t('delete_btn')}">${deleteIcon}</button>
+                        <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
                     </div>
                 </div>
             `;
         }).join('');
+
+        // Store template data directly on DOM elements
+        listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+            el._formData = window.loadedTemplates[i];
+        });
     }
 }
 
@@ -694,7 +744,12 @@ async function autoFillOrderNumber() {
 }
 
 function loadTemplate(index) {
-    const template = loadedTemplates[index];
+    const template = window.loadedTemplates[index];
+    if (!template) return;
+    loadTemplateDirect(template);
+}
+
+function loadTemplateDirect(template) {
     if (!template) return;
 
     preNewFormData = null;
@@ -730,10 +785,14 @@ function loadTemplate(index) {
 
 function deleteTemplate(event, index) {
     if (event) event.stopPropagation();
-    showConfirmModal(t('template_delete_confirm'), async function() {
-        const template = loadedTemplates[index];
-        if (!template) return;
+    const template = window.loadedTemplates[index];
+    if (!template) return;
+    deleteTemplateDirect(template);
+}
 
+function deleteTemplateDirect(template) {
+    if (!template) return;
+    showConfirmModal(t('template_delete_confirm'), async function() {
         if (currentUser && db) {
             try {
                 await db.collection('users').doc(currentUser.uid).collection('templates').doc(template.id).delete();
@@ -753,7 +812,7 @@ function deleteTemplate(event, index) {
 }
 
 async function duplicateTemplate(index) {
-    const template = loadedTemplates[index];
+    const template = window.loadedTemplates[index];
     if (!template) return;
 
     const copy = Object.assign({}, template);
@@ -1734,6 +1793,73 @@ document.getElementById('saved-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
 
+// Event delegation for saved-list items
+document.getElementById('saved-list').addEventListener('click', function(e) {
+    const savedItem = e.target.closest('.saved-item');
+    if (!savedItem) return;
+
+    // Get form data directly from the element
+    const formData = savedItem._formData;
+    if (!formData) return;
+
+    // Check if click was on a button
+    const btn = e.target.closest('button');
+    if (btn) {
+        e.stopPropagation();
+        if (btn.classList.contains('copy') && !btn.classList.contains('disabled')) {
+            duplicateFormDirect(savedItem._formData);
+        } else if (btn.classList.contains('delete')) {
+            deleteFormDirect(savedItem._formData);
+        }
+        return;
+    }
+
+    // Click on item row - load the form
+    loadFormDirect(savedItem._formData);
+});
+
+// Event delegation for external-list items
+document.getElementById('external-list').addEventListener('click', function(e) {
+    const savedItem = e.target.closest('.saved-item');
+    if (!savedItem) return;
+
+    // Get form data directly from the element
+    const formData = savedItem._formData;
+    if (!formData) return;
+
+    // Check if click was on delete button
+    const btn = e.target.closest('button');
+    if (btn && btn.classList.contains('delete')) {
+        e.stopPropagation();
+        deleteExternalFormDirect(formData);
+        return;
+    }
+
+    // Click on item row - load the form
+    loadExternalFormDirect(formData);
+});
+
+// Event delegation for template-list items
+document.getElementById('template-list').addEventListener('click', function(e) {
+    const savedItem = e.target.closest('.saved-item');
+    if (!savedItem) return;
+
+    // Get template data directly from the element
+    const templateData = savedItem._formData;
+    if (!templateData) return;
+
+    // Check if click was on delete button
+    const btn = e.target.closest('button');
+    if (btn && btn.classList.contains('delete')) {
+        e.stopPropagation();
+        deleteTemplateDirect(templateData);
+        return;
+    }
+
+    // Click on item row - load the template
+    loadTemplateDirect(templateData);
+});
+
 
 document.getElementById('template-modal').addEventListener('click', function(e) {
     if (e.target === this) cancelTemplateModal();
@@ -1792,12 +1918,14 @@ window.addEventListener('load', function() {
     getDropdownOptions();
 
     // Hash routing: restore view state on refresh
-    const hash = window.location.hash.slice(1);
-    if (hash === 'hent') {
-        showSavedForms();
-    } else if (hash === 'settings') {
-        showSettingsModal();
-    } else if (hash === 'skjema' || hash === 'ekstern') {
+    // Use setTimeout to ensure DOM is fully ready
+    setTimeout(function() {
+        const hash = window.location.hash.slice(1);
+        if (hash === 'hent') {
+            showSavedForms();
+        } else if (hash === 'settings') {
+            showSettingsModal();
+        } else if (hash === 'skjema' || hash === 'ekstern') {
         // Form - already loaded via sessionStorage
         closeAllModals();
         document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
@@ -1811,6 +1939,7 @@ window.addEventListener('load', function() {
         // No hash = home = template modal
         showTemplateModal();
     }
+    }, 0);
 });
 
 // Handle browser back/forward buttons
@@ -1835,9 +1964,19 @@ window.addEventListener('hashchange', function() {
 (function() {
     if (!window.visualViewport) return;
 
-    let initialHeight = window.innerHeight;
+    let initialHeight = null;
+    let isReady = false;
+
+    // Wait for page to stabilize before enabling keyboard detection
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            initialHeight = window.visualViewport.height;
+            isReady = true;
+        }, 500);
+    });
 
     window.visualViewport.addEventListener('resize', function() {
+        if (!isReady || initialHeight === null) return;
         const heightDiff = initialHeight - window.visualViewport.height;
         if (heightDiff > 150) {
             document.body.classList.add('keyboard-open');

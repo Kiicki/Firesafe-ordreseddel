@@ -7,7 +7,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
-    <link rel="stylesheet" href="styles.css?v=129">
+    <link rel="stylesheet" href="styles.css?v=130">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- Firebase SDK -->
@@ -266,7 +266,7 @@
 
     <!-- Modal -->
     <div class="modal" id="saved-modal">
-        <div class="modal-content">
+        <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <span data-i18n="modal_load_title">Hent skjema</span>
             </div>
@@ -508,7 +508,7 @@
 
     <script src="lang.js?v=101"></script>
     <script src="script.js?v=103"></script>
-    <script src="script-ui.js?v=112"></script>
+    <script src="script-ui.js?v=122"></script>
     <script>
         if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
             navigator.serviceWorker.register('service-worker.js');

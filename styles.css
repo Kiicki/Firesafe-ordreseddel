@@ -902,7 +902,7 @@ body.modal-active .container.form-view > .modal-content {
 
 .saved-item-action-btn.disabled {
     opacity: 0.25;
-    pointer-events: none;
+    cursor: default;
 }
 
 .saved-item-action-btn.move {
