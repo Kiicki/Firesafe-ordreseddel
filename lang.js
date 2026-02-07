@@ -40,8 +40,9 @@ const TRANSLATIONS = {
         label_dato: 'Dato',
         label_kundens_underskrift: 'Kundens underskrift',
         signature_tap_to_sign: 'Trykk for å signere',
-        signature_name_placeholder: 'Skriv navn...',
+        signature_title: 'Signer her',
         signature_clear: 'Slett signatur',
+        signature_clear_short: 'Slett',
         signature_confirm: 'Bekreft',
 
         // Sections
@@ -89,7 +90,7 @@ const TRANSLATIONS = {
         duplicate_btn: 'Dupliser',
         delete_btn: 'Slett',
         export_pdf_error: 'Feil ved generering av PDF: ',
-        export_jpg_error: 'Feil ved generering av JPG: ',
+        export_png_error: 'Feil ved generering av PNG: ',
 
         // Hent modal
         modal_load_title: 'Hent skjema',
@@ -259,8 +260,9 @@ const TRANSLATIONS = {
         label_dato: 'Date',
         label_kundens_underskrift: 'Customer signature',
         signature_tap_to_sign: 'Tap to sign',
-        signature_name_placeholder: 'Enter name...',
+        signature_title: 'Sign here',
         signature_clear: 'Clear signature',
+        signature_clear_short: 'Clear',
         signature_confirm: 'Confirm',
 
         // Sections
@@ -308,7 +310,7 @@ const TRANSLATIONS = {
         duplicate_btn: 'Duplicate',
         delete_btn: 'Delete',
         export_pdf_error: 'Error generating PDF: ',
-        export_jpg_error: 'Error generating JPG: ',
+        export_png_error: 'Error generating PNG: ',
 
         // Hent modal
         modal_load_title: 'Load form',

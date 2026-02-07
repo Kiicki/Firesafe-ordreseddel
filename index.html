@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-    <title>TEST LOKAL 12345</title>
+    <title>Firesafe Ordreseddel</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=127">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- Firebase SDK -->
@@ -16,8 +16,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-    <div style="background:red;color:white;padding:10px;text-align:center;font-weight:bold;">TEST - LOKAL VERSJON</div>
-    <div class="loading" id="loading" data-i18n="generating_file">Genererer fil...</div>
+        <div class="loading" id="loading" data-i18n="generating_file">Genererer fil...</div>
 
     <div class="container form-view">
         <div class="modal-content">
@@ -93,7 +92,11 @@
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_kundens_underskrift">Kundens underskrift</label>
-                    <input type="text" id="mobile-kundens-underskrift" data-i18n-placeholder="signature_name_placeholder" placeholder="Skriv navn...">
+                    <div class="signature-preview" id="mobile-signature-preview" onclick="openSignatureOverlay()">
+                        <img id="signature-preview-img" style="display:none">
+                        <span class="signature-placeholder" data-i18n="signature_tap_to_sign">Trykk for å signere</span>
+                    </div>
+                    <input type="hidden" id="mobile-kundens-underskrift">
                 </div>
             </div>
 
@@ -101,6 +104,7 @@
         </div>
 
         <div class="form-container" id="form-container">
+            <div class="form-version">GV: 9-01</div>
             <!-- Header -->
             <div class="header">
                 <div class="header-left">
@@ -214,8 +218,9 @@
                     <div class="signature-label">Dato</div>
                 </div>
                 <div class="footer-cell signature-cell">
-                    <div class="signature-input">
-                        <input type="text" id="kundens-underskrift">
+                    <div class="signature-input signature-input-img">
+                        <img id="desktop-signature-img">
+                        <input type="hidden" id="kundens-underskrift">
                     </div>
                     <div class="signature-label">Kundens underskrift</div>
                 </div>
@@ -284,7 +289,7 @@
     <div class="modal" id="template-modal" onclick="cancelTemplateModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="top-bar">
-                <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login">LOKAL TEST 123</button>
+                <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login"></button>
             </div>
             <div class="template-home-wrapper">
                 <div class="mobile-form-header">
@@ -293,14 +298,14 @@
                     <div class="beta-label" data-i18n="beta_label">Beta</div>
                 </div>
             </div>
+            <div class="modal-footer-skip" onclick="event.stopPropagation()">
+                <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_new_form">Blankt skjema</button>
+                <button class="btn-external-order" onclick="startExternalOrder()" data-i18n="external_order_btn">Ekstern</button>
+            </div>
             <div class="modal-search">
                 <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjekt..." oninput="filterTemplates()">
             </div>
             <div class="modal-body" id="template-list"></div>
-            <div class="modal-footer-skip">
-                <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_new_form">Ny</button>
-                <button class="btn-external-order" onclick="startExternalOrder()" data-i18n="external_order_btn">Ekstern</button>
-            </div>
         </div>
     </div>
 
@@ -317,10 +322,10 @@
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header" id="settings-header">
                 <span id="settings-header-title" data-i18n="settings_title">Innstillinger</span>
+                <button class="modal-close-btn" onclick="closeSettingsModal()">&times;</button>
             </div>
             <div class="modal-body" style="padding: 16px;">
-                <div style="background:red;color:white;padding:10px;margin-bottom:10px;">LOKAL VERSJON AKTIV</div>
-                <!-- Hovedmeny -->
+                                <!-- Hovedmeny -->
                 <div id="settings-page-menu" class="settings-page">
                     <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">
                         <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
@@ -370,16 +375,20 @@
                 </div>
 
                 <!-- Standardverdier-side -->
-                <div id="settings-page-defaults" class="settings-page" style="display:none;">
-                    <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
-                    <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
-                    <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="default-oppdragsgiver"></label>
-                    <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="default-kundens-ref"></label>
-                    <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="default-fakturaadresse"></label>
-                    <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="default-prosjektnr"></label>
-                    <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="default-prosjektnavn"></label>
-                    <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
-                    <button class="settings-save-btn" onclick="saveDefaultSettings()" data-i18n="btn_save_settings">Lagre</button>
+                <div id="settings-page-defaults" class="settings-page settings-page-with-footer" style="display:none;">
+                    <div class="settings-page-scroll">
+                        <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
+                        <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
+                        <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="default-oppdragsgiver"></label>
+                        <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="default-kundens-ref"></label>
+                        <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="default-fakturaadresse"></label>
+                        <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="default-prosjektnr"></label>
+                        <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="default-prosjektnavn"></label>
+                        <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
+                    </div>
+                    <div class="settings-page-footer">
+                        <button class="settings-save-btn" onclick="saveDefaultSettings()" data-i18n="btn_save_settings">Lagre</button>
+                    </div>
                 </div>
 
                 <!-- Materialer og enheter-side -->
@@ -476,8 +485,21 @@
         </div>
     </div>
 
+    <!-- Signature overlay -->
+    <div class="signature-overlay" id="signature-overlay">
+        <div class="signature-overlay-header">
+            <button class="signature-overlay-btn" onclick="closeSignatureOverlay()">Avbryt</button>
+            <span>Signer her</span>
+            <button class="signature-overlay-btn signature-overlay-confirm" onclick="confirmSignature()">OK</button>
+        </div>
+        <canvas id="signature-canvas"></canvas>
+        <div class="signature-overlay-footer">
+            <button class="signature-overlay-clear-btn" onclick="clearSignatureCanvas()">Nullstill</button>
+        </div>
+    </div>
+
     <!-- Toolbar - alltid sist i DOM for riktig rekkefølge når keyboard er åpen -->
-    <div class="toolbar">
+    <div class="toolbar" role="toolbar" aria-label="Hovedhandlinger">
         <button class="btn-new" onclick="newForm()" data-i18n="toolbar_new">Ny</button>
         <button class="btn-save" onclick="showSaveMenu()" data-i18n="toolbar_save">Lagre</button>
         <button class="btn-load" onclick="showSavedForms()" data-i18n="toolbar_load">Hent</button>
@@ -485,9 +507,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
     </div>
 
-    <script src="lang.js"></script>
-    <script src="script.js"></script>
-    <script src="script-ui.js"></script>
+    <script src="lang.js?v=101"></script>
+    <script src="script.js?v=103"></script>
+    <script src="script-ui.js?v=106"></script>
     <script>
         if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
             navigator.serviceWorker.register('service-worker.js');

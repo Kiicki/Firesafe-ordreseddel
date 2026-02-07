@@ -30,7 +30,14 @@
       "Bash(/tmp/ngrok version:*)",
       "Bash(lsof:*)",
       "Bash(echo:*)",
-      "Bash(/tmp/ngrok config add-authtoken:*)"
+      "Bash(/tmp/ngrok config add-authtoken:*)",
+      "Bash(ngrok http:*)",
+      "Bash(pgrep:*)",
+      "Bash(grep:*)",
+      "Bash(node --check:*)",
+      "Bash(npx stylelint:*)",
+      "Bash(netstat:*)",
+      "Bash(pkill:*)"
     ]
   }
 }

@@ -2,13 +2,25 @@
 let loadedForms = [];
 let loadedExternalForms = [];
 
+// Helper: format date with time
+function formatDateWithTime(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = d.getHours().toString().padStart(2, '0');
+    const mins = d.getMinutes().toString().padStart(2, '0');
+    return `${day}.${month}.${year}, ${hours}:${mins}`;
+}
+
 function closeAllModals() {
     document.querySelectorAll('.modal.active').forEach(function(m) {
         m.classList.remove('active');
     });
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
-    document.body.classList.remove('modal-active');
+    document.body.classList.remove('modal-active', 'template-modal-open', 'saved-modal-open');
 }
 
 function isModalOpen() {
@@ -21,7 +33,7 @@ async function showSavedForms() {
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
-    document.body.classList.add('modal-active');
+    document.body.classList.add('modal-active', 'saved-modal-open');
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
@@ -42,16 +54,7 @@ async function showSavedForms() {
     } else {
         listEl.innerHTML = loadedForms.map((item, index) => {
             const ordrenr = item.ordreseddelNr || '';
-            let dato = '';
-            if (item.savedAt) {
-                const d = new Date(item.savedAt);
-                const day = d.getDate().toString().padStart(2, '0');
-                const month = (d.getMonth() + 1).toString().padStart(2, '0');
-                const year = d.getFullYear();
-                const hours = d.getHours().toString().padStart(2, '0');
-                const mins = d.getMinutes().toString().padStart(2, '0');
-                dato = `${day}.${month}.${year}, ${hours}:${mins}`;
-            }
+            const dato = formatDateWithTime(item.savedAt);
             const isSent = item._isSent;
 
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
@@ -177,7 +180,7 @@ function deleteForm(event, index) {
 
 function closeModal() {
     document.getElementById('saved-modal').classList.remove('active');
-    document.body.classList.remove('modal-active');
+    document.body.classList.remove('modal-active', 'saved-modal-open');
     document.getElementById('saved-search').value = '';
     document.getElementById('external-search').value = '';
     // Reset to own tab
@@ -284,13 +287,13 @@ function showExportMenu() {
     }
     html += '<div class="confirm-modal-buttons">' +
             '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPDF(); closeActionPopup()">PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportJPG(); closeActionPopup()">JPG</button>' +
+            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPNG(); closeActionPopup()">PNG</button>' +
         '</div>';
     if (!isSent) {
         html += '<div style="font-size:12px;color:#888;margin:10px 0 4px;">' + t('export_and_mark_label') + '</div>' +
             '<div class="confirm-modal-buttons">' +
                 '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'pdf\'); closeActionPopup()">PDF</button>' +
-                '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'jpg\'); closeActionPopup()">JPG</button>' +
+                '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'png\'); closeActionPopup()">PNG</button>' +
             '</div>';
     }
     html += '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button></div>';
@@ -444,16 +447,7 @@ async function loadExternalTab() {
     } else {
         listEl.innerHTML = loadedExternalForms.map((item, index) => {
             const ordrenr = item.ordreseddelNr || '';
-            let dato = '';
-            if (item.savedAt) {
-                const d = new Date(item.savedAt);
-                const day = d.getDate().toString().padStart(2, '0');
-                const month = (d.getMonth() + 1).toString().padStart(2, '0');
-                const year = d.getFullYear();
-                const hours = d.getHours().toString().padStart(2, '0');
-                const mins = d.getMinutes().toString().padStart(2, '0');
-                dato = `${day}.${month}.${year}, ${hours}:${mins}`;
-            }
+            const dato = formatDateWithTime(item.savedAt);
             const isSent = item._isSent;
 
             const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
@@ -597,7 +591,7 @@ async function showTemplateModal() {
     const listEl = document.getElementById('template-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('template-modal').classList.add('active');
-    document.body.classList.add('modal-active');
+    document.body.classList.add('modal-active', 'template-modal-open');
 
     // Track if we need refresh when auth is ready
     pendingAuthRefresh = currentUser ? null : 'templates';
@@ -659,7 +653,7 @@ function loadTemplate(index) {
     autoFillOrderNumber();
 
     document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active');
+    document.body.classList.remove('modal-active', 'template-modal-open');
     document.getElementById('template-search').value = '';
     // Template loaded = regular form
     window.location.hash = 'skjema';
@@ -722,15 +716,15 @@ async function duplicateTemplate(index) {
 }
 
 function closeTemplateModal() {
-    if (preNewFormData) {
-        clearForm();
-        preNewFormData = null;
-        setFormReadOnly(false);
-        autoFillOrderNumber();
-        autoFillDefaults();
-    }
+    // Always clear and initialize form for blank form
+    clearForm();
+    preNewFormData = null;
+    setFormReadOnly(false);
+    autoFillOrderNumber();
+    autoFillDefaults();
+
     document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active');
+    document.body.classList.remove('modal-active', 'template-modal-open');
     document.getElementById('template-search').value = '';
     // Blank form = #skjema
     window.location.hash = 'skjema';
@@ -754,7 +748,7 @@ function cancelTemplateModal() {
     }
     // If no preNewFormData, stay at home (no hash)
     document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active');
+    document.body.classList.remove('modal-active', 'template-modal-open');
     document.getElementById('template-search').value = '';
 }
 
@@ -831,6 +825,7 @@ function showSettingsMenu() {
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     document.getElementById('settings-page-menu').style.display = 'block';
     document.getElementById('settings-header-title').textContent = t('settings_title');
+    document.body.classList.remove('settings-subpage-open');
     const header = document.getElementById('settings-header');
     const existingBack = header.querySelector('.settings-back-btn');
     if (existingBack) existingBack.remove();
@@ -840,6 +835,7 @@ async function showSettingsPage(page) {
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     document.getElementById('settings-page-' + page).style.display = 'block';
     document.getElementById('settings-header-title').textContent = getSettingsPageTitle(page);
+    document.body.classList.add('settings-subpage-open');
 
     const header = document.getElementById('settings-header');
     if (!header.querySelector('.settings-back-btn')) {
@@ -1392,7 +1388,7 @@ function updateExternalBadge() {
 
 function startExternalOrder() {
     document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active');
+    document.body.classList.remove('modal-active', 'template-modal-open');
     document.getElementById('template-search').value = '';
     if (preNewFormData) {
         clearForm();
@@ -1634,7 +1630,7 @@ async function doExportPDF() {
     }
 }
 
-async function doExportJPG() {
+async function doExportPNG() {
     if (!validateRequiredFields()) return;
     const loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -1645,7 +1641,7 @@ async function doExportJPG() {
         link.href = canvas.toDataURL('image/png');
         link.click();
     } catch (error) {
-        alert(t('export_jpg_error') + error.message);
+        alert(t('export_png_error') + error.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -1657,7 +1653,7 @@ async function markAsSentAndExport(type) {
     if (type === 'pdf') {
         await doExportPDF();
     } else {
-        await doExportJPG();
+        await doExportPNG();
     }
     setFormReadOnly(true);
 }
@@ -1672,44 +1668,29 @@ document.getElementById('template-modal').addEventListener('click', function(e) 
     if (e.target === this) cancelTemplateModal();
 });
 
-// Sync forms when typing
+// Sync forms when typing (with debounced sessionStorage save)
+var sessionSaveTimeout = null;
+function debouncedSessionSave() {
+    clearTimeout(sessionSaveTimeout);
+    sessionSaveTimeout = setTimeout(function() {
+        sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    }, 500);
+}
+
 document.getElementById('mobile-form').addEventListener('input', function() {
     syncMobileToOriginal();
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    debouncedSessionSave();
 });
 
 document.getElementById('form-container').addEventListener('input', function() {
     syncOriginalToMobile();
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    debouncedSessionSave();
 });
 
 window.addEventListener('load', function() {
-    // PWA pull-to-refresh workaround: Chrome PWA har en rendering-bug som gjør at
-    // noen elementer ikke vises etter refresh. Tvinger re-kalkulering av layout.
+    // PWA pull-to-refresh workaround: Force layout recalculation
     setTimeout(function() {
-        // Generell reflow
-        document.body.style.opacity = '0.999';
-        requestAnimationFrame(function() {
-            document.body.style.opacity = '';
-        });
-
-        // Spesifikk fix for modal-footer-skip (Blankt skjema/Ekstern knapper)
-        var footerSkip = document.querySelector('.modal-footer-skip');
-        if (footerSkip) {
-            footerSkip.style.display = 'none';
-            requestAnimationFrame(function() {
-                footerSkip.style.display = '';
-            });
-        }
-
-        // Fix for toolbar
-        var toolbar = document.querySelector('.toolbar');
-        if (toolbar) {
-            toolbar.style.display = 'none';
-            requestAnimationFrame(function() {
-                toolbar.style.display = '';
-            });
-        }
+        void document.body.offsetHeight;
     }, 50);
 
     const current = sessionStorage.getItem('firesafe_current');
@@ -1777,65 +1758,19 @@ window.addEventListener('hashchange', function() {
     }
 });
 
-// Keyboard detection: toggle body.keyboard-open class
-// When keyboard open: toolbar/modal become scrollable (not fixed over keyboard)
-// When keyboard closed: toolbar fixed at bottom, modal fits viewport
-// Special handling for PWA standalone mode where viewport behaves differently
+// Keyboard detection using visualViewport
 (function() {
-    var keyboardTimeout = null;
-    var initialHeight = window.innerHeight;
-    var isStandalone = window.matchMedia('(display-mode: standalone)').matches
-                    || window.navigator.standalone;
+    if (!window.visualViewport) return;
 
-    function handleFocus(e) {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            clearTimeout(keyboardTimeout);
-            document.body.classList.add('keyboard-open');
-        }
-    }
+    let initialHeight = window.innerHeight;
 
-    function handleBlur(e) {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            clearTimeout(keyboardTimeout);
-            keyboardTimeout = setTimeout(function() {
-                var active = document.activeElement;
-                if (!active || (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA')) {
-                    document.body.classList.remove('keyboard-open');
-                }
-            }, 100);
-        }
-    }
-
-    // For PWA standalone: use visualViewport to detect keyboard state
-    function handleViewportResize() {
-        if (!window.visualViewport) return;
-
-        var viewportHeight = window.visualViewport.height;
-        var screenHeight = window.innerHeight;
-
-        // Keyboard is likely open if viewport is less than 75% of screen height
-        var keyboardOpen = viewportHeight < screenHeight * 0.75;
-
-        if (keyboardOpen) {
+    window.visualViewport.addEventListener('resize', function() {
+        const heightDiff = initialHeight - window.visualViewport.height;
+        if (heightDiff > 150) {
             document.body.classList.add('keyboard-open');
         } else {
-            // Small delay to avoid flicker
-            setTimeout(function() {
-                var active = document.activeElement;
-                var stillInInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-                // Only remove if not focused on input OR viewport is back to normal
-                if (!stillInInput || window.visualViewport.height >= screenHeight * 0.9) {
-                    document.body.classList.remove('keyboard-open');
-                }
-            }, 50);
+            document.body.classList.remove('keyboard-open');
         }
-    }
-
-    document.addEventListener('focusin', handleFocus, true);
-    document.addEventListener('focusout', handleBlur, true);
-
-    // Use visualViewport for more reliable keyboard detection (especially in PWA standalone)
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', handleViewportResize);
-    }
+    });
 })();
+

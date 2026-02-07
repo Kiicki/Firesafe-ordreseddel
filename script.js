@@ -215,7 +215,6 @@ async function getExternalSentForms() {
 
 // Track last saved form data for unsaved changes detection
 let lastSavedData = null;
-let preNewFormData = null;
 let isExternalForm = false;
 
 function getFormDataSnapshot() {
@@ -335,15 +334,6 @@ function convertTextareasToDiv() {
         const span = document.createElement('span');
         span.textContent = ordreseddelInput.value;
         span.className = 'ordreseddel-nr-converted';
-        span.style.cssText = `
-            color: #c00;
-            font-size: 28px;
-            font-weight: normal;
-            letter-spacing: 3px;
-            font-family: Arial, Helvetica, sans-serif;
-            line-height: 1;
-        `;
-
         ordreseddelInput.style.display = 'none';
         ordreseddelInput.parentNode.insertBefore(span, ordreseddelInput.nextSibling);
         convertedElements.push({ original: ordreseddelInput, replacement: span });
@@ -648,14 +638,14 @@ function openMaterialPicker(btn) {
 
     renderPickerList();
 
-    // Add custom material on Enter
+    // Add custom material on Enter (use onkeydown to avoid listener accumulation)
     searchInput.oninput = null;
-    searchInput.addEventListener('keydown', function(e) {
+    searchInput.onkeydown = function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
             addCustomMaterial();
         }
-    });
+    };
 
     // Add button next to search field
     const addBtn = document.getElementById('picker-overlay-add-btn');
@@ -803,15 +793,15 @@ function openUnitPicker(matName, btnEl) {
         });
     });
 
-    // Custom OK click
+    // Custom OK click (use onclick to avoid listener accumulation)
     const customOk = customEl.querySelector('.unit-picker-custom-ok');
-    customOk.addEventListener('click', function() {
+    customOk.onclick = function() {
         const val = customInput.value.trim();
         if (val) {
             unitPickerCallback(val);
             closeUnitPicker();
         }
-    });
+    };
 
     overlay.classList.add('active');
 }
@@ -913,112 +903,281 @@ function syncMobileToOriginal() {
         }
     }
 
+    // Update desktop signature image for export
+    const signatureData = document.getElementById('mobile-kundens-underskrift').value;
+    const desktopSigImg = document.getElementById('desktop-signature-img');
+    if (desktopSigImg) {
+        if (signatureData && signatureData.startsWith('data:image')) {
+            desktopSigImg.src = signatureData;
+            desktopSigImg.style.display = 'block';
+        } else {
+            desktopSigImg.style.display = 'none';
+        }
+    }
+
     // Build desktop work lines dynamically
     buildDesktopWorkLines();
 }
 
 // ============================================
-// SIGNATURE PAD
+// SIGNATURE (SVG-based for perfect scaling)
 // ============================================
 
-let signatureDrawing = false;
+let signatureCanvas = null;
 let signatureCtx = null;
-let signatureLastX = 0;
-let signatureLastY = 0;
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+let signaturePaths = []; // Store paths for SVG generation
+let signaturePathsBackup = []; // Backup for cancel functionality
+let currentPath = [];
+let canvasAspectRatio = 4; // width/height ratio, default 4:1
+const signatureRatio = 3;
 
-function openSignaturePad() {
-    // Legacy function - signature is now text input
+function openSignatureOverlay() {
+    const overlay = document.getElementById('signature-overlay');
+    overlay.classList.add('active');
+    currentPath = [];
+    // Save backup in case user cancels
+    signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+    // Wait for layout to complete before initializing canvas
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            initSignatureCanvas();
+            redrawSignature();
+        });
+    });
 }
 
-function closeSignaturePad() {
-    // Legacy function - signature is now text input
+function closeSignatureOverlay() {
+    // Restore backup (user cancelled)
+    signaturePaths = signaturePathsBackup;
+    document.getElementById('signature-overlay').classList.remove('active');
+}
+
+function redrawSignature() {
+    if (!signatureCanvas || !signatureCtx || signaturePaths.length === 0) return;
+    const rect = signatureCanvas.getBoundingClientRect();
+
+    signatureCtx.lineCap = 'round';
+    signatureCtx.lineJoin = 'round';
+    signatureCtx.lineWidth = 3;
+    signatureCtx.strokeStyle = '#000';
+
+    for (const path of signaturePaths) {
+        if (path.length < 2) continue;
+        signatureCtx.beginPath();
+        signatureCtx.moveTo(path[0].x * rect.width, path[0].y * rect.height);
+        for (let i = 1; i < path.length; i++) {
+            signatureCtx.lineTo(path[i].x * rect.width, path[i].y * rect.height);
+        }
+        signatureCtx.stroke();
+    }
+}
+
+function initSignatureCanvas() {
+    signatureCanvas = document.getElementById('signature-canvas');
+    signatureCtx = signatureCanvas.getContext('2d');
+
+    const rect = signatureCanvas.getBoundingClientRect();
+    signatureCanvas.width = rect.width * signatureRatio;
+    signatureCanvas.height = rect.height * signatureRatio;
+    signatureCtx.scale(signatureRatio, signatureRatio);
+
+    // Store aspect ratio for correct SVG generation
+    canvasAspectRatio = rect.width / rect.height;
+
+    signatureCtx.lineCap = 'round';
+    signatureCtx.lineJoin = 'round';
+    signatureCtx.lineWidth = 3;
+    signatureCtx.strokeStyle = '#000';
+
+    // Clear canvas
+    signatureCtx.fillStyle = '#fff';
+    signatureCtx.fillRect(0, 0, rect.width, rect.height);
+
+    // Remove old listeners and add new ones
+    signatureCanvas.onmousedown = startDrawing;
+    signatureCanvas.onmousemove = draw;
+    signatureCanvas.onmouseup = stopDrawing;
+    signatureCanvas.onmouseout = stopDrawing;
+
+    signatureCanvas.ontouchstart = handleTouchStart;
+    signatureCanvas.ontouchmove = handleTouchMove;
+    signatureCanvas.ontouchend = stopDrawing;
+}
+
+function getCanvasCoords(e) {
+    const rect = signatureCanvas.getBoundingClientRect();
+    if (e.touches && e.touches[0]) {
+        return {
+            x: (e.touches[0].clientX - rect.left) / rect.width,
+            y: (e.touches[0].clientY - rect.top) / rect.height
+        };
+    }
+    return {
+        x: (e.clientX - rect.left) / rect.width,
+        y: (e.clientY - rect.top) / rect.height
+    };
+}
+
+function startDrawing(e) {
+    isDrawing = true;
+    const coords = getCanvasCoords(e);
+    lastX = coords.x;
+    lastY = coords.y;
+    currentPath = [{x: coords.x, y: coords.y}];
+}
+
+function handleTouchStart(e) {
+    e.preventDefault();
+    startDrawing(e);
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    const coords = getCanvasCoords(e);
+    const rect = signatureCanvas.getBoundingClientRect();
+
+    signatureCtx.beginPath();
+    signatureCtx.moveTo(lastX * rect.width, lastY * rect.height);
+    signatureCtx.lineTo(coords.x * rect.width, coords.y * rect.height);
+    signatureCtx.stroke();
+
+    currentPath.push({x: coords.x, y: coords.y});
+    lastX = coords.x;
+    lastY = coords.y;
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    draw(e);
+}
+
+function stopDrawing() {
+    if (isDrawing && currentPath.length > 1) {
+        signaturePaths.push([...currentPath]);
+    }
+    isDrawing = false;
+    currentPath = [];
 }
 
 function clearSignatureCanvas() {
-    // Legacy function - signature is now text input
+    if (signatureCanvas && signatureCtx) {
+        const rect = signatureCanvas.getBoundingClientRect();
+        signatureCtx.fillStyle = '#fff';
+        signatureCtx.fillRect(0, 0, rect.width, rect.height);
+        signaturePaths = [];
+        currentPath = [];
+    }
 }
 
-function trimSignatureCanvas(canvas) {
-    // Legacy function - signature is now text input
-    return null;
+function generateSVG(targetHeight, strokeWidth) {
+    if (signaturePaths.length === 0) return null;
+
+    // Calculate bounding box of signature (in normalized 0-1 coords)
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    for (const path of signaturePaths) {
+        for (const point of path) {
+            minX = Math.min(minX, point.x);
+            maxX = Math.max(maxX, point.x);
+            minY = Math.min(minY, point.y);
+            maxY = Math.max(maxY, point.y);
+        }
+    }
+
+    // Add padding (5% of signature size)
+    const padX = (maxX - minX) * 0.05;
+    const padY = (maxY - minY) * 0.05;
+    minX = Math.max(0, minX - padX);
+    maxX = Math.min(1, maxX + padX);
+    minY = Math.max(0, minY - padY);
+    maxY = Math.min(1, maxY + padY);
+
+    const boxWidth = maxX - minX;
+    const boxHeight = maxY - minY;
+
+    if (boxWidth <= 0 || boxHeight <= 0) return null;
+
+    // Calculate output dimensions (maintaining signature aspect ratio)
+    const sigAspect = boxWidth / boxHeight;
+    const outputHeight = targetHeight;
+    const outputWidth = Math.round(outputHeight * sigAspect);
+
+    // Build path data, translating to bounding box origin
+    let pathData = '';
+    for (const path of signaturePaths) {
+        if (path.length < 2) continue;
+        const startX = ((path[0].x - minX) / boxWidth) * outputWidth;
+        const startY = ((path[0].y - minY) / boxHeight) * outputHeight;
+        pathData += `M ${startX.toFixed(2)} ${startY.toFixed(2)} `;
+        for (let i = 1; i < path.length; i++) {
+            const x = ((path[i].x - minX) / boxWidth) * outputWidth;
+            const y = ((path[i].y - minY) / boxHeight) * outputHeight;
+            pathData += `L ${x.toFixed(2)} ${y.toFixed(2)} `;
+        }
+    }
+
+    if (!pathData) return null;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">
+        <path d="${pathData}" fill="none" stroke="#000" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+
+    return 'data:image/svg+xml;base64,' + btoa(svg);
 }
 
 function confirmSignature() {
-    // Legacy function - signature is now text input
-}
+    const hasSignature = signaturePaths.length > 0;
 
-function showSignaturePreview(dataURL) {
-    // Legacy function - signature is now text input
+    if (!hasSignature) {
+        // Clear signature
+        document.getElementById('mobile-kundens-underskrift').value = '';
+        document.getElementById('signature-preview-img').style.display = 'none';
+        document.querySelector('#mobile-signature-preview .signature-placeholder').style.display = '';
+    } else {
+        // Generate SVG cropped to signature bounding box (high resolution, bold stroke)
+        const svgData = generateSVG(400, 12);
+
+        if (svgData) {
+            document.getElementById('mobile-kundens-underskrift').value = svgData;
+            const previewImg = document.getElementById('signature-preview-img');
+            previewImg.src = svgData;
+            previewImg.style.display = 'block';
+            document.querySelector('#mobile-signature-preview .signature-placeholder').style.display = 'none';
+        }
+    }
+
+    // Update backup to current paths (user confirmed, so keep changes)
+    signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+    document.getElementById('signature-overlay').classList.remove('active');
 }
 
 function clearSignaturePreview() {
-    // Now using text input, just clear the values
-    const mobileInput = document.getElementById('mobile-kundens-underskrift');
-    if (mobileInput) mobileInput.value = '';
+    document.getElementById('mobile-kundens-underskrift').value = '';
+    const previewImg = document.getElementById('signature-preview-img');
+    if (previewImg) {
+        previewImg.style.display = 'none';
+        previewImg.src = '';
+    }
+    const placeholder = document.querySelector('#mobile-signature-preview .signature-placeholder');
+    if (placeholder) placeholder.style.display = '';
+
     const desktopInput = document.getElementById('kundens-underskrift');
     if (desktopInput) desktopInput.value = '';
 }
 
-function getSignaturePos(canvas, e) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-    };
-}
-
-function sigStart(pos) {
-    signatureDrawing = true;
-    signatureLastX = pos.x;
-    signatureLastY = pos.y;
-    signatureCtx.beginPath();
-    signatureCtx.moveTo(pos.x, pos.y);
-}
-
-function sigMove(pos) {
-    if (!signatureDrawing) return;
-    var midX = (signatureLastX + pos.x) / 2;
-    var midY = (signatureLastY + pos.y) / 2;
-    signatureCtx.quadraticCurveTo(signatureLastX, signatureLastY, midX, midY);
-    signatureCtx.stroke();
-    signatureCtx.beginPath();
-    signatureCtx.moveTo(midX, midY);
-    signatureLastX = pos.x;
-    signatureLastY = pos.y;
-}
-
-function sigEnd() {
-    signatureDrawing = false;
-}
-
-function sigTouchStart(e) {
-    e.preventDefault();
-    const pos = getSignaturePos(e.target, e.touches[0]);
-    sigStart(pos);
-}
-
-function sigTouchMove(e) {
-    e.preventDefault();
-    const pos = getSignaturePos(e.target, e.touches[0]);
-    sigMove(pos);
-}
-
-function sigTouchEnd(e) {
-    sigEnd();
-}
-
-function sigMouseDown(e) {
-    const pos = getSignaturePos(e.target, e);
-    sigStart(pos);
-}
-
-function sigMouseMove(e) {
-    const pos = getSignaturePos(e.target, e);
-    sigMove(pos);
-}
-
-function sigMouseUp(e) {
-    sigEnd();
+function loadSignaturePreview(dataUrl) {
+    if (dataUrl) {
+        document.getElementById('mobile-kundens-underskrift').value = dataUrl;
+        const previewImg = document.getElementById('signature-preview-img');
+        if (previewImg) {
+            previewImg.src = dataUrl;
+            previewImg.style.display = 'block';
+        }
+        const placeholder = document.querySelector('#mobile-signature-preview .signature-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
+    }
 }
 
 // Build the desktop form work lines from orders data (for PDF export)
@@ -1130,6 +1289,11 @@ function syncOriginalToMobile() {
         }
     }
 
+    // Load signature preview if exists
+    const signatureData = document.getElementById('mobile-kundens-underskrift').value;
+    if (signatureData && signatureData.startsWith('data:image')) {
+        loadSignaturePreview(signatureData);
+    }
 }
 
 
@@ -1159,20 +1323,25 @@ function getFormData() {
 }
 
 function setFormData(data) {
+    // Helper for safe value setting
+    function setVal(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+    }
+
     // Set simple fields
-    document.getElementById('ordreseddel-nr').value = data.ordreseddelNr || '';
-    document.getElementById('oppdragsgiver').value = data.oppdragsgiver || '';
-    document.getElementById('kundens-ref').value = data.kundensRef || '';
-    document.getElementById('fakturaadresse').value = data.fakturaadresse || '';
-    document.getElementById('dato').value = data.dato || '';
-    document.getElementById('prosjektnr').value = data.prosjektnr || '';
-    document.getElementById('prosjektnavn').value = data.prosjektnavn || '';
-    document.getElementById('montor').value = data.montor || '';
-    document.getElementById('avdeling').value = data.avdeling || '';
-    document.getElementById('sted').value = data.sted || '';
-    document.getElementById('signering-dato').value = data.signeringDato || '';
-    const sigData = data.kundensUnderskrift || '';
-    document.getElementById('kundens-underskrift').value = sigData;
+    setVal('ordreseddel-nr', data.ordreseddelNr);
+    setVal('oppdragsgiver', data.oppdragsgiver);
+    setVal('kundens-ref', data.kundensRef);
+    setVal('fakturaadresse', data.fakturaadresse);
+    setVal('dato', data.dato);
+    setVal('prosjektnr', data.prosjektnr);
+    setVal('prosjektnavn', data.prosjektnavn);
+    setVal('montor', data.montor);
+    setVal('avdeling', data.avdeling);
+    setVal('sted', data.sted);
+    setVal('signering-dato', data.signeringDato);
+    setVal('kundens-underskrift', data.kundensUnderskrift);
 
     isExternalForm = !!data.isExternal;
     updateExternalBadge();
@@ -1236,7 +1405,8 @@ function validateRequiredFields() {
     ];
 
     for (const field of fields) {
-        if (!document.getElementById(field.id).value.trim()) {
+        const el = document.getElementById(field.id);
+        if (!el || !el.value.trim()) {
             showNotificationModal(t('required_field', t(field.key)));
             return false;
         }

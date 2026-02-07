@@ -6,19 +6,23 @@
 body {
     font-family: Arial, sans-serif;
     margin: 0;
-    padding: 10px;
+    padding: 0;
+    padding-bottom: 60px; /* Space for fixed toolbar */
     background: #f0f0f0;
     font-size: 12px;
+    min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .container {
     max-width: 800px;
     margin: 0 auto;
-    min-height: 100vh;
-    min-height: 100dvh;
+    flex: 1;
     display: flex;
     flex-direction: column;
-    padding-bottom: 56px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px;
 }
 
 .sent-banner {
@@ -74,7 +78,7 @@ body {
     margin: 0 auto 8px;
 }
 
-/* Toolbar - only visible on screen */
+/* Toolbar - fixed at bottom, always visible over everything */
 .toolbar {
     display: flex;
     flex-wrap: nowrap;
@@ -86,13 +90,25 @@ body {
     max-width: 600px;
     width: 100%;
     margin: 0 auto;
-    margin-top: auto;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 1100;
+    z-index: 10001;
+}
+
+/* When keyboard is open, everything becomes part of document flow */
+body.keyboard-open {
+    padding-bottom: 0;
+    overflow-y: auto;
+    height: auto;
+}
+
+body.keyboard-open .toolbar {
+    position: static;
+    z-index: auto;
+    box-shadow: none;
 }
 
 .toolbar button {
@@ -139,13 +155,24 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 auto !important;
+    flex: 0 0 auto;
     min-width: 40px;
-    padding: 8px !important;
+    padding: 8px;
 }
 
 .btn-settings svg {
     fill: #495057;
+}
+
+.btn-export {
+    background: #2c3e50;
+    color: #fff;
+    border-color: #2c3e50;
+}
+
+.btn-export:hover {
+    background: #1a252f;
+    border-color: #1a252f;
 }
 
 .btn-login {
@@ -181,6 +208,19 @@ body {
     border-bottom: none;
     overflow: visible;
     display: none;
+    position: relative;
+}
+
+/* Form version number - vertical text on left side */
+.form-version {
+    position: absolute;
+    left: 2px;
+    bottom: 30px;
+    font-size: 5px;
+    color: #666;
+    white-space: nowrap;
+    transform: rotate(-90deg);
+    transform-origin: 0 0;
 }
 
 /* Header section */
@@ -259,6 +299,15 @@ body {
     text-rendering: auto;
     -webkit-font-smoothing: antialiased;
     unicode-bidi: normal;
+    line-height: 1;
+}
+
+.ordreseddel-nr-converted {
+    color: #c00;
+    font-size: 28px;
+    font-weight: normal;
+    letter-spacing: 3px;
+    font-family: Arial, Helvetica, sans-serif;
     line-height: 1;
 }
 
@@ -426,7 +475,7 @@ body {
 .footer-row {
     display: flex;
     gap: 40px;
-    padding: 0 40px;
+    padding: 0 20px;
     margin-top: 10px;
 }
 
@@ -444,26 +493,31 @@ body {
 }
 
 .signature-input {
-    flex: 1;
-    min-height: 30px;
-}
-
-.signature-input:has(img) {
+    height: 50px;
     display: flex;
     align-items: flex-end;
-    justify-content: center;
-    border-bottom: 1px solid #000;
 }
 
 .signature-input input {
     width: 100%;
     border: none;
     border-bottom: 1px solid #000;
-    padding: 6px 8px;
+    padding: 4px 8px;
     font-size: 14px;
     font-family: inherit;
     background: transparent;
     text-align: center;
+}
+
+.signature-input-img {
+    justify-content: center;
+    border-bottom: 1px solid #000;
+}
+
+.signature-input-img img {
+    max-height: 45px;
+    max-width: 100%;
+    object-fit: contain;
 }
 
 .signature-input input:focus {
@@ -478,7 +532,7 @@ body {
 }
 
 .footer-bottom {
-    display: none;
+    display: flex;
     font-size: 10px;
     padding: 4px 40px;
 }
@@ -494,7 +548,7 @@ body {
 }
 
 .footer-staples {
-    display: none;
+    display: block;
     text-align: center;
     font-size: 10px;
     padding: 8px;
@@ -513,8 +567,7 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    height: calc(100vh - 60px);
-    height: calc(100dvh - 60px);
+    bottom: 0;
     background: #fff;
     z-index: 1000;
     overflow-y: auto;
@@ -523,6 +576,29 @@ body {
 .modal.active {
     display: flex;
     flex-direction: column;
+}
+
+/* Template modal is home screen - leave space for toolbar */
+#template-modal,
+#saved-modal {
+    bottom: 60px;
+}
+
+/* When keyboard is open on template/saved modal, make it part of document flow */
+body.keyboard-open #template-modal.active,
+body.keyboard-open #saved-modal.active {
+    position: static;
+    display: block;
+    overflow-y: visible;
+}
+
+/* Hide toolbar when modal or overlay is active (except template-modal and saved-modal) */
+body.modal-active:not(.template-modal-open):not(.saved-modal-open) .toolbar,
+.text-editor-modal.active ~ .toolbar,
+.picker-overlay.active ~ .toolbar,
+.signature-overlay.active ~ .toolbar,
+.confirm-modal.active ~ .toolbar {
+    display: none;
 }
 
 /* Hide form content when modal is active (JS adds this class) */
@@ -543,12 +619,28 @@ body.modal-active .container.form-view > .modal-content {
     background: #333;
     color: white;
     padding: 0 15px;
-    height: 44px;
+    height: 56px;
     flex-shrink: 0;
     font-weight: bold;
+    font-size: 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 32px;
+    cursor: pointer;
+    padding: 8px 12px;
+    line-height: 1;
+    min-width: 48px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .modal-close {
@@ -586,28 +678,6 @@ body.modal-active .container.form-view > .modal-content {
 .modal-tab:hover:not(.active) {
     color: #555;
     background: #f8f8f8;
-}
-
-.modal-footer-template {
-    padding: 10px 15px;
-    border-top: 1px solid #eee;
-}
-
-.btn-save-template {
-    width: 100%;
-    padding: 12px;
-    border: 1.5px solid #495057;
-    background: transparent;
-    color: #495057;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.btn-save-template:hover {
-    background: #e9ecef;
 }
 
 .modal-body {
@@ -685,7 +755,10 @@ body.modal-active .container.form-view > .modal-content {
     border-top: 1px solid #eee;
     display: flex;
     gap: 8px;
+    background: #fff;
 }
+
+/* Buttons are now at top, no fixed positioning needed */
 
 .btn-skip-template {
     flex: 1;
@@ -968,25 +1041,21 @@ body.modal-active .container.form-view > .modal-content {
     display: block;
     background: white;
     padding: 15px;
-    padding-bottom: 75px;
     width: 100%;
+    flex: 1;
 }
 
-/* Form view - matches modal behavior on all screen sizes */
+/* Form view - flexbox layout for proper keyboard handling */
 .container.form-view {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 100vh;
-    height: 100dvh;
-    min-height: 0;  /* Override .container min-height */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     background: #fff;
     margin: 0;
     padding: 0;
     max-width: none;
     overflow-y: auto;
-    z-index: 1;
+    -webkit-overflow-scrolling: touch;
 }
 
 .form-view > .modal-content {
@@ -1964,6 +2033,52 @@ body.modal-active .container.form-view > .modal-content {
 }
 
 /* Settings modal */
+.settings-page {
+    display: block;
+}
+
+#settings-modal .modal-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-page-with-footer[style*="block"] {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.settings-page-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 16px;
+}
+
+.settings-page-footer {
+    flex-shrink: 0;
+    padding: 16px 0;
+    background: #fff;
+    border-top: 1px solid #eee;
+}
+
+body.keyboard-open .settings-page-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px;
+    z-index: 100;
+}
+
+body.keyboard-open .settings-page-scroll {
+    padding-bottom: 80px;
+}
+
+.settings-page-footer .settings-save-btn {
+    margin: 0;
+}
+
 .settings-menu-item {
     display: flex;
     align-items: center;
@@ -1994,17 +2109,24 @@ body.modal-active .container.form-view > .modal-content {
 .settings-back-btn {
     background: none;
     border: none;
-    font-size: 20px;
+    font-size: 28px;
     cursor: pointer;
-    padding: 0 8px 0 0;
+    padding: 8px 12px 8px 0;
     color: #E8501A;
     display: flex;
     align-items: center;
+    min-width: 48px;
+    min-height: 48px;
 }
 
 #settings-header:has(.settings-back-btn) {
     justify-content: flex-start;
     gap: 8px;
+}
+
+/* Hide X button on settings sub-pages (they have back button instead) */
+body.settings-subpage-open #settings-header .modal-close-btn {
+    display: none;
 }
 
 .settings-section-title {
@@ -2342,7 +2464,7 @@ body.modal-active .container.form-view > .modal-content {
     right: 0;
     bottom: 0;
     background: #fff;
-    z-index: 10000;
+    z-index: 10002;
     flex-direction: column;
 }
 
@@ -2354,27 +2476,37 @@ body.modal-active .container.form-view > .modal-content {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
-    background: #333;
-    color: #fff;
-    font-size: 16px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    font-size: 13px;
     font-weight: 600;
+    color: #333;
     flex-shrink: 0;
 }
 
 .signature-overlay-btn {
     background: none;
     border: none;
-    color: #fff;
-    font-size: 15px;
+    color: #999;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    padding: 8px 12px;
+    padding: 6px 8px;
 }
 
 .signature-overlay-confirm {
     background: #E8501A;
+    color: white;
+    border: none;
+    padding: 6px 16px;
     border-radius: 6px;
     font-weight: 600;
+    font-size: 13px;
+}
+
+.signature-overlay-confirm:active {
+    background: #C94615;
 }
 
 #signature-canvas {
@@ -2387,38 +2519,36 @@ body.modal-active .container.form-view > .modal-content {
 
 .signature-overlay-footer {
     display: flex;
-    justify-content: center;
-    padding: 12px 16px;
-    background: #f5f5f5;
-    border-top: 1px solid #ddd;
-    flex-shrink: 0;
 }
 
-.signature-overlay-clear {
-    background: none;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    color: #666;
-    font-size: 14px;
-    padding: 10px 24px;
+.signature-overlay-clear-btn {
+    flex: 1;
+    background: #E8501A;
+    border: none;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
     cursor: pointer;
 }
 
-.signature-overlay-clear:active {
-    background: #eee;
+.signature-overlay-clear-btn:active {
+    background: #c94315;
 }
 
 /* Signature preview in mobile form */
 .signature-preview {
-    min-height: 60px;
-    border: 1px dashed #ccc;
-    border-radius: 8px;
+    height: 42px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    background: #fafafa;
-    padding: 8px;
+    background: #fff;
+    padding: 0 12px;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .signature-preview:active {
@@ -2426,7 +2556,7 @@ body.modal-active .container.form-view > .modal-content {
 }
 
 .signature-preview img {
-    max-height: 50px;
+    max-height: 36px;
     max-width: 100%;
 }
 
@@ -2437,44 +2567,11 @@ body.modal-active .container.form-view > .modal-content {
 
 /* Mobile responsive */
 @media screen and (max-width: 600px) {
-    body {
+    .container {
         padding: 5px;
     }
 }
 
-/* Keyboard åpen: ALT blir scrollbart dokument */
-/* Toolbar er nå SIST i DOM (etter alle modals), så den vises alltid på bunnen */
-
-body.keyboard-open .toolbar {
-    position: static !important;
-}
-
-body.keyboard-open .modal {
-    position: static !important;
-    height: auto !important;
-}
-
-body.keyboard-open .modal-content {
-    flex: none !important;
-}
-
-body.keyboard-open .modal-body {
-    flex: none !important;
-    overflow: visible !important;
-}
-
-body.keyboard-open .modal-footer-skip {
-    position: static !important;
-}
-
-body.keyboard-open .container.form-view {
-    position: static !important;
-    height: auto !important;
-}
-
-body.keyboard-open .mobile-form {
-    padding-bottom: 15px !important;
-}
 
 /* Base overlay content wrapper */
 .overlay-content {
@@ -2502,18 +2599,35 @@ body.keyboard-open .mobile-form {
 
     /* Overlays with .overlay-content wrapper */
     .picker-overlay,
-    .text-editor-modal,
-    .signature-overlay {
+    .text-editor-modal {
         background: #f0f0f0;
         align-items: center; /* Center overlay-content horizontally */
     }
     .picker-overlay > .overlay-content,
-    .text-editor-modal > .overlay-content,
-    .signature-overlay > .overlay-content {
+    .text-editor-modal > .overlay-content {
         max-width: 600px;
         width: 100%;
         background: white;
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    /* Signature overlay - no .overlay-content wrapper, style children directly */
+    .signature-overlay {
+        background: #f0f0f0;
+        align-items: center;
+    }
+    .signature-overlay .signature-overlay-header,
+    .signature-overlay #signature-canvas,
+    .signature-overlay .signature-overlay-footer {
+        max-width: 600px;
+        width: 100%;
+        background: white;
+    }
+    .signature-overlay .signature-overlay-header {
+        border-radius: 8px 8px 0 0;
+    }
+    .signature-overlay .signature-overlay-footer {
+        border-radius: 0 0 8px 8px;
     }
 }
 
@@ -2525,3 +2639,4 @@ body.keyboard-open .mobile-form {
         cursor: text;
     }
 }
+
