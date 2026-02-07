@@ -206,7 +206,7 @@ const TRANSLATIONS = {
         btn_remove: 'Fjern',
 
         // External order
-        external_order_btn: 'Ekstern',
+        external_order_btn: 'Ekstern skjema',
         external_badge: 'Eksternt',
         form_title: 'Ordreseddel',
         external_form_title: 'Ekstern ordreseddel',
@@ -426,7 +426,7 @@ const TRANSLATIONS = {
         btn_remove: 'Remove',
 
         // External order
-        external_order_btn: 'External',
+        external_order_btn: 'External form',
         external_badge: 'External',
         form_title: 'Order form',
         external_form_title: 'External order form',
