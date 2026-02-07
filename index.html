@@ -374,21 +374,16 @@
                 </div>
 
                 <!-- Standardverdier-side -->
-                <div id="settings-page-defaults" class="settings-page settings-page-with-footer" style="display:none;">
-                    <div class="settings-page-scroll">
-                        <div class="settings-defaults-grid">
-                            <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
-                            <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
-                            <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="default-oppdragsgiver"></label>
-                            <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="default-kundens-ref"></label>
-                            <label class="settings-default-label settings-default-full"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="default-fakturaadresse"></label>
-                            <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="default-prosjektnr"></label>
-                            <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="default-prosjektnavn"></label>
-                            <label class="settings-default-label settings-default-full"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
-                        </div>
-                    </div>
-                    <div class="settings-page-footer">
-                        <button class="settings-save-btn" onclick="saveDefaultSettings()" data-i18n="btn_save_settings">Lagre</button>
+                <div id="settings-page-defaults" class="settings-page" style="display:none;">
+                    <div class="settings-defaults-grid">
+                        <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
+                        <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
+                        <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="default-oppdragsgiver"></label>
+                        <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="default-kundens-ref"></label>
+                        <label class="settings-default-label settings-default-full"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="default-fakturaadresse"></label>
+                        <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="default-prosjektnr"></label>
+                        <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="default-prosjektnavn"></label>
+                        <label class="settings-default-label settings-default-full"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
                     </div>
                 </div>
 
@@ -510,7 +505,7 @@
 
     <script src="lang.js?v=103"></script>
     <script src="script.js?v=103"></script>
-    <script src="script-ui.js?v=125"></script>
+    <script src="script-ui.js?v=126"></script>
     <script>
         if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
             navigator.serviceWorker.register('service-worker.js');

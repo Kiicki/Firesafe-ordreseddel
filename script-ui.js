@@ -1267,14 +1267,39 @@ async function saveDefaultSettings() {
         }
     }
     localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
-    showNotificationModal(t('settings_defaults_saved'), true);
+}
+
+// Auto-save defaults on blur
+let defaultsInitialValues = {};
+let defaultsAutoSaveInitialized = false;
+
+function initDefaultsAutoSave() {
+    if (defaultsAutoSaveInitialized) return;
+    defaultsAutoSaveInitialized = true;
+
+    DEFAULT_FIELDS.forEach(field => {
+        const input = document.getElementById('default-' + field);
+        if (input) {
+            input.addEventListener('blur', async function() {
+                const newVal = this.value.trim();
+                if (newVal !== defaultsInitialValues[field]) {
+                    defaultsInitialValues[field] = newVal;
+                    await saveDefaultSettings();
+                    showNotificationModal(t('settings_defaults_saved'), true);
+                }
+            });
+        }
+    });
 }
 
 async function loadDefaultSettingsToModal() {
     const defaults = await getDefaultSettings();
     DEFAULT_FIELDS.forEach(field => {
-        document.getElementById('default-' + field).value = defaults[field] || '';
+        const input = document.getElementById('default-' + field);
+        input.value = defaults[field] || '';
+        defaultsInitialValues[field] = input.value;
     });
+    initDefaultsAutoSave();
 }
 
 async function autoFillDefaults() {
