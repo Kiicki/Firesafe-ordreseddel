@@ -90,7 +90,9 @@ function loadForm(index) {
     if (loadedForms[index]) {
         setFormData(loadedForms[index]);
         lastSavedData = getFormDataSnapshot();
-        setFormReadOnly(!!loadedForms[index]._isSent);
+        const isSent = !!loadedForms[index]._isSent;
+        setFormReadOnly(isSent);
+        sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
         closeModal();
         // Set hash based on form type
         window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
@@ -472,7 +474,9 @@ function loadExternalForm(index) {
     if (!form) return;
     setFormData(form);
     lastSavedData = getFormDataSnapshot();
-    setFormReadOnly(!!form._isSent);
+    const isSent = !!form._isSent;
+    setFormReadOnly(isSent);
+    sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // External form = #ekstern
     window.location.hash = 'ekstern';
@@ -1458,6 +1462,7 @@ function clearForm() {
     document.getElementById('mobile-dato').value = week;
 
     sessionStorage.removeItem('firesafe_current');
+    sessionStorage.removeItem('firesafe_current_sent');
     lastSavedData = null;
     isExternalForm = false;
     updateExternalBadge();
@@ -1726,14 +1731,15 @@ window.addEventListener('load', function() {
         showSavedForms();
     } else if (hash === 'settings') {
         showSettingsModal();
-    } else if (hash === 'skjema') {
-        // Regular form - already loaded via sessionStorage
+    } else if (hash === 'skjema' || hash === 'ekstern') {
+        // Form - already loaded via sessionStorage
         closeAllModals();
-        document.getElementById('form-header-title').textContent = t('form_title');
-    } else if (hash === 'ekstern') {
-        // External form - already loaded via sessionStorage
-        closeAllModals();
-        document.getElementById('form-header-title').textContent = t('external_form_title');
+        document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
+        // Restore sent status
+        const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+        if (wasSent) {
+            setFormReadOnly(true);
+        }
     } else {
         // No hash = home = template modal
         showTemplateModal();
