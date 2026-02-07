@@ -587,7 +587,8 @@ body.keyboard-open .toolbar {
 
 /* When keyboard is open on template/saved modal, make it part of document flow */
 body.keyboard-open #template-modal.active,
-body.keyboard-open #saved-modal.active {
+body.keyboard-open #saved-modal.active,
+body.keyboard-open #settings-modal.active {
     position: static;
     display: block;
     overflow-y: visible;
