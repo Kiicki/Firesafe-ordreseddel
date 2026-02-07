@@ -95,20 +95,16 @@ const TRANSLATIONS = {
         // Hent modal
         modal_load_title: 'Hent skjema',
         tab_own: 'Egne',
-        tab_saved: 'Lagrede',
-        tab_sent: 'Sendte',
         tab_external: 'Eksterne',
         search_placeholder: 'Søk ordrenummer...',
         search_template_placeholder: 'Søk prosjekt...',
         loading: 'Laster...',
         no_saved_forms: 'Ingen lagrede skjemaer',
-        no_sent_forms: 'Ingen sendte skjemaer',
         no_external_forms: 'Ingen eksterne skjemaer',
         no_templates: 'Ingen prosjektmaler',
 
         // List items
         no_name: 'Uten navn',
-        order_prefix: 'Ordre: ',
 
         // Form actions
         delete_confirm: 'Er du sikker på at du vil slette dette skjemaet?',
@@ -316,20 +312,16 @@ const TRANSLATIONS = {
         // Hent modal
         modal_load_title: 'Load form',
         tab_own: 'Own',
-        tab_saved: 'Saved',
-        tab_sent: 'Sent',
         tab_external: 'External',
         search_placeholder: 'Search order number...',
         search_template_placeholder: 'Search project...',
         loading: 'Loading...',
         no_saved_forms: 'No saved forms',
-        no_sent_forms: 'No sent forms',
         no_external_forms: 'No external forms',
         no_templates: 'No project templates',
 
         // List items
         no_name: 'Untitled',
-        order_prefix: 'Order: ',
 
         // Form actions
         delete_confirm: 'Are you sure you want to delete this form?',

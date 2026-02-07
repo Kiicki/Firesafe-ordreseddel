@@ -367,9 +367,6 @@ function showSaveMenu() {
     ]);
 }
 
-// Keep old names for compatibility
-function closeSaveMenu() { closeActionPopup(); }
-function closeExportMenu() { closeActionPopup(); }
 function showExportMenu() {
     if (isModalOpen()) return;
     const isSent = document.getElementById('sent-banner').style.display !== 'none';
@@ -630,10 +627,6 @@ function filterExternalForms() {
         const ordrenr = item.querySelector('.saved-item-row1')?.textContent.toLowerCase() || '';
         item.style.display = ordrenr.startsWith(searchTerm) ? 'flex' : 'none';
     });
-}
-
-function closeSentModal() {
-    closeModal();
 }
 
 // ============================================
@@ -1992,29 +1985,4 @@ window.addEventListener('hashchange', function() {
     }
 });
 
-// Keyboard detection using visualViewport
-(function() {
-    if (!window.visualViewport) return;
-
-    let initialHeight = null;
-    let isReady = false;
-
-    // Wait for page to stabilize before enabling keyboard detection
-    window.addEventListener('load', function() {
-        setTimeout(function() {
-            initialHeight = window.visualViewport.height;
-            isReady = true;
-        }, 500);
-    });
-
-    window.visualViewport.addEventListener('resize', function() {
-        if (!isReady || initialHeight === null) return;
-        const heightDiff = initialHeight - window.visualViewport.height;
-        if (heightDiff > 150) {
-            document.body.classList.add('keyboard-open');
-        } else {
-            document.body.classList.remove('keyboard-open');
-        }
-    });
-})();
 

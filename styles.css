@@ -98,19 +98,6 @@ body {
     z-index: 10001;
 }
 
-/* When keyboard is open, everything becomes part of document flow */
-body.keyboard-open {
-    padding-bottom: 0;
-    overflow-y: auto;
-    height: auto;
-}
-
-body.keyboard-open .toolbar {
-    position: static;
-    z-index: auto;
-    box-shadow: none;
-}
-
 /* Dark overlay on toolbar when popup is active */
 .toolbar::before {
     content: '';
@@ -373,10 +360,6 @@ body:has(#action-popup.active) .toolbar button:disabled {
     flex: 0 0 200px;
 }
 
-.form-cell.medium {
-    flex: 0 0 150px;
-}
-
 .cell-label {
     font-size: 10px;
     color: #000;
@@ -606,15 +589,6 @@ body:has(#action-popup.active) .toolbar button:disabled {
 #saved-modal,
 #settings-modal {
     bottom: 60px;
-}
-
-/* When keyboard is open on template/saved modal, make it part of document flow */
-body.keyboard-open #template-modal.active,
-body.keyboard-open #saved-modal.active,
-body.keyboard-open #settings-modal.active {
-    position: static;
-    display: block;
-    overflow-y: visible;
 }
 
 /* Hide toolbar when fullscreen overlay is active */
@@ -2096,19 +2070,6 @@ body.modal-active .container.form-view > .modal-content {
     margin-top: auto;
 }
 
-body.keyboard-open .settings-page-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 16px;
-    z-index: 100;
-}
-
-body.keyboard-open .settings-page-scroll {
-    padding-bottom: 80px;
-}
-
 .settings-page-footer .settings-save-btn {
     margin: 0;
 }
@@ -2459,16 +2420,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0;
-}
-
-@media screen and (min-width: 500px) {
-    .settings-defaults-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 0 12px;
-    }
-    .settings-default-full {
-        grid-column: 1 / -1;
-    }
 }
 
 /* Language settings */
