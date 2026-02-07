@@ -601,6 +601,16 @@ body.modal-active:not(.template-modal-open):not(.saved-modal-open):not(.settings
     display: none;
 }
 
+/* White background when toolbar is hidden (prevents gray showing through) */
+body:has(.text-editor-modal.active),
+body:has(.picker-overlay.active),
+body:has(.signature-overlay.active),
+body:has(.confirm-modal.active),
+body:has(#action-popup.active) {
+    padding-bottom: 0;
+    background: white;
+}
+
 /* Hide form content when modal is active (JS adds this class) */
 body.modal-active .container.form-view > .modal-content {
     display: none;
