@@ -580,7 +580,8 @@ body.keyboard-open .toolbar {
 
 /* Template modal is home screen - leave space for toolbar */
 #template-modal,
-#saved-modal {
+#saved-modal,
+#settings-modal {
     bottom: 60px;
 }
 
@@ -592,8 +593,8 @@ body.keyboard-open #saved-modal.active {
     overflow-y: visible;
 }
 
-/* Hide toolbar when modal or overlay is active (except template-modal and saved-modal) */
-body.modal-active:not(.template-modal-open):not(.saved-modal-open) .toolbar,
+/* Hide toolbar when modal or overlay is active (except template-modal, saved-modal, settings-modal) */
+body.modal-active:not(.template-modal-open):not(.saved-modal-open):not(.settings-modal-open) .toolbar,
 .text-editor-modal.active ~ .toolbar,
 .picker-overlay.active ~ .toolbar,
 .signature-overlay.active ~ .toolbar,

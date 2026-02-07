@@ -20,11 +20,31 @@ function closeAllModals() {
     });
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
-    document.body.classList.remove('modal-active', 'template-modal-open', 'saved-modal-open');
+    document.body.classList.remove('modal-active', 'template-modal-open', 'saved-modal-open', 'settings-modal-open');
 }
 
 function isModalOpen() {
     return document.querySelector('.modal.active') !== null;
+}
+
+// Update toolbar button states based on current view
+function updateToolbarState() {
+    const isOnForm = !document.body.classList.contains('template-modal-open')
+                  && !document.body.classList.contains('saved-modal-open')
+                  && !document.body.classList.contains('settings-modal-open');
+
+    const isSentForm = document.getElementById('sent-banner').style.display !== 'none';
+
+    const saveBtn = document.querySelector('.btn-save');
+    if (saveBtn) {
+        // Disable if not on form, or if form is sent
+        saveBtn.disabled = !isOnForm || isSentForm;
+    }
+
+    const exportBtn = document.querySelector('.btn-export');
+    if (exportBtn) {
+        exportBtn.disabled = !isOnForm;
+    }
 }
 
 async function showSavedForms() {
@@ -34,6 +54,7 @@ async function showSavedForms() {
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('saved-modal').classList.add('active');
     document.body.classList.add('modal-active', 'saved-modal-open');
+    updateToolbarState();
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
@@ -220,6 +241,7 @@ function deleteForm(event, index) {
 function closeModal() {
     document.getElementById('saved-modal').classList.remove('active');
     document.body.classList.remove('modal-active', 'saved-modal-open');
+    updateToolbarState();
     document.getElementById('saved-search').value = '';
     document.getElementById('external-search').value = '';
     // Reset to own tab
@@ -633,6 +655,7 @@ async function showTemplateModal() {
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
     document.getElementById('template-modal').classList.add('active');
     document.body.classList.add('modal-active', 'template-modal-open');
+    updateToolbarState();
 
     // Track if we need refresh when auth is ready
     pendingAuthRefresh = currentUser ? null : 'templates';
@@ -695,6 +718,7 @@ function loadTemplate(index) {
 
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active', 'template-modal-open');
+    updateToolbarState();
     document.getElementById('template-search').value = '';
     // Template loaded = regular form
     window.location.hash = 'skjema';
@@ -766,6 +790,7 @@ function closeTemplateModal() {
 
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active', 'template-modal-open');
+    updateToolbarState();
     document.getElementById('template-search').value = '';
     // Blank form = #skjema
     window.location.hash = 'skjema';
@@ -790,6 +815,7 @@ function cancelTemplateModal() {
     // If no preNewFormData, stay at home (no hash)
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active', 'template-modal-open');
+    updateToolbarState();
     document.getElementById('template-search').value = '';
 }
 
@@ -851,12 +877,14 @@ async function showSettingsModal() {
     window.location.hash = 'settings';
     showSettingsMenu();
     document.getElementById('settings-modal').classList.add('active');
-    document.body.classList.add('modal-active');
+    document.body.classList.add('modal-active', 'settings-modal-open');
+    updateToolbarState();
 }
 
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.remove('active');
-    document.body.classList.remove('modal-active');
+    document.body.classList.remove('modal-active', 'settings-modal-open');
+    updateToolbarState();
     showSettingsMenu();
     // Clear URL hash
     history.replaceState(null, '', window.location.pathname);
@@ -1430,6 +1458,7 @@ function updateExternalBadge() {
 function startExternalOrder() {
     document.getElementById('template-modal').classList.remove('active');
     document.body.classList.remove('modal-active', 'template-modal-open');
+    updateToolbarState();
     document.getElementById('template-search').value = '';
     if (preNewFormData) {
         clearForm();
@@ -1777,6 +1806,7 @@ window.addEventListener('load', function() {
         if (wasSent) {
             setFormReadOnly(true);
         }
+        updateToolbarState();
     } else {
         // No hash = home = template modal
         showTemplateModal();
