@@ -506,10 +506,11 @@ function openMaterialPicker(btn) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
         const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
+        const disabledAttr = needsSpec ? ' disabled' : '';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${esc(name)}" data-needs-spec="${needsSpec ? '1' : '0'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${name}</span>${specBadge}</div>
-            <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}">
-            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}">${enhetLabel}</button>
+            <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}"${disabledAttr}>
+            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}"${disabledAttr}>${enhetLabel}</button>
         </div>`;
     }
 
@@ -618,6 +619,7 @@ function openMaterialPicker(btn) {
         if (allMaterials.some(o => o.name.toLowerCase() === val.toLowerCase()) ||
             (pickerState[val] && pickerState[val].checked)) {
             searchInput.value = '';
+            showNotificationModal(t('material_exists'));
             return;
         }
         pickerState[val] = { checked: true, antall: '', enhet: '' };

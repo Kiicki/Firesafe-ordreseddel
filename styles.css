@@ -1608,13 +1608,19 @@ body.modal-active .container.form-view > .modal-content {
     background: #f5f5f5;
 }
 
+.picker-mat-antall:disabled,
+.picker-mat-enhet-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 /* Unit picker bottom sheet */
 .unit-picker-backdrop {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5);
-    z-index: 4000;
+    z-index: 10003;
     justify-content: center;
     align-items: center;
 }
@@ -1753,7 +1759,7 @@ body.modal-active .container.form-view > .modal-content {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5);
-    z-index: 5000;
+    z-index: 10003;
     justify-content: center;
     align-items: center;
 }
@@ -1943,7 +1949,7 @@ body.modal-active .container.form-view > .modal-content {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     font-size: 14px;
-    z-index: 9999;
+    z-index: 99999;
     cursor: pointer;
     opacity: 0;
     transition: transform 0.3s ease, opacity 0.3s ease;

@@ -181,7 +181,8 @@ const TRANSLATIONS = {
         picker_incomplete: '{0} mangler antall eller enhet.',
         picker_search_placeholder: 'Søk eller legg til materiale...',
         settings_spec_toggle: 'Trenger spesifikasjon',
-        spec_popup_placeholder: 'f.eks. Ø50',
+        spec_popup_placeholder: 'f.eks. Ø50mm',
+        material_exists: 'Materialet finnes allerede',
 
         // Language page
         lang_norwegian: 'Norsk',
@@ -401,7 +402,8 @@ const TRANSLATIONS = {
         picker_incomplete: '{0} is missing quantity or unit.',
         picker_search_placeholder: 'Search or add material...',
         settings_spec_toggle: 'Needs specification',
-        spec_popup_placeholder: 'e.g. Ø50',
+        spec_popup_placeholder: 'e.g. Ø50mm',
+        material_exists: 'Material already exists',
 
         // Language page
         lang_norwegian: 'Norsk',
