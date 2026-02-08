@@ -976,6 +976,9 @@ let signatureOrientationLocked = false;
 
 async function openSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
+
+    // Hide overlay during fullscreen/orientation transition to prevent flash
+    overlay.style.visibility = 'hidden';
     overlay.classList.add('active');
 
     // Force landscape on portrait phones
@@ -1002,13 +1005,14 @@ async function openSignatureOverlay() {
     // Save backup in case user cancels
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
 
-    // Wait for layout to complete before initializing canvas
-    requestAnimationFrame(() => {
+    // Wait for layout to settle, then show and initialize canvas
+    setTimeout(() => {
         requestAnimationFrame(() => {
+            overlay.style.visibility = '';
             initSignatureCanvas();
             redrawSignature();
         });
-    });
+    }, signatureOrientationLocked ? 300 : 0);
 }
 
 function closeSignatureOverlay() {
