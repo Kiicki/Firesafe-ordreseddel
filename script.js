@@ -465,10 +465,10 @@ function createMaterialSummaryRow(m) {
     div.setAttribute('data-mat-name', m.name || '');
     div.setAttribute('data-mat-antall', m.antall || '');
     div.setAttribute('data-mat-enhet', m.enhet || '');
-    const nameText = m.name || t('placeholder_material');
+    const nameText = escapeHtml(m.name) || t('placeholder_material');
     const detailParts = [];
-    if (m.antall) detailParts.push(m.antall);
-    if (m.enhet) detailParts.push(m.enhet);
+    if (m.antall) detailParts.push(escapeHtml(m.antall));
+    if (m.enhet) detailParts.push(escapeHtml(m.enhet));
     const detail = detailParts.length > 0 ? detailParts.join(' ') : '';
     div.innerHTML = `
         <div class="mat-summary-row">
@@ -779,7 +779,7 @@ function openUnitPicker(matName, btnEl) {
     let html = '';
     allUnits.forEach(u => {
         const selected = u === currentEnhet ? ' unit-picker-item-selected' : '';
-        html += `<button type="button" class="unit-picker-item${selected}">${u}</button>`;
+        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(u)}</button>`;
     });
 
     listEl.innerHTML = html;
