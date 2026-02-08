@@ -37,7 +37,10 @@
       "Bash(node --check:*)",
       "Bash(npx stylelint:*)",
       "Bash(netstat:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "WebSearch",
+      "Bash(openssl dgst:*)",
+      "Bash(openssl base64:*)"
     ]
   }
 }

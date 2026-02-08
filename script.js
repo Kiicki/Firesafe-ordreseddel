@@ -11,6 +11,17 @@ const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
 let pendingAuthRefresh = null; // 'templates' | 'saved' | null
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 
+// Global HTML escape function - prevents XSS attacks
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // ============================================
 // FLERSPRÅK
 // ============================================
@@ -67,6 +78,7 @@ const firebaseConfig = {
 let db = null;
 let auth = null;
 let currentUser = null;
+let isAdmin = false;
 
 try {
     firebase.initializeApp(firebaseConfig);
@@ -76,15 +88,31 @@ try {
     console.log('Firebase ikke konfigurert ennå');
 }
 
+// Check if user is admin
+async function checkAdminStatus(uid) {
+    if (!db || !uid) return false;
+    try {
+        const doc = await db.collection('admins').doc(uid).get();
+        return doc.exists;
+    } catch (e) {
+        return false;
+    }
+}
+
 // Auth state listener
 if (auth) {
     auth.onAuthStateChanged(async (user) => {
         currentUser = user;
+        isAdmin = false; // Reset admin status
         updateLoginButton();
         loadedForms = [];
         loadedExternalForms = [];
-        // Load language preference from Firebase
+
         if (user && db) {
+            // Check admin status
+            isAdmin = await checkAdminStatus(user.uid);
+
+            // Load language preference from Firebase
             try {
                 const doc = await db.collection('users').doc(user.uid).collection('settings').doc('language').get();
                 if (doc.exists && doc.data().lang) {
@@ -500,7 +528,15 @@ function openMaterialPicker(btn) {
         }
     });
 
-    function esc(s) { return (s || '').replace(/"/g, '&quot;'); }
+    // HTML escape function - prevents XSS
+    function esc(s) {
+        if (!s) return '';
+        return s.replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+    }
 
     function buildRow(name, isChecked, antall, enhet, needsSpec) {
         const enhetLabel = enhet || t('placeholder_unit');
@@ -508,9 +544,9 @@ function openMaterialPicker(btn) {
         const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
         const disabledAttr = needsSpec ? ' disabled' : '';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${esc(name)}" data-needs-spec="${needsSpec ? '1' : '0'}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${name}</span>${specBadge}</div>
+            <div class="picker-mat-check"><span class="picker-mat-name">${esc(name)}</span>${specBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}"${disabledAttr}>
-            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}"${disabledAttr}>${enhetLabel}</button>
+            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}"${disabledAttr}>${esc(enhetLabel)}</button>
         </div>`;
     }
 

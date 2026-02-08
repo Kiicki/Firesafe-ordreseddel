@@ -1,4 +1,4 @@
-const CACHE_NAME = 'firesafe-v179';
+const CACHE_NAME = 'firesafe-v182';
 const ASSETS = [
     '/Firesafe-ordreseddel/',
     '/Firesafe-ordreseddel/index.html',
@@ -29,6 +29,11 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
+
+    // Only handle http/https requests (skip chrome-extension, etc.)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return;
+    }
 
     // Let Firebase requests go to network always
     if (url.hostname.includes('googleapis.com') || url.hostname.includes('gstatic.com') || url.hostname.includes('firebaseapp.com')) {

@@ -2256,6 +2256,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     flex: 1;
 }
 
+.settings-list-item.settings-readonly span {
+    cursor: default;
+}
+
+.settings-spec-badge {
+    font-size: 11px;
+    color: #fff;
+    background: #e55a00;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+
 .settings-list-edit-input {
     flex: 1;
     font-size: 14px;
