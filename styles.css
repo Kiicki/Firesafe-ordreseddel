@@ -2532,13 +2532,17 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-top: 1px solid #eee;
 }
 
-.signature-overlay.force-landscape {
-    top: 0;
-    left: 0;
-    right: auto;
-    bottom: auto;
-    transform-origin: 0 0;
-    transform: rotate(90deg) translateY(-100%);
+@media (orientation: portrait) {
+    .signature-overlay.force-landscape {
+        top: 0;
+        left: 0;
+        right: auto;
+        bottom: auto;
+        width: 100vh;
+        height: 100vw;
+        transform-origin: 0 0;
+        transform: rotate(90deg) translateY(-100%);
+    }
 }
 
 

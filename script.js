@@ -975,10 +975,8 @@ const signatureRatio = 3;
 function openSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
 
-    // Force landscape on portrait phones using CSS rotation with fixed pixel values
-    if (isMobile() && window.innerHeight > window.innerWidth) {
-        overlay.style.width = window.innerHeight + 'px';
-        overlay.style.height = window.innerWidth + 'px';
+    // Force landscape on mobile — CSS media query handles portrait/landscape switching
+    if (isMobile()) {
         overlay.classList.add('force-landscape');
     }
 
@@ -987,6 +985,9 @@ function openSignatureOverlay() {
     currentPath = [];
     // Save backup in case user cancels
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+
+    // Reinit canvas on orientation change (signature data survives — normalized 0-1 coords)
+    window.addEventListener('resize', handleSignatureResize);
 
     // Wait for layout to complete before initializing canvas
     requestAnimationFrame(() => {
@@ -997,14 +998,26 @@ function openSignatureOverlay() {
     });
 }
 
+let signatureResizeTimeout = null;
+
+function handleSignatureResize() {
+    const overlay = document.getElementById('signature-overlay');
+    if (!overlay.classList.contains('active')) return;
+    clearTimeout(signatureResizeTimeout);
+    signatureResizeTimeout = setTimeout(() => {
+        initSignatureCanvas();
+        redrawSignature();
+    }, 250);
+}
+
 function closeSignatureOverlay() {
     // Restore backup (user cancelled)
     signaturePaths = signaturePathsBackup;
     const overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
     overlay.classList.remove('force-landscape');
-    overlay.style.width = '';
-    overlay.style.height = '';
+    window.removeEventListener('resize', handleSignatureResize);
+    clearTimeout(signatureResizeTimeout);
 }
 
 function redrawSignature() {
@@ -1191,8 +1204,8 @@ function confirmSignature() {
     const overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
     overlay.classList.remove('force-landscape');
-    overlay.style.width = '';
-    overlay.style.height = '';
+    window.removeEventListener('resize', handleSignatureResize);
+    clearTimeout(signatureResizeTimeout);
 }
 
 function clearSignaturePreview() {
