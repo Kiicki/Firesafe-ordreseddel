@@ -972,47 +972,29 @@ let currentPath = [];
 let canvasAspectRatio = 4; // width/height ratio, default 4:1
 const signatureRatio = 3;
 
-let signatureOrientationLocked = false;
-
-async function openSignatureOverlay() {
+function openSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
 
-    // Hide overlay during fullscreen/orientation transition to prevent flash
-    overlay.style.visibility = 'hidden';
-    overlay.classList.add('active');
-
-    // Force landscape on portrait phones
-    signatureOrientationLocked = false;
+    // Force landscape on portrait phones using CSS rotation with fixed pixel values
     if (isMobile() && window.innerHeight > window.innerWidth) {
-        try {
-            // Fullscreen + orientation lock (required by Firefox/most mobile browsers)
-            await overlay.requestFullscreen();
-            await screen.orientation.lock('landscape');
-            signatureOrientationLocked = true;
-        } catch(e) {
-            // Exit fullscreen if it was entered but lock failed
-            if (document.fullscreenElement) {
-                document.exitFullscreen().catch(() => {});
-            }
-            // Fallback: CSS rotation with fixed pixel values (immune to phone rotation)
-            overlay.style.width = window.innerHeight + 'px';
-            overlay.style.height = window.innerWidth + 'px';
-            overlay.classList.add('force-landscape');
-        }
+        overlay.style.width = window.innerHeight + 'px';
+        overlay.style.height = window.innerWidth + 'px';
+        overlay.classList.add('force-landscape');
     }
+
+    overlay.classList.add('active');
 
     currentPath = [];
     // Save backup in case user cancels
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
 
-    // Wait for layout to settle, then show and initialize canvas
-    setTimeout(() => {
+    // Wait for layout to complete before initializing canvas
+    requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            overlay.style.visibility = '';
             initSignatureCanvas();
             redrawSignature();
         });
-    }, signatureOrientationLocked ? 300 : 0);
+    });
 }
 
 function closeSignatureOverlay() {
@@ -1023,13 +1005,6 @@ function closeSignatureOverlay() {
     overlay.classList.remove('force-landscape');
     overlay.style.width = '';
     overlay.style.height = '';
-    if (signatureOrientationLocked) {
-        screen.orientation.unlock();
-        signatureOrientationLocked = false;
-    }
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-    }
 }
 
 function redrawSignature() {
@@ -1218,13 +1193,6 @@ function confirmSignature() {
     overlay.classList.remove('force-landscape');
     overlay.style.width = '';
     overlay.style.height = '';
-    if (signatureOrientationLocked) {
-        screen.orientation.unlock();
-        signatureOrientationLocked = false;
-    }
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-    }
 }
 
 function clearSignaturePreview() {

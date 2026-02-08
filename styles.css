@@ -2541,15 +2541,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     transform: rotate(90deg) translateY(-100%);
 }
 
-.signature-overlay:fullscreen {
-    width: 100%;
-    height: 100%;
-    background: #fff;
-}
-
-.signature-overlay::backdrop {
-    background: #fff;
-}
 
 .signature-overlay-footer {
     display: flex;
