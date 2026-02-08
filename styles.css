@@ -2537,8 +2537,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     left: 0;
     right: auto;
     bottom: auto;
-    width: 100vh;
-    height: 100vw;
     transform-origin: 0 0;
     transform: rotate(90deg) translateY(-100%);
 }

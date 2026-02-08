@@ -972,25 +972,30 @@ let currentPath = [];
 let canvasAspectRatio = 4; // width/height ratio, default 4:1
 const signatureRatio = 3;
 
-let signatureResizeTimeout = null;
+let signatureOrientationLocked = false;
 
-function openSignatureOverlay() {
+async function openSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
     overlay.classList.add('active');
 
     // Force landscape on portrait phones
-    if (window.innerHeight > window.innerWidth && isMobile()) {
-        overlay.classList.add('force-landscape');
-    } else {
-        overlay.classList.remove('force-landscape');
+    if (isMobile() && window.innerHeight > window.innerWidth) {
+        try {
+            // Native orientation lock (works in Android PWA/Chrome)
+            await screen.orientation.lock('landscape');
+            signatureOrientationLocked = true;
+        } catch(e) {
+            // Fallback: CSS rotation with fixed pixel values (immune to phone rotation)
+            signatureOrientationLocked = false;
+            overlay.style.width = window.innerHeight + 'px';
+            overlay.style.height = window.innerWidth + 'px';
+            overlay.classList.add('force-landscape');
+        }
     }
 
     currentPath = [];
     // Save backup in case user cancels
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
-
-    // Listen for orientation changes while overlay is open
-    window.addEventListener('resize', handleSignatureResize);
 
     // Wait for layout to complete before initializing canvas
     requestAnimationFrame(() => {
@@ -1001,35 +1006,18 @@ function openSignatureOverlay() {
     });
 }
 
-function handleSignatureResize() {
-    const overlay = document.getElementById('signature-overlay');
-    if (!overlay.classList.contains('active')) return;
-
-    clearTimeout(signatureResizeTimeout);
-    signatureResizeTimeout = setTimeout(() => {
-        if (window.innerHeight > window.innerWidth && isMobile()) {
-            overlay.classList.add('force-landscape');
-        } else {
-            overlay.classList.remove('force-landscape');
-        }
-
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                initSignatureCanvas();
-                redrawSignature();
-            });
-        });
-    }, 200);
-}
-
 function closeSignatureOverlay() {
     // Restore backup (user cancelled)
     signaturePaths = signaturePathsBackup;
     const overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
     overlay.classList.remove('force-landscape');
-    window.removeEventListener('resize', handleSignatureResize);
-    clearTimeout(signatureResizeTimeout);
+    overlay.style.width = '';
+    overlay.style.height = '';
+    if (signatureOrientationLocked) {
+        screen.orientation.unlock();
+        signatureOrientationLocked = false;
+    }
 }
 
 function redrawSignature() {
@@ -1216,8 +1204,12 @@ function confirmSignature() {
     const overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
     overlay.classList.remove('force-landscape');
-    window.removeEventListener('resize', handleSignatureResize);
-    clearTimeout(signatureResizeTimeout);
+    overlay.style.width = '';
+    overlay.style.height = '';
+    if (signatureOrientationLocked) {
+        screen.orientation.unlock();
+        signatureOrientationLocked = false;
+    }
 }
 
 function clearSignaturePreview() {
