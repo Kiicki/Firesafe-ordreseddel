@@ -972,12 +972,26 @@ let currentPath = [];
 let canvasAspectRatio = 4; // width/height ratio, default 4:1
 const signatureRatio = 3;
 
+let signatureResizeTimeout = null;
+
 function openSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
     overlay.classList.add('active');
+
+    // Force landscape on portrait phones
+    if (window.innerHeight > window.innerWidth && isMobile()) {
+        overlay.classList.add('force-landscape');
+    } else {
+        overlay.classList.remove('force-landscape');
+    }
+
     currentPath = [];
     // Save backup in case user cancels
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+
+    // Listen for orientation changes while overlay is open
+    window.addEventListener('resize', handleSignatureResize);
+
     // Wait for layout to complete before initializing canvas
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -987,15 +1001,41 @@ function openSignatureOverlay() {
     });
 }
 
+function handleSignatureResize() {
+    const overlay = document.getElementById('signature-overlay');
+    if (!overlay.classList.contains('active')) return;
+
+    clearTimeout(signatureResizeTimeout);
+    signatureResizeTimeout = setTimeout(() => {
+        if (window.innerHeight > window.innerWidth && isMobile()) {
+            overlay.classList.add('force-landscape');
+        } else {
+            overlay.classList.remove('force-landscape');
+        }
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                initSignatureCanvas();
+                redrawSignature();
+            });
+        });
+    }, 200);
+}
+
 function closeSignatureOverlay() {
     // Restore backup (user cancelled)
     signaturePaths = signaturePathsBackup;
-    document.getElementById('signature-overlay').classList.remove('active');
+    const overlay = document.getElementById('signature-overlay');
+    overlay.classList.remove('active');
+    overlay.classList.remove('force-landscape');
+    window.removeEventListener('resize', handleSignatureResize);
+    clearTimeout(signatureResizeTimeout);
 }
 
 function redrawSignature() {
     if (!signatureCanvas || !signatureCtx || signaturePaths.length === 0) return;
-    const rect = signatureCanvas.getBoundingClientRect();
+    const w = signatureCanvas.clientWidth;
+    const h = signatureCanvas.clientHeight;
 
     signatureCtx.lineCap = 'round';
     signatureCtx.lineJoin = 'round';
@@ -1005,9 +1045,9 @@ function redrawSignature() {
     for (const path of signaturePaths) {
         if (path.length < 2) continue;
         signatureCtx.beginPath();
-        signatureCtx.moveTo(path[0].x * rect.width, path[0].y * rect.height);
+        signatureCtx.moveTo(path[0].x * w, path[0].y * h);
         for (let i = 1; i < path.length; i++) {
-            signatureCtx.lineTo(path[i].x * rect.width, path[i].y * rect.height);
+            signatureCtx.lineTo(path[i].x * w, path[i].y * h);
         }
         signatureCtx.stroke();
     }
@@ -1017,13 +1057,14 @@ function initSignatureCanvas() {
     signatureCanvas = document.getElementById('signature-canvas');
     signatureCtx = signatureCanvas.getContext('2d');
 
-    const rect = signatureCanvas.getBoundingClientRect();
-    signatureCanvas.width = rect.width * signatureRatio;
-    signatureCanvas.height = rect.height * signatureRatio;
+    const w = signatureCanvas.clientWidth;
+    const h = signatureCanvas.clientHeight;
+    signatureCanvas.width = w * signatureRatio;
+    signatureCanvas.height = h * signatureRatio;
     signatureCtx.scale(signatureRatio, signatureRatio);
 
     // Store aspect ratio for correct SVG generation
-    canvasAspectRatio = rect.width / rect.height;
+    canvasAspectRatio = w / h;
 
     signatureCtx.lineCap = 'round';
     signatureCtx.lineJoin = 'round';
@@ -1032,34 +1073,27 @@ function initSignatureCanvas() {
 
     // Clear canvas
     signatureCtx.fillStyle = '#fff';
-    signatureCtx.fillRect(0, 0, rect.width, rect.height);
+    signatureCtx.fillRect(0, 0, w, h);
 
-    // Remove old listeners and add new ones
-    signatureCanvas.onmousedown = startDrawing;
-    signatureCanvas.onmousemove = draw;
-    signatureCanvas.onmouseup = stopDrawing;
-    signatureCanvas.onmouseout = stopDrawing;
-
-    signatureCanvas.ontouchstart = handleTouchStart;
-    signatureCanvas.ontouchmove = handleTouchMove;
-    signatureCanvas.ontouchend = stopDrawing;
+    // Pointer events (unified mouse + touch, CSS transform-aware via offsetX/offsetY)
+    signatureCanvas.onpointerdown = handlePointerDown;
+    signatureCanvas.onpointermove = handlePointerMove;
+    signatureCanvas.onpointerup = handlePointerUp;
+    signatureCanvas.onpointercancel = handlePointerUp;
 }
 
 function getCanvasCoords(e) {
-    const rect = signatureCanvas.getBoundingClientRect();
-    if (e.touches && e.touches[0]) {
-        return {
-            x: (e.touches[0].clientX - rect.left) / rect.width,
-            y: (e.touches[0].clientY - rect.top) / rect.height
-        };
-    }
+    // offsetX/offsetY are in the element's local coordinate space,
+    // automatically accounting for CSS transforms like rotate(90deg)
     return {
-        x: (e.clientX - rect.left) / rect.width,
-        y: (e.clientY - rect.top) / rect.height
+        x: e.offsetX / signatureCanvas.clientWidth,
+        y: e.offsetY / signatureCanvas.clientHeight
     };
 }
 
-function startDrawing(e) {
+function handlePointerDown(e) {
+    e.preventDefault();
+    signatureCanvas.setPointerCapture(e.pointerId);
     isDrawing = true;
     const coords = getCanvasCoords(e);
     lastX = coords.x;
@@ -1067,19 +1101,16 @@ function startDrawing(e) {
     currentPath = [{x: coords.x, y: coords.y}];
 }
 
-function handleTouchStart(e) {
-    e.preventDefault();
-    startDrawing(e);
-}
-
-function draw(e) {
+function handlePointerMove(e) {
     if (!isDrawing) return;
+    e.preventDefault();
     const coords = getCanvasCoords(e);
-    const rect = signatureCanvas.getBoundingClientRect();
+    const w = signatureCanvas.clientWidth;
+    const h = signatureCanvas.clientHeight;
 
     signatureCtx.beginPath();
-    signatureCtx.moveTo(lastX * rect.width, lastY * rect.height);
-    signatureCtx.lineTo(coords.x * rect.width, coords.y * rect.height);
+    signatureCtx.moveTo(lastX * w, lastY * h);
+    signatureCtx.lineTo(coords.x * w, coords.y * h);
     signatureCtx.stroke();
 
     currentPath.push({x: coords.x, y: coords.y});
@@ -1087,12 +1118,7 @@ function draw(e) {
     lastY = coords.y;
 }
 
-function handleTouchMove(e) {
-    e.preventDefault();
-    draw(e);
-}
-
-function stopDrawing() {
+function handlePointerUp() {
     if (isDrawing && currentPath.length > 1) {
         signaturePaths.push([...currentPath]);
     }
@@ -1102,9 +1128,8 @@ function stopDrawing() {
 
 function clearSignatureCanvas() {
     if (signatureCanvas && signatureCtx) {
-        const rect = signatureCanvas.getBoundingClientRect();
         signatureCtx.fillStyle = '#fff';
-        signatureCtx.fillRect(0, 0, rect.width, rect.height);
+        signatureCtx.fillRect(0, 0, signatureCanvas.clientWidth, signatureCanvas.clientHeight);
         signaturePaths = [];
         currentPath = [];
     }
@@ -1188,7 +1213,11 @@ function confirmSignature() {
 
     // Update backup to current paths (user confirmed, so keep changes)
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
-    document.getElementById('signature-overlay').classList.remove('active');
+    const overlay = document.getElementById('signature-overlay');
+    overlay.classList.remove('active');
+    overlay.classList.remove('force-landscape');
+    window.removeEventListener('resize', handleSignatureResize);
+    clearTimeout(signatureResizeTimeout);
 }
 
 function clearSignaturePreview() {
