@@ -979,14 +979,19 @@ async function openSignatureOverlay() {
     overlay.classList.add('active');
 
     // Force landscape on portrait phones
+    signatureOrientationLocked = false;
     if (isMobile() && window.innerHeight > window.innerWidth) {
         try {
-            // Native orientation lock (works in Android PWA/Chrome)
+            // Fullscreen + orientation lock (required by Firefox/most mobile browsers)
+            await overlay.requestFullscreen();
             await screen.orientation.lock('landscape');
             signatureOrientationLocked = true;
         } catch(e) {
+            // Exit fullscreen if it was entered but lock failed
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
             // Fallback: CSS rotation with fixed pixel values (immune to phone rotation)
-            signatureOrientationLocked = false;
             overlay.style.width = window.innerHeight + 'px';
             overlay.style.height = window.innerWidth + 'px';
             overlay.classList.add('force-landscape');
@@ -1017,6 +1022,9 @@ function closeSignatureOverlay() {
     if (signatureOrientationLocked) {
         screen.orientation.unlock();
         signatureOrientationLocked = false;
+    }
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
     }
 }
 
@@ -1209,6 +1217,9 @@ function confirmSignature() {
     if (signatureOrientationLocked) {
         screen.orientation.unlock();
         signatureOrientationLocked = false;
+    }
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
     }
 }
 
