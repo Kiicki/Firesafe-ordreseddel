@@ -974,13 +974,27 @@ const signatureRatio = 3;
 
 let signatureOrientationLocked = false;
 
-function applySignatureLandscape(overlay) {
+function updateSignatureLayout() {
+    var overlay = document.getElementById('signature-overlay');
+    if (!overlay.classList.contains('active') || signatureOrientationLocked) return;
+
     overlay.style.right = 'auto';
     overlay.style.bottom = 'auto';
-    overlay.style.width = window.innerHeight + 'px';
-    overlay.style.height = window.innerWidth + 'px';
-    overlay.style.transformOrigin = '0 0';
-    overlay.style.transform = 'rotate(90deg) translateY(-100%)';
+
+    if (window.innerHeight > window.innerWidth) {
+        overlay.style.width = window.innerHeight + 'px';
+        overlay.style.height = window.innerWidth + 'px';
+        overlay.style.transformOrigin = '0 0';
+        overlay.style.transform = 'rotate(90deg) translateY(-100%)';
+    } else {
+        overlay.style.width = window.innerWidth + 'px';
+        overlay.style.height = window.innerHeight + 'px';
+        overlay.style.transform = '';
+        overlay.style.transformOrigin = '';
+    }
+
+    initSignatureCanvas();
+    redrawSignature();
 }
 
 async function openSignatureOverlay() {
@@ -990,28 +1004,17 @@ async function openSignatureOverlay() {
     signatureOrientationLocked = false;
     if (screen.orientation && screen.orientation.lock) {
         try {
-            await screen.orientation.lock('landscape');
+            await screen.orientation.lock('landscape-primary');
             signatureOrientationLocked = true;
         } catch(e) {}
     }
 
-    if (!signatureOrientationLocked) {
-        overlay.style.right = 'auto';
-        overlay.style.bottom = 'auto';
-        if (window.innerHeight > window.innerWidth) {
-            // Portrait: CSS rotation to landscape
-            overlay.style.width = window.innerHeight + 'px';
-            overlay.style.height = window.innerWidth + 'px';
-            overlay.style.transformOrigin = '0 0';
-            overlay.style.transform = 'rotate(90deg) translateY(-100%)';
-        } else {
-            // Landscape: explicit dimensions, no rotation
-            overlay.style.width = window.innerWidth + 'px';
-            overlay.style.height = window.innerHeight + 'px';
-        }
-    }
-
     overlay.classList.add('active');
+
+    if (!signatureOrientationLocked) {
+        updateSignatureLayout();
+        window.addEventListener('resize', updateSignatureLayout);
+    }
     currentPath = [];
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
 
@@ -1024,7 +1027,9 @@ async function openSignatureOverlay() {
 }
 
 function cleanupSignatureOverlay() {
-    const overlay = document.getElementById('signature-overlay');
+    window.removeEventListener('resize', updateSignatureLayout);
+
+    var overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
     overlay.style.width = '';
     overlay.style.height = '';
