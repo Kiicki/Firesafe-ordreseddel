@@ -34,7 +34,6 @@ body {
     text-align: center;
     font-size: 13px;
     font-weight: 600;
-    max-width: 600px;
     width: 100%;
     margin: 0 auto 8px;
 }
@@ -73,7 +72,6 @@ body {
 }
 
 .top-bar {
-    max-width: 600px;
     width: 100%;
     margin: 0 auto 8px;
 }
@@ -87,9 +85,7 @@ body {
     padding-bottom: max(8px, env(safe-area-inset-bottom));
     background: #f8f9fa;
     border-top: 2px solid #E8501A;
-    max-width: 600px;
     width: 100%;
-    margin: 0 auto;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
     position: fixed;
     bottom: 0;
@@ -1060,7 +1056,7 @@ body.modal-active .container.form-view > .modal-content {
     flex: none;
 }
 
-@media screen and (min-width: 601px) {
+@media screen and (min-width: 1025px) {
     .container.form-view {
         background: #f0f0f0;
     }
@@ -2481,6 +2477,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: #fff;
     z-index: 10002;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .signature-overlay.active {
@@ -2526,25 +2523,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 #signature-canvas {
     flex: 1;
+    min-height: 0;
     touch-action: none;
     cursor: crosshair;
     background: #fff;
     border-top: 1px solid #eee;
 }
-
-@media (orientation: portrait) {
-    .signature-overlay.force-landscape {
-        top: 0;
-        left: 0;
-        right: auto;
-        bottom: auto;
-        width: 100vh;
-        height: 100vw;
-        transform-origin: 0 0;
-        transform: rotate(90deg) translateY(-100%);
-    }
-}
-
 
 .signature-overlay-footer {
     display: flex;
@@ -2594,8 +2578,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 14px;
 }
 
-/* Mobile responsive */
-@media screen and (max-width: 600px) {
+/* Mobile/Tablet responsive */
+@media screen and (max-width: 1024px) {
     .container {
         padding: 5px;
     }
@@ -2611,8 +2595,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     overflow: hidden;
 }
 
-/* Tablet/PC: Constrain overlays to match form width */
-@media screen and (min-width: 601px) {
+/* PC: Constrain overlays to match form width */
+@media screen and (min-width: 1025px) {
     /* Modal overlays - use existing .modal-content wrapper */
     .modal {
         background: #f0f0f0;
@@ -2640,23 +2624,22 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
 
-    /* Signature overlay - no .overlay-content wrapper, style children directly */
-    .signature-overlay {
-        background: #f0f0f0;
-        align-items: center;
-    }
-    .signature-overlay .signature-overlay-header,
-    .signature-overlay #signature-canvas,
-    .signature-overlay .signature-overlay-footer {
+    /* Signature overlay - always fullscreen, no desktop constraints */
+
+    /* Toolbar - constrain on desktop */
+    .toolbar {
         max-width: 600px;
-        width: 100%;
-        background: white;
+        margin: 0 auto;
     }
-    .signature-overlay .signature-overlay-header {
-        border-radius: 8px 8px 0 0;
+
+    /* Top bar (login button) - constrain on desktop */
+    .top-bar {
+        max-width: 600px;
     }
-    .signature-overlay .signature-overlay-footer {
-        border-radius: 0 0 8px 8px;
+
+    /* Sent banner - constrain on desktop */
+    .sent-banner {
+        max-width: 600px;
     }
 }
 

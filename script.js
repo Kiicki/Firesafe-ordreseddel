@@ -972,52 +972,76 @@ let currentPath = [];
 let canvasAspectRatio = 4; // width/height ratio, default 4:1
 const signatureRatio = 3;
 
-function openSignatureOverlay() {
+let signatureOrientationLocked = false;
+
+function applySignatureLandscape(overlay) {
+    overlay.style.right = 'auto';
+    overlay.style.bottom = 'auto';
+    overlay.style.width = window.innerHeight + 'px';
+    overlay.style.height = window.innerWidth + 'px';
+    overlay.style.transformOrigin = '0 0';
+    overlay.style.transform = 'rotate(90deg) translateY(-100%)';
+}
+
+async function openSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
 
-    // Force landscape on mobile — CSS media query handles portrait/landscape switching
-    if (isMobile()) {
-        overlay.classList.add('force-landscape');
+    // Try to force landscape (works in installed PWA without fullscreen)
+    signatureOrientationLocked = false;
+    if (screen.orientation && screen.orientation.lock) {
+        try {
+            await screen.orientation.lock('landscape');
+            signatureOrientationLocked = true;
+        } catch(e) {}
+    }
+
+    if (!signatureOrientationLocked) {
+        overlay.style.right = 'auto';
+        overlay.style.bottom = 'auto';
+        if (window.innerHeight > window.innerWidth) {
+            // Portrait: CSS rotation to landscape
+            overlay.style.width = window.innerHeight + 'px';
+            overlay.style.height = window.innerWidth + 'px';
+            overlay.style.transformOrigin = '0 0';
+            overlay.style.transform = 'rotate(90deg) translateY(-100%)';
+        } else {
+            // Landscape: explicit dimensions, no rotation
+            overlay.style.width = window.innerWidth + 'px';
+            overlay.style.height = window.innerHeight + 'px';
+        }
     }
 
     overlay.classList.add('active');
-
     currentPath = [];
-    // Save backup in case user cancels
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
 
-    // Reinit canvas on orientation change (signature data survives — normalized 0-1 coords)
-    window.addEventListener('resize', handleSignatureResize);
-
-    // Wait for layout to complete before initializing canvas
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
             initSignatureCanvas();
             redrawSignature();
         });
     });
 }
 
-let signatureResizeTimeout = null;
-
-function handleSignatureResize() {
+function cleanupSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
-    if (!overlay.classList.contains('active')) return;
-    clearTimeout(signatureResizeTimeout);
-    signatureResizeTimeout = setTimeout(() => {
-        initSignatureCanvas();
-        redrawSignature();
-    }, 250);
+    overlay.classList.remove('active');
+    overlay.style.width = '';
+    overlay.style.height = '';
+    overlay.style.right = '';
+    overlay.style.bottom = '';
+    overlay.style.transform = '';
+    overlay.style.transformOrigin = '';
+
+    if (signatureOrientationLocked) {
+        try { screen.orientation.unlock(); } catch(e) {}
+        signatureOrientationLocked = false;
+    }
 }
 
 function closeSignatureOverlay() {
-    // Restore backup (user cancelled)
     signaturePaths = signaturePathsBackup;
-    const overlay = document.getElementById('signature-overlay');
-    overlay.classList.remove('active');
-    overlay.classList.remove('force-landscape');
-    window.removeEventListener('resize', handleSignatureResize);
-    clearTimeout(signatureResizeTimeout);
+    cleanupSignatureOverlay();
 }
 
 function redrawSignature() {
@@ -1201,11 +1225,7 @@ function confirmSignature() {
 
     // Update backup to current paths (user confirmed, so keep changes)
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
-    const overlay = document.getElementById('signature-overlay');
-    overlay.classList.remove('active');
-    overlay.classList.remove('force-landscape');
-    window.removeEventListener('resize', handleSignatureResize);
-    clearTimeout(signatureResizeTimeout);
+    cleanupSignatureOverlay();
 }
 
 function clearSignaturePreview() {
