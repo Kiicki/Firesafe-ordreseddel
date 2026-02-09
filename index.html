@@ -485,13 +485,10 @@
     <div class="signature-overlay" id="signature-overlay">
         <div class="signature-overlay-header">
             <button class="signature-overlay-btn" onclick="closeSignatureOverlay()">Avbryt</button>
-            <span>Signer her</span>
+            <button class="signature-overlay-clear-btn" onclick="clearSignatureCanvas()">Nullstill</button>
             <button class="signature-overlay-btn signature-overlay-confirm" onclick="confirmSignature()">OK</button>
         </div>
         <canvas id="signature-canvas"></canvas>
-        <div class="signature-overlay-footer">
-            <button class="signature-overlay-clear-btn" onclick="clearSignatureCanvas()">Nullstill</button>
-        </div>
     </div>
 
     <!-- Toolbar - alltid sist i DOM for riktig rekkefølge når keyboard er åpen -->

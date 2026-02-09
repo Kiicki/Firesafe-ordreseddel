@@ -2530,23 +2530,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-top: 1px solid #eee;
 }
 
-.signature-overlay-footer {
-    display: flex;
-}
-
 .signature-overlay-clear-btn {
-    flex: 1;
-    background: #E8501A;
-    border: none;
-    padding: 16px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #fff;
+    background: none;
+    border: 1px solid #E8501A;
+    color: #E8501A;
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
 }
 
 .signature-overlay-clear-btn:active {
-    background: #c94315;
+    background: #fef0eb;
 }
 
 /* Signature preview in mobile form */
