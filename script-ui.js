@@ -1056,6 +1056,11 @@ async function loadMaterialSettingsToModal() {
     document.getElementById('settings-new-material').value = '';
     document.getElementById('settings-new-unit').value = '';
 
+    // Hide add rows for non-admins
+    const addRows = document.querySelectorAll('#settings-page-materials .settings-add-row');
+    addRows.forEach(row => {
+        row.style.display = isAdmin ? '' : 'none';
+    });
 }
 
 function renderMaterialSettingsItems() {
@@ -1064,9 +1069,15 @@ function renderMaterialSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
         return;
     }
-    container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
-    ).join('');
+    if (isAdmin) {
+        container.innerHTML = settingsMaterials.map((item, idx) =>
+            `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        ).join('');
+    } else {
+        container.innerHTML = settingsMaterials.map((item) =>
+            `<div class="settings-list-item settings-readonly"><span>${escapeHtml(item.name)}</span>${item.needsSpec ? '<span class="settings-spec-badge">Spec</span>' : ''}</div>`
+        ).join('');
+    }
 }
 
 function renderUnitSettingsItems() {
@@ -1075,9 +1086,15 @@ function renderUnitSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_units') + '</div>';
         return;
     }
-    container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
-    ).join('');
+    if (isAdmin) {
+        container.innerHTML = settingsUnits.map((item, idx) =>
+            `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        ).join('');
+    } else {
+        container.innerHTML = settingsUnits.map((item) =>
+            `<div class="settings-list-item settings-readonly"><span>${escapeHtml(item)}</span></div>`
+        ).join('');
+    }
 }
 
 function toggleSettingsSection(section) {
