@@ -974,21 +974,33 @@ const signatureRatio = 3;
 
 let signatureOrientationLocked = false;
 
+// Lock to portrait on app start (PWA standalone)
+if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('portrait-primary').catch(function() {});
+}
+
+function handleSignatureOrientationChange() {
+    setTimeout(updateSignatureLayout, 200);
+}
+
 function updateSignatureLayout() {
     var overlay = document.getElementById('signature-overlay');
     if (!overlay.classList.contains('active') || signatureOrientationLocked) return;
 
-    overlay.style.right = 'auto';
-    overlay.style.bottom = 'auto';
-
     if (window.innerHeight > window.innerWidth) {
+        // Portrait: CSS rotation to landscape
+        overlay.style.right = 'auto';
+        overlay.style.bottom = 'auto';
         overlay.style.width = window.innerHeight + 'px';
         overlay.style.height = window.innerWidth + 'px';
         overlay.style.transformOrigin = '0 0';
         overlay.style.transform = 'rotate(90deg) translateY(-100%)';
     } else {
-        overlay.style.width = window.innerWidth + 'px';
-        overlay.style.height = window.innerHeight + 'px';
+        // Landscape: clear inline styles, let CSS position:fixed inset:0 fill screen
+        overlay.style.right = '';
+        overlay.style.bottom = '';
+        overlay.style.width = '';
+        overlay.style.height = '';
         overlay.style.transform = '';
         overlay.style.transformOrigin = '';
     }
@@ -1014,6 +1026,7 @@ async function openSignatureOverlay() {
     if (!signatureOrientationLocked) {
         updateSignatureLayout();
         window.addEventListener('resize', updateSignatureLayout);
+        window.addEventListener('orientationchange', handleSignatureOrientationChange);
     }
     currentPath = [];
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
@@ -1028,6 +1041,7 @@ async function openSignatureOverlay() {
 
 function cleanupSignatureOverlay() {
     window.removeEventListener('resize', updateSignatureLayout);
+    window.removeEventListener('orientationchange', handleSignatureOrientationChange);
 
     var overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
@@ -1039,8 +1053,11 @@ function cleanupSignatureOverlay() {
     overlay.style.transformOrigin = '';
 
     if (signatureOrientationLocked) {
-        try { screen.orientation.unlock(); } catch(e) {}
         signatureOrientationLocked = false;
+        // Lock back to portrait instead of just unlocking
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('portrait-primary').catch(function() {});
+        }
     }
 }
 
