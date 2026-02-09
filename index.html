@@ -18,7 +18,7 @@
 <body>
         <div class="loading" id="loading" data-i18n="generating_file">Genererer fil...</div>
 
-    <div class="container form-view">
+    <div class="container form-view view active" id="view-form">
         <div class="modal-content">
             <div class="modal-header" id="form-header">
                 <span id="form-header-title" data-i18n="form_title">Ordreseddel</span>
@@ -265,8 +265,8 @@
     </div>
 
     <!-- Modal -->
-    <div class="modal" id="saved-modal">
-        <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal view" id="saved-modal">
+        <div class="modal-content">
             <div class="modal-header">
                 <span data-i18n="modal_load_title">Hent skjema</span>
             </div>
@@ -286,8 +286,8 @@
     </div>
 
     <!-- Template Modal (Home Page) -->
-    <div class="modal" id="template-modal" onclick="cancelTemplateModal()">
-        <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal view" id="template-modal">
+        <div class="modal-content">
             <div class="top-bar">
                 <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login"></button>
             </div>
@@ -318,8 +318,8 @@
     </div>
 
     <!-- Settings Modal -->
-    <div class="modal" id="settings-modal" onclick="closeSettingsModal()">
-        <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal view" id="settings-modal">
+        <div class="modal-content">
             <div class="modal-header" id="settings-header">
                 <span id="settings-header-title" data-i18n="settings_title">Innstillinger</span>
             </div>
@@ -459,7 +459,7 @@
             </div>
             <div class="unit-picker-list" id="unit-picker-list"></div>
             <div class="unit-picker-custom">
-                <input type="text" id="unit-picker-custom-input" placeholder="Egendefinert...">
+                <input type="text" placeholder="Egendefinert...">
                 <button type="button" class="unit-picker-custom-ok">OK</button>
             </div>
         </div>

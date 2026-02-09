@@ -2,6 +2,7 @@
 // Use window scope to ensure consistency
 if (!window.loadedForms) window.loadedForms = [];
 if (!window.loadedExternalForms) window.loadedExternalForms = [];
+var preNewFormData = null;
 
 // Helper: format date with time
 function formatDateWithTime(date) {
@@ -15,17 +16,25 @@ function formatDateWithTime(date) {
     return `${day}.${month}.${year}, ${hours}:${mins}`;
 }
 
-function closeAllModals() {
-    document.querySelectorAll('.modal.active').forEach(function(m) {
-        m.classList.remove('active');
+// View system: show one view, hide all others
+function showView(viewId) {
+    document.querySelectorAll('.view').forEach(function(v) {
+        v.classList.remove('active');
     });
+    document.getElementById(viewId).classList.add('active');
+}
+
+function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
-    document.body.classList.remove('modal-active', 'template-modal-open', 'saved-modal-open', 'settings-modal-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+    showView('view-form');
 }
 
 function isModalOpen() {
-    return document.querySelector('.modal.active') !== null;
+    return document.body.classList.contains('template-modal-open')
+        || document.body.classList.contains('saved-modal-open')
+        || document.body.classList.contains('settings-modal-open');
 }
 
 // Update toolbar button states based on current view
@@ -61,8 +70,8 @@ async function showSavedForms() {
     }
     const listEl = document.getElementById('saved-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
-    document.getElementById('saved-modal').classList.add('active');
-    document.body.classList.add('modal-active', 'saved-modal-open');
+    showView('saved-modal');
+    document.body.classList.add('saved-modal-open');
     updateToolbarState();
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
@@ -273,8 +282,8 @@ function deleteFormDirect(form) {
 }
 
 function closeModal() {
-    document.getElementById('saved-modal').classList.remove('active');
-    document.body.classList.remove('modal-active', 'saved-modal-open');
+    showView('view-form');
+    document.body.classList.remove('saved-modal-open');
     updateToolbarState();
     document.getElementById('saved-search').value = '';
     document.getElementById('external-search').value = '';
@@ -695,8 +704,8 @@ async function showTemplateModal() {
     history.replaceState(null, '', window.location.pathname);
     const listEl = document.getElementById('template-list');
     listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
-    document.getElementById('template-modal').classList.add('active');
-    document.body.classList.add('modal-active', 'template-modal-open');
+    showView('template-modal');
+    document.body.classList.add('template-modal-open');
     updateToolbarState();
 
     // Track if we need refresh when auth is ready
@@ -768,8 +777,8 @@ async function loadTemplateDirect(template) {
 
     await autoFillOrderNumber();
 
-    document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active', 'template-modal-open');
+    showView('view-form');
+    document.body.classList.remove('template-modal-open');
     updateToolbarState();
     document.getElementById('template-search').value = '';
     // Template loaded = regular form
@@ -844,8 +853,8 @@ async function closeTemplateModal() {
     await autoFillOrderNumber();
     await autoFillDefaults();
 
-    document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active', 'template-modal-open');
+    showView('view-form');
+    document.body.classList.remove('template-modal-open');
     updateToolbarState();
     document.getElementById('template-search').value = '';
     // Blank form = #skjema
@@ -869,8 +878,8 @@ function cancelTemplateModal() {
         window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
     }
     // If no preNewFormData, stay at home (no hash)
-    document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active', 'template-modal-open');
+    showView('view-form');
+    document.body.classList.remove('template-modal-open');
     updateToolbarState();
     document.getElementById('template-search').value = '';
 }
@@ -932,14 +941,14 @@ async function showSettingsModal() {
     closeAllModals();
     window.location.hash = 'settings';
     showSettingsMenu();
-    document.getElementById('settings-modal').classList.add('active');
-    document.body.classList.add('modal-active', 'settings-modal-open');
+    showView('settings-modal');
+    document.body.classList.add('settings-modal-open');
     updateToolbarState();
 }
 
 function closeSettingsModal() {
-    document.getElementById('settings-modal').classList.remove('active');
-    document.body.classList.remove('modal-active', 'settings-modal-open');
+    showView('view-form');
+    document.body.classList.remove('settings-modal-open');
     updateToolbarState();
     showSettingsMenu();
     // Clear URL hash
@@ -1337,7 +1346,7 @@ function renderSettingsRanges() {
     }
     container.innerHTML = settingsRanges.map((r, idx) =>
         `<div class="settings-range-item">
-            <span>${r.start} – ${r.end}</span>
+            <span>${escapeHtml(String(r.start))} – ${escapeHtml(String(r.end))}</span>
             <button onclick="removeSettingsRange(${idx})" title="${t('btn_remove')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div>`
     ).join('');
@@ -1403,7 +1412,7 @@ function renderGivenAwayRanges() {
     }
     container.innerHTML = settingsGivenAway.map((r, idx) =>
         `<div class="settings-range-item settings-given-item">
-            <span>${r.start === r.end ? r.start : r.start + ' – ' + r.end}</span>
+            <span>${r.start === r.end ? escapeHtml(String(r.start)) : escapeHtml(String(r.start)) + ' – ' + escapeHtml(String(r.end))}</span>
             <button onclick="removeGivenAway(${idx})" title="${t('btn_remove')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div>`
     ).join('');
@@ -1557,8 +1566,8 @@ function updateExternalBadge() {
 }
 
 function startExternalOrder() {
-    document.getElementById('template-modal').classList.remove('active');
-    document.body.classList.remove('modal-active', 'template-modal-open');
+    showView('view-form');
+    document.body.classList.remove('template-modal-open');
     updateToolbarState();
     document.getElementById('template-search').value = '';
     if (preNewFormData) {
@@ -1831,9 +1840,7 @@ async function markAsSentAndExport(type) {
 }
 
 
-document.getElementById('saved-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
+// Background click handler removed - saved-modal is now a view, not an overlay
 
 // Event delegation for saved-list items
 document.getElementById('saved-list').addEventListener('click', function(e) {
@@ -1904,9 +1911,7 @@ document.getElementById('template-list').addEventListener('click', function(e) {
 });
 
 
-document.getElementById('template-modal').addEventListener('click', function(e) {
-    if (e.target === this) cancelTemplateModal();
-});
+// Background click handler removed - template-modal is now a view, not an overlay
 
 // Sync forms when typing (with debounced sessionStorage save)
 var sessionSaveTimeout = null;
@@ -1970,7 +1975,8 @@ window.addEventListener('load', function() {
             showSettingsModal();
         } else if (hash === 'skjema' || hash === 'ekstern') {
         // Form - already loaded via sessionStorage
-        closeAllModals();
+        showView('view-form');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
         // Restore sent status
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
@@ -1994,10 +2000,12 @@ window.addEventListener('hashchange', function() {
     } else if (hash === 'settings') {
         showSettingsModal();
     } else if (hash === 'skjema') {
-        closeAllModals();
+        showView('view-form');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t('form_title');
     } else if (hash === 'ekstern') {
-        closeAllModals();
+        showView('view-form');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t('external_form_title');
     } else {
         // No hash = home = template modal

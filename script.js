@@ -190,14 +190,6 @@ async function getSavedForms() {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 }
 
-// Helper: Save forms (to Firestore if logged in, else localStorage)
-async function setSavedForms(forms) {
-    if (currentUser && db) {
-        // Firestore: we handle individual docs, not the whole array
-        // This function is mainly for localStorage fallback
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(forms));
-}
 
 // Helper: Get sent forms
 async function getSentForms() {
