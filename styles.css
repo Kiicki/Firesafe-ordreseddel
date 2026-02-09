@@ -221,9 +221,10 @@ body:has(#action-popup.active) .toolbar button:disabled {
 .form-version {
     position: absolute;
     left: 2px;
-    bottom: 30px;
-    font-size: 5px;
-    color: #666;
+    bottom: 15px;
+    font-size: 6px;
+    color: #444;
+    font-weight: 900;
     white-space: nowrap;
     transform: rotate(-90deg);
     transform-origin: 0 0;
@@ -256,11 +257,11 @@ body:has(#action-popup.active) .toolbar button:disabled {
 .logo-slash {
     position: absolute;
     right: 14px;
-    top: 10px;
+    top: 11px;
     width: 4px;
-    height: 52px;
+    height: 50px;
     background: #000;
-    transform: skewX(-22deg);
+    transform: skewX(-28deg);
 }
 
 .header-right {
@@ -478,7 +479,7 @@ body:has(#action-popup.active) .toolbar button:disabled {
     display: flex;
     gap: 40px;
     padding: 0 20px;
-    margin-top: 10px;
+    margin-top: 33px;
 }
 
 .footer-cell {
@@ -495,7 +496,7 @@ body:has(#action-popup.active) .toolbar button:disabled {
 }
 
 .signature-input {
-    height: 50px;
+    height: 30px;
     display: flex;
     align-items: flex-end;
 }
@@ -517,7 +518,7 @@ body:has(#action-popup.active) .toolbar button:disabled {
 }
 
 .signature-input-img img {
-    max-height: 45px;
+    max-height: 26px;
     max-width: 100%;
     object-fit: contain;
 }
@@ -714,7 +715,7 @@ body.modal-active .container.form-view > .modal-content {
 
 #template-modal .mobile-form-header .mobile-logo-slash {
     height: 40px;
-    top: 4px;
+    top: 7px;
 }
 
 #template-modal .mobile-form-header p {
@@ -1085,9 +1086,9 @@ body.modal-active .container.form-view > .modal-content {
     right: 8px;
     top: 5px;
     width: 4px;
-    height: 48px;
+    height: 38px;
     background: #000;
-    transform: skewX(-30deg);
+    transform: skewX(-28deg);
 }
 
 .mobile-form-header p {

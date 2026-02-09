@@ -1080,9 +1080,12 @@ function redrawSignature() {
         if (path.length < 2) continue;
         signatureCtx.beginPath();
         signatureCtx.moveTo(path[0].x * w, path[0].y * h);
-        for (let i = 1; i < path.length; i++) {
-            signatureCtx.lineTo(path[i].x * w, path[i].y * h);
+        for (var i = 1; i < path.length - 1; i++) {
+            var midX = (path[i].x * w + path[i+1].x * w) / 2;
+            var midY = (path[i].y * h + path[i+1].y * h) / 2;
+            signatureCtx.quadraticCurveTo(path[i].x * w, path[i].y * h, midX, midY);
         }
+        signatureCtx.lineTo(path[path.length-1].x * w, path[path.length-1].y * h);
         signatureCtx.stroke();
     }
 }
@@ -1196,23 +1199,28 @@ function generateSVG(targetHeight, strokeWidth) {
 
     if (boxWidth <= 0 || boxHeight <= 0) return null;
 
-    // Calculate output dimensions (maintaining signature aspect ratio)
-    const sigAspect = boxWidth / boxHeight;
+    // Calculate output dimensions (maintaining signature aspect ratio, accounting for canvas shape)
+    const sigAspect = (boxWidth / boxHeight) * (canvasAspectRatio || 1);
     const outputHeight = targetHeight;
     const outputWidth = Math.round(outputHeight * sigAspect);
 
-    // Build path data, translating to bounding box origin
+    // Build path data with quadratic bezier curves for smooth lines
     let pathData = '';
     for (const path of signaturePaths) {
         if (path.length < 2) continue;
-        const startX = ((path[0].x - minX) / boxWidth) * outputWidth;
-        const startY = ((path[0].y - minY) / boxHeight) * outputHeight;
-        pathData += `M ${startX.toFixed(2)} ${startY.toFixed(2)} `;
-        for (let i = 1; i < path.length; i++) {
-            const x = ((path[i].x - minX) / boxWidth) * outputWidth;
-            const y = ((path[i].y - minY) / boxHeight) * outputHeight;
-            pathData += `L ${x.toFixed(2)} ${y.toFixed(2)} `;
+        var sx = ((path[0].x - minX) / boxWidth) * outputWidth;
+        var sy = ((path[0].y - minY) / boxHeight) * outputHeight;
+        pathData += 'M ' + sx.toFixed(2) + ' ' + sy.toFixed(2) + ' ';
+        for (var i = 1; i < path.length - 1; i++) {
+            var cx = ((path[i].x - minX) / boxWidth) * outputWidth;
+            var cy = ((path[i].y - minY) / boxHeight) * outputHeight;
+            var mx = ((path[i].x + path[i+1].x) / 2 - minX) / boxWidth * outputWidth;
+            var my = ((path[i].y + path[i+1].y) / 2 - minY) / boxHeight * outputHeight;
+            pathData += 'Q ' + cx.toFixed(2) + ' ' + cy.toFixed(2) + ' ' + mx.toFixed(2) + ' ' + my.toFixed(2) + ' ';
         }
+        var lx = ((path[path.length-1].x - minX) / boxWidth) * outputWidth;
+        var ly = ((path[path.length-1].y - minY) / boxHeight) * outputHeight;
+        pathData += 'L ' + lx.toFixed(2) + ' ' + ly.toFixed(2) + ' ';
     }
 
     if (!pathData) return null;
