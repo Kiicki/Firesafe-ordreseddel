@@ -570,6 +570,8 @@ body:has(#action-popup.active) .toolbar button:disabled {
 .view.active {
     display: flex;
     flex-direction: column;
+    min-height: calc(100vh - 60px);
+    min-height: calc(100dvh - 60px);
 }
 
 /* Modal: visual styling only (positioning handled by .view) */
@@ -2234,18 +2236,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     flex: 1;
 }
 
-.settings-list-item.settings-readonly span {
-    cursor: default;
-}
-
-.settings-spec-badge {
-    font-size: 11px;
-    color: #fff;
-    background: #e55a00;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 8px;
-}
 
 .settings-list-edit-input {
     flex: 1;
