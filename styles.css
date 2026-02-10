@@ -700,10 +700,7 @@ body.settings-modal-open {
     z-index: 10;
 }
 
-#template-modal .sticky-header {
-    background: #f0f0f0;
-}
-
+#template-modal .sticky-header,
 #saved-modal .sticky-header,
 #settings-modal .sticky-header {
     background: #fff;
