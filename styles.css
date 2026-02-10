@@ -133,10 +133,11 @@ body:has(#action-popup.active) .toolbar button {
     text-align: center;
 }
 
-/* Primære knapper - Ny, Lagre, Hent */
+/* Primære knapper */
 .btn-new,
 .btn-save,
-.btn-load {
+.btn-load,
+.btn-export {
     background: #2c3e50;
     color: #fff;
     border-color: #2c3e50;
@@ -169,12 +170,6 @@ body:has(#action-popup.active) .toolbar button {
 
 .btn-settings svg {
     fill: #495057;
-}
-
-.btn-export {
-    background: #2c3e50;
-    color: #fff;
-    border-color: #2c3e50;
 }
 
 .btn-login {
