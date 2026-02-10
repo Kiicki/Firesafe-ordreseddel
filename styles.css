@@ -658,11 +658,17 @@ body.template-modal-open > .top-bar {
     padding: 2px 15px 5px 15px;
 }
 
-/* Hide form view when modal views are open */
+/* Hide form view when modal views are open, remove body padding */
 body.template-modal-open #view-form,
 body.saved-modal-open #view-form,
 body.settings-modal-open #view-form {
     display: none;
+}
+
+body.template-modal-open,
+body.saved-modal-open,
+body.settings-modal-open {
+    padding-bottom: 0;
 }
 
 /* Modal views: override overflow so sticky headers work */
@@ -670,6 +676,8 @@ body.settings-modal-open #view-form {
 #saved-modal.view.active,
 #settings-modal.view.active {
     overflow: visible;
+    min-height: 100dvh;
+    padding-bottom: 60px;
 }
 
 #template-modal.view.active > .modal-content,
