@@ -154,11 +154,19 @@ function setFormReadOnly(readOnly) {
     }
 
     // Disable all "delete order" buttons
-    document.querySelectorAll('.mobile-order-header-delete').forEach(btn => {
-        btn.disabled = readOnly;
-        btn.style.opacity = readOnly ? '0.3' : '';
-        btn.style.pointerEvents = readOnly ? 'none' : '';
-    });
+    if (readOnly) {
+        document.querySelectorAll('.mobile-order-header-delete').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.3';
+            btn.style.pointerEvents = 'none';
+        });
+    } else {
+        document.querySelectorAll('.mobile-order-header-delete').forEach(btn => {
+            btn.style.opacity = '';
+            btn.style.pointerEvents = '';
+        });
+        updateOrderDeleteStates();
+    }
 
     // Disable all "add material" buttons
     document.querySelectorAll('.mobile-add-mat-btn').forEach(btn => {
