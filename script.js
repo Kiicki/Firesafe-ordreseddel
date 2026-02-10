@@ -172,18 +172,29 @@ function handleAuth() {
             });
         }, t('logout'), '#6c757d');
     } else {
-        // Logg inn med Google
-        const provider = new firebase.auth.GoogleAuthProvider();
-        auth.signInWithPopup(provider)
-            .then((result) => {
-                showNotificationModal(t('login_success') + result.user.email, true);
-            })
-            .catch((error) => {
-                if (error.code !== 'auth/popup-closed-by-user') {
-                    showNotificationModal(t('login_failed') + error.message);
-                }
-            });
+        showActionPopup(t('login_choose_provider'), [
+            { label: 'Google', onclick: 'signInWithProvider("google")' },
+            { label: 'Microsoft', onclick: 'signInWithProvider("microsoft")' }
+        ]);
     }
+}
+
+function signInWithProvider(providerName) {
+    let provider;
+    if (providerName === 'microsoft') {
+        provider = new firebase.auth.OAuthProvider('microsoft.com');
+    } else {
+        provider = new firebase.auth.GoogleAuthProvider();
+    }
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            showNotificationModal(t('login_success') + result.user.email, true);
+        })
+        .catch((error) => {
+            if (error.code !== 'auth/popup-closed-by-user') {
+                showNotificationModal(t('login_failed') + error.message);
+            }
+        });
 }
 
 // Helper: Get saved forms (from Firestore if logged in, else localStorage)

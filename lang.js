@@ -13,6 +13,7 @@ const TRANSLATIONS = {
         logout_success: 'Du er nå logget ut',
         login_success: 'Logget inn som ',
         login_failed: 'Innlogging feilet: ',
+        login_choose_provider: 'Velg innloggingsmetode',
         firebase_not_configured: 'Firebase er ikke konfigurert. Sjekk firebaseConfig i script.js',
 
         // Loading
@@ -241,6 +242,7 @@ const TRANSLATIONS = {
         logout_success: 'You are now logged out',
         login_success: 'Logged in as ',
         login_failed: 'Login failed: ',
+        login_choose_provider: 'Choose login method',
         firebase_not_configured: 'Firebase is not configured. Check firebaseConfig in script.js',
 
         // Loading
