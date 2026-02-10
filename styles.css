@@ -685,34 +685,25 @@ body.settings-modal-open #view-form {
     overflow-y: visible;
 }
 
-/* Sticky headers */
-#template-modal .top-bar {
+/* Sticky header wrapper - keeps headers visible while scrolling */
+.sticky-header {
     position: sticky;
     top: 0;
     z-index: 10;
+}
+
+#template-modal .sticky-header {
     background: #f0f0f0;
 }
 
-#saved-modal .modal-header,
-#settings-modal .modal-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-#saved-modal .modal-tabs {
-    position: sticky;
-    top: 56px;
-    z-index: 9;
+#saved-modal .sticky-header,
+#settings-modal .sticky-header {
     background: #fff;
 }
 
 /* Keyboard open: revert sticky and toolbar */
 @media (max-height: 500px) {
-    #template-modal .top-bar,
-    #saved-modal .modal-header,
-    #settings-modal .modal-header,
-    #saved-modal .modal-tabs {
+    .sticky-header {
         position: static;
     }
     .toolbar {

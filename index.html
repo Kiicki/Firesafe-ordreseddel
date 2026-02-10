@@ -7,7 +7,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
-    <link rel="stylesheet" href="styles.css?v=146">
+    <link rel="stylesheet" href="styles.css?v=147">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
     <!-- Firebase SDK -->
@@ -267,20 +267,22 @@
     <!-- Modal -->
     <div class="modal view" id="saved-modal">
         <div class="modal-content">
-            <div class="modal-header">
-                <span data-i18n="modal_load_title">Hent skjema</span>
-            </div>
-            <div class="modal-tabs">
-                <button class="modal-tab active" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
-                <button class="modal-tab" onclick="switchHentTab('external')" data-i18n="tab_external">Eksterne</button>
-            </div>
-            <div class="modal-search" id="own-search-wrap">
-                <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterOwnForms()">
+            <div class="sticky-header">
+                <div class="modal-header">
+                    <span data-i18n="modal_load_title">Hent skjema</span>
+                </div>
+                <div class="modal-tabs">
+                    <button class="modal-tab active" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
+                    <button class="modal-tab" onclick="switchHentTab('external')" data-i18n="tab_external">Eksterne</button>
+                </div>
+                <div class="modal-search" id="own-search-wrap">
+                    <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterOwnForms()">
+                </div>
+                <div class="modal-search" id="external-search-wrap" style="display:none;">
+                    <input type="text" id="external-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterExternalForms()">
+                </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
-            <div class="modal-search" id="external-search-wrap" style="display:none;">
-                <input type="text" id="external-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterExternalForms()">
-            </div>
             <div class="modal-body" id="external-list" style="display:none;"></div>
         </div>
     </div>
@@ -288,22 +290,24 @@
     <!-- Template Modal (Home Page) -->
     <div class="modal view" id="template-modal">
         <div class="modal-content">
-            <div class="top-bar">
-                <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login"></button>
-            </div>
-            <div class="template-home-wrapper">
-                <div class="mobile-form-header">
-                    <h1>FIRESAFE<span class="mobile-logo-slash"></span></h1>
-                    <p data-i18n="form_subtitle">Ordreseddel</p>
-                    <div class="beta-label" data-i18n="beta_label">Beta</div>
+            <div class="sticky-header">
+                <div class="top-bar">
+                    <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login"></button>
                 </div>
-            </div>
-            <div class="modal-footer-skip" onclick="event.stopPropagation()">
-                <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_new_form">Eget skjema</button>
-                <button class="btn-external-order" onclick="startExternalOrder()" data-i18n="external_order_btn">Ekstern</button>
-            </div>
-            <div class="modal-search">
-                <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjekt..." oninput="filterTemplates()">
+                <div class="template-home-wrapper">
+                    <div class="mobile-form-header">
+                        <h1>FIRESAFE<span class="mobile-logo-slash"></span></h1>
+                        <p data-i18n="form_subtitle">Ordreseddel</p>
+                        <div class="beta-label" data-i18n="beta_label">Beta</div>
+                    </div>
+                </div>
+                <div class="modal-footer-skip" onclick="event.stopPropagation()">
+                    <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_new_form">Eget skjema</button>
+                    <button class="btn-external-order" onclick="startExternalOrder()" data-i18n="external_order_btn">Ekstern</button>
+                </div>
+                <div class="modal-search">
+                    <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjekt..." oninput="filterTemplates()">
+                </div>
             </div>
             <div class="modal-body" id="template-list"></div>
         </div>
@@ -320,8 +324,10 @@
     <!-- Settings Modal -->
     <div class="modal view" id="settings-modal">
         <div class="modal-content">
-            <div class="modal-header" id="settings-header">
-                <span id="settings-header-title" data-i18n="settings_title">Innstillinger</span>
+            <div class="sticky-header">
+                <div class="modal-header" id="settings-header">
+                    <span id="settings-header-title" data-i18n="settings_title">Innstillinger</span>
+                </div>
             </div>
             <div class="modal-body" style="padding: 16px;">
                                 <!-- Hovedmeny -->
