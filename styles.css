@@ -113,11 +113,10 @@ body:has(#action-popup.active) .toolbar::before {
     pointer-events: auto;
 }
 
-/* When overlay is active, reset disabled button opacity so all buttons look uniform */
-body:has(.confirm-modal.active) .toolbar button:disabled,
-body:has(#action-popup.active) .toolbar button:disabled {
-    opacity: 1;
-    transition: none;
+/* When overlay is active, prevent button hover/active highlights */
+body:has(.confirm-modal.active) .toolbar button,
+body:has(#action-popup.active) .toolbar button {
+    pointer-events: none;
 }
 
 .toolbar button {
@@ -134,15 +133,6 @@ body:has(#action-popup.active) .toolbar button:disabled {
     text-align: center;
 }
 
-.toolbar button:hover {
-    background: #f0f0f0;
-    border-color: #ccc;
-}
-
-.toolbar button:active {
-    transform: translateY(1px);
-}
-
 /* Primære knapper - Ny, Lagre, Hent */
 .btn-new,
 .btn-save,
@@ -152,11 +142,19 @@ body:has(#action-popup.active) .toolbar button:disabled {
     border-color: #2c3e50;
 }
 
-.btn-new:hover,
-.btn-save:hover,
-.btn-load:hover {
-    background: #1a252f;
-    border-color: #1a252f;
+/* Hover kun for enheter med mus (ikke touch) */
+@media (hover: hover) {
+    .toolbar button:hover {
+        background: #f0f0f0;
+        border-color: #ccc;
+    }
+    .btn-new:hover,
+    .btn-save:hover,
+    .btn-load:hover,
+    .btn-export:hover {
+        background: #1a252f;
+        border-color: #1a252f;
+    }
 }
 
 .btn-settings {
@@ -177,11 +175,6 @@ body:has(#action-popup.active) .toolbar button:disabled {
     background: #2c3e50;
     color: #fff;
     border-color: #2c3e50;
-}
-
-.btn-export:hover {
-    background: #1a252f;
-    border-color: #1a252f;
 }
 
 .btn-login {
