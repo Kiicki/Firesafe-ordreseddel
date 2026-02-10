@@ -678,7 +678,6 @@ body.settings-modal-open {
     bottom: 60px;
     height: auto;
     min-height: 0;
-    z-index: 30;
 }
 
 /* Keyboard open: revert to static flow */
@@ -1877,7 +1876,7 @@ body.settings-modal-open {
     right: 0;
     bottom: 0;
     background: rgba(0,0,0,0.5);
-    z-index: 9999;
+    z-index: 20;
     justify-content: center;
     align-items: center;
 }
