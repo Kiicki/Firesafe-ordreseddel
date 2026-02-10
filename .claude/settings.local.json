@@ -40,7 +40,8 @@
       "Bash(pkill:*)",
       "WebSearch",
       "Bash(openssl dgst:*)",
-      "Bash(openssl base64:*)"
+      "Bash(openssl base64:*)",
+      "WebFetch(domain:support.google.com)"
     ]
   }
 }
