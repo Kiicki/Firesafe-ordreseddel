@@ -794,6 +794,7 @@ async function loadTemplateDirect(template) {
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
+    updateOrderDeleteStates();
     window.scrollTo(0, 0);
 }
 
@@ -870,6 +871,8 @@ async function closeTemplateModal() {
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
+    // Ensure delete button state is correct (1 card = disabled)
+    updateOrderDeleteStates();
 }
 
 function goToHome() {
@@ -1588,6 +1591,7 @@ function startExternalOrder() {
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('external_form_title');
+    updateOrderDeleteStates();
 }
 
 function hasAnyFormData() {
