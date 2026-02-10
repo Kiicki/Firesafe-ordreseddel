@@ -658,40 +658,62 @@ body.template-modal-open > .top-bar {
     padding: 2px 15px 5px 15px;
 }
 
-/* Prevent body scroll when modal views are active */
-body.template-modal-open,
-body.saved-modal-open,
-body.settings-modal-open {
-    overflow: hidden;
+/* Hide form view when modal views are open */
+body.template-modal-open #view-form,
+body.saved-modal-open #view-form,
+body.settings-modal-open #view-form {
+    display: none;
 }
 
-/* Modal views: fixed position, only .modal-body scrolls */
+/* Modal views: override overflow so sticky headers work */
 #template-modal.view.active,
 #saved-modal.view.active,
 #settings-modal.view.active {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 60px;
-    height: auto;
-    min-height: 0;
+    overflow: visible;
 }
 
-/* Keyboard open: revert to static flow */
+#template-modal.view.active > .modal-content,
+#saved-modal.view.active > .modal-content,
+#settings-modal.view.active > .modal-content {
+    overflow: visible;
+}
+
+/* Let modal-body flow naturally (body scrolls, not modal-body) */
+#template-modal.view.active .modal-body,
+#saved-modal.view.active .modal-body,
+#settings-modal.view.active .modal-body {
+    overflow-y: visible;
+}
+
+/* Sticky headers */
+#template-modal .top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f0f0f0;
+}
+
+#saved-modal .modal-header,
+#settings-modal .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#saved-modal .modal-tabs {
+    position: sticky;
+    top: 56px;
+    z-index: 9;
+    background: #fff;
+}
+
+/* Keyboard open: revert sticky and toolbar */
 @media (max-height: 500px) {
-    body.template-modal-open,
-    body.saved-modal-open,
-    body.settings-modal-open {
-        overflow: auto;
-    }
-    #template-modal.view.active,
-    #saved-modal.view.active,
-    #settings-modal.view.active {
+    #template-modal .top-bar,
+    #saved-modal .modal-header,
+    #settings-modal .modal-header,
+    #saved-modal .modal-tabs {
         position: static;
-        height: auto;
-        min-height: 0;
-        bottom: auto;
     }
     .toolbar {
         position: static;
