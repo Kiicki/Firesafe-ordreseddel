@@ -567,7 +567,7 @@ body:has(#action-popup.active) .toolbar button {
 /* Modal: visual styling only (positioning handled by .view) */
 .modal {
     background: #fff;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 /* Hide main top-bar when template view is active (it has its own) */
@@ -667,8 +667,8 @@ body.template-modal-open > .top-bar {
 }
 #saved-modal.view.active,
 #settings-modal.view.active {
-    height: calc(100vh - 104px);
-    height: calc(100dvh - 104px);
+    height: calc(100vh - 60px);
+    height: calc(100dvh - 60px);
 }
 /* Keyboard open: fjern fast høyde, toolbar i dokumentflyt */
 @media (max-height: 500px) {
@@ -725,6 +725,18 @@ body.template-modal-open > .top-bar {
 
 #template-modal .modal-footer-skip {
     border-top: none;
+}
+
+/* Statiske elementer i modaler - ikke krymp */
+#template-modal .top-bar,
+#template-modal .template-home-wrapper,
+#template-modal .modal-footer-skip,
+#template-modal .modal-search,
+#saved-modal .modal-header,
+#saved-modal .modal-tabs,
+#saved-modal .modal-search,
+#settings-modal .modal-header {
+    flex-shrink: 0;
 }
 
 .modal-search {
