@@ -714,6 +714,12 @@ body.settings-modal-open {
     .sticky-header {
         position: static;
     }
+    #template-modal.view.active,
+    #saved-modal.view.active,
+    #settings-modal.view.active {
+        min-height: 0;
+        padding-bottom: 0;
+    }
     .toolbar {
         position: static;
         box-shadow: none;
