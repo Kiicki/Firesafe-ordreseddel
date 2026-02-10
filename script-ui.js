@@ -662,6 +662,7 @@ async function getTemplates() {
             return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
         }
     }
+    if (auth && !authReady) return []; // Auth not ready yet, don't show localStorage data
     return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
 }
 

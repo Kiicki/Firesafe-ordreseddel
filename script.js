@@ -10,6 +10,7 @@ const REQUIRED_KEY = 'firesafe_required';
 
 // Flag to track if we need to refresh data when auth is ready
 let pendingAuthRefresh = null; // 'templates' | 'saved' | null
+let authReady = false; // true after first onAuthStateChanged
 let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 
@@ -104,6 +105,7 @@ async function checkAdminStatus(uid) {
 // Auth state listener
 if (auth) {
     auth.onAuthStateChanged(async (user) => {
+        authReady = true;
         currentUser = user;
         isAdmin = false; // Reset admin status
         updateLoginButton();
@@ -216,6 +218,7 @@ async function getSavedForms() {
             return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
         }
     }
+    if (auth && !authReady) return []; // Auth not ready yet, don't show localStorage data
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 }
 
@@ -231,6 +234,7 @@ async function getSentForms() {
             return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
         }
     }
+    if (auth && !authReady) return [];
     return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
 }
 
@@ -245,6 +249,7 @@ async function getExternalForms() {
             return JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
         }
     }
+    if (auth && !authReady) return [];
     return JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
 }
 
