@@ -669,12 +669,19 @@ body.template-modal-open > .top-bar {
     height: calc(100vh - 104px);
     height: calc(100dvh - 104px);
 }
-/* Keyboard open: fjern fast høyde, la hele siden scrolle */
+/* Keyboard open: fjern fast høyde, toolbar i dokumentflyt */
 @media (max-height: 500px) {
     #template-modal.view.active,
     #saved-modal.view.active,
     #settings-modal.view.active {
         height: auto;
+    }
+    .toolbar {
+        position: static;
+        box-shadow: none;
+    }
+    body {
+        padding-bottom: 0;
     }
 }
 
