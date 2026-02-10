@@ -173,24 +173,32 @@ function handleAuth() {
         }, t('logout'), '#6c757d');
     } else {
         showActionPopup(t('login_choose_provider'), [
-            { label: 'Google', onclick: "signInWithProvider('google')" },
-            { label: 'Microsoft', onclick: "signInWithProvider('microsoft')" }
+            { label: 'Google', onclick: 'signInWithGoogle()' },
+            { label: 'Microsoft', onclick: 'signInWithMicrosoft()' }
         ]);
     }
 }
 
-function signInWithProvider(providerName) {
-    let provider;
-    if (providerName === 'microsoft') {
-        provider = new firebase.auth.OAuthProvider('microsoft.com');
-    } else {
-        provider = new firebase.auth.GoogleAuthProvider();
-    }
+function signInWithGoogle() {
+    var provider = new firebase.auth.GoogleAuthProvider();
     auth.signInWithPopup(provider)
-        .then((result) => {
+        .then(function(result) {
             showNotificationModal(t('login_success') + result.user.email, true);
         })
-        .catch((error) => {
+        .catch(function(error) {
+            if (error.code !== 'auth/popup-closed-by-user') {
+                showNotificationModal(t('login_failed') + error.message);
+            }
+        });
+}
+
+function signInWithMicrosoft() {
+    var provider = new firebase.auth.OAuthProvider('microsoft.com');
+    auth.signInWithPopup(provider)
+        .then(function(result) {
+            showNotificationModal(t('login_success') + result.user.email, true);
+        })
+        .catch(function(error) {
             if (error.code !== 'auth/popup-closed-by-user') {
                 showNotificationModal(t('login_failed') + error.message);
             }
