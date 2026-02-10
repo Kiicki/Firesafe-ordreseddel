@@ -173,8 +173,8 @@ function handleAuth() {
         }, t('logout'), '#6c757d');
     } else {
         showActionPopup(t('login_choose_provider'), [
-            { label: 'Google', onclick: 'signInWithProvider("google")' },
-            { label: 'Microsoft', onclick: 'signInWithProvider("microsoft")' }
+            { label: 'Google', onclick: "signInWithProvider('google')" },
+            { label: 'Microsoft', onclick: "signInWithProvider('microsoft')" }
         ]);
     }
 }
