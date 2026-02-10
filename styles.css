@@ -1345,7 +1345,7 @@ body.settings-modal-open {
 
 .mobile-order-header-delete:disabled {
     color: #ccc;
-    pointer-events: none;
+    cursor: default;
 }
 
 .mobile-order-arrow {
