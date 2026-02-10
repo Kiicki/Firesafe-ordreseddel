@@ -876,6 +876,7 @@ function closeUnitPicker() {
 }
 
 function toggleOrder(headerEl) {
+    if (event && event.target.closest('.mobile-order-header-delete')) return;
     const card = headerEl.closest('.mobile-order-card');
     const body = card.querySelector('.mobile-order-body');
     const arrow = card.querySelector('.mobile-order-arrow');
