@@ -671,14 +671,27 @@ async function saveAsTemplate() {
         syncMobileToOriginal();
     }
 
-    const prosjektnavn = document.getElementById('prosjektnavn').value.trim();
-    if (!prosjektnavn) {
-        showNotificationModal(t('template_name_required'));
-        return;
+    // Validate template required fields
+    const reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
+    const templateReqs = reqSettings.template || {};
+    const templateFieldMap = {
+        prosjektnavn:   { id: 'prosjektnavn',  key: 'validation_prosjektnavn' },
+        prosjektnr:     { id: 'prosjektnr',    key: 'validation_prosjektnr' },
+        oppdragsgiver:  { id: 'oppdragsgiver', key: 'validation_oppdragsgiver' },
+        avdeling:       { id: 'avdeling',       key: 'validation_avdeling' },
+        sted:           { id: 'sted',           key: 'validation_sted' }
+    };
+    for (const [settingKey, fieldInfo] of Object.entries(templateFieldMap)) {
+        if (!templateReqs[settingKey]) continue;
+        const el = document.getElementById(fieldInfo.id);
+        if (!el || !el.value.trim()) {
+            showNotificationModal(t('required_field', t(fieldInfo.key)));
+            return;
+        }
     }
 
     const templateData = {
-        prosjektnavn: prosjektnavn,
+        prosjektnavn: document.getElementById('prosjektnavn').value.trim(),
         prosjektnr: document.getElementById('prosjektnr').value.trim(),
         oppdragsgiver: document.getElementById('oppdragsgiver').value.trim(),
         avdeling: document.getElementById('avdeling').value.trim(),
@@ -943,7 +956,8 @@ function getSettingsPageTitle(page) {
         ordrenr: t('settings_ordrenr'),
         defaults: t('settings_defaults'),
         language: t('settings_language'),
-        materials: t('settings_materials')
+        materials: t('settings_materials'),
+        required: t('settings_required')
     };
     return titles[page] || '';
 }
@@ -974,6 +988,10 @@ function showSettingsMenu() {
     const header = document.getElementById('settings-header');
     const existingBack = header.querySelector('.settings-back-btn');
     if (existingBack) existingBack.remove();
+    // Hide admin-only menu items for non-admins
+    document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
+        item.style.display = isAdmin ? '' : 'none';
+    });
 }
 
 async function showSettingsPage(page) {
@@ -1009,6 +1027,8 @@ async function showSettingsPage(page) {
         document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
     } else if (page === 'materials') {
         await loadMaterialSettingsToModal();
+    } else if (page === 'required') {
+        await loadRequiredSettingsToModal();
     }
 }
 
@@ -1066,12 +1086,6 @@ async function loadMaterialSettingsToModal() {
     renderUnitSettingsItems();
     document.getElementById('settings-new-material').value = '';
     document.getElementById('settings-new-unit').value = '';
-
-    // Hide add rows for non-admins
-    const addRows = document.querySelectorAll('#settings-page-materials .settings-add-row');
-    addRows.forEach(row => {
-        row.style.display = isAdmin ? '' : 'none';
-    });
 }
 
 function renderMaterialSettingsItems() {
@@ -1080,15 +1094,9 @@ function renderMaterialSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
         return;
     }
-    if (isAdmin) {
-        container.innerHTML = settingsMaterials.map((item, idx) =>
-            `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
-        ).join('');
-    } else {
-        container.innerHTML = settingsMaterials.map((item) =>
-            `<div class="settings-list-item settings-readonly"><span>${escapeHtml(item.name)}</span>${item.needsSpec ? '<span class="settings-spec-badge">Spec</span>' : ''}</div>`
-        ).join('');
-    }
+    container.innerHTML = settingsMaterials.map((item, idx) =>
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+    ).join('');
 }
 
 function renderUnitSettingsItems() {
@@ -1097,15 +1105,9 @@ function renderUnitSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_units') + '</div>';
         return;
     }
-    if (isAdmin) {
-        container.innerHTML = settingsUnits.map((item, idx) =>
-            `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
-        ).join('');
-    } else {
-        container.innerHTML = settingsUnits.map((item) =>
-            `<div class="settings-list-item settings-readonly"><span>${escapeHtml(item)}</span></div>`
-        ).join('');
-    }
+    container.innerHTML = settingsUnits.map((item, idx) =>
+        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+    ).join('');
 }
 
 function toggleSettingsSection(section) {
@@ -1263,6 +1265,199 @@ async function getDropdownOptions() {
     sortAlpha(cachedUnitOptions);
 }
 
+
+// ============================================
+// OBLIGATORISKE FELT INNSTILLINGER
+// ============================================
+
+function getDefaultRequiredSettings() {
+    return {
+        save: {
+            ordreseddelNr: true,
+            dato: true,
+            oppdragsgiver: true,
+            kundensRef: false,
+            fakturaadresse: false,
+            prosjektnr: true,
+            prosjektnavn: true,
+            montor: true,
+            avdeling: true,
+            sted: true,
+            signeringDato: true,
+            beskrivelse: true,
+            signatur: false
+        },
+        template: {
+            prosjektnavn: true,
+            prosjektnr: false,
+            oppdragsgiver: false,
+            avdeling: false,
+            sted: false
+        }
+    };
+}
+
+const REQUIRED_FIELD_LABELS = {
+    save: [
+        { key: 'ordreseddelNr',  labelKey: 'label_ordreseddel_nr' },
+        { key: 'dato',           labelKey: 'label_uke' },
+        { key: 'oppdragsgiver',  labelKey: 'label_oppdragsgiver' },
+        { key: 'kundensRef',     labelKey: 'label_kundens_ref' },
+        { key: 'fakturaadresse', labelKey: 'label_fakturaadresse' },
+        { key: 'prosjektnr',     labelKey: 'label_prosjektnr' },
+        { key: 'prosjektnavn',   labelKey: 'label_prosjektnavn' },
+        { key: 'montor',         labelKey: 'label_montor' },
+        { key: 'avdeling',       labelKey: 'label_avdeling' },
+        { key: 'sted',           labelKey: 'label_sted' },
+        { key: 'signeringDato',  labelKey: 'label_dato' },
+        { key: 'beskrivelse',    labelKey: 'settings_req_beskrivelse' },
+        { key: 'signatur',       labelKey: 'label_kundens_underskrift' }
+    ],
+    template: [
+        { key: 'prosjektnavn',   labelKey: 'label_prosjektnavn' },
+        { key: 'prosjektnr',     labelKey: 'label_prosjektnr' },
+        { key: 'oppdragsgiver',  labelKey: 'label_oppdragsgiver' },
+        { key: 'avdeling',       labelKey: 'label_avdeling' },
+        { key: 'sted',           labelKey: 'label_sted' }
+    ]
+};
+
+const REQUIRED_FIELD_IDS = {
+    ordreseddelNr:  'mobile-ordreseddel-nr',
+    dato:           'mobile-dato',
+    oppdragsgiver:  'mobile-oppdragsgiver',
+    kundensRef:     'mobile-kundens-ref',
+    fakturaadresse: 'mobile-fakturaadresse',
+    prosjektnr:     'mobile-prosjektnr',
+    prosjektnavn:   'mobile-prosjektnavn',
+    montor:         'mobile-montor',
+    avdeling:       'mobile-avdeling',
+    sted:           'mobile-sted',
+    signeringDato:  'mobile-signering-dato'
+};
+
+async function getRequiredSettings() {
+    if (currentUser && db) {
+        try {
+            const doc = await db.collection('settings').doc('required').get();
+            if (doc.exists) {
+                const data = doc.data();
+                const defaults = getDefaultRequiredSettings();
+                return {
+                    save: { ...defaults.save, ...(data.save || {}) },
+                    template: { ...defaults.template, ...(data.template || {}) }
+                };
+            }
+        } catch (e) {
+            console.error('Required settings error:', e);
+        }
+    }
+    const stored = localStorage.getItem(REQUIRED_KEY);
+    if (stored) {
+        try {
+            const data = JSON.parse(stored);
+            const defaults = getDefaultRequiredSettings();
+            return {
+                save: { ...defaults.save, ...(data.save || {}) },
+                template: { ...defaults.template, ...(data.template || {}) }
+            };
+        } catch (e) {}
+    }
+    return getDefaultRequiredSettings();
+}
+
+async function saveRequiredSettings(data) {
+    if (currentUser && db) {
+        try {
+            await db.collection('settings').doc('required').set(data);
+        } catch (e) {
+            console.error('Save required settings error:', e);
+        }
+    }
+    localStorage.setItem(REQUIRED_KEY, JSON.stringify(data));
+    cachedRequiredSettings = data;
+    updateRequiredIndicators();
+}
+
+async function loadRequiredSettingsToModal() {
+    const data = await getRequiredSettings();
+    cachedRequiredSettings = data;
+    renderRequiredSettingsItems('save');
+    renderRequiredSettingsItems('template');
+}
+
+function renderRequiredSettingsItems(section) {
+    const container = document.getElementById('settings-required-' + section + '-items');
+    if (!container) return;
+
+    const fields = REQUIRED_FIELD_LABELS[section];
+    const settings = cachedRequiredSettings || getDefaultRequiredSettings();
+    const sectionSettings = settings[section] || {};
+
+    container.innerHTML = fields.map(function(field) {
+        const isOn = sectionSettings[field.key] !== false;
+
+        return '<div class="settings-toggle-item">' +
+            '<span>' + escapeHtml(t(field.labelKey)) + '</span>' +
+            '<label class="settings-toggle">' +
+            '<input type="checkbox" data-section="' + section + '" data-key="' + field.key + '"' +
+            (isOn ? ' checked' : '') +
+            ' onchange="toggleRequiredField(\'' + section + '\', \'' + field.key + '\', this.checked)">' +
+            '<span class="settings-toggle-slider"></span>' +
+            '</label>' +
+            '</div>';
+    }).join('');
+}
+
+async function toggleRequiredField(section, key, value) {
+    const settings = cachedRequiredSettings || getDefaultRequiredSettings();
+    if (!settings[section]) settings[section] = {};
+    settings[section][key] = value;
+    await saveRequiredSettings(settings);
+}
+
+function updateRequiredIndicators() {
+    const settings = cachedRequiredSettings || getDefaultRequiredSettings();
+    const saveReqs = settings.save || {};
+
+    // Update text input fields
+    for (const [key, inputId] of Object.entries(REQUIRED_FIELD_IDS)) {
+        const input = document.getElementById(inputId);
+        if (!input) continue;
+        const field = input.closest('.mobile-field');
+        if (!field) continue;
+
+        if (saveReqs[key]) {
+            field.classList.add('field-required');
+        } else {
+            field.classList.remove('field-required');
+        }
+    }
+
+    // Order description fields (dynamic order cards)
+    document.querySelectorAll('#mobile-orders .mobile-order-desc').forEach(function(desc) {
+        const field = desc.closest('.mobile-field');
+        if (!field) return;
+        if (saveReqs.beskrivelse !== false) {
+            field.classList.add('field-required');
+        } else {
+            field.classList.remove('field-required');
+        }
+    });
+
+    // Signature field
+    const sigPreview = document.getElementById('mobile-signature-preview');
+    if (sigPreview) {
+        const sigField = sigPreview.closest('.mobile-field');
+        if (sigField) {
+            if (saveReqs.signatur) {
+                sigField.classList.add('field-required');
+            } else {
+                sigField.classList.remove('field-required');
+            }
+        }
+    }
+}
 
 // ============================================
 // STANDARDVERDIER (AUTOFYLL)
@@ -1974,6 +2169,12 @@ window.addEventListener('load', function() {
 
     // Load dropdown options for materials/units
     getDropdownOptions();
+
+    // Load required field settings and update indicators
+    getRequiredSettings().then(function(data) {
+        cachedRequiredSettings = data;
+        updateRequiredIndicators();
+    });
 
     // Hash routing: restore view state on refresh
     // Use setTimeout to ensure DOM is fully ready

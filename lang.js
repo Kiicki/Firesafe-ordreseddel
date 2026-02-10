@@ -158,6 +158,7 @@ const TRANSLATIONS = {
         placeholder_from: 'Fra',
         placeholder_to: 'Til',
         btn_save_settings: 'Lagre',
+        btn_add: 'Legg til',
 
         // Materials & units settings
         settings_materials: 'Materialer og enheter',
@@ -179,6 +180,15 @@ const TRANSLATIONS = {
         settings_spec_toggle: 'Trenger spesifikasjon',
         spec_popup_placeholder: 'f.eks. Ø50mm',
         material_exists: 'Materialet finnes allerede',
+
+        // Required fields settings
+        settings_required: 'Obligatoriske felt',
+        settings_req_save: 'Lagre / Eksport',
+        settings_req_template: 'Mal',
+        settings_req_beskrivelse: 'Beskrivelse (minst 1 ordre)',
+        validation_kundens_ref: 'Kundens ref.',
+        validation_fakturaadresse: 'Fakturaadresse',
+        validation_signatur: 'Kundens underskrift',
 
         // Language page
         lang_norwegian: 'Norsk',
@@ -375,6 +385,7 @@ const TRANSLATIONS = {
         placeholder_from: 'From',
         placeholder_to: 'To',
         btn_save_settings: 'Save',
+        btn_add: 'Add',
 
         // Materials & units settings
         settings_materials: 'Materials and units',
@@ -396,6 +407,15 @@ const TRANSLATIONS = {
         settings_spec_toggle: 'Needs specification',
         spec_popup_placeholder: 'e.g. Ø50mm',
         material_exists: 'Material already exists',
+
+        // Required fields settings
+        settings_required: 'Required fields',
+        settings_req_save: 'Save / Export',
+        settings_req_template: 'Template',
+        settings_req_beskrivelse: 'Description (at least 1 order)',
+        validation_kundens_ref: 'Customer ref.',
+        validation_fakturaadresse: 'Invoice address',
+        validation_signatur: 'Customer signature',
 
         // Language page
         lang_norwegian: 'Norsk',

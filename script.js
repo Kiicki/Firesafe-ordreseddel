@@ -6,9 +6,11 @@ const DEFAULTS_KEY = 'firesafe_defaults';
 const MATERIALS_KEY = 'firesafe_materials';
 const EXTERNAL_KEY = 'firesafe_external';
 const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
+const REQUIRED_KEY = 'firesafe_required';
 
 // Flag to track if we need to refresh data when auth is ready
 let pendingAuthRefresh = null; // 'templates' | 'saved' | null
+let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 
 // Global HTML escape function - prevents XSS attacks
@@ -121,6 +123,14 @@ if (auth) {
                     applyTranslations();
                 }
             } catch (e) {}
+
+            // Refresh required field settings from Firebase
+            if (typeof getRequiredSettings === 'function') {
+                getRequiredSettings().then(function(data) {
+                    cachedRequiredSettings = data;
+                    if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
+                });
+            }
         }
         // Refresh data if we were waiting for auth (only when user is logged in)
         if (user && pendingAuthRefresh) {
@@ -402,8 +412,8 @@ function createOrderCard(orderData, expanded) {
             <button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeOrder(this)">${deleteIcon}</button>
         </div>
         <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
-            <div class="mobile-field">
-                <label><span data-i18n="order_description">${t('order_description')}</span> <span class="required">*</span></label>
+            <div class="mobile-field${((cachedRequiredSettings || getDefaultRequiredSettings()).save.beskrivelse !== false) ? ' field-required' : ''}">
+                <label data-i18n="order_description">${t('order_description')}</label>
                 <textarea class="mobile-order-desc" readonly autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section">
@@ -1487,38 +1497,56 @@ function setFormData(data) {
     updateOrderDeleteStates();
 }
 
-// Validering av påkrevde felter
+// Validering av påkrevde felter (konfigurerbar via innstillinger)
 function validateRequiredFields() {
-    const fields = [
-        { id: 'mobile-ordreseddel-nr', key: 'validation_ordreseddel_nr' },
-        { id: 'mobile-dato', key: 'validation_dato' },
-        { id: 'mobile-oppdragsgiver', key: 'validation_oppdragsgiver' },
-        { id: 'mobile-prosjektnr', key: 'validation_prosjektnr' },
-        { id: 'mobile-prosjektnavn', key: 'validation_prosjektnavn' },
-        { id: 'mobile-montor', key: 'validation_montor' },
-        { id: 'mobile-avdeling', key: 'validation_avdeling' },
-        { id: 'mobile-sted', key: 'validation_sted' },
-        { id: 'mobile-signering-dato', key: 'validation_signering_dato' }
-    ];
+    const settings = cachedRequiredSettings || getDefaultRequiredSettings();
+    const saveReqs = settings.save || {};
 
-    for (const field of fields) {
-        const el = document.getElementById(field.id);
+    const fieldMap = {
+        ordreseddelNr:  { id: 'mobile-ordreseddel-nr', key: 'validation_ordreseddel_nr' },
+        dato:           { id: 'mobile-dato',           key: 'validation_dato' },
+        oppdragsgiver:  { id: 'mobile-oppdragsgiver',  key: 'validation_oppdragsgiver' },
+        kundensRef:     { id: 'mobile-kundens-ref',    key: 'validation_kundens_ref' },
+        fakturaadresse: { id: 'mobile-fakturaadresse',  key: 'validation_fakturaadresse' },
+        prosjektnr:     { id: 'mobile-prosjektnr',     key: 'validation_prosjektnr' },
+        prosjektnavn:   { id: 'mobile-prosjektnavn',   key: 'validation_prosjektnavn' },
+        montor:         { id: 'mobile-montor',          key: 'validation_montor' },
+        avdeling:       { id: 'mobile-avdeling',        key: 'validation_avdeling' },
+        sted:           { id: 'mobile-sted',            key: 'validation_sted' },
+        signeringDato:  { id: 'mobile-signering-dato',  key: 'validation_signering_dato' }
+    };
+
+    for (const [settingKey, fieldInfo] of Object.entries(fieldMap)) {
+        if (!saveReqs[settingKey]) continue;
+        const el = document.getElementById(fieldInfo.id);
         if (!el || !el.value.trim()) {
-            showNotificationModal(t('required_field', t(field.key)));
+            showNotificationModal(t('required_field', t(fieldInfo.key)));
             return false;
         }
     }
 
-    const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
-    if (orderCards.length === 0) {
-        showNotificationModal(t('required_order'));
-        return false;
+    // Validate orders (beskrivelse)
+    if (saveReqs.beskrivelse !== false) {
+        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        if (orderCards.length === 0) {
+            showNotificationModal(t('required_order'));
+            return false;
+        }
+        for (let i = 0; i < orderCards.length; i++) {
+            const descInput = orderCards[i].querySelector('.mobile-order-desc');
+            const descVal = descInput.getAttribute('data-full-value') || descInput.value;
+            if (!descVal.trim()) {
+                showNotificationModal(t('required_description', i + 1));
+                return false;
+            }
+        }
     }
-    for (let i = 0; i < orderCards.length; i++) {
-        const descInput = orderCards[i].querySelector('.mobile-order-desc');
-        const descVal = descInput.getAttribute('data-full-value') || descInput.value;
-        if (!descVal.trim()) {
-            showNotificationModal(t('required_description', i + 1));
+
+    // Validate signature
+    if (saveReqs.signatur) {
+        const sigVal = document.getElementById('mobile-kundens-underskrift').value;
+        if (!sigVal || !sigVal.trim()) {
+            showNotificationModal(t('required_field', t('validation_signatur')));
             return false;
         }
     }

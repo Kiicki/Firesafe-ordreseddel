@@ -33,7 +33,7 @@
         <div class="mobile-form" id="mobile-form">
             <div class="mobile-section">
                 <div class="mobile-field">
-                    <label><span data-i18n="label_ordreseddel_nr">Ordreseddel nr.</span> <span class="required">*</span></label>
+                    <label data-i18n="label_ordreseddel_nr">Ordreseddel nr.</label>
                     <div class="input-with-copy">
                         <input type="text" id="mobile-ordreseddel-nr" inputmode="numeric" >
                         <span class="external-badge" id="external-badge" style="display:none;" data-i18n="external_badge">Eksternt</span>
@@ -41,19 +41,19 @@
                     </div>
                 </div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_uke">Uke</span> <span class="required">*</span></label>
+                    <label data-i18n="label_uke">Uke</label>
                     <input type="text" id="mobile-dato" autocapitalize="sentences">
                 </div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_montor">Montør</span> <span class="required">*</span></label>
+                    <label data-i18n="label_montor">Montør</label>
                     <input type="text" id="mobile-montor" autocapitalize="sentences">
                 </div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_avdeling">Avdeling</span> <span class="required">*</span></label>
+                    <label data-i18n="label_avdeling">Avdeling</label>
                     <input type="text" id="mobile-avdeling" inputmode="numeric" pattern="[0-9]*" autocapitalize="sentences">
                 </div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span> <span class="required">*</span></label>
+                    <label data-i18n="label_oppdragsgiver">Oppdragsgiver</label>
                     <input type="text" id="mobile-oppdragsgiver" autocapitalize="sentences">
                 </div>
                 <div class="mobile-field">
@@ -65,11 +65,11 @@
                     <input type="text" id="mobile-fakturaadresse" autocapitalize="sentences">
                 </div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_prosjektnr">Prosjektnr.</span> <span class="required">*</span></label>
+                    <label data-i18n="label_prosjektnr">Prosjektnr.</label>
                     <input type="text" id="mobile-prosjektnr" inputmode="numeric">
                 </div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_prosjektnavn">Prosjektnavn</span> <span class="required">*</span></label>
+                    <label data-i18n="label_prosjektnavn">Prosjektnavn</label>
                     <input type="text" id="mobile-prosjektnavn" autocapitalize="sentences">
                 </div>
             </div>
@@ -83,11 +83,11 @@
             <div class="mobile-section">
                 <div class="mobile-section-title" data-i18n="section_signing">Signering</div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_sted">Sted</span> <span class="required">*</span></label>
+                    <label data-i18n="label_sted">Sted</label>
                     <input type="text" id="mobile-sted" autocapitalize="sentences">
                 </div>
                 <div class="mobile-field">
-                    <label><span data-i18n="label_dato">Dato</span> <span class="required">*</span></label>
+                    <label data-i18n="label_dato">Dato</label>
                     <input type="text" id="mobile-signering-dato">
                 </div>
                 <div class="mobile-field">
@@ -334,8 +334,12 @@
                         <span data-i18n="settings_defaults">Standardverdier</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('materials')">
+                    <div class="settings-menu-item" onclick="showSettingsPage('materials')" data-admin-only>
                         <span data-i18n="settings_materials">Materialer og enheter</span>
+                        <span class="settings-menu-arrow">&rsaquo;</span>
+                    </div>
+                    <div class="settings-menu-item" onclick="showSettingsPage('required')" data-admin-only>
+                        <span data-i18n="settings_required">Obligatoriske felt</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
                     <div class="settings-menu-item" onclick="showSettingsPage('language')">
@@ -355,7 +359,7 @@
                         <div class="settings-add-row">
                             <input type="text" id="settings-new-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
                             <input type="text" id="settings-new-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
-                            <button type="button" class="settings-add-btn" onclick="addSettingsRange()">+</button>
+                            <button type="button" class="settings-add-btn" onclick="addSettingsRange()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>
                     <div class="settings-status" id="settings-status"></div>
@@ -397,7 +401,7 @@
                         <div id="settings-material-items" class="settings-list-container"></div>
                         <div class="settings-add-row">
                             <input type="text" id="settings-new-material" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale" autocapitalize="sentences">
-                            <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()">+</button>
+                            <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>
                     <div class="settings-collapsible-header" onclick="toggleSettingsSection('units')">
@@ -408,8 +412,26 @@
                         <div id="settings-unit-items" class="settings-list-container"></div>
                         <div class="settings-add-row">
                             <input type="text" id="settings-new-unit" data-i18n-placeholder="placeholder_new_unit" placeholder="Ny enhet" autocapitalize="sentences">
-                            <button type="button" class="settings-add-btn" onclick="addSettingsUnit()">+</button>
+                            <button type="button" class="settings-add-btn" onclick="addSettingsUnit()" data-i18n="btn_add">Legg til</button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Obligatoriske felt-side -->
+                <div id="settings-page-required" class="settings-page" style="display:none;">
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('required-save')">
+                        <span data-i18n="settings_req_save">Lagre / Eksport</span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-required-save">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body open" id="settings-body-required-save">
+                        <div id="settings-required-save-items" class="settings-list-container"></div>
+                    </div>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('required-template')">
+                        <span data-i18n="settings_req_template">Mal</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-required-template">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-required-template">
+                        <div id="settings-required-template-items" class="settings-list-container"></div>
                     </div>
                 </div>
 
