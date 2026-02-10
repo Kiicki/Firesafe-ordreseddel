@@ -660,22 +660,41 @@ body.template-modal-open > .top-bar {
     padding: 2px 15px 5px 15px;
 }
 
-/* Modal views: fast header, scrollbar liste */
-#template-modal.view.active {
-    height: calc(100vh - 60px);
-    height: calc(100dvh - 60px);
+/* Prevent body scroll when modal views are active */
+body.template-modal-open,
+body.saved-modal-open,
+body.settings-modal-open {
+    overflow: hidden;
 }
+
+/* Modal views: fixed position, only .modal-body scrolls */
+#template-modal.view.active,
 #saved-modal.view.active,
 #settings-modal.view.active {
-    height: calc(100vh - 60px);
-    height: calc(100dvh - 60px);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 60px;
+    height: auto;
+    min-height: 0;
+    z-index: 30;
 }
-/* Keyboard open: fjern fast høyde, toolbar i dokumentflyt */
+
+/* Keyboard open: revert to static flow */
 @media (max-height: 500px) {
+    body.template-modal-open,
+    body.saved-modal-open,
+    body.settings-modal-open {
+        overflow: auto;
+    }
     #template-modal.view.active,
     #saved-modal.view.active,
     #settings-modal.view.active {
+        position: static;
         height: auto;
+        min-height: 0;
+        bottom: auto;
     }
     .toolbar {
         position: static;
