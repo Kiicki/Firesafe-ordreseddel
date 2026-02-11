@@ -108,6 +108,10 @@ if (auth) {
         authReady = true;
         currentUser = user;
         isAdmin = false; // Reset admin status
+        // Oppdater admin-only elementer i settings-menyen
+        document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
+            item.style.display = 'none';
+        });
         updateLoginButton();
         loadedForms = [];
         loadedExternalForms = [];
@@ -115,6 +119,10 @@ if (auth) {
         if (user && db) {
             // Check admin status
             isAdmin = await checkAdminStatus(user.uid);
+            // Oppdater admin-only elementer i settings-menyen
+            document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
+                item.style.display = isAdmin ? '' : 'none';
+            });
 
             // Load language preference from Firebase
             try {
