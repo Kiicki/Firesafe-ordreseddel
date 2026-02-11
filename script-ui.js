@@ -2179,13 +2179,11 @@ window.addEventListener('load', function() {
 
     // Hash routing: restore view state on refresh
     // Use setTimeout to ensure DOM is fully ready
-    setTimeout(async function() {
+    setTimeout(function() {
         const hash = window.location.hash.slice(1);
         if (hash === 'hent') {
             showSavedForms();
         } else if (hash === 'settings') {
-            // Wait for auth (including admin check) before showing settings
-            await authDone;
             showSettingsModal();
         } else if (hash === 'skjema' || hash === 'ekstern') {
         // Form - already loaded via sessionStorage
