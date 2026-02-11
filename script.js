@@ -11,6 +11,8 @@ const REQUIRED_KEY = 'firesafe_required';
 // Flag to track if we need to refresh data when auth is ready
 let pendingAuthRefresh = null; // 'templates' | 'saved' | null
 let authReady = false; // true after first onAuthStateChanged
+let _resolveAuthDone;
+let authDone = new Promise(function(r) { _resolveAuthDone = r; });
 let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 
@@ -108,10 +110,6 @@ if (auth) {
         authReady = true;
         currentUser = user;
         isAdmin = false; // Reset admin status
-        // Oppdater admin-only elementer i settings-menyen
-        document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
-            item.style.display = 'none';
-        });
         updateLoginButton();
         loadedForms = [];
         loadedExternalForms = [];
@@ -119,10 +117,6 @@ if (auth) {
         if (user && db) {
             // Check admin status
             isAdmin = await checkAdminStatus(user.uid);
-            // Oppdater admin-only elementer i settings-menyen
-            document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
-                item.style.display = isAdmin ? '' : 'none';
-            });
 
             // Load language preference from Firebase
             try {
@@ -152,7 +146,18 @@ if (auth) {
                 showSavedForms();
             }
         }
+        // Signal that auth (including admin check) is fully complete
+        if (_resolveAuthDone) {
+            _resolveAuthDone();
+            _resolveAuthDone = null;
+        }
     });
+} else {
+    // No auth available, resolve immediately
+    if (_resolveAuthDone) {
+        _resolveAuthDone();
+        _resolveAuthDone = null;
+    }
 }
 
 function updateLoginButton() {
