@@ -132,9 +132,15 @@ async function showSavedForms() {
 
     const saved = await getSavedForms();
     const sent = await getSentForms();
+    if (currentUser) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sent));
+    }
     window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
     showSavedFormsRunning = false;
-    renderSavedFormsList(window.loadedForms);
+    if (currentUser || window.loadedForms.length > 0) {
+        renderSavedFormsList(window.loadedForms);
+    }
 }
 
 function setFormReadOnly(readOnly) {
@@ -593,8 +599,14 @@ async function loadExternalTab() {
 
     const forms = await getExternalForms();
     const sentForms = await getExternalSentForms();
+    if (currentUser) {
+        localStorage.setItem(EXTERNAL_KEY, JSON.stringify(forms));
+        localStorage.setItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(sentForms));
+    }
     window.loadedExternalForms = forms.concat(sentForms.map(f => ({ ...f, _isSent: true })));
-    renderExternalFormsList(window.loadedExternalForms);
+    if (currentUser || window.loadedExternalForms.length > 0) {
+        renderExternalFormsList(window.loadedExternalForms);
+    }
 }
 
 function loadExternalForm(index) {
@@ -782,7 +794,12 @@ async function showTemplateModal() {
     pendingAuthRefresh = currentUser ? null : 'templates';
 
     const templates = await getTemplates();
-    renderTemplateList(templates);
+    if (currentUser) {
+        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        renderTemplateList(templates);
+    } else if (templates.length > 0) {
+        renderTemplateList(templates);
+    }
 }
 
 async function autoFillOrderNumber() {
