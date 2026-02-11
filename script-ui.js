@@ -2178,14 +2178,12 @@ window.addEventListener('load', function() {
     });
 
     // Hash routing: restore view state on refresh
-    // Use setTimeout to ensure DOM is fully ready
-    setTimeout(function() {
-        const hash = window.location.hash.slice(1);
-        if (hash === 'hent') {
-            showSavedForms();
-        } else if (hash === 'settings') {
-            showSettingsModal();
-        } else if (hash === 'skjema' || hash === 'ekstern') {
+    const hash = window.location.hash.slice(1);
+    if (hash === 'hent') {
+        showSavedForms();
+    } else if (hash === 'settings') {
+        showSettingsModal();
+    } else if (hash === 'skjema' || hash === 'ekstern') {
         // Form - already loaded via sessionStorage
         showView('view-form');
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
@@ -2200,7 +2198,6 @@ window.addEventListener('load', function() {
         // No hash = home = template modal
         showTemplateModal();
     }
-    }, 0);
 });
 
 // Handle browser back/forward buttons
