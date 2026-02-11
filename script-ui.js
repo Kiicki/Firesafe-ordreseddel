@@ -59,6 +59,47 @@ function updateToolbarState() {
 
 let showSavedFormsRunning = false;
 
+function renderSavedFormsList(forms) {
+    const listEl = document.getElementById('saved-list');
+    if (!forms || forms.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
+        return;
+    }
+    window.loadedForms = forms;
+    listEl.innerHTML = forms.map((item, index) => {
+        const ordrenr = item.ordreseddelNr || '';
+        const dato = formatDateWithTime(item.savedAt);
+        const isSent = item._isSent;
+
+        const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
+
+        const copyBtn = isSent
+            ? `<button class="saved-item-action-btn copy disabled" title="${t('duplicate_btn')}">${copyIcon}</button>`
+            : `<button class="saved-item-action-btn copy" title="${t('duplicate_btn')}">${copyIcon}</button>`;
+
+        const deleteBtn = isSent
+            ? `<button class="saved-item-action-btn delete disabled" title="${t('delete_btn')}">${deleteIcon}</button>`
+            : `<button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>`;
+
+        return `
+            <div class="saved-item" data-index="${index}">
+                <div class="saved-item-info">
+                    <div class="saved-item-row1">${dot}${escapeHtml(ordrenr) || t('no_name')}</div>
+                    ${dato ? `<div class="saved-item-date">${escapeHtml(dato)}</div>` : ''}
+                </div>
+                <div class="saved-item-buttons">
+                    ${copyBtn}
+                    ${deleteBtn}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+        el._formData = window.loadedForms[i];
+    });
+}
+
 async function showSavedForms() {
     if (showSavedFormsRunning) return;
     showSavedFormsRunning = true;
@@ -68,8 +109,13 @@ async function showSavedForms() {
     if (window.location.hash !== '#hent') {
         window.location.hash = 'hent';
     }
-    const listEl = document.getElementById('saved-list');
-    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
+
+    // Show cached data immediately
+    const cachedSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+    const cachedForms = cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true })));
+    renderSavedFormsList(cachedForms);
+
     showView('saved-modal');
     document.body.classList.add('saved-modal-open');
     updateToolbarState();
@@ -88,44 +134,7 @@ async function showSavedForms() {
     const sent = await getSentForms();
     window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
     showSavedFormsRunning = false;
-
-    if (window.loadedForms.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
-    } else {
-        listEl.innerHTML = window.loadedForms.map((item, index) => {
-            const ordrenr = item.ordreseddelNr || '';
-            const dato = formatDateWithTime(item.savedAt);
-            const isSent = item._isSent;
-
-            const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
-
-            const copyBtn = isSent
-                ? `<button class="saved-item-action-btn copy disabled" title="${t('duplicate_btn')}">${copyIcon}</button>`
-                : `<button class="saved-item-action-btn copy" title="${t('duplicate_btn')}">${copyIcon}</button>`;
-
-            const deleteBtn = isSent
-                ? `<button class="saved-item-action-btn delete disabled" title="${t('delete_btn')}">${deleteIcon}</button>`
-                : `<button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>`;
-
-            return `
-                <div class="saved-item" data-index="${index}">
-                    <div class="saved-item-info">
-                        <div class="saved-item-row1">${dot}${escapeHtml(ordrenr) || t('no_name')}</div>
-                        ${dato ? `<div class="saved-item-date">${escapeHtml(dato)}</div>` : ''}
-                    </div>
-                    <div class="saved-item-buttons">
-                        ${copyBtn}
-                        ${deleteBtn}
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        // Store form data directly on DOM elements
-        listEl.querySelectorAll('.saved-item').forEach((el, i) => {
-            el._formData = window.loadedForms[i];
-        });
-    }
+    renderSavedFormsList(window.loadedForms);
 }
 
 function setFormReadOnly(readOnly) {
@@ -543,42 +552,49 @@ function moveToSaved(event, index) {
 
 // === External forms tab ===
 
-async function loadExternalTab() {
+function renderExternalFormsList(forms) {
     const listEl = document.getElementById('external-list');
-    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
+    if (!forms || forms.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
+        return;
+    }
+    window.loadedExternalForms = forms;
+    listEl.innerHTML = forms.map((item, index) => {
+        const ordrenr = item.ordreseddelNr || '';
+        const dato = formatDateWithTime(item.savedAt);
+        const isSent = item._isSent;
+
+        const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
+
+        return `
+            <div class="saved-item" data-index="${index}">
+                <div class="saved-item-info">
+                    <div class="saved-item-row1">${dot}${escapeHtml(ordrenr) || t('no_name')}</div>
+                    ${dato ? `<div class="saved-item-date">${escapeHtml(dato)}</div>` : ''}
+                </div>
+                <div class="saved-item-buttons">
+                    <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+        el._formData = window.loadedExternalForms[i];
+    });
+}
+
+async function loadExternalTab() {
+    // Show cached data immediately
+    const cachedForms = JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
+    const cachedSent = JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
+    const cached = cachedForms.concat(cachedSent.map(f => ({ ...f, _isSent: true })));
+    renderExternalFormsList(cached);
 
     const forms = await getExternalForms();
     const sentForms = await getExternalSentForms();
     window.loadedExternalForms = forms.concat(sentForms.map(f => ({ ...f, _isSent: true })));
-
-    if (window.loadedExternalForms.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
-    } else {
-        listEl.innerHTML = window.loadedExternalForms.map((item, index) => {
-            const ordrenr = item.ordreseddelNr || '';
-            const dato = formatDateWithTime(item.savedAt);
-            const isSent = item._isSent;
-
-            const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
-
-            return `
-                <div class="saved-item" data-index="${index}">
-                    <div class="saved-item-info">
-                        <div class="saved-item-row1">${dot}${escapeHtml(ordrenr) || t('no_name')}</div>
-                        ${dato ? `<div class="saved-item-date">${escapeHtml(dato)}</div>` : ''}
-                    </div>
-                    <div class="saved-item-buttons">
-                        <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        // Store form data directly on DOM elements
-        listEl.querySelectorAll('.saved-item').forEach((el, i) => {
-            el._formData = window.loadedExternalForms[i];
-        });
-    }
+    renderExternalFormsList(window.loadedExternalForms);
 }
 
 function loadExternalForm(index) {
@@ -720,12 +736,44 @@ async function saveAsTemplate() {
     }
 }
 
+function renderTemplateList(templates) {
+    const listEl = document.getElementById('template-list');
+    if (!templates || templates.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
+        return;
+    }
+    window.loadedTemplates = templates;
+    listEl.innerHTML = templates.map((item, index) => {
+        const row1 = escapeHtml(item.prosjektnavn) || t('no_name');
+        const row2 = [item.oppdragsgiver, item.prosjektnr].filter(x => x).map(escapeHtml).join(' • ');
+
+        return `
+            <div class="saved-item" data-index="${index}">
+                <div class="saved-item-info">
+                    <div class="saved-item-row1">${row1}</div>
+                    ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
+                </div>
+                <div class="saved-item-buttons">
+                    <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+        el._formData = window.loadedTemplates[i];
+    });
+}
+
 async function showTemplateModal() {
     closeAllModals();
     // No hash - template modal is the home page
     history.replaceState(null, '', window.location.pathname);
-    const listEl = document.getElementById('template-list');
-    listEl.innerHTML = '<div class="no-saved">' + t('loading') + '</div>';
+
+    // Show cached templates immediately
+    const cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    renderTemplateList(cached);
+
     showView('template-modal');
     document.body.classList.add('template-modal-open');
     updateToolbarState();
@@ -734,33 +782,7 @@ async function showTemplateModal() {
     pendingAuthRefresh = currentUser ? null : 'templates';
 
     const templates = await getTemplates();
-    window.loadedTemplates = templates;
-
-    if (templates.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
-    } else {
-        listEl.innerHTML = templates.map((item, index) => {
-            const row1 = escapeHtml(item.prosjektnavn) || t('no_name');
-            const row2 = [item.oppdragsgiver, item.prosjektnr].filter(x => x).map(escapeHtml).join(' • ');
-
-            return `
-                <div class="saved-item" data-index="${index}">
-                    <div class="saved-item-info">
-                        <div class="saved-item-row1">${row1}</div>
-                        ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
-                    </div>
-                    <div class="saved-item-buttons">
-                        <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        // Store template data directly on DOM elements
-        listEl.querySelectorAll('.saved-item').forEach((el, i) => {
-            el._formData = window.loadedTemplates[i];
-        });
-    }
+    renderTemplateList(templates);
 }
 
 async function autoFillOrderNumber() {
