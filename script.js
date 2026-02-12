@@ -113,6 +113,11 @@ if (auth) {
         loadedForms = [];
         loadedExternalForms = [];
 
+        if (!user) {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(TEMPLATE_KEY);
+        }
+
         if (user && db) {
             // Check admin status
             isAdmin = await checkAdminStatus(user.uid);
