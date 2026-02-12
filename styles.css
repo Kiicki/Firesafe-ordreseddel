@@ -2259,6 +2259,17 @@ body.settings-modal-open {
     border-color: #E8501A;
 }
 
+.settings-logout {
+    margin-top: 16px;
+    justify-content: center;
+    color: #dc3545;
+    border-color: #dc3545;
+    background: #fff;
+}
+.settings-logout:hover {
+    background: #fef0f0;
+}
+
 .settings-menu-arrow {
     font-size: 20px;
     color: #999;

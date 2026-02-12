@@ -314,7 +314,7 @@
         <div class="modal-content">
             <div class="sticky-header">
                 <div class="top-bar">
-                    <button class="btn-login" id="btn-login-home" onclick="handleAuth()" data-i18n="login"></button>
+                    <div class="btn-login logged-in" id="btn-login-home"></div>
                 </div>
                 <div class="template-home-wrapper">
                     <div class="mobile-form-header">
@@ -373,6 +373,9 @@
                     <div class="settings-menu-item" onclick="showSettingsPage('language')">
                         <span data-i18n="settings_language">Språk / Language</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
+                    </div>
+                    <div class="settings-menu-item settings-logout" onclick="handleAuth()">
+                        <span data-i18n="logout">Logg ut</span>
                     </div>
                 </div>
 
