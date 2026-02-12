@@ -575,25 +575,25 @@ body:has(#action-popup.active) .toolbar button {
     height: 80%;
     background: radial-gradient(circle, rgba(232,80,26,0.07) 0%, transparent 60%);
     pointer-events: none;
-    min-height: 100vh;
-    min-height: 100dvh;
 }
 #login-view.active ~ .toolbar {
     display: none;
 }
 body:has(#login-view.active) {
     padding-bottom: 0;
+    overflow: hidden;
 }
 .login-screen {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
     padding: 0 24px;
     padding-top: 25vh;
     position: relative;
     z-index: 1;
+    overflow: hidden;
 }
 .login-logo {
     text-align: center;
@@ -790,26 +790,31 @@ body.settings-modal-open {
     padding-bottom: 0;
 }
 
-/* Modal views: override overflow so sticky headers work */
+/* Modal views: fixed height, internal scroll */
 #template-modal.view.active,
 #saved-modal.view.active,
 #settings-modal.view.active {
-    overflow: visible;
-    min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
     padding-bottom: 60px;
 }
 
 #template-modal.view.active > .modal-content,
 #saved-modal.view.active > .modal-content,
 #settings-modal.view.active > .modal-content {
-    overflow: visible;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
-/* Let modal-body flow naturally (body scrolls, not modal-body) */
+/* Modal body scrolls internally */
 #template-modal.view.active .modal-body,
 #saved-modal.view.active .modal-body,
 #settings-modal.view.active .modal-body {
-    overflow-y: visible;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* Sticky header wrapper - keeps headers visible while scrolling */
@@ -833,8 +838,14 @@ body.settings-modal-open {
     #template-modal.view.active,
     #saved-modal.view.active,
     #settings-modal.view.active {
-        min-height: 0;
+        height: auto;
+        overflow: visible;
         padding-bottom: 0;
+    }
+    #template-modal.view.active .modal-body,
+    #saved-modal.view.active .modal-body,
+    #settings-modal.view.active .modal-body {
+        overflow-y: visible;
     }
     .toolbar {
         position: static;
