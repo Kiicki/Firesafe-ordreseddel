@@ -712,6 +712,7 @@ body.template-modal-open > .top-bar {
     color: white;
     padding: 0 15px;
     height: 38px;
+    line-height: 38px;
     flex-shrink: 0;
     font-weight: bold;
     font-size: 14px;
@@ -2284,9 +2285,9 @@ body.settings-modal-open {
 .settings-back-btn {
     background: none;
     border: none;
-    font-size: 28px;
+    font-size: 20px;
     cursor: pointer;
-    padding: 8px 12px 8px 0;
+    padding: 0 4px 0 0;
     color: #E8501A;
     display: flex;
     align-items: center;
@@ -2296,7 +2297,7 @@ body.settings-modal-open {
 
 #settings-header:has(.settings-back-btn) {
     justify-content: flex-start;
-    gap: 8px;
+    gap: 4px;
 }
 
 /* Hide X button on settings sub-pages (they have back button instead) */
