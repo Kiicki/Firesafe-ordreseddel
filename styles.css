@@ -616,11 +616,11 @@ body:has(#login-view.active) {
 }
 .login-logo .mobile-logo-slash {
     height: 60px;
-    top: 12px;
+    top: 50%;
+    transform: translateY(-19%) skewX(-30deg);
     width: 5px;
     right: 10px;
     background: #fff;
-    transform: skewX(-30deg);
 }
 .login-logo p {
     font-size: 13px;
@@ -876,7 +876,6 @@ body.settings-modal-open {
 
 #template-modal .mobile-form-header .mobile-logo-slash {
     height: 35px;
-    top: 7px;
 }
 
 #template-modal .mobile-form-header p {
@@ -1255,11 +1254,11 @@ body.settings-modal-open {
 .mobile-logo-slash {
     position: absolute;
     right: 8px;
-    top: 5px;
+    top: 50%;
+    transform: translateY(-19%) skewX(-28deg);
     width: 4px;
     height: 38px;
     background: #000;
-    transform: skewX(-28deg);
 }
 
 .mobile-form-header p {
