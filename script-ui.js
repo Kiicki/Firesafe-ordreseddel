@@ -2216,7 +2216,24 @@ window.addEventListener('load', function() {
         updateRequiredIndicators();
     });
 
-    // Hash routing handled by onAuthStateChanged — login-view is shown until auth is ready
+    // Hash routing: restore view state on refresh
+    const hash = window.location.hash.slice(1);
+    if (hash === 'hent') {
+        showSavedForms();
+    } else if (hash === 'settings') {
+        showSettingsModal();
+    } else if (hash === 'skjema' || hash === 'ekstern') {
+        showView('view-form');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+        document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
+        const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+        if (wasSent) {
+            setFormReadOnly(true);
+        }
+        updateToolbarState();
+    } else {
+        showTemplateModal();
+    }
 });
 
 // Handle browser back/forward buttons

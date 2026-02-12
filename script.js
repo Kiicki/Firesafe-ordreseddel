@@ -114,54 +114,18 @@ if (auth) {
         loadedExternalForms = [];
 
         if (!user) {
-            // Rydd all bruker-spesifikk cache
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(ARCHIVE_KEY);
-            localStorage.removeItem(TEMPLATE_KEY);
-            localStorage.removeItem(SETTINGS_KEY);
-            localStorage.removeItem(DEFAULTS_KEY);
-            localStorage.removeItem(EXTERNAL_KEY);
-            localStorage.removeItem(EXTERNAL_ARCHIVE_KEY);
-            sessionStorage.removeItem('firesafe_current');
-            sessionStorage.removeItem('firesafe_current_sent');
-            // Rydd DOM-lister
-            var tl = document.getElementById('template-list');
-            if (tl) tl.innerHTML = '';
-            var sl = document.getElementById('saved-list');
-            if (sl) sl.innerHTML = '';
             // Vis login-skjerm
             showView('login-view');
+            var loginCard = document.getElementById('login-card');
+            if (loginCard) loginCard.style.display = '';
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
             return;
         }
 
-        // Bruker er innlogget — naviger til riktig view
-        if (document.getElementById('login-view').classList.contains('active')) {
-            var hash = window.location.hash.slice(1);
-            if (hash === 'hent' && typeof showSavedForms === 'function') {
-                showSavedForms();
-            } else if (hash === 'settings' && typeof showSettingsModal === 'function') {
-                showSettingsModal();
-            } else if ((hash === 'skjema' || hash === 'ekstern') && typeof showView === 'function') {
-                showView('view-form');
-                document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
-                document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
-                if (sessionStorage.getItem('firesafe_current_sent') === '1') {
-                    setFormReadOnly(true);
-                }
-                if (typeof updateToolbarState === 'function') updateToolbarState();
-            } else if (typeof showTemplateModal === 'function') {
-                showTemplateModal();
-            } else {
-                showView('template-modal');
-            }
-        }
-
-        if (user && db) {
+        if (db) {
             // Check admin status
             isAdmin = await checkAdminStatus(user.uid);
             if (isAdmin) localStorage.setItem('firesafe_admin', '1');
-            // Update admin-only elements if settings is currently open
             if (document.body.classList.contains('settings-modal-open')) {
                 document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
                     item.style.display = isAdmin ? '' : 'none';
@@ -184,16 +148,6 @@ if (auth) {
                     cachedRequiredSettings = data;
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
                 });
-            }
-        }
-        // Refresh data if we were waiting for auth (only when user is logged in)
-        if (user && pendingAuthRefresh) {
-            const refreshType = pendingAuthRefresh;
-            pendingAuthRefresh = null; // Clear before calling to avoid loops
-            if (refreshType === 'templates' && typeof showTemplateModal === 'function') {
-                showTemplateModal();
-            } else if (refreshType === 'saved' && typeof showSavedForms === 'function') {
-                showSavedForms();
             }
         }
     });
