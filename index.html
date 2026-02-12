@@ -544,6 +544,24 @@
         <canvas id="signature-canvas"></canvas>
     </div>
 
+    <!-- Instant view routing - runs before any external scripts load -->
+    <script>
+    (function() {
+        var v, b;
+        if (!localStorage.getItem('firesafe_logged_in')) {
+            v = 'login-view';
+        } else {
+            var h = location.hash.slice(1);
+            if (h === 'hent') { v = 'saved-modal'; b = 'saved-modal-open'; }
+            else if (h === 'settings') { v = 'settings-modal'; b = 'settings-modal-open'; }
+            else if (h === 'skjema' || h === 'ekstern') { v = 'view-form'; }
+            else { v = 'template-modal'; b = 'template-modal-open'; }
+        }
+        document.getElementById(v).classList.add('active');
+        if (b) document.body.classList.add(b);
+    })();
+    </script>
+
     <!-- Toolbar - alltid sist i DOM for riktig rekkefølge når keyboard er åpen -->
     <div class="toolbar" role="toolbar" aria-label="Hovedhandlinger">
         <button class="btn-new" onclick="newForm()" data-i18n="toolbar_new">Ny</button>

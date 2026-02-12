@@ -57,8 +57,6 @@ function updateToolbarState() {
     }
 }
 
-let showSavedFormsRunning = false;
-
 function renderSavedFormsList(forms) {
     const listEl = document.getElementById('saved-list');
     if (!forms || forms.length === 0) {
@@ -100,12 +98,8 @@ function renderSavedFormsList(forms) {
     });
 }
 
-async function showSavedForms() {
-    if (showSavedFormsRunning) return;
-    showSavedFormsRunning = true;
-
+function showSavedForms() {
     closeAllModals();
-    // Only set hash if different to avoid triggering hashchange
     if (window.location.hash !== '#hent') {
         window.location.hash = 'hent';
     }
@@ -122,24 +116,21 @@ async function showSavedForms() {
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
-    // Track if we need refresh when auth is ready
-    pendingAuthRefresh = currentUser ? null : 'saved';
-
-    // Åpne riktig fane basert på gjeldende skjema
     if (isExternalForm) {
         switchHentTab('external');
     }
 
-    const saved = await getSavedForms();
-    const sent = await getSentForms();
-    if (currentUser) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-        localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sent));
-    }
-    window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
-    showSavedFormsRunning = false;
-    if (currentUser || window.loadedForms.length > 0) {
-        renderSavedFormsList(window.loadedForms);
+    // Refresh from Firestore in background
+    if (currentUser && db) {
+        Promise.all([getSavedForms(), getSentForms()]).then(function([saved, sent]) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sent));
+            window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
+            // Only update if still on saved-modal
+            if (document.body.classList.contains('saved-modal-open')) {
+                renderSavedFormsList(window.loadedForms);
+            }
+        }).catch(function(e) { console.error('Refresh saved forms:', e); });
     }
 }
 
@@ -233,7 +224,7 @@ async function duplicateFormDirect(form) {
     document.getElementById('mobile-ordreseddel-nr').value = '';
     isExternalForm = false;
     updateExternalBadge();
-    await autoFillOrderNumber();
+    autoFillOrderNumber();
 
     // Sett uke til nåværende
     const now = new Date();
@@ -551,7 +542,7 @@ function moveToSaved(event, index) {
             setFormReadOnly(false);
         }
 
-        await showSavedForms();
+        showSavedForms();
         showNotificationModal(t('move_to_saved_success'), true);
     }, t('btn_move'), '#333');
 }
@@ -777,9 +768,8 @@ function renderTemplateList(templates) {
     });
 }
 
-async function showTemplateModal() {
+function showTemplateModal() {
     closeAllModals();
-    // No hash - template modal is the home page
     history.replaceState(null, '', window.location.pathname);
 
     // Show cached templates immediately
@@ -790,20 +780,20 @@ async function showTemplateModal() {
     document.body.classList.add('template-modal-open');
     updateToolbarState();
 
-    // Track if we need refresh when auth is ready
-    pendingAuthRefresh = currentUser ? null : 'templates';
-
-    const templates = await getTemplates();
-    if (currentUser) {
-        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-        renderTemplateList(templates);
-    } else if (templates.length > 0) {
-        renderTemplateList(templates);
+    // Refresh from Firestore in background
+    if (currentUser && db) {
+        getTemplates().then(function(templates) {
+            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+            // Only update if still on template-modal
+            if (document.body.classList.contains('template-modal-open')) {
+                renderTemplateList(templates);
+            }
+        }).catch(function(e) { console.error('Refresh templates:', e); });
     }
 }
 
-async function autoFillOrderNumber() {
-    const nextNr = await getNextOrderNumber();
+function autoFillOrderNumber() {
+    const nextNr = getNextOrderNumber();
     if (nextNr !== null) {
         document.getElementById('ordreseddel-nr').value = nextNr;
         document.getElementById('mobile-ordreseddel-nr').value = nextNr;
@@ -816,7 +806,7 @@ function loadTemplate(index) {
     loadTemplateDirect(template);
 }
 
-async function loadTemplateDirect(template) {
+function loadTemplateDirect(template) {
     if (!template) return;
 
     preNewFormData = null;
@@ -836,16 +826,14 @@ async function loadTemplateDirect(template) {
     document.getElementById('mobile-avdeling').value = template.avdeling || '';
     document.getElementById('mobile-sted').value = template.sted || '';
 
-    await autoFillOrderNumber();
+    autoFillOrderNumber();
 
     showView('view-form');
     document.body.classList.remove('template-modal-open');
     updateToolbarState();
     document.getElementById('template-search').value = '';
-    // Template loaded = regular form
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-    // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
     updateOrderDeleteStates();
     window.scrollTo(0, 0);
@@ -907,25 +895,21 @@ async function duplicateTemplate(index) {
     showTemplateModal();
 }
 
-async function closeTemplateModal() {
-    // Always clear and initialize form for blank form
+function closeTemplateModal() {
     clearForm();
     preNewFormData = null;
     setFormReadOnly(false);
-    await autoFillOrderNumber();
-    await autoFillDefaults();
+    autoFillOrderNumber();
+    autoFillDefaults();
 
     showView('view-form');
     document.body.classList.remove('template-modal-open');
     updateToolbarState();
     document.getElementById('template-search').value = '';
-    // Blank form = #skjema
     window.location.hash = 'skjema';
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-    // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
-    // Ensure delete button state is correct (1 card = disabled)
     updateOrderDeleteStates();
+    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
 }
 
 function goToHome() {
@@ -1002,7 +986,7 @@ function getSettingsPageTitle(page) {
     return titles[page] || '';
 }
 
-async function showSettingsModal() {
+function showSettingsModal() {
     closeAllModals();
     window.location.hash = 'settings';
     showSettingsMenu();
@@ -1568,8 +1552,10 @@ async function loadDefaultSettingsToModal() {
     initDefaultsAutoSave();
 }
 
-async function autoFillDefaults() {
-    const defaults = await getDefaultSettings();
+function autoFillDefaults() {
+    // Use localStorage cache for instant response
+    const stored = localStorage.getItem(DEFAULTS_KEY);
+    const defaults = stored ? JSON.parse(stored) : {};
     DEFAULT_FIELDS.forEach(field => {
         if (defaults[field]) {
             const el = document.getElementById(field);
@@ -1689,7 +1675,7 @@ async function addGivenAwayRange() {
         return;
     }
     // Check if any numbers are already used (saved/sent)
-    const usedNumbers = await getUsedOrderNumbers();
+    const usedNumbers = getUsedOrderNumbers();
     for (let n = start; n <= end; n++) {
         if (usedNumbers.has(String(n))) {
             showNotificationModal(t('settings_give_already_used', n));
@@ -1745,7 +1731,7 @@ async function updateSettingsStatus() {
     let total = 0;
     settingsRanges.forEach(r => { total += r.end - r.start + 1; });
 
-    const usedNumbers = await getUsedOrderNumbers();
+    const usedNumbers = getUsedOrderNumbers();
     const givenNumbers = getGivenAwayNumbers();
     let usedCount = 0;
     let givenCount = 0;
@@ -1765,9 +1751,10 @@ async function updateSettingsStatus() {
     statusEl.textContent = statusText;
 }
 
-async function getUsedOrderNumbers() {
-    const saved = await getSavedForms();
-    const archived = await getSentForms();
+function getUsedOrderNumbers() {
+    // Use localStorage cache to avoid Firestore queries
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
     const used = new Set();
     saved.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
     archived.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
@@ -1783,16 +1770,23 @@ function findNextInRanges(ranges, usedNumbers) {
     return null;
 }
 
-async function getNextOrderNumber() {
-    const settings = await getOrderNrSettings();
-    if (!settings || !settings.ranges || settings.ranges.length === 0) return null;
-    const usedNumbers = await getUsedOrderNumbers();
-    // Also exclude given-away numbers
-    const givenAway = settings.givenAway || [];
-    givenAway.forEach(r => {
+function getNextOrderNumber() {
+    // Use localStorage cache for instant response
+    const stored = localStorage.getItem(SETTINGS_KEY);
+    let data = stored ? JSON.parse(stored) : null;
+    if (!data) return null;
+    // Backward compat
+    if (!data.ranges && data.nrStart != null) {
+        data = { ranges: [{ start: data.nrStart, end: data.nrEnd }] };
+    }
+    if (!data.ranges || data.ranges.length === 0) return null;
+    if (!data.givenAway) data.givenAway = [];
+
+    const usedNumbers = getUsedOrderNumbers();
+    data.givenAway.forEach(r => {
         for (let n = r.start; n <= r.end; n++) usedNumbers.add(String(n));
     });
-    return findNextInRanges(settings.ranges, usedNumbers);
+    return findNextInRanges(data.ranges, usedNumbers);
 }
 
 function isNumberInRanges(nr, ranges) {
@@ -2177,7 +2171,7 @@ document.getElementById('form-container').addEventListener('input', function() {
     debouncedSessionSave();
 });
 
-window.addEventListener('load', function() {
+document.addEventListener('DOMContentLoaded', function() {
     // PWA pull-to-refresh workaround: Force layout recalculation
     setTimeout(function() {
         void document.body.offsetHeight;
@@ -2216,23 +2210,47 @@ window.addEventListener('load', function() {
         updateRequiredIndicators();
     });
 
-    // Hash routing: restore view state on refresh
+    // View is already activated by inline script in HTML.
+    // Here we only do data-specific init based on hash.
     const hash = window.location.hash.slice(1);
-    if (hash === 'hent') {
-        showSavedForms();
-    } else if (hash === 'settings') {
-        showSettingsModal();
-    } else if (hash === 'skjema' || hash === 'ekstern') {
-        showView('view-form');
-        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+    if (hash === 'skjema' || hash === 'ekstern') {
         document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
             setFormReadOnly(true);
         }
         updateToolbarState();
-    } else {
-        showTemplateModal();
+    } else if (hash === 'hent') {
+        // Trigger background Firestore refresh for saved forms list
+        if (currentUser && db) {
+            Promise.all([getSavedForms(), getSentForms()]).then(function([saved, sent]) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+                localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sent));
+                window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
+                if (document.body.classList.contains('saved-modal-open')) {
+                    renderSavedFormsList(window.loadedForms);
+                }
+            }).catch(function(e) { console.error('Refresh saved forms:', e); });
+        }
+        // Show cached data immediately
+        var cachedSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        var cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))));
+        updateToolbarState();
+    } else if (!hash || hash === '') {
+        // Home page - render cached templates
+        var cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        renderTemplateList(cached);
+        updateToolbarState();
+        // Background refresh
+        if (currentUser && db) {
+            getTemplates().then(function(templates) {
+                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+                if (document.body.classList.contains('template-modal-open')) {
+                    renderTemplateList(templates);
+                }
+            }).catch(function(e) { console.error('Refresh templates:', e); });
+        }
     }
 });
 

@@ -8,8 +8,6 @@ const EXTERNAL_KEY = 'firesafe_external';
 const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
 const REQUIRED_KEY = 'firesafe_required';
 
-// Flag to track if we need to refresh data when auth is ready
-let pendingAuthRefresh = null; // 'templates' | 'saved' | null
 let authReady = false; // true after first onAuthStateChanged
 let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
@@ -114,13 +112,15 @@ if (auth) {
         loadedExternalForms = [];
 
         if (!user) {
-            // Vis login-skjerm
+            localStorage.removeItem('firesafe_logged_in');
             showView('login-view');
             var loginCard = document.getElementById('login-card');
             if (loginCard) loginCard.style.display = '';
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
             return;
         }
+
+        localStorage.setItem('firesafe_logged_in', '1');
 
         if (db) {
             // Check admin status
