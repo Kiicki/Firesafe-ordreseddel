@@ -122,6 +122,11 @@ if (auth) {
 
         localStorage.setItem('firesafe_logged_in', '1');
 
+        // Etter innlogging → alltid til hjemmesiden (template-modal)
+        if (document.getElementById('login-view').classList.contains('active')) {
+            showTemplateModal();
+        }
+
         if (db) {
             // Check admin status
             isAdmin = await checkAdminStatus(user.uid);
