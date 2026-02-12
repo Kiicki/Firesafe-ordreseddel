@@ -856,6 +856,19 @@ body.settings-modal-open {
     height: 44px;
 }
 
+.user-email-bar {
+    background: #E8501A;
+    color: #fff;
+    text-align: center;
+    padding: 12px 15px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 
 /* Kompakt header for template-modal */
 #template-modal .mobile-form-header {
