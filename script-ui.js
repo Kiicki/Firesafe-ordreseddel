@@ -912,26 +912,6 @@ function closeTemplateModal() {
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
 }
 
-function goToHome() {
-    // Go to template modal (home)
-    history.replaceState(null, '', window.location.pathname);
-    showTemplateModal();
-}
-
-function cancelTemplateModal() {
-    if (preNewFormData) {
-        setFormData(preNewFormData);
-        preNewFormData = null;
-        // Return to the form they were on
-        window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
-    }
-    // If no preNewFormData, stay at home (no hash)
-    showView('view-form');
-    document.body.classList.remove('template-modal-open');
-    updateToolbarState();
-    document.getElementById('template-search').value = '';
-}
-
 function filterTemplates() {
     const searchTerm = document.getElementById('template-search').value.toLowerCase().trim();
     const items = document.querySelectorAll('#template-list .saved-item');

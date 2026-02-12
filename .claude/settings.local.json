@@ -43,7 +43,8 @@
       "Bash(openssl base64:*)",
       "WebFetch(domain:support.google.com)",
       "WebFetch(domain:firebase.google.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(sort:*)"
     ]
   }
 }

@@ -293,11 +293,6 @@ body:has(#action-popup.active) .toolbar button {
     padding: 0;
     font-family: Arial, Helvetica, sans-serif;
     direction: ltr;
-    transform: none;
-    -webkit-transform: none;
-    text-rendering: auto;
-    -webkit-font-smoothing: antialiased;
-    unicode-bidi: normal;
     line-height: 1;
 }
 
@@ -2218,13 +2213,6 @@ body.settings-modal-open {
     padding: 16px 16px 0 16px !important;
 }
 
-.settings-page-with-footer[style*="block"] {
-    display: flex !important;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    height: 100%;
-}
 
 .settings-page-scroll {
     flex: 1;
