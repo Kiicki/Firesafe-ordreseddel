@@ -163,11 +163,14 @@ function updateLoginButton() {
     if (!btn) return;
 
     if (currentUser) {
-        btn.textContent = currentUser.email || currentUser.displayName || t('login');
+        var email = currentUser.email || currentUser.displayName || '';
+        btn.textContent = email;
         btn.classList.add('logged-in');
+        localStorage.setItem('firesafe_email', email);
     } else {
         btn.textContent = t('login');
         btn.classList.remove('logged-in');
+        localStorage.removeItem('firesafe_email');
     }
 }
 

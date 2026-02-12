@@ -556,6 +556,10 @@
             else if (h === 'settings') { v = 'settings-modal'; b = 'settings-modal-open'; }
             else if (h === 'skjema' || h === 'ekstern') { v = 'view-form'; }
             else { v = 'template-modal'; b = 'template-modal-open'; }
+            // Show cached email immediately
+            var email = localStorage.getItem('firesafe_email');
+            var btn = document.getElementById('btn-login-home');
+            if (email && btn) btn.textContent = email;
         }
         document.getElementById(v).classList.add('active');
         if (b) document.body.classList.add(b);
