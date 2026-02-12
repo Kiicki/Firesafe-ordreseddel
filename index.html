@@ -7,9 +7,9 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
-    <link rel="stylesheet" href="styles.css?v=156">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="styles.css?v=157">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js" integrity="sha384-BkEIW/B4JV9w6pRfBRgZtAcYDk5goH1nUI49rLo8s5PSHgTfgxWBczRVJx+fv5kP" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js" integrity="sha384-96KlrabK9X4T/tq4duY+/4JE60jZAiSs4QVJFwmY30ETT24x2+89B7qmq7O4IETX" crossorigin="anonymous"></script>
@@ -298,10 +298,10 @@
                     <button class="modal-tab" onclick="switchHentTab('external')" data-i18n="tab_external">Eksterne</button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
-                    <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterOwnForms()">
+                    <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterList('saved-list', 'saved-search')">
                 </div>
                 <div class="modal-search" id="external-search-wrap" style="display:none;">
-                    <input type="text" id="external-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterExternalForms()">
+                    <input type="text" id="external-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterList('external-list', 'external-search')">
                 </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
@@ -328,7 +328,7 @@
                     <button class="btn-external-order" onclick="startExternalOrder()" data-i18n="external_order_btn">Ekstern</button>
                 </div>
                 <div class="modal-search">
-                    <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjekt..." oninput="filterTemplates()">
+                    <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjekt..." oninput="filterList('template-list', 'template-search')">
                 </div>
             </div>
             <div class="modal-body" id="template-list"></div>
@@ -575,9 +575,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
     </div>
 
-    <script src="lang.js?v=108"></script>
-    <script src="script.js?v=112"></script>
-    <script src="script-ui.js?v=132"></script>
+    <script src="lang.js?v=109"></script>
+    <script src="script.js?v=114"></script>
+    <script src="script-ui.js?v=134"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

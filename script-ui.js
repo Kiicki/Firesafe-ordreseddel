@@ -4,6 +4,11 @@ if (!window.loadedForms) window.loadedForms = [];
 if (!window.loadedExternalForms) window.loadedExternalForms = [];
 var preNewFormData = null;
 
+// Pagination cursors for "Load more"
+var _savedLastDoc = null, _sentLastDoc = null, _savedHasMore = false, _sentHasMore = false;
+var _extLastDoc = null, _extSentLastDoc = null, _extHasMore = false, _extSentHasMore = false;
+var _templateLastDoc = null, _templateHasMore = false;
+
 // Helper: format date with time
 function formatDateWithTime(date) {
     if (!date) return '';
@@ -57,45 +62,74 @@ function updateToolbarState() {
     }
 }
 
-function renderSavedFormsList(forms) {
-    const listEl = document.getElementById('saved-list');
-    if (!forms || forms.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
-        return;
+function _buildSavedItemHtml(item, index) {
+    var ordrenr = item.ordreseddelNr || '';
+    var dato = formatDateWithTime(item.savedAt);
+    var isSent = item._isSent;
+    var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+    var copyBtn = isSent
+        ? '<button class="saved-item-action-btn copy disabled" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>'
+        : '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>';
+    var deleteBtn = isSent
+        ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
+        : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
+    return '<div class="saved-item" data-index="' + index + '">' +
+        '<div class="saved-item-info">' +
+            '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
+            (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+        '</div>' +
+        '<div class="saved-item-buttons">' + copyBtn + deleteBtn + '</div>' +
+    '</div>';
+}
+
+function renderSavedFormsList(forms, append, hasMore) {
+    var listEl = document.getElementById('saved-list');
+    // Remove existing "load more" button
+    var existingBtn = listEl.querySelector('.load-more-btn');
+    if (existingBtn) existingBtn.remove();
+
+    if (!append) {
+        if (!forms || forms.length === 0) {
+            listEl.innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
+            return;
+        }
+        window.loadedForms = forms;
+        listEl.innerHTML = forms.map(function(item, i) { return _buildSavedItemHtml(item, i); }).join('');
+    } else {
+        var startIndex = window.loadedForms.length;
+        window.loadedForms = window.loadedForms.concat(forms);
+        var html = forms.map(function(item, i) { return _buildSavedItemHtml(item, startIndex + i); }).join('');
+        listEl.insertAdjacentHTML('beforeend', html);
     }
-    window.loadedForms = forms;
-    listEl.innerHTML = forms.map((item, index) => {
-        const ordrenr = item.ordreseddelNr || '';
-        const dato = formatDateWithTime(item.savedAt);
-        const isSent = item._isSent;
 
-        const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
-
-        const copyBtn = isSent
-            ? `<button class="saved-item-action-btn copy disabled" title="${t('duplicate_btn')}">${copyIcon}</button>`
-            : `<button class="saved-item-action-btn copy" title="${t('duplicate_btn')}">${copyIcon}</button>`;
-
-        const deleteBtn = isSent
-            ? `<button class="saved-item-action-btn delete disabled" title="${t('delete_btn')}">${deleteIcon}</button>`
-            : `<button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>`;
-
-        return `
-            <div class="saved-item" data-index="${index}">
-                <div class="saved-item-info">
-                    <div class="saved-item-row1">${dot}${escapeHtml(ordrenr) || t('no_name')}</div>
-                    ${dato ? `<div class="saved-item-date">${escapeHtml(dato)}</div>` : ''}
-                </div>
-                <div class="saved-item-buttons">
-                    ${copyBtn}
-                    ${deleteBtn}
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+    // Attach form data to DOM elements
+    listEl.querySelectorAll('.saved-item').forEach(function(el, i) {
         el._formData = window.loadedForms[i];
     });
+
+    // Add "Load more" button if there are more forms
+    if (hasMore) {
+        listEl.insertAdjacentHTML('beforeend', '<button class="load-more-btn" onclick="loadMoreSavedForms()">' + t('load_more') + '</button>');
+    }
+}
+
+async function loadMoreSavedForms() {
+    var btn = document.querySelector('#saved-list .load-more-btn');
+    if (btn) btn.textContent = '...';
+    var newForms = [];
+    if (_savedHasMore && _savedLastDoc) {
+        var result = await getSavedForms(_savedLastDoc);
+        _savedLastDoc = result.lastDoc;
+        _savedHasMore = result.hasMore;
+        newForms = newForms.concat(result.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); }));
+    }
+    if (_sentHasMore && _sentLastDoc) {
+        var result2 = await getSentForms(_sentLastDoc);
+        _sentLastDoc = result2.lastDoc;
+        _sentHasMore = result2.hasMore;
+        newForms = newForms.concat(result2.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
+    }
+    renderSavedFormsList(newForms, true, _savedHasMore || _sentHasMore);
 }
 
 function showSavedForms() {
@@ -122,13 +156,17 @@ function showSavedForms() {
 
     // Refresh from Firestore in background
     if (currentUser && db) {
-        Promise.all([getSavedForms(), getSentForms()]).then(function([saved, sent]) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sent));
-            window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
+        Promise.all([getSavedForms(), getSentForms()]).then(function([savedResult, sentResult]) {
+            _savedLastDoc = savedResult.lastDoc;
+            _sentLastDoc = sentResult.lastDoc;
+            _savedHasMore = savedResult.hasMore;
+            _sentHasMore = sentResult.hasMore;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+            window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true })));
             // Only update if still on saved-modal
             if (document.body.classList.contains('saved-modal-open')) {
-                renderSavedFormsList(window.loadedForms);
+                renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
             }
         }).catch(function(e) { console.error('Refresh saved forms:', e); });
     }
@@ -291,6 +329,7 @@ function deleteFormDirect(form) {
                 localStorage.setItem(lsKey, JSON.stringify(list));
             }
         }
+        removeFromOrderNumberIndex(form.ordreseddelNr);
         showSavedForms();
     });
 }
@@ -416,13 +455,32 @@ function showExportMenu() {
     popup.classList.add('active');
 }
 
-function filterOwnForms() {
-    const searchTerm = document.getElementById('saved-search').value.toLowerCase().trim();
-    const items = document.querySelectorAll('#saved-list .saved-item');
-    items.forEach(item => {
-        const ordrenr = item.querySelector('.saved-item-row1')?.textContent.toLowerCase() || '';
-        item.style.display = ordrenr.startsWith(searchTerm) ? 'flex' : 'none';
-    });
+var _filterTimeout = null;
+function filterList(listId, searchId) {
+    clearTimeout(_filterTimeout);
+    _filterTimeout = setTimeout(function() {
+        var term = document.getElementById(searchId).value.toLowerCase().trim();
+        // Determine which data array and render function to use
+        if (listId === 'saved-list') {
+            if (!term) { renderSavedFormsList(window.loadedForms); return; }
+            var filtered = window.loadedForms.filter(function(f) {
+                return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
+            });
+            renderSavedFormsList(filtered);
+        } else if (listId === 'external-list') {
+            if (!term) { renderExternalFormsList(window.loadedExternalForms); return; }
+            var filtered2 = window.loadedExternalForms.filter(function(f) {
+                return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
+            });
+            renderExternalFormsList(filtered2);
+        } else if (listId === 'template-list') {
+            if (!term) { renderTemplateList(window.loadedTemplates); return; }
+            var filtered3 = window.loadedTemplates.filter(function(f) {
+                return (f.prosjektnavn || '').toLowerCase().startsWith(term);
+            });
+            renderTemplateList(filtered3);
+        }
+    }, 150);
 }
 
 async function markAsSent() {
@@ -434,41 +492,39 @@ async function markAsSent() {
     const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
     const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
-    const saved = isExternalForm ? await getExternalForms() : await getSavedForms();
-    const formIndex = saved.findIndex(f => f.ordreseddelNr === ordrenr);
-
-    if (formIndex !== -1) {
-        // Skjemaet er lagret — flytt fra lagrede til sendte
-        const form = saved[formIndex];
-        if (currentUser && db) {
-            try {
+    if (currentUser && db) {
+        // Use Firestore .where() to find the form directly (not paginated)
+        try {
+            var snap = await db.collection('users').doc(currentUser.uid).collection(formsCol).where('ordreseddelNr', '==', ordrenr).get();
+            if (!snap.empty) {
+                var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
                 await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).set(form);
                 await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).delete();
-            } catch (e) {
-                console.error('Mark as sent error:', e);
+            } else {
+                // Not saved yet — save directly to archive
+                var data = getFormData();
+                data.id = Date.now().toString();
+                await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(data.id).set(data);
             }
-        } else {
-            const localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
-            const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
-            const f = localSaved.splice(formIndex, 1)[0];
+        } catch (e) {
+            console.error('Mark as sent error:', e);
+        }
+    } else {
+        // localStorage path
+        var localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
+        var formIndex = localSaved.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
+        if (formIndex !== -1) {
+            var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+            var f = localSaved.splice(formIndex, 1)[0];
             archived.unshift(f);
             localStorage.setItem(sKey, JSON.stringify(localSaved));
             localStorage.setItem(aKey, JSON.stringify(archived));
-        }
-    } else {
-        // Skjemaet er ikke lagret ennå — lagre direkte til sendte
-        const data = getFormData();
-        data.id = Date.now().toString();
-        if (currentUser && db) {
-            try {
-                await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(data.id).set(data);
-            } catch (e) {
-                console.error('Mark as sent error:', e);
-            }
         } else {
-            const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
-            archived.unshift(data);
-            localStorage.setItem(aKey, JSON.stringify(archived));
+            var data2 = getFormData();
+            data2.id = Date.now().toString();
+            var archived2 = JSON.parse(localStorage.getItem(aKey) || '[]');
+            archived2.unshift(data2);
+            localStorage.setItem(aKey, JSON.stringify(archived2));
         }
     }
 
@@ -485,23 +541,23 @@ async function moveCurrentToSaved() {
     const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
     const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
-    const sent = isExternalForm ? await getExternalSentForms() : await getSentForms();
-    const formIndex = sent.findIndex(f => f.ordreseddelNr === ordrenr);
-    if (formIndex === -1) return;
-
-    const form = sent[formIndex];
-
     if (currentUser && db) {
+        // Use Firestore .where() directly (not paginated)
         try {
+            var snap = await db.collection('users').doc(currentUser.uid).collection(archiveCol).where('ordreseddelNr', '==', ordrenr).get();
+            if (snap.empty) return;
+            var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
             await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).set(form);
             await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).delete();
         } catch (e) {
             console.error('Move to saved error:', e);
         }
     } else {
-        const archived = JSON.parse(localStorage.getItem(aKey) || '[]');
-        const saved = JSON.parse(localStorage.getItem(sKey) || '[]');
-        const f = archived.splice(formIndex, 1)[0];
+        var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+        var formIndex = archived.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
+        if (formIndex === -1) return;
+        var saved = JSON.parse(localStorage.getItem(sKey) || '[]');
+        var f = archived.splice(formIndex, 1)[0];
         saved.unshift(f);
         localStorage.setItem(aKey, JSON.stringify(archived));
         localStorage.setItem(sKey, JSON.stringify(saved));
@@ -549,36 +605,80 @@ function moveToSaved(event, index) {
 
 // === External forms tab ===
 
-function renderExternalFormsList(forms) {
-    const listEl = document.getElementById('external-list');
-    if (!forms || forms.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
-        return;
+function renderExternalFormsList(forms, append, hasMore) {
+    var listEl = document.getElementById('external-list');
+    var existingBtn = listEl.querySelector('.load-more-btn');
+    if (existingBtn) existingBtn.remove();
+
+    if (!append) {
+        if (!forms || forms.length === 0) {
+            listEl.innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
+            return;
+        }
+        window.loadedExternalForms = forms;
+        listEl.innerHTML = forms.map(function(item, index) {
+            var ordrenr = item.ordreseddelNr || '';
+            var dato = formatDateWithTime(item.savedAt);
+            var isSent = item._isSent;
+            var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+            return '<div class="saved-item" data-index="' + index + '">' +
+                '<div class="saved-item-info">' +
+                    '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
+                    (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+                '</div>' +
+                '<div class="saved-item-buttons">' +
+                    '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    } else {
+        var startIndex = window.loadedExternalForms.length;
+        window.loadedExternalForms = window.loadedExternalForms.concat(forms);
+        var html = forms.map(function(item, i) {
+            var idx = startIndex + i;
+            var ordrenr = item.ordreseddelNr || '';
+            var dato = formatDateWithTime(item.savedAt);
+            var isSent = item._isSent;
+            var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+            return '<div class="saved-item" data-index="' + idx + '">' +
+                '<div class="saved-item-info">' +
+                    '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
+                    (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+                '</div>' +
+                '<div class="saved-item-buttons">' +
+                    '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+        listEl.insertAdjacentHTML('beforeend', html);
     }
-    window.loadedExternalForms = forms;
-    listEl.innerHTML = forms.map((item, index) => {
-        const ordrenr = item.ordreseddelNr || '';
-        const dato = formatDateWithTime(item.savedAt);
-        const isSent = item._isSent;
 
-        const dot = `<span class="status-dot ${isSent ? 'sent' : 'saved'}"></span>`;
-
-        return `
-            <div class="saved-item" data-index="${index}">
-                <div class="saved-item-info">
-                    <div class="saved-item-row1">${dot}${escapeHtml(ordrenr) || t('no_name')}</div>
-                    ${dato ? `<div class="saved-item-date">${escapeHtml(dato)}</div>` : ''}
-                </div>
-                <div class="saved-item-buttons">
-                    <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+    listEl.querySelectorAll('.saved-item').forEach(function(el, i) {
         el._formData = window.loadedExternalForms[i];
     });
+
+    if (hasMore) {
+        listEl.insertAdjacentHTML('beforeend', '<button class="load-more-btn" onclick="loadMoreExternalForms()">' + t('load_more') + '</button>');
+    }
+}
+
+async function loadMoreExternalForms() {
+    var btn = document.querySelector('#external-list .load-more-btn');
+    if (btn) btn.textContent = '...';
+    var newForms = [];
+    if (_extHasMore && _extLastDoc) {
+        var result = await getExternalForms(_extLastDoc);
+        _extLastDoc = result.lastDoc;
+        _extHasMore = result.hasMore;
+        newForms = newForms.concat(result.forms);
+    }
+    if (_extSentHasMore && _extSentLastDoc) {
+        var result2 = await getExternalSentForms(_extSentLastDoc);
+        _extSentLastDoc = result2.lastDoc;
+        _extSentHasMore = result2.hasMore;
+        newForms = newForms.concat(result2.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
+    }
+    renderExternalFormsList(newForms, true, _extHasMore || _extSentHasMore);
 }
 
 async function loadExternalTab() {
@@ -588,15 +688,19 @@ async function loadExternalTab() {
     const cached = cachedForms.concat(cachedSent.map(f => ({ ...f, _isSent: true })));
     renderExternalFormsList(cached);
 
-    const forms = await getExternalForms();
-    const sentForms = await getExternalSentForms();
+    const extResult = await getExternalForms();
+    const extSentResult = await getExternalSentForms();
+    _extLastDoc = extResult.lastDoc;
+    _extSentLastDoc = extSentResult.lastDoc;
+    _extHasMore = extResult.hasMore;
+    _extSentHasMore = extSentResult.hasMore;
     if (currentUser) {
-        localStorage.setItem(EXTERNAL_KEY, JSON.stringify(forms));
-        localStorage.setItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(sentForms));
+        localStorage.setItem(EXTERNAL_KEY, JSON.stringify(extResult.forms.slice(0, 50)));
+        localStorage.setItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(extSentResult.forms.slice(0, 50)));
     }
-    window.loadedExternalForms = forms.concat(sentForms.map(f => ({ ...f, _isSent: true })));
+    window.loadedExternalForms = extResult.forms.concat(extSentResult.forms.map(f => ({ ...f, _isSent: true })));
     if (currentUser || window.loadedExternalForms.length > 0) {
-        renderExternalFormsList(window.loadedExternalForms);
+        renderExternalFormsList(window.loadedExternalForms, false, _extHasMore || _extSentHasMore);
     }
 }
 
@@ -656,14 +760,6 @@ function deleteExternalFormDirect(form) {
     });
 }
 
-function filterExternalForms() {
-    const searchTerm = document.getElementById('external-search').value.toLowerCase().trim();
-    const items = document.querySelectorAll('#external-list .saved-item');
-    items.forEach(item => {
-        const ordrenr = item.querySelector('.saved-item-row1')?.textContent.toLowerCase() || '';
-        item.style.display = ordrenr.startsWith(searchTerm) ? 'flex' : 'none';
-    });
-}
 
 // ============================================
 // PROSJEKTMALER
@@ -671,18 +767,20 @@ function filterExternalForms() {
 
 if (!window.loadedTemplates) window.loadedTemplates = [];
 
-async function getTemplates() {
+async function getTemplates(lastDoc) {
     if (currentUser && db) {
         try {
-            const snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get();
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            var q = db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').limit(PAGE_SIZE);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Templates error:', e);
-            return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+            return { forms: JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]'), lastDoc: null, hasMore: false };
         }
     }
-    if (auth && !authReady) return []; // Auth not ready yet, don't show localStorage data
-    return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
+    return { forms: JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]'), lastDoc: null, hasMore: false };
 }
 
 async function saveAsTemplate() {
@@ -739,33 +837,57 @@ async function saveAsTemplate() {
     }
 }
 
-function renderTemplateList(templates) {
-    const listEl = document.getElementById('template-list');
-    if (!templates || templates.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
-        return;
+function _buildTemplateItemHtml(item, index) {
+    var row1 = escapeHtml(item.prosjektnavn) || t('no_name');
+    var row2 = [item.oppdragsgiver, item.prosjektnr].filter(function(x) { return x; }).map(escapeHtml).join(' \u2022 ');
+    return '<div class="saved-item" data-index="' + index + '">' +
+        '<div class="saved-item-info">' +
+            '<div class="saved-item-row1">' + row1 + '</div>' +
+            (row2 ? '<div class="saved-item-row2">' + row2 + '</div>' : '') +
+        '</div>' +
+        '<div class="saved-item-buttons">' +
+            '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
+        '</div>' +
+    '</div>';
+}
+
+function renderTemplateList(templates, append, hasMore) {
+    var listEl = document.getElementById('template-list');
+    var existingBtn = listEl.querySelector('.load-more-btn');
+    if (existingBtn) existingBtn.remove();
+
+    if (!append) {
+        if (!templates || templates.length === 0) {
+            listEl.innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
+            return;
+        }
+        window.loadedTemplates = templates;
+        listEl.innerHTML = templates.map(function(item, i) { return _buildTemplateItemHtml(item, i); }).join('');
+    } else {
+        var startIndex = window.loadedTemplates.length;
+        window.loadedTemplates = window.loadedTemplates.concat(templates);
+        var html = templates.map(function(item, i) { return _buildTemplateItemHtml(item, startIndex + i); }).join('');
+        listEl.insertAdjacentHTML('beforeend', html);
     }
-    window.loadedTemplates = templates;
-    listEl.innerHTML = templates.map((item, index) => {
-        const row1 = escapeHtml(item.prosjektnavn) || t('no_name');
-        const row2 = [item.oppdragsgiver, item.prosjektnr].filter(x => x).map(escapeHtml).join(' • ');
 
-        return `
-            <div class="saved-item" data-index="${index}">
-                <div class="saved-item-info">
-                    <div class="saved-item-row1">${row1}</div>
-                    ${row2 ? `<div class="saved-item-row2">${row2}</div>` : ''}
-                </div>
-                <div class="saved-item-buttons">
-                    <button class="saved-item-action-btn delete" title="${t('delete_btn')}">${deleteIcon}</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    listEl.querySelectorAll('.saved-item').forEach((el, i) => {
+    listEl.querySelectorAll('.saved-item').forEach(function(el, i) {
         el._formData = window.loadedTemplates[i];
     });
+
+    if (hasMore) {
+        listEl.insertAdjacentHTML('beforeend', '<button class="load-more-btn" onclick="loadMoreTemplates()">' + t('load_more') + '</button>');
+    }
+}
+
+async function loadMoreTemplates() {
+    var btn = document.querySelector('#template-list .load-more-btn');
+    if (btn) btn.textContent = '...';
+    if (_templateHasMore && _templateLastDoc) {
+        var result = await getTemplates(_templateLastDoc);
+        _templateLastDoc = result.lastDoc;
+        _templateHasMore = result.hasMore;
+        renderTemplateList(result.forms, true, _templateHasMore);
+    }
 }
 
 function showTemplateModal() {
@@ -782,11 +904,13 @@ function showTemplateModal() {
 
     // Refresh from Firestore in background
     if (currentUser && db) {
-        getTemplates().then(function(templates) {
-            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        getTemplates().then(function(result) {
+            _templateLastDoc = result.lastDoc;
+            _templateHasMore = result.hasMore;
+            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
             // Only update if still on template-modal
             if (document.body.classList.contains('template-modal-open')) {
-                renderTemplateList(templates);
+                renderTemplateList(result.forms, false, _templateHasMore);
             }
         }).catch(function(e) { console.error('Refresh templates:', e); });
     }
@@ -912,14 +1036,6 @@ function closeTemplateModal() {
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
 }
 
-function filterTemplates() {
-    const searchTerm = document.getElementById('template-search').value.toLowerCase().trim();
-    const items = document.querySelectorAll('#template-list .saved-item');
-    items.forEach(item => {
-        const prosjektnavn = item.querySelector('.saved-item-row1')?.textContent.toLowerCase() || '';
-        item.style.display = prosjektnavn.startsWith(searchTerm) ? 'flex' : 'none';
-    });
-}
 
 // ============================================
 // ORDRESEDDELNUMMER INNSTILLINGER
@@ -1732,13 +1848,7 @@ async function updateSettingsStatus() {
 }
 
 function getUsedOrderNumbers() {
-    // Use localStorage cache to avoid Firestore queries
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-    const used = new Set();
-    saved.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
-    archived.forEach(f => { if (f.ordreseddelNr) used.add(String(f.ordreseddelNr)); });
-    return used;
+    return new Set(JSON.parse(localStorage.getItem(USED_NUMBERS_KEY) || '[]'));
 }
 
 function findNextInRanges(ranges, usedNumbers) {
@@ -2138,7 +2248,7 @@ function debouncedSessionSave() {
     clearTimeout(sessionSaveTimeout);
     sessionSaveTimeout = setTimeout(function() {
         sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-    }, 500);
+    }, 1500);
 }
 
 document.getElementById('mobile-form').addEventListener('input', function() {
@@ -2203,12 +2313,16 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (hash === 'hent') {
         // Trigger background Firestore refresh for saved forms list
         if (currentUser && db) {
-            Promise.all([getSavedForms(), getSentForms()]).then(function([saved, sent]) {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-                localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sent));
-                window.loadedForms = saved.map(f => ({ ...f, _isSent: false })).concat(sent.map(f => ({ ...f, _isSent: true })));
+            Promise.all([getSavedForms(), getSentForms()]).then(function([savedResult, sentResult]) {
+                _savedLastDoc = savedResult.lastDoc;
+                _sentLastDoc = sentResult.lastDoc;
+                _savedHasMore = savedResult.hasMore;
+                _sentHasMore = sentResult.hasMore;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+                localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+                window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true })));
                 if (document.body.classList.contains('saved-modal-open')) {
-                    renderSavedFormsList(window.loadedForms);
+                    renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
                 }
             }).catch(function(e) { console.error('Refresh saved forms:', e); });
         }
@@ -2224,10 +2338,12 @@ document.addEventListener('DOMContentLoaded', function() {
         updateToolbarState();
         // Background refresh
         if (currentUser && db) {
-            getTemplates().then(function(templates) {
-                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+            getTemplates().then(function(result) {
+                _templateLastDoc = result.lastDoc;
+                _templateHasMore = result.hasMore;
+                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
                 if (document.body.classList.contains('template-modal-open')) {
-                    renderTemplateList(templates);
+                    renderTemplateList(result.forms, false, _templateHasMore);
                 }
             }).catch(function(e) { console.error('Refresh templates:', e); });
         }

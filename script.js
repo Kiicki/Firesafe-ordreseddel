@@ -154,6 +154,9 @@ if (auth) {
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
                 });
             }
+
+            // Sync order number index in background
+            syncOrderNumberIndex();
         }
     });
 }
@@ -225,64 +228,110 @@ function signInWithMicrosoft() {
         });
 }
 
-// Helper: Get saved forms (from Firestore if logged in, else localStorage)
-async function getSavedForms() {
+// Paginated Firestore helpers — returns { forms, lastDoc, hasMore }
+var PAGE_SIZE = 50;
+
+async function getSavedForms(lastDoc) {
     if (currentUser && db) {
         try {
-            const snapshot = await db.collection('users').doc(currentUser.uid).collection('forms').orderBy('savedAt', 'desc').get();
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            var q = db.collection('users').doc(currentUser.uid).collection('forms').orderBy('savedAt', 'desc').limit(PAGE_SIZE);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            return { forms: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), lastDoc: null, hasMore: false };
         }
     }
-    if (auth && !authReady) return []; // Auth not ready yet, don't show localStorage data
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
+    return { forms: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), lastDoc: null, hasMore: false };
 }
 
-
-// Helper: Get sent forms
-async function getSentForms() {
+async function getSentForms(lastDoc) {
     if (currentUser && db) {
         try {
-            const snapshot = await db.collection('users').doc(currentUser.uid).collection('archive').orderBy('savedAt', 'desc').get();
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            var q = db.collection('users').doc(currentUser.uid).collection('archive').orderBy('savedAt', 'desc').limit(PAGE_SIZE);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+            return { forms: JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
         }
     }
-    if (auth && !authReady) return [];
-    return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+    if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
+    return { forms: JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
 }
 
-// Helper: Get external forms
-async function getExternalForms() {
+async function getExternalForms(lastDoc) {
     if (currentUser && db) {
         try {
-            const snapshot = await db.collection('users').doc(currentUser.uid).collection('external').orderBy('savedAt', 'desc').get();
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            var q = db.collection('users').doc(currentUser.uid).collection('external').orderBy('savedAt', 'desc').limit(PAGE_SIZE);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
+            return { forms: JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]'), lastDoc: null, hasMore: false };
         }
     }
-    if (auth && !authReady) return [];
-    return JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
+    if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
+    return { forms: JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]'), lastDoc: null, hasMore: false };
 }
 
-// Helper: Get external sent forms
-async function getExternalSentForms() {
+async function getExternalSentForms(lastDoc) {
     if (currentUser && db) {
         try {
-            const snapshot = await db.collection('users').doc(currentUser.uid).collection('externalArchive').orderBy('savedAt', 'desc').get();
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            var q = db.collection('users').doc(currentUser.uid).collection('externalArchive').orderBy('savedAt', 'desc').limit(PAGE_SIZE);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
+            return { forms: JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
         }
     }
-    return JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
+    return { forms: JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
+}
+
+// --- Order number index (lightweight cache of all used order numbers) ---
+const USED_NUMBERS_KEY = 'firesafe_used_numbers';
+
+async function syncOrderNumberIndex() {
+    if (!currentUser || !db) return;
+    const numbers = new Set();
+    const collections = ['forms', 'archive', 'external', 'externalArchive'];
+    for (const col of collections) {
+        try {
+            const snap = await db.collection('users').doc(currentUser.uid).collection(col).get();
+            snap.docs.forEach(function(doc) {
+                var nr = doc.data().ordreseddelNr;
+                if (nr) numbers.add(String(nr));
+            });
+        } catch (e) {}
+    }
+    localStorage.setItem(USED_NUMBERS_KEY, JSON.stringify([...numbers]));
+}
+
+function addToOrderNumberIndex(nr) {
+    if (!nr) return;
+    var nums = JSON.parse(localStorage.getItem(USED_NUMBERS_KEY) || '[]');
+    var s = String(nr);
+    if (nums.indexOf(s) === -1) {
+        nums.push(s);
+        localStorage.setItem(USED_NUMBERS_KEY, JSON.stringify(nums));
+    }
+}
+
+function removeFromOrderNumberIndex(nr) {
+    if (!nr) return;
+    var nums = JSON.parse(localStorage.getItem(USED_NUMBERS_KEY) || '[]');
+    var s = String(nr);
+    var idx = nums.indexOf(s);
+    if (idx !== -1) {
+        nums.splice(idx, 1);
+        localStorage.setItem(USED_NUMBERS_KEY, JSON.stringify(nums));
+    }
 }
 
 // Track last saved form data for unsaved changes detection
@@ -571,25 +620,15 @@ function openMaterialPicker(btn) {
         }
     });
 
-    // HTML escape function - prevents XSS
-    function esc(s) {
-        if (!s) return '';
-        return s.replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-    }
-
     function buildRow(name, isChecked, antall, enhet, needsSpec) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
         const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
         const disabledAttr = needsSpec ? ' disabled' : '';
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${esc(name)}" data-needs-spec="${needsSpec ? '1' : '0'}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${esc(name)}</span>${specBadge}</div>
-            <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${esc(antall)}"${disabledAttr}>
-            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${esc(enhet)}"${disabledAttr}>${esc(enhetLabel)}</button>
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}">
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}</div>
+            <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
+            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>
         </div>`;
     }
 
@@ -1643,6 +1682,7 @@ async function saveForm() {
                 if (!existing.empty) {
                     showConfirmModal(t('confirm_update'), async function() {
                         await formsRef.doc(existing.docs[0].id).set(data);
+                        addToOrderNumberIndex(data.ordreseddelNr);
                         loadedForms = [];
                         loadedExternalForms = [];
                         lastSavedData = getFormDataSnapshot();
@@ -1652,6 +1692,7 @@ async function saveForm() {
                     // Save new form directly (no confirmation needed)
                     data.id = Date.now().toString();
                     await formsRef.doc(data.id).set(data);
+                    addToOrderNumberIndex(data.ordreseddelNr);
                     loadedForms = [];
                     loadedExternalForms = [];
                     lastSavedData = getFormDataSnapshot();
@@ -1681,6 +1722,7 @@ async function saveForm() {
                     data.id = saved[existingIndex].id;
                     saved[existingIndex] = data;
                     localStorage.setItem(storageKey, JSON.stringify(saved));
+                    addToOrderNumberIndex(data.ordreseddelNr);
                     loadedForms = [];
                     loadedExternalForms = [];
                     lastSavedData = getFormDataSnapshot();
@@ -1692,6 +1734,7 @@ async function saveForm() {
                 saved.unshift(data);
                 if (saved.length > 50) saved.pop();
                 localStorage.setItem(storageKey, JSON.stringify(saved));
+                addToOrderNumberIndex(data.ordreseddelNr);
                 loadedForms = [];
                 loadedExternalForms = [];
                 lastSavedData = getFormDataSnapshot();

@@ -105,6 +105,7 @@ const TRANSLATIONS = {
         no_saved_forms: 'Ingen lagrede skjemaer',
         no_external_forms: 'Ingen eksterne skjemaer',
         no_templates: 'Ingen prosjektmaler',
+        load_more: 'Last flere',
 
         // List items
         no_name: 'Uten navn',
@@ -336,6 +337,7 @@ const TRANSLATIONS = {
         no_saved_forms: 'No saved forms',
         no_external_forms: 'No external forms',
         no_templates: 'No project templates',
+        load_more: 'Load more',
 
         // List items
         no_name: 'Untitled',

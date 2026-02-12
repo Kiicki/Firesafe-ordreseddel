@@ -625,9 +625,7 @@ body:has(#login-view.active) {
     text-transform: uppercase;
 }
 .login-card {
-    background: rgba(255,255,255,0.08);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(30, 30, 30, 0.85);
     border-radius: 16px;
     padding: 28px 24px;
     width: 100%;
@@ -635,6 +633,13 @@ body:has(#login-view.active) {
     border: 1px solid rgba(255,255,255,0.1);
     position: relative;
     z-index: 1;
+}
+@media (min-width: 1025px) {
+    .login-card {
+        background: rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
 }
 .login-buttons {
     display: flex;
@@ -1160,6 +1165,20 @@ body.settings-modal-open {
     text-align: center;
     color: #666;
     padding: 20px;
+}
+
+.load-more-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    color: #E8501A;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
 }
 
 /* Loading */
