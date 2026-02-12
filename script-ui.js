@@ -2216,31 +2216,12 @@ window.addEventListener('load', function() {
         updateRequiredIndicators();
     });
 
-    // Hash routing: restore view state on refresh
-    const hash = window.location.hash.slice(1);
-    if (hash === 'hent') {
-        showSavedForms();
-    } else if (hash === 'settings') {
-        showSettingsModal();
-    } else if (hash === 'skjema' || hash === 'ekstern') {
-        // Form - already loaded via sessionStorage
-        showView('view-form');
-        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
-        document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
-        // Restore sent status
-        const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
-        if (wasSent) {
-            setFormReadOnly(true);
-        }
-        updateToolbarState();
-    } else {
-        // No hash = home = template modal
-        showTemplateModal();
-    }
+    // Hash routing handled by onAuthStateChanged — login-view is shown until auth is ready
 });
 
 // Handle browser back/forward buttons
 window.addEventListener('hashchange', function() {
+    if (!currentUser) return; // Ikke naviger uten innlogging
     const hash = window.location.hash.slice(1);
     // Don't close modals for hent/settings - those functions handle it themselves
     if (hash === 'hent') {

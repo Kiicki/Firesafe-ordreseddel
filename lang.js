@@ -14,6 +14,8 @@ const TRANSLATIONS = {
         login_success: 'Logget inn som ',
         login_failed: 'Innlogging feilet: ',
         login_choose_provider: 'Velg innloggingsmetode',
+        login_google: 'Logg inn med Google',
+        login_microsoft: 'Logg inn med Microsoft',
         firebase_not_configured: 'Firebase er ikke konfigurert. Sjekk firebaseConfig i script.js',
 
         // Loading
@@ -243,6 +245,8 @@ const TRANSLATIONS = {
         login_success: 'Logged in as ',
         login_failed: 'Login failed: ',
         login_choose_provider: 'Choose login method',
+        login_google: 'Sign in with Google',
+        login_microsoft: 'Sign in with Microsoft',
         firebase_not_configured: 'Firebase is not configured. Check firebaseConfig in script.js',
 
         // Loading

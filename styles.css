@@ -551,6 +551,79 @@ body:has(#action-popup.active) .toolbar button {
     color: #666;
 }
 
+/* Login screen */
+#login-view {
+    background: #fff;
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+#login-view.active ~ .toolbar {
+    display: none;
+}
+body:has(#login-view.active) {
+    padding-bottom: 0;
+}
+.login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 40px 20px;
+}
+.login-logo {
+    text-align: center;
+    margin-bottom: 48px;
+}
+.login-logo h1 {
+    font-size: 36px;
+    font-weight: 900;
+    margin: 0 0 5px 0;
+    color: #000;
+    position: relative;
+    display: inline-block;
+    padding-right: 24px;
+}
+.login-logo .mobile-logo-slash {
+    height: 52px;
+    top: 8px;
+    width: 5px;
+    right: 10px;
+}
+.login-logo p {
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+}
+.login-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 300px;
+}
+.login-provider-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.login-provider-btn:hover {
+    background: #f5f5f5;
+}
+.login-provider-btn:active {
+    background: #eee;
+}
+
 /* View system: only one view visible at a time */
 .view {
     display: none;
