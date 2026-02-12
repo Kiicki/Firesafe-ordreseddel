@@ -116,6 +116,10 @@ if (auth) {
         if (!user) {
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem(TEMPLATE_KEY);
+            var tl = document.getElementById('template-list');
+            if (tl) tl.innerHTML = '';
+            var sl = document.getElementById('saved-list');
+            if (sl) sl.innerHTML = '';
         }
 
         if (user && db) {
