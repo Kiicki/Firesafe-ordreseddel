@@ -191,7 +191,7 @@ function handleAuth() {
 
 function signInWithGoogle() {
     var provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    provider.setCustomParameters({ prompt: 'login' });
     auth.signInWithPopup(provider)
         .then(function(result) {
             showNotificationModal(t('login_success') + result.user.email, true);
@@ -205,7 +205,7 @@ function signInWithGoogle() {
 
 function signInWithMicrosoft() {
     var provider = new firebase.auth.OAuthProvider('microsoft.com');
-    provider.setCustomParameters({ prompt: 'select_account', tenant: 'common' });
+    provider.setCustomParameters({ prompt: 'login' });
     auth.signInWithPopup(provider)
         .then(function(result) {
             showNotificationModal(t('login_success') + result.user.email, true);

@@ -41,7 +41,9 @@
       "WebSearch",
       "Bash(openssl dgst:*)",
       "Bash(openssl base64:*)",
-      "WebFetch(domain:support.google.com)"
+      "WebFetch(domain:support.google.com)",
+      "WebFetch(domain:firebase.google.com)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
