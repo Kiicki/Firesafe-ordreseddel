@@ -167,7 +167,9 @@ function updateLoginButton() {
         btn.textContent = email;
         btn.classList.add('logged-in');
         localStorage.setItem('firesafe_email', email);
-    } else {
+    } else if (!localStorage.getItem('firesafe_logged_in')) {
+        // Bare vis "Logg inn" hvis vi vet at brukeren IKKE er innlogget.
+        // Unngå å overskrive cached e-post mens Firebase verifiserer token.
         btn.textContent = t('login');
         btn.classList.remove('logged-in');
         localStorage.removeItem('firesafe_email');
