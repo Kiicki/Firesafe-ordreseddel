@@ -227,6 +227,7 @@ function handleAuth() {
             currentUser = null;
             isAdmin = false;
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+            history.replaceState(null, '', window.location.pathname);
             showView('login-view');
             var loginCard = document.getElementById('login-card');
             if (loginCard) loginCard.style.display = '';
