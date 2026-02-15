@@ -221,6 +221,19 @@ function handleAuth() {
     if (currentUser || onLoggedInView) {
         // Logg ut
         showConfirmModal(t('logout_confirm'), () => {
+            // Rydd opp umiddelbart — ikke vent på Firebase nettverkskall
+            localStorage.removeItem('firesafe_logged_in');
+            localStorage.removeItem('firesafe_last_uid');
+            sessionStorage.removeItem('firesafe_current');
+            sessionStorage.removeItem('firesafe_current_sent');
+            currentUser = null;
+            isAdmin = false;
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+            showView('login-view');
+            var loginCard = document.getElementById('login-card');
+            if (loginCard) loginCard.style.display = '';
+            updateLoginButton();
+            // SignOut i bakgrunnen
             auth.signOut().then(() => {
                 showNotificationModal(t('logout_success'), true);
             });
@@ -235,7 +248,7 @@ function handleAuth() {
 
 function signInWithGoogle() {
     var provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'login' });
+    provider.setCustomParameters({ prompt: 'select_account' });
     auth.signInWithPopup(provider)
         .then(function(result) {
             showNotificationModal(t('login_success') + result.user.email, true);
@@ -249,7 +262,7 @@ function signInWithGoogle() {
 
 function signInWithMicrosoft() {
     var provider = new firebase.auth.OAuthProvider('microsoft.com');
-    provider.setCustomParameters({ prompt: 'login' });
+    provider.setCustomParameters({ prompt: 'select_account' });
     auth.signInWithPopup(provider)
         .then(function(result) {
             showNotificationModal(t('login_success') + result.user.email, true);
