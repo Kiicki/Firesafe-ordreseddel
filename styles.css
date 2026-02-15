@@ -249,11 +249,11 @@ body:has(#action-popup.active) .toolbar button {
 .logo-slash {
     position: absolute;
     right: 14px;
-    top: 11px;
-    bottom: 7px;
+    top: 50%;
+    transform: translateY(-19%) skewX(-30deg);
+    height: 46px;
     width: 4px;
     background: #000;
-    transform: skewX(-28deg);
 }
 
 .header-right {
