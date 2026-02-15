@@ -788,17 +788,20 @@ body.template-modal-open,
 body.saved-modal-open,
 body.settings-modal-open {
     padding-bottom: 0;
-    overflow: hidden;
-    height: 100dvh;
 }
 
-/* Modal views: fixed height, internal scroll */
+/* Modal views: fixed position, internal scroll */
 #template-modal.view.active,
 #saved-modal.view.active,
 #settings-modal.view.active {
-    height: 100dvh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 60px;
+    height: auto;
+    min-height: 0;
     overflow: hidden;
-    padding-bottom: 60px;
 }
 
 #template-modal.view.active > .modal-content,
@@ -832,7 +835,7 @@ body.settings-modal-open {
     background: #fff;
 }
 
-/* Keyboard open: revert sticky and toolbar */
+/* Keyboard open: revert fixed positioning and toolbar */
 @media (max-height: 650px) {
     .view.active {
         min-height: 0;
@@ -843,6 +846,8 @@ body.settings-modal-open {
     #template-modal.view.active,
     #saved-modal.view.active,
     #settings-modal.view.active {
+        position: static;
+        bottom: auto;
         height: auto;
         overflow: visible;
         padding-bottom: 0;
@@ -856,13 +861,8 @@ body.settings-modal-open {
         position: static;
         box-shadow: none;
     }
-    body,
-    body.template-modal-open,
-    body.saved-modal-open,
-    body.settings-modal-open {
+    body {
         padding-bottom: 0;
-        overflow: visible;
-        height: auto;
     }
 }
 
