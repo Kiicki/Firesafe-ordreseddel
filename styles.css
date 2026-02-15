@@ -787,10 +787,16 @@ body.settings-modal-open #view-form {
 body.template-modal-open,
 body.saved-modal-open,
 body.settings-modal-open {
-    /* Keep default padding-bottom: 60px for fixed toolbar */
+    padding-bottom: 0;
 }
 
-/* Modal views: body scrolls, sticky header stays visible */
+/* Modal views: let body scroll, sticky header stays visible */
+#template-modal.view.active,
+#saved-modal.view.active,
+#settings-modal.view.active {
+    overflow: clip;
+}
+
 #template-modal.view.active .modal-body,
 #saved-modal.view.active .modal-body,
 #settings-modal.view.active .modal-body {
