@@ -859,10 +859,14 @@ body.settings-modal-open {
         position: static;
         box-shadow: none;
     }
-    body {
+    body,
+    body.template-modal-open,
+    body.saved-modal-open,
+    body.settings-modal-open {
         padding-bottom: 0;
         overflow: visible;
         height: auto;
+        overscroll-behavior: auto;
     }
 }
 
