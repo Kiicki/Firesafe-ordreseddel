@@ -142,11 +142,6 @@ if (auth) {
             // Check admin status
             isAdmin = await checkAdminStatus(user.uid);
             if (isAdmin) localStorage.setItem('firesafe_admin', '1');
-            if (document.body.classList.contains('settings-modal-open')) {
-                document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
-                    item.style.display = isAdmin ? '' : 'none';
-                });
-            }
 
             // Load language preference from Firebase
             try {

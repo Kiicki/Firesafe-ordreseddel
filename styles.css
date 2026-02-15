@@ -2576,6 +2576,20 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     cursor: default;
 }
 
+.settings-readonly .settings-add-row {
+    display: none;
+}
+.settings-readonly .settings-delete-btn {
+    display: none;
+}
+.settings-readonly .settings-spec-toggle {
+    opacity: 0.5;
+    pointer-events: none;
+}
+.settings-readonly .settings-list-item span {
+    pointer-events: none;
+}
+
 .settings-add-row {
     display: flex;
     gap: 8px;

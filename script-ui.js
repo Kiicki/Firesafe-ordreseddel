@@ -1119,10 +1119,6 @@ function showSettingsMenu() {
     const header = document.getElementById('settings-header');
     const existingBack = header.querySelector('.settings-back-btn');
     if (existingBack) existingBack.remove();
-    // Hide admin-only menu items for non-admins
-    document.querySelectorAll('#settings-page-menu [data-admin-only]').forEach(function(item) {
-        item.style.display = isAdmin ? '' : 'none';
-    });
 }
 
 async function showSettingsPage(page) {
@@ -1138,6 +1134,14 @@ async function showSettingsPage(page) {
         backBtn.innerHTML = '&lsaquo;';
         backBtn.onclick = showSettingsMenu;
         header.insertBefore(backBtn, header.firstChild);
+    }
+
+    // Mark global settings pages as read-only for non-admins
+    var pageEl = document.getElementById('settings-page-' + page);
+    if ((page === 'materials' || page === 'required') && !isAdmin) {
+        pageEl.classList.add('settings-readonly');
+    } else {
+        pageEl.classList.remove('settings-readonly');
     }
 
     if (page === 'ordrenr') {
@@ -1249,6 +1253,7 @@ function toggleSettingsSection(section) {
 }
 
 async function addSettingsMaterial() {
+    if (!isAdmin) return;
     const input = document.getElementById('settings-new-material');
     const val = input.value.trim();
     if (!val) return;
@@ -1265,6 +1270,7 @@ async function addSettingsMaterial() {
 }
 
 async function addSettingsUnit() {
+    if (!isAdmin) return;
     const input = document.getElementById('settings-new-unit');
     const val = input.value.trim();
     if (!val) return;
@@ -1281,6 +1287,7 @@ async function addSettingsUnit() {
 }
 
 function removeSettingsMaterial(idx) {
+    if (!isAdmin) return;
     const item = settingsMaterials[idx];
     showConfirmModal(t('settings_material_remove', item.name), async function() {
         settingsMaterials.splice(idx, 1);
@@ -1290,6 +1297,7 @@ function removeSettingsMaterial(idx) {
 }
 
 function removeSettingsUnit(idx) {
+    if (!isAdmin) return;
     const item = settingsUnits[idx];
     showConfirmModal(t('settings_material_remove', item), async function() {
         settingsUnits.splice(idx, 1);
@@ -1299,6 +1307,7 @@ function removeSettingsUnit(idx) {
 }
 
 function editSettingsMaterial(idx) {
+    if (!isAdmin) return;
     const container = document.getElementById('settings-material-items');
     const item = container.children[idx];
     const span = item.querySelector('span');
@@ -1337,12 +1346,14 @@ function editSettingsMaterial(idx) {
 }
 
 async function toggleMaterialSpec(idx) {
+    if (!isAdmin) return;
     settingsMaterials[idx].needsSpec = !settingsMaterials[idx].needsSpec;
     renderMaterialSettingsItems();
     await saveMaterialSettings();
 }
 
 function editSettingsUnit(idx) {
+    if (!isAdmin) return;
     const container = document.getElementById('settings-unit-items');
     const item = container.children[idx];
     const span = item.querySelector('span');
@@ -1532,7 +1543,7 @@ function renderRequiredSettingsItems(section) {
             '<span>' + escapeHtml(t(field.labelKey)) + '</span>' +
             '<label class="settings-toggle">' +
             '<input type="checkbox" data-section="' + section + '" data-key="' + field.key + '"' +
-            (isOn ? ' checked' : '') +
+            (isOn ? ' checked' : '') + (!isAdmin ? ' disabled' : '') +
             ' onchange="toggleRequiredField(\'' + section + '\', \'' + field.key + '\', this.checked)">' +
             '<span class="settings-toggle-slider"></span>' +
             '</label>' +
@@ -1541,6 +1552,7 @@ function renderRequiredSettingsItems(section) {
 }
 
 async function toggleRequiredField(section, key, value) {
+    if (!isAdmin) return;
     const settings = cachedRequiredSettings || getDefaultRequiredSettings();
     if (!settings[section]) settings[section] = {};
     settings[section][key] = value;
