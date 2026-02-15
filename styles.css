@@ -787,42 +787,17 @@ body.settings-modal-open #view-form {
 body.template-modal-open,
 body.saved-modal-open,
 body.settings-modal-open {
-    padding-bottom: 0;
+    /* Keep default padding-bottom: 60px for fixed toolbar */
 }
 
-/* Modal views: fixed position, internal scroll */
-#template-modal.view.active,
-#saved-modal.view.active,
-#settings-modal.view.active {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 60px;
-    height: auto;
-    min-height: 0;
-    overflow: hidden;
-}
-
-#template-modal.view.active > .modal-content,
-#saved-modal.view.active > .modal-content,
-#settings-modal.view.active > .modal-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-/* Modal body scrolls internally */
+/* Modal views: body scrolls, sticky header stays visible */
 #template-modal.view.active .modal-body,
 #saved-modal.view.active .modal-body,
 #settings-modal.view.active .modal-body {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
+    overflow-y: visible;
 }
 
-/* Sticky header wrapper - keeps headers visible while scrolling */
+/* Sticky header wrapper - keeps headers visible while body scrolls */
 .sticky-header {
     position: sticky;
     top: 0;
@@ -835,27 +810,13 @@ body.settings-modal-open {
     background: #fff;
 }
 
-/* Keyboard open: revert fixed positioning and toolbar */
+/* Keyboard open: revert sticky and toolbar to static */
 @media (max-height: 650px) {
     .view.active {
         min-height: 0;
     }
     .sticky-header {
         position: static;
-    }
-    #template-modal.view.active,
-    #saved-modal.view.active,
-    #settings-modal.view.active {
-        position: static;
-        bottom: auto;
-        height: auto;
-        overflow: visible;
-        padding-bottom: 0;
-    }
-    #template-modal.view.active .modal-body,
-    #saved-modal.view.active .modal-body,
-    #settings-modal.view.active .modal-body {
-        overflow-y: visible;
     }
     .toolbar {
         position: static;
