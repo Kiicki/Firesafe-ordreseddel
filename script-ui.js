@@ -9,6 +9,14 @@ var _savedLastDoc = null, _sentLastDoc = null, _savedHasMore = false, _sentHasMo
 var _extLastDoc = null, _extSentLastDoc = null, _extHasMore = false, _extSentHasMore = false;
 var _templateLastDoc = null, _templateHasMore = false;
 
+function resetPaginationState() {
+    _savedLastDoc = null; _sentLastDoc = null;
+    _savedHasMore = false; _sentHasMore = false;
+    _extLastDoc = null; _extSentLastDoc = null;
+    _extHasMore = false; _extSentHasMore = false;
+    _templateLastDoc = null; _templateHasMore = false;
+}
+
 // Helper: format date with time
 function formatDateWithTime(date) {
     if (!date) return '';
@@ -1197,6 +1205,7 @@ async function getMaterialSettings() {
 }
 
 async function saveMaterialSettings() {
+    if (!isAdmin) return;
     const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec })), units: settingsUnits.slice() };
     if (currentUser && db) {
         try {
@@ -1511,6 +1520,7 @@ async function getRequiredSettings() {
 }
 
 async function saveRequiredSettings(data) {
+    if (!isAdmin) return;
     if (currentUser && db) {
         try {
             await db.collection('settings').doc('required').set(data);
@@ -2170,7 +2180,7 @@ async function doExportPDF() {
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
         pdf.save(getExportFilename('pdf'));
     } catch (error) {
-        alert(t('export_pdf_error') + error.message);
+        showNotificationModal(t('export_pdf_error') + error.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -2187,7 +2197,7 @@ async function doExportPNG() {
         link.href = canvas.toDataURL('image/png');
         link.click();
     } catch (error) {
-        alert(t('export_png_error') + error.message);
+        showNotificationModal(t('export_png_error') + error.message);
     } finally {
         loading.classList.remove('active');
     }

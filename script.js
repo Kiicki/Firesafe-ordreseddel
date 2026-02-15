@@ -114,6 +114,8 @@ if (auth) {
         if (!user) {
             localStorage.removeItem('firesafe_logged_in');
             localStorage.removeItem('firesafe_last_uid');
+            sessionStorage.removeItem('firesafe_current');
+            sessionStorage.removeItem('firesafe_current_sent');
             showView('login-view');
             var loginCard = document.getElementById('login-card');
             if (loginCard) loginCard.style.display = '';
@@ -128,6 +130,7 @@ if (auth) {
              STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, EXTERNAL_KEY, EXTERNAL_ARCHIVE_KEY]
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
+            if (typeof resetPaginationState === 'function') resetPaginationState();
         }
         localStorage.setItem('firesafe_last_uid', user.uid);
 
