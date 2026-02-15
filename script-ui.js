@@ -17,6 +17,36 @@ function resetPaginationState() {
     _templateLastDoc = null; _templateHasMore = false;
 }
 
+// Refresh data for the currently active view after auth completes
+function refreshActiveView() {
+    if (!currentUser || !db) return;
+    if (document.body.classList.contains('saved-modal-open')) {
+        Promise.all([getSavedForms(), getSentForms()]).then(function(results) {
+            var savedResult = results[0], sentResult = results[1];
+            _savedLastDoc = savedResult.lastDoc;
+            _sentLastDoc = sentResult.lastDoc;
+            _savedHasMore = savedResult.hasMore;
+            _sentHasMore = sentResult.hasMore;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+            window.loadedForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
+                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
+            if (document.body.classList.contains('saved-modal-open')) {
+                renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
+            }
+        }).catch(function(e) { console.error('Refresh saved forms:', e); });
+    } else if (document.body.classList.contains('template-modal-open')) {
+        getTemplates().then(function(result) {
+            _templateLastDoc = result.lastDoc;
+            _templateHasMore = result.hasMore;
+            window.loadedTemplates = result.forms;
+            if (document.body.classList.contains('template-modal-open')) {
+                renderTemplateList(result.forms, false, _templateHasMore);
+            }
+        }).catch(function(e) { console.error('Refresh templates:', e); });
+    }
+}
+
 // Helper: format date with time
 function formatDateWithTime(date) {
     if (!date) return '';

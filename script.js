@@ -112,7 +112,22 @@ if (auth) {
         loadedExternalForms = [];
 
         if (!user) {
-            localStorage.removeItem('firesafe_logged_in');
+            if (localStorage.getItem('firesafe_logged_in')) {
+                // Kan være midlertidig null under auth-init. Vent før vi rydder.
+                setTimeout(function() {
+                    if (!currentUser) {
+                        localStorage.removeItem('firesafe_logged_in');
+                        localStorage.removeItem('firesafe_last_uid');
+                        sessionStorage.removeItem('firesafe_current');
+                        sessionStorage.removeItem('firesafe_current_sent');
+                        showView('login-view');
+                        var loginCard = document.getElementById('login-card');
+                        if (loginCard) loginCard.style.display = '';
+                        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+                    }
+                }, 3000);
+                return;
+            }
             localStorage.removeItem('firesafe_last_uid');
             sessionStorage.removeItem('firesafe_current');
             sessionStorage.removeItem('firesafe_current_sent');
@@ -167,6 +182,9 @@ if (auth) {
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
                 }) : Promise.resolve()
             ]);
+
+            // Refresh data for the currently active view
+            if (typeof refreshActiveView === 'function') refreshActiveView();
         }
     });
 }
@@ -195,7 +213,12 @@ function handleAuth() {
         return;
     }
 
-    if (currentUser || (!authReady && localStorage.getItem('firesafe_logged_in'))) {
+    var onLoggedInView = document.body.classList.contains('settings-modal-open') ||
+        document.body.classList.contains('template-modal-open') ||
+        document.body.classList.contains('saved-modal-open') ||
+        document.getElementById('view-form').classList.contains('active');
+
+    if (currentUser || onLoggedInView) {
         // Logg ut
         showConfirmModal(t('logout_confirm'), () => {
             auth.signOut().then(() => {
