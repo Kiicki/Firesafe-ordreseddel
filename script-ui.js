@@ -492,26 +492,32 @@ function showExportMenu() {
 }
 
 var _filterTimeout = null;
+var _savedFormsAll = null;
+var _externalFormsAll = null;
+var _templatesAll = null;
 function filterList(listId, searchId) {
     clearTimeout(_filterTimeout);
     _filterTimeout = setTimeout(function() {
         var term = document.getElementById(searchId).value.toLowerCase().trim();
         // Determine which data array and render function to use
         if (listId === 'saved-list') {
-            if (!term) { renderSavedFormsList(window.loadedForms); return; }
-            var filtered = window.loadedForms.filter(function(f) {
+            if (!_savedFormsAll) _savedFormsAll = window.loadedForms ? window.loadedForms.slice() : [];
+            if (!term) { var all = _savedFormsAll; _savedFormsAll = null; renderSavedFormsList(all); return; }
+            var filtered = _savedFormsAll.filter(function(f) {
                 return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
             });
             renderSavedFormsList(filtered);
         } else if (listId === 'external-list') {
-            if (!term) { renderExternalFormsList(window.loadedExternalForms); return; }
-            var filtered2 = window.loadedExternalForms.filter(function(f) {
+            if (!_externalFormsAll) _externalFormsAll = window.loadedExternalForms ? window.loadedExternalForms.slice() : [];
+            if (!term) { var all2 = _externalFormsAll; _externalFormsAll = null; renderExternalFormsList(all2); return; }
+            var filtered2 = _externalFormsAll.filter(function(f) {
                 return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
             });
             renderExternalFormsList(filtered2);
         } else if (listId === 'template-list') {
-            if (!term) { renderTemplateList(window.loadedTemplates); return; }
-            var filtered3 = window.loadedTemplates.filter(function(f) {
+            if (!_templatesAll) _templatesAll = window.loadedTemplates ? window.loadedTemplates.slice() : [];
+            if (!term) { var all3 = _templatesAll; _templatesAll = null; renderTemplateList(all3); return; }
+            var filtered3 = _templatesAll.filter(function(f) {
                 return (f.prosjektnavn || '').toLowerCase().startsWith(term);
             });
             renderTemplateList(filtered3);
