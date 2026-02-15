@@ -1405,6 +1405,8 @@ async function getDropdownOptions() {
     cachedUnitOptions = (data && data.units) ? data.units : [];
     cachedMaterialOptions.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     sortAlpha(cachedUnitOptions);
+    // Cache to localStorage for offline use
+    localStorage.setItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: cachedUnitOptions }));
 }
 
 

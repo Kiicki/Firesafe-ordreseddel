@@ -153,18 +153,17 @@ if (auth) {
                 }
             } catch (e) {}
 
-            // Refresh required field settings from Firebase
-            if (typeof getRequiredSettings === 'function') {
-                getRequiredSettings().then(function(data) {
+            // Sync all settings from Firebase to localStorage
+            await Promise.all([
+                syncOrderNumberIndex(),
+                syncDefaultsToLocal(),
+                syncSettingsToLocal(),
+                typeof getDropdownOptions === 'function' ? getDropdownOptions() : Promise.resolve(),
+                typeof getRequiredSettings === 'function' ? getRequiredSettings().then(function(data) {
                     cachedRequiredSettings = data;
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
-                });
-            }
-
-            // Sync settings from Firebase to localStorage
-            syncOrderNumberIndex();
-            syncDefaultsToLocal();
-            syncSettingsToLocal();
+                }) : Promise.resolve()
+            ]);
         }
     });
 }
