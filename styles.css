@@ -838,9 +838,6 @@ body.settings-modal-open {
 
 /* Keyboard open: revert to document flow so everything scrolls together */
 @media (max-height: 650px) {
-    .view.active {
-        min-height: 0;
-    }
     .sticky-header {
         position: static;
     }
