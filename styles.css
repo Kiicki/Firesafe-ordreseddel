@@ -788,6 +788,8 @@ body.template-modal-open,
 body.saved-modal-open,
 body.settings-modal-open {
     padding-bottom: 0;
+    overflow: hidden;
+    height: 100dvh;
 }
 
 /* Modal views: fixed height, internal scroll */
@@ -853,6 +855,8 @@ body.settings-modal-open {
     }
     body {
         padding-bottom: 0;
+        overflow: visible;
+        height: auto;
     }
 }
 
