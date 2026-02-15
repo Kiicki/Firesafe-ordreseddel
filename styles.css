@@ -790,24 +790,44 @@ body.settings-modal-open {
     padding-bottom: 0;
 }
 
-/* Modal views: let body scroll, sticky header stays visible */
+/* Modal views: fixed to viewport, internal scroll in modal-body */
 #template-modal.view.active,
 #saved-modal.view.active,
 #settings-modal.view.active {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 60px;
+    height: auto;
+    min-height: 0;
+    overflow: clip;
+}
+
+#template-modal.view.active > .modal-content,
+#saved-modal.view.active > .modal-content,
+#settings-modal.view.active > .modal-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: clip;
 }
 
 #template-modal.view.active .modal-body,
 #saved-modal.view.active .modal-body,
 #settings-modal.view.active .modal-body {
-    overflow-y: visible;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
-/* Sticky header wrapper - keeps headers visible while body scrolls */
+/* Sticky header wrapper */
 .sticky-header {
     position: sticky;
     top: 0;
     z-index: 10;
+    flex-shrink: 0;
 }
 
 #template-modal .sticky-header,
@@ -816,13 +836,31 @@ body.settings-modal-open {
     background: #fff;
 }
 
-/* Keyboard open: revert sticky and toolbar to static */
+/* Keyboard open: revert to document flow so everything scrolls together */
 @media (max-height: 650px) {
     .view.active {
         min-height: 0;
     }
     .sticky-header {
         position: static;
+    }
+    #template-modal.view.active,
+    #saved-modal.view.active,
+    #settings-modal.view.active {
+        position: static;
+        bottom: auto;
+        height: auto;
+        overflow: visible;
+    }
+    #template-modal.view.active > .modal-content,
+    #saved-modal.view.active > .modal-content,
+    #settings-modal.view.active > .modal-content {
+        overflow: visible;
+    }
+    #template-modal.view.active .modal-body,
+    #saved-modal.view.active .modal-body,
+    #settings-modal.view.active .modal-body {
+        overflow-y: visible;
     }
     .toolbar {
         position: static;
