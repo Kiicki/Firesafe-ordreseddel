@@ -155,8 +155,10 @@ if (auth) {
                 });
             }
 
-            // Sync order number index in background
+            // Sync settings from Firebase to localStorage
             syncOrderNumberIndex();
+            syncDefaultsToLocal();
+            syncSettingsToLocal();
         }
     });
 }

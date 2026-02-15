@@ -1067,6 +1067,17 @@ async function getOrderNrSettings() {
     return data;
 }
 
+async function syncSettingsToLocal() {
+    if (!db || !currentUser) return;
+    try {
+        const doc = await db.collection('users').doc(currentUser.uid)
+            .collection('settings').doc('ordrenr').get();
+        if (doc.exists) {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(doc.data()));
+        }
+    } catch (e) { /* localStorage-cache brukes som fallback */ }
+}
+
 function buildOrderNrSettings() {
     return { ranges: settingsRanges.slice(), givenAway: settingsGivenAway.slice() };
 }
@@ -1596,6 +1607,17 @@ async function getDefaultSettings() {
     }
     const stored = localStorage.getItem(DEFAULTS_KEY);
     return stored ? JSON.parse(stored) : {};
+}
+
+async function syncDefaultsToLocal() {
+    if (!db || !currentUser) return;
+    try {
+        const doc = await db.collection('users').doc(currentUser.uid)
+            .collection('settings').doc('defaults').get();
+        if (doc.exists) {
+            localStorage.setItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
+        }
+    } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
 async function saveDefaultSettings() {
