@@ -3,6 +3,10 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+html {
+    overscroll-behavior: none;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -790,6 +794,7 @@ body.settings-modal-open {
     padding-bottom: 0;
     overflow: hidden;
     height: 100dvh;
+    overscroll-behavior: none;
 }
 
 /* Modal views: fixed height, internal scroll */
@@ -799,6 +804,7 @@ body.settings-modal-open {
     height: 100dvh;
     overflow: hidden;
     padding-bottom: 60px;
+    overscroll-behavior: none;
 }
 
 #template-modal.view.active > .modal-content,
