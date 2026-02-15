@@ -113,12 +113,23 @@ if (auth) {
 
         if (!user) {
             localStorage.removeItem('firesafe_logged_in');
+            localStorage.removeItem('firesafe_last_uid');
             showView('login-view');
             var loginCard = document.getElementById('login-card');
             if (loginCard) loginCard.style.display = '';
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
             return;
         }
+
+        // Clear cached data when switching to a different user
+        var lastUid = localStorage.getItem('firesafe_last_uid');
+        if (lastUid && lastUid !== user.uid) {
+            [SETTINGS_KEY, DEFAULTS_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
+             STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, EXTERNAL_KEY, EXTERNAL_ARCHIVE_KEY]
+                .forEach(function(key) { localStorage.removeItem(key); });
+            cachedRequiredSettings = null;
+        }
+        localStorage.setItem('firesafe_last_uid', user.uid);
 
         localStorage.setItem('firesafe_logged_in', '1');
 
