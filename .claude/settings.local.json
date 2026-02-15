@@ -44,7 +44,10 @@
       "WebFetch(domain:support.google.com)",
       "WebFetch(domain:firebase.google.com)",
       "WebFetch(domain:github.com)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "Bash(powershell.exe -Command \"Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch ''Loopback|vEthernet'' -and $_.IPAddress -notmatch ''^169'' } | Select-Object -ExpandProperty IPAddress\")",
+      "Bash(powershell.exe -Command \"netsh interface portproxy show v4tov4\")",
+      "Bash(powershell.exe -Command \"try { \\(Invoke-WebRequest -Uri http://localhost:8000 -UseBasicParsing -TimeoutSec 3\\).StatusCode } catch { $_.Exception.Message }\")"
     ]
   }
 }
