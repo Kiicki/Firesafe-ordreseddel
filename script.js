@@ -748,16 +748,22 @@ function openMaterialPicker(btn) {
             return;
         }
         pickerState[val] = { checked: true, antall: '', enhet: '' };
-        // Save to settings so it appears in future pickers
-        settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
-        settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
-        if (!settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
-            settingsMaterials.push({ name: val, needsSpec: false });
-            settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-            cachedMaterialOptions = settingsMaterials.slice();
-            allMaterials.length = 0;
-            allMaterials.push(...cachedMaterialOptions);
-            saveMaterialSettings();
+        // Save to global settings (admin only)
+        if (isAdmin) {
+            settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
+            settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
+            if (!settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
+                settingsMaterials.push({ name: val, needsSpec: false });
+                settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
+                cachedMaterialOptions = settingsMaterials.slice();
+                allMaterials.length = 0;
+                allMaterials.push(...cachedMaterialOptions);
+                saveMaterialSettings();
+            }
+        } else {
+            // Non-admin: add to picker list for this session only
+            allMaterials.push({ name: val, needsSpec: false });
+            allMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
         }
         searchInput.value = '';
         renderPickerList();
@@ -901,8 +907,8 @@ function openUnitPicker(matName, btnEl) {
             pickerState[matName].checked = true;
             if (pickerRenderFn) pickerRenderFn();
         }
-        // Save custom unit to settings
-        if (value && !(cachedUnitOptions || []).some(u => u.toLowerCase() === value.toLowerCase())) {
+        // Save custom unit to global settings (admin only)
+        if (isAdmin && value && !(cachedUnitOptions || []).some(u => u.toLowerCase() === value.toLowerCase())) {
             settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
             settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
             settingsUnits.push(value);
