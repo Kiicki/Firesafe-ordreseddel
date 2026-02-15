@@ -2134,9 +2134,7 @@ function duplicateCurrentForm() {
 
 // Felles canvas-rendering for eksport/deling
 async function renderFormToCanvas() {
-    if (isMobile()) {
-        syncMobileToOriginal();
-    }
+    syncMobileToOriginal();
 
     const element = document.getElementById('form-container');
     const originalDisplay = element.style.display;

@@ -249,9 +249,9 @@ body:has(#action-popup.active) .toolbar button {
 .logo-slash {
     position: absolute;
     right: 14px;
-    top: 11px;
+    top: 0;
+    bottom: 15px;
     width: 4px;
-    height: 50px;
     background: #000;
     transform: skewX(-28deg);
 }
