@@ -847,6 +847,7 @@ body.settings-modal-open {
         position: static;
         bottom: auto;
         height: auto;
+        min-height: calc(100dvh - 60px);
         overflow: visible;
     }
     #template-modal.view.active > .modal-content,
