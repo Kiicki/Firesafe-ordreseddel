@@ -149,10 +149,7 @@ if (auth) {
 
         localStorage.setItem('firesafe_logged_in', '1');
 
-        // Etter innlogging → alltid til hjemmesiden (template-modal)
-        if (document.getElementById('login-view').classList.contains('active')) {
-            showTemplateModal();
-        }
+        var wasOnLogin = document.getElementById('login-view').classList.contains('active');
 
         if (db) {
             // Check admin status
@@ -169,7 +166,7 @@ if (auth) {
                 }
             } catch (e) {}
 
-            // Sync all settings from Firebase to localStorage
+            // Sync all settings + templates from Firebase to localStorage
             await Promise.all([
                 syncOrderNumberIndex(),
                 syncDefaultsToLocal(),
@@ -178,11 +175,22 @@ if (auth) {
                 typeof getRequiredSettings === 'function' ? getRequiredSettings().then(function(data) {
                     cachedRequiredSettings = data;
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
+                }) : Promise.resolve(),
+                typeof getTemplates === 'function' ? getTemplates().then(function(result) {
+                    _templateLastDoc = result.lastDoc;
+                    _templateHasMore = result.hasMore;
+                    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+                    window.loadedTemplates = result.forms;
                 }) : Promise.resolve()
             ]);
 
+            // Vis template-modal med ferdig data etter synk
+            if (wasOnLogin) showTemplateModal();
+
             // Refresh data for the currently active view
             if (typeof refreshActiveView === 'function') refreshActiveView();
+        } else if (wasOnLogin) {
+            showTemplateModal();
         }
     });
 }
