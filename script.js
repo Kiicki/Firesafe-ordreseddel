@@ -195,7 +195,7 @@ function handleAuth() {
         return;
     }
 
-    if (currentUser) {
+    if (currentUser || (!authReady && localStorage.getItem('firesafe_logged_in'))) {
         // Logg ut
         showConfirmModal(t('logout_confirm'), () => {
             auth.signOut().then(() => {
