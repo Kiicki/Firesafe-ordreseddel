@@ -117,7 +117,6 @@ if (auth) {
                 setTimeout(function() {
                     if (!currentUser) {
                         localStorage.removeItem('firesafe_logged_in');
-                        localStorage.removeItem('firesafe_last_uid');
                         sessionStorage.removeItem('firesafe_current');
                         sessionStorage.removeItem('firesafe_current_sent');
                         showView('login-view');
@@ -128,7 +127,6 @@ if (auth) {
                 }, 3000);
                 return;
             }
-            localStorage.removeItem('firesafe_last_uid');
             sessionStorage.removeItem('firesafe_current');
             sessionStorage.removeItem('firesafe_current_sent');
             showView('login-view');
@@ -222,8 +220,8 @@ function handleAuth() {
         // Logg ut
         showConfirmModal(t('logout_confirm'), () => {
             // Rydd opp umiddelbart — ikke vent på Firebase nettverkskall
+            // Behold firesafe_last_uid — trengs for å oppdage brukerbytte ved neste innlogging
             localStorage.removeItem('firesafe_logged_in');
-            localStorage.removeItem('firesafe_last_uid');
             sessionStorage.removeItem('firesafe_current');
             sessionStorage.removeItem('firesafe_current_sent');
             currentUser = null;
