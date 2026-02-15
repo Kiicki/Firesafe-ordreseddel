@@ -250,7 +250,7 @@ body:has(#action-popup.active) .toolbar button {
     position: absolute;
     right: 14px;
     top: 50%;
-    transform: translateY(-19%) skewX(-30deg);
+    transform: translateY(-30%) skewX(-30deg);
     height: 46px;
     width: 4px;
     background: #000;
