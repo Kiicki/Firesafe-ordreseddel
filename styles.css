@@ -1353,6 +1353,11 @@ body.settings-modal-open {
     color: #e74c3c;
     font-weight: bold;
 }
+label.settings-default-label.field-required > span::after {
+    content: ' *';
+    color: #e74c3c;
+    font-weight: bold;
+}
 
 .mobile-field input,
 .mobile-field textarea {

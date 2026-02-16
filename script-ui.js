@@ -1704,6 +1704,22 @@ function showTemplateEditor(templateId) {
     document.getElementById('tpl-edit-kundensRef').value = '';
     document.getElementById('tpl-edit-fakturaadresse').value = '';
 
+    // Mark required fields
+    var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
+    var templateReqs = reqSettings.template || {};
+    var tplFieldMap = {
+        prosjektnavn: 'tpl-edit-prosjektnavn',
+        prosjektnr: 'tpl-edit-prosjektnr',
+        oppdragsgiver: 'tpl-edit-oppdragsgiver',
+        kundensRef: 'tpl-edit-kundensRef',
+        fakturaadresse: 'tpl-edit-fakturaadresse'
+    };
+    for (var key in tplFieldMap) {
+        var label = document.getElementById(tplFieldMap[key]).closest('label');
+        if (templateReqs[key]) label.classList.add('field-required');
+        else label.classList.remove('field-required');
+    }
+
     if (templateId) {
         titleEl.textContent = t('settings_edit_template');
         // Find template and fill fields
