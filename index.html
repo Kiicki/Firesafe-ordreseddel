@@ -358,16 +358,12 @@
                         <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('defaults')">
-                        <span data-i18n="settings_defaults">Standardverdier</span>
+                    <div class="settings-menu-item" onclick="showSettingsPage('fields')">
+                        <span data-i18n="settings_fields">Feltinnstillinger</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
                     <div class="settings-menu-item" onclick="showSettingsPage('materials')">
                         <span data-i18n="settings_materials">Materialer og enheter</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
-                    </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('required')">
-                        <span data-i18n="settings_required">Obligatoriske felt</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
                     <div class="settings-menu-item" onclick="showSettingsPage('language')">
@@ -408,17 +404,15 @@
                     </div>
                 </div>
 
-                <!-- Standardverdier-side -->
-                <div id="settings-page-defaults" class="settings-page" style="display:none;">
-                    <div class="settings-defaults-grid">
-                        <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
-                        <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
-                        <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="default-oppdragsgiver"></label>
-                        <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="default-kundens-ref"></label>
-                        <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="default-fakturaadresse"></label>
-                        <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="default-prosjektnr"></label>
-                        <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="default-prosjektnavn"></label>
-                        <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
+                <!-- Feltinnstillinger-side (standardverdier + obligatoriske felt) -->
+                <div id="settings-page-fields" class="settings-page" style="display:none;">
+                    <div id="settings-field-cards"></div>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('save-only')">
+                        <span data-i18n="settings_save_only">Kun lagring / eksport</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-save-only">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-save-only">
+                        <div id="settings-save-only-items" class="settings-list-container"></div>
                     </div>
                 </div>
 
@@ -448,23 +442,6 @@
                     </div>
                 </div>
 
-                <!-- Obligatoriske felt-side -->
-                <div id="settings-page-required" class="settings-page" style="display:none;">
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('required-save')">
-                        <span data-i18n="settings_req_save">Lagre / Eksport</span>
-                        <span class="settings-collapsible-arrow open" id="settings-arrow-required-save">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body open" id="settings-body-required-save">
-                        <div id="settings-required-save-items" class="settings-list-container"></div>
-                    </div>
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('required-template')">
-                        <span data-i18n="settings_req_template">Mal</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-required-template">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-required-template">
-                        <div id="settings-required-template-items" class="settings-list-container"></div>
-                    </div>
-                </div>
 
                 <!-- Språk-side -->
                 <div id="settings-page-language" class="settings-page" style="display:none;">

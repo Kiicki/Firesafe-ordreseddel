@@ -2675,15 +2675,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     opacity: 0.8;
 }
 
-.settings-default-label {
-    display: block;
+/* Field settings cards (combined defaults + required) */
+.settings-field-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+.settings-field-card-label {
     font-size: 13px;
     font-weight: 500;
     color: #555;
-    margin-bottom: 10px;
 }
-
-.settings-default-label input {
+.settings-field-card input[type="text"] {
     display: block;
     width: 100%;
     margin-top: 4px;
@@ -2693,17 +2697,22 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 14px;
     box-sizing: border-box;
 }
-
-.settings-default-label input:focus {
+.settings-field-card input[type="text"]:focus {
     outline: none;
     border-color: #E8501A;
 }
-
-/* Two-column grid for default values on larger screens */
-.settings-defaults-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0;
+.settings-field-card-toggles {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    align-items: center;
+}
+.settings-field-card-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #666;
 }
 
 /* Language settings */
