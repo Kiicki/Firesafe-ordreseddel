@@ -838,6 +838,9 @@ async function saveAsTemplate() {
         prosjektnavn:   { id: 'prosjektnavn',  key: 'validation_prosjektnavn' },
         prosjektnr:     { id: 'prosjektnr',    key: 'validation_prosjektnr' },
         oppdragsgiver:  { id: 'oppdragsgiver', key: 'validation_oppdragsgiver' },
+        montor:         { id: 'montor',          key: 'validation_montor' },
+        kundensRef:     { id: 'kundens-ref',     key: 'validation_kundens_ref' },
+        fakturaadresse: { id: 'fakturaadresse',  key: 'validation_fakturaadresse' },
         avdeling:       { id: 'avdeling',       key: 'validation_avdeling' },
         sted:           { id: 'sted',           key: 'validation_sted' }
     };
@@ -854,6 +857,9 @@ async function saveAsTemplate() {
         prosjektnavn: document.getElementById('prosjektnavn').value.trim(),
         prosjektnr: document.getElementById('prosjektnr').value.trim(),
         oppdragsgiver: document.getElementById('oppdragsgiver').value.trim(),
+        montor: document.getElementById('montor').value.trim(),
+        kundensRef: document.getElementById('kundens-ref').value.trim(),
+        fakturaadresse: document.getElementById('fakturaadresse').value.trim(),
         avdeling: document.getElementById('avdeling').value.trim(),
         sted: document.getElementById('sted').value.trim(),
         createdAt: new Date().toISOString(),
@@ -979,18 +985,28 @@ function loadTemplateDirect(template) {
     clearForm();
     setFormReadOnly(false);
 
-    // Fill the 5 fields in both forms
-    document.getElementById('oppdragsgiver').value = template.oppdragsgiver || '';
-    document.getElementById('prosjektnr').value = template.prosjektnr || '';
-    document.getElementById('prosjektnavn').value = template.prosjektnavn || '';
-    document.getElementById('avdeling').value = template.avdeling || '';
-    document.getElementById('sted').value = template.sted || '';
+    // Fill defaults first, then override with template values
+    autoFillDefaults();
 
-    document.getElementById('mobile-oppdragsgiver').value = template.oppdragsgiver || '';
-    document.getElementById('mobile-prosjektnr').value = template.prosjektnr || '';
-    document.getElementById('mobile-prosjektnavn').value = template.prosjektnavn || '';
-    document.getElementById('mobile-avdeling').value = template.avdeling || '';
-    document.getElementById('mobile-sted').value = template.sted || '';
+    // Template values override defaults (only non-empty)
+    const templateFields = {
+        'oppdragsgiver': template.oppdragsgiver,
+        'prosjektnr': template.prosjektnr,
+        'prosjektnavn': template.prosjektnavn,
+        'montor': template.montor,
+        'kundens-ref': template.kundensRef,
+        'fakturaadresse': template.fakturaadresse,
+        'avdeling': template.avdeling,
+        'sted': template.sted
+    };
+    for (const [id, val] of Object.entries(templateFields)) {
+        if (val) {
+            const el = document.getElementById(id);
+            const mobileEl = document.getElementById('mobile-' + id);
+            if (el) el.value = val;
+            if (mobileEl) mobileEl.value = val;
+        }
+    }
 
     autoFillOrderNumber();
 
@@ -1478,6 +1494,9 @@ function getDefaultRequiredSettings() {
             prosjektnavn: true,
             prosjektnr: false,
             oppdragsgiver: false,
+            montor: false,
+            kundensRef: false,
+            fakturaadresse: false,
             avdeling: false,
             sted: false
         }
@@ -1504,6 +1523,9 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'prosjektnavn',   labelKey: 'label_prosjektnavn' },
         { key: 'prosjektnr',     labelKey: 'label_prosjektnr' },
         { key: 'oppdragsgiver',  labelKey: 'label_oppdragsgiver' },
+        { key: 'montor',         labelKey: 'label_montor' },
+        { key: 'kundensRef',     labelKey: 'label_kundens_ref' },
+        { key: 'fakturaadresse', labelKey: 'label_fakturaadresse' },
         { key: 'avdeling',       labelKey: 'label_avdeling' },
         { key: 'sted',           labelKey: 'label_sted' }
     ]
