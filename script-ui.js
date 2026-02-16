@@ -1130,8 +1130,9 @@ function buildOrderNrSettings() {
 function getSettingsPageTitle(page) {
     const titles = {
         ordrenr: t('settings_ordrenr'),
-        fields: t('settings_fields'),
+        defaults: t('settings_defaults'),
         templates: t('settings_templates'),
+        required: t('settings_required'),
         language: t('settings_language'),
         materials: t('settings_materials')
     };
@@ -1200,13 +1201,29 @@ async function showSettingsPage(page) {
         document.getElementById('settings-give-start').value = '';
         document.getElementById('settings-give-end').value = '';
         updateSettingsStatus();
-    } else if (page === 'fields') {
-        await renderFieldSettings();
+    } else if (page === 'defaults') {
+        var defaults = await getDefaultSettings();
+        DEFAULT_FIELDS.forEach(function(field) {
+            var input = document.getElementById('default-' + field);
+            if (input) {
+                input.value = defaults[field] || '';
+                defaultsInitialValues[field] = input.value;
+            }
+        });
+        defaultsAutoSaveInitialized = false;
+        initDefaultsAutoSave();
+    } else if (page === 'required') {
+        var reqSettings = await getRequiredSettings();
+        cachedRequiredSettings = reqSettings;
+        renderRequiredSettingsItems('save');
     } else if (page === 'language') {
         document.getElementById('lang-check-no').textContent = currentLang === 'no' ? '\u2713' : '';
         document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
     } else if (page === 'templates') {
         await renderSettingsTemplateList();
+        var reqSettings = await getRequiredSettings();
+        cachedRequiredSettings = reqSettings;
+        renderRequiredSettingsItems('template');
     } else if (page === 'materials') {
         await loadMaterialSettingsToModal();
     }
@@ -1606,35 +1623,6 @@ async function toggleRequiredField(section, key, value) {
     if (!settings[section]) settings[section] = {};
     settings[section][key] = value;
     await saveRequiredSettings(settings);
-}
-
-// ============================================
-// FELTINNSTILLINGER (KOMBINERT SIDE)
-// ============================================
-
-async function renderFieldSettings() {
-    const defaults = await getDefaultSettings();
-    const reqSettings = await getRequiredSettings();
-    cachedRequiredSettings = reqSettings;
-
-    // Fill default value inputs
-    DEFAULT_FIELDS.forEach(function(field) {
-        var input = document.getElementById('default-' + field);
-        if (input) {
-            input.value = defaults[field] || '';
-            defaultsInitialValues[field] = input.value;
-        }
-    });
-
-    // Render template required toggles
-    renderRequiredSettingsItems('template');
-
-    // Render save required toggles
-    renderRequiredSettingsItems('save');
-
-    // Re-initialize defaults auto-save
-    defaultsAutoSaveInitialized = false;
-    initDefaultsAutoSave();
 }
 
 // ============================================
