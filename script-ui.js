@@ -189,7 +189,7 @@ function showSavedForms() {
     document.getElementById('saved-list').scrollTop = 0;
     document.getElementById('external-list').scrollTop = 0;
 
-    switchHentTab(isExternalForm ? 'external' : 'own');
+    switchHentTab('own');
 
     // Refresh from Firestore in background
     if (currentUser && db) {
