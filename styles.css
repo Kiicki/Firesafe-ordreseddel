@@ -2720,47 +2720,57 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: #fef0eb;
 }
 .settings-template-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     border: 1px solid #ddd;
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 8px;
+    cursor: pointer;
 }
-.settings-template-item.inactive {
-    opacity: 0.5;
+.settings-template-item:active {
+    background: #f8f8f8;
+}
+.settings-template-item.inactive .settings-template-item-info {
+    opacity: 0.45;
+}
+.settings-template-item-info {
+    flex: 1;
+    min-width: 0;
 }
 .settings-template-item-row1 {
     font-weight: 600;
     font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .settings-template-item-row2 {
     font-size: 12px;
     color: #888;
     margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.settings-template-item-badge {
-    font-size: 11px;
-    color: #999;
-    font-style: italic;
-}
-.settings-template-actions {
+.settings-template-item-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 8px;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
 }
-.settings-template-actions button {
-    padding: 6px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: white;
-    font-size: 12px;
+.settings-template-delete-btn {
+    background: none;
+    border: none;
+    padding: 4px;
     cursor: pointer;
+    color: #bbb;
+    display: flex;
+    align-items: center;
 }
-.settings-template-actions button:active {
-    background: #f5f5f5;
-}
-.settings-template-actions .btn-delete {
+.settings-template-delete-btn:active {
     color: #e74c3c;
-    border-color: #e74c3c;
 }
 
 /* Template editor overlay */

@@ -1669,21 +1669,24 @@ async function renderSettingsTemplateList() {
     }
 
     listEl.innerHTML = templates.map(function(tpl) {
-        var isInactive = tpl.active === false;
+        var isActive = tpl.active !== false;
         var name = escapeHtml(tpl.prosjektnavn) || t('no_name');
         var detail = [tpl.oppdragsgiver, tpl.prosjektnr].filter(function(x) { return x; }).map(escapeHtml).join(' \u2022 ');
+        var id = escapeHtml(tpl.id);
 
-        return '<div class="settings-template-item' + (isInactive ? ' inactive' : '') + '" data-id="' + escapeHtml(tpl.id) + '">' +
-            '<div class="settings-template-item-row1">' + name +
-                (isInactive ? ' <span class="settings-template-item-badge">' + t('settings_template_inactive') + '</span>' : '') +
+        return '<div class="settings-template-item' + (isActive ? '' : ' inactive') + '" data-id="' + id + '" onclick="showTemplateEditor(\'' + id + '\')">' +
+            '<div class="settings-template-item-info">' +
+                '<div class="settings-template-item-row1">' + name + '</div>' +
+                (detail ? '<div class="settings-template-item-row2">' + detail + '</div>' : '') +
             '</div>' +
-            (detail ? '<div class="settings-template-item-row2">' + detail + '</div>' : '') +
-            '<div class="settings-template-actions">' +
-                '<button onclick="showTemplateEditor(\'' + escapeHtml(tpl.id) + '\')">' + t('edit_btn') + '</button>' +
-                '<button onclick="toggleTemplateActive(\'' + escapeHtml(tpl.id) + '\')">' +
-                    (isInactive ? t('settings_template_activate') : t('settings_template_deactivate')) +
+            '<div class="settings-template-item-actions">' +
+                '<button class="settings-template-delete-btn" onclick="event.stopPropagation(); deleteTemplateFromSettings(\'' + id + '\')" title="' + t('delete_btn') + '">' +
+                    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>' +
                 '</button>' +
-                '<button class="btn-delete" onclick="deleteTemplateFromSettings(\'' + escapeHtml(tpl.id) + '\')">' + t('delete_btn') + '</button>' +
+                '<label class="settings-toggle" onclick="event.stopPropagation()">' +
+                    '<input type="checkbox"' + (isActive ? ' checked' : '') + ' onchange="toggleTemplateActive(\'' + id + '\')">' +
+                    '<span class="settings-toggle-slider"></span>' +
+                '</label>' +
             '</div>' +
         '</div>';
     }).join('');
@@ -1806,6 +1809,13 @@ async function toggleTemplateActive(templateId) {
 
     var newActive = tpl.active === false ? true : false;
 
+    // Update visual state immediately
+    var itemEl = document.querySelector('.settings-template-item[data-id="' + templateId + '"]');
+    if (itemEl) {
+        if (newActive) itemEl.classList.remove('inactive');
+        else itemEl.classList.add('inactive');
+    }
+
     if (currentUser && db) {
         try {
             await db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).update({ active: newActive });
@@ -1821,8 +1831,6 @@ async function toggleTemplateActive(templateId) {
             localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
         }
     }
-
-    await renderSettingsTemplateList();
 }
 
 function deleteTemplateFromSettings(templateId) {
