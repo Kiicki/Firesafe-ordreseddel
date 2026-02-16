@@ -2783,16 +2783,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-template-delete-btn:active {
     opacity: 0.6;
 }
-.settings-template-duplicate-btn {
-    background: none;
-    border: none;
-    padding: 4px;
-    cursor: pointer;
-    color: #888;
+.template-editor-buttons {
     display: flex;
+    gap: 8px;
 }
-.settings-template-duplicate-btn:active {
-    opacity: 0.6;
+.template-editor-duplicate-btn {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #E8501A;
+    border-radius: 8px;
+    background: white;
+    color: #E8501A;
+    font-size: 15px;
+    cursor: pointer;
 }
 
 /* Template editor overlay */
@@ -2823,14 +2826,13 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     margin-bottom: 16px;
 }
 .template-editor-save-btn {
-    display: block;
-    width: 100%;
+    flex: 1;
     padding: 12px;
     background: #E8501A;
     color: white;
     border: none;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 500;
     cursor: pointer;
 }

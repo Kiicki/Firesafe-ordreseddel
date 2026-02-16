@@ -357,7 +357,10 @@
                 <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
                 <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="tpl-edit-fakturaadresse"></label>
             </div>
-            <button class="template-editor-save-btn" onclick="saveTemplateFromEditor()" data-i18n="toolbar_save">Lagre</button>
+            <div class="template-editor-buttons">
+                <button class="template-editor-save-btn" onclick="saveTemplateFromEditor()" data-i18n="toolbar_save">Lagre</button>
+                <button class="template-editor-duplicate-btn" id="tpl-duplicate-btn" onclick="duplicateFromEditor()" data-i18n="duplicate_btn">Dupliser</button>
+            </div>
         </div>
     </div>
 

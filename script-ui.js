@@ -1669,9 +1669,6 @@ async function renderSettingsTemplateList() {
                     '<input type="checkbox"' + (isActive ? ' checked' : '') + ' onchange="toggleTemplateActive(\'' + id + '\')">' +
                     '<span class="settings-toggle-slider"></span>' +
                 '</label>' +
-                '<button class="settings-template-duplicate-btn" onclick="event.stopPropagation(); duplicateTemplate(\'' + id + '\')" title="' + t('duplicate_btn') + '">' +
-                    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
-                '</button>' +
                 '<button class="settings-template-delete-btn" onclick="event.stopPropagation(); deleteTemplateFromSettings(\'' + id + '\')" title="' + t('delete_btn') + '">' +
                     deleteIcon +
                 '</button>' +
@@ -1708,6 +1705,10 @@ function showTemplateEditor(templateId) {
         else label.classList.remove('field-required');
     }
 
+    // Vis/skjul dupliser-knapp
+    var dupBtn = document.getElementById('tpl-duplicate-btn');
+    if (dupBtn) dupBtn.style.display = templateId ? '' : 'none';
+
     if (templateId) {
         titleEl.textContent = t('settings_edit_template');
         // Find template and fill fields
@@ -1732,15 +1733,11 @@ function closeTemplateEditor() {
     document.getElementById('template-editor-overlay').classList.remove('active');
 }
 
-async function duplicateTemplate(templateId) {
-    var tpl = await _findTemplateById(templateId);
-    if (!tpl) return;
-    showTemplateEditor();
-    document.getElementById('tpl-edit-prosjektnavn').value = tpl.prosjektnavn || '';
-    document.getElementById('tpl-edit-prosjektnr').value = tpl.prosjektnr || '';
-    document.getElementById('tpl-edit-oppdragsgiver').value = tpl.oppdragsgiver || '';
-    document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
-    document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
+function duplicateFromEditor() {
+    _editingTemplateId = null;
+    document.getElementById('template-editor-title').textContent = t('settings_new_template');
+    document.getElementById('tpl-duplicate-btn').style.display = 'none';
+    showNotificationModal(t('template_duplicated'), true);
 }
 
 async function _findTemplateById(id) {
