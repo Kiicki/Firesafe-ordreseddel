@@ -838,11 +838,8 @@ async function saveAsTemplate() {
         prosjektnavn:   { id: 'prosjektnavn',  key: 'validation_prosjektnavn' },
         prosjektnr:     { id: 'prosjektnr',    key: 'validation_prosjektnr' },
         oppdragsgiver:  { id: 'oppdragsgiver', key: 'validation_oppdragsgiver' },
-        montor:         { id: 'montor',          key: 'validation_montor' },
         kundensRef:     { id: 'kundens-ref',     key: 'validation_kundens_ref' },
-        fakturaadresse: { id: 'fakturaadresse',  key: 'validation_fakturaadresse' },
-        avdeling:       { id: 'avdeling',       key: 'validation_avdeling' },
-        sted:           { id: 'sted',           key: 'validation_sted' }
+        fakturaadresse: { id: 'fakturaadresse',  key: 'validation_fakturaadresse' }
     };
     for (const [settingKey, fieldInfo] of Object.entries(templateFieldMap)) {
         if (!templateReqs[settingKey]) continue;
@@ -857,11 +854,8 @@ async function saveAsTemplate() {
         prosjektnavn: document.getElementById('prosjektnavn').value.trim(),
         prosjektnr: document.getElementById('prosjektnr').value.trim(),
         oppdragsgiver: document.getElementById('oppdragsgiver').value.trim(),
-        montor: document.getElementById('montor').value.trim(),
         kundensRef: document.getElementById('kundens-ref').value.trim(),
         fakturaadresse: document.getElementById('fakturaadresse').value.trim(),
-        avdeling: document.getElementById('avdeling').value.trim(),
-        sted: document.getElementById('sted').value.trim(),
         createdAt: new Date().toISOString(),
         createdBy: currentUser ? currentUser.uid : 'local'
     };
@@ -988,16 +982,13 @@ function loadTemplateDirect(template) {
     // Fill defaults first, then override with template values
     autoFillDefaults();
 
-    // Template values override defaults (only non-empty)
+    // Template values override defaults (only non-empty, project fields only)
     const templateFields = {
         'oppdragsgiver': template.oppdragsgiver,
         'prosjektnr': template.prosjektnr,
         'prosjektnavn': template.prosjektnavn,
-        'montor': template.montor,
         'kundens-ref': template.kundensRef,
-        'fakturaadresse': template.fakturaadresse,
-        'avdeling': template.avdeling,
-        'sted': template.sted
+        'fakturaadresse': template.fakturaadresse
     };
     for (const [id, val] of Object.entries(templateFields)) {
         if (val) {
@@ -1491,11 +1482,8 @@ function getDefaultRequiredSettings() {
             prosjektnavn: true,
             prosjektnr: false,
             oppdragsgiver: false,
-            montor: false,
             kundensRef: false,
-            fakturaadresse: false,
-            avdeling: false,
-            sted: false
+            fakturaadresse: false
         }
     };
 }
@@ -1520,11 +1508,8 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'prosjektnavn',   labelKey: 'label_prosjektnavn' },
         { key: 'prosjektnr',     labelKey: 'label_prosjektnr' },
         { key: 'oppdragsgiver',  labelKey: 'label_oppdragsgiver' },
-        { key: 'montor',         labelKey: 'label_montor' },
         { key: 'kundensRef',     labelKey: 'label_kundens_ref' },
-        { key: 'fakturaadresse', labelKey: 'label_fakturaadresse' },
-        { key: 'avdeling',       labelKey: 'label_avdeling' },
-        { key: 'sted',           labelKey: 'label_sted' }
+        { key: 'fakturaadresse', labelKey: 'label_fakturaadresse' }
     ]
 };
 
