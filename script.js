@@ -1805,3 +1805,11 @@ async function saveForm() {
     }
 }
 
+// Close keyboard on scroll (mobile UX)
+window.addEventListener('scroll', function() {
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        el.blur();
+    }
+});
+
