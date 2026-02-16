@@ -1594,7 +1594,7 @@ async function loadRequiredSettingsToModal() {
 }
 
 function renderRequiredSettingsItems(section) {
-    const container = document.getElementById('settings-required-' + section + '-items');
+    const container = document.getElementById('settings-fields-' + section + '-items');
     if (!container) return;
 
     const fields = REQUIRED_FIELD_LABELS[section];
@@ -1628,64 +1628,12 @@ async function toggleRequiredField(section, key, value) {
 // FELTINNSTILLINGER (KOMBINERT SIDE)
 // ============================================
 
-const FIELD_SETTINGS_CARDS = [
-    { key: 'montor',         labelKey: 'label_montor',         saveKey: 'montor',         templateKey: 'montor' },
-    { key: 'avdeling',       labelKey: 'label_avdeling',       saveKey: 'avdeling',       templateKey: 'avdeling' },
-    { key: 'oppdragsgiver',  labelKey: 'label_oppdragsgiver',  saveKey: 'oppdragsgiver',  templateKey: 'oppdragsgiver' },
-    { key: 'kundens-ref',    labelKey: 'label_kundens_ref',    saveKey: 'kundensRef',     templateKey: 'kundensRef' },
-    { key: 'fakturaadresse', labelKey: 'label_fakturaadresse', saveKey: 'fakturaadresse', templateKey: 'fakturaadresse' },
-    { key: 'prosjektnr',     labelKey: 'label_prosjektnr',     saveKey: 'prosjektnr',     templateKey: 'prosjektnr' },
-    { key: 'prosjektnavn',   labelKey: 'label_prosjektnavn',   saveKey: 'prosjektnavn',   templateKey: 'prosjektnavn' },
-    { key: 'sted',           labelKey: 'label_sted',           saveKey: 'sted',           templateKey: 'sted' }
-];
-
-const SAVE_ONLY_FIELDS = [
-    { key: 'ordreseddelNr',  labelKey: 'label_ordreseddel_nr' },
-    { key: 'dato',           labelKey: 'label_uke' },
-    { key: 'signeringDato',  labelKey: 'label_dato' },
-    { key: 'beskrivelse',    labelKey: 'settings_req_beskrivelse' },
-    { key: 'signatur',       labelKey: 'label_kundens_underskrift' }
-];
-
 async function renderFieldSettings() {
     const defaults = await getDefaultSettings();
     const reqSettings = await getRequiredSettings();
     cachedRequiredSettings = reqSettings;
-    var saveReqs = reqSettings.save || {};
-    var templateReqs = reqSettings.template || {};
-    var disabled = !isAdmin ? ' disabled' : '';
 
-    // Render field cards
-    var cardsContainer = document.getElementById('settings-field-cards');
-    cardsContainer.innerHTML = FIELD_SETTINGS_CARDS.map(function(field) {
-        var saveOn = saveReqs[field.saveKey] !== false;
-        var templateOn = templateReqs[field.templateKey] !== false;
-
-        return '<div class="settings-field-card">' +
-            '<div class="settings-field-card-label">' + escapeHtml(t(field.labelKey)) + '</div>' +
-            '<input type="text" id="default-' + field.key + '">' +
-            '<div class="settings-field-card-toggles">' +
-                '<div class="settings-field-card-toggle">' +
-                    '<span>' + escapeHtml(t('settings_toggle_save')) + '</span>' +
-                    '<label class="settings-toggle">' +
-                    '<input type="checkbox"' + (saveOn ? ' checked' : '') + disabled +
-                    ' onchange="toggleRequiredField(\'save\', \'' + field.saveKey + '\', this.checked)">' +
-                    '<span class="settings-toggle-slider"></span>' +
-                    '</label>' +
-                '</div>' +
-                '<div class="settings-field-card-toggle">' +
-                    '<span>' + escapeHtml(t('settings_toggle_template')) + '</span>' +
-                    '<label class="settings-toggle">' +
-                    '<input type="checkbox"' + (templateOn ? ' checked' : '') + disabled +
-                    ' onchange="toggleRequiredField(\'template\', \'' + field.templateKey + '\', this.checked)">' +
-                    '<span class="settings-toggle-slider"></span>' +
-                    '</label>' +
-                '</div>' +
-            '</div>' +
-            '</div>';
-    }).join('');
-
-    // Set default values programmatically (safe for special characters)
+    // Fill default value inputs
     DEFAULT_FIELDS.forEach(function(field) {
         var input = document.getElementById('default-' + field);
         if (input) {
@@ -1694,22 +1642,13 @@ async function renderFieldSettings() {
         }
     });
 
-    // Render save-only toggles
-    var saveOnlyContainer = document.getElementById('settings-save-only-items');
-    saveOnlyContainer.innerHTML = SAVE_ONLY_FIELDS.map(function(field) {
-        var isOn = saveReqs[field.key] !== false;
+    // Render template required toggles
+    renderRequiredSettingsItems('template');
 
-        return '<div class="settings-toggle-item">' +
-            '<span>' + escapeHtml(t(field.labelKey)) + '</span>' +
-            '<label class="settings-toggle">' +
-            '<input type="checkbox"' + (isOn ? ' checked' : '') + disabled +
-            ' onchange="toggleRequiredField(\'save\', \'' + field.key + '\', this.checked)">' +
-            '<span class="settings-toggle-slider"></span>' +
-            '</label>' +
-            '</div>';
-    }).join('');
+    // Render save required toggles
+    renderRequiredSettingsItems('save');
 
-    // Re-initialize defaults auto-save (DOM elements are new)
+    // Re-initialize defaults auto-save
     defaultsAutoSaveInitialized = false;
     initDefaultsAutoSave();
 }
@@ -1761,7 +1700,7 @@ function updateRequiredIndicators() {
 // STANDARDVERDIER (AUTOFYLL)
 // ============================================
 
-const DEFAULT_FIELDS = ['montor', 'avdeling', 'oppdragsgiver', 'kundens-ref', 'fakturaadresse', 'prosjektnr', 'prosjektnavn', 'sted'];
+const DEFAULT_FIELDS = ['montor', 'avdeling', 'sted'];
 
 async function getDefaultSettings() {
     if (currentUser && db) {

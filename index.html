@@ -406,13 +406,30 @@
 
                 <!-- Feltinnstillinger-side (standardverdier + obligatoriske felt) -->
                 <div id="settings-page-fields" class="settings-page" style="display:none;">
-                    <div id="settings-field-cards"></div>
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('save-only')">
-                        <span data-i18n="settings_save_only">Kun lagring / eksport</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-save-only">&rsaquo;</span>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('fields-defaults')">
+                        <span data-i18n="settings_defaults">Standardverdier</span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-fields-defaults">&rsaquo;</span>
                     </div>
-                    <div class="settings-collapsible-body" id="settings-body-save-only">
-                        <div id="settings-save-only-items" class="settings-list-container"></div>
+                    <div class="settings-collapsible-body open" id="settings-body-fields-defaults">
+                        <div class="settings-defaults-grid">
+                            <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
+                            <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
+                            <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
+                        </div>
+                    </div>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('fields-template')">
+                        <span data-i18n="settings_req_template">Mal</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-fields-template">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-fields-template">
+                        <div id="settings-fields-template-items" class="settings-list-container"></div>
+                    </div>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('fields-save')">
+                        <span data-i18n="settings_req_save">Lagre / Eksport</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-fields-save">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-fields-save">
+                        <div id="settings-fields-save-items" class="settings-list-container"></div>
                     </div>
                 </div>
 
