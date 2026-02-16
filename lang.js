@@ -138,7 +138,7 @@ const TRANSLATIONS = {
         // Settings
         settings_title: 'Innstillinger',
         settings_ordrenr: 'Ordreseddelnummer',
-        settings_defaults: 'Standardverdier',
+        settings_defaults: 'Autofyll',
         settings_fields: 'Feltinnstillinger',
         settings_templates: 'Maler',
         settings_new_template: '+ Ny mal',
@@ -197,7 +197,7 @@ const TRANSLATIONS = {
         material_exists: 'Materialet finnes allerede',
 
         // Required fields settings
-        settings_required: 'Obligatoriske felt',
+        settings_required: 'Krav ved lagring',
         settings_req_save: 'Lagre / Eksport',
         settings_req_template: 'Mal',
         settings_req_beskrivelse: 'Beskrivelse (minst 1 ordre)',
@@ -380,7 +380,7 @@ const TRANSLATIONS = {
         // Settings
         settings_title: 'Settings',
         settings_ordrenr: 'Order numbers',
-        settings_defaults: 'Default values',
+        settings_defaults: 'Autofill',
         settings_fields: 'Field settings',
         settings_templates: 'Templates',
         settings_new_template: '+ New template',
@@ -439,7 +439,7 @@ const TRANSLATIONS = {
         material_exists: 'Material already exists',
 
         // Required fields settings
-        settings_required: 'Required fields',
+        settings_required: 'Save requirements',
         settings_req_save: 'Save / Export',
         settings_req_template: 'Template',
         settings_req_beskrivelse: 'Description (at least 1 order)',
