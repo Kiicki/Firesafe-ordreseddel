@@ -885,9 +885,6 @@ function _buildTemplateItemHtml(item, index) {
             '<div class="saved-item-row1">' + row1 + '</div>' +
             (row2 ? '<div class="saved-item-row2">' + row2 + '</div>' : '') +
         '</div>' +
-        '<div class="saved-item-buttons">' +
-            '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
-        '</div>' +
     '</div>';
 }
 
