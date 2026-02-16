@@ -839,7 +839,7 @@ body.settings-modal-open {
 }
 
 /* Keyboard open: revert to document flow so everything scrolls together */
-@media (max-height: 650px) {
+@media (max-height: 650px) and (orientation: portrait) {
     .sticky-header {
         position: static;
     }
