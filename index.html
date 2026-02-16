@@ -343,6 +343,24 @@
         </div>
     </div>
 
+    <!-- Template editor overlay -->
+    <div class="confirm-modal" id="template-editor-overlay" onclick="closeTemplateEditor()">
+        <div class="template-editor-content" onclick="event.stopPropagation()">
+            <div class="template-editor-header">
+                <span id="template-editor-title" data-i18n="settings_new_template">Ny mal</span>
+                <button class="template-editor-close" onclick="closeTemplateEditor()">&times;</button>
+            </div>
+            <div class="template-editor-body">
+                <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="tpl-edit-prosjektnavn"></label>
+                <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="tpl-edit-prosjektnr"></label>
+                <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="tpl-edit-oppdragsgiver"></label>
+                <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
+                <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="tpl-edit-fakturaadresse"></label>
+            </div>
+            <button class="template-editor-save-btn" onclick="saveTemplateFromEditor()" data-i18n="toolbar_save">Lagre</button>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div class="modal view" id="settings-modal">
         <div class="modal-content">
@@ -360,6 +378,10 @@
                     </div>
                     <div class="settings-menu-item" onclick="showSettingsPage('fields')">
                         <span data-i18n="settings_fields">Feltinnstillinger</span>
+                        <span class="settings-menu-arrow">&rsaquo;</span>
+                    </div>
+                    <div class="settings-menu-item" onclick="showSettingsPage('templates')">
+                        <span data-i18n="settings_templates">Maler</span>
                         <span class="settings-menu-arrow">&rsaquo;</span>
                     </div>
                     <div class="settings-menu-item" onclick="showSettingsPage('materials')">
@@ -459,6 +481,12 @@
                     </div>
                 </div>
 
+
+                <!-- Maler-side -->
+                <div id="settings-page-templates" class="settings-page" style="display:none;">
+                    <button class="settings-add-template-btn" onclick="showTemplateEditor()" data-i18n="settings_new_template">+ Ny mal</button>
+                    <div id="settings-template-list"></div>
+                </div>
 
                 <!-- Språk-side -->
                 <div id="settings-page-language" class="settings-page" style="display:none;">

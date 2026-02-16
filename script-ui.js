@@ -41,7 +41,8 @@ function refreshActiveView() {
             _templateHasMore = result.hasMore;
             window.loadedTemplates = result.forms;
             if (document.body.classList.contains('template-modal-open')) {
-                renderTemplateList(result.forms, false, _templateHasMore);
+                var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
+                renderTemplateList(activeTemplates, false, _templateHasMore);
             }
         }).catch(function(e) { console.error('Refresh templates:', e); });
     }
@@ -459,10 +460,7 @@ function closeActionPopup(e) {
 
 function showSaveMenu() {
     if (isModalOpen()) return;
-    showActionPopup(t('save_menu_title'), [
-        { label: t('save_option'), onclick: 'saveForm()' },
-        { label: t('save_as_template'), onclick: 'saveAsTemplate()' }
-    ]);
+    saveForm();
 }
 
 function showExportMenu() {
@@ -936,8 +934,8 @@ function showTemplateModal() {
     closeAllModals();
     history.replaceState(null, '', window.location.pathname);
 
-    // Show cached templates immediately
-    const cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    // Show cached templates immediately (filter out deactivated)
+    const cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]').filter(function(t) { return t.active !== false; });
     renderTemplateList(cached);
 
     showView('template-modal');
@@ -950,9 +948,10 @@ function showTemplateModal() {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
             localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
-            // Only update if still on template-modal
+            // Only update if still on template-modal (filter out deactivated)
             if (document.body.classList.contains('template-modal-open')) {
-                renderTemplateList(result.forms, false, _templateHasMore);
+                var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
+                renderTemplateList(activeTemplates, false, _templateHasMore);
             }
         }).catch(function(e) { console.error('Refresh templates:', e); });
     }
@@ -1135,6 +1134,7 @@ function getSettingsPageTitle(page) {
     const titles = {
         ordrenr: t('settings_ordrenr'),
         fields: t('settings_fields'),
+        templates: t('settings_templates'),
         language: t('settings_language'),
         materials: t('settings_materials')
     };
@@ -1208,6 +1208,8 @@ async function showSettingsPage(page) {
     } else if (page === 'language') {
         document.getElementById('lang-check-no').textContent = currentLang === 'no' ? '\u2713' : '';
         document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
+    } else if (page === 'templates') {
+        await renderSettingsTemplateList();
     } else if (page === 'materials') {
         await loadMaterialSettingsToModal();
     }
@@ -1636,6 +1638,212 @@ async function renderFieldSettings() {
     // Re-initialize defaults auto-save
     defaultsAutoSaveInitialized = false;
     initDefaultsAutoSave();
+}
+
+// ============================================
+// MAL-ADMINISTRASJON I INNSTILLINGER
+// ============================================
+
+var _editingTemplateId = null;
+
+async function renderSettingsTemplateList() {
+    var listEl = document.getElementById('settings-template-list');
+    if (!listEl) return;
+
+    var templates = [];
+    if (currentUser && db) {
+        try {
+            var snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get();
+            templates = snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+        } catch (e) {
+            console.error('Load templates for settings:', e);
+            templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        }
+    } else {
+        templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    }
+
+    if (!templates || templates.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">' + t('no_templates_settings') + '</div>';
+        return;
+    }
+
+    listEl.innerHTML = templates.map(function(tpl) {
+        var isInactive = tpl.active === false;
+        var name = escapeHtml(tpl.prosjektnavn) || t('no_name');
+        var detail = [tpl.oppdragsgiver, tpl.prosjektnr].filter(function(x) { return x; }).map(escapeHtml).join(' \u2022 ');
+
+        return '<div class="settings-template-item' + (isInactive ? ' inactive' : '') + '" data-id="' + escapeHtml(tpl.id) + '">' +
+            '<div class="settings-template-item-row1">' + name +
+                (isInactive ? ' <span class="settings-template-item-badge">' + t('settings_template_inactive') + '</span>' : '') +
+            '</div>' +
+            (detail ? '<div class="settings-template-item-row2">' + detail + '</div>' : '') +
+            '<div class="settings-template-actions">' +
+                '<button onclick="showTemplateEditor(\'' + escapeHtml(tpl.id) + '\')">' + t('edit_btn') + '</button>' +
+                '<button onclick="toggleTemplateActive(\'' + escapeHtml(tpl.id) + '\')">' +
+                    (isInactive ? t('settings_template_activate') : t('settings_template_deactivate')) +
+                '</button>' +
+                '<button class="btn-delete" onclick="deleteTemplateFromSettings(\'' + escapeHtml(tpl.id) + '\')">' + t('delete_btn') + '</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function showTemplateEditor(templateId) {
+    _editingTemplateId = templateId || null;
+    var overlay = document.getElementById('template-editor-overlay');
+    var titleEl = document.getElementById('template-editor-title');
+
+    // Clear fields
+    document.getElementById('tpl-edit-prosjektnavn').value = '';
+    document.getElementById('tpl-edit-prosjektnr').value = '';
+    document.getElementById('tpl-edit-oppdragsgiver').value = '';
+    document.getElementById('tpl-edit-kundensRef').value = '';
+    document.getElementById('tpl-edit-fakturaadresse').value = '';
+
+    if (templateId) {
+        titleEl.textContent = t('settings_edit_template');
+        // Find template and fill fields
+        _findTemplateById(templateId).then(function(tpl) {
+            if (tpl) {
+                document.getElementById('tpl-edit-prosjektnavn').value = tpl.prosjektnavn || '';
+                document.getElementById('tpl-edit-prosjektnr').value = tpl.prosjektnr || '';
+                document.getElementById('tpl-edit-oppdragsgiver').value = tpl.oppdragsgiver || '';
+                document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
+                document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
+            }
+        });
+    } else {
+        titleEl.textContent = t('settings_new_template');
+    }
+
+    overlay.classList.add('active');
+}
+
+function closeTemplateEditor() {
+    _editingTemplateId = null;
+    document.getElementById('template-editor-overlay').classList.remove('active');
+}
+
+async function _findTemplateById(id) {
+    if (currentUser && db) {
+        try {
+            var doc = await db.collection('users').doc(currentUser.uid).collection('templates').doc(id).get();
+            if (doc.exists) return Object.assign({ id: doc.id }, doc.data());
+        } catch (e) {
+            console.error('Find template error:', e);
+        }
+    }
+    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    return templates.find(function(t) { return t.id === id; }) || null;
+}
+
+async function saveTemplateFromEditor() {
+    var data = {
+        prosjektnavn: document.getElementById('tpl-edit-prosjektnavn').value.trim(),
+        prosjektnr: document.getElementById('tpl-edit-prosjektnr').value.trim(),
+        oppdragsgiver: document.getElementById('tpl-edit-oppdragsgiver').value.trim(),
+        kundensRef: document.getElementById('tpl-edit-kundensRef').value.trim(),
+        fakturaadresse: document.getElementById('tpl-edit-fakturaadresse').value.trim()
+    };
+
+    // Require at least prosjektnavn
+    if (!data.prosjektnavn) {
+        showNotificationModal(t('required_field', t('validation_prosjektnavn')));
+        return;
+    }
+
+    if (_editingTemplateId) {
+        // Update existing template
+        if (currentUser && db) {
+            try {
+                await db.collection('users').doc(currentUser.uid).collection('templates').doc(_editingTemplateId).update(data);
+            } catch (e) {
+                console.error('Update template error:', e);
+                showNotificationModal(t('template_save_error') + e.message);
+                return;
+            }
+        } else {
+            var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+            var idx = templates.findIndex(function(t) { return t.id === _editingTemplateId; });
+            if (idx !== -1) {
+                Object.assign(templates[idx], data);
+                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+            }
+        }
+        showNotificationModal(t('template_updated'), true);
+    } else {
+        // Create new template
+        data.createdAt = new Date().toISOString();
+        data.createdBy = currentUser ? currentUser.uid : 'local';
+        data.active = true;
+
+        if (currentUser && db) {
+            try {
+                var docId = Date.now().toString();
+                await db.collection('users').doc(currentUser.uid).collection('templates').doc(docId).set(data);
+            } catch (e) {
+                console.error('Create template error:', e);
+                showNotificationModal(t('template_save_error') + e.message);
+                return;
+            }
+        } else {
+            data.id = Date.now().toString();
+            var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+            templates.push(data);
+            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        }
+        showNotificationModal(t('template_save_success'), true);
+    }
+
+    closeTemplateEditor();
+    await renderSettingsTemplateList();
+}
+
+async function toggleTemplateActive(templateId) {
+    var tpl = await _findTemplateById(templateId);
+    if (!tpl) return;
+
+    var newActive = tpl.active === false ? true : false;
+
+    if (currentUser && db) {
+        try {
+            await db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).update({ active: newActive });
+        } catch (e) {
+            console.error('Toggle template error:', e);
+            return;
+        }
+    } else {
+        var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        var idx = templates.findIndex(function(t) { return t.id === templateId; });
+        if (idx !== -1) {
+            templates[idx].active = newActive;
+            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        }
+    }
+
+    await renderSettingsTemplateList();
+}
+
+function deleteTemplateFromSettings(templateId) {
+    showConfirmModal(t('template_delete_confirm'), async function() {
+        if (currentUser && db) {
+            try {
+                await db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).delete();
+            } catch (e) {
+                console.error('Delete template error:', e);
+                return;
+            }
+        } else {
+            var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+            var idx = templates.findIndex(function(t) { return t.id === templateId; });
+            if (idx !== -1) {
+                templates.splice(idx, 1);
+                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+            }
+        }
+        await renderSettingsTemplateList();
+    });
 }
 
 function updateRequiredIndicators() {
@@ -2443,8 +2651,8 @@ document.addEventListener('DOMContentLoaded', function() {
         renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))));
         updateToolbarState();
     } else if (!hash || hash === '') {
-        // Home page - render cached templates
-        var cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        // Home page - render cached templates (filter out deactivated)
+        var cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]').filter(function(t) { return t.active !== false; });
         renderTemplateList(cached);
         updateToolbarState();
         // Background refresh
@@ -2454,7 +2662,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 _templateHasMore = result.hasMore;
                 localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
                 if (document.body.classList.contains('template-modal-open')) {
-                    renderTemplateList(result.forms, false, _templateHasMore);
+                    var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
+                    renderTemplateList(activeTemplates, false, _templateHasMore);
                 }
             }).catch(function(e) { console.error('Refresh templates:', e); });
         }
