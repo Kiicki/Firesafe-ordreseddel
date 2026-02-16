@@ -1766,10 +1766,21 @@ async function saveTemplateFromEditor() {
         fakturaadresse: document.getElementById('tpl-edit-fakturaadresse').value.trim()
     };
 
-    // Require at least prosjektnavn
-    if (!data.prosjektnavn) {
-        showNotificationModal(t('required_field', t('validation_prosjektnavn')));
-        return;
+    // Validate required template fields
+    var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
+    var templateReqs = reqSettings.template || {};
+    var validationKeys = {
+        prosjektnavn: 'validation_prosjektnavn',
+        prosjektnr: 'validation_prosjektnr',
+        oppdragsgiver: 'validation_oppdragsgiver',
+        kundensRef: 'validation_kundens_ref',
+        fakturaadresse: 'validation_fakturaadresse'
+    };
+    for (var key in validationKeys) {
+        if (templateReqs[key] && !data[key]) {
+            showNotificationModal(t('required_field', t(validationKeys[key])));
+            return;
+        }
     }
 
     if (_editingTemplateId) {
