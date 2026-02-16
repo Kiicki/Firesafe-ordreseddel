@@ -2783,6 +2783,17 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-template-delete-btn:active {
     opacity: 0.6;
 }
+.settings-template-duplicate-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #888;
+    display: flex;
+}
+.settings-template-duplicate-btn:active {
+    opacity: 0.6;
+}
 
 /* Template editor overlay */
 .template-editor-content {
