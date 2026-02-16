@@ -2765,12 +2765,16 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border: none;
     padding: 4px;
     cursor: pointer;
-    color: #bbb;
+    color: #e74c3c;
     display: flex;
     align-items: center;
 }
+.settings-template-delete-btn svg {
+    width: 20px;
+    height: 20px;
+}
 .settings-template-delete-btn:active {
-    color: #e74c3c;
+    opacity: 0.6;
 }
 
 /* Template editor overlay */
