@@ -2739,7 +2739,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-template-item:active {
     background: #f8f8f8;
 }
-.settings-template-item.inactive .settings-template-item-info {
+.settings-template-item.inactive {
     opacity: 0.45;
 }
 .settings-template-item-info {
@@ -2787,7 +2787,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     gap: 8px;
 }
-.template-editor-duplicate-btn {
+.template-editor-deactivate-btn {
     flex: 1;
     padding: 12px;
     border: 1px solid #E8501A;
@@ -2796,6 +2796,17 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #E8501A;
     font-size: 15px;
     cursor: pointer;
+}
+.settings-template-duplicate-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #888;
+    display: flex;
+}
+.settings-template-duplicate-btn:active {
+    opacity: 0.6;
 }
 
 /* Template editor overlay */
