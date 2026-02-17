@@ -877,10 +877,12 @@ async function saveAsTemplate() {
 function _buildTemplateItemHtml(item, index) {
     var row1 = escapeHtml(item.prosjektnavn) || t('no_name');
     var row2 = [item.oppdragsgiver, item.prosjektnr].filter(function(x) { return x; }).map(escapeHtml).join(' \u2022 ');
+    var row3 = item.fakturaadresse ? escapeHtml(item.fakturaadresse) : '';
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-row1">' + row1 + '</div>' +
             '<div class="saved-item-row2">' + (row2 || '&nbsp;') + '</div>' +
+            (row3 ? '<div class="saved-item-row2">' + row3 + '</div>' : '') +
         '</div>' +
     '</div>';
 }
