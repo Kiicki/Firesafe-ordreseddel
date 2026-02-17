@@ -1737,7 +1737,7 @@ function closeTemplateEditor() {
 
 async function duplicateTemplate(templateId) {
     var tpl = await _findTemplateById(templateId);
-    if (!tpl) return;
+    if (!tpl || tpl.active === false) return;
     showTemplateEditor();
     document.getElementById('tpl-edit-prosjektnavn').value = tpl.prosjektnavn || '';
     document.getElementById('tpl-edit-prosjektnr').value = tpl.prosjektnr || '';
@@ -1869,7 +1869,9 @@ async function toggleTemplateActive(templateId) {
     }
 }
 
-function deleteTemplateFromSettings(templateId) {
+async function deleteTemplateFromSettings(templateId) {
+    var tpl = await _findTemplateById(templateId);
+    if (!tpl || tpl.active === false) return;
     showConfirmModal(t('template_delete_confirm'), async function() {
         if (currentUser && db) {
             try {
