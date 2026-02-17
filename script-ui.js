@@ -756,6 +756,22 @@ function loadExternalForm(index) {
 function loadExternalFormDirect(form) {
     if (!form) return;
     setFormData(form);
+
+    // Autofyll standardverdier og uke/dato for eksterne skjema
+    autoFillDefaults();
+    var flags = getAutofillFlags();
+    var now = new Date();
+    if (flags.uke) {
+        var week = 'Uke ' + getWeekNumber(now);
+        document.getElementById('dato').value = week;
+        document.getElementById('mobile-dato').value = week;
+    }
+    if (flags.dato) {
+        var today = formatDate(now);
+        document.getElementById('signering-dato').value = today;
+        document.getElementById('mobile-signering-dato').value = today;
+    }
+
     lastSavedData = getFormDataSnapshot();
     const isSent = !!form._isSent;
     setFormReadOnly(isSent);
