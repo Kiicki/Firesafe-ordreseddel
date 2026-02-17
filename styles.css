@@ -3170,8 +3170,10 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     text-align: center;
     color: #333;
 }
-.fakturaadresse-popup-body input {
+.fakturaadresse-popup-body > input {
     width: 100%;
+}
+.fakturaadresse-popup-body input {
     padding: 12px;
     font-size: 16px;
     border: 1px solid #ddd;

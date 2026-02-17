@@ -532,6 +532,7 @@ function openFakturaadressePopup(target) {
         currentVal = document.getElementById('mobile-fakturaadresse').value;
     } else {
         currentVal = document.getElementById('tpl-edit-fakturaadresse').value;
+        document.getElementById('template-editor-overlay').classList.remove('active');
     }
     var parsed = parseFakturaadresse(currentVal);
     document.getElementById('fak-popup-gate').value = parsed.gate;
@@ -543,6 +544,9 @@ function openFakturaadressePopup(target) {
 
 function closeFakturaadressePopup() {
     document.getElementById('fakturaadresse-popup').classList.remove('active');
+    if (_fakturaadresseTarget === 'template') {
+        document.getElementById('template-editor-overlay').classList.add('active');
+    }
     _fakturaadresseTarget = null;
 }
 
