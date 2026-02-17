@@ -88,7 +88,10 @@
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_fakturaadresse">Fakturaadresse</label>
-                    <input type="text" id="mobile-fakturaadresse" autocapitalize="sentences">
+                    <div class="fakturaadresse-display" onclick="openFakturaadressePopup('form')">
+                        <span id="fakturaadresse-display-text" class="fakturaadresse-display-placeholder" data-i18n="placeholder_fakturaadresse">Trykk for å fylle ut</span>
+                    </div>
+                    <input type="hidden" id="mobile-fakturaadresse">
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_prosjektnr">Prosjektnr.</label>
@@ -358,7 +361,12 @@
                 <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="tpl-edit-prosjektnr"></label>
                 <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="tpl-edit-oppdragsgiver"></label>
                 <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
-                <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span><input type="text" id="tpl-edit-fakturaadresse"></label>
+                <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span>
+                    <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template')">
+                        <span id="tpl-fakturaadresse-display-text" class="fakturaadresse-display-placeholder" data-i18n="placeholder_fakturaadresse">Trykk for å fylle ut</span>
+                    </div>
+                    <input type="hidden" id="tpl-edit-fakturaadresse">
+                </label>
             </div>
             <div class="template-editor-buttons">
                 <button class="template-editor-save-btn" onclick="saveTemplateFromEditor()" data-i18n="toolbar_save">Lagre</button>
@@ -566,6 +574,24 @@
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecPopup()" data-i18n="btn_cancel">Avbryt</button>
                 <button type="button" class="spec-popup-ok" onclick="confirmSpecPopup()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fakturaadresse popup -->
+    <div class="fakturaadresse-popup-backdrop" id="fakturaadresse-popup" onclick="if(event.target===this)closeFakturaadressePopup()">
+        <div class="fakturaadresse-popup-sheet">
+            <div class="fakturaadresse-popup-header" data-i18n="label_fakturaadresse">Fakturaadresse</div>
+            <div class="fakturaadresse-popup-body">
+                <input type="text" id="fak-popup-gate" placeholder="Gateadresse" data-i18n-placeholder="placeholder_gate" autocapitalize="sentences">
+                <div class="fakturaadresse-row">
+                    <input type="text" id="fak-popup-postnr" placeholder="Postnr." data-i18n-placeholder="placeholder_postnr" inputmode="numeric" class="postnr-input">
+                    <input type="text" id="fak-popup-poststed" placeholder="Poststed" data-i18n-placeholder="placeholder_poststed" autocapitalize="sentences" class="poststed-input">
+                </div>
+            </div>
+            <div class="fakturaadresse-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeFakturaadressePopup()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-ok" onclick="confirmFakturaadressePopup()">OK</button>
             </div>
         </div>
     </div>

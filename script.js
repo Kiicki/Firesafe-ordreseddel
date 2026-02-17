@@ -499,6 +499,81 @@ function autoResizeTextarea(textarea) {
 }
 
 
+// Fakturaadresse: combine/parse helpers + popup
+function combineFakturaadresse(gate, postnr, poststed) {
+    var parts = [];
+    if (gate) parts.push(gate);
+    var postal = [postnr, poststed].filter(Boolean).join(' ');
+    if (postal) parts.push(postal);
+    return parts.join(', ');
+}
+
+function parseFakturaadresse(str) {
+    if (!str) return { gate: '', postnr: '', poststed: '' };
+    var lastComma = str.lastIndexOf(', ');
+    if (lastComma === -1) return { gate: str, postnr: '', poststed: '' };
+    var gate = str.substring(0, lastComma);
+    var rest = str.substring(lastComma + 2);
+    var spaceIdx = rest.indexOf(' ');
+    if (spaceIdx === -1) return { gate: gate, postnr: '', poststed: rest };
+    return {
+        gate: gate,
+        postnr: rest.substring(0, spaceIdx),
+        poststed: rest.substring(spaceIdx + 1)
+    };
+}
+
+var _fakturaadresseTarget = null;
+
+function openFakturaadressePopup(target) {
+    _fakturaadresseTarget = target;
+    var currentVal = '';
+    if (target === 'form') {
+        currentVal = document.getElementById('mobile-fakturaadresse').value;
+    } else {
+        currentVal = document.getElementById('tpl-edit-fakturaadresse').value;
+    }
+    var parsed = parseFakturaadresse(currentVal);
+    document.getElementById('fak-popup-gate').value = parsed.gate;
+    document.getElementById('fak-popup-postnr').value = parsed.postnr;
+    document.getElementById('fak-popup-poststed').value = parsed.poststed;
+    document.getElementById('fakturaadresse-popup').classList.add('active');
+    setTimeout(function() { document.getElementById('fak-popup-gate').focus(); }, 100);
+}
+
+function closeFakturaadressePopup() {
+    document.getElementById('fakturaadresse-popup').classList.remove('active');
+    _fakturaadresseTarget = null;
+}
+
+function confirmFakturaadressePopup() {
+    var gate = document.getElementById('fak-popup-gate').value.trim();
+    var postnr = document.getElementById('fak-popup-postnr').value.trim();
+    var poststed = document.getElementById('fak-popup-poststed').value.trim();
+    var combined = combineFakturaadresse(gate, postnr, poststed);
+
+    if (_fakturaadresseTarget === 'form') {
+        document.getElementById('mobile-fakturaadresse').value = combined;
+        updateFakturaadresseDisplay('fakturaadresse-display-text', combined);
+    } else if (_fakturaadresseTarget === 'template') {
+        document.getElementById('tpl-edit-fakturaadresse').value = combined;
+        updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', combined);
+    }
+    closeFakturaadressePopup();
+}
+
+function updateFakturaadresseDisplay(spanId, value) {
+    var span = document.getElementById(spanId);
+    if (!span) return;
+    if (value) {
+        span.textContent = value;
+        span.className = 'fakturaadresse-display-text';
+    } else {
+        span.textContent = t('placeholder_fakturaadresse');
+        span.className = 'fakturaadresse-display-placeholder';
+    }
+}
+
 // Convert textareas to divs for export (divs wrap text properly)
 function convertTextareasToDiv() {
     const convertedElements = [];
@@ -1595,6 +1670,7 @@ function setFormData(data) {
     updateFormTypeChip();
 
     syncOriginalToMobile();
+    updateFakturaadresseDisplay('fakturaadresse-display-text', data.fakturaadresse || '');
 
     // Convert old formats to orders
     let orders = data.orders;

@@ -993,6 +993,7 @@ function loadTemplateDirect(template) {
     }
 
     autoFillOrderNumber();
+    updateFakturaadresseDisplay('fakturaadresse-display-text', template.fakturaadresse || '');
 
     showView('view-form');
     document.body.classList.remove('template-modal-open');
@@ -1687,6 +1688,7 @@ function showTemplateEditor(templateId) {
     document.getElementById('tpl-edit-oppdragsgiver').value = '';
     document.getElementById('tpl-edit-kundensRef').value = '';
     document.getElementById('tpl-edit-fakturaadresse').value = '';
+    updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', '');
 
     // Mark required fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
@@ -1718,6 +1720,7 @@ function showTemplateEditor(templateId) {
                 document.getElementById('tpl-edit-oppdragsgiver').value = tpl.oppdragsgiver || '';
                 document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
                 document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
+                updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
                 if (deactBtn) {
                     deactBtn.textContent = tpl.active === false ? t('settings_template_activate') : t('settings_template_deactivate');
                 }
@@ -1744,6 +1747,7 @@ async function duplicateTemplate(templateId) {
     document.getElementById('tpl-edit-oppdragsgiver').value = tpl.oppdragsgiver || '';
     document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
     document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
+    updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
 }
 
 async function toggleActiveFromEditor() {
@@ -2420,6 +2424,7 @@ function clearForm() {
     lastSavedData = null;
     isExternalForm = false;
     updateFormTypeChip();
+    updateFakturaadresseDisplay('fakturaadresse-display-text', '');
 
     // Reset orders to 1 empty card
     const container = document.getElementById('mobile-orders');

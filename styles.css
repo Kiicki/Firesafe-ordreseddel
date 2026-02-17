@@ -3112,6 +3112,89 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     }
 }
 
+/* Fakturaadresse display (klikkbar, ser ut som input) */
+.fakturaadresse-display {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+}
+.fakturaadresse-display:active {
+    background: #f8f8f8;
+}
+.fakturaadresse-display-text {
+    color: #333;
+}
+.fakturaadresse-display-placeholder {
+    color: #999;
+}
+/* Template editor: matcher settings-default-label input */
+.tpl-fakturaadresse-display {
+    margin-top: 4px;
+    padding: 8px 10px;
+    font-size: 14px;
+    min-height: auto;
+}
+
+/* Fakturaadresse popup */
+.fakturaadresse-popup-backdrop {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 25;
+    justify-content: center;
+    align-items: center;
+}
+.fakturaadresse-popup-backdrop.active {
+    display: flex;
+}
+.fakturaadresse-popup-sheet {
+    background: #fff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 360px;
+    padding: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+.fakturaadresse-popup-header {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 16px;
+    text-align: center;
+    color: #333;
+}
+.fakturaadresse-popup-body input {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+.fakturaadresse-popup-body input:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+.fakturaadresse-popup-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+.fakturaadresse-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+.postnr-input { width: 80px; flex-shrink: 0; }
+.poststed-input { flex: 1; }
+
 /* PC: Inline editable description textarea */
 @media screen and (min-width: 1025px) {
     .mobile-order-desc {
