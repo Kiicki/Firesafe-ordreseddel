@@ -3195,7 +3195,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     margin-top: 8px;
 }
 .postnr-input { width: 80px; flex-shrink: 0; }
-.poststed-input { flex: 1; }
+.poststed-input { flex: 1; min-width: 0; }
 
 /* PC: Inline editable description textarea */
 @media screen and (min-width: 1025px) {
