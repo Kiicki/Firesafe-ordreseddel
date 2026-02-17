@@ -139,8 +139,6 @@ if (auth) {
                 }, 3000);
                 return;
             }
-            // Skip if handleAuth() already showed login view
-            if (document.getElementById('login-view').classList.contains('active')) return;
             sessionStorage.removeItem('firesafe_current');
             sessionStorage.removeItem('firesafe_current_sent');
             showView('login-view');
