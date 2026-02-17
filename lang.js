@@ -101,7 +101,7 @@ const TRANSLATIONS = {
         tab_own: 'Egne',
         tab_external: 'Eksterne',
         search_placeholder: 'Søk ordrenummer...',
-        search_template_placeholder: 'Søk prosjekt...',
+        search_template_placeholder: 'Søk prosjektmal...',
         loading: 'Laster...',
         no_saved_forms: 'Ingen lagrede skjemaer',
         no_external_forms: 'Ingen eksterne skjemaer',
@@ -134,7 +134,6 @@ const TRANSLATIONS = {
         template_update_success: 'Mal oppdatert!',
         template_exists: 'En mal med prosjektnavn «{0}» finnes allerede. Vil du oppdatere den?',
         template_name_required: 'Du må fylle inn prosjektnavn for å lagre som mal',
-        template_list_header: 'Prosjektmaler',
         template_save_error: 'Feil ved lagring av mal: ',
         template_delete_confirm: 'Er du sikker på at du vil slette denne malen?',
 
@@ -348,7 +347,7 @@ const TRANSLATIONS = {
         tab_own: 'Own',
         tab_external: 'External',
         search_placeholder: 'Search order number...',
-        search_template_placeholder: 'Search project...',
+        search_template_placeholder: 'Search project template...',
         loading: 'Loading...',
         no_saved_forms: 'No saved forms',
         no_external_forms: 'No external forms',
@@ -381,7 +380,6 @@ const TRANSLATIONS = {
         template_update_success: 'Template updated!',
         template_exists: 'A template with project name "{0}" already exists. Do you want to update it?',
         template_name_required: 'You must fill in the project name to save as a template',
-        template_list_header: 'Project templates',
         template_save_error: 'Error saving template: ',
         template_delete_confirm: 'Are you sure you want to delete this template?',
 
