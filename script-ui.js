@@ -664,40 +664,11 @@ function renderExternalFormsList(forms, append, hasMore) {
             return;
         }
         window.loadedExternalForms = forms;
-        listEl.innerHTML = forms.map(function(item, index) {
-            var ordrenr = item.ordreseddelNr || '';
-            var dato = formatDateWithTime(item.savedAt);
-            var isSent = item._isSent;
-            var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
-            return '<div class="saved-item" data-index="' + index + '">' +
-                '<div class="saved-item-info">' +
-                    '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
-                    (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
-                '</div>' +
-                '<div class="saved-item-buttons">' +
-                    '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
-                '</div>' +
-            '</div>';
-        }).join('');
+        listEl.innerHTML = forms.map(function(item, i) { return _buildSavedItemHtml(item, i); }).join('');
     } else {
         var startIndex = window.loadedExternalForms.length;
         window.loadedExternalForms = window.loadedExternalForms.concat(forms);
-        var html = forms.map(function(item, i) {
-            var idx = startIndex + i;
-            var ordrenr = item.ordreseddelNr || '';
-            var dato = formatDateWithTime(item.savedAt);
-            var isSent = item._isSent;
-            var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
-            return '<div class="saved-item" data-index="' + idx + '">' +
-                '<div class="saved-item-info">' +
-                    '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
-                    (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
-                '</div>' +
-                '<div class="saved-item-buttons">' +
-                    '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
-                '</div>' +
-            '</div>';
-        }).join('');
+        var html = forms.map(function(item, i) { return _buildSavedItemHtml(item, startIndex + i); }).join('');
         listEl.insertAdjacentHTML('beforeend', html);
     }
 
@@ -2685,11 +2656,16 @@ document.getElementById('external-list').addEventListener('click', function(e) {
     const formData = savedItem._formData;
     if (!formData) return;
 
-    // Check if click was on delete button
+    // Check if click was on a button
     const btn = e.target.closest('button');
-    if (btn && btn.classList.contains('delete')) {
+    if (btn) {
+        if (btn.classList.contains('disabled')) return;
         e.stopPropagation();
-        deleteExternalFormDirect(formData);
+        if (btn.classList.contains('delete')) {
+            deleteExternalFormDirect(formData);
+        } else if (btn.classList.contains('copy')) {
+            duplicateFormDirect(formData);
+        }
         return;
     }
 
