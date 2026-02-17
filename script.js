@@ -1906,15 +1906,16 @@ async function saveForm() {
     }
 }
 
-// Close keyboard on scroll (mobile UX) — debounced
-var _scrollBlurTimeout;
-window.addEventListener('scroll', function() {
-    clearTimeout(_scrollBlurTimeout);
-    _scrollBlurTimeout = setTimeout(function() {
+// Close keyboard when user swipe-scrolls (mobile UX)
+// Uses touchmove instead of scroll to avoid firing on keyboard-open viewport adjustments
+var _touchBlurTimeout;
+window.addEventListener('touchmove', function() {
+    clearTimeout(_touchBlurTimeout);
+    _touchBlurTimeout = setTimeout(function() {
         var el = document.activeElement;
         if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
             el.blur();
         }
     }, 100);
-});
+}, { passive: true });
 
