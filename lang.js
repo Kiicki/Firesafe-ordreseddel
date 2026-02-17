@@ -128,7 +128,7 @@ const TRANSLATIONS = {
         // Templates
         template_modal_title: 'Velg prosjektmal',
         template_new_form: 'Eget skjema',
-        template_blank_form: 'Tomt skjema',
+        template_blank_form: 'Nytt skjema',
         template_save_success: 'Prosjektmal lagret!',
         template_duplicated: 'Mal duplisert — rediger og lagre!',
         template_update_success: 'Mal oppdatert!',
@@ -374,7 +374,7 @@ const TRANSLATIONS = {
         // Templates
         template_modal_title: 'Choose project template',
         template_new_form: 'Own form',
-        template_blank_form: 'Blank form',
+        template_blank_form: 'New form',
         template_save_success: 'Project template saved!',
         template_duplicated: 'Template duplicated — edit and save!',
         template_update_success: 'Template updated!',
