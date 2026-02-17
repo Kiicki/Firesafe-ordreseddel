@@ -375,7 +375,21 @@ function deleteFormDirect(form) {
             }
         }
         removeFromOrderNumberIndex(form.ordreseddelNr);
-        showSavedForms();
+
+        // Optimistic removal: update local state + DOM
+        var arrIdx = window.loadedForms.findIndex(function(f) { return f.id === form.id; });
+        if (arrIdx !== -1) window.loadedForms.splice(arrIdx, 1);
+        var lsList = JSON.parse(localStorage.getItem(lsKey) || '[]');
+        var lsIdx = lsList.findIndex(function(f) { return f.id === form.id; });
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(lsKey, JSON.stringify(lsList)); }
+        // Remove DOM element
+        document.querySelectorAll('#saved-list .saved-item').forEach(function(el) {
+            if (el._formData && el._formData.id === form.id) el.remove();
+        });
+        // Show empty message if no items left
+        if (window.loadedForms.length === 0) {
+            document.getElementById('saved-list').innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
+        }
     });
 }
 
@@ -793,7 +807,21 @@ function deleteExternalFormDirect(form) {
                 localStorage.setItem(lsKey, JSON.stringify(list));
             }
         }
-        loadExternalTab();
+
+        // Optimistic removal: update local state + DOM
+        var arrIdx = window.loadedExternalForms.findIndex(function(f) { return f.id === form.id; });
+        if (arrIdx !== -1) window.loadedExternalForms.splice(arrIdx, 1);
+        var lsList = JSON.parse(localStorage.getItem(lsKey) || '[]');
+        var lsIdx = lsList.findIndex(function(f) { return f.id === form.id; });
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(lsKey, JSON.stringify(lsList)); }
+        // Remove DOM element
+        document.querySelectorAll('#external-list .saved-item').forEach(function(el) {
+            if (el._formData && el._formData.id === form.id) el.remove();
+        });
+        // Show empty message if no items left
+        if (window.loadedExternalForms.length === 0) {
+            document.getElementById('external-list').innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
+        }
     });
 }
 
@@ -1032,7 +1060,21 @@ function deleteTemplateDirect(template) {
                 localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
             }
         }
-        showTemplateModal();
+
+        // Optimistic removal: update local state + DOM
+        var arrIdx = window.loadedTemplates.findIndex(function(t) { return t.id === template.id; });
+        if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
+        var lsList = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        var lsIdx = lsList.findIndex(function(t) { return t.id === template.id; });
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
+        // Remove DOM element
+        document.querySelectorAll('#template-list .saved-item').forEach(function(el) {
+            if (el._formData && el._formData.id === template.id) el.remove();
+        });
+        // Show empty message if no items left
+        if (window.loadedTemplates.length === 0) {
+            document.getElementById('template-list').innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
+        }
     });
 }
 
@@ -1894,7 +1936,21 @@ async function deleteTemplateFromSettings(templateId) {
                 localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
             }
         }
-        await renderSettingsTemplateList();
+
+        // Optimistic removal: update local state + DOM
+        var arrIdx = window.loadedTemplates.findIndex(function(t) { return t.id === templateId; });
+        if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
+        var lsList = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        var lsIdx = lsList.findIndex(function(t) { return t.id === templateId; });
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
+        // Remove DOM element
+        var el = document.querySelector('.settings-template-item[data-id="' + templateId + '"]');
+        if (el) el.remove();
+        // Show empty message if no items left
+        var listEl = document.getElementById('settings-template-list');
+        if (listEl && !listEl.querySelector('.settings-template-item')) {
+            listEl.innerHTML = '<div class="no-saved">' + t('no_templates_settings') + '</div>';
+        }
     });
 }
 

@@ -90,6 +90,17 @@ try {
     // Firebase not configured
 }
 
+// Enable offline persistence for faster reads/writes
+if (db) {
+    db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+        if (err.code === 'failed-precondition') {
+            console.warn('Firestore persistence: multiple tabs open');
+        } else if (err.code === 'unimplemented') {
+            console.warn('Firestore persistence not supported');
+        }
+    });
+}
+
 // Check if user is admin
 async function checkAdminStatus(uid) {
     if (!db || !uid) return false;
@@ -157,18 +168,15 @@ if (auth) {
             isAdmin = await checkAdminStatus(user.uid);
             if (isAdmin) localStorage.setItem('firesafe_admin', '1');
 
-            // Load language preference from Firebase
-            try {
-                const doc = await db.collection('users').doc(user.uid).collection('settings').doc('language').get();
-                if (doc.exists && doc.data().lang) {
-                    currentLang = doc.data().lang;
-                    localStorage.setItem('firesafe_lang', currentLang);
-                    applyTranslations();
-                }
-            } catch (e) {}
-
             // Sync all settings + templates from Firebase to localStorage
             await Promise.all([
+                db.collection('users').doc(user.uid).collection('settings').doc('language').get().then(function(doc) {
+                    if (doc.exists && doc.data().lang) {
+                        currentLang = doc.data().lang;
+                        localStorage.setItem('firesafe_lang', currentLang);
+                        applyTranslations();
+                    }
+                }).catch(function() {}),
                 syncOrderNumberIndex(),
                 syncDefaultsToLocal(),
                 syncSettingsToLocal(),
@@ -1886,11 +1894,15 @@ async function saveForm() {
     }
 }
 
-// Close keyboard on scroll (mobile UX)
+// Close keyboard on scroll (mobile UX) — debounced
+var _scrollBlurTimeout;
 window.addEventListener('scroll', function() {
-    var el = document.activeElement;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-        el.blur();
-    }
+    clearTimeout(_scrollBlurTimeout);
+    _scrollBlurTimeout = setTimeout(function() {
+        var el = document.activeElement;
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+            el.blur();
+        }
+    }, 100);
 });
 
