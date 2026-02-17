@@ -917,7 +917,10 @@ body.settings-modal-open {
 #template-modal .top-bar,
 #template-modal .template-home-wrapper,
 #template-modal .modal-footer-skip,
-#template-modal .modal-search,
+#template-modal .modal-search {
+    flex-shrink: 0;
+    border-bottom: none;
+}
 #saved-modal .modal-header,
 #saved-modal .modal-tabs,
 #saved-modal .modal-search,
