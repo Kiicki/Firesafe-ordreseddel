@@ -1486,6 +1486,7 @@ function editSettingsMaterial(idx) {
     const container = document.getElementById('settings-material-items');
     const item = container.children[idx];
     const span = item.querySelector('span');
+    if (!span) return;
     const oldVal = settingsMaterials[idx].name;
     const input = document.createElement('input');
     input.type = 'text';
@@ -1500,7 +1501,10 @@ function editSettingsMaterial(idx) {
         saved = true;
         const newVal = input.value.trim();
         if (!newVal || newVal === oldVal) {
-            renderMaterialSettingsItems();
+            const newSpan = document.createElement('span');
+            newSpan.textContent = oldVal;
+            newSpan.setAttribute('onclick', 'editSettingsMaterial(' + idx + ')');
+            if (input.parentNode) input.replaceWith(newSpan);
             return;
         }
         if (settingsMaterials.some((m, i) => i !== idx && m.name.toLowerCase() === newVal.toLowerCase())) {
@@ -1532,6 +1536,7 @@ function editSettingsUnit(idx) {
     const container = document.getElementById('settings-unit-items');
     const item = container.children[idx];
     const span = item.querySelector('span');
+    if (!span) return;
     const oldVal = settingsUnits[idx];
     const input = document.createElement('input');
     input.type = 'text';
@@ -1546,7 +1551,10 @@ function editSettingsUnit(idx) {
         saved = true;
         const newVal = input.value.trim();
         if (!newVal || newVal === oldVal) {
-            renderUnitSettingsItems();
+            const newSpan = document.createElement('span');
+            newSpan.textContent = oldVal;
+            newSpan.setAttribute('onclick', 'editSettingsUnit(' + idx + ')');
+            if (input.parentNode) input.replaceWith(newSpan);
             return;
         }
         if (settingsUnits.some((u, i) => i !== idx && u.toLowerCase() === newVal.toLowerCase())) {
