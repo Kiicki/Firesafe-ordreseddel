@@ -270,18 +270,20 @@ body:has(#template-editor-overlay.active) .toolbar button {
 .ordreseddel-nr-row {
     background: transparent;
     color: #000;
-    padding: 8px 15px 6px 30px;
+    padding: 8px 15px 6px 15px;
     font-size: 11px;
-    display: flex;
+    display: grid;
+    grid-template-columns: 150px auto;
+    gap: 0 10px;
+    justify-content: center;
     align-items: baseline;
-    justify-content: flex-start;
 }
 
 .ordreseddel-nr-label {
     font-size: 17px;
     white-space: nowrap;
     font-weight: bold;
-    margin-right: 10px;
+    text-align: right;
 }
 
 .ordreseddel-nr-row input {
@@ -308,11 +310,11 @@ body:has(#template-editor-overlay.active) .toolbar button {
 }
 
 .header-right-info {
-    padding: 0 15px 8px 85px;
+    padding: 0 15px 8px 15px;
     margin-top: -6px;
     font-size: 11px;
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: 150px auto;
     gap: 0 10px;
     text-align: left;
     justify-content: center;
