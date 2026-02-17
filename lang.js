@@ -124,6 +124,8 @@ const TRANSLATIONS = {
         // New form
         new_form_confirm: 'Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.',
         btn_start_new: 'Start ny',
+        unsaved_warning: 'Du har ulagrede endringer. Vil du fortsette?',
+        btn_continue: 'Fortsett',
 
         // Templates
         template_modal_title: 'Velg prosjektmal',
@@ -374,6 +376,8 @@ const TRANSLATIONS = {
         // New form
         new_form_confirm: 'Start a new form? Unsaved changes will be lost.',
         btn_start_new: 'Start new',
+        unsaved_warning: 'You have unsaved changes. Continue?',
+        btn_continue: 'Continue',
 
         // Templates
         template_modal_title: 'Choose project template',

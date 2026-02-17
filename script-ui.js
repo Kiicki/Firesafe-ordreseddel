@@ -174,6 +174,14 @@ async function loadMoreSavedForms() {
 }
 
 function showSavedForms() {
+    if (isOnFormPage() && hasUnsavedChanges()) {
+        showConfirmModal(t('unsaved_warning'), _showSavedFormsDirectly, t('btn_continue'), '#E8501A');
+        return;
+    }
+    _showSavedFormsDirectly();
+}
+
+function _showSavedFormsDirectly() {
     closeAllModals();
     if (window.location.hash !== '#hent') {
         window.location.hash = 'hent';
@@ -1034,6 +1042,7 @@ function loadTemplateDirect(template) {
     document.getElementById('template-search').value = '';
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    lastSavedData = getFormDataSnapshot();
     document.getElementById('form-header-title').textContent = t('form_title');
     updateOrderDeleteStates();
     window.scrollTo(0, 0);
@@ -1185,6 +1194,14 @@ function getSettingsPageTitle(page) {
 }
 
 function showSettingsModal() {
+    if (isOnFormPage() && hasUnsavedChanges()) {
+        showConfirmModal(t('unsaved_warning'), _showSettingsDirectly, t('btn_continue'), '#E8501A');
+        return;
+    }
+    _showSettingsDirectly();
+}
+
+function _showSettingsDirectly() {
     closeAllModals();
     window.location.hash = 'settings';
     showSettingsMenu();
@@ -2537,6 +2554,19 @@ function switchFormType(type) {
 }
 
 
+function hasUnsavedChanges() {
+    const currentData = getFormDataSnapshot();
+    return lastSavedData !== null
+        ? currentData !== lastSavedData
+        : hasAnyFormData();
+}
+
+function isOnFormPage() {
+    return !document.getElementById('saved-modal').classList.contains('active')
+        && !document.getElementById('settings-modal').classList.contains('active')
+        && !document.getElementById('template-modal').classList.contains('active');
+}
+
 function hasAnyFormData() {
     // Hent standardverdier for sammenligning
     const defaults = JSON.parse(localStorage.getItem('firesafe_defaults') || '{}');
@@ -2620,23 +2650,12 @@ function doNewForm() {
 }
 
 function newForm() {
-    // Sjekk om vi er på skjema-siden (ikke modal)
-    const isOnFormPage = !document.getElementById('saved-modal').classList.contains('active')
-        && !document.getElementById('settings-modal').classList.contains('active')
-        && !document.getElementById('template-modal').classList.contains('active');
-
-    if (!isOnFormPage) {
-        // Fra modal - gå direkte til prosjektmal
+    if (!isOnFormPage()) {
         doNewForm();
         return;
     }
 
-    const currentData = getFormDataSnapshot();
-    const hasUnsavedChanges = lastSavedData !== null
-        ? currentData !== lastSavedData
-        : hasAnyFormData();
-
-    if (hasUnsavedChanges) {
+    if (hasUnsavedChanges()) {
         showConfirmModal(t('new_form_confirm'), doNewForm, t('btn_start_new'), '#E8501A');
     } else {
         doNewForm();
