@@ -721,8 +721,8 @@ async function loadExternalTab() {
     const cached = cachedForms.concat(cachedSent.map(f => ({ ...f, _isSent: true })));
     renderExternalFormsList(cached);
 
-    const extResult = await getExternalForms();
-    const extSentResult = await getExternalSentForms();
+    var results = await Promise.all([getExternalForms(), getExternalSentForms()]);
+    var extResult = results[0], extSentResult = results[1];
     _extLastDoc = extResult.lastDoc;
     _extSentLastDoc = extSentResult.lastDoc;
     _extHasMore = extResult.hasMore;
@@ -732,6 +732,7 @@ async function loadExternalTab() {
         localStorage.setItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(extSentResult.forms.slice(0, 50)));
     }
     window.loadedExternalForms = extResult.forms.concat(extSentResult.forms.map(f => ({ ...f, _isSent: true })));
+    if (!document.body.classList.contains('saved-modal-open')) return;
     if (currentUser || window.loadedExternalForms.length > 0) {
         renderExternalFormsList(window.loadedExternalForms, false, _extHasMore || _extSentHasMore);
     }
@@ -1209,7 +1210,7 @@ function showSettingsMenu() {
     if (existingBack) existingBack.remove();
 }
 
-async function showSettingsPage(page) {
+function showSettingsPage(page) {
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     document.getElementById('settings-page-' + page).style.display = 'block';
     document.getElementById('settings-header-title').textContent = getSettingsPageTitle(page);
@@ -1233,38 +1234,107 @@ async function showSettingsPage(page) {
     }
 
     if (page === 'ordrenr') {
-        const settings = await getOrderNrSettings();
-        settingsRanges = (settings && settings.ranges) ? settings.ranges.slice() : [];
-        settingsGivenAway = (settings && settings.givenAway) ? settings.givenAway.slice() : [];
-        renderSettingsRanges();
-        renderGivenAwayRanges();
         document.getElementById('settings-new-start').value = '';
         document.getElementById('settings-new-end').value = '';
         document.getElementById('settings-give-start').value = '';
         document.getElementById('settings-give-end').value = '';
-        updateSettingsStatus();
+        // Show cached immediately
+        _applyOrderNrSettings(_getCachedOrderNrSettings());
+        // Background refresh
+        getOrderNrSettings().then(function(settings) {
+            if (document.body.classList.contains('settings-modal-open'))
+                _applyOrderNrSettings(settings);
+        });
     } else if (page === 'defaults') {
         _defaultsTab = 'own';
         var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
         if (tabs.length) { tabs[0].classList.add('active'); tabs[1].classList.remove('active'); }
-        await loadDefaultsForTab('own');
-        defaultsAutoSaveInitialized = false;
+        // Show cached immediately, then background refresh
+        loadDefaultsForTab('own');
         initDefaultsAutoSave();
     } else if (page === 'required') {
-        var reqSettings = await getRequiredSettings();
-        cachedRequiredSettings = reqSettings;
+        // Show cached immediately
+        cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('save');
+        // Background refresh
+        getRequiredSettings().then(function(settings) {
+            if (document.body.classList.contains('settings-modal-open')) {
+                cachedRequiredSettings = settings;
+                renderRequiredSettingsItems('save');
+            }
+        });
     } else if (page === 'language') {
         document.getElementById('lang-check-no').textContent = currentLang === 'no' ? '\u2713' : '';
         document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
     } else if (page === 'templates') {
-        await renderSettingsTemplateList();
-        var reqSettings = await getRequiredSettings();
-        cachedRequiredSettings = reqSettings;
+        // Show cached templates immediately
+        _renderSettingsTemplateListFromData(JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]'));
+        cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('template');
+        // Background refresh
+        renderSettingsTemplateList().then(function() {
+            if (!document.body.classList.contains('settings-modal-open')) return;
+            getRequiredSettings().then(function(settings) {
+                cachedRequiredSettings = settings;
+                renderRequiredSettingsItems('template');
+            });
+        });
     } else if (page === 'materials') {
-        await loadMaterialSettingsToModal();
+        // Show cached immediately
+        var cachedMat = localStorage.getItem(MATERIALS_KEY);
+        var cachedData = normalizeMaterialData(cachedMat ? JSON.parse(cachedMat) : null);
+        settingsMaterials = cachedData.materials.slice();
+        settingsUnits = cachedData.units.slice();
+        settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+        sortAlpha(settingsUnits);
+        renderMaterialSettingsItems();
+        renderUnitSettingsItems();
+        document.getElementById('settings-new-material').value = '';
+        document.getElementById('settings-new-unit').value = '';
+        // Background refresh
+        getMaterialSettings().then(function(data) {
+            if (!document.body.classList.contains('settings-modal-open')) return;
+            settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
+            settingsUnits = (data && data.units) ? data.units.slice() : [];
+            settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+            sortAlpha(settingsUnits);
+            renderMaterialSettingsItems();
+            renderUnitSettingsItems();
+        });
     }
+}
+
+// Cache-first helpers for settings
+function _getCachedOrderNrSettings() {
+    var stored = localStorage.getItem(SETTINGS_KEY);
+    var data = stored ? JSON.parse(stored) : null;
+    if (data && !data.ranges && data.nrStart != null)
+        data = { ranges: [{ start: data.nrStart, end: data.nrEnd }] };
+    if (data && !data.givenAway) data.givenAway = [];
+    return data;
+}
+
+function _applyOrderNrSettings(settings) {
+    settingsRanges = (settings && settings.ranges) ? settings.ranges.slice() : [];
+    settingsGivenAway = (settings && settings.givenAway) ? settings.givenAway.slice() : [];
+    renderSettingsRanges();
+    renderGivenAwayRanges();
+    updateSettingsStatus();
+}
+
+function _getCachedRequiredSettings() {
+    var stored = localStorage.getItem(REQUIRED_KEY);
+    if (stored) {
+        try {
+            var data = JSON.parse(stored);
+            var defaults = getDefaultRequiredSettings();
+            return {
+                save: Object.assign({}, defaults.save, data.save || {}),
+                template: Object.assign({}, defaults.template, data.template || {})
+            };
+        } catch (e) {}
+    }
+    return getDefaultRequiredSettings();
 }
 
 // ============================================
@@ -1309,7 +1379,9 @@ async function saveMaterialSettings() {
     localStorage.setItem(MATERIALS_KEY, JSON.stringify(data));
     // Refresh dropdown cache
     cachedMaterialOptions = data.materials.slice();
+    cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
     cachedUnitOptions = settingsUnits.slice();
+    sortAlpha(cachedUnitOptions);
 }
 
 async function loadMaterialSettingsToModal() {
@@ -1501,6 +1573,18 @@ let cachedMaterialOptions = null;
 let cachedUnitOptions = null;
 
 async function getDropdownOptions() {
+    // Show cached immediately so picker is never empty
+    if (!cachedMaterialOptions) {
+        var stored = localStorage.getItem(MATERIALS_KEY);
+        if (stored) {
+            var cached = normalizeMaterialData(JSON.parse(stored));
+            cachedMaterialOptions = (cached && cached.materials) ? cached.materials : [];
+            cachedUnitOptions = (cached && cached.units) ? cached.units : [];
+            cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+            sortAlpha(cachedUnitOptions);
+        }
+    }
+    // Refresh from Firebase
     const data = await getMaterialSettings();
     cachedMaterialOptions = (data && data.materials) ? data.materials : [];
     cachedUnitOptions = (data && data.units) ? data.units : [];
@@ -1669,22 +1753,9 @@ async function toggleRequiredField(section, key, value) {
 
 var _editingTemplateId = null;
 
-async function renderSettingsTemplateList() {
+function _renderSettingsTemplateListFromData(templates) {
     var listEl = document.getElementById('settings-template-list');
     if (!listEl) return;
-
-    var templates = [];
-    if (currentUser && db) {
-        try {
-            var snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get();
-            templates = snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
-        } catch (e) {
-            console.error('Load templates for settings:', e);
-            templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-        }
-    } else {
-        templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-    }
 
     if (!templates || templates.length === 0) {
         listEl.innerHTML = '<div class="no-saved">' + t('no_templates_settings') + '</div>';
@@ -1719,6 +1790,22 @@ async function renderSettingsTemplateList() {
             '</div>' +
         '</div>';
     }).join('');
+}
+
+async function renderSettingsTemplateList() {
+    var templates = [];
+    if (currentUser && db) {
+        try {
+            var snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get();
+            templates = snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+        } catch (e) {
+            console.error('Load templates for settings:', e);
+            templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        }
+    } else {
+        templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    }
+    _renderSettingsTemplateListFromData(templates);
 }
 
 function showTemplateEditor(templateId) {
@@ -1802,6 +1889,14 @@ async function toggleActiveFromEditor() {
 }
 
 async function _findTemplateById(id) {
+    // Check in-memory first (instant)
+    var inMem = window.loadedTemplates.find(function(t) { return t.id === id; });
+    if (inMem) return inMem;
+    // Then localStorage
+    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    var local = templates.find(function(t) { return t.id === id; });
+    if (local) return local;
+    // Last resort: Firebase
     if (currentUser && db) {
         try {
             var doc = await db.collection('users').doc(currentUser.uid).collection('templates').doc(id).get();
@@ -1810,8 +1905,7 @@ async function _findTemplateById(id) {
             console.error('Find template error:', e);
         }
     }
-    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-    return templates.find(function(t) { return t.id === id; }) || null;
+    return null;
 }
 
 async function saveTemplateFromEditor() {
@@ -2023,10 +2117,12 @@ async function getDefaultSettings(tab) {
 async function syncDefaultsToLocal() {
     if (!db || !currentUser) return;
     try {
-        var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
-        if (doc.exists) localStorage.setItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
-        var extDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_external').get();
-        if (extDoc.exists) localStorage.setItem(DEFAULTS_EXTERNAL_KEY, JSON.stringify(extDoc.data()));
+        var results = await Promise.all([
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get(),
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_external').get()
+        ]);
+        if (results[0].exists) localStorage.setItem(DEFAULTS_KEY, JSON.stringify(results[0].data()));
+        if (results[1].exists) localStorage.setItem(DEFAULTS_EXTERNAL_KEY, JSON.stringify(results[1].data()));
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
@@ -2084,8 +2180,7 @@ function switchDefaultsTab(tab) {
     loadDefaultsForTab(tab);
 }
 
-async function loadDefaultsForTab(tab) {
-    var defaults = await getDefaultSettings(tab);
+function _applyDefaultsToUI(defaults) {
     DEFAULT_FIELDS.forEach(function(field) {
         var input = document.getElementById('default-' + field);
         if (input) {
@@ -2096,6 +2191,18 @@ async function loadDefaultsForTab(tab) {
     ['uke', 'dato', 'sted'].forEach(function(key) {
         var cb = document.getElementById('autofill-' + key);
         if (cb) cb.checked = defaults['autofill_' + key] !== false;
+    });
+}
+
+function loadDefaultsForTab(tab) {
+    // Show cached immediately
+    var key = tab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
+    var stored = localStorage.getItem(key);
+    _applyDefaultsToUI(stored ? JSON.parse(stored) : {});
+    // Background refresh
+    getDefaultSettings(tab).then(function(defaults) {
+        if (document.body.classList.contains('settings-modal-open'))
+            _applyDefaultsToUI(defaults);
     });
 }
 

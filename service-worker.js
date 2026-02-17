@@ -1,4 +1,4 @@
-const CACHE_NAME = 'firesafe-v211';
+const CACHE_NAME = 'firesafe-v214';
 const ASSETS = [
     '/Firesafe-ordreseddel/',
     '/Firesafe-ordreseddel/index.html',
@@ -53,7 +53,7 @@ self.addEventListener('fetch', event => {
             })
             .catch(() => {
                 // Network failed, try cache
-                return caches.match(event.request);
+                return caches.match(event.request, { ignoreSearch: true });
             })
     );
 });

@@ -151,7 +151,7 @@ if (auth) {
         // Clear cached data when switching to a different user
         var lastUid = localStorage.getItem('firesafe_last_uid');
         if (lastUid && lastUid !== user.uid) {
-            [SETTINGS_KEY, DEFAULTS_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
+            [SETTINGS_KEY, DEFAULTS_KEY, DEFAULTS_EXTERNAL_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
              STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, EXTERNAL_KEY, EXTERNAL_ARCHIVE_KEY]
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
@@ -177,20 +177,20 @@ if (auth) {
                         applyTranslations();
                     }
                 }).catch(function() {}),
-                syncOrderNumberIndex(),
-                syncDefaultsToLocal(),
-                syncSettingsToLocal(),
-                typeof getDropdownOptions === 'function' ? getDropdownOptions() : Promise.resolve(),
+                syncOrderNumberIndex().catch(function() {}),
+                syncDefaultsToLocal().catch(function() {}),
+                syncSettingsToLocal().catch(function() {}),
+                typeof getDropdownOptions === 'function' ? getDropdownOptions().catch(function() {}) : Promise.resolve(),
                 typeof getRequiredSettings === 'function' ? getRequiredSettings().then(function(data) {
                     cachedRequiredSettings = data;
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
-                }) : Promise.resolve(),
+                }).catch(function() {}) : Promise.resolve(),
                 typeof getTemplates === 'function' ? getTemplates().then(function(result) {
                     _templateLastDoc = result.lastDoc;
                     _templateHasMore = result.hasMore;
                     localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
                     window.loadedTemplates = result.forms;
-                }) : Promise.resolve()
+                }).catch(function() {}) : Promise.resolve()
             ]);
 
             // Vis template-modal med ferdig data etter synk
@@ -363,15 +363,15 @@ async function syncOrderNumberIndex() {
     if (!currentUser || !db) return;
     const numbers = new Set();
     const collections = ['forms', 'archive', 'external', 'externalArchive'];
-    for (const col of collections) {
-        try {
-            const snap = await db.collection('users').doc(currentUser.uid).collection(col).get();
-            snap.docs.forEach(function(doc) {
-                var nr = doc.data().ordreseddelNr;
-                if (nr) numbers.add(String(nr));
-            });
-        } catch (e) {}
-    }
+    var snaps = await Promise.all(collections.map(function(col) {
+        return db.collection('users').doc(currentUser.uid).collection(col).get().catch(function() { return { docs: [] }; });
+    }));
+    snaps.forEach(function(snap) {
+        snap.docs.forEach(function(doc) {
+            var nr = doc.data().ordreseddelNr;
+            if (nr) numbers.add(String(nr));
+        });
+    });
     localStorage.setItem(USED_NUMBERS_KEY, JSON.stringify([...numbers]));
 }
 
@@ -1786,9 +1786,9 @@ function validateRequiredFields() {
 async function saveForm() {
     if (!validateRequiredFields()) return;
 
-    // Validate order number against registered ranges
+    // Validate order number against registered ranges (use cache for instant validation)
     const orderNr = document.getElementById('mobile-ordreseddel-nr').value.trim();
-    const orderSettings = await getOrderNrSettings();
+    const orderSettings = typeof _getCachedOrderNrSettings === 'function' ? _getCachedOrderNrSettings() : await getOrderNrSettings();
     const ranges = (orderSettings && orderSettings.ranges) ? orderSettings.ranges : [];
     if (ranges.length > 0) {
         if (!isExternalForm && !isNumberInRanges(orderNr, ranges)) {
