@@ -274,7 +274,7 @@ body:has(#template-editor-overlay.active) .toolbar button {
     font-size: 11px;
     display: grid;
     grid-template-columns: 150px auto;
-    gap: 0 10px;
+    gap: 0 15px;
     justify-content: start;
     align-items: baseline;
 }
@@ -315,7 +315,7 @@ body:has(#template-editor-overlay.active) .toolbar button {
     font-size: 11px;
     display: grid;
     grid-template-columns: 150px auto;
-    gap: 0 10px;
+    gap: 0 15px;
     justify-content: start;
     text-align: left;
 }
