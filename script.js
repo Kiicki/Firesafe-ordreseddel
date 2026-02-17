@@ -114,7 +114,7 @@ async function checkAdminStatus(uid) {
 
 // Auth state listener
 if (auth) {
-    auth.onAuthStateChanged(async (user) => {
+    auth.onAuthStateChanged(function(user) {
         authReady = true;
         currentUser = user;
         isAdmin = false;
@@ -164,12 +164,15 @@ if (auth) {
         var wasOnLogin = document.getElementById('login-view').classList.contains('active');
 
         if (db) {
-            // Check admin status
-            isAdmin = await checkAdminStatus(user.uid);
-            if (isAdmin) localStorage.setItem('firesafe_admin', '1');
+            // Show template modal immediately (cache-first)
+            if (wasOnLogin) showTemplateModal();
 
-            // Sync all settings + templates from Firebase to localStorage
-            await Promise.all([
+            // Sync everything in background (non-blocking)
+            Promise.all([
+                checkAdminStatus(user.uid).then(function(admin) {
+                    isAdmin = admin;
+                    if (admin) localStorage.setItem('firesafe_admin', '1');
+                }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('language').get().then(function(doc) {
                     if (doc.exists && doc.data().lang) {
                         currentLang = doc.data().lang;
@@ -190,14 +193,15 @@ if (auth) {
                     _templateHasMore = result.hasMore;
                     localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
                     window.loadedTemplates = result.forms;
+                    // Refresh template modal if still visible
+                    if (document.body.classList.contains('template-modal-open')) {
+                        var active = result.forms.filter(function(t) { return t.active !== false; });
+                        renderTemplateList(active, false, _templateHasMore);
+                    }
                 }).catch(function() {}) : Promise.resolve()
-            ]);
-
-            // Vis template-modal med ferdig data etter synk
-            if (wasOnLogin) showTemplateModal();
-
-            // Refresh data for the currently active view
-            if (typeof refreshActiveView === 'function') refreshActiveView();
+            ]).then(function() {
+                if (typeof refreshActiveView === 'function') refreshActiveView();
+            });
         } else if (wasOnLogin) {
             showTemplateModal();
         }
