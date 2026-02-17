@@ -2347,6 +2347,28 @@ function switchFormType(type) {
     window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
     document.getElementById('form-header-title').textContent =
         t(isExternalForm ? 'external_form_title' : 'form_title');
+
+    // Ordrenummer: eksterne bruker ikke egne nummerområder
+    if (isExternalForm) {
+        document.getElementById('ordreseddel-nr').value = '';
+        document.getElementById('mobile-ordreseddel-nr').value = '';
+    } else {
+        autoFillOrderNumber();
+    }
+
+    // Tøm autofyll-felt først, så applyer riktig profil
+    DEFAULT_FIELDS.forEach(function(field) {
+        var el = document.getElementById(field);
+        var mobileEl = document.getElementById('mobile-' + field);
+        if (el) el.value = '';
+        if (mobileEl) mobileEl.value = '';
+    });
+    document.getElementById('dato').value = '';
+    document.getElementById('mobile-dato').value = '';
+    document.getElementById('signering-dato').value = '';
+    document.getElementById('mobile-signering-dato').value = '';
+
+    // Applyer autofyll fra riktig profil
     var afType = isExternalForm ? 'external' : undefined;
     autoFillDefaults(afType);
     var flags = getAutofillFlags(afType);
