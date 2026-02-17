@@ -1659,22 +1659,26 @@ async function renderSettingsTemplateList() {
         var detail = [tpl.oppdragsgiver, tpl.prosjektnr].filter(function(x) { return x; }).map(escapeHtml).join(' \u2022 ');
         var id = escapeHtml(tpl.id);
 
-        var actionsHtml = isActive ?
-            '<div class="settings-template-item-actions">' +
-                '<button class="settings-template-duplicate-btn" onclick="event.stopPropagation(); duplicateTemplate(\'' + id + '\')" title="' + t('duplicate_btn') + '">' +
-                    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
-                '</button>' +
-                '<button class="settings-template-delete-btn" onclick="event.stopPropagation(); deleteTemplateFromSettings(\'' + id + '\')" title="' + t('delete_btn') + '">' +
-                    deleteIcon +
-                '</button>' +
-            '</div>' : '';
+        var duplicateBtn = isActive
+            ? '<button class="settings-template-duplicate-btn" onclick="event.stopPropagation(); duplicateTemplate(\'' + id + '\')" title="' + t('duplicate_btn') + '">'
+            : '<button class="settings-template-duplicate-btn disabled" onclick="event.stopPropagation()" title="' + t('duplicate_btn') + '">';
+        var delBtn = isActive
+            ? '<button class="settings-template-delete-btn" onclick="event.stopPropagation(); deleteTemplateFromSettings(\'' + id + '\')" title="' + t('delete_btn') + '">'
+            : '<button class="settings-template-delete-btn disabled" onclick="event.stopPropagation()" title="' + t('delete_btn') + '">';
 
         return '<div class="settings-template-item' + (isActive ? '' : ' inactive') + '" data-id="' + id + '" onclick="showTemplateEditor(\'' + id + '\')">' +
             '<div class="settings-template-item-info">' +
                 '<div class="settings-template-item-row1">' + name + '</div>' +
                 (detail ? '<div class="settings-template-item-row2">' + detail + '</div>' : '') +
             '</div>' +
-            actionsHtml +
+            '<div class="settings-template-item-actions">' +
+                duplicateBtn +
+                    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
+                '</button>' +
+                delBtn +
+                    deleteIcon +
+                '</button>' +
+            '</div>' +
         '</div>';
     }).join('');
 }

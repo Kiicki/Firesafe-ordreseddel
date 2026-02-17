@@ -2808,6 +2808,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-template-duplicate-btn:active {
     opacity: 0.6;
 }
+.settings-template-duplicate-btn.disabled,
+.settings-template-delete-btn.disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+.settings-template-duplicate-btn.disabled:active,
+.settings-template-delete-btn.disabled:active {
+    opacity: 0.4;
+}
 
 /* Template editor overlay */
 .template-editor-content {
