@@ -435,6 +435,10 @@
 
                 <!-- Standardverdier-side -->
                 <div id="settings-page-defaults" class="settings-page" style="display:none;">
+                    <div class="settings-tabs">
+                        <button class="settings-tab active" onclick="switchDefaultsTab('own')" data-i18n="tab_own">Egne</button>
+                        <button class="settings-tab" onclick="switchDefaultsTab('external')" data-i18n="tab_external">Eksterne</button>
+                    </div>
                     <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
                     <div class="settings-group">
                         <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>

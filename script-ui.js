@@ -757,9 +757,9 @@ function loadExternalFormDirect(form) {
     if (!form) return;
     setFormData(form);
 
-    // Autofyll standardverdier og uke/dato for eksterne skjema
-    autoFillDefaults();
-    var flags = getAutofillFlags();
+    // Autofyll med eksterne innstillinger
+    autoFillDefaults('external');
+    var flags = getAutofillFlags('external');
     var now = new Date();
     if (flags.uke) {
         var week = 'Uke ' + getWeekNumber(now);
@@ -1221,18 +1221,10 @@ async function showSettingsPage(page) {
         document.getElementById('settings-give-end').value = '';
         updateSettingsStatus();
     } else if (page === 'defaults') {
-        var defaults = await getDefaultSettings();
-        DEFAULT_FIELDS.forEach(function(field) {
-            var input = document.getElementById('default-' + field);
-            if (input) {
-                input.value = defaults[field] || '';
-                defaultsInitialValues[field] = input.value;
-            }
-        });
-        ['uke', 'dato', 'sted'].forEach(function(key) {
-            var cb = document.getElementById('autofill-' + key);
-            if (cb) cb.checked = defaults['autofill_' + key] !== false;
-        });
+        _defaultsTab = 'own';
+        var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
+        if (tabs.length) { tabs[0].classList.add('active'); tabs[1].classList.remove('active'); }
+        await loadDefaultsForTab('own');
         defaultsAutoSaveInitialized = false;
         initDefaultsAutoSave();
     } else if (page === 'required') {
@@ -1971,45 +1963,54 @@ function updateRequiredIndicators() {
 
 const DEFAULT_FIELDS = ['montor', 'avdeling', 'sted'];
 
-async function getDefaultSettings() {
+var _defaultsTab = 'own';
+
+async function getDefaultSettings(tab) {
+    var key = tab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
+    var fbDoc = tab === 'external' ? 'defaults_external' : 'defaults';
     if (currentUser && db) {
         try {
-            const doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
+            var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).get();
             if (doc.exists) return doc.data();
         } catch (e) {
             console.error('Defaults error:', e);
         }
     }
-    const stored = localStorage.getItem(DEFAULTS_KEY);
+    var stored = localStorage.getItem(key);
     return stored ? JSON.parse(stored) : {};
 }
 
 async function syncDefaultsToLocal() {
     if (!db || !currentUser) return;
     try {
-        const doc = await db.collection('users').doc(currentUser.uid)
-            .collection('settings').doc('defaults').get();
-        if (doc.exists) {
-            localStorage.setItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
-        }
+        var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
+        if (doc.exists) localStorage.setItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
+        var extDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_external').get();
+        if (extDoc.exists) localStorage.setItem(DEFAULTS_EXTERNAL_KEY, JSON.stringify(extDoc.data()));
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
 async function saveDefaultSettings() {
-    const defaults = {};
+    var defaults = {};
     DEFAULT_FIELDS.forEach(field => {
-        const val = document.getElementById('default-' + field).value.trim();
+        var val = document.getElementById('default-' + field).value.trim();
         if (val) defaults[field] = val;
     });
-
+    // Behold autofill-toggles fra eksisterende data
+    var key = _defaultsTab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
+    var fbDoc = _defaultsTab === 'external' ? 'defaults_external' : 'defaults';
+    var existing = JSON.parse(localStorage.getItem(key) || '{}');
+    ['autofill_uke', 'autofill_dato', 'autofill_sted'].forEach(function(k) {
+        if (existing[k] !== undefined) defaults[k] = existing[k];
+    });
     if (currentUser && db) {
         try {
-            await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').set(defaults);
+            await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults);
         } catch (e) {
             console.error('Save defaults error:', e);
         }
     }
-    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+    localStorage.setItem(key, JSON.stringify(defaults));
 }
 
 // Auto-save defaults on blur
@@ -2035,33 +2036,47 @@ function initDefaultsAutoSave() {
     });
 }
 
-async function loadDefaultSettingsToModal() {
-    const defaults = await getDefaultSettings();
-    DEFAULT_FIELDS.forEach(field => {
-        const input = document.getElementById('default-' + field);
-        input.value = defaults[field] || '';
-        defaultsInitialValues[field] = input.value;
-    });
-    initDefaultsAutoSave();
+function switchDefaultsTab(tab) {
+    _defaultsTab = tab;
+    var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    tabs[tab === 'own' ? 0 : 1].classList.add('active');
+    loadDefaultsForTab(tab);
 }
 
-function autoFillDefaults() {
-    // Use localStorage cache for instant response
-    const stored = localStorage.getItem(DEFAULTS_KEY);
-    const defaults = stored ? JSON.parse(stored) : {};
+async function loadDefaultsForTab(tab) {
+    var defaults = await getDefaultSettings(tab);
+    DEFAULT_FIELDS.forEach(function(field) {
+        var input = document.getElementById('default-' + field);
+        if (input) {
+            input.value = defaults[field] || '';
+            defaultsInitialValues[field] = input.value;
+        }
+    });
+    ['uke', 'dato', 'sted'].forEach(function(key) {
+        var cb = document.getElementById('autofill-' + key);
+        if (cb) cb.checked = defaults['autofill_' + key] !== false;
+    });
+}
+
+function autoFillDefaults(type) {
+    var key = type === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
+    var stored = localStorage.getItem(key);
+    var defaults = stored ? JSON.parse(stored) : {};
     DEFAULT_FIELDS.forEach(field => {
         if (defaults[field]) {
             if (field === 'sted' && defaults.autofill_sted === false) return;
-            const el = document.getElementById(field);
-            const mobileEl = document.getElementById('mobile-' + field);
+            var el = document.getElementById(field);
+            var mobileEl = document.getElementById('mobile-' + field);
             if (el) el.value = defaults[field];
             if (mobileEl) mobileEl.value = defaults[field];
         }
     });
 }
 
-function getAutofillFlags() {
-    var stored = localStorage.getItem(DEFAULTS_KEY);
+function getAutofillFlags(type) {
+    var key = type === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
+    var stored = localStorage.getItem(key);
     var defaults = stored ? JSON.parse(stored) : {};
     return {
         uke: defaults.autofill_uke !== false,
@@ -2071,13 +2086,15 @@ function getAutofillFlags() {
 }
 
 async function saveAutofillToggle(key, value) {
-    var stored = localStorage.getItem(DEFAULTS_KEY);
+    var storageKey = _defaultsTab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
+    var fbDoc = _defaultsTab === 'external' ? 'defaults_external' : 'defaults';
+    var stored = localStorage.getItem(storageKey);
     var defaults = stored ? JSON.parse(stored) : {};
     defaults['autofill_' + key] = value;
-    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+    localStorage.setItem(storageKey, JSON.stringify(defaults));
     if (currentUser && db) {
         try {
-            await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').set(defaults);
+            await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults);
         } catch (e) { console.error('Save autofill toggle:', e); }
     }
 }

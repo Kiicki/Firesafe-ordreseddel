@@ -2718,6 +2718,27 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-radius: 0;
     margin-bottom: 0;
 }
+.settings-tabs {
+    display: flex;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 16px;
+}
+.settings-tab {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+}
+.settings-tab.active {
+    color: #333;
+    border-bottom-color: #333;
+}
 .settings-section-header {
     font-size: 13px;
     font-weight: 500;

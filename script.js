@@ -3,6 +3,7 @@ const ARCHIVE_KEY = 'firesafe_arkiv';
 const TEMPLATE_KEY = 'firesafe_maler';
 const SETTINGS_KEY = 'firesafe_settings';
 const DEFAULTS_KEY = 'firesafe_defaults';
+const DEFAULTS_EXTERNAL_KEY = 'firesafe_defaults_external';
 const MATERIALS_KEY = 'firesafe_materials';
 const EXTERNAL_KEY = 'firesafe_external';
 const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
