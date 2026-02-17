@@ -318,7 +318,6 @@ body:has(#template-editor-overlay.active) .toolbar button {
     gap: 0 10px;
     justify-content: start;
     text-align: left;
-    justify-content: center;
 }
 
 .header-right-info .left {
