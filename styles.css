@@ -2718,7 +2718,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-tabs {
     display: flex;
     border-bottom: 2px solid #eee;
-    margin-bottom: 16px;
+    margin: -16px -16px 16px -16px;
+    padding: 0 16px;
 }
 .settings-tab {
     flex: 1;
