@@ -62,10 +62,12 @@ function formatDateWithTime(date) {
 
 // View system: show one view, hide all others
 function showView(viewId) {
+    var target = document.getElementById(viewId);
+    if (target.classList.contains('active')) return;
     document.querySelectorAll('.view').forEach(function(v) {
         v.classList.remove('active');
     });
-    document.getElementById(viewId).classList.add('active');
+    target.classList.add('active');
 }
 
 function closeAllModals() {
