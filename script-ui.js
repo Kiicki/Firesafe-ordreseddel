@@ -881,7 +881,7 @@ function _buildTemplateItemHtml(item, index) {
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-row1">' + row1 + '</div>' +
-            '<div class="saved-item-row2">' + (row2 || '&nbsp;') + '</div>' +
+            (row2 ? '<div class="saved-item-row2">' + row2 + '</div>' : '') +
             (row3 ? '<div class="saved-item-row2">' + row3 + '</div>' : '') +
         '</div>' +
     '</div>';
