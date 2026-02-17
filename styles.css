@@ -1404,23 +1404,31 @@ label.settings-default-label.field-required > span::after {
     color: #E8501A;
 }
 
-.form-type-chip {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-weight: 600;
-    border: 1px solid #ddd;
-    background: #f5f5f5;
-    color: #666;
+.form-type-tabs {
+    display: flex;
+    border-bottom: 2px solid #eee;
+}
+.form-type-tab {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: #888;
     cursor: pointer;
-    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
 }
-.form-type-chip.external {
-    color: #E8501A;
-    background: #fef0ea;
-    border-color: #f5c6b3;
+.form-type-tab.active {
+    color: #333;
+    border-bottom-color: #333;
 }
-.form-type-chip.disabled {
+.form-type-tab:hover:not(.active) {
+    color: #555;
+    background: #f8f8f8;
+}
+.form-type-tabs.disabled .form-type-tab {
     opacity: 0.5;
     pointer-events: none;
 }

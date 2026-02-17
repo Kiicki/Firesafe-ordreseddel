@@ -260,9 +260,9 @@ function setFormReadOnly(readOnly) {
         row.style.pointerEvents = readOnly ? 'none' : '';
     });
 
-    // Disable form type chip
-    var chip = document.getElementById('form-type-chip');
-    if (chip) chip.classList.toggle('disabled', readOnly);
+    // Disable form type tabs
+    var formTypeTabs = document.getElementById('form-type-tabs');
+    if (formTypeTabs) formTypeTabs.classList.toggle('disabled', readOnly);
 }
 
 function loadForm(index) {
@@ -2333,26 +2333,23 @@ function isNumberInRanges(nr, ranges) {
 }
 
 function updateFormTypeChip() {
-    var chip = document.getElementById('form-type-chip');
-    if (!chip) return;
-    if (isExternalForm) {
-        chip.textContent = t('external_badge');
-        chip.classList.add('external');
-    } else {
-        chip.textContent = t('own_badge');
-        chip.classList.remove('external');
-    }
+    var tabs = document.querySelectorAll('#form-type-tabs .form-type-tab');
+    if (!tabs.length) return;
+    tabs[0].classList.toggle('active', !isExternalForm);
+    tabs[1].classList.toggle('active', isExternalForm);
 }
 
-function toggleFormType() {
-    isExternalForm = !isExternalForm;
+function switchFormType(type) {
+    var newExternal = type === 'external';
+    if (newExternal === isExternalForm) return;
+    isExternalForm = newExternal;
     updateFormTypeChip();
     window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
     document.getElementById('form-header-title').textContent =
         t(isExternalForm ? 'external_form_title' : 'form_title');
-    var type = isExternalForm ? 'external' : undefined;
-    autoFillDefaults(type);
-    var flags = getAutofillFlags(type);
+    var afType = isExternalForm ? 'external' : undefined;
+    autoFillDefaults(afType);
+    var flags = getAutofillFlags(afType);
     var now = new Date();
     if (flags.uke) {
         var week = 'Uke ' + getWeekNumber(now);

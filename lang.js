@@ -234,7 +234,6 @@ const TRANSLATIONS = {
         // External order
         external_order_btn: 'Ekstern skjema',
         external_badge: 'Eksternt',
-        own_badge: 'Eget',
         form_title: 'Ordreseddel',
         external_form_title: 'Ekstern ordreseddel',
         validation_nr_not_in_range: 'Ordrenummer {0} er ikke innenfor dine registrerte områder',
@@ -481,7 +480,6 @@ const TRANSLATIONS = {
         // External order
         external_order_btn: 'External form',
         external_badge: 'External',
-        own_badge: 'Own',
         form_title: 'Order form',
         external_form_title: 'External order form',
         validation_nr_not_in_range: 'Order number {0} is not within your registered ranges',
