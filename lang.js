@@ -128,6 +128,7 @@ const TRANSLATIONS = {
         // Templates
         template_modal_title: 'Velg prosjektmal',
         template_new_form: 'Eget skjema',
+        template_blank_form: 'Tomt skjema',
         template_save_success: 'Prosjektmal lagret!',
         template_duplicated: 'Mal duplisert — rediger og lagre!',
         template_update_success: 'Mal oppdatert!',
@@ -233,6 +234,7 @@ const TRANSLATIONS = {
         // External order
         external_order_btn: 'Ekstern skjema',
         external_badge: 'Eksternt',
+        own_badge: 'Eget',
         form_title: 'Ordreseddel',
         external_form_title: 'Ekstern ordreseddel',
         validation_nr_not_in_range: 'Ordrenummer {0} er ikke innenfor dine registrerte områder',
@@ -373,6 +375,7 @@ const TRANSLATIONS = {
         // Templates
         template_modal_title: 'Choose project template',
         template_new_form: 'Own form',
+        template_blank_form: 'Blank form',
         template_save_success: 'Project template saved!',
         template_duplicated: 'Template duplicated — edit and save!',
         template_update_success: 'Template updated!',
@@ -478,6 +481,7 @@ const TRANSLATIONS = {
         // External order
         external_order_btn: 'External form',
         external_badge: 'External',
+        own_badge: 'Own',
         form_title: 'Order form',
         external_form_title: 'External order form',
         validation_nr_not_in_range: 'Order number {0} is not within your registered ranges',

@@ -259,6 +259,10 @@ function setFormReadOnly(readOnly) {
     document.querySelectorAll('.mobile-material-row').forEach(row => {
         row.style.pointerEvents = readOnly ? 'none' : '';
     });
+
+    // Disable form type chip
+    var chip = document.getElementById('form-type-chip');
+    if (chip) chip.classList.toggle('disabled', readOnly);
 }
 
 function loadForm(index) {
@@ -270,6 +274,7 @@ function loadForm(index) {
 function loadFormDirect(formData) {
     if (!formData) return;
     setFormData(formData);
+    updateFormTypeChip();
     lastSavedData = getFormDataSnapshot();
     const isSent = !!formData._isSent;
     setFormReadOnly(isSent);
@@ -298,7 +303,7 @@ async function duplicateFormDirect(form) {
     document.getElementById('ordreseddel-nr').value = '';
     document.getElementById('mobile-ordreseddel-nr').value = '';
     isExternalForm = false;
-    updateExternalBadge();
+    updateFormTypeChip();
     autoFillOrderNumber();
 
     // Sett uke og dato basert på autofyll-innstillinger
@@ -756,6 +761,8 @@ function loadExternalForm(index) {
 function loadExternalFormDirect(form) {
     if (!form) return;
     setFormData(form);
+    isExternalForm = true;
+    updateFormTypeChip();
 
     // Autofyll med eksterne innstillinger
     autoFillDefaults('external');
@@ -2325,30 +2332,41 @@ function isNumberInRanges(nr, ranges) {
     return false;
 }
 
-function updateExternalBadge() {
-    const badge = document.getElementById('external-badge');
-    if (badge) badge.style.display = isExternalForm ? '' : 'none';
+function updateFormTypeChip() {
+    var chip = document.getElementById('form-type-chip');
+    if (!chip) return;
+    if (isExternalForm) {
+        chip.textContent = t('external_badge');
+        chip.classList.add('external');
+    } else {
+        chip.textContent = t('own_badge');
+        chip.classList.remove('external');
+    }
 }
 
-function startExternalOrder() {
-    showView('view-form');
-    document.body.classList.remove('template-modal-open');
-    updateToolbarState();
-    document.getElementById('template-search').value = '';
-    if (preNewFormData) {
-        clearForm();
-        preNewFormData = null;
-        setFormReadOnly(false);
+function toggleFormType() {
+    isExternalForm = !isExternalForm;
+    updateFormTypeChip();
+    window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
+    document.getElementById('form-header-title').textContent =
+        t(isExternalForm ? 'external_form_title' : 'form_title');
+    var type = isExternalForm ? 'external' : undefined;
+    autoFillDefaults(type);
+    var flags = getAutofillFlags(type);
+    var now = new Date();
+    if (flags.uke) {
+        var week = 'Uke ' + getWeekNumber(now);
+        document.getElementById('dato').value = week;
+        document.getElementById('mobile-dato').value = week;
     }
-    isExternalForm = true;
-    updateExternalBadge();
-    // External form = #ekstern
-    window.location.hash = 'ekstern';
+    if (flags.dato) {
+        var today = formatDate(now);
+        document.getElementById('signering-dato').value = today;
+        document.getElementById('mobile-signering-dato').value = today;
+    }
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-    // Update form header title
-    document.getElementById('form-header-title').textContent = t('external_form_title');
-    updateOrderDeleteStates();
 }
+
 
 function hasAnyFormData() {
     // Hent standardverdier for sammenligning
@@ -2411,7 +2429,7 @@ function clearForm() {
     sessionStorage.removeItem('firesafe_current_sent');
     lastSavedData = null;
     isExternalForm = false;
-    updateExternalBadge();
+    updateFormTypeChip();
 
     // Reset orders to 1 empty card
     const container = document.getElementById('mobile-orders');
@@ -2747,6 +2765,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const hash = window.location.hash.slice(1);
     if (hash === 'skjema' || hash === 'ekstern') {
         document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
+        updateFormTypeChip();
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
             setFormReadOnly(true);
@@ -2806,10 +2825,12 @@ window.addEventListener('hashchange', function() {
         showView('view-form');
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t('form_title');
+        updateFormTypeChip();
     } else if (hash === 'ekstern') {
         showView('view-form');
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t('external_form_title');
+        updateFormTypeChip();
     } else {
         // No hash = home = template modal
         showTemplateModal();

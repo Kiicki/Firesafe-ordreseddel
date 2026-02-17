@@ -1592,7 +1592,7 @@ function setFormData(data) {
     setVal('kundens-underskrift', data.kundensUnderskrift);
 
     isExternalForm = !!data.isExternal;
-    updateExternalBadge();
+    updateFormTypeChip();
 
     syncOriginalToMobile();
 
