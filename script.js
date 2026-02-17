@@ -124,6 +124,7 @@ if (auth) {
         loadedExternalForms = [];
 
         if (!user) {
+            window._explicitLogout = false;
             if (localStorage.getItem('firesafe_logged_in')) {
                 // Kan være midlertidig null under auth-init. Vent før vi rydder.
                 setTimeout(function() {
@@ -145,6 +146,12 @@ if (auth) {
             var loginCard = document.getElementById('login-card');
             if (loginCard) loginCard.style.display = '';
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+            return;
+        }
+
+        // Ignore stale auth events after explicit logout
+        if (window._explicitLogout) {
+            window._explicitLogout = false;
             return;
         }
 
@@ -247,6 +254,7 @@ function handleAuth() {
             sessionStorage.removeItem('firesafe_current_sent');
             currentUser = null;
             isAdmin = false;
+            window._explicitLogout = true;
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
             history.replaceState(null, '', window.location.pathname);
             showView('login-view');
