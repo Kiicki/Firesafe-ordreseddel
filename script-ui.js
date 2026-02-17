@@ -1133,6 +1133,7 @@ function closeTemplateModal() {
     document.getElementById('form-header-title').textContent = t('form_title');
     updateOrderDeleteStates();
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    lastSavedData = getFormDataSnapshot();
 }
 
 
@@ -2656,7 +2657,7 @@ function newForm() {
     }
 
     if (hasUnsavedChanges()) {
-        showConfirmModal(t('new_form_confirm'), doNewForm, t('btn_start_new'), '#E8501A');
+        showConfirmModal(t('unsaved_warning'), doNewForm, t('btn_continue'), '#E8501A');
     } else {
         doNewForm();
     }
