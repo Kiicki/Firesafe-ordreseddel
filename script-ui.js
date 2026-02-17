@@ -301,16 +301,19 @@ async function duplicateFormDirect(form) {
     updateExternalBadge();
     autoFillOrderNumber();
 
-    // Sett uke til nåværende
+    // Sett uke og dato basert på autofyll-innstillinger
     const now = new Date();
-    const week = 'Uke ' + getWeekNumber(now);
-    document.getElementById('dato').value = week;
-    document.getElementById('mobile-dato').value = week;
-
-    // Sett signeringsdato til i dag
-    const today = formatDate(now);
-    document.getElementById('signering-dato').value = today;
-    document.getElementById('mobile-signering-dato').value = today;
+    const flags = getAutofillFlags();
+    if (flags.uke) {
+        const week = 'Uke ' + getWeekNumber(now);
+        document.getElementById('dato').value = week;
+        document.getElementById('mobile-dato').value = week;
+    }
+    if (flags.dato) {
+        const today = formatDate(now);
+        document.getElementById('signering-dato').value = today;
+        document.getElementById('mobile-signering-dato').value = today;
+    }
 
     // Tøm kundens underskrift
     document.getElementById('kundens-underskrift').value = '';
@@ -1210,6 +1213,10 @@ async function showSettingsPage(page) {
                 defaultsInitialValues[field] = input.value;
             }
         });
+        ['uke', 'dato', 'sted'].forEach(function(key) {
+            var cb = document.getElementById('autofill-' + key);
+            if (cb) cb.checked = defaults['autofill_' + key] !== false;
+        });
         defaultsAutoSaveInitialized = false;
         initDefaultsAutoSave();
     } else if (page === 'required') {
@@ -2028,12 +2035,35 @@ function autoFillDefaults() {
     const defaults = stored ? JSON.parse(stored) : {};
     DEFAULT_FIELDS.forEach(field => {
         if (defaults[field]) {
+            if (field === 'sted' && defaults.autofill_sted === false) return;
             const el = document.getElementById(field);
             const mobileEl = document.getElementById('mobile-' + field);
             if (el) el.value = defaults[field];
             if (mobileEl) mobileEl.value = defaults[field];
         }
     });
+}
+
+function getAutofillFlags() {
+    var stored = localStorage.getItem(DEFAULTS_KEY);
+    var defaults = stored ? JSON.parse(stored) : {};
+    return {
+        uke: defaults.autofill_uke !== false,
+        dato: defaults.autofill_dato !== false,
+        sted: defaults.autofill_sted !== false
+    };
+}
+
+async function saveAutofillToggle(key, value) {
+    var stored = localStorage.getItem(DEFAULTS_KEY);
+    var defaults = stored ? JSON.parse(stored) : {};
+    defaults['autofill_' + key] = value;
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+    if (currentUser && db) {
+        try {
+            await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').set(defaults);
+        } catch (e) { console.error('Save autofill toggle:', e); }
+    }
 }
 
 function renderSettingsRanges() {
@@ -2332,13 +2362,17 @@ function clearForm() {
     clearSignaturePreview();
 
     const now = new Date();
-    const today = formatDate(now);
-    document.getElementById('signering-dato').value = today;
-    document.getElementById('mobile-signering-dato').value = today;
-
-    const week = 'Uke ' + getWeekNumber(now);
-    document.getElementById('dato').value = week;
-    document.getElementById('mobile-dato').value = week;
+    const flags = getAutofillFlags();
+    if (flags.dato) {
+        const today = formatDate(now);
+        document.getElementById('signering-dato').value = today;
+        document.getElementById('mobile-signering-dato').value = today;
+    }
+    if (flags.uke) {
+        const week = 'Uke ' + getWeekNumber(now);
+        document.getElementById('dato').value = week;
+        document.getElementById('mobile-dato').value = week;
+    }
 
     sessionStorage.removeItem('firesafe_current');
     sessionStorage.removeItem('firesafe_current_sent');
@@ -2396,16 +2430,19 @@ function duplicateCurrentForm() {
     document.getElementById('mobile-kundens-underskrift').value = '';
     clearSignaturePreview();
 
-    // Sett uke til nåværende
+    // Sett uke og dato basert på autofyll-innstillinger
     var now = new Date();
-    var week = 'Uke ' + getWeekNumber(now);
-    document.getElementById('dato').value = week;
-    document.getElementById('mobile-dato').value = week;
-
-    // Sett signeringsdato til i dag
-    var today = formatDate(now);
-    document.getElementById('signering-dato').value = today;
-    document.getElementById('mobile-signering-dato').value = today;
+    var flags = getAutofillFlags();
+    if (flags.uke) {
+        var week = 'Uke ' + getWeekNumber(now);
+        document.getElementById('dato').value = week;
+        document.getElementById('mobile-dato').value = week;
+    }
+    if (flags.dato) {
+        var today = formatDate(now);
+        document.getElementById('signering-dato').value = today;
+        document.getElementById('mobile-signering-dato').value = today;
+    }
 
     // Reset bestillinger til 1 tomt ordrekort
     var container = document.getElementById('mobile-orders');

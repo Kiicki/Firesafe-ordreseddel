@@ -440,6 +440,12 @@
                         <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
                         <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
                     </div>
+                    <div class="settings-section-header" data-i18n="settings_autofill_header">Automatisk utfylling</div>
+                    <div class="settings-autofill-toggles">
+                        <div class="settings-toggle-item"><span data-i18n="label_uke">Uke</span><label class="settings-toggle"><input type="checkbox" id="autofill-uke" checked onchange="saveAutofillToggle('uke', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+                        <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-dato" checked onchange="saveAutofillToggle('dato', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+                        <div class="settings-toggle-item"><span data-i18n="label_sted">Sted</span><label class="settings-toggle"><input type="checkbox" id="autofill-sted" checked onchange="saveAutofillToggle('sted', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+                    </div>
                 </div>
 
                 <!-- Obligatoriske felt-side (lagre/eksport) -->

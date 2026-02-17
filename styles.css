@@ -2708,6 +2708,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     grid-template-columns: 1fr;
     gap: 0;
 }
+.settings-section-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    margin: 20px 0 10px;
+    letter-spacing: 0.5px;
+}
 
 /* Template management in settings */
 .settings-add-template-btn {
