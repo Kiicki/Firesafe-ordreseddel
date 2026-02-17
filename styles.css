@@ -1433,6 +1433,13 @@ label.settings-default-label.field-required > span::after {
     pointer-events: none;
 }
 
+.template-section-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #999;
+    padding: 12px 15px 4px;
+}
+
 .status-dot {
     width: 8px;
     height: 8px;
