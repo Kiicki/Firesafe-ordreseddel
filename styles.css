@@ -1366,10 +1366,25 @@ label.settings-default-label.field-required > span::after {
 }
 
 .mobile-order-desc {
-    height: 90px;
     resize: none;
     overflow: hidden;
     font-family: inherit;
+}
+
+.mobile-desc-btn {
+    padding: 10px 12px;
+    background: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+}
+
+.mobile-desc-btn:active {
+    background: #e8e8e8;
 }
 
 .mobile-work-row {

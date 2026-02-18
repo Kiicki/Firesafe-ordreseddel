@@ -475,10 +475,22 @@ function closeTextEditor() {
         const fullText = document.getElementById('text-editor-textarea').value;
         currentEditingField.setAttribute('data-full-value', fullText);
         const lines = fullText.split('\n').filter(l => l.trim() !== '');
-        const preview = lines.slice(0, 4).join('\n');
-        currentEditingField.value = lines.length > 4 ? preview + '...' : preview;
+        const descBtn = currentEditingField.parentElement.querySelector('.mobile-desc-btn');
+
+        if (lines.length === 0) {
+            // Empty: show button, hide textarea
+            currentEditingField.value = '';
+            currentEditingField.style.display = 'none';
+            if (descBtn) descBtn.style.display = '';
+        } else {
+            // Has content: show textarea, hide button
+            const preview = lines.slice(0, 5).join('\n');
+            currentEditingField.value = lines.length > 5 ? preview + '...' : preview;
+            currentEditingField.style.display = '';
+            if (descBtn) descBtn.style.display = 'none';
+            autoResizeTextarea(currentEditingField);
+        }
         currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
-        autoResizeTextarea(currentEditingField);
     }
     document.getElementById('text-editor-modal').classList.remove('active');
     currentEditingField = null;
@@ -658,6 +670,7 @@ function createOrderCard(orderData, expanded) {
         <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
             <div class="mobile-field${((cachedRequiredSettings || getDefaultRequiredSettings()).save.beskrivelse !== false) ? ' field-required' : ''}">
                 <label data-i18n="order_description">${t('order_description')}</label>
+                <button type="button" class="mobile-desc-btn" data-i18n="order_description">${t('order_description')}</button>
                 <textarea class="mobile-order-desc" readonly autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section">
@@ -675,18 +688,33 @@ function createOrderCard(orderData, expanded) {
 
     // Set description
     const descInput = card.querySelector('.mobile-order-desc');
+    const descBtn = card.querySelector('.mobile-desc-btn');
 
     if (isMobile()) {
         // Mobile/tablet: use preview + fullscreen modal
         descInput.setAttribute('data-full-value', desc);
         const descLines = desc.split('\n').filter(l => l.trim());
-        const preview = descLines.slice(0, 4).join('\n');
-        descInput.value = descLines.length > 4 ? preview + '...' : preview;
 
+        // Always set up click handlers for both
+        descBtn.addEventListener('click', function() {
+            openTextEditor(descInput, t('order_description'));
+        });
         descInput.addEventListener('click', function() {
             openTextEditor(this, t('order_description'));
         });
+
+        if (descLines.length === 0) {
+            // Empty: show button, hide textarea
+            descInput.style.display = 'none';
+        } else {
+            // Has content: show textarea, hide button
+            descBtn.style.display = 'none';
+            const preview = descLines.slice(0, 5).join('\n');
+            descInput.value = descLines.length > 5 ? preview + '...' : preview;
+            autoResizeTextarea(descInput);
+        }
     } else {
+        descBtn.style.display = 'none';
         // PC: inline editable, no modal
         descInput.value = desc;
         descInput.removeAttribute('readonly');
