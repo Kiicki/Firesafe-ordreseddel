@@ -475,9 +475,10 @@ function closeTextEditor() {
         const fullText = document.getElementById('text-editor-textarea').value;
         currentEditingField.setAttribute('data-full-value', fullText);
         const lines = fullText.split('\n').filter(l => l.trim() !== '');
-        const firstLine = lines[0] || '';
-        currentEditingField.value = lines.length > 1 ? firstLine + '...' : firstLine;
+        const preview = lines.slice(0, 4).join('\n');
+        currentEditingField.value = lines.length > 4 ? preview + '...' : preview;
         currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
+        autoResizeTextarea(currentEditingField);
     }
     document.getElementById('text-editor-modal').classList.remove('active');
     currentEditingField = null;
