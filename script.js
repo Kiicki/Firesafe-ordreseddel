@@ -484,11 +484,12 @@ function closeTextEditor() {
             if (descBtn) descBtn.style.display = '';
         } else {
             // Has content: show textarea, hide button
-            const preview = lines.slice(0, 5).join('\n');
-            currentEditingField.value = lines.length > 5 ? preview + '...' : preview;
+            const previewLines = lines.slice(0, 5);
+            const preview = lines.length > 5 ? previewLines.join('\n') + '...' : previewLines.join('\n');
+            currentEditingField.value = preview;
+            currentEditingField.rows = Math.min(lines.length, 5);
             currentEditingField.style.display = '';
             if (descBtn) descBtn.style.display = 'none';
-            autoResizeTextarea(currentEditingField);
         }
         currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
     }
@@ -709,8 +710,10 @@ function createOrderCard(orderData, expanded) {
         } else {
             // Has content: show textarea, hide button
             descBtn.style.display = 'none';
-            const preview = descLines.slice(0, 5).join('\n');
-            descInput.value = descLines.length > 5 ? preview + '...' : preview;
+            const previewLines = descLines.slice(0, 5);
+            const preview = descLines.length > 5 ? previewLines.join('\n') + '...' : previewLines.join('\n');
+            descInput.value = preview;
+            descInput.rows = Math.min(descLines.length, 5);
         }
     } else {
         descBtn.style.display = 'none';
@@ -1761,9 +1764,6 @@ function setFormData(data) {
         const expanded = idx === 0; // First order expanded by default
         const card = createOrderCard(order, expanded);
         container.appendChild(card);
-        // Auto-resize description textarea now that card is in DOM
-        const descTA = card.querySelector('.mobile-order-desc');
-        if (descTA && descTA.value) autoResizeTextarea(descTA);
     });
     renumberOrders();
     updateOrderDeleteStates();
