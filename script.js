@@ -711,7 +711,6 @@ function createOrderCard(orderData, expanded) {
             descBtn.style.display = 'none';
             const preview = descLines.slice(0, 5).join('\n');
             descInput.value = descLines.length > 5 ? preview + '...' : preview;
-            requestAnimationFrame(() => autoResizeTextarea(descInput));
         }
     } else {
         descBtn.style.display = 'none';
@@ -1762,6 +1761,9 @@ function setFormData(data) {
         const expanded = idx === 0; // First order expanded by default
         const card = createOrderCard(order, expanded);
         container.appendChild(card);
+        // Auto-resize description textarea now that card is in DOM
+        const descTA = card.querySelector('.mobile-order-desc');
+        if (descTA && descTA.value) autoResizeTextarea(descTA);
     });
     renumberOrders();
     updateOrderDeleteStates();
