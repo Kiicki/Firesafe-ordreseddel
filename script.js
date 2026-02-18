@@ -671,7 +671,7 @@ function createOrderCard(orderData, expanded) {
         <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
             <div class="mobile-field${((cachedRequiredSettings || getDefaultRequiredSettings()).save.beskrivelse !== false) ? ' field-required' : ''}">
                 <label data-i18n="order_description">${t('order_description')}</label>
-                <button type="button" class="mobile-desc-btn" data-i18n="order_description">${t('order_description')}</button>
+                <button type="button" class="mobile-desc-btn">+ ${t('order_description')}</button>
                 <textarea class="mobile-order-desc" readonly autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section">
