@@ -711,7 +711,7 @@ function createOrderCard(orderData, expanded) {
             descBtn.style.display = 'none';
             const preview = descLines.slice(0, 5).join('\n');
             descInput.value = descLines.length > 5 ? preview + '...' : preview;
-            autoResizeTextarea(descInput);
+            requestAnimationFrame(() => autoResizeTextarea(descInput));
         }
     } else {
         descBtn.style.display = 'none';
