@@ -677,7 +677,7 @@ function createOrderCard(orderData, expanded) {
             <div class="mobile-order-materials-section">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
                 <div class="mobile-order-materials"></div>
-                <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)" data-i18n="order_add_material">${t('order_add_material')}</button>
+                <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
             </div>
             <div class="mobile-work-row">
                 <div class="mobile-field" style="flex:1">
