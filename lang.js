@@ -1,9 +1,9 @@
 const TRANSLATIONS = {
     no: {
         // Toolbar
-        toolbar_new: 'Ny',
+        toolbar_home: 'Hjem',
         toolbar_save: 'Lagre',
-        toolbar_load: 'Hent',
+        toolbar_forms: 'Skjemaer',
         toolbar_export: 'Eksport',
         toolbar_settings: 'Meny',
 
@@ -255,9 +255,9 @@ const TRANSLATIONS = {
     },
     en: {
         // Toolbar
-        toolbar_new: 'New',
+        toolbar_home: 'Home',
         toolbar_save: 'Save',
-        toolbar_load: 'Load',
+        toolbar_forms: 'Forms',
         toolbar_export: 'Export',
         toolbar_settings: 'Menu',
 
