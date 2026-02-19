@@ -724,9 +724,11 @@ body.template-modal-open > .top-bar {
 }
 
 .btn-ferdig {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
+    width: 100%;
     padding: 10px 20px;
     margin: 20px 0 12px;
     background: #E8501A;
