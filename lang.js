@@ -22,7 +22,7 @@ const TRANSLATIONS = {
         generating_file: 'Genererer fil...',
 
         // Sent banner
-        sent_banner_text: 'Dette skjemaet er sendt og kan ikke redigeres',
+        sent_banner_text: 'Dette skjemaet er sendt',
         sent_banner_move: 'Flytt til lagrede',
 
         // Mobile form header
@@ -117,6 +117,7 @@ const TRANSLATIONS = {
         move_to_saved_confirm: 'Vil du flytte dette skjemaet til lagrede?',
         move_to_saved_success: 'Skjema flyttet til lagrede!',
         marked_as_sent: 'Skjema markert som sendt!',
+        btn_ferdig: 'Ferdig',
         btn_move: 'Flytt',
         duplicated_success: 'Skjema duplisert — husk å lagre!',
         copied_to_clipboard: 'Kopiert!',
@@ -274,7 +275,7 @@ const TRANSLATIONS = {
         generating_file: 'Generating file...',
 
         // Sent banner
-        sent_banner_text: 'This form has been sent and cannot be edited',
+        sent_banner_text: 'This form has been sent',
         sent_banner_move: 'Move to saved',
 
         // Mobile form header
@@ -369,6 +370,7 @@ const TRANSLATIONS = {
         move_to_saved_confirm: 'Do you want to move this form to saved?',
         move_to_saved_success: 'Form moved to saved!',
         marked_as_sent: 'Form marked as sent!',
+        btn_ferdig: 'Done',
         btn_move: 'Move',
         duplicated_success: 'Form duplicated — remember to save!',
         copied_to_clipboard: 'Copied!',

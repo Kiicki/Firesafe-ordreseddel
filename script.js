@@ -1826,6 +1826,15 @@ function validateRequiredFields() {
     return true;
 }
 
+function _clearSentStateAfterSave() {
+    if (sessionStorage.getItem('firesafe_current_sent') === '1') {
+        sessionStorage.removeItem('firesafe_current_sent');
+        document.getElementById('sent-banner').style.display = 'none';
+        var ferdigBtn = document.getElementById('btn-ferdig');
+        if (ferdigBtn) ferdigBtn.style.display = '';
+    }
+}
+
 async function saveForm() {
     if (!validateRequiredFields()) return;
 
@@ -1844,9 +1853,9 @@ async function saveForm() {
         }
     }
 
-    const saveBtn = document.querySelector('.btn-save');
-    if (saveBtn.disabled) return;
-    saveBtn.disabled = true;
+    const saveBtn = document.getElementById('btn-header-save');
+    if (saveBtn && saveBtn.disabled) return;
+    if (saveBtn) saveBtn.disabled = true;
 
     try {
         const data = getFormData();
@@ -1862,12 +1871,17 @@ async function saveForm() {
                 const formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
                 const existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
 
-                // Sjekk også sendte for duplikater
+                // Sjekk sendte for duplikater
                 const archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
                 const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
                 if (!existingArchive.empty) {
-                    showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
-                    return;
+                    if (sessionStorage.getItem('firesafe_current_sent') === '1') {
+                        // Slett fra arkiv — lagres til forms nedenfor
+                        await archiveRef.doc(existingArchive.docs[0].id).delete();
+                    } else {
+                        showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
+                        return;
+                    }
                 }
 
                 if (!existing.empty) {
@@ -1877,6 +1891,7 @@ async function saveForm() {
                         loadedForms = [];
                         loadedExternalForms = [];
                         lastSavedData = getFormDataSnapshot();
+                        _clearSentStateAfterSave();
                         showNotificationModal(t('save_success'), true); showSavedForms();
                     }, t('btn_update'), '#E8501A');
                 } else {
@@ -1887,6 +1902,7 @@ async function saveForm() {
                     loadedForms = [];
                     loadedExternalForms = [];
                     lastSavedData = getFormDataSnapshot();
+                    _clearSentStateAfterSave();
                     showNotificationModal(t('save_success'), true); showSavedForms();
                 }
             } catch (e) {
@@ -1899,9 +1915,16 @@ async function saveForm() {
             const archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
 
             // Sjekk sendte for duplikater
-            if (archived.some(item => item.ordreseddelNr === data.ordreseddelNr)) {
-                showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
-                return;
+            var archivedIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+            if (archivedIdx !== -1) {
+                if (sessionStorage.getItem('firesafe_current_sent') === '1') {
+                    // Fjern fra arkiv — lagres til saved nedenfor
+                    archived.splice(archivedIdx, 1);
+                    localStorage.setItem(archiveKey, JSON.stringify(archived));
+                } else {
+                    showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
+                    return;
+                }
             }
 
             const existingIndex = saved.findIndex(item =>
@@ -1917,6 +1940,7 @@ async function saveForm() {
                     loadedForms = [];
                     loadedExternalForms = [];
                     lastSavedData = getFormDataSnapshot();
+                    _clearSentStateAfterSave();
                     showNotificationModal(t('save_success'), true); showSavedForms();
                 }, t('btn_update'), '#E8501A');
             } else {
@@ -1929,11 +1953,12 @@ async function saveForm() {
                 loadedForms = [];
                 loadedExternalForms = [];
                 lastSavedData = getFormDataSnapshot();
+                _clearSentStateAfterSave();
                 showNotificationModal(t('save_success'), true); showSavedForms();
             }
         }
     } finally {
-        saveBtn.disabled = false;
+        if (saveBtn) saveBtn.disabled = false;
     }
 }
 

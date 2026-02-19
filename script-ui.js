@@ -89,12 +89,9 @@ function updateToolbarState() {
                   && !document.body.classList.contains('saved-modal-open')
                   && !document.body.classList.contains('settings-modal-open');
 
-    const isSentForm = document.getElementById('sent-banner').style.display !== 'none';
-
-    const saveBtn = document.querySelector('.btn-save');
+    const saveBtn = document.getElementById('btn-header-save');
     if (saveBtn) {
-        // Disable if not on form, or if form is sent
-        saveBtn.disabled = !isOnForm || isSentForm;
+        saveBtn.disabled = !isOnForm;
     }
 
     const exportBtn = document.querySelector('.btn-export');
@@ -225,7 +222,8 @@ function setFormReadOnly(readOnly) {
     fields.forEach(el => el.disabled = readOnly);
 
     // Disable save button
-    document.querySelector('.btn-save').disabled = readOnly;
+    var headerSaveBtn = document.getElementById('btn-header-save');
+    if (headerSaveBtn) headerSaveBtn.disabled = readOnly;
 
     // Show/hide sent banner
     document.getElementById('sent-banner').style.display = readOnly ? 'block' : 'none';
@@ -287,7 +285,10 @@ function loadFormDirect(formData) {
     updateFormTypeChip();
     lastSavedData = getFormDataSnapshot();
     const isSent = !!formData._isSent;
-    setFormReadOnly(isSent);
+    // Show sent banner but keep form editable
+    document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
+    var ferdigBtn = document.getElementById('btn-ferdig');
+    if (ferdigBtn) ferdigBtn.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // Set hash based on form type
@@ -497,25 +498,13 @@ function showSaveMenu() {
 
 function showExportMenu() {
     if (isModalOpen()) return;
-    const isSent = document.getElementById('sent-banner').style.display !== 'none';
     const popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('export_title');
     const buttonsEl = document.getElementById('action-popup-buttons');
-    let html = '';
-    if (!isSent) {
-        html += '<div style="font-size:12px;color:#888;margin-bottom:4px;">' + t('export_only_label') + '</div>';
-    }
-    html += '<div class="confirm-modal-buttons">' +
+    let html = '<div class="confirm-modal-buttons">' +
             '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPDF(); closeActionPopup()">PDF</button>' +
             '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPNG(); closeActionPopup()">PNG</button>' +
         '</div>';
-    if (!isSent) {
-        html += '<div style="font-size:12px;color:#888;margin:10px 0 4px;">' + t('export_and_mark_label') + '</div>' +
-            '<div class="confirm-modal-buttons">' +
-                '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'pdf\'); closeActionPopup()">PDF</button>' +
-                '<button class="confirm-btn-ok" style="background:#E8501A" onclick="markAsSentAndExport(\'png\'); closeActionPopup()">PNG</button>' +
-            '</div>';
-    }
     html += '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button></div>';
     buttonsEl.innerHTML = html;
     popup.classList.add('active');
@@ -637,6 +626,60 @@ async function moveCurrentToSaved() {
 
     setFormReadOnly(false);
     showNotificationModal(t('move_to_saved_success'), true);
+}
+
+async function handleFerdig() {
+    if (!validateRequiredFields()) return;
+
+    var ferdigBtn = document.getElementById('btn-ferdig');
+    if (ferdigBtn) ferdigBtn.disabled = true;
+
+    try {
+        // Save the form first
+        var data = getFormData();
+        var formsCollection = isExternalForm ? 'external' : 'forms';
+        var storageKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
+
+        if (currentUser && db) {
+            var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
+            var existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
+            if (!existing.empty) {
+                await formsRef.doc(existing.docs[0].id).set(data);
+            } else {
+                data.id = Date.now().toString();
+                await formsRef.doc(data.id).set(data);
+            }
+        } else {
+            var saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            var existingIndex = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+            if (existingIndex !== -1) {
+                data.id = saved[existingIndex].id;
+                saved[existingIndex] = data;
+            } else {
+                data.id = Date.now().toString();
+                saved.unshift(data);
+                if (saved.length > 50) saved.pop();
+            }
+            localStorage.setItem(storageKey, JSON.stringify(saved));
+        }
+        addToOrderNumberIndex(data.ordreseddelNr);
+
+        // Mark as sent (move from forms to archive)
+        await markAsSent();
+
+        // Update UI state
+        sessionStorage.setItem('firesafe_current_sent', '1');
+        lastSavedData = getFormDataSnapshot();
+        document.getElementById('sent-banner').style.display = 'block';
+        if (ferdigBtn) ferdigBtn.style.display = 'none';
+
+        showNotificationModal(t('marked_as_sent'), true);
+    } catch (e) {
+        console.error('Ferdig error:', e);
+        showNotificationModal(t('save_error') + e.message);
+    } finally {
+        if (ferdigBtn) ferdigBtn.disabled = false;
+    }
 }
 
 function moveToSaved(event, index) {
@@ -777,7 +820,10 @@ function loadExternalFormDirect(form) {
 
     lastSavedData = getFormDataSnapshot();
     const isSent = !!form._isSent;
-    setFormReadOnly(isSent);
+    // Show sent banner but keep form editable
+    document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
+    var ferdigBtn = document.getElementById('btn-ferdig');
+    if (ferdigBtn) ferdigBtn.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // External form = #ekstern
@@ -2627,6 +2673,9 @@ function clearForm() {
 
     sessionStorage.removeItem('firesafe_current');
     sessionStorage.removeItem('firesafe_current_sent');
+    document.getElementById('sent-banner').style.display = 'none';
+    var ferdigBtn = document.getElementById('btn-ferdig');
+    if (ferdigBtn) ferdigBtn.style.display = '';
     lastSavedData = null;
     isExternalForm = false;
     updateFormTypeChip();
@@ -2807,18 +2856,6 @@ async function doExportPNG() {
     }
 }
 
-async function markAsSentAndExport(type) {
-    if (!validateRequiredFields()) return;
-    await markAsSent();
-    if (type === 'pdf') {
-        await doExportPDF();
-    } else {
-        await doExportPNG();
-    }
-    setFormReadOnly(true);
-}
-
-
 // Background click handler removed - saved-modal is now a view, not an overlay
 
 // Event delegation for saved-list items
@@ -2963,7 +3000,9 @@ document.addEventListener('DOMContentLoaded', function() {
         updateFormTypeChip();
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
-            setFormReadOnly(true);
+            document.getElementById('sent-banner').style.display = 'block';
+            var ferdigBtn = document.getElementById('btn-ferdig');
+            if (ferdigBtn) ferdigBtn.style.display = 'none';
         }
         updateToolbarState();
     } else if (hash === 'hent') {

@@ -136,7 +136,6 @@ body:has(#template-editor-overlay.active) .toolbar button {
 
 /* Primære knapper */
 .btn-new,
-.btn-save,
 .btn-load,
 .btn-export {
     background: #2c3e50;
@@ -151,7 +150,6 @@ body:has(#template-editor-overlay.active) .toolbar button {
         border-color: #ccc;
     }
     .btn-new:hover,
-    .btn-save:hover,
     .btn-load:hover,
     .btn-export:hover {
         background: #1a252f;
@@ -723,6 +721,52 @@ body.template-modal-open > .top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.btn-header-save {
+    background: #E8501A;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.btn-header-save:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.btn-header-save:active {
+    opacity: 0.8;
+}
+
+.btn-ferdig {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    margin: 24px 0 16px;
+    background: #E8501A;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+}
+
+.btn-ferdig:active {
+    opacity: 0.8;
+}
+
+.btn-ferdig:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .modal-close-btn {

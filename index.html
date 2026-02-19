@@ -44,12 +44,12 @@
         <div class="modal-content">
             <div class="modal-header" id="form-header">
                 <span id="form-header-title" data-i18n="form_title">Ordreseddel</span>
+                <button class="btn-header-save" id="btn-header-save" onclick="saveForm()" data-i18n="toolbar_save">Lagre</button>
             </div>
 
             <div id="sent-banner" class="sent-banner" style="display:none;">
-            <span data-i18n="sent_banner_text">Dette skjemaet er sendt og kan ikke redigeres</span>
-            <button class="sent-banner-btn" onclick="moveCurrentToSaved()" data-i18n="sent_banner_move">Flytt til lagrede</button>
-        </div>
+                <span data-i18n="sent_banner_text">Dette skjemaet er sendt</span>
+            </div>
 
         <div class="form-type-tabs" id="form-type-tabs">
             <button class="form-type-tab active" onclick="switchFormType('own')" data-i18n="tab_own">Egne</button>
@@ -128,6 +128,8 @@
                     <input type="hidden" id="mobile-kundens-underskrift">
                 </div>
             </div>
+
+            <button type="button" class="btn-ferdig" id="btn-ferdig" onclick="handleFerdig()" data-i18n="btn_ferdig">Ferdig</button>
 
         </div>
         </div>
@@ -631,7 +633,6 @@
     <!-- Toolbar - alltid sist i DOM for riktig rekkefølge når keyboard er åpen -->
     <div class="toolbar" role="toolbar" aria-label="Hovedhandlinger">
         <button class="btn-new" onclick="newForm()" data-i18n="toolbar_new">Ny</button>
-        <button class="btn-save" onclick="showSaveMenu()" data-i18n="toolbar_save">Lagre</button>
         <button class="btn-load" onclick="showSavedForms()" data-i18n="toolbar_load">Hent</button>
         <button class="btn-export" onclick="showExportMenu()" data-i18n="toolbar_export">Eksport</button>
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg></button>
