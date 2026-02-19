@@ -502,10 +502,9 @@ function showExportMenu() {
     document.getElementById('action-popup-title').textContent = t('export_title');
     const buttonsEl = document.getElementById('action-popup-buttons');
     let html = '<div class="confirm-modal-buttons">' +
-            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPDF(); closeActionPopup()">PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPNG(); closeActionPopup()">PNG</button>' +
+            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#2c3e50" onclick="doExportPNG(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
         '</div>';
-    html += '<div class="confirm-modal-buttons" style="margin-top:10px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button></div>';
     buttonsEl.innerHTML = html;
     popup.classList.add('active');
 }
