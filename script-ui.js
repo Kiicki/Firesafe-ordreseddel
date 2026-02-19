@@ -168,6 +168,7 @@ async function loadMoreSavedForms() {
         _sentHasMore = result2.hasMore;
         newForms = newForms.concat(result2.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
     }
+    newForms.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
     renderSavedFormsList(newForms, true, _savedHasMore || _sentHasMore);
 }
 
@@ -764,6 +765,7 @@ async function loadMoreExternalForms() {
         _extSentHasMore = result2.hasMore;
         newForms = newForms.concat(result2.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
     }
+    newForms.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
     renderExternalFormsList(newForms, true, _extHasMore || _extSentHasMore);
 }
 
@@ -771,7 +773,7 @@ async function loadExternalTab() {
     // Show cached data immediately
     const cachedForms = JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
     const cachedSent = JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
-    const cached = cachedForms.concat(cachedSent.map(f => ({ ...f, _isSent: true })));
+    const cached = cachedForms.concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
     renderExternalFormsList(cached);
 
     var results = await Promise.all([getExternalForms(), getExternalSentForms()]);
@@ -784,7 +786,7 @@ async function loadExternalTab() {
         localStorage.setItem(EXTERNAL_KEY, JSON.stringify(extResult.forms.slice(0, 50)));
         localStorage.setItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(extSentResult.forms.slice(0, 50)));
     }
-    window.loadedExternalForms = extResult.forms.concat(extSentResult.forms.map(f => ({ ...f, _isSent: true })));
+    window.loadedExternalForms = extResult.forms.concat(extSentResult.forms.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
     if (!document.body.classList.contains('saved-modal-open')) return;
     if (currentUser || window.loadedExternalForms.length > 0) {
         renderExternalFormsList(window.loadedExternalForms, false, _extHasMore || _extSentHasMore);
