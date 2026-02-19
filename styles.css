@@ -724,18 +724,20 @@ body.template-modal-open > .top-bar {
 }
 
 .btn-ferdig {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     width: 100%;
-    padding: 16px;
+    padding: 12px;
     margin: 24px 0 16px;
     background: #E8501A;
     color: #fff;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
-    text-align: center;
 }
 
 .btn-ferdig:active {
