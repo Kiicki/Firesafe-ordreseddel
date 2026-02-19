@@ -106,9 +106,7 @@ function _buildSavedItemHtml(item, index) {
     var dato = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
-    var copyBtn = isSent
-        ? '<button class="saved-item-action-btn copy disabled" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>'
-        : '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>';
+    var copyBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
