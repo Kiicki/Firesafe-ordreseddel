@@ -5,6 +5,7 @@ const TRANSLATIONS = {
         toolbar_save: 'Lagre',
         toolbar_load: 'Hent',
         toolbar_export: 'Eksport',
+        toolbar_settings: 'Meny',
 
         // Login
         login: 'Logg inn',
@@ -258,6 +259,7 @@ const TRANSLATIONS = {
         toolbar_save: 'Save',
         toolbar_load: 'Load',
         toolbar_export: 'Export',
+        toolbar_settings: 'Menu',
 
         // Login
         login: 'Log in',

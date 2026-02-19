@@ -122,53 +122,45 @@ body:has(#template-editor-overlay.active) .toolbar button {
 
 .toolbar button {
     flex: 1;
-    padding: 10px 6px;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px;
+    border: none;
+    border-radius: 0;
+    font-size: 11px;
     font-weight: 600;
     cursor: pointer;
-    background: #fff;
-    color: #495057;
-    transition: all 0.15s ease;
+    background: transparent;
+    color: #555;
+    transition: color 0.15s ease;
     text-align: center;
 }
 
-/* Primære knapper */
-.btn-new,
-.btn-load,
-.btn-export {
-    background: #2c3e50;
-    color: #fff;
-    border-color: #2c3e50;
+.toolbar button svg {
+    flex-shrink: 0;
 }
 
 /* Hover kun for enheter med mus (ikke touch) */
 @media (hover: hover) {
     .toolbar button:hover {
-        background: #f0f0f0;
-        border-color: #ccc;
-    }
-    .btn-new:hover,
-    .btn-load:hover,
-    .btn-export:hover {
-        background: #1a252f;
-        border-color: #1a252f;
+        color: #E8501A;
     }
 }
 
-.btn-settings {
-    background: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    min-width: 40px;
-    padding: 8px;
+.toolbar button:active {
+    color: #E8501A;
+}
+
+.toolbar button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
 }
 
 .btn-settings svg {
-    fill: #495057;
+    fill: none;
 }
 
 .btn-login {
