@@ -2140,6 +2140,25 @@ label.settings-default-label.field-required > span::after {
     gap: 10px;
 }
 
+/* Action popup header style */
+#action-popup .confirm-modal-content {
+    padding: 0;
+    overflow: hidden;
+}
+
+#action-popup .confirm-modal-text {
+    background: #333;
+    color: #fff;
+    margin: 0;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#action-popup #action-popup-buttons {
+    padding: 20px;
+}
+
 .confirm-btn-cancel {
     flex: 1;
     padding: 12px;
