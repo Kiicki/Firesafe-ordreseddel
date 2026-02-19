@@ -2147,7 +2147,7 @@ label.settings-default-label.field-required > span::after {
 }
 
 #action-popup .confirm-modal-text {
-    background: #333;
+    background: #E8501A;
     color: #fff;
     margin: 0;
     padding: 12px 16px;
