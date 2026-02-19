@@ -1853,7 +1853,7 @@ async function saveForm() {
         }
     }
 
-    const saveBtn = document.getElementById('btn-header-save');
+    const saveBtn = document.querySelector('.btn-save');
     if (saveBtn && saveBtn.disabled) return;
     if (saveBtn) saveBtn.disabled = true;
 

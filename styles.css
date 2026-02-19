@@ -715,28 +715,6 @@ body.template-modal-open > .top-bar {
     align-items: center;
 }
 
-.btn-header-save {
-    background: #E8501A;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    padding: 4px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    line-height: 1;
-    white-space: nowrap;
-}
-
-.btn-header-save:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.btn-header-save:active {
-    opacity: 0.8;
-}
-
 .btn-ferdig {
     display: block;
     width: 100%;

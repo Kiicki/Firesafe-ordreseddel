@@ -89,7 +89,7 @@ function updateToolbarState() {
                   && !document.body.classList.contains('saved-modal-open')
                   && !document.body.classList.contains('settings-modal-open');
 
-    const saveBtn = document.getElementById('btn-header-save');
+    const saveBtn = document.querySelector('.btn-save');
     if (saveBtn) {
         saveBtn.disabled = !isOnForm;
     }
@@ -222,7 +222,7 @@ function setFormReadOnly(readOnly) {
     fields.forEach(el => el.disabled = readOnly);
 
     // Disable save button
-    var headerSaveBtn = document.getElementById('btn-header-save');
+    var headerSaveBtn = document.querySelector('.btn-save');
     if (headerSaveBtn) headerSaveBtn.disabled = readOnly;
 
     // Show/hide sent banner
