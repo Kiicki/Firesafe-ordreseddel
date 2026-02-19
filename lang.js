@@ -24,6 +24,7 @@ const TRANSLATIONS = {
 
         // Sent banner
         sent_banner_text: 'Dette skjemaet er sendt',
+        sent_banner_hint: 'Trykk «Lagre» for å flytte til lagrede skjemaer',
         sent_banner_move: 'Flytt til lagrede',
 
         // Mobile form header
@@ -278,6 +279,7 @@ const TRANSLATIONS = {
 
         // Sent banner
         sent_banner_text: 'This form has been sent',
+        sent_banner_hint: 'Press "Save" to move to saved forms',
         sent_banner_move: 'Move to saved',
 
         // Mobile form header
