@@ -30,7 +30,8 @@ function refreshActiveView() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
             localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
             window.loadedForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
-                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
+                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
+                .sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
             if (document.body.classList.contains('saved-modal-open')) {
                 renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
             }
@@ -187,7 +188,7 @@ function _showSavedFormsDirectly() {
     // Show cached data immediately
     const cachedSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     const cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-    const cachedForms = cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true })));
+    const cachedForms = cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
     renderSavedFormsList(cachedForms);
 
     showView('saved-modal');
@@ -207,7 +208,7 @@ function _showSavedFormsDirectly() {
             _sentHasMore = sentResult.hasMore;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
             localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-            window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true })));
+            window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
             // Only update if still on saved-modal
             if (document.body.classList.contains('saved-modal-open')) {
                 renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
@@ -3014,7 +3015,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 _sentHasMore = sentResult.hasMore;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
                 localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-                window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true })));
+                window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
                 if (document.body.classList.contains('saved-modal-open')) {
                     renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
                 }
@@ -3023,7 +3024,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show cached data immediately
         var cachedSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
         var cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-        renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))));
+        renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')));
         updateToolbarState();
     } else if (!hash || hash === '') {
         // Home page - render cached templates (filter out deactivated)
