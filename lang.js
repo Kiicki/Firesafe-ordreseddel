@@ -99,7 +99,7 @@ const TRANSLATIONS = {
         export_png_error: 'Feil ved generering av PNG: ',
 
         // Hent modal
-        modal_load_title: 'Hent skjema',
+        modal_load_title: 'Skjemaer',
         tab_own: 'Egne',
         tab_external: 'Eksterne',
         search_placeholder: 'Søk ordrenummer...',
@@ -354,7 +354,7 @@ const TRANSLATIONS = {
         export_png_error: 'Error generating PNG: ',
 
         // Hent modal
-        modal_load_title: 'Load form',
+        modal_load_title: 'Forms',
         tab_own: 'Own',
         tab_external: 'External',
         search_placeholder: 'Search order number...',
