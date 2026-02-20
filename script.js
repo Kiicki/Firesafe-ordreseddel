@@ -1843,8 +1843,6 @@ function _clearSentStateAfterSave() {
     if (sessionStorage.getItem('firesafe_current_sent') === '1') {
         sessionStorage.removeItem('firesafe_current_sent');
         document.getElementById('sent-banner').style.display = 'none';
-        var ferdigBtn = document.getElementById('btn-ferdig');
-        if (ferdigBtn) ferdigBtn.style.display = '';
     }
 }
 

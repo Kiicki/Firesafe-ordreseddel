@@ -287,8 +287,6 @@ function loadFormDirect(formData) {
     const isSent = !!formData._isSent;
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
-    var ferdigBtn = document.getElementById('btn-ferdig');
-    if (ferdigBtn) ferdigBtn.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // Set hash based on form type
@@ -492,9 +490,16 @@ function showExportMenu() {
     const popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('export_title');
     const buttonsEl = document.getElementById('action-popup-buttons');
-    let html = '<div class="confirm-modal-buttons">' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPNG(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+    var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+    var checkboxHtml = isSent ? '' :
+        '<label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;font-size:14px">' +
+            '<input type="checkbox" id="export-mark-sent" checked style="width:18px;height:18px;accent-color:#E8501A">' +
+            t('export_and_mark_label') +
+        '</label>';
+    let html = checkboxHtml +
+        '<div class="confirm-modal-buttons">' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPNG(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
         '</div>';
     buttonsEl.innerHTML = html;
     popup.classList.add('active');
@@ -532,55 +537,6 @@ function filterList(listId, searchId) {
             renderTemplateList(filtered3);
         }
     }, 150);
-}
-
-async function markAsSent() {
-    const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
-    if (!ordrenr) return;
-
-    const formsCol = isExternalForm ? 'external' : 'forms';
-    const archiveCol = isExternalForm ? 'externalArchive' : 'archive';
-    const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
-    const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
-
-    // localStorage first (optimistic)
-    var localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
-    var formIndex = localSaved.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
-    if (formIndex !== -1) {
-        var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
-        var f = localSaved.splice(formIndex, 1)[0];
-        archived.unshift(f);
-        localStorage.setItem(sKey, JSON.stringify(localSaved));
-        localStorage.setItem(aKey, JSON.stringify(archived));
-    } else {
-        var data2 = getFormData();
-        data2.id = Date.now().toString();
-        var archived2 = JSON.parse(localStorage.getItem(aKey) || '[]');
-        archived2.unshift(data2);
-        localStorage.setItem(aKey, JSON.stringify(archived2));
-    }
-
-    lastSavedData = getFormDataSnapshot();
-    showNotificationModal(t('marked_as_sent'), true);
-
-    // Firebase in background
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection(formsCol).where('ordreseddelNr', '==', ordrenr).get()
-            .then(function(snap) {
-                if (!snap.empty) {
-                    var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
-                    return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).set(form)
-                        .then(function() {
-                            return db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).delete();
-                        });
-                } else {
-                    var data = getFormData();
-                    data.id = Date.now().toString();
-                    return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(data.id).set(data);
-                }
-            })
-            .catch(function(e) { console.error('Mark as sent error:', e); });
-    }
 }
 
 function moveCurrentToSaved() {
@@ -621,12 +577,7 @@ function moveCurrentToSaved() {
     }
 }
 
-function handleFerdig() {
-    if (!validateRequiredFields()) return;
-
-    var ferdigBtn = document.getElementById('btn-ferdig');
-    if (ferdigBtn) ferdigBtn.disabled = true;
-
+function markCurrentFormAsSent() {
     try {
         var data = getFormData();
         var formsCollection = isExternalForm ? 'external' : 'forms';
@@ -653,7 +604,6 @@ function handleFerdig() {
         sessionStorage.setItem('firesafe_current_sent', '1');
         lastSavedData = getFormDataSnapshot();
         document.getElementById('sent-banner').style.display = 'block';
-        if (ferdigBtn) ferdigBtn.style.display = 'none';
         showNotificationModal(t('marked_as_sent'), true);
 
         // Firebase: save directly to archive + clean up forms (single chain)
@@ -669,13 +619,10 @@ function handleFerdig() {
                         return formsRef.doc(snap.docs[0].id).delete();
                     }
                 })
-                .catch(function(e) { console.error('Ferdig Firebase error:', e); });
+                .catch(function(e) { console.error('Mark as sent Firebase error:', e); });
         }
     } catch (e) {
-        console.error('Ferdig error:', e);
-        showNotificationModal(t('save_error') + e.message);
-    } finally {
-        if (ferdigBtn) ferdigBtn.disabled = false;
+        console.error('Mark as sent error:', e);
     }
 }
 
@@ -821,8 +768,6 @@ function loadExternalFormDirect(form) {
     const isSent = !!form._isSent;
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
-    var ferdigBtn = document.getElementById('btn-ferdig');
-    if (ferdigBtn) ferdigBtn.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // External form = #ekstern
@@ -2731,8 +2676,6 @@ function clearForm() {
     sessionStorage.removeItem('firesafe_current');
     sessionStorage.removeItem('firesafe_current_sent');
     document.getElementById('sent-banner').style.display = 'none';
-    var ferdigBtn = document.getElementById('btn-ferdig');
-    if (ferdigBtn) ferdigBtn.style.display = '';
     lastSavedData = null;
     isExternalForm = false;
     updateFormTypeChip();
@@ -2877,7 +2820,7 @@ function getExportFilename(ext) {
     return `ordreseddel_${ordrenr}_${dato}.${ext}`;
 }
 
-async function doExportPDF() {
+async function doExportPDF(markSent) {
     if (!validateRequiredFields()) return;
     const loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -2889,6 +2832,7 @@ async function doExportPDF() {
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
         pdf.save(getExportFilename('pdf'));
+        if (markSent) markCurrentFormAsSent();
     } catch (error) {
         showNotificationModal(t('export_pdf_error') + error.message);
     } finally {
@@ -2896,7 +2840,7 @@ async function doExportPDF() {
     }
 }
 
-async function doExportPNG() {
+async function doExportPNG(markSent) {
     if (!validateRequiredFields()) return;
     const loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -2906,6 +2850,7 @@ async function doExportPNG() {
         link.download = getExportFilename('png');
         link.href = canvas.toDataURL('image/png');
         link.click();
+        if (markSent) markCurrentFormAsSent();
     } catch (error) {
         showNotificationModal(t('export_png_error') + error.message);
     } finally {
@@ -3058,8 +3003,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
             document.getElementById('sent-banner').style.display = 'block';
-            var ferdigBtn = document.getElementById('btn-ferdig');
-            if (ferdigBtn) ferdigBtn.style.display = 'none';
         }
         updateToolbarState();
     } else if (hash === 'hent') {

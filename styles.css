@@ -723,36 +723,6 @@ body.template-modal-open > .top-bar {
     align-items: center;
 }
 
-.btn-ferdig {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    padding: 10px 20px;
-    margin: 20px 0 12px;
-    background: #E8501A;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-ferdig svg {
-    flex-shrink: 0;
-}
-
-.btn-ferdig:active {
-    opacity: 0.8;
-}
-
-.btn-ferdig:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
 .modal-close-btn {
     background: none;
     border: none;
