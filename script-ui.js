@@ -2966,6 +2966,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const data = JSON.parse(current);
             setFormData(data);
+            lastSavedData = getFormDataSnapshot();
         } catch (e) {}
     }
     // Alltid sett signering-dato til dagens dato og tøm kundens underskrift ved oppstart
