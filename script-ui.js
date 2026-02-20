@@ -3127,6 +3127,9 @@ document.addEventListener('DOMContentLoaded', function() {
         var cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
         renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')));
         updateToolbarState();
+    } else if (hash === 'settings') {
+        showSettingsMenu();
+        updateToolbarState();
     } else if (!hash || hash === '') {
         // Home page - render cached templates (filter out deactivated)
         var cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]').filter(function(t) { return t.active !== false; });
@@ -3161,11 +3164,13 @@ window.addEventListener('hashchange', function() {
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t('form_title');
         updateFormTypeChip();
+        updateToolbarState();
     } else if (hash === 'ekstern') {
         showView('view-form');
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t('external_form_title');
         updateFormTypeChip();
+        updateToolbarState();
     } else {
         // No hash = home = template modal
         showTemplateModal();
