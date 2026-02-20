@@ -2720,7 +2720,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     justify-content: flex-end;
     gap: 4px;
     flex-shrink: 0;
-    min-width: 90px;
+    width: 90px;
+}
+
+.settings-actions .settings-delete-btn {
+    justify-content: flex-end;
 }
 
 .settings-add-btn {
@@ -2733,7 +2737,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    margin-right: 6px;
 }
 
 .settings-add-btn:active {
