@@ -388,29 +388,31 @@
             <div class="modal-body" style="padding: 16px;">
                                 <!-- Hovedmeny -->
                 <div id="settings-page-menu" class="settings-page">
-                    <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">
-                        <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
-                    </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('defaults')">
-                        <span data-i18n="settings_defaults">Autofyll</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
-                    </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('templates')">
-                        <span data-i18n="settings_templates">Maler</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
-                    </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('required')">
-                        <span data-i18n="settings_required">Krav ved lagring</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
-                    </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('materials')">
-                        <span data-i18n="settings_materials">Materialer og enheter</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
-                    </div>
-                    <div class="settings-menu-item" onclick="showSettingsPage('language')">
-                        <span data-i18n="settings_language">Språk / Language</span>
-                        <span class="settings-menu-arrow">&rsaquo;</span>
+                    <div class="settings-group">
+                        <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">
+                            <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('defaults')">
+                            <span data-i18n="settings_defaults">Autofyll</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('templates')">
+                            <span data-i18n="settings_templates">Maler</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('required')">
+                            <span data-i18n="settings_required">Krav ved lagring</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('materials')">
+                            <span data-i18n="settings_materials">Materialer og enheter</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('language')">
+                            <span data-i18n="settings_language">Språk / Language</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
                     </div>
                     <div class="settings-menu-item settings-logout" onclick="handleAuth()">
                         <span data-i18n="logout">Logg ut</span>
@@ -468,7 +470,7 @@
 
                 <!-- Obligatoriske felt-side (lagre/eksport) -->
                 <div id="settings-page-required" class="settings-page" style="display:none;">
-                    <div id="settings-fields-save-items" class="settings-list-container"></div>
+                    <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
                 </div>
 
                 <!-- Materialer og enheter-side -->
