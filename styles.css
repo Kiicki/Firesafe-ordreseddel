@@ -2551,6 +2551,16 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #333;
 }
 
+.settings-material-name {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+}
+
 .settings-unit-input {
     flex: 1;
     min-width: 0;
@@ -2702,6 +2712,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     gap: 4px;
     min-width: 80px;
     flex-shrink: 0;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 4px;
 }
 
 .settings-add-btn {
