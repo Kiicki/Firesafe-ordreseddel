@@ -1486,7 +1486,7 @@ function renderUnitSettingsItems() {
         return;
     }
     container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item" style="justify-content:flex-start;gap:4px;"><input type="text" class="settings-unit-input" value="${escapeHtml(item.singular)}" onblur="saveSettingsUnitField(${idx},'singular',this.value)" placeholder="Entall"><input type="text" class="settings-unit-input" value="${escapeHtml(item.plural)}" onblur="saveSettingsUnitField(${idx},'plural',this.value)" placeholder="Flertall"><div class="settings-actions"><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
+        `<div class="settings-list-item" style="justify-content:flex-start;gap:4px;border:none;padding:0;"><input type="text" class="settings-unit-input" value="${escapeHtml(item.singular)}" onblur="saveSettingsUnitField(${idx},'singular',this.value)" placeholder="Entall"><input type="text" class="settings-unit-input" value="${escapeHtml(item.plural)}" onblur="saveSettingsUnitField(${idx},'plural',this.value)" placeholder="Flertall"><div class="settings-actions"><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
     ).join('');
 }
 
