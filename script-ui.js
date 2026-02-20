@@ -1352,18 +1352,19 @@ function showSettingsPage(page) {
         settingsMaterials = cachedData.materials.slice();
         settingsUnits = cachedData.units.slice();
         settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-        sortAlpha(settingsUnits);
+        sortUnits(settingsUnits);
         renderMaterialSettingsItems();
         renderUnitSettingsItems();
         document.getElementById('settings-new-material').value = '';
-        document.getElementById('settings-new-unit').value = '';
+        document.getElementById('settings-new-unit-singular').value = '';
+        document.getElementById('settings-new-unit-plural').value = '';
         // Background refresh
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
             settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
             settingsUnits = (data && data.units) ? data.units.slice() : [];
             settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-            sortAlpha(settingsUnits);
+            sortUnits(settingsUnits);
             renderMaterialSettingsItems();
             renderUnitSettingsItems();
         });
