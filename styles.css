@@ -2882,14 +2882,18 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     width: 100%;
     margin-top: 4px;
     padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    border: none;
+    border-radius: 4px;
     font-size: 14px;
     box-sizing: border-box;
+    background: #f5f5f5;
 }
 .settings-default-label input:focus {
     outline: none;
-    border-color: #E8501A;
+    background: #eee;
+}
+.settings-group .settings-default-label:not(:last-child) {
+    border-bottom: 1px solid #eee;
 }
 .settings-group {
     border: 1px solid #e0e0e0;
