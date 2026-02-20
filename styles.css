@@ -2708,13 +2708,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-actions {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 4px;
-    min-width: 80px;
+    width: 100px;
     flex-shrink: 0;
     border: 1px solid #ddd;
     border-radius: 6px;
     padding: 4px;
+    box-sizing: border-box;
 }
 
 .settings-add-btn {
