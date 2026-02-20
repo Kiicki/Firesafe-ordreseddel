@@ -1518,34 +1518,57 @@ function editSettingsUnit(idx) {
     inputS.focus();
     inputS.select();
 
+    // Capture mousedown on other unit spans before blur fires
+    function onMousedown(e) {
+        const clickedSpan = e.target.closest('.settings-list-item span');
+        if (clickedSpan) {
+            const clickedItem = clickedSpan.parentElement;
+            const clickIdx = Array.from(container.children).indexOf(clickedItem);
+            if (clickIdx >= 0) container._pendingEditPlural = settingsUnits[clickIdx].plural;
+        }
+    }
+    container.addEventListener('mousedown', onMousedown);
+
     let saved = false;
     async function save() {
         if (saved) return;
         await new Promise(r => setTimeout(r, 10));
         if (document.activeElement === inputS || document.activeElement === inputP) return;
         saved = true;
+        container.removeEventListener('mousedown', onMousedown);
         const newS = inputS.value.trim();
         const newP = inputP.value.trim();
         if ((!newS && !newP) || (newS === oldSingular && newP === oldPlural)) {
             renderUnitSettingsItems();
+            triggerPendingEdit();
             return;
         }
         if (newP && settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === newP.toLowerCase())) {
             showNotificationModal(t('settings_unit_exists'));
             renderUnitSettingsItems();
+            triggerPendingEdit();
             return;
         }
         settingsUnits[idx].singular = newS || oldSingular;
         settingsUnits[idx].plural = newP || oldPlural;
         sortUnits(settingsUnits);
         renderUnitSettingsItems();
+        triggerPendingEdit();
         await saveMaterialSettings();
+    }
+    function triggerPendingEdit() {
+        const pending = container._pendingEditPlural;
+        delete container._pendingEditPlural;
+        if (pending) {
+            const newIdx = settingsUnits.findIndex(u => u.plural === pending);
+            if (newIdx >= 0) editSettingsUnit(newIdx);
+        }
     }
     inputS.addEventListener('blur', save);
     inputP.addEventListener('blur', save);
     function handleKey(e) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
-        if (e.key === 'Escape') { saved = true; renderUnitSettingsItems(); }
+        if (e.key === 'Escape') { saved = true; container.removeEventListener('mousedown', onMousedown); renderUnitSettingsItems(); }
     }
     inputS.addEventListener('keydown', handleKey);
     inputP.addEventListener('keydown', handleKey);
