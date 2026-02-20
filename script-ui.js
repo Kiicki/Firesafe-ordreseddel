@@ -2966,7 +2966,6 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const data = JSON.parse(current);
             setFormData(data);
-            lastSavedData = getFormDataSnapshot();
         } catch (e) {}
     }
     // Alltid sett signering-dato til dagens dato og tøm kundens underskrift ved oppstart
@@ -2975,6 +2974,11 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('kundens-underskrift').value = '';
     document.getElementById('mobile-signering-dato').value = today;
     document.getElementById('mobile-kundens-underskrift').value = '';
+
+    // Sett lastSavedData ETTER alle init-endringer (signering-dato, underskrift)
+    if (current) {
+        lastSavedData = getFormDataSnapshot();
+    }
 
     // Initialize orders if empty (first load without session data)
     const ordersContainer = document.getElementById('mobile-orders');
