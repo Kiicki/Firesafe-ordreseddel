@@ -12,6 +12,7 @@ const REQUIRED_KEY = 'firesafe_required';
 let authReady = false; // true after first onAuthStateChanged
 let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
+function sortUnits(arr) { arr.sort((a, b) => (a.plural || '').localeCompare(b.plural || '', 'no')); }
 
 // Global HTML escape function - prevents XSS attacks
 function escapeHtml(str) {
@@ -1050,8 +1051,9 @@ function openUnitPicker(matName, btnEl) {
 
     let html = '';
     allUnits.forEach(u => {
-        const selected = u === currentEnhet ? ' unit-picker-item-selected' : '';
-        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(u)}</button>`;
+        const label = typeof u === 'object' ? u.plural : u;
+        const selected = label === currentEnhet ? ' unit-picker-item-selected' : '';
+        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(label)}</button>`;
     });
 
     listEl.innerHTML = html;
@@ -1067,7 +1069,7 @@ function openUnitPicker(matName, btnEl) {
     }
 
     // Custom input row (outside scrollable list)
-    const isCustom = currentEnhet && !allUnits.some(u => u.toLowerCase() === currentEnhet.toLowerCase());
+    const isCustom = currentEnhet && !allUnits.some(u => (typeof u === 'object' ? u.plural : u).toLowerCase() === currentEnhet.toLowerCase());
     const customEl = overlay.querySelector('.unit-picker-custom');
     const customInput = customEl.querySelector('input');
     customInput.value = isCustom ? currentEnhet : '';
@@ -1085,11 +1087,11 @@ function openUnitPicker(matName, btnEl) {
             if (pickerRenderFn) pickerRenderFn();
         }
         // Save custom unit to global settings (admin only)
-        if (isAdmin && value && !(cachedUnitOptions || []).some(u => u.toLowerCase() === value.toLowerCase())) {
+        if (isAdmin && value && !(cachedUnitOptions || []).some(u => (typeof u === 'object' ? u.plural : u).toLowerCase() === value.toLowerCase())) {
             settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
             settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
-            settingsUnits.push(value);
-            sortAlpha(settingsUnits);
+            settingsUnits.push({ singular: value, plural: value });
+            sortUnits(settingsUnits);
             cachedUnitOptions = settingsUnits.slice();
             saveMaterialSettings();
         }
@@ -1618,7 +1620,17 @@ function buildDesktopWorkLines() {
             addRow('Materiell:', '', '', { bold: true, alignRight: true });
             filledMats.forEach(m => {
                 const capName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
-                addRow(capName, (m.antall || '').replace('.', ','), (m.enhet || '').toLowerCase(), { alignRight: true });
+                const antallNum = parseFloat((m.antall || '').replace(',', '.'));
+                const unitObj = (cachedUnitOptions || []).find(u =>
+                    (typeof u === 'object' ? u.plural : u).toLowerCase() === (m.enhet || '').toLowerCase()
+                );
+                let unitText;
+                if (unitObj && typeof unitObj === 'object') {
+                    unitText = (antallNum === 1 ? unitObj.singular : unitObj.plural).toLowerCase();
+                } else {
+                    unitText = (m.enhet || '').toLowerCase();
+                }
+                addRow(capName, (m.antall || '').replace('.', ','), unitText, { alignRight: true });
             });
         }
 

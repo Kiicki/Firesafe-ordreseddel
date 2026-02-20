@@ -1416,7 +1416,11 @@ function normalizeMaterialData(data) {
     if (materials.length > 0 && typeof materials[0] === 'string') {
         materials = materials.map(name => ({ name: name, needsSpec: false }));
     }
-    return { materials, units: data.units || [] };
+    let units = data.units || [];
+    if (units.length > 0 && typeof units[0] === 'string') {
+        units = units.map(u => ({ singular: u, plural: u }));
+    }
+    return { materials, units };
 }
 
 async function getMaterialSettings() {
@@ -1447,7 +1451,7 @@ async function saveMaterialSettings() {
     cachedMaterialOptions = data.materials.slice();
     cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
     cachedUnitOptions = settingsUnits.slice();
-    sortAlpha(cachedUnitOptions);
+    sortUnits(cachedUnitOptions);
 }
 
 async function loadMaterialSettingsToModal() {
@@ -1455,11 +1459,12 @@ async function loadMaterialSettingsToModal() {
     settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
     settingsUnits = (data && data.units) ? data.units.slice() : [];
     settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-    sortAlpha(settingsUnits);
+    sortUnits(settingsUnits);
     renderMaterialSettingsItems();
     renderUnitSettingsItems();
     document.getElementById('settings-new-material').value = '';
-    document.getElementById('settings-new-unit').value = '';
+    document.getElementById('settings-new-unit-singular').value = '';
+    document.getElementById('settings-new-unit-plural').value = '';
 }
 
 function renderMaterialSettingsItems() {
@@ -1480,7 +1485,7 @@ function renderUnitSettingsItems() {
         return;
     }
     container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item.singular)} / ${escapeHtml(item.plural)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
@@ -1510,16 +1515,19 @@ async function addSettingsMaterial() {
 
 async function addSettingsUnit() {
     if (!isAdmin) return;
-    const input = document.getElementById('settings-new-unit');
-    const val = input.value.trim();
-    if (!val) return;
-    if (settingsUnits.some(u => u.toLowerCase() === val.toLowerCase())) {
+    const singularInput = document.getElementById('settings-new-unit-singular');
+    const pluralInput = document.getElementById('settings-new-unit-plural');
+    const singular = singularInput.value.trim();
+    const plural = pluralInput.value.trim();
+    if (!singular || !plural) return;
+    if (settingsUnits.some(u => u.plural.toLowerCase() === plural.toLowerCase())) {
         showNotificationModal(t('settings_unit_exists'));
         return;
     }
-    settingsUnits.push(val);
-    sortAlpha(settingsUnits);
-    input.value = '';
+    settingsUnits.push({ singular, plural });
+    sortUnits(settingsUnits);
+    singularInput.value = '';
+    pluralInput.value = '';
     renderUnitSettingsItems();
     await saveMaterialSettings();
     showNotificationModal(t('settings_unit_added'), true);
@@ -1538,7 +1546,7 @@ function removeSettingsMaterial(idx) {
 function removeSettingsUnit(idx) {
     if (!isAdmin) return;
     const item = settingsUnits[idx];
-    showConfirmModal(t('settings_material_remove', item), async function() {
+    showConfirmModal(t('settings_material_remove', item.plural), async function() {
         settingsUnits.splice(idx, 1);
         renderUnitSettingsItems();
         await saveMaterialSettings();
@@ -1601,39 +1609,57 @@ function editSettingsUnit(idx) {
     const item = container.children[idx];
     const span = item.querySelector('span');
     if (!span) return;
-    const oldVal = settingsUnits[idx];
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'settings-list-edit-input';
-    input.value = oldVal;
-    span.replaceWith(input);
-    input.focus();
-    input.select();
+    const oldUnit = settingsUnits[idx];
+    const wrapper = document.createElement('span');
+    wrapper.style.cssText = 'display:flex;gap:4px;flex:1;align-items:center;';
+    const inputSingular = document.createElement('input');
+    inputSingular.type = 'text';
+    inputSingular.className = 'settings-list-edit-input';
+    inputSingular.value = oldUnit.singular;
+    inputSingular.placeholder = 'Entall';
+    inputSingular.style.flex = '1';
+    const separator = document.createElement('span');
+    separator.textContent = '/';
+    separator.style.cssText = 'color:#999;flex-shrink:0;';
+    const inputPlural = document.createElement('input');
+    inputPlural.type = 'text';
+    inputPlural.className = 'settings-list-edit-input';
+    inputPlural.value = oldUnit.plural;
+    inputPlural.placeholder = 'Flertall';
+    inputPlural.style.flex = '1';
+    wrapper.appendChild(inputSingular);
+    wrapper.appendChild(separator);
+    wrapper.appendChild(inputPlural);
+    span.replaceWith(wrapper);
+    inputSingular.focus();
+    inputSingular.select();
     let saved = false;
     async function save() {
         if (saved) return;
         saved = true;
-        const newVal = input.value.trim();
-        if (!newVal || newVal === oldVal) {
-            const newSpan = document.createElement('span');
-            newSpan.textContent = oldVal;
-            newSpan.setAttribute('onclick', 'editSettingsUnit(' + idx + ')');
-            if (input.parentNode) input.replaceWith(newSpan);
+        const newSingular = inputSingular.value.trim();
+        const newPlural = inputPlural.value.trim();
+        if (!newSingular || !newPlural || (newSingular === oldUnit.singular && newPlural === oldUnit.plural)) {
+            renderUnitSettingsItems();
             return;
         }
-        if (settingsUnits.some((u, i) => i !== idx && u.toLowerCase() === newVal.toLowerCase())) {
+        if (settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === newPlural.toLowerCase())) {
             showNotificationModal(t('settings_unit_exists'));
             renderUnitSettingsItems();
             return;
         }
-        settingsUnits[idx] = newVal;
-        sortAlpha(settingsUnits);
+        settingsUnits[idx] = { singular: newSingular, plural: newPlural };
+        sortUnits(settingsUnits);
         renderUnitSettingsItems();
         await saveMaterialSettings();
     }
-    input.addEventListener('blur', save);
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    inputSingular.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); inputPlural.focus(); }
+        if (e.key === 'Escape') { saved = true; renderUnitSettingsItems(); }
+    });
+    inputPlural.addEventListener('blur', save);
+    inputPlural.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); inputPlural.blur(); }
         if (e.key === 'Escape') { saved = true; renderUnitSettingsItems(); }
     });
 }
@@ -1655,7 +1681,7 @@ async function getDropdownOptions() {
             cachedMaterialOptions = (cached && cached.materials) ? cached.materials : [];
             cachedUnitOptions = (cached && cached.units) ? cached.units : [];
             cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-            sortAlpha(cachedUnitOptions);
+            sortUnits(cachedUnitOptions);
         }
     }
     // Refresh from Firebase
@@ -1663,7 +1689,7 @@ async function getDropdownOptions() {
     cachedMaterialOptions = (data && data.materials) ? data.materials : [];
     cachedUnitOptions = (data && data.units) ? data.units : [];
     cachedMaterialOptions.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-    sortAlpha(cachedUnitOptions);
+    sortUnits(cachedUnitOptions);
     // Cache to localStorage for offline use
     localStorage.setItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: cachedUnitOptions }));
 }
