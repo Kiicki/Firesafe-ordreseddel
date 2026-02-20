@@ -1878,89 +1878,31 @@ async function saveForm() {
         const storageKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
         const archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
-        if (currentUser && db) {
-            // Lagre til Firestore
-            try {
-                const formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
-                const existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
+        // Always use localStorage first (optimistic)
+        const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
 
-                // Sjekk sendte for duplikater
-                const archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
-                const existingArchive = await archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
-                if (!existingArchive.empty) {
-                    if (sessionStorage.getItem('firesafe_current_sent') === '1') {
-                        // Slett fra arkiv — lagres til forms nedenfor
-                        await archiveRef.doc(existingArchive.docs[0].id).delete();
-                    } else {
-                        showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
-                        return;
-                    }
-                }
-
-                if (!existing.empty) {
-                    showConfirmModal(t('confirm_update'), async function() {
-                        await formsRef.doc(existing.docs[0].id).set(data);
-                        addToOrderNumberIndex(data.ordreseddelNr);
-                        loadedForms = [];
-                        loadedExternalForms = [];
-                        lastSavedData = getFormDataSnapshot();
-                        _clearSentStateAfterSave();
-                        showNotificationModal(t('save_success'), true); showSavedForms();
-                    }, t('btn_update'), '#E8501A');
-                } else {
-                    // Save new form directly (no confirmation needed)
-                    data.id = Date.now().toString();
-                    await formsRef.doc(data.id).set(data);
-                    addToOrderNumberIndex(data.ordreseddelNr);
-                    loadedForms = [];
-                    loadedExternalForms = [];
-                    lastSavedData = getFormDataSnapshot();
-                    _clearSentStateAfterSave();
-                    showNotificationModal(t('save_success'), true); showSavedForms();
-                }
-            } catch (e) {
-                console.error('Firestore save error:', e);
-                showNotificationModal(t('save_error') + e.message);
-            }
-        } else {
-            // Fallback til localStorage
-            const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            const archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
-
-            // Sjekk sendte for duplikater
-            var archivedIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
-            if (archivedIdx !== -1) {
-                if (sessionStorage.getItem('firesafe_current_sent') === '1') {
-                    // Fjern fra arkiv — lagres til saved nedenfor
-                    archived.splice(archivedIdx, 1);
-                    localStorage.setItem(archiveKey, JSON.stringify(archived));
-                } else {
-                    showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
-                    return;
-                }
-            }
-
-            const existingIndex = saved.findIndex(item =>
-                item.ordreseddelNr === data.ordreseddelNr
-            );
-
-            if (existingIndex !== -1) {
-                showConfirmModal(t('confirm_update'), function() {
-                    data.id = saved[existingIndex].id;
-                    saved[existingIndex] = data;
-                    localStorage.setItem(storageKey, JSON.stringify(saved));
-                    addToOrderNumberIndex(data.ordreseddelNr);
-                    loadedForms = [];
-                    loadedExternalForms = [];
-                    lastSavedData = getFormDataSnapshot();
-                    _clearSentStateAfterSave();
-                    showNotificationModal(t('save_success'), true); showSavedForms();
-                }, t('btn_update'), '#E8501A');
+        // Sjekk sendte for duplikater
+        var archivedIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+        if (archivedIdx !== -1) {
+            if (sessionStorage.getItem('firesafe_current_sent') === '1') {
+                // Fjern fra arkiv — lagres til saved nedenfor
+                archived.splice(archivedIdx, 1);
+                localStorage.setItem(archiveKey, JSON.stringify(archived));
             } else {
-                // Save new form directly (no confirmation needed)
-                data.id = Date.now().toString();
-                saved.unshift(data);
-                if (saved.length > 50) saved.pop();
+                showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
+                return;
+            }
+        }
+
+        const existingIndex = saved.findIndex(item =>
+            item.ordreseddelNr === data.ordreseddelNr
+        );
+
+        if (existingIndex !== -1) {
+            showConfirmModal(t('confirm_update'), function() {
+                data.id = saved[existingIndex].id;
+                saved[existingIndex] = data;
                 localStorage.setItem(storageKey, JSON.stringify(saved));
                 addToOrderNumberIndex(data.ordreseddelNr);
                 loadedForms = [];
@@ -1968,6 +1910,41 @@ async function saveForm() {
                 lastSavedData = getFormDataSnapshot();
                 _clearSentStateAfterSave();
                 showNotificationModal(t('save_success'), true); showSavedForms();
+
+                // Firebase in background
+                if (currentUser && db) {
+                    var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
+                    formsRef.doc(data.id).set(data)
+                        .catch(function(e) { console.error('Firestore save error:', e); });
+                }
+            }, t('btn_update'), '#E8501A');
+        } else {
+            // Save new form directly (no confirmation needed)
+            data.id = Date.now().toString();
+            saved.unshift(data);
+            if (saved.length > 50) saved.pop();
+            localStorage.setItem(storageKey, JSON.stringify(saved));
+            addToOrderNumberIndex(data.ordreseddelNr);
+            loadedForms = [];
+            loadedExternalForms = [];
+            lastSavedData = getFormDataSnapshot();
+            _clearSentStateAfterSave();
+            showNotificationModal(t('save_success'), true); showSavedForms();
+
+            // Firebase in background
+            if (currentUser && db) {
+                var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
+                var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
+                // Clean up archive if needed, then save
+                if (archivedIdx !== -1) {
+                    archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get()
+                        .then(function(snap) {
+                            if (!snap.empty) return archiveRef.doc(snap.docs[0].id).delete();
+                        })
+                        .catch(function(e) { console.error('Archive cleanup error:', e); });
+                }
+                formsRef.doc(data.id).set(data)
+                    .catch(function(e) { console.error('Firestore save error:', e); });
             }
         }
     } finally {

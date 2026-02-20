@@ -367,27 +367,12 @@ function deleteFormDirect(form) {
     const isSent = form._isSent;
     const confirmMsg = isSent ? t('delete_sent_confirm') : t('delete_confirm');
 
-    showConfirmModal(confirmMsg, async function() {
+    showConfirmModal(confirmMsg, function() {
         const col = isSent ? 'archive' : 'forms';
         const lsKey = isSent ? ARCHIVE_KEY : STORAGE_KEY;
 
-        if (currentUser && db) {
-            try {
-                await db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete();
-            } catch (e) {
-                console.error('Delete error:', e);
-            }
-        } else {
-            const list = JSON.parse(localStorage.getItem(lsKey) || '[]');
-            const idx = list.findIndex(f => f.id === form.id);
-            if (idx !== -1) {
-                list.splice(idx, 1);
-                localStorage.setItem(lsKey, JSON.stringify(list));
-            }
-        }
+        // Optimistic removal: update local state + DOM immediately
         removeFromOrderNumberIndex(form.ordreseddelNr);
-
-        // Optimistic removal: update local state + DOM
         var arrIdx = window.loadedForms.findIndex(function(f) { return f.id === form.id; });
         if (arrIdx !== -1) window.loadedForms.splice(arrIdx, 1);
         var lsList = JSON.parse(localStorage.getItem(lsKey) || '[]');
@@ -400,6 +385,12 @@ function deleteFormDirect(form) {
         // Show empty message if no items left
         if (window.loadedForms.length === 0) {
             document.getElementById('saved-list').innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
+        }
+
+        // Firebase in background
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete()
+                .catch(function(e) { console.error('Delete error:', e); });
         }
     });
 }
@@ -552,47 +543,47 @@ async function markAsSent() {
     const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
     const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
-    if (currentUser && db) {
-        // Use Firestore .where() to find the form directly (not paginated)
-        try {
-            var snap = await db.collection('users').doc(currentUser.uid).collection(formsCol).where('ordreseddelNr', '==', ordrenr).get();
-            if (!snap.empty) {
-                var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
-                await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).set(form);
-                await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).delete();
-            } else {
-                // Not saved yet — save directly to archive
-                var data = getFormData();
-                data.id = Date.now().toString();
-                await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(data.id).set(data);
-            }
-        } catch (e) {
-            console.error('Mark as sent error:', e);
-        }
+    // localStorage first (optimistic)
+    var localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
+    var formIndex = localSaved.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
+    if (formIndex !== -1) {
+        var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+        var f = localSaved.splice(formIndex, 1)[0];
+        archived.unshift(f);
+        localStorage.setItem(sKey, JSON.stringify(localSaved));
+        localStorage.setItem(aKey, JSON.stringify(archived));
     } else {
-        // localStorage path
-        var localSaved = JSON.parse(localStorage.getItem(sKey) || '[]');
-        var formIndex = localSaved.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
-        if (formIndex !== -1) {
-            var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
-            var f = localSaved.splice(formIndex, 1)[0];
-            archived.unshift(f);
-            localStorage.setItem(sKey, JSON.stringify(localSaved));
-            localStorage.setItem(aKey, JSON.stringify(archived));
-        } else {
-            var data2 = getFormData();
-            data2.id = Date.now().toString();
-            var archived2 = JSON.parse(localStorage.getItem(aKey) || '[]');
-            archived2.unshift(data2);
-            localStorage.setItem(aKey, JSON.stringify(archived2));
-        }
+        var data2 = getFormData();
+        data2.id = Date.now().toString();
+        var archived2 = JSON.parse(localStorage.getItem(aKey) || '[]');
+        archived2.unshift(data2);
+        localStorage.setItem(aKey, JSON.stringify(archived2));
     }
 
     lastSavedData = getFormDataSnapshot();
     showNotificationModal(t('marked_as_sent'), true);
+
+    // Firebase in background
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection(formsCol).where('ordreseddelNr', '==', ordrenr).get()
+            .then(function(snap) {
+                if (!snap.empty) {
+                    var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
+                    return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).set(form)
+                        .then(function() {
+                            return db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).delete();
+                        });
+                } else {
+                    var data = getFormData();
+                    data.id = Date.now().toString();
+                    return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(data.id).set(data);
+                }
+            })
+            .catch(function(e) { console.error('Mark as sent error:', e); });
+    }
 }
 
-async function moveCurrentToSaved() {
+function moveCurrentToSaved() {
     const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
     if (!ordrenr) return;
 
@@ -601,21 +592,10 @@ async function moveCurrentToSaved() {
     const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
     const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
-    if (currentUser && db) {
-        // Use Firestore .where() directly (not paginated)
-        try {
-            var snap = await db.collection('users').doc(currentUser.uid).collection(archiveCol).where('ordreseddelNr', '==', ordrenr).get();
-            if (snap.empty) return;
-            var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
-            await db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).set(form);
-            await db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).delete();
-        } catch (e) {
-            console.error('Move to saved error:', e);
-        }
-    } else {
-        var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
-        var formIndex = archived.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
-        if (formIndex === -1) return;
+    // localStorage first (optimistic)
+    var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+    var formIndex = archived.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
+    if (formIndex !== -1) {
         var saved = JSON.parse(localStorage.getItem(sKey) || '[]');
         var f = archived.splice(formIndex, 1)[0];
         saved.unshift(f);
@@ -625,54 +605,72 @@ async function moveCurrentToSaved() {
 
     setFormReadOnly(false);
     showNotificationModal(t('move_to_saved_success'), true);
+
+    // Firebase in background
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection(archiveCol).where('ordreseddelNr', '==', ordrenr).get()
+            .then(function(snap) {
+                if (snap.empty) return;
+                var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
+                return db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).set(form)
+                    .then(function() {
+                        return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).delete();
+                    });
+            })
+            .catch(function(e) { console.error('Move to saved error:', e); });
+    }
 }
 
-async function handleFerdig() {
+function handleFerdig() {
     if (!validateRequiredFields()) return;
 
     var ferdigBtn = document.getElementById('btn-ferdig');
     if (ferdigBtn) ferdigBtn.disabled = true;
 
     try {
-        // Save the form first
         var data = getFormData();
         var formsCollection = isExternalForm ? 'external' : 'forms';
+        var archiveCollection = isExternalForm ? 'externalArchive' : 'archive';
         var storageKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
+        var archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
-        if (currentUser && db) {
-            var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
-            var existing = await formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
-            if (!existing.empty) {
-                await formsRef.doc(existing.docs[0].id).set(data);
-            } else {
-                data.id = Date.now().toString();
-                await formsRef.doc(data.id).set(data);
-            }
+        // localStorage: save form, then immediately move to archive (optimistic)
+        var saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        var existingIndex = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+        if (existingIndex !== -1) {
+            data.id = saved[existingIndex].id;
+            saved.splice(existingIndex, 1);
         } else {
-            var saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            var existingIndex = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
-            if (existingIndex !== -1) {
-                data.id = saved[existingIndex].id;
-                saved[existingIndex] = data;
-            } else {
-                data.id = Date.now().toString();
-                saved.unshift(data);
-                if (saved.length > 50) saved.pop();
-            }
-            localStorage.setItem(storageKey, JSON.stringify(saved));
+            data.id = Date.now().toString();
         }
+        localStorage.setItem(storageKey, JSON.stringify(saved));
+        var archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
+        archived.unshift(data);
+        localStorage.setItem(archiveKey, JSON.stringify(archived));
         addToOrderNumberIndex(data.ordreseddelNr);
-
-        // Mark as sent (move from forms to archive)
-        await markAsSent();
 
         // Update UI state
         sessionStorage.setItem('firesafe_current_sent', '1');
         lastSavedData = getFormDataSnapshot();
         document.getElementById('sent-banner').style.display = 'block';
         if (ferdigBtn) ferdigBtn.style.display = 'none';
-
         showNotificationModal(t('marked_as_sent'), true);
+
+        // Firebase: save directly to archive + clean up forms (single chain)
+        if (currentUser && db) {
+            var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
+            var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
+            archiveRef.doc(data.id).set(data)
+                .then(function() {
+                    return formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
+                })
+                .then(function(snap) {
+                    if (snap && !snap.empty) {
+                        return formsRef.doc(snap.docs[0].id).delete();
+                    }
+                })
+                .catch(function(e) { console.error('Ferdig Firebase error:', e); });
+        }
     } catch (e) {
         console.error('Ferdig error:', e);
         showNotificationModal(t('save_error') + e.message);
@@ -683,27 +681,19 @@ async function handleFerdig() {
 
 function moveToSaved(event, index) {
     if (event) event.stopPropagation();
-    showConfirmModal(t('move_to_saved_confirm'), async function() {
+    showConfirmModal(t('move_to_saved_confirm'), function() {
         const form = window.loadedForms[index];
         if (!form) return;
 
-        if (currentUser && db) {
-            try {
-                await db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).set(form);
-                await db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).delete();
-            } catch (e) {
-                console.error('Restore error:', e);
-            }
-        } else {
-            const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            const idx = archived.findIndex(f => f.id === form.id);
-            if (idx !== -1) {
-                const f = archived.splice(idx, 1)[0];
-                saved.unshift(f);
-                localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-            }
+        // localStorage first (optimistic)
+        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const idx = archived.findIndex(f => f.id === form.id);
+        if (idx !== -1) {
+            const f = archived.splice(idx, 1)[0];
+            saved.unshift(f);
+            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
         }
 
         // Hvis det åpne skjemaet er det som ble flyttet, fjern sendt-modus
@@ -714,6 +704,15 @@ function moveToSaved(event, index) {
 
         showSavedForms();
         showNotificationModal(t('move_to_saved_success'), true);
+
+        // Firebase in background
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).set(form)
+                .then(function() {
+                    return db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).delete();
+                })
+                .catch(function(e) { console.error('Restore error:', e); });
+        }
     }, t('btn_move'), '#333');
 }
 
@@ -846,26 +845,11 @@ function deleteExternalFormDirect(form) {
     const isSent = form._isSent;
     const confirmMsg = isSent ? t('delete_sent_confirm') : t('delete_confirm');
 
-    showConfirmModal(confirmMsg, async function() {
+    showConfirmModal(confirmMsg, function() {
         const col = isSent ? 'externalArchive' : 'external';
         const lsKey = isSent ? EXTERNAL_ARCHIVE_KEY : EXTERNAL_KEY;
 
-        if (currentUser && db) {
-            try {
-                await db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete();
-            } catch (e) {
-                console.error('Delete external error:', e);
-            }
-        } else {
-            const list = JSON.parse(localStorage.getItem(lsKey) || '[]');
-            const idx = list.findIndex(f => f.id === form.id);
-            if (idx !== -1) {
-                list.splice(idx, 1);
-                localStorage.setItem(lsKey, JSON.stringify(list));
-            }
-        }
-
-        // Optimistic removal: update local state + DOM
+        // Optimistic removal: update local state + DOM immediately
         var arrIdx = window.loadedExternalForms.findIndex(function(f) { return f.id === form.id; });
         if (arrIdx !== -1) window.loadedExternalForms.splice(arrIdx, 1);
         var lsList = JSON.parse(localStorage.getItem(lsKey) || '[]');
@@ -878,6 +862,12 @@ function deleteExternalFormDirect(form) {
         // Show empty message if no items left
         if (window.loadedExternalForms.length === 0) {
             document.getElementById('external-list').innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
+        }
+
+        // Firebase in background
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete()
+                .catch(function(e) { console.error('Delete external error:', e); });
         }
     });
 }
@@ -940,22 +930,18 @@ async function saveAsTemplate() {
         createdBy: currentUser ? currentUser.uid : 'local'
     };
 
+    // Update localStorage + local state immediately (optimistic)
+    templateData.id = Date.now().toString();
+    const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    templates.push(templateData);
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+    if (window.loadedTemplates) window.loadedTemplates.push(templateData);
+    showNotificationModal(t('template_save_success'), true);
+
+    // Firebase in background
     if (currentUser && db) {
-        try {
-            const templatesRef = db.collection('users').doc(currentUser.uid).collection('templates');
-            const docId = Date.now().toString();
-            await templatesRef.doc(docId).set(templateData);
-            showNotificationModal(t('template_save_success'), true);
-        } catch (e) {
-            console.error('Save template error:', e);
-            showNotificationModal(t('template_save_error') + e.message);
-        }
-    } else {
-        const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-        templateData.id = Date.now().toString();
-        templates.push(templateData);
-        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-        showNotificationModal(t('template_save_success'), true);
+        db.collection('users').doc(currentUser.uid).collection('templates').doc(templateData.id).set(templateData)
+            .catch(function(e) { console.error('Save template error:', e); });
     }
 }
 
@@ -1103,23 +1089,8 @@ function deleteTemplate(event, index) {
 
 function deleteTemplateDirect(template) {
     if (!template) return;
-    showConfirmModal(t('template_delete_confirm'), async function() {
-        if (currentUser && db) {
-            try {
-                await db.collection('users').doc(currentUser.uid).collection('templates').doc(template.id).delete();
-            } catch (e) {
-                console.error('Delete template error:', e);
-            }
-        } else {
-            const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-            const idx = templates.findIndex(t => t.id === template.id);
-            if (idx !== -1) {
-                templates.splice(idx, 1);
-                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-            }
-        }
-
-        // Optimistic removal: update local state + DOM
+    showConfirmModal(t('template_delete_confirm'), function() {
+        // Optimistic removal: update local state + DOM immediately
         var arrIdx = window.loadedTemplates.findIndex(function(t) { return t.id === template.id; });
         if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
         var lsList = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
@@ -1133,6 +1104,12 @@ function deleteTemplateDirect(template) {
         if (window.loadedTemplates.length === 0) {
             document.getElementById('template-list').innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
         }
+
+        // Firebase in background
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('templates').doc(template.id).delete()
+                .catch(function(e) { console.error('Delete template error:', e); });
+        }
     });
 }
 
@@ -1144,24 +1121,20 @@ async function duplicateTemplate(index) {
     copy.prosjektnavn = (copy.prosjektnavn || '') + ' (kopi)';
     copy.createdAt = new Date().toISOString();
 
-    if (currentUser && db) {
-        try {
-            const docId = Date.now().toString();
-            copy.id = docId;
-            await db.collection('users').doc(currentUser.uid).collection('templates').doc(docId).set(copy);
-        } catch (e) {
-            console.error('Duplicate template error:', e);
-            showNotificationModal(t('template_save_error') + e.message);
-            return;
-        }
-    } else {
-        copy.id = Date.now().toString();
-        const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-        templates.push(copy);
-        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-    }
+    // Update localStorage + local state immediately (optimistic)
+    copy.id = Date.now().toString();
+    const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    templates.push(copy);
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+    if (window.loadedTemplates) window.loadedTemplates.push(copy);
     showNotificationModal(t('duplicated_success'), true);
     showTemplateModal();
+
+    // Firebase in background
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('templates').doc(copy.id).set(copy)
+            .catch(function(e) { console.error('Duplicate template error:', e); });
+    }
 }
 
 function closeTemplateModal() {
@@ -1436,22 +1409,21 @@ async function getMaterialSettings() {
     return normalizeMaterialData(stored ? JSON.parse(stored) : null);
 }
 
-async function saveMaterialSettings() {
+function saveMaterialSettings() {
     if (!isAdmin) return;
     const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec })), units: settingsUnits.slice() };
-    if (currentUser && db) {
-        try {
-            await db.collection('settings').doc('materials').set(data);
-        } catch (e) {
-            console.error('Save materials settings error:', e);
-        }
-    }
+    // localStorage + cache first (optimistic)
     localStorage.setItem(MATERIALS_KEY, JSON.stringify(data));
-    // Refresh dropdown cache
     cachedMaterialOptions = data.materials.slice();
     cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
     cachedUnitOptions = settingsUnits.slice();
     sortUnits(cachedUnitOptions);
+
+    // Firebase in background
+    if (currentUser && db) {
+        db.collection('settings').doc('materials').set(data)
+            .catch(function(e) { console.error('Save materials settings error:', e); });
+    }
 }
 
 async function loadMaterialSettingsToModal() {
@@ -1870,18 +1842,18 @@ async function getRequiredSettings() {
     return getDefaultRequiredSettings();
 }
 
-async function saveRequiredSettings(data) {
+function saveRequiredSettings(data) {
     if (!isAdmin) return;
-    if (currentUser && db) {
-        try {
-            await db.collection('settings').doc('required').set(data);
-        } catch (e) {
-            console.error('Save required settings error:', e);
-        }
-    }
+    // localStorage + cache first (optimistic)
     localStorage.setItem(REQUIRED_KEY, JSON.stringify(data));
     cachedRequiredSettings = data;
     updateRequiredIndicators();
+
+    // Firebase in background
+    if (currentUser && db) {
+        db.collection('settings').doc('required').set(data)
+            .catch(function(e) { console.error('Save required settings error:', e); });
+    }
 }
 
 async function loadRequiredSettingsToModal() {
@@ -2109,51 +2081,44 @@ async function saveTemplateFromEditor() {
         }
     }
 
+    // Update localStorage immediately (optimistic)
+    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+
     if (_editingTemplateId) {
-        // Update existing template
-        if (currentUser && db) {
-            try {
-                await db.collection('users').doc(currentUser.uid).collection('templates').doc(_editingTemplateId).update(data);
-            } catch (e) {
-                console.error('Update template error:', e);
-                showNotificationModal(t('template_save_error') + e.message);
-                return;
-            }
-        } else {
-            var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-            var idx = templates.findIndex(function(t) { return t.id === _editingTemplateId; });
-            if (idx !== -1) {
-                Object.assign(templates[idx], data);
-                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-            }
+        // Update existing template in localStorage
+        var idx = templates.findIndex(function(t) { return t.id === _editingTemplateId; });
+        if (idx !== -1) {
+            Object.assign(templates[idx], data);
         }
+        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
         showNotificationModal(t('template_updated'), true);
+
+        // Firebase in background
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('templates').doc(_editingTemplateId).update(data)
+                .catch(function(e) { console.error('Update template error:', e); });
+        }
     } else {
         // Create new template
         data.createdAt = new Date().toISOString();
         data.createdBy = currentUser ? currentUser.uid : 'local';
         data.active = true;
+        data.id = Date.now().toString();
 
-        if (currentUser && db) {
-            try {
-                var docId = Date.now().toString();
-                await db.collection('users').doc(currentUser.uid).collection('templates').doc(docId).set(data);
-            } catch (e) {
-                console.error('Create template error:', e);
-                showNotificationModal(t('template_save_error') + e.message);
-                return;
-            }
-        } else {
-            data.id = Date.now().toString();
-            var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-            templates.push(data);
-            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-        }
+        // Update localStorage immediately
+        templates.push(data);
+        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
         showNotificationModal(t('template_save_success'), true);
+
+        // Firebase in background
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('templates').doc(data.id).set(data)
+                .catch(function(e) { console.error('Create template error:', e); });
+        }
     }
 
     closeTemplateEditor();
-    await renderSettingsTemplateList();
+    _renderSettingsTemplateListFromData(templates);
 }
 
 async function toggleTemplateActive(templateId) {
@@ -2162,51 +2127,31 @@ async function toggleTemplateActive(templateId) {
 
     var newActive = tpl.active === false ? true : false;
 
-    // Update visual state immediately
+    // Update visual state + localStorage immediately (optimistic)
     var itemEl = document.querySelector('.settings-template-item[data-id="' + templateId + '"]');
     if (itemEl) {
         if (newActive) itemEl.classList.remove('inactive');
         else itemEl.classList.add('inactive');
     }
+    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    var idx = templates.findIndex(function(t) { return t.id === templateId; });
+    if (idx !== -1) {
+        templates[idx].active = newActive;
+        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+    }
 
+    // Firebase in background
     if (currentUser && db) {
-        try {
-            await db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).update({ active: newActive });
-        } catch (e) {
-            console.error('Toggle template error:', e);
-            return;
-        }
-    } else {
-        var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-        var idx = templates.findIndex(function(t) { return t.id === templateId; });
-        if (idx !== -1) {
-            templates[idx].active = newActive;
-            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-        }
+        db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).update({ active: newActive })
+            .catch(function(e) { console.error('Toggle template error:', e); });
     }
 }
 
 async function deleteTemplateFromSettings(templateId) {
     var tpl = await _findTemplateById(templateId);
     if (!tpl) return;
-    showConfirmModal(t('template_delete_confirm'), async function() {
-        if (currentUser && db) {
-            try {
-                await db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).delete();
-            } catch (e) {
-                console.error('Delete template error:', e);
-                return;
-            }
-        } else {
-            var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
-            var idx = templates.findIndex(function(t) { return t.id === templateId; });
-            if (idx !== -1) {
-                templates.splice(idx, 1);
-                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
-            }
-        }
-
-        // Optimistic removal: update local state + DOM
+    showConfirmModal(t('template_delete_confirm'), function() {
+        // Optimistic removal: update local state + DOM immediately
         var arrIdx = window.loadedTemplates.findIndex(function(t) { return t.id === templateId; });
         if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
         var lsList = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
@@ -2219,6 +2164,12 @@ async function deleteTemplateFromSettings(templateId) {
         var listEl = document.getElementById('settings-template-list');
         if (listEl && !listEl.querySelector('.settings-template-item')) {
             listEl.innerHTML = '<div class="no-saved">' + t('no_templates_settings') + '</div>';
+        }
+
+        // Firebase in background
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).delete()
+                .catch(function(e) { console.error('Delete template error:', e); });
         }
     });
 }
@@ -2301,7 +2252,7 @@ async function syncDefaultsToLocal() {
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
-async function saveDefaultSettings() {
+function saveDefaultSettings() {
     var defaults = {};
     DEFAULT_FIELDS.forEach(field => {
         var val = document.getElementById('default-' + field).value.trim();
@@ -2314,14 +2265,14 @@ async function saveDefaultSettings() {
     ['autofill_uke', 'autofill_dato', 'autofill_sted'].forEach(function(k) {
         if (existing[k] !== undefined) defaults[k] = existing[k];
     });
-    if (currentUser && db) {
-        try {
-            await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults);
-        } catch (e) {
-            console.error('Save defaults error:', e);
-        }
-    }
+    // localStorage first (optimistic)
     localStorage.setItem(key, JSON.stringify(defaults));
+
+    // Firebase in background
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults)
+            .catch(function(e) { console.error('Save defaults error:', e); });
+    }
 }
 
 // Auto-save defaults on blur
@@ -2407,17 +2358,18 @@ function getAutofillFlags(type) {
     };
 }
 
-async function saveAutofillToggle(key, value) {
+function saveAutofillToggle(key, value) {
     var storageKey = _defaultsTab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
     var fbDoc = _defaultsTab === 'external' ? 'defaults_external' : 'defaults';
     var stored = localStorage.getItem(storageKey);
     var defaults = stored ? JSON.parse(stored) : {};
     defaults['autofill_' + key] = value;
     localStorage.setItem(storageKey, JSON.stringify(defaults));
+
+    // Firebase in background
     if (currentUser && db) {
-        try {
-            await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults);
-        } catch (e) { console.error('Save autofill toggle:', e); }
+        db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults)
+            .catch(function(e) { console.error('Save autofill toggle:', e); });
     }
 }
 
@@ -2442,7 +2394,7 @@ function renderSettingsRanges() {
     }
 }
 
-async function addSettingsRange() {
+function addSettingsRange() {
     const startInput = document.getElementById('settings-new-start');
     const endInput = document.getElementById('settings-new-end');
     const start = parseInt(startInput.value);
@@ -2462,27 +2414,29 @@ async function addSettingsRange() {
     endInput.value = '';
     renderSettingsRanges();
     updateSettingsStatus();
-    // Auto-save
+    // Auto-save: localStorage first, Firebase in background
     const settings = buildOrderNrSettings();
-    if (currentUser && db) {
-        try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
-    }
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     showNotificationModal(t('settings_range_added'), true);
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
+            .catch(function(e) { console.error('Save range error:', e); });
+    }
 }
 
 function removeSettingsRange(idx) {
     const r = settingsRanges[idx];
-    showConfirmModal(t('settings_range_remove', r.start, r.end), async function() {
+    showConfirmModal(t('settings_range_remove', r.start, r.end), function() {
         settingsRanges.splice(idx, 1);
         renderSettingsRanges();
         updateSettingsStatus();
-        // Auto-save
+        // Auto-save: localStorage first, Firebase in background
         const settings = buildOrderNrSettings();
-        if (currentUser && db) {
-            try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
-        }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
+                .catch(function(e) { console.error('Remove range error:', e); });
+        }
     });
 }
 
@@ -2508,7 +2462,7 @@ function renderGivenAwayRanges() {
     }
 }
 
-async function addGivenAwayRange() {
+function addGivenAwayRange() {
     const startInput = document.getElementById('settings-give-start');
     const endInput = document.getElementById('settings-give-end');
     const start = parseInt(startInput.value);
@@ -2543,28 +2497,30 @@ async function addGivenAwayRange() {
     endInput.value = '';
     renderGivenAwayRanges();
     updateSettingsStatus();
-    // Auto-save
+    // Auto-save: localStorage first, Firebase in background
     const settings = buildOrderNrSettings();
-    if (currentUser && db) {
-        try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
-    }
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     showNotificationModal(t('settings_give_added'), true);
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
+            .catch(function(e) { console.error('Save give-away error:', e); });
+    }
 }
 
 function removeGivenAway(idx) {
     const r = settingsGivenAway[idx];
     const label = r.start === r.end ? String(r.start) : r.start + ' – ' + r.end;
-    showConfirmModal(t('settings_give_remove', label), async function() {
+    showConfirmModal(t('settings_give_remove', label), function() {
         settingsGivenAway.splice(idx, 1);
         renderGivenAwayRanges();
         updateSettingsStatus();
-        // Auto-save
+        // Auto-save: localStorage first, Firebase in background
         const settings = buildOrderNrSettings();
-        if (currentUser && db) {
-            try { await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings); } catch (e) {}
-        }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
+                .catch(function(e) { console.error('Remove give-away error:', e); });
+        }
     });
 }
 
