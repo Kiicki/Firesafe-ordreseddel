@@ -2714,19 +2714,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-radius: 6px;
 }
 
-.settings-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-    flex-shrink: 0;
-    width: 90px;
-}
-
-.settings-actions .settings-delete-btn {
-    justify-content: flex-end;
-}
-
 .settings-add-btn {
     background: #E8501A;
     color: white;
