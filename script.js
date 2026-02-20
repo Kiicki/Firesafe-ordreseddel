@@ -1618,13 +1618,13 @@ function buildDesktopWorkLines() {
             addRow('Materiell:', '', '', { bold: true, alignRight: true });
             filledMats.forEach(m => {
                 const capName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
-                addRow(capName, m.antall, (m.enhet || '').toLowerCase(), { alignRight: true });
+                addRow(capName, (m.antall || '').replace('.', ','), (m.enhet || '').toLowerCase(), { alignRight: true });
             });
         }
 
         // Timer
         if (order.timer) {
-            addRow('Timer:', order.timer, 'timer', { bold: true, alignRight: true });
+            addRow('Timer:', (order.timer || '').replace('.', ','), 'timer', { bold: true, alignRight: true });
             const val = parseFloat((order.timer || '').replace(',', '.'));
             if (!isNaN(val)) totalTimer += val;
         }
