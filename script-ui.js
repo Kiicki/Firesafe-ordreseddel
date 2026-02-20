@@ -1484,7 +1484,7 @@ function renderUnitSettingsItems() {
         return;
     }
     container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item.singular)} / ${escapeHtml(item.plural)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${item.singular === item.plural ? escapeHtml(item.singular) : escapeHtml(item.singular) + ' / ' + escapeHtml(item.plural)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
