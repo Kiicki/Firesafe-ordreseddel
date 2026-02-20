@@ -2528,7 +2528,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     align-items: center;
     justify-content: space-between;
     gap: 4px;
-    padding: 8px 4px 8px 12px;
+    padding: 8px 8px 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
     margin-bottom: 6px;
@@ -2694,7 +2694,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     box-sizing: border-box;
     border: 1px solid #ddd;
     border-radius: 6px;
-    padding: 8px 4px 8px 12px;
+    padding: 8px 8px 8px 12px;
 }
 
 .settings-add-row input {
@@ -2733,6 +2733,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
+    margin-right: 6px;
 }
 
 .settings-add-btn:active {
