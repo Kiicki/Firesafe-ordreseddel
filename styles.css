@@ -2325,7 +2325,7 @@ label.settings-default-label.field-required > span::after {
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    padding: 16px 16px 0 16px !important;
+    padding: 16px !important;
 }
 
 
