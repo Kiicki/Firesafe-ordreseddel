@@ -89,7 +89,7 @@ const TRANSLATIONS = {
         // Export menu
         export_title: 'Eksporter som',
         export_only_label: 'Kun eksporter',
-        export_and_mark_label: 'Eksporter + marker som sendt',
+        export_and_mark_label: 'Marker som sendt',
         btn_cancel: 'Avbryt',
         btn_clear: 'Fjern',
         duplicate_btn: 'Dupliser',
@@ -344,7 +344,7 @@ const TRANSLATIONS = {
         // Export menu
         export_title: 'Export as',
         export_only_label: 'Export only',
-        export_and_mark_label: 'Export + mark as sent',
+        export_and_mark_label: 'Mark as sent',
         btn_cancel: 'Cancel',
         btn_clear: 'Clear',
         duplicate_btn: 'Duplicate',

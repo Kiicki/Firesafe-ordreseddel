@@ -492,8 +492,8 @@ function showExportMenu() {
     const buttonsEl = document.getElementById('action-popup-buttons');
     var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
     var checkboxHtml = isSent ? '' :
-        '<label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;font-size:14px">' +
-            '<input type="checkbox" id="export-mark-sent" checked style="width:18px;height:18px;accent-color:#E8501A">' +
+        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:8px 0">' +
+            '<input type="checkbox" id="export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
             t('export_and_mark_label') +
         '</label>';
     let html = checkboxHtml +
