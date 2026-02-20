@@ -2488,6 +2488,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #333;
 }
 
+.settings-collapsible-header:has(+ .settings-collapsible-body.open) {
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 0;
+    border-bottom-color: #eee;
+}
+
 .settings-collapsible-header:active {
     background: #eee;
 }
@@ -2510,6 +2516,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 .settings-collapsible-body.open {
     display: block;
+    padding: 0;
+    border: 1px solid #e0e0e0;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
 }
 
 .settings-collapsible-count {
@@ -2539,6 +2550,17 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-list-item span {
     cursor: pointer;
     flex: 1;
+}
+
+.settings-collapsible-body .settings-list-item {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid #eee;
+}
+
+.settings-collapsible-body .settings-list-container {
+    margin-bottom: 0;
 }
 
 
@@ -2695,6 +2717,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border: 1px solid #ddd;
     border-radius: 6px;
     padding: 8px 8px 8px 12px;
+}
+
+.settings-collapsible-body .settings-add-row {
+    border: none;
+    border-radius: 0;
+    margin: 0;
 }
 
 .settings-add-row input {
