@@ -1617,7 +1617,8 @@ function buildDesktopWorkLines() {
         if (filledMats.length > 0) {
             addRow('Materiell:', '', '', { bold: true, alignRight: true });
             filledMats.forEach(m => {
-                addRow(m.name, m.antall, (m.enhet || '').toLowerCase(), { alignRight: true });
+                const capName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
+                addRow(capName, m.antall, (m.enhet || '').toLowerCase(), { alignRight: true });
             });
         }
 
