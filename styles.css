@@ -2781,13 +2781,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: #E8501A;
     color: white;
     border: none;
-    border-radius: 6px;
-    padding: 0 12px;
+    border-radius: 4px;
+    padding: 6px 12px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     flex-shrink: 0;
     white-space: nowrap;
+    margin-right: 10px;
 }
 .settings-give-btn:active {
     opacity: 0.8;
@@ -2796,8 +2797,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-status {
     font-size: 13px;
     color: #666;
-    margin-bottom: 16px;
     line-height: 1.5;
+    padding: 10px 12px;
+    border-top: 1px solid #eee;
 }
 
 .settings-save-btn {
