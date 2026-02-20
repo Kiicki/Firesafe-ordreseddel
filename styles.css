@@ -1033,7 +1033,51 @@ body.settings-modal-open {
 #external-list .saved-item,
 #template-list .saved-item {
     padding: 8px 12px;
-    margin-bottom: 6px;
+    margin-bottom: 0;
+    border: none;
+    border-left: 1px solid #e0e0e0;
+    border-right: 1px solid #e0e0e0;
+    border-bottom: 1px solid #eee;
+    border-radius: 0;
+}
+
+/* Første item — topp border + avrunding */
+#saved-list .saved-item:first-child,
+#external-list .saved-item:first-child,
+#template-list .saved-item:first-child {
+    border-top: 1px solid #e0e0e0;
+    border-radius: 8px 8px 0 0;
+}
+
+/* Siste item — solid bunn + avrunding */
+#saved-list .saved-item:last-child,
+#external-list .saved-item:last-child,
+#template-list .saved-item:last-child {
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 0 0 8px 8px;
+}
+
+/* Item før "Last flere"-knapp — behandles som siste */
+#saved-list .saved-item:has(+ .load-more-btn),
+#external-list .saved-item:has(+ .load-more-btn),
+#template-list .saved-item:has(+ .load-more-btn) {
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 0 0 8px 8px;
+}
+
+/* Eneste item — full border */
+#saved-list .saved-item:only-child,
+#external-list .saved-item:only-child,
+#template-list .saved-item:only-child {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+}
+
+/* Hover i gruppert liste — behold bakgrunn, fjern box-shadow */
+#saved-list .saved-item:hover,
+#external-list .saved-item:hover,
+#template-list .saved-item:hover {
+    box-shadow: none;
 }
 
 .saved-item-info {
