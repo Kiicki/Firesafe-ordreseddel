@@ -1486,8 +1486,20 @@ function renderUnitSettingsItems() {
         return;
     }
     container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item.singular)} / ${escapeHtml(item.plural)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item" style="display:flex;gap:4px;align-items:center;"><input type="text" class="settings-list-edit-input" value="${escapeHtml(item.singular)}" onblur="saveSettingsUnitField(${idx},'singular',this.value)" style="flex:1;min-width:0;" placeholder="Entall"><span style="color:#999;flex-shrink:0;">/</span><input type="text" class="settings-list-edit-input" value="${escapeHtml(item.plural)}" onblur="saveSettingsUnitField(${idx},'plural',this.value)" style="flex:1;min-width:0;" placeholder="Flertall"><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
+}
+
+async function saveSettingsUnitField(idx, field, value) {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === settingsUnits[idx][field]) return;
+    if (field === 'plural' && settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === trimmed.toLowerCase())) {
+        showNotificationModal(t('settings_unit_exists'));
+        renderUnitSettingsItems();
+        return;
+    }
+    settingsUnits[idx][field] = trimmed;
+    await saveMaterialSettings();
 }
 
 function toggleSettingsSection(section) {
@@ -1604,66 +1616,6 @@ async function toggleMaterialSpec(idx) {
     await saveMaterialSettings();
 }
 
-function editSettingsUnit(idx) {
-    if (!isAdmin) return;
-    const container = document.getElementById('settings-unit-items');
-    const item = container.children[idx];
-    const span = item.querySelector('span');
-    if (!span) return;
-    const oldUnit = settingsUnits[idx];
-    const wrapper = document.createElement('span');
-    wrapper.style.cssText = 'display:flex;gap:4px;flex:1;min-width:0;align-items:center;';
-    const inputSingular = document.createElement('input');
-    inputSingular.type = 'text';
-    inputSingular.className = 'settings-list-edit-input';
-    inputSingular.value = oldUnit.singular;
-    inputSingular.placeholder = 'Entall';
-    inputSingular.style.flex = '1';
-    const separator = document.createElement('span');
-    separator.textContent = '/';
-    separator.style.cssText = 'color:#999;flex-shrink:0;';
-    const inputPlural = document.createElement('input');
-    inputPlural.type = 'text';
-    inputPlural.className = 'settings-list-edit-input';
-    inputPlural.value = oldUnit.plural;
-    inputPlural.placeholder = 'Flertall';
-    inputPlural.style.flex = '1';
-    wrapper.appendChild(inputSingular);
-    wrapper.appendChild(separator);
-    wrapper.appendChild(inputPlural);
-    span.replaceWith(wrapper);
-    inputSingular.focus();
-    inputSingular.select();
-    let saved = false;
-    async function save() {
-        if (saved) return;
-        saved = true;
-        const newSingular = inputSingular.value.trim();
-        const newPlural = inputPlural.value.trim();
-        if (!newSingular || !newPlural || (newSingular === oldUnit.singular && newPlural === oldUnit.plural)) {
-            renderUnitSettingsItems();
-            return;
-        }
-        if (settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === newPlural.toLowerCase())) {
-            showNotificationModal(t('settings_unit_exists'));
-            renderUnitSettingsItems();
-            return;
-        }
-        settingsUnits[idx] = { singular: newSingular, plural: newPlural };
-        sortUnits(settingsUnits);
-        renderUnitSettingsItems();
-        await saveMaterialSettings();
-    }
-    inputSingular.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); inputPlural.focus(); }
-        if (e.key === 'Escape') { saved = true; renderUnitSettingsItems(); }
-    });
-    inputPlural.addEventListener('blur', save);
-    inputPlural.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); inputPlural.blur(); }
-        if (e.key === 'Escape') { saved = true; renderUnitSettingsItems(); }
-    });
-}
 
 // ============================================
 // DROPDOWN FOR MATERIALE OG ENHET
