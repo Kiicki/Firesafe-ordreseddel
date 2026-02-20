@@ -2733,8 +2733,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    flex-shrink: 0;
-    min-width: 90px;
 }
 
 .settings-add-btn:active {

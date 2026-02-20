@@ -1518,6 +1518,43 @@ function editSettingsUnit(idx) {
     inputS.focus();
     inputS.select();
 
+    let saved = false;
+    function handleBlur(e) {
+        if (saved) return;
+        // If focus moved to the sibling input, don't save yet
+        if (e.relatedTarget === inputS || e.relatedTarget === inputP) return;
+        saved = true;
+
+        // Check if a unit span was clicked (relatedTarget is null for non-focusable spans,
+        // so we use mousedown capture instead)
+        const pendingPlural = container._pendingEditPlural;
+        delete container._pendingEditPlural;
+        container.removeEventListener('mousedown', onMousedown);
+
+        const newS = inputS.value.trim();
+        const newP = inputP.value.trim();
+        const changed = !(!newS && !newP) && !(newS === oldSingular && newP === oldPlural);
+
+        if (changed) {
+            if (newP && settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === newP.toLowerCase())) {
+                showNotificationModal(t('settings_unit_exists'));
+                renderUnitSettingsItems();
+                if (pendingPlural) { const ni = settingsUnits.findIndex(u => u.plural === pendingPlural); if (ni >= 0) editSettingsUnit(ni); }
+                return;
+            }
+            settingsUnits[idx].singular = newS || oldSingular;
+            settingsUnits[idx].plural = newP || oldPlural;
+            sortUnits(settingsUnits);
+        }
+
+        renderUnitSettingsItems();
+        if (pendingPlural) {
+            const ni = settingsUnits.findIndex(u => u.plural === pendingPlural);
+            if (ni >= 0) editSettingsUnit(ni);
+        }
+        if (changed) saveMaterialSettings();
+    }
+
     // Capture mousedown on other unit spans before blur fires
     function onMousedown(e) {
         const clickedSpan = e.target.closest('.settings-list-item span');
@@ -1529,43 +1566,8 @@ function editSettingsUnit(idx) {
     }
     container.addEventListener('mousedown', onMousedown);
 
-    let saved = false;
-    async function save() {
-        if (saved) return;
-        await new Promise(r => setTimeout(r, 10));
-        if (document.activeElement === inputS || document.activeElement === inputP) return;
-        saved = true;
-        container.removeEventListener('mousedown', onMousedown);
-        const newS = inputS.value.trim();
-        const newP = inputP.value.trim();
-        if ((!newS && !newP) || (newS === oldSingular && newP === oldPlural)) {
-            renderUnitSettingsItems();
-            triggerPendingEdit();
-            return;
-        }
-        if (newP && settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === newP.toLowerCase())) {
-            showNotificationModal(t('settings_unit_exists'));
-            renderUnitSettingsItems();
-            triggerPendingEdit();
-            return;
-        }
-        settingsUnits[idx].singular = newS || oldSingular;
-        settingsUnits[idx].plural = newP || oldPlural;
-        sortUnits(settingsUnits);
-        renderUnitSettingsItems();
-        triggerPendingEdit();
-        await saveMaterialSettings();
-    }
-    function triggerPendingEdit() {
-        const pending = container._pendingEditPlural;
-        delete container._pendingEditPlural;
-        if (pending) {
-            const newIdx = settingsUnits.findIndex(u => u.plural === pending);
-            if (newIdx >= 0) editSettingsUnit(newIdx);
-        }
-    }
-    inputS.addEventListener('blur', save);
-    inputP.addEventListener('blur', save);
+    inputS.addEventListener('blur', handleBlur);
+    inputP.addEventListener('blur', handleBlur);
     function handleKey(e) {
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         if (e.key === 'Escape') { saved = true; container.removeEventListener('mousedown', onMousedown); renderUnitSettingsItems(); }
