@@ -2566,6 +2566,13 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-bottom: 1px solid #eee;
 }
 
+.settings-collapsible-body .settings-toggle-item {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid #eee;
+}
+
 .settings-collapsible-body .settings-list-container {
     margin-bottom: 0;
 }
@@ -2850,6 +2857,22 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-bottom: 1px solid #f0f0f0;
 }
 .settings-group .settings-toggle-item {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+}
+.settings-group .settings-menu-item {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+}
+.settings-group .settings-lang-option {
+    border-radius: 0;
+}
+.settings-lang-options.settings-group {
+    gap: 0;
+}
+.settings-group .settings-template-item {
     border: none;
     border-radius: 0;
     margin-bottom: 0;

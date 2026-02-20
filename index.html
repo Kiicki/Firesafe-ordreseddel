@@ -503,7 +503,7 @@
                 <!-- Maler-side -->
                 <div id="settings-page-templates" class="settings-page" style="display:none;">
                     <button class="settings-add-template-btn" onclick="showTemplateEditor()" data-i18n="settings_new_template">+ Ny mal</button>
-                    <div id="settings-template-list"></div>
+                    <div id="settings-template-list" class="settings-group"></div>
                     <!-- Obligatoriske felt for maler -->
                     <div class="settings-collapsible-header" onclick="toggleSettingsSection('tpl-required')" style="margin-top: 16px;">
                         <span data-i18n="settings_required">Obligatoriske felt</span>
@@ -516,7 +516,7 @@
 
                 <!-- Språk-side -->
                 <div id="settings-page-language" class="settings-page" style="display:none;">
-                    <div class="settings-lang-options" id="settings-lang-options">
+                    <div class="settings-lang-options settings-group" id="settings-lang-options">
                         <div class="settings-lang-option" onclick="setLanguage('no')">
                             <span>Norsk</span>
                             <span class="settings-lang-check" id="lang-check-no">&#10003;</span>
