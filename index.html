@@ -490,9 +490,8 @@
                     </div>
                     <div class="settings-collapsible-body" id="settings-body-units">
                         <div id="settings-unit-items" class="settings-list-container"></div>
-                        <div class="settings-add-row">
-                            <input type="text" class="settings-unit-input" id="settings-new-unit-singular" placeholder="Entall" autocapitalize="sentences">
-                            <input type="text" class="settings-unit-input" id="settings-new-unit-plural" placeholder="Flertall" autocapitalize="sentences">
+                        <div class="settings-add-row" id="settings-unit-add-row">
+                            <input type="text" id="settings-new-unit" placeholder="Ny enhet" autocapitalize="sentences" onfocus="expandUnitAddRow()">
                             <button type="button" class="settings-add-btn" onclick="addSettingsUnit()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>

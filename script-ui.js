@@ -1356,8 +1356,7 @@ function showSettingsPage(page) {
         renderMaterialSettingsItems();
         renderUnitSettingsItems();
         document.getElementById('settings-new-material').value = '';
-        document.getElementById('settings-new-unit-singular').value = '';
-        document.getElementById('settings-new-unit-plural').value = '';
+        collapseUnitAddRow();
         // Background refresh
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
@@ -1464,8 +1463,7 @@ async function loadMaterialSettingsToModal() {
     renderMaterialSettingsItems();
     renderUnitSettingsItems();
     document.getElementById('settings-new-material').value = '';
-    document.getElementById('settings-new-unit-singular').value = '';
-    document.getElementById('settings-new-unit-plural').value = '';
+    collapseUnitAddRow();
 }
 
 function renderMaterialSettingsItems() {
@@ -1581,6 +1579,7 @@ async function addSettingsUnit() {
     if (!isAdmin) return;
     const singularInput = document.getElementById('settings-new-unit-singular');
     const pluralInput = document.getElementById('settings-new-unit-plural');
+    if (!singularInput || !pluralInput) return;
     const singular = singularInput.value.trim();
     const plural = pluralInput.value.trim();
     if (!singular || !plural) return;
@@ -1590,11 +1589,58 @@ async function addSettingsUnit() {
     }
     settingsUnits.push({ singular, plural });
     sortUnits(settingsUnits);
-    singularInput.value = '';
-    pluralInput.value = '';
+    collapseUnitAddRow();
     renderUnitSettingsItems();
     await saveMaterialSettings();
     showNotificationModal(t('settings_unit_added'), true);
+}
+
+function expandUnitAddRow() {
+    const singleInput = document.getElementById('settings-new-unit');
+    if (!singleInput) return;
+    const addRow = document.getElementById('settings-unit-add-row');
+    const btn = addRow.querySelector('.settings-add-btn');
+
+    const inputS = document.createElement('input');
+    inputS.type = 'text';
+    inputS.className = 'settings-unit-input';
+    inputS.id = 'settings-new-unit-singular';
+    inputS.placeholder = 'Entall';
+    inputS.autocapitalize = 'sentences';
+
+    const inputP = document.createElement('input');
+    inputP.type = 'text';
+    inputP.className = 'settings-unit-input';
+    inputP.id = 'settings-new-unit-plural';
+    inputP.placeholder = 'Flertall';
+    inputP.autocapitalize = 'sentences';
+
+    singleInput.replaceWith(inputS);
+    btn.before(inputP);
+    inputS.focus();
+
+    async function maybeCollapse() {
+        await new Promise(r => setTimeout(r, 10));
+        if (document.activeElement === inputS || document.activeElement === inputP) return;
+        if (inputS.value.trim() || inputP.value.trim()) return;
+        collapseUnitAddRow();
+    }
+    inputS.addEventListener('blur', maybeCollapse);
+    inputP.addEventListener('blur', maybeCollapse);
+}
+
+function collapseUnitAddRow() {
+    const inputS = document.getElementById('settings-new-unit-singular');
+    const inputP = document.getElementById('settings-new-unit-plural');
+    if (!inputS && !inputP) return;
+    const singleInput = document.createElement('input');
+    singleInput.type = 'text';
+    singleInput.id = 'settings-new-unit';
+    singleInput.placeholder = 'Ny enhet';
+    singleInput.autocapitalize = 'sentences';
+    singleInput.setAttribute('onfocus', 'expandUnitAddRow()');
+    if (inputP) inputP.remove();
+    if (inputS) inputS.replaceWith(singleInput);
 }
 
 function removeSettingsMaterial(idx) {
