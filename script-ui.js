@@ -1612,7 +1612,7 @@ function editSettingsUnit(idx) {
     if (!span) return;
     const oldUnit = settingsUnits[idx];
     const wrapper = document.createElement('span');
-    wrapper.style.cssText = 'display:flex;gap:4px;flex:1;align-items:center;';
+    wrapper.style.cssText = 'display:flex;gap:4px;flex:1;min-width:0;align-items:center;';
     const inputSingular = document.createElement('input');
     inputSingular.type = 'text';
     inputSingular.className = 'settings-list-edit-input';
