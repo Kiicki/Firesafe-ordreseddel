@@ -481,7 +481,7 @@
                         <div id="settings-material-items" class="settings-list-container"></div>
                         <div class="settings-add-row">
                             <input type="text" id="settings-new-material" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale" autocapitalize="sentences">
-                            <div class="settings-actions"><button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button></div>
+                            <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>
                     <div class="settings-collapsible-header" onclick="toggleSettingsSection('units')">
@@ -491,9 +491,9 @@
                     <div class="settings-collapsible-body" id="settings-body-units">
                         <div id="settings-unit-items" class="settings-list-container"></div>
                         <div class="settings-add-row">
-                            <input type="text" id="settings-new-unit-singular" placeholder="Entall" autocapitalize="sentences">
-                            <input type="text" id="settings-new-unit-plural" placeholder="Flertall" autocapitalize="sentences">
-                            <div class="settings-actions"><button type="button" class="settings-add-btn" onclick="addSettingsUnit()" data-i18n="btn_add">Legg til</button></div>
+                            <input type="text" class="settings-unit-input" id="settings-new-unit-singular" placeholder="Entall" autocapitalize="sentences">
+                            <input type="text" class="settings-unit-input" id="settings-new-unit-plural" placeholder="Flertall" autocapitalize="sentences">
+                            <button type="button" class="settings-add-btn" onclick="addSettingsUnit()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>
                 </div>

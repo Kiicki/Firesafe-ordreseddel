@@ -2528,7 +2528,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     align-items: center;
     justify-content: space-between;
     gap: 4px;
-    padding: 4px 4px 4px 12px;
+    padding: 8px 4px 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
     margin-bottom: 6px;
@@ -2554,13 +2554,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 .settings-material-name {
     flex: 1;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
     font-size: 14px;
     color: #333;
     cursor: pointer;
-    box-sizing: border-box;
 }
 
 .settings-unit-input {
@@ -2691,20 +2687,31 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 .settings-add-row {
     display: flex;
+    align-items: center;
     gap: 4px;
     margin: 12px 0;
     width: 100%;
     box-sizing: border-box;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 4px 8px 12px;
 }
 
 .settings-add-row input {
     flex: 1;
     min-width: 0;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+    box-sizing: border-box;
+    outline: none;
+    color: #333;
+}
+
+.settings-add-row .settings-unit-input {
     padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
-    font-size: 14px;
-    box-sizing: border-box;
 }
 
 .settings-actions {
@@ -2712,13 +2719,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    width: 100px;
     flex-shrink: 0;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 0 4px;
-    box-sizing: border-box;
-    align-self: stretch;
 }
 
 .settings-add-btn {
@@ -2726,13 +2727,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: white;
     border: none;
     border-radius: 4px;
-    padding: 0 12px;
+    padding: 6px 12px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    width: 100%;
-    height: 100%;
+    flex-shrink: 0;
 }
 
 .settings-add-btn:active {

@@ -1475,7 +1475,7 @@ function renderMaterialSettingsItems() {
         return;
     }
     container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item" style="border:none;padding:0;"><span class="settings-material-name" onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><div class="settings-actions"><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><div class="settings-actions"><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
     ).join('');
 }
 
@@ -1486,20 +1486,71 @@ function renderUnitSettingsItems() {
         return;
     }
     container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item" style="justify-content:flex-start;gap:4px;border:none;padding:0;"><input type="text" class="settings-unit-input" value="${escapeHtml(item.singular)}" onblur="saveSettingsUnitField(${idx},'singular',this.value)" placeholder="Entall"><input type="text" class="settings-unit-input" value="${escapeHtml(item.plural)}" onblur="saveSettingsUnitField(${idx},'plural',this.value)" placeholder="Flertall"><div class="settings-actions"><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${escapeHtml(item.singular)} / ${escapeHtml(item.plural)}</span><div class="settings-actions"><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
     ).join('');
 }
 
-async function saveSettingsUnitField(idx, field, value) {
-    const trimmed = value.trim();
-    if (!trimmed || trimmed === settingsUnits[idx][field]) return;
-    if (field === 'plural' && settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === trimmed.toLowerCase())) {
-        showNotificationModal(t('settings_unit_exists'));
+function editSettingsUnit(idx) {
+    if (!isAdmin) return;
+    const container = document.getElementById('settings-unit-items');
+    const item = container.children[idx];
+    const span = item.querySelector('span');
+    if (!span) return;
+    const oldSingular = settingsUnits[idx].singular;
+    const oldPlural = settingsUnits[idx].plural;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;flex:1;gap:4px;min-width:0;';
+
+    const inputS = document.createElement('input');
+    inputS.type = 'text';
+    inputS.className = 'settings-unit-input';
+    inputS.value = oldSingular;
+    inputS.placeholder = 'Entall';
+
+    const inputP = document.createElement('input');
+    inputP.type = 'text';
+    inputP.className = 'settings-unit-input';
+    inputP.value = oldPlural;
+    inputP.placeholder = 'Flertall';
+
+    wrapper.appendChild(inputS);
+    wrapper.appendChild(inputP);
+    span.replaceWith(wrapper);
+    inputS.focus();
+    inputS.select();
+
+    let saved = false;
+    async function save() {
+        if (saved) return;
+        await new Promise(r => setTimeout(r, 10));
+        if (document.activeElement === inputS || document.activeElement === inputP) return;
+        saved = true;
+        const newS = inputS.value.trim();
+        const newP = inputP.value.trim();
+        if ((!newS && !newP) || (newS === oldSingular && newP === oldPlural)) {
+            renderUnitSettingsItems();
+            return;
+        }
+        if (newP && settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === newP.toLowerCase())) {
+            showNotificationModal(t('settings_unit_exists'));
+            renderUnitSettingsItems();
+            return;
+        }
+        settingsUnits[idx].singular = newS || oldSingular;
+        settingsUnits[idx].plural = newP || oldPlural;
+        sortUnits(settingsUnits);
         renderUnitSettingsItems();
-        return;
+        await saveMaterialSettings();
     }
-    settingsUnits[idx][field] = trimmed;
-    await saveMaterialSettings();
+    inputS.addEventListener('blur', save);
+    inputP.addEventListener('blur', save);
+    function handleKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        if (e.key === 'Escape') { saved = true; renderUnitSettingsItems(); }
+    }
+    inputS.addEventListener('keydown', handleKey);
+    inputP.addEventListener('keydown', handleKey);
 }
 
 function toggleSettingsSection(section) {
