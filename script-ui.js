@@ -1475,7 +1475,7 @@ function renderMaterialSettingsItems() {
         return;
     }
     container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><div class="settings-actions"><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
     ).join('');
 }
 
@@ -1486,7 +1486,7 @@ function renderUnitSettingsItems() {
         return;
     }
     container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item" style="justify-content:flex-start;gap:4px;"><input type="text" class="settings-list-edit-input" value="${escapeHtml(item.singular)}" onblur="saveSettingsUnitField(${idx},'singular',this.value)" style="flex:1;min-width:0;" placeholder="Entall"><input type="text" class="settings-list-edit-input" value="${escapeHtml(item.plural)}" onblur="saveSettingsUnitField(${idx},'plural',this.value)" style="flex:1;min-width:0;" placeholder="Flertall"><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item" style="justify-content:flex-start;gap:4px;"><input type="text" class="settings-list-edit-input" value="${escapeHtml(item.singular)}" onblur="saveSettingsUnitField(${idx},'singular',this.value)" style="flex:1;min-width:0;" placeholder="Entall"><input type="text" class="settings-list-edit-input" value="${escapeHtml(item.plural)}" onblur="saveSettingsUnitField(${idx},'plural',this.value)" style="flex:1;min-width:0;" placeholder="Flertall"><div class="settings-actions"><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div></div>`
     ).join('');
 }
 

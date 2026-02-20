@@ -2680,6 +2680,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     box-sizing: border-box;
 }
 
+.settings-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
 .settings-add-btn {
     background: #E8501A;
     color: white;
@@ -2689,8 +2698,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    flex-shrink: 0;
     white-space: nowrap;
+    width: 100%;
+    height: 36px;
 }
 
 .settings-add-btn:active {
