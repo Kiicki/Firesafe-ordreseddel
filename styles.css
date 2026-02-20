@@ -2551,6 +2551,20 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #333;
 }
 
+.settings-unit-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    outline: none;
+    color: #333;
+}
+.settings-unit-input:focus {
+    border-color: #e55a00;
+}
+
 .settings-delete-btn {
     background: none;
     border: none;
