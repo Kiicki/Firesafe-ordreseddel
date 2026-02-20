@@ -3135,7 +3135,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         background: #f0f0f0;
     }
     .modal-content {
-        max-width: 600px;
+        max-width: 800px;
         margin: 0 auto;
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
@@ -3151,7 +3151,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     }
     .picker-overlay > .overlay-content,
     .text-editor-modal > .overlay-content {
-        max-width: 600px;
+        max-width: 800px;
         width: 100%;
         background: white;
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
@@ -3161,18 +3161,18 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
     /* Toolbar - constrain on desktop */
     .toolbar {
-        max-width: 600px;
+        max-width: 800px;
         margin: 0 auto;
     }
 
     /* Top bar (login button) - constrain on desktop */
     .top-bar {
-        max-width: 600px;
+        max-width: 800px;
     }
 
     /* Sent banner - constrain on desktop */
     .sent-banner {
-        max-width: 600px;
+        max-width: 800px;
     }
 }
 
