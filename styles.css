@@ -2527,6 +2527,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 4px;
     padding: 4px 4px 4px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
@@ -2559,13 +2560,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 14px;
     color: #333;
     cursor: pointer;
+    box-sizing: border-box;
 }
 
 .settings-unit-input {
     flex: 1;
     min-width: 0;
     font-size: 14px;
-    padding: 8px;
+    padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
     outline: none;
@@ -2582,8 +2584,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #e74c3c;
     cursor: pointer;
     padding: 0;
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 32px;
+    min-height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2689,7 +2691,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 .settings-add-row {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     margin: 12px 0;
     width: 100%;
     box-sizing: border-box;
@@ -2698,7 +2700,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-add-row input {
     flex: 1;
     min-width: 0;
-    padding: 8px;
+    padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
@@ -2714,22 +2716,23 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     flex-shrink: 0;
     border: 1px solid #ddd;
     border-radius: 6px;
-    padding: 4px;
+    padding: 0 4px;
     box-sizing: border-box;
+    align-self: stretch;
 }
 
 .settings-add-btn {
     background: #E8501A;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 0 12px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
     width: 100%;
-    height: 36px;
+    height: 100%;
 }
 
 .settings-add-btn:active {
