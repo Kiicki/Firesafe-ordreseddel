@@ -160,9 +160,12 @@ if (auth) {
         var lastUid = localStorage.getItem('firesafe_last_uid');
         if (lastUid && lastUid !== user.uid) {
             [SETTINGS_KEY, DEFAULTS_KEY, DEFAULTS_EXTERNAL_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
-             STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, EXTERNAL_KEY, EXTERNAL_ARCHIVE_KEY]
+             STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, EXTERNAL_KEY, EXTERNAL_ARCHIVE_KEY,
+             'firesafe_lang']
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
+            currentLang = 'no';
+            applyTranslations();
             if (typeof resetPaginationState === 'function') resetPaginationState();
         }
         localStorage.setItem('firesafe_last_uid', user.uid);
