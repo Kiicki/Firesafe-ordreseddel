@@ -287,6 +287,8 @@ function loadFormDirect(formData) {
     const isSent = !!formData._isSent;
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
+    var headerDoneBtn = document.getElementById('header-done-btn');
+    if (headerDoneBtn) headerDoneBtn.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // Set hash based on form type
@@ -604,6 +606,8 @@ function markCurrentFormAsSent() {
         sessionStorage.setItem('firesafe_current_sent', '1');
         lastSavedData = getFormDataSnapshot();
         document.getElementById('sent-banner').style.display = 'block';
+        var headerDoneBtn = document.getElementById('header-done-btn');
+        if (headerDoneBtn) headerDoneBtn.style.display = 'none';
         showNotificationModal(t('marked_as_sent'), true);
 
         // Firebase: save directly to archive + clean up forms (single chain)
@@ -768,6 +772,8 @@ function loadExternalFormDirect(form) {
     const isSent = !!form._isSent;
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
+    var headerDoneBtn = document.getElementById('header-done-btn');
+    if (headerDoneBtn) headerDoneBtn.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // External form = #ekstern
@@ -2676,6 +2682,8 @@ function clearForm() {
     sessionStorage.removeItem('firesafe_current');
     sessionStorage.removeItem('firesafe_current_sent');
     document.getElementById('sent-banner').style.display = 'none';
+    var headerDoneBtn = document.getElementById('header-done-btn');
+    if (headerDoneBtn) headerDoneBtn.style.display = '';
     lastSavedData = null;
     isExternalForm = false;
     updateFormTypeChip();
@@ -3008,6 +3016,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
             document.getElementById('sent-banner').style.display = 'block';
+            var headerDoneBtn = document.getElementById('header-done-btn');
+            if (headerDoneBtn) headerDoneBtn.style.display = 'none';
         }
         updateToolbarState();
     } else if (hash === 'hent') {

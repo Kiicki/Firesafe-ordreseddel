@@ -1838,6 +1838,8 @@ function _clearSentStateAfterSave() {
     if (sessionStorage.getItem('firesafe_current_sent') === '1') {
         sessionStorage.removeItem('firesafe_current_sent');
         document.getElementById('sent-banner').style.display = 'none';
+        var headerDoneBtn = document.getElementById('header-done-btn');
+        if (headerDoneBtn) headerDoneBtn.style.display = '';
     }
 }
 
