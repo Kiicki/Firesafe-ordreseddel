@@ -9,6 +9,7 @@ var _savedLastDoc = null, _sentLastDoc = null, _savedHasMore = false, _sentHasMo
 var _extLastDoc = null, _extSentLastDoc = null, _extHasMore = false, _extSentHasMore = false;
 var _templateLastDoc = null, _templateHasMore = false;
 var _lastLocalSaveTs = 0;
+var _pendingFirestoreOps = Promise.resolve();
 
 function resetPaginationState() {
     _savedLastDoc = null; _sentLastDoc = null;
@@ -182,17 +183,17 @@ function showSavedForms() {
 }
 
 function _mergeAndDedup(saved, sent) {
-    // Saved først, så sent — ved duplikat ordreseddelNr beholdes første (saved vinner)
+    // Ved duplikat ordreseddelNr: behold nyeste versjon (basert på savedAt)
     var all = saved.concat(sent);
-    var seen = new Set();
-    var result = [];
+    var byNr = {};
     for (var i = 0; i < all.length; i++) {
         var nr = all[i].ordreseddelNr;
-        if (!seen.has(nr)) {
-            seen.add(nr);
-            result.push(all[i]);
+        if (!byNr[nr] || (all[i].savedAt || '') > (byNr[nr].savedAt || '')) {
+            byNr[nr] = all[i];
         }
     }
+    var result = [];
+    for (var key in byNr) result.push(byNr[key]);
     return result.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
 }
 
@@ -614,18 +615,21 @@ function markCurrentFormAsSent() {
         var storageKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
         var archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
-        // localStorage: save form, then immediately move to archive (optimistic)
+        // localStorage: legg til i archived, IKKE fjern fra saved (sikkerhetskopi)
         var saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
         var existingIndex = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (existingIndex !== -1) {
             data.id = saved[existingIndex].id;
-            saved.splice(existingIndex, 1);
         } else {
             data.id = Date.now().toString();
         }
-        localStorage.setItem(storageKey, JSON.stringify(saved));
         var archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
-        archived.unshift(data);
+        var archivedExisting = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+        if (archivedExisting !== -1) {
+            archived[archivedExisting] = data;
+        } else {
+            archived.unshift(data);
+        }
         localStorage.setItem(archiveKey, JSON.stringify(archived));
         addToOrderNumberIndex(data.ordreseddelNr);
 
@@ -638,20 +642,16 @@ function markCurrentFormAsSent() {
         showNotificationModal(t('marked_as_sent'), true);
         _lastLocalSaveTs = Date.now();
 
-        // Firebase: save directly to archive + clean up forms (single chain)
+        // Firebase: serialisert via _pendingFirestoreOps for å unngå race conditions
         if (currentUser && db) {
             var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
             var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
-            archiveRef.doc(data.id).set(data)
-                .then(function() {
-                    return formsRef.where('ordreseddelNr', '==', data.ordreseddelNr).get();
-                })
-                .then(function(snap) {
-                    if (snap && !snap.empty) {
-                        return formsRef.doc(snap.docs[0].id).delete();
-                    }
-                })
-                .catch(function(e) { console.error('Mark as sent Firebase error:', e); });
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return archiveRef.doc(docId).set(data);
+            }).then(function() {
+                return formsRef.doc(docId).delete();
+            }).catch(function(e) { console.error('Mark as sent Firebase error:', e); });
         }
     } catch (e) {
         console.error('Mark as sent error:', e);

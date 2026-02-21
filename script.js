@@ -1910,11 +1910,16 @@ async function saveForm() {
                 _lastLocalSaveTs = Date.now();
                 showNotificationModal(t('save_success'), true); showSavedForms();
 
-                // Firebase in background
+                // Firebase: serialisert via _pendingFirestoreOps
                 if (currentUser && db) {
                     var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
-                    formsRef.doc(data.id).set(data)
-                        .catch(function(e) { console.error('Firestore save error:', e); });
+                    var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
+                    var docId = data.id;
+                    _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                        return formsRef.doc(docId).set(data);
+                    }).then(function() {
+                        if (archivedIdx !== -1) return archiveRef.doc(docId).delete();
+                    }).catch(function(e) { console.error('Firestore save error:', e); });
                 }
             }, t('btn_update'), '#E8501A');
         } else {
@@ -1931,20 +1936,17 @@ async function saveForm() {
             _lastLocalSaveTs = Date.now();
             showNotificationModal(t('save_success'), true); showSavedForms();
 
-            // Firebase in background
+            // Firebase: serialisert via _pendingFirestoreOps
             if (currentUser && db) {
                 var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
                 var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
-                // Clean up archive if needed, then save
-                if (archivedIdx !== -1) {
-                    archiveRef.where('ordreseddelNr', '==', data.ordreseddelNr).get()
-                        .then(function(snap) {
-                            if (!snap.empty) return archiveRef.doc(snap.docs[0].id).delete();
-                        })
-                        .catch(function(e) { console.error('Archive cleanup error:', e); });
-                }
-                formsRef.doc(data.id).set(data)
-                    .catch(function(e) { console.error('Firestore save error:', e); });
+                var docId = data.id;
+                var hadArchived = archivedIdx !== -1;
+                _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                    return formsRef.doc(docId).set(data);
+                }).then(function() {
+                    if (hadArchived) return archiveRef.doc(docId).delete();
+                }).catch(function(e) { console.error('Firestore save error:', e); });
             }
         }
     } finally {
