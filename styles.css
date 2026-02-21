@@ -418,12 +418,13 @@ body:has(#template-editor-overlay.active) .toolbar button {
     border-right: 1px solid #000;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     min-height: 42px;
 }
 
 .work-line-desc-text {
     width: 100%;
-    padding: 8px 8px 4px 25px;
+    padding: 8px 8px 8px 25px;
     font-size: 14px;
     font-family: Arial, sans-serif;
     min-height: 24px;
