@@ -723,6 +723,12 @@ body.template-modal-open > .top-bar {
     position: relative;
 }
 
+#form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .header-done-btn {
     display: flex;
     align-items: center;
@@ -734,10 +740,7 @@ body.template-modal-open > .top-bar {
     font-weight: 600;
     border-radius: 14px;
     cursor: pointer;
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
+    flex-shrink: 0;
 }
 
 .header-done-btn:active {
