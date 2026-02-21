@@ -415,10 +415,14 @@ function deleteFormDirect(form) {
             document.getElementById('saved-list').innerHTML = '<div class="no-saved">' + t('no_saved_forms') + '</div>';
         }
 
-        // Firebase in background
+        _lastLocalSaveTs = Date.now();
+
+        // Firebase in background (serialized)
         if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete()
-                .catch(function(e) { console.error('Delete error:', e); });
+            var docId = form.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection(col).doc(docId).delete();
+            }).catch(function(e) { console.error('Delete error:', e); });
         }
     });
 }
@@ -581,29 +585,26 @@ function moveCurrentToSaved() {
     // localStorage first (optimistic)
     var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
     var formIndex = archived.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
+    var formId = (formIndex !== -1) ? archived[formIndex].id : null;
     if (formIndex !== -1) {
         var saved = JSON.parse(localStorage.getItem(sKey) || '[]');
-        var f = archived.splice(formIndex, 1)[0];
-        saved.unshift(f);
+        var movedForm = archived.splice(formIndex, 1)[0];
+        saved.unshift(movedForm);
         localStorage.setItem(aKey, JSON.stringify(archived));
         localStorage.setItem(sKey, JSON.stringify(saved));
     }
 
+    _lastLocalSaveTs = Date.now();
     setFormReadOnly(false);
     showNotificationModal(t('move_to_saved_success'), true);
 
-    // Firebase in background
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection(archiveCol).where('ordreseddelNr', '==', ordrenr).get()
-            .then(function(snap) {
-                if (snap.empty) return;
-                var form = Object.assign({ id: snap.docs[0].id }, snap.docs[0].data());
-                return db.collection('users').doc(currentUser.uid).collection(formsCol).doc(form.id).set(form)
-                    .then(function() {
-                        return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(form.id).delete();
-                    });
-            })
-            .catch(function(e) { console.error('Move to saved error:', e); });
+    // Firebase in background (serialized, direct doc access)
+    if (currentUser && db && formId) {
+        _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+            return db.collection('users').doc(currentUser.uid).collection(formsCol).doc(formId).set(movedForm);
+        }).then(function() {
+            return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(formId).delete();
+        }).catch(function(e) { console.error('Move to saved error:', e); });
     }
 }
 
@@ -681,16 +682,18 @@ function moveToSaved(event, index) {
             setFormReadOnly(false);
         }
 
+        _lastLocalSaveTs = Date.now();
         showSavedForms();
         showNotificationModal(t('move_to_saved_success'), true);
 
-        // Firebase in background
+        // Firebase in background (serialized)
         if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('forms').doc(form.id).set(form)
-                .then(function() {
-                    return db.collection('users').doc(currentUser.uid).collection('archive').doc(form.id).delete();
-                })
-                .catch(function(e) { console.error('Restore error:', e); });
+            var docId = form.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('forms').doc(docId).set(form);
+            }).then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('archive').doc(docId).delete();
+            }).catch(function(e) { console.error('Restore error:', e); });
         }
     }, t('btn_move'), '#333');
 }
@@ -850,10 +853,14 @@ function deleteExternalFormDirect(form) {
             document.getElementById('external-list').innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
         }
 
-        // Firebase in background
+        _lastLocalSaveTs = Date.now();
+
+        // Firebase in background (serialized)
         if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection(col).doc(form.id).delete()
-                .catch(function(e) { console.error('Delete external error:', e); });
+            var docId = form.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection(col).doc(docId).delete();
+            }).catch(function(e) { console.error('Delete external error:', e); });
         }
     });
 }
