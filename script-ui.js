@@ -323,7 +323,7 @@ function loadFormDirect(formData) {
     window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
-    document.getElementById('form-header-title').textContent = t(isExternalForm ? 'external_form_title' : 'form_title');
+    document.getElementById('form-header-title').textContent = t('form_title');
     window.scrollTo(0, 0);
 }
 
@@ -818,7 +818,7 @@ function loadExternalFormDirect(form) {
     window.location.hash = 'ekstern';
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
-    document.getElementById('form-header-title').textContent = t('external_form_title');
+    document.getElementById('form-header-title').textContent = t('form_title');
     window.scrollTo(0, 0);
 }
 
@@ -2612,7 +2612,7 @@ function switchFormType(type) {
     updateFormTypeChip();
     window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
     document.getElementById('form-header-title').textContent =
-        t(isExternalForm ? 'external_form_title' : 'form_title');
+        t('form_title');
 
     // Ordrenummer: eksterne bruker ikke egne nummerområder
     if (isExternalForm) {
@@ -3056,7 +3056,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Here we only do data-specific init based on hash.
     const hash = window.location.hash.slice(1);
     if (hash === 'skjema' || hash === 'ekstern') {
-        document.getElementById('form-header-title').textContent = t(hash === 'ekstern' ? 'external_form_title' : 'form_title');
+        document.getElementById('form-header-title').textContent = t('form_title');
         updateFormTypeChip();
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
@@ -3131,7 +3131,7 @@ window.addEventListener('hashchange', function() {
     } else if (hash === 'ekstern') {
         showView('view-form');
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
-        document.getElementById('form-header-title').textContent = t('external_form_title');
+        document.getElementById('form-header-title').textContent = t('form_title');
         updateFormTypeChip();
         updateToolbarState();
     } else {
