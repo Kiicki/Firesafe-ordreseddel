@@ -719,6 +719,8 @@ body.template-modal-open > .top-bar {
     flex-shrink: 0;
     font-weight: bold;
     font-size: 14px;
+    text-align: center;
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -735,6 +737,10 @@ body.template-modal-open > .top-bar {
     font-weight: 600;
     border-radius: 14px;
     cursor: pointer;
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 .header-done-btn:active {
@@ -2444,15 +2450,6 @@ label.settings-default-label.field-required > span::after {
     left: 8px;
 }
 
-#settings-header {
-    position: relative;
-}
-
-#settings-header-title {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-}
 
 /* Hide X button on settings sub-pages (they have back button instead) */
 body.settings-subpage-open #settings-header .modal-close-btn {
