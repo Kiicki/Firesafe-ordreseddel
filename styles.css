@@ -2795,6 +2795,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     outline: none;
     color: #333;
 }
+.settings-add-row input:first-child {
+    border-right: 1px solid #ddd;
+    margin-right: 4px;
+    padding-right: 8px;
+}
 
 .settings-add-row .settings-unit-input {
     padding: 8px 12px;
@@ -2885,7 +2890,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     margin-top: 4px;
     padding: 8px 10px;
     border: none;
-    border-radius: 4px;
+    border-bottom: 1px solid #ddd;
+    border-radius: 0;
     font-size: 14px;
     box-sizing: border-box;
     background: #fff;
@@ -2893,6 +2899,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-default-label input:focus {
     outline: none;
     background: #f5f5f5;
+    border-bottom-color: #E8501A;
 }
 .settings-group .settings-default-label:not(:last-child) {
     border-bottom: 1px solid #eee;
