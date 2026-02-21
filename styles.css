@@ -721,9 +721,6 @@ body.template-modal-open > .top-bar {
     font-size: 14px;
     text-align: center;
     position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
 }
 
 .header-done-btn {
