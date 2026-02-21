@@ -720,7 +720,6 @@ body.template-modal-open > .top-bar {
     font-size: 14px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
 }
 
 .header-done-btn {
@@ -735,6 +734,7 @@ body.template-modal-open > .top-bar {
     border-radius: 14px;
     cursor: pointer;
     flex-shrink: 0;
+    margin-left: auto;
 }
 
 .header-done-btn:active {
