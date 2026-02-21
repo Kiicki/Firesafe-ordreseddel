@@ -2440,11 +2440,18 @@ label.settings-default-label.field-required > span::after {
     align-items: center;
     min-width: 48px;
     min-height: 48px;
+    position: absolute;
+    left: 8px;
 }
 
-#settings-header:has(.settings-back-btn) {
-    justify-content: flex-start;
-    gap: 4px;
+#settings-header {
+    position: relative;
+}
+
+#settings-header-title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
 /* Hide X button on settings sub-pages (they have back button instead) */
