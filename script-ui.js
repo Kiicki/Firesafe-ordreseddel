@@ -8,6 +8,7 @@ var preNewFormData = null;
 var _savedLastDoc = null, _sentLastDoc = null, _savedHasMore = false, _sentHasMore = false;
 var _extLastDoc = null, _extSentLastDoc = null, _extHasMore = false, _extSentHasMore = false;
 var _templateLastDoc = null, _templateHasMore = false;
+var _lastLocalSaveTs = 0;
 
 function resetPaginationState() {
     _savedLastDoc = null; _sentLastDoc = null;
@@ -22,6 +23,7 @@ function refreshActiveView() {
     if (!currentUser || !db) return;
     if (document.body.classList.contains('saved-modal-open')) {
         Promise.all([getSavedForms(), getSentForms()]).then(function(results) {
+            if (Date.now() - _lastLocalSaveTs < 5000) return;
             var savedResult = results[0], sentResult = results[1];
             _savedLastDoc = savedResult.lastDoc;
             _sentLastDoc = sentResult.lastDoc;
@@ -180,9 +182,18 @@ function showSavedForms() {
 }
 
 function _mergeAndDedup(saved, sent) {
-    var savedNrs = new Set(saved.map(function(f) { return f.ordreseddelNr; }));
-    var uniqueSent = sent.filter(function(f) { return !savedNrs.has(f.ordreseddelNr); });
-    return saved.concat(uniqueSent).sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+    // Saved først, så sent — ved duplikat ordreseddelNr beholdes første (saved vinner)
+    var all = saved.concat(sent);
+    var seen = new Set();
+    var result = [];
+    for (var i = 0; i < all.length; i++) {
+        var nr = all[i].ordreseddelNr;
+        if (!seen.has(nr)) {
+            seen.add(nr);
+            result.push(all[i]);
+        }
+    }
+    return result.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
 }
 
 function _showSavedFormsDirectly() {
@@ -211,6 +222,9 @@ function _showSavedFormsDirectly() {
     // Refresh from Firestore in background
     if (currentUser && db) {
         Promise.all([getSavedForms(), getSentForms()]).then(function([savedResult, sentResult]) {
+            // Hopp over Firestore-overskriving rett etter lokal save/markering
+            // for å unngå race condition der stale Firestore-data overskriver localStorage
+            if (Date.now() - _lastLocalSaveTs < 5000) return;
             _savedLastDoc = savedResult.lastDoc;
             _sentLastDoc = sentResult.lastDoc;
             _savedHasMore = savedResult.hasMore;
@@ -622,6 +636,7 @@ function markCurrentFormAsSent() {
         var headerDoneBtn = document.getElementById('header-done-btn');
         if (headerDoneBtn) headerDoneBtn.style.display = 'none';
         showNotificationModal(t('marked_as_sent'), true);
+        _lastLocalSaveTs = Date.now();
 
         // Firebase: save directly to archive + clean up forms (single chain)
         if (currentUser && db) {
@@ -734,10 +749,14 @@ async function loadExternalTab() {
     // Show cached data immediately
     const cachedForms = JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
     const cachedSent = JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
-    const cached = cachedForms.concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+    const cached = _mergeAndDedup(
+        cachedForms.map(f => ({ ...f, _isSent: false })),
+        cachedSent.map(f => ({ ...f, _isSent: true }))
+    );
     renderExternalFormsList(cached);
 
     var results = await Promise.all([getExternalForms(), getExternalSentForms()]);
+    if (Date.now() - _lastLocalSaveTs < 5000) return;
     var extResult = results[0], extSentResult = results[1];
     _extLastDoc = extResult.lastDoc;
     _extSentLastDoc = extSentResult.lastDoc;
@@ -747,7 +766,10 @@ async function loadExternalTab() {
         localStorage.setItem(EXTERNAL_KEY, JSON.stringify(extResult.forms.slice(0, 50)));
         localStorage.setItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(extSentResult.forms.slice(0, 50)));
     }
-    window.loadedExternalForms = extResult.forms.concat(extSentResult.forms.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+    window.loadedExternalForms = _mergeAndDedup(
+        extResult.forms.map(f => ({ ...f, _isSent: false })),
+        extSentResult.forms.map(f => ({ ...f, _isSent: true }))
+    );
     if (!document.body.classList.contains('saved-modal-open')) return;
     if (currentUser || window.loadedExternalForms.length > 0) {
         renderExternalFormsList(window.loadedExternalForms, false, _extHasMore || _extSentHasMore);
@@ -3040,6 +3062,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Trigger background Firestore refresh for saved forms list
         if (currentUser && db) {
             Promise.all([getSavedForms(), getSentForms()]).then(function([savedResult, sentResult]) {
+                if (Date.now() - _lastLocalSaveTs < 5000) return;
                 _savedLastDoc = savedResult.lastDoc;
                 _sentLastDoc = sentResult.lastDoc;
                 _savedHasMore = savedResult.hasMore;

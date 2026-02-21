@@ -1907,6 +1907,7 @@ async function saveForm() {
                 loadedExternalForms = [];
                 lastSavedData = getFormDataSnapshot();
                 _clearSentStateAfterSave();
+                _lastLocalSaveTs = Date.now();
                 showNotificationModal(t('save_success'), true); showSavedForms();
 
                 // Firebase in background
@@ -1927,6 +1928,7 @@ async function saveForm() {
             loadedExternalForms = [];
             lastSavedData = getFormDataSnapshot();
             _clearSentStateAfterSave();
+            _lastLocalSaveTs = Date.now();
             showNotificationModal(t('save_success'), true); showSavedForms();
 
             // Firebase in background
