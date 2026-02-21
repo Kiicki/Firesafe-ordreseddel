@@ -715,18 +715,12 @@ body.template-modal-open > .top-bar {
     color: white;
     padding: 0 15px;
     height: 38px;
-    line-height: 38px;
     flex-shrink: 0;
     font-weight: bold;
     font-size: 14px;
-    text-align: center;
-    position: relative;
-}
-
-#form-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
 }
 
 .header-done-btn {
@@ -2446,8 +2440,7 @@ label.settings-default-label.field-required > span::after {
     align-items: center;
     min-width: 48px;
     min-height: 48px;
-    position: absolute;
-    left: 8px;
+    margin-left: -8px;
 }
 
 
