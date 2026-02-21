@@ -731,8 +731,8 @@ body.template-modal-open > .top-bar {
     color: white;
     border: none;
     padding: 4px 10px;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: bold;
     cursor: pointer;
 }
 
