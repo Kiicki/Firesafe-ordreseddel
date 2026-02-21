@@ -30,8 +30,8 @@ function refreshActiveView() {
             _sentLastDoc = sentResult.lastDoc;
             _savedHasMore = savedResult.hasMore;
             _sentHasMore = sentResult.hasMore;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
-            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+            safeSetItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+            safeSetItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
             window.loadedForms = _mergeAndDedup(
                 savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); }),
                 sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); })
@@ -230,8 +230,8 @@ function _showSavedFormsDirectly() {
             _sentLastDoc = sentResult.lastDoc;
             _savedHasMore = savedResult.hasMore;
             _sentHasMore = sentResult.hasMore;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
-            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+            safeSetItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+            safeSetItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
             window.loadedForms = _mergeAndDedup(
                 savedResult.forms.map(f => ({ ...f, _isSent: false })),
                 sentResult.forms.map(f => ({ ...f, _isSent: true }))
@@ -405,7 +405,7 @@ function deleteFormDirect(form) {
         if (arrIdx !== -1) window.loadedForms.splice(arrIdx, 1);
         var lsList = safeParseJSON(lsKey, []);
         var lsIdx = lsList.findIndex(function(f) { return f.id === form.id; });
-        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(lsKey, JSON.stringify(lsList)); }
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(lsKey, JSON.stringify(lsList)); }
         // Remove DOM element
         document.querySelectorAll('#saved-list .saved-item').forEach(function(el) {
             if (el._formData && el._formData.id === form.id) el.remove();
@@ -590,8 +590,8 @@ function moveCurrentToSaved() {
         var saved = safeParseJSON(sKey, []);
         var movedForm = archived.splice(formIndex, 1)[0];
         saved.unshift(movedForm);
-        localStorage.setItem(aKey, JSON.stringify(archived));
-        localStorage.setItem(sKey, JSON.stringify(saved));
+        safeSetItem(aKey, JSON.stringify(archived));
+        safeSetItem(sKey, JSON.stringify(saved));
     }
 
     _lastLocalSaveTs = Date.now();
@@ -631,7 +631,7 @@ function markCurrentFormAsSent() {
         } else {
             archived.unshift(data);
         }
-        localStorage.setItem(archiveKey, JSON.stringify(archived));
+        safeSetItem(archiveKey, JSON.stringify(archived));
         addToOrderNumberIndex(data.ordreseddelNr);
 
         // Update UI state
@@ -672,8 +672,8 @@ function moveToSaved(event, index) {
         if (idx !== -1) {
             const f = archived.splice(idx, 1)[0];
             saved.unshift(f);
-            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archived));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+            safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+            safeSetItem(STORAGE_KEY, JSON.stringify(saved));
         }
 
         // Hvis det åpne skjemaet er det som ble flyttet, fjern sendt-modus
@@ -766,8 +766,8 @@ async function loadExternalTab() {
     _extHasMore = extResult.hasMore;
     _extSentHasMore = extSentResult.hasMore;
     if (currentUser) {
-        localStorage.setItem(EXTERNAL_KEY, JSON.stringify(extResult.forms.slice(0, 50)));
-        localStorage.setItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(extSentResult.forms.slice(0, 50)));
+        safeSetItem(EXTERNAL_KEY, JSON.stringify(extResult.forms.slice(0, 50)));
+        safeSetItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(extSentResult.forms.slice(0, 50)));
     }
     window.loadedExternalForms = _mergeAndDedup(
         extResult.forms.map(f => ({ ...f, _isSent: false })),
@@ -843,7 +843,7 @@ function deleteExternalFormDirect(form) {
         if (arrIdx !== -1) window.loadedExternalForms.splice(arrIdx, 1);
         var lsList = safeParseJSON(lsKey, []);
         var lsIdx = lsList.findIndex(function(f) { return f.id === form.id; });
-        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(lsKey, JSON.stringify(lsList)); }
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(lsKey, JSON.stringify(lsList)); }
         // Remove DOM element
         document.querySelectorAll('#external-list .saved-item').forEach(function(el) {
             if (el._formData && el._formData.id === form.id) el.remove();
@@ -927,7 +927,7 @@ async function saveAsTemplate() {
     templateData.id = Date.now().toString();
     const templates = safeParseJSON(TEMPLATE_KEY, []);
     templates.push(templateData);
-    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+    safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
     if (window.loadedTemplates) window.loadedTemplates.push(templateData);
     showNotificationModal(t('template_save_success'), true);
 
@@ -1007,7 +1007,7 @@ function showTemplateModal() {
         getTemplates().then(function(result) {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
-            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+            safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
             // Only update if still on template-modal (filter out deactivated)
             if (document.body.classList.contains('template-modal-open')) {
                 var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
@@ -1088,7 +1088,7 @@ function deleteTemplateDirect(template) {
         if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
         var lsList = safeParseJSON(TEMPLATE_KEY, []);
         var lsIdx = lsList.findIndex(function(t) { return t.id === template.id; });
-        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
         // Remove DOM element
         document.querySelectorAll('#template-list .saved-item').forEach(function(el) {
             if (el._formData && el._formData.id === template.id) el.remove();
@@ -1118,7 +1118,7 @@ async function duplicateTemplate(index) {
     copy.id = Date.now().toString();
     const templates = safeParseJSON(TEMPLATE_KEY, []);
     templates.push(copy);
-    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+    safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
     if (window.loadedTemplates) window.loadedTemplates.push(copy);
     showNotificationModal(t('duplicated_success'), true);
     showTemplateModal();
@@ -1185,7 +1185,7 @@ async function syncSettingsToLocal() {
         const doc = await db.collection('users').doc(currentUser.uid)
             .collection('settings').doc('ordrenr').get();
         if (doc.exists) {
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(doc.data()));
+            safeSetItem(SETTINGS_KEY, JSON.stringify(doc.data()));
         }
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
@@ -1406,7 +1406,7 @@ function saveMaterialSettings() {
     if (!isAdmin) return;
     const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec })), units: settingsUnits.slice() };
     // localStorage + cache first (optimistic)
-    localStorage.setItem(MATERIALS_KEY, JSON.stringify(data));
+    safeSetItem(MATERIALS_KEY, JSON.stringify(data));
     cachedMaterialOptions = data.materials.slice();
     cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
     cachedUnitOptions = settingsUnits.slice();
@@ -1731,7 +1731,7 @@ async function getDropdownOptions() {
     cachedMaterialOptions.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     sortUnits(cachedUnitOptions);
     // Cache to localStorage for offline use
-    localStorage.setItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: cachedUnitOptions }));
+    safeSetItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: cachedUnitOptions }));
 }
 
 
@@ -1838,7 +1838,7 @@ async function getRequiredSettings() {
 function saveRequiredSettings(data) {
     if (!isAdmin) return;
     // localStorage + cache first (optimistic)
-    localStorage.setItem(REQUIRED_KEY, JSON.stringify(data));
+    safeSetItem(REQUIRED_KEY, JSON.stringify(data));
     cachedRequiredSettings = data;
     updateRequiredIndicators();
 
@@ -2083,7 +2083,7 @@ async function saveTemplateFromEditor() {
         if (idx !== -1) {
             Object.assign(templates[idx], data);
         }
-        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
         showNotificationModal(t('template_updated'), true);
 
         // Firebase in background
@@ -2100,7 +2100,7 @@ async function saveTemplateFromEditor() {
 
         // Update localStorage immediately
         templates.push(data);
-        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
         showNotificationModal(t('template_save_success'), true);
 
         // Firebase in background
@@ -2130,7 +2130,7 @@ async function toggleTemplateActive(templateId) {
     var idx = templates.findIndex(function(t) { return t.id === templateId; });
     if (idx !== -1) {
         templates[idx].active = newActive;
-        localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+        safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
     }
 
     // Firebase in background
@@ -2149,7 +2149,7 @@ async function deleteTemplateFromSettings(templateId) {
         if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
         var lsList = safeParseJSON(TEMPLATE_KEY, []);
         var lsIdx = lsList.findIndex(function(t) { return t.id === templateId; });
-        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
+        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
         // Remove DOM element
         var el = document.querySelector('.settings-template-item[data-id="' + templateId + '"]');
         if (el) el.remove();
@@ -2240,8 +2240,8 @@ async function syncDefaultsToLocal() {
             db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get(),
             db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_external').get()
         ]);
-        if (results[0].exists) localStorage.setItem(DEFAULTS_KEY, JSON.stringify(results[0].data()));
-        if (results[1].exists) localStorage.setItem(DEFAULTS_EXTERNAL_KEY, JSON.stringify(results[1].data()));
+        if (results[0].exists) safeSetItem(DEFAULTS_KEY, JSON.stringify(results[0].data()));
+        if (results[1].exists) safeSetItem(DEFAULTS_EXTERNAL_KEY, JSON.stringify(results[1].data()));
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
@@ -2259,7 +2259,7 @@ function saveDefaultSettings() {
         if (existing[k] !== undefined) defaults[k] = existing[k];
     });
     // localStorage first (optimistic)
-    localStorage.setItem(key, JSON.stringify(defaults));
+    safeSetItem(key, JSON.stringify(defaults));
 
     // Firebase in background
     if (currentUser && db) {
@@ -2357,7 +2357,7 @@ function saveAutofillToggle(key, value) {
     var stored = localStorage.getItem(storageKey);
     var defaults = stored ? JSON.parse(stored) : {};
     defaults['autofill_' + key] = value;
-    localStorage.setItem(storageKey, JSON.stringify(defaults));
+    safeSetItem(storageKey, JSON.stringify(defaults));
 
     // Firebase in background
     if (currentUser && db) {
@@ -2409,7 +2409,7 @@ function addSettingsRange() {
     updateSettingsStatus();
     // Auto-save: localStorage first, Firebase in background
     const settings = buildOrderNrSettings();
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
     showNotificationModal(t('settings_range_added'), true);
     if (currentUser && db) {
         db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
@@ -2425,7 +2425,7 @@ function removeSettingsRange(idx) {
         updateSettingsStatus();
         // Auto-save: localStorage first, Firebase in background
         const settings = buildOrderNrSettings();
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
         if (currentUser && db) {
             db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
                 .catch(function(e) { console.error('Remove range error:', e); });
@@ -2492,7 +2492,7 @@ function addGivenAwayRange() {
     updateSettingsStatus();
     // Auto-save: localStorage first, Firebase in background
     const settings = buildOrderNrSettings();
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
     showNotificationModal(t('settings_give_added'), true);
     if (currentUser && db) {
         db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
@@ -2509,7 +2509,7 @@ function removeGivenAway(idx) {
         updateSettingsStatus();
         // Auto-save: localStorage first, Firebase in background
         const settings = buildOrderNrSettings();
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
         if (currentUser && db) {
             db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
                 .catch(function(e) { console.error('Remove give-away error:', e); });
@@ -3074,8 +3074,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 _sentLastDoc = sentResult.lastDoc;
                 _savedHasMore = savedResult.hasMore;
                 _sentHasMore = sentResult.hasMore;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
-                localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+                safeSetItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+                safeSetItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
                 window.loadedForms = _mergeAndDedup(
                     savedResult.forms.map(f => ({ ...f, _isSent: false })),
                     sentResult.forms.map(f => ({ ...f, _isSent: true }))
@@ -3103,7 +3103,7 @@ document.addEventListener('DOMContentLoaded', function() {
             getTemplates().then(function(result) {
                 _templateLastDoc = result.lastDoc;
                 _templateHasMore = result.hasMore;
-                localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+                safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
                 if (document.body.classList.contains('template-modal-open')) {
                     var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
                     renderTemplateList(activeTemplates, false, _templateHasMore);

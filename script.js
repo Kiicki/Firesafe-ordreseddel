@@ -20,6 +20,12 @@ function safeParseJSON(key, fallback) {
     catch(e) { console.error('Corrupt localStorage key:', key); return fallback; }
 }
 
+// Safe localStorage write - prevents crash on quota exceeded
+function safeSetItem(key, value) {
+    try { localStorage.setItem(key, value); }
+    catch(e) { console.error('localStorage quota exceeded:', key); }
+}
+
 // Global HTML escape function - prevents XSS attacks
 function escapeHtml(str) {
     if (!str) return '';
@@ -44,7 +50,7 @@ function t(key, ...args) {
 
 function setLanguage(lang) {
     currentLang = lang;
-    localStorage.setItem('firesafe_lang', lang);
+    safeSetItem('firesafe_lang', lang);
     applyTranslations();
     // Save to Firebase if logged in
     if (currentUser && db) {
@@ -174,9 +180,9 @@ if (auth) {
             applyTranslations();
             if (typeof resetPaginationState === 'function') resetPaginationState();
         }
-        localStorage.setItem('firesafe_last_uid', user.uid);
+        safeSetItem('firesafe_last_uid', user.uid);
 
-        localStorage.setItem('firesafe_logged_in', '1');
+        safeSetItem('firesafe_logged_in', '1');
 
         var wasOnLogin = document.getElementById('login-view').classList.contains('active');
 
@@ -188,12 +194,12 @@ if (auth) {
             Promise.all([
                 checkAdminStatus(user.uid).then(function(admin) {
                     isAdmin = admin;
-                    if (admin) localStorage.setItem('firesafe_admin', '1');
+                    if (admin) safeSetItem('firesafe_admin', '1');
                 }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('language').get().then(function(doc) {
                     if (doc.exists && doc.data().lang) {
                         currentLang = doc.data().lang;
-                        localStorage.setItem('firesafe_lang', currentLang);
+                        safeSetItem('firesafe_lang', currentLang);
                         applyTranslations();
                     }
                 }).catch(function() {}),
@@ -208,7 +214,7 @@ if (auth) {
                 typeof getTemplates === 'function' ? getTemplates().then(function(result) {
                     _templateLastDoc = result.lastDoc;
                     _templateHasMore = result.hasMore;
-                    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+                    safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
                     window.loadedTemplates = result.forms;
                     // Refresh template modal if still visible
                     if (document.body.classList.contains('template-modal-open')) {
@@ -233,7 +239,7 @@ function updateLoginButton() {
         var email = currentUser.email || currentUser.displayName || '';
         btn.textContent = email;
         btn.classList.add('logged-in');
-        localStorage.setItem('firesafe_email', email);
+        safeSetItem('firesafe_email', email);
     } else if (!localStorage.getItem('firesafe_logged_in')) {
         // Bare vis "Logg inn" hvis vi vet at brukeren IKKE er innlogget.
         // Unngå å overskrive cached e-post mens Firebase verifiserer token.
@@ -394,7 +400,7 @@ async function syncOrderNumberIndex() {
             if (nr) numbers.add(String(nr));
         });
     });
-    localStorage.setItem(USED_NUMBERS_KEY, JSON.stringify([...numbers]));
+    safeSetItem(USED_NUMBERS_KEY, JSON.stringify([...numbers]));
 }
 
 function addToOrderNumberIndex(nr) {
@@ -403,7 +409,7 @@ function addToOrderNumberIndex(nr) {
     var s = String(nr);
     if (nums.indexOf(s) === -1) {
         nums.push(s);
-        localStorage.setItem(USED_NUMBERS_KEY, JSON.stringify(nums));
+        safeSetItem(USED_NUMBERS_KEY, JSON.stringify(nums));
     }
 }
 
@@ -414,7 +420,7 @@ function removeFromOrderNumberIndex(nr) {
     var idx = nums.indexOf(s);
     if (idx !== -1) {
         nums.splice(idx, 1);
-        localStorage.setItem(USED_NUMBERS_KEY, JSON.stringify(nums));
+        safeSetItem(USED_NUMBERS_KEY, JSON.stringify(nums));
     }
 }
 
@@ -1895,7 +1901,7 @@ async function saveForm() {
                 data.id = archived[archivedIdx].id;
                 // Fjern fra arkiv — lagres til saved nedenfor
                 archived.splice(archivedIdx, 1);
-                localStorage.setItem(archiveKey, JSON.stringify(archived));
+                safeSetItem(archiveKey, JSON.stringify(archived));
             } else {
                 showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
                 return;
@@ -1910,7 +1916,7 @@ async function saveForm() {
             showConfirmModal(t('confirm_update'), function() {
                 data.id = saved[existingIndex].id;
                 saved[existingIndex] = data;
-                localStorage.setItem(storageKey, JSON.stringify(saved));
+                safeSetItem(storageKey, JSON.stringify(saved));
                 addToOrderNumberIndex(data.ordreseddelNr);
                 loadedForms = [];
                 loadedExternalForms = [];
@@ -1936,7 +1942,7 @@ async function saveForm() {
             if (!data.id) data.id = Date.now().toString();
             saved.unshift(data);
             if (saved.length > 50) saved.pop();
-            localStorage.setItem(storageKey, JSON.stringify(saved));
+            safeSetItem(storageKey, JSON.stringify(saved));
             addToOrderNumberIndex(data.ordreseddelNr);
             loadedForms = [];
             loadedExternalForms = [];
