@@ -416,6 +416,7 @@ let isExternalForm = false;
 function getFormDataSnapshot() {
     const data = getFormData();
     delete data.savedAt;
+    delete data.isExternal;
     return JSON.stringify(data);
 }
 

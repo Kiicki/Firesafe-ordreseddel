@@ -2608,6 +2608,7 @@ function switchFormType(type) {
         document.getElementById('mobile-signering-dato').value = today;
     }
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    lastSavedData = getFormDataSnapshot();
 }
 
 
