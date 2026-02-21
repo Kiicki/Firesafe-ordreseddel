@@ -727,11 +727,9 @@ body.template-modal-open > .top-bar {
 .header-done-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
     background: transparent;
     color: white;
-    border: 1px solid rgba(255,255,255,0.4);
-    border-radius: 4px;
+    border: none;
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 600;
@@ -739,11 +737,7 @@ body.template-modal-open > .top-bar {
 }
 
 .header-done-btn:active {
-    background: rgba(255,255,255,0.15);
-}
-
-.header-done-btn svg {
-    flex-shrink: 0;
+    opacity: 0.6;
 }
 
 .modal-close-btn {
