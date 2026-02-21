@@ -1604,11 +1604,6 @@ function buildDesktopWorkLines() {
     let totalTimer = 0;
 
     orders.forEach((order, idx) => {
-        // Separator between orders
-        if (idx > 0) {
-            addRow('', '', '');
-        }
-
         // Description
         if (order.description) {
             addRow(order.description, '', '');
