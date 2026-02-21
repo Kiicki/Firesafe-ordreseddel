@@ -1631,7 +1631,7 @@ function buildDesktopWorkLines() {
 
         // Timer
         if (order.timer) {
-            addRow('Tid:', (order.timer || '').replace('.', ','), 'timer', { bold: true, alignRight: true });
+            addRow('Tid:', (order.timer || '').replace('.', ','), 'timer', { alignRight: true });
             const val = parseFloat((order.timer || '').replace(',', '.'));
             if (!isNaN(val)) totalTimer += val;
         }
