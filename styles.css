@@ -713,13 +713,14 @@ body.template-modal-open > .top-bar {
 .modal-header {
     background: #333;
     color: white;
-    padding: 0 15px;
+    padding: 0 15px 0 48px;
     height: 38px;
     flex-shrink: 0;
     font-weight: bold;
     font-size: 14px;
     display: flex;
     align-items: center;
+    position: relative;
 }
 
 .header-done-btn {
@@ -2434,13 +2435,17 @@ label.settings-default-label.field-required > span::after {
     border: none;
     font-size: 20px;
     cursor: pointer;
-    padding: 0 4px 0 0;
+    padding: 0;
     color: #E8501A;
     display: flex;
     align-items: center;
-    min-width: 48px;
-    min-height: 48px;
-    margin-left: -8px;
+    justify-content: center;
+    width: 48px;
+    min-height: 38px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
 }
 
 
