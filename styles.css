@@ -2788,17 +2788,16 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-add-row input {
     flex: 1;
     min-width: 0;
-    padding: 0;
-    border: none;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
     font-size: 14px;
     box-sizing: border-box;
     outline: none;
     color: #333;
 }
-.settings-add-row input:first-child {
-    border-right: 1px solid #ddd;
-    margin-right: 4px;
-    padding-right: 8px;
+.settings-add-row input:focus {
+    border-color: #E8501A;
 }
 
 .settings-add-row .settings-unit-input {
@@ -2889,17 +2888,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     width: 100%;
     margin-top: 4px;
     padding: 8px 10px;
-    border: none;
-    border-bottom: 1px solid #ddd;
-    border-radius: 0;
+    border: 1px solid #ddd;
+    border-radius: 6px;
     font-size: 14px;
     box-sizing: border-box;
     background: #fff;
 }
 .settings-default-label input:focus {
     outline: none;
-    background: #f5f5f5;
-    border-bottom-color: #E8501A;
+    border-color: #E8501A;
 }
 .settings-group .settings-default-label:not(:last-child) {
     border-bottom: 1px solid #eee;
