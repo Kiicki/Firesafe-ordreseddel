@@ -727,13 +727,13 @@ body.template-modal-open > .top-bar {
 .header-done-btn {
     display: flex;
     align-items: center;
-    background: rgba(255,255,255,0.2);
+    background: #E8501A;
     color: white;
     border: none;
-    padding: 4px 12px;
-    font-size: 14px;
-    font-weight: bold;
-    border-radius: 6px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 14px;
     cursor: pointer;
 }
 
