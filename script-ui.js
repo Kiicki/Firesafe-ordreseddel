@@ -2559,6 +2559,8 @@ function updateFormTypeChip() {
     if (!tabs.length) return;
     tabs[0].classList.toggle('active', !isExternalForm);
     tabs[1].classList.toggle('active', isExternalForm);
+    var badge = document.getElementById('external-badge');
+    if (badge) badge.style.display = isExternalForm ? '' : 'none';
 }
 
 function switchFormType(type) {
