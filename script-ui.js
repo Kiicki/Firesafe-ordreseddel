@@ -204,8 +204,8 @@ function _showSavedFormsDirectly() {
     }
 
     // Show cached data immediately
-    const cachedSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    const cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+    const cachedSaved = safeParseJSON(STORAGE_KEY, []);
+    const cachedSent = safeParseJSON(ARCHIVE_KEY, []);
     const cachedForms = _mergeAndDedup(
         cachedSaved.map(f => ({ ...f, _isSent: false })),
         cachedSent.map(f => ({ ...f, _isSent: true }))
@@ -403,7 +403,7 @@ function deleteFormDirect(form) {
         removeFromOrderNumberIndex(form.ordreseddelNr);
         var arrIdx = window.loadedForms.findIndex(function(f) { return f.id === form.id; });
         if (arrIdx !== -1) window.loadedForms.splice(arrIdx, 1);
-        var lsList = JSON.parse(localStorage.getItem(lsKey) || '[]');
+        var lsList = safeParseJSON(lsKey, []);
         var lsIdx = lsList.findIndex(function(f) { return f.id === form.id; });
         if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(lsKey, JSON.stringify(lsList)); }
         // Remove DOM element
@@ -583,11 +583,11 @@ function moveCurrentToSaved() {
     const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
     // localStorage first (optimistic)
-    var archived = JSON.parse(localStorage.getItem(aKey) || '[]');
+    var archived = safeParseJSON(aKey, []);
     var formIndex = archived.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
     var formId = (formIndex !== -1) ? archived[formIndex].id : null;
     if (formIndex !== -1) {
-        var saved = JSON.parse(localStorage.getItem(sKey) || '[]');
+        var saved = safeParseJSON(sKey, []);
         var movedForm = archived.splice(formIndex, 1)[0];
         saved.unshift(movedForm);
         localStorage.setItem(aKey, JSON.stringify(archived));
@@ -617,14 +617,14 @@ function markCurrentFormAsSent() {
         var archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
         // localStorage: legg til i archived, IKKE fjern fra saved (sikkerhetskopi)
-        var saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        var saved = safeParseJSON(storageKey, []);
         var existingIndex = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (existingIndex !== -1) {
             data.id = saved[existingIndex].id;
         } else {
             data.id = Date.now().toString();
         }
-        var archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
+        var archived = safeParseJSON(archiveKey, []);
         var archivedExisting = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (archivedExisting !== -1) {
             archived[archivedExisting] = data;
@@ -666,8 +666,8 @@ function moveToSaved(event, index) {
         if (!form) return;
 
         // localStorage first (optimistic)
-        const archived = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        const archived = safeParseJSON(ARCHIVE_KEY, []);
+        const saved = safeParseJSON(STORAGE_KEY, []);
         const idx = archived.findIndex(f => f.id === form.id);
         if (idx !== -1) {
             const f = archived.splice(idx, 1)[0];
@@ -750,8 +750,8 @@ async function loadMoreExternalForms() {
 
 async function loadExternalTab() {
     // Show cached data immediately
-    const cachedForms = JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]');
-    const cachedSent = JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]');
+    const cachedForms = safeParseJSON(EXTERNAL_KEY, []);
+    const cachedSent = safeParseJSON(EXTERNAL_ARCHIVE_KEY, []);
     const cached = _mergeAndDedup(
         cachedForms.map(f => ({ ...f, _isSent: false })),
         cachedSent.map(f => ({ ...f, _isSent: true }))
@@ -841,7 +841,7 @@ function deleteExternalFormDirect(form) {
         // Optimistic removal: update local state + DOM immediately
         var arrIdx = window.loadedExternalForms.findIndex(function(f) { return f.id === form.id; });
         if (arrIdx !== -1) window.loadedExternalForms.splice(arrIdx, 1);
-        var lsList = JSON.parse(localStorage.getItem(lsKey) || '[]');
+        var lsList = safeParseJSON(lsKey, []);
         var lsIdx = lsList.findIndex(function(f) { return f.id === form.id; });
         if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(lsKey, JSON.stringify(lsList)); }
         // Remove DOM element
@@ -881,11 +881,11 @@ async function getTemplates(lastDoc) {
             return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Templates error:', e);
-            return { forms: JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]'), lastDoc: null, hasMore: false };
+            return { forms: safeParseJSON(TEMPLATE_KEY, []), lastDoc: null, hasMore: false };
         }
     }
     if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
-    return { forms: JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]'), lastDoc: null, hasMore: false };
+    return { forms: safeParseJSON(TEMPLATE_KEY, []), lastDoc: null, hasMore: false };
 }
 
 async function saveAsTemplate() {
@@ -925,7 +925,7 @@ async function saveAsTemplate() {
 
     // Update localStorage + local state immediately (optimistic)
     templateData.id = Date.now().toString();
-    const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    const templates = safeParseJSON(TEMPLATE_KEY, []);
     templates.push(templateData);
     localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
     if (window.loadedTemplates) window.loadedTemplates.push(templateData);
@@ -995,7 +995,7 @@ function showTemplateModal() {
     history.replaceState(null, '', window.location.pathname);
 
     // Show cached templates immediately (filter out deactivated)
-    const cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]').filter(function(t) { return t.active !== false; });
+    const cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
     renderTemplateList(cached);
 
     showView('template-modal');
@@ -1086,7 +1086,7 @@ function deleteTemplateDirect(template) {
         // Optimistic removal: update local state + DOM immediately
         var arrIdx = window.loadedTemplates.findIndex(function(t) { return t.id === template.id; });
         if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
-        var lsList = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        var lsList = safeParseJSON(TEMPLATE_KEY, []);
         var lsIdx = lsList.findIndex(function(t) { return t.id === template.id; });
         if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
         // Remove DOM element
@@ -1116,7 +1116,7 @@ async function duplicateTemplate(index) {
 
     // Update localStorage + local state immediately (optimistic)
     copy.id = Date.now().toString();
-    const templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    const templates = safeParseJSON(TEMPLATE_KEY, []);
     templates.push(copy);
     localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
     if (window.loadedTemplates) window.loadedTemplates.push(copy);
@@ -1300,7 +1300,7 @@ function showSettingsPage(page) {
         document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
     } else if (page === 'templates') {
         // Show cached templates immediately
-        _renderSettingsTemplateListFromData(JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]'));
+        _renderSettingsTemplateListFromData(safeParseJSON(TEMPLATE_KEY, []));
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('template');
         // Background refresh
@@ -1909,7 +1909,7 @@ function _renderSettingsTemplateListFromData(templates) {
         var id = escapeHtml(tpl.id);
 
         var duplicateBtn = isActive
-            ? '<button class="settings-template-duplicate-btn" onclick="event.stopPropagation(); duplicateTemplate(\'' + id + '\')" title="' + t('duplicate_btn') + '">'
+            ? '<button class="settings-template-duplicate-btn" onclick="event.stopPropagation(); duplicateTemplateFromSettings(\'' + id + '\')" title="' + t('duplicate_btn') + '">'
             : '<button class="settings-template-duplicate-btn disabled" onclick="event.stopPropagation()" title="' + t('duplicate_btn') + '">';
         var delBtn = isActive
             ? '<button class="settings-template-delete-btn" onclick="event.stopPropagation(); deleteTemplateFromSettings(\'' + id + '\')" title="' + t('delete_btn') + '">'
@@ -1940,10 +1940,10 @@ async function renderSettingsTemplateList() {
             templates = snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
         } catch (e) {
             console.error('Load templates for settings:', e);
-            templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+            templates = safeParseJSON(TEMPLATE_KEY, []);
         }
     } else {
-        templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        templates = safeParseJSON(TEMPLATE_KEY, []);
     }
     _renderSettingsTemplateListFromData(templates);
 }
@@ -2009,7 +2009,7 @@ function closeTemplateEditor() {
     document.getElementById('template-editor-overlay').classList.remove('active');
 }
 
-async function duplicateTemplate(templateId) {
+async function duplicateTemplateFromSettings(templateId) {
     var tpl = await _findTemplateById(templateId);
     if (!tpl) return;
     showTemplateEditor();
@@ -2033,7 +2033,7 @@ async function _findTemplateById(id) {
     var inMem = window.loadedTemplates.find(function(t) { return t.id === id; });
     if (inMem) return inMem;
     // Then localStorage
-    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    var templates = safeParseJSON(TEMPLATE_KEY, []);
     var local = templates.find(function(t) { return t.id === id; });
     if (local) return local;
     // Last resort: Firebase
@@ -2075,7 +2075,7 @@ async function saveTemplateFromEditor() {
     }
 
     // Update localStorage immediately (optimistic)
-    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    var templates = safeParseJSON(TEMPLATE_KEY, []);
 
     if (_editingTemplateId) {
         // Update existing template in localStorage
@@ -2126,7 +2126,7 @@ async function toggleTemplateActive(templateId) {
         if (newActive) itemEl.classList.remove('inactive');
         else itemEl.classList.add('inactive');
     }
-    var templates = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+    var templates = safeParseJSON(TEMPLATE_KEY, []);
     var idx = templates.findIndex(function(t) { return t.id === templateId; });
     if (idx !== -1) {
         templates[idx].active = newActive;
@@ -2147,7 +2147,7 @@ async function deleteTemplateFromSettings(templateId) {
         // Optimistic removal: update local state + DOM immediately
         var arrIdx = window.loadedTemplates.findIndex(function(t) { return t.id === templateId; });
         if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
-        var lsList = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]');
+        var lsList = safeParseJSON(TEMPLATE_KEY, []);
         var lsIdx = lsList.findIndex(function(t) { return t.id === templateId; });
         if (lsIdx !== -1) { lsList.splice(lsIdx, 1); localStorage.setItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
         // Remove DOM element
@@ -2254,7 +2254,7 @@ function saveDefaultSettings() {
     // Behold autofill-toggles fra eksisterende data
     var key = _defaultsTab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
     var fbDoc = _defaultsTab === 'external' ? 'defaults_external' : 'defaults';
-    var existing = JSON.parse(localStorage.getItem(key) || '{}');
+    var existing = safeParseJSON(key, {});
     ['autofill_uke', 'autofill_dato', 'autofill_sted'].forEach(function(k) {
         if (existing[k] !== undefined) defaults[k] = existing[k];
     });
@@ -2556,7 +2556,7 @@ async function updateSettingsStatus() {
 }
 
 function getUsedOrderNumbers() {
-    return new Set(JSON.parse(localStorage.getItem(USED_NUMBERS_KEY) || '[]'));
+    return new Set(safeParseJSON(USED_NUMBERS_KEY, []));
 }
 
 function findNextInRanges(ranges, usedNumbers) {
@@ -2669,7 +2669,7 @@ function isOnFormPage() {
 
 function hasAnyFormData() {
     // Hent standardverdier for sammenligning
-    const defaults = JSON.parse(localStorage.getItem('firesafe_defaults') || '{}');
+    const defaults = safeParseJSON('firesafe_defaults', {});
 
     // Felt som MÅ ha bruker-input (ikke standardverdier)
     const requiredFields = [
@@ -3086,8 +3086,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }).catch(function(e) { console.error('Refresh saved forms:', e); });
         }
         // Show cached data immediately
-        var cachedSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        var cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        var cachedSaved = safeParseJSON(STORAGE_KEY, []);
+        var cachedSent = safeParseJSON(ARCHIVE_KEY, []);
         renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')));
         updateToolbarState();
     } else if (hash === 'settings') {
@@ -3095,7 +3095,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateToolbarState();
     } else if (!hash || hash === '') {
         // Home page - render cached templates (filter out deactivated)
-        var cached = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || '[]').filter(function(t) { return t.active !== false; });
+        var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
         renderTemplateList(cached);
         updateToolbarState();
         // Background refresh

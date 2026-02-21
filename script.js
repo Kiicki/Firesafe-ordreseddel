@@ -14,6 +14,12 @@ let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 function sortUnits(arr) { arr.sort((a, b) => (a.plural || '').localeCompare(b.plural || '', 'no')); }
 
+// Safe JSON parse from localStorage - prevents crash on corrupt data
+function safeParseJSON(key, fallback) {
+    try { var v = JSON.parse(localStorage.getItem(key)); return v || fallback; }
+    catch(e) { console.error('Corrupt localStorage key:', key); return fallback; }
+}
+
 // Global HTML escape function - prevents XSS attacks
 function escapeHtml(str) {
     if (!str) return '';
@@ -318,11 +324,11 @@ async function getSavedForms(lastDoc) {
             return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return { forms: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), lastDoc: null, hasMore: false };
+            return { forms: safeParseJSON(STORAGE_KEY, []), lastDoc: null, hasMore: false };
         }
     }
     if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
-    return { forms: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'), lastDoc: null, hasMore: false };
+    return { forms: safeParseJSON(STORAGE_KEY, []), lastDoc: null, hasMore: false };
 }
 
 async function getSentForms(lastDoc) {
@@ -334,11 +340,11 @@ async function getSentForms(lastDoc) {
             return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return { forms: JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
+            return { forms: safeParseJSON(ARCHIVE_KEY, []), lastDoc: null, hasMore: false };
         }
     }
     if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
-    return { forms: JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
+    return { forms: safeParseJSON(ARCHIVE_KEY, []), lastDoc: null, hasMore: false };
 }
 
 async function getExternalForms(lastDoc) {
@@ -350,11 +356,11 @@ async function getExternalForms(lastDoc) {
             return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return { forms: JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]'), lastDoc: null, hasMore: false };
+            return { forms: safeParseJSON(EXTERNAL_KEY, []), lastDoc: null, hasMore: false };
         }
     }
     if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
-    return { forms: JSON.parse(localStorage.getItem(EXTERNAL_KEY) || '[]'), lastDoc: null, hasMore: false };
+    return { forms: safeParseJSON(EXTERNAL_KEY, []), lastDoc: null, hasMore: false };
 }
 
 async function getExternalSentForms(lastDoc) {
@@ -366,10 +372,10 @@ async function getExternalSentForms(lastDoc) {
             return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
         } catch (e) {
             console.error('Firestore error:', e);
-            return { forms: JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
+            return { forms: safeParseJSON(EXTERNAL_ARCHIVE_KEY, []), lastDoc: null, hasMore: false };
         }
     }
-    return { forms: JSON.parse(localStorage.getItem(EXTERNAL_ARCHIVE_KEY) || '[]'), lastDoc: null, hasMore: false };
+    return { forms: safeParseJSON(EXTERNAL_ARCHIVE_KEY, []), lastDoc: null, hasMore: false };
 }
 
 // --- Order number index (lightweight cache of all used order numbers) ---
@@ -393,7 +399,7 @@ async function syncOrderNumberIndex() {
 
 function addToOrderNumberIndex(nr) {
     if (!nr) return;
-    var nums = JSON.parse(localStorage.getItem(USED_NUMBERS_KEY) || '[]');
+    var nums = safeParseJSON(USED_NUMBERS_KEY, []);
     var s = String(nr);
     if (nums.indexOf(s) === -1) {
         nums.push(s);
@@ -403,7 +409,7 @@ function addToOrderNumberIndex(nr) {
 
 function removeFromOrderNumberIndex(nr) {
     if (!nr) return;
-    var nums = JSON.parse(localStorage.getItem(USED_NUMBERS_KEY) || '[]');
+    var nums = safeParseJSON(USED_NUMBERS_KEY, []);
     var s = String(nr);
     var idx = nums.indexOf(s);
     if (idx !== -1) {
@@ -1878,8 +1884,8 @@ async function saveForm() {
         const archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
 
         // Always use localStorage first (optimistic)
-        const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        const archived = JSON.parse(localStorage.getItem(archiveKey) || '[]');
+        const saved = safeParseJSON(storageKey, []);
+        const archived = safeParseJSON(archiveKey, []);
 
         // Sjekk sendte for duplikater
         var archivedIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
