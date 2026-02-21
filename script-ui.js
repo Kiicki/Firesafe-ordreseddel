@@ -29,9 +29,10 @@ function refreshActiveView() {
             _sentHasMore = sentResult.hasMore;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
             localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-            window.loadedForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
-                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
-                .sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+            window.loadedForms = _mergeAndDedup(
+                savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); }),
+                sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); })
+            );
             if (document.body.classList.contains('saved-modal-open')) {
                 renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
             }
@@ -178,6 +179,12 @@ function showSavedForms() {
     _showSavedFormsDirectly();
 }
 
+function _mergeAndDedup(saved, sent) {
+    var savedNrs = new Set(saved.map(function(f) { return f.ordreseddelNr; }));
+    var uniqueSent = sent.filter(function(f) { return !savedNrs.has(f.ordreseddelNr); });
+    return saved.concat(uniqueSent).sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+}
+
 function _showSavedFormsDirectly() {
     closeAllModals();
     if (window.location.hash !== '#hent') {
@@ -187,7 +194,10 @@ function _showSavedFormsDirectly() {
     // Show cached data immediately
     const cachedSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     const cachedSent = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-    const cachedForms = cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+    const cachedForms = _mergeAndDedup(
+        cachedSaved.map(f => ({ ...f, _isSent: false })),
+        cachedSent.map(f => ({ ...f, _isSent: true }))
+    );
     renderSavedFormsList(cachedForms);
 
     showView('saved-modal');
@@ -207,7 +217,10 @@ function _showSavedFormsDirectly() {
             _sentHasMore = sentResult.hasMore;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
             localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-            window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+            window.loadedForms = _mergeAndDedup(
+                savedResult.forms.map(f => ({ ...f, _isSent: false })),
+                sentResult.forms.map(f => ({ ...f, _isSent: true }))
+            );
             // Only update if still on saved-modal
             if (document.body.classList.contains('saved-modal-open')) {
                 renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
@@ -3033,7 +3046,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 _sentHasMore = sentResult.hasMore;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
                 localStorage.setItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-                window.loadedForms = savedResult.forms.map(f => ({ ...f, _isSent: false })).concat(sentResult.forms.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+                window.loadedForms = _mergeAndDedup(
+                    savedResult.forms.map(f => ({ ...f, _isSent: false })),
+                    sentResult.forms.map(f => ({ ...f, _isSent: true }))
+                );
                 if (document.body.classList.contains('saved-modal-open')) {
                     renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
                 }

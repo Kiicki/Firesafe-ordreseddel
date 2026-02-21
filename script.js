@@ -1882,6 +1882,8 @@ async function saveForm() {
         var archivedIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (archivedIdx !== -1) {
             if (sessionStorage.getItem('firesafe_current_sent') === '1') {
+                // Bevar ID fra arkivert skjema slik at det oppdateres, ikke dupliseres
+                data.id = archived[archivedIdx].id;
                 // Fjern fra arkiv — lagres til saved nedenfor
                 archived.splice(archivedIdx, 1);
                 localStorage.setItem(archiveKey, JSON.stringify(archived));
@@ -1916,7 +1918,7 @@ async function saveForm() {
             }, t('btn_update'), '#E8501A');
         } else {
             // Save new form directly (no confirmation needed)
-            data.id = Date.now().toString();
+            if (!data.id) data.id = Date.now().toString();
             saved.unshift(data);
             if (saved.length > 50) saved.pop();
             localStorage.setItem(storageKey, JSON.stringify(saved));
