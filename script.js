@@ -524,12 +524,12 @@ function closeTextEditor() {
             if (descBtn) descBtn.style.display = '';
         } else {
             // Has content: show textarea, hide button
-            const previewLines = lines.slice(0, 5);
-            const preview = lines.length > 5 ? previewLines.join('\n') + '...' : previewLines.join('\n');
+            const previewLines = lines.slice(0, 8);
+            const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
             currentEditingField.value = preview;
-            currentEditingField.rows = Math.min(lines.length, 5) + 1;
             currentEditingField.style.display = '';
             if (descBtn) descBtn.style.display = 'none';
+            autoResizeTextarea(currentEditingField);
         }
         currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
     }
@@ -750,10 +750,10 @@ function createOrderCard(orderData, expanded) {
         } else {
             // Has content: show textarea, hide button
             descBtn.style.display = 'none';
-            const previewLines = descLines.slice(0, 5);
-            const preview = descLines.length > 5 ? previewLines.join('\n') + '...' : previewLines.join('\n');
+            const previewLines = descLines.slice(0, 8);
+            const preview = descLines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
             descInput.value = preview;
-            descInput.rows = Math.min(descLines.length, 5) + 1;
+            autoResizeTextarea(descInput);
         }
     } else {
         descBtn.style.display = 'none';
