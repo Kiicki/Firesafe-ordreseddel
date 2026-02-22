@@ -527,11 +527,10 @@ function closeTextEditor() {
             const previewLines = lines.slice(0, 8);
             const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
             currentEditingField.value = preview;
-            currentEditingField.rows = Math.min(lines.length, 8);
             currentEditingField.style.display = '';
             if (descBtn) descBtn.style.display = 'none';
         }
-        autoResizeTextarea(currentEditingField);
+        autoResizeTextarea(currentEditingField, 4);
         currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
     }
     document.getElementById('text-editor-modal').classList.remove('active');
@@ -559,18 +558,22 @@ function isMobile() {
     return window.innerWidth <= 1024;
 }
 
-// Auto-resize textarea to fit content
-function autoResizeTextarea(textarea) {
-    // Set minimal height first to force scrollHeight recalculation
+// Auto-resize textarea to fit content (maxLines caps visible lines)
+function autoResizeTextarea(textarea, maxLines) {
     textarea.style.height = '1px';
     textarea.style.overflow = 'hidden';
-
-    // Force reflow
     void textarea.offsetHeight;
-
-    // Set to scrollHeight
     const minHeight = textarea.classList.contains('work-material') ? 18 : 24;
-    textarea.style.height = Math.max(textarea.scrollHeight, minHeight) + 'px';
+    let height = Math.max(textarea.scrollHeight, minHeight);
+    if (maxLines) {
+        const s = getComputedStyle(textarea);
+        const lh = parseFloat(s.lineHeight) || 20;
+        const maxH = Math.ceil(lh * maxLines)
+            + parseFloat(s.paddingTop) + parseFloat(s.paddingBottom)
+            + parseFloat(s.borderTopWidth) + parseFloat(s.borderBottomWidth);
+        height = Math.min(height, maxH);
+    }
+    textarea.style.height = height + 'px';
 }
 
 
@@ -754,7 +757,6 @@ function createOrderCard(orderData, expanded) {
             const previewLines = descLines.slice(0, 8);
             const preview = descLines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
             descInput.value = preview;
-            descInput.rows = Math.min(descLines.length, 8);
         }
     } else {
         descBtn.style.display = 'none';
@@ -1172,7 +1174,7 @@ function toggleOrder(headerEl) {
         body.style.display = '';
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
-        if (desc && desc.style.display !== 'none') autoResizeTextarea(desc);
+        if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
@@ -1816,7 +1818,7 @@ function setFormData(data) {
         container.appendChild(card);
     });
     container.querySelectorAll('.mobile-order-desc').forEach(ta => {
-        if (ta.offsetHeight > 0) autoResizeTextarea(ta);
+        if (ta.offsetHeight > 0) autoResizeTextarea(ta, 4);
     });
     renumberOrders();
     updateOrderDeleteStates();
