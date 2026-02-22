@@ -2000,9 +2000,7 @@ function _renderSettingsTemplateListFromData(templates) {
                 (detail ? '<div class="settings-template-item-row2">' + detail + '</div>' : '') +
             '</div>' +
             '<div class="settings-template-item-actions">' +
-                duplicateBtn +
-                    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
-                '</button>' +
+                duplicateBtn + copyIcon + '</button>' +
                 delBtn +
                     deleteIcon +
                 '</button>' +
@@ -2456,7 +2454,7 @@ function renderSettingsRanges() {
     container.innerHTML = settingsRanges.map((r, idx) =>
         `<div class="settings-range-item">
             <span>${escapeHtml(String(r.start))} – ${escapeHtml(String(r.end))}</span>
-            <button onclick="removeSettingsRange(${idx})" title="${t('btn_remove')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+            <button class="settings-delete-btn" onclick="removeSettingsRange(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
         </div>`
     ).join('');
     if (countEl) {
@@ -2524,7 +2522,7 @@ function renderGivenAwayRanges() {
     container.innerHTML = settingsGivenAway.map((r, idx) =>
         `<div class="settings-range-item settings-given-item">
             <span>${r.start === r.end ? escapeHtml(String(r.start)) : escapeHtml(String(r.start)) + ' – ' + escapeHtml(String(r.end))}</span>
-            <button onclick="removeGivenAway(${idx})" title="${t('btn_remove')}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+            <button class="settings-delete-btn" onclick="removeGivenAway(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
         </div>`
     ).join('');
     if (countEl) {
