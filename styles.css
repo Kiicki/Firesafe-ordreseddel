@@ -3018,9 +3018,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-template-item-row1 {
     font-weight: 600;
     font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
 }
 .settings-template-item-row2 {
     font-size: 12px;
