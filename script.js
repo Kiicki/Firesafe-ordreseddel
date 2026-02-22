@@ -527,7 +527,7 @@ function closeTextEditor() {
             const previewLines = lines.slice(0, 8);
             const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
             currentEditingField.value = preview;
-            currentEditingField.rows = Math.min(lines.length, 8) + 1;
+            currentEditingField.rows = Math.min(lines.length, 8);
             currentEditingField.style.display = '';
             if (descBtn) descBtn.style.display = 'none';
         }
@@ -753,7 +753,7 @@ function createOrderCard(orderData, expanded) {
             const previewLines = descLines.slice(0, 8);
             const preview = descLines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
             descInput.value = preview;
-            descInput.rows = Math.min(descLines.length, 8) + 1;
+            descInput.rows = Math.min(descLines.length, 8);
         }
     } else {
         descBtn.style.display = 'none';
