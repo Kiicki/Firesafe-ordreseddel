@@ -50,7 +50,8 @@
       "Bash(powershell.exe -Command \"try { \\(Invoke-WebRequest -Uri http://localhost:8000 -UseBasicParsing -TimeoutSec 3\\).StatusCode } catch { $_.Exception.Message }\")",
       "WebFetch(domain:puf.io)",
       "Bash(node -c:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "WebFetch(domain:kiicki.github.io)"
     ]
   }
 }

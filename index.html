@@ -620,6 +620,7 @@
             v = 'login-view';
         } else {
             var h = location.hash.slice(1);
+            if (!h && sessionStorage.getItem('firesafe_settings_page')) h = 'settings';
             if (h === 'hent') { v = 'saved-modal'; b = 'saved-modal-open'; }
             else if (h === 'settings' || h.indexOf('settings/') === 0) { v = 'settings-modal'; b = 'settings-modal-open'; }
             else if (h === 'skjema' || h === 'ekstern') { v = 'view-form'; }

@@ -79,6 +79,7 @@ function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+    sessionStorage.removeItem('firesafe_settings_page');
     showView('view-form');
 }
 
@@ -1320,6 +1321,7 @@ function showSettingsMenu() {
     const existingBack = header.querySelector('.settings-back-btn');
     if (existingBack) existingBack.remove();
     history.replaceState(null, '', '#settings');
+    sessionStorage.removeItem('firesafe_settings_page');
 }
 
 function showSettingsPage(page) {
@@ -1328,6 +1330,7 @@ function showSettingsPage(page) {
     document.getElementById('settings-header-title').textContent = getSettingsPageTitle(page);
     document.body.classList.add('settings-subpage-open');
     history.pushState(null, '', '#settings/' + page);
+    sessionStorage.setItem('firesafe_settings_page', page);
 
     const header = document.getElementById('settings-header');
     if (!header.querySelector('.settings-back-btn')) {
@@ -3170,7 +3173,7 @@ document.addEventListener('DOMContentLoaded', function() {
         renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')));
         updateToolbarState();
     } else if (hash === 'settings' || hash.indexOf('settings/') === 0) {
-        var subPage = hash.split('/')[1];
+        var subPage = hash.split('/')[1] || sessionStorage.getItem('firesafe_settings_page');
         if (subPage) {
             showSettingsPage(subPage);
         } else {
