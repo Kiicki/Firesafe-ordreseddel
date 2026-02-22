@@ -80,6 +80,7 @@ function closeAllModals() {
     if (actionPopup) actionPopup.classList.remove('active');
     document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
     sessionStorage.removeItem('firesafe_settings_page');
+    sessionStorage.removeItem('firesafe_form_type');
     showView('view-form');
 }
 
@@ -322,6 +323,7 @@ function loadFormDirect(formData) {
     closeModal();
     // Set hash based on form type
     window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
+    sessionStorage.setItem('firesafe_form_type', isExternalForm ? 'external' : 'own');
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
@@ -377,6 +379,7 @@ async function duplicateFormDirect(form) {
     closeModal();
     // Duplicated form is always regular (not external)
     window.location.hash = 'skjema';
+    sessionStorage.setItem('firesafe_form_type', 'own');
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
@@ -896,6 +899,7 @@ function loadExternalFormDirect(form) {
     closeModal();
     // External form = #ekstern
     window.location.hash = 'ekstern';
+    sessionStorage.setItem('firesafe_form_type', 'external');
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
@@ -1146,6 +1150,7 @@ function loadTemplateDirect(template) {
     updateToolbarState();
     document.getElementById('template-search').value = '';
     window.location.hash = 'skjema';
+    sessionStorage.setItem('firesafe_form_type', 'own');
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     lastSavedData = getFormDataSnapshot();
     document.getElementById('form-header-title').textContent = t('form_title');
@@ -1222,6 +1227,7 @@ function closeTemplateModal() {
     updateToolbarState();
     document.getElementById('template-search').value = '';
     window.location.hash = 'skjema';
+    sessionStorage.setItem('firesafe_form_type', 'own');
     document.getElementById('form-header-title').textContent = t('form_title');
     updateOrderDeleteStates();
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
@@ -2695,6 +2701,7 @@ function switchFormType(type) {
     isExternalForm = newExternal;
     updateFormTypeChip();
     window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
+    sessionStorage.setItem('firesafe_form_type', isExternalForm ? 'external' : 'own');
     document.getElementById('form-header-title').textContent =
         t('form_title');
 
@@ -3139,8 +3146,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // View is already activated by inline script in HTML.
     // Here we only do data-specific init based on hash.
     const hash = window.location.hash.slice(1);
-    if (hash === 'skjema' || hash === 'ekstern') {
-        if (hash === 'ekstern') isExternalForm = true;
+    var formTypeFromSession = sessionStorage.getItem('firesafe_form_type');
+    if (hash === 'skjema' || hash === 'ekstern' || (!hash && formTypeFromSession)) {
+        if (hash === 'ekstern' || (!hash && formTypeFromSession === 'external')) isExternalForm = true;
         document.getElementById('form-header-title').textContent = t('form_title');
         updateFormTypeChip();
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';

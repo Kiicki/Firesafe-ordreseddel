@@ -384,7 +384,7 @@
         <div class="modal-content">
             <div class="sticky-header">
                 <div class="modal-header" id="settings-header">
-                    <span id="settings-header-title" data-i18n="settings_title">Innstillinger</span>
+                    <span id="settings-header-title">Innstillinger</span>
                 </div>
             </div>
             <div class="modal-body" style="padding: 16px;">
@@ -621,6 +621,7 @@
         } else {
             var h = location.hash.slice(1);
             if (!h && sessionStorage.getItem('firesafe_settings_page')) h = 'settings';
+            if (!h && sessionStorage.getItem('firesafe_form_type')) h = sessionStorage.getItem('firesafe_form_type') === 'external' ? 'ekstern' : 'skjema';
             if (h === 'hent') { v = 'saved-modal'; b = 'saved-modal-open'; }
             else if (h === 'settings' || h.indexOf('settings/') === 0) { v = 'settings-modal'; b = 'settings-modal-open'; }
             else if (h === 'skjema' || h === 'ekstern') { v = 'view-form'; }
@@ -652,7 +653,7 @@
 
     <script src="lang.js?v=110"></script>
     <script src="script.js?v=122"></script>
-    <script src="script-ui.js?v=141"></script>
+    <script src="script-ui.js?v=142"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
