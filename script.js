@@ -563,23 +563,30 @@ function autoResizeTextarea(textarea, maxLines) {
     textarea.style.overflow = 'hidden';
 
     if (maxLines) {
-        // Measure exact pixel height for maxLines using rows attribute
-        textarea.style.maxHeight = 'none';
-        textarea.rows = maxLines;
-        textarea.style.height = 'auto';
-        void textarea.offsetHeight;
-        var maxH = textarea.offsetHeight;
+        // Measure scrollHeight for exactly maxLines lines using an invisible clone
+        var clone = textarea.cloneNode();
+        clone.style.cssText = 'position:absolute;visibility:hidden;height:1px;max-height:none;overflow:hidden';
+        clone.removeAttribute('rows');
+        var t = '';
+        for (var i = 0; i < maxLines; i++) { if (i) t += '\n'; t += 'X'; }
+        clone.value = t;
+        textarea.parentNode.appendChild(clone);
+        void clone.offsetHeight;
+        var maxScrollH = clone.scrollHeight;
+        clone.remove();
 
-        // Measure full content height
+        // Measure actual content scrollHeight (without rows influence)
+        textarea.removeAttribute('rows');
+        textarea.style.maxHeight = 'none';
         textarea.style.height = '1px';
         void textarea.offsetHeight;
         var scrollH = textarea.scrollHeight;
-        var bdr = parseFloat(getComputedStyle(textarea).borderTopWidth) + parseFloat(getComputedStyle(textarea).borderBottomWidth);
 
-        // Set height: content or maxLines, whichever is smaller
-        textarea.style.height = Math.min(scrollH + bdr, maxH) + 'px';
+        // Both are scrollHeight (includes padding, excludes border)
+        // Add border for border-box
+        var bdr = parseFloat(getComputedStyle(textarea).borderTopWidth) + parseFloat(getComputedStyle(textarea).borderBottomWidth);
+        textarea.style.height = (Math.min(scrollH, maxScrollH) + bdr) + 'px';
         textarea.style.maxHeight = '';
-        textarea.removeAttribute('rows');
     } else {
         textarea.style.height = '1px';
         void textarea.offsetHeight;
