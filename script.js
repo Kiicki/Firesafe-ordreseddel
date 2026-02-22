@@ -389,18 +389,31 @@ const USED_NUMBERS_KEY = 'firesafe_used_numbers';
 
 async function syncOrderNumberIndex() {
     if (!currentUser || !db) return;
-    const numbers = new Set();
-    const collections = ['forms', 'archive', 'external', 'externalArchive'];
-    var snaps = await Promise.all(collections.map(function(col) {
-        return db.collection('users').doc(currentUser.uid).collection(col).get().catch(function() { return { docs: [] }; });
-    }));
-    snaps.forEach(function(snap) {
-        snap.docs.forEach(function(doc) {
-            var nr = doc.data().ordreseddelNr;
-            if (nr) numbers.add(String(nr));
+    var settingsRef = db.collection('users').doc(currentUser.uid).collection('settings').doc('usedNumbers');
+    var doc = await settingsRef.get();
+    if (doc.exists && doc.data().numbers) {
+        safeSetItem(USED_NUMBERS_KEY, JSON.stringify(doc.data().numbers));
+    } else {
+        // Migrasjon: første gang — scan collections én gang og lagre til Firestore-dokument
+        const numbers = new Set();
+        const collections = ['forms', 'archive', 'external', 'externalArchive'];
+        var snaps = await Promise.all(collections.map(function(col) {
+            return db.collection('users').doc(currentUser.uid).collection(col).get().catch(function() { return { docs: [] }; });
+        }));
+        snaps.forEach(function(snap) {
+            snap.docs.forEach(function(d) {
+                var nr = d.data().ordreseddelNr;
+                if (nr) numbers.add(String(nr));
+            });
         });
-    });
-    safeSetItem(USED_NUMBERS_KEY, JSON.stringify([...numbers]));
+        var arr = [...numbers];
+        safeSetItem(USED_NUMBERS_KEY, JSON.stringify(arr));
+        if (arr.length > 0) {
+            settingsRef.set({ numbers: arr }, { merge: true }).catch(function(e) {
+                console.error('Migration usedNumbers:', e);
+            });
+        }
+    }
 }
 
 function addToOrderNumberIndex(nr) {
@@ -410,6 +423,11 @@ function addToOrderNumberIndex(nr) {
     if (nums.indexOf(s) === -1) {
         nums.push(s);
         safeSetItem(USED_NUMBERS_KEY, JSON.stringify(nums));
+    }
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings')
+            .doc('usedNumbers').set({ numbers: firebase.firestore.FieldValue.arrayUnion(s) }, { merge: true })
+            .catch(function(e) { console.error('addToOrderNumberIndex Firestore:', e); });
     }
 }
 
@@ -421,6 +439,11 @@ function removeFromOrderNumberIndex(nr) {
     if (idx !== -1) {
         nums.splice(idx, 1);
         safeSetItem(USED_NUMBERS_KEY, JSON.stringify(nums));
+    }
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings')
+            .doc('usedNumbers').set({ numbers: firebase.firestore.FieldValue.arrayRemove(s) }, { merge: true })
+            .catch(function(e) { console.error('removeFromOrderNumberIndex Firestore:', e); });
     }
 }
 

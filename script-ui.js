@@ -540,35 +540,114 @@ function showExportMenu() {
 }
 
 var _filterTimeout = null;
+var _searchVersion = 0;
 var _savedFormsAll = null;
 var _externalFormsAll = null;
 var _templatesAll = null;
+
+// Firestore prefix-søk for skjemaer som ikke er lastet inn ennå
+async function firestoreSearchForms(rawTerm, collections, field) {
+    if (!currentUser || !db || !rawTerm) return [];
+    var searchField = field || 'ordreseddelNr';
+    var results = await Promise.all(collections.map(function(col) {
+        return db.collection('users').doc(currentUser.uid).collection(col.name)
+            .where(searchField, '>=', rawTerm)
+            .where(searchField, '<=', rawTerm + '\uf8ff')
+            .orderBy(searchField)
+            .limit(50)
+            .get()
+            .catch(function() { return { docs: [] }; });
+    }));
+    var forms = [];
+    results.forEach(function(snap, i) {
+        snap.docs.forEach(function(d) {
+            forms.push(Object.assign({ id: d.id, _isSent: !!collections[i].isSent }, d.data()));
+        });
+    });
+    return forms;
+}
+
+function mergeSearchResults(memoryResults, firestoreResults) {
+    var ids = {};
+    memoryResults.forEach(function(f) { if (f.id) ids[f.id] = true; });
+    var merged = memoryResults.slice();
+    firestoreResults.forEach(function(f) {
+        if (f.id && !ids[f.id]) merged.push(f);
+    });
+    return merged;
+}
+
 function filterList(listId, searchId) {
     clearTimeout(_filterTimeout);
     _filterTimeout = setTimeout(function() {
-        var term = document.getElementById(searchId).value.toLowerCase().trim();
-        // Determine which data array and render function to use
+        var rawTerm = document.getElementById(searchId).value.trim();
+        var term = rawTerm.toLowerCase();
+
+        // Invalider eventuelle in-flight Firestore-søk
+        ++_searchVersion;
+
         if (listId === 'saved-list') {
             if (!_savedFormsAll) _savedFormsAll = window.loadedForms ? window.loadedForms.slice() : [];
-            if (!term) { var all = _savedFormsAll; _savedFormsAll = null; renderSavedFormsList(all); return; }
+            if (!term) { var all = _savedFormsAll; _savedFormsAll = null; renderSavedFormsList(all, false, _savedHasMore || _sentHasMore); return; }
             var filtered = _savedFormsAll.filter(function(f) {
                 return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
             });
             renderSavedFormsList(filtered);
+            // Søk i Firestore etter ulastede skjemaer
+            if ((_savedHasMore || _sentHasMore) && currentUser && db) {
+                var ver = ++_searchVersion;
+                firestoreSearchForms(rawTerm, [
+                    { name: 'forms', isSent: false },
+                    { name: 'archive', isSent: true }
+                ]).then(function(fsResults) {
+                    if (ver !== _searchVersion) return;
+                    var merged = mergeSearchResults(filtered, fsResults);
+                    if (merged.length > filtered.length) {
+                        renderSavedFormsList(merged);
+                    }
+                });
+            }
         } else if (listId === 'external-list') {
             if (!_externalFormsAll) _externalFormsAll = window.loadedExternalForms ? window.loadedExternalForms.slice() : [];
-            if (!term) { var all2 = _externalFormsAll; _externalFormsAll = null; renderExternalFormsList(all2); return; }
+            if (!term) { var all2 = _externalFormsAll; _externalFormsAll = null; renderExternalFormsList(all2, false, _extHasMore || _extSentHasMore); return; }
             var filtered2 = _externalFormsAll.filter(function(f) {
                 return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
             });
             renderExternalFormsList(filtered2);
+            // Søk i Firestore etter ulastede eksterne skjemaer
+            if ((_extHasMore || _extSentHasMore) && currentUser && db) {
+                var ver2 = ++_searchVersion;
+                firestoreSearchForms(rawTerm, [
+                    { name: 'external', isSent: false },
+                    { name: 'externalArchive', isSent: true }
+                ]).then(function(fsResults) {
+                    if (ver2 !== _searchVersion) return;
+                    var merged = mergeSearchResults(filtered2, fsResults);
+                    if (merged.length > filtered2.length) {
+                        renderExternalFormsList(merged);
+                    }
+                });
+            }
         } else if (listId === 'template-list') {
             if (!_templatesAll) _templatesAll = window.loadedTemplates ? window.loadedTemplates.slice() : [];
-            if (!term) { var all3 = _templatesAll; _templatesAll = null; renderTemplateList(all3); return; }
+            if (!term) { var all3 = _templatesAll; _templatesAll = null; renderTemplateList(all3, false, _templateHasMore); return; }
             var filtered3 = _templatesAll.filter(function(f) {
                 return (f.prosjektnavn || '').toLowerCase().startsWith(term);
             });
             renderTemplateList(filtered3);
+            // Søk i Firestore etter ulastede maler
+            if (_templateHasMore && currentUser && db) {
+                var ver3 = ++_searchVersion;
+                firestoreSearchForms(rawTerm, [
+                    { name: 'templates', isSent: false }
+                ], 'prosjektnavn').then(function(fsResults) {
+                    if (ver3 !== _searchVersion) return;
+                    var merged = mergeSearchResults(filtered3, fsResults);
+                    if (merged.length > filtered3.length) {
+                        renderTemplateList(merged);
+                    }
+                });
+            }
         }
     }, 150);
 }
@@ -1936,7 +2015,7 @@ async function renderSettingsTemplateList() {
     var templates = [];
     if (currentUser && db) {
         try {
-            var snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get();
+            var snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').limit(100).get();
             templates = snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
         } catch (e) {
             console.error('Load templates for settings:', e);
@@ -2030,7 +2109,7 @@ async function toggleActiveFromEditor() {
 
 async function _findTemplateById(id) {
     // Check in-memory first (instant)
-    var inMem = window.loadedTemplates.find(function(t) { return t.id === id; });
+    var inMem = (window.loadedTemplates || []).find(function(t) { return t.id === id; });
     if (inMem) return inMem;
     // Then localStorage
     var templates = safeParseJSON(TEMPLATE_KEY, []);
