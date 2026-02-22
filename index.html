@@ -54,7 +54,7 @@
             </div>
 
         <div class="form-type-tabs" id="form-type-tabs">
-            <button class="form-type-tab active" onclick="switchFormType('own')" data-i18n="tab_own">Egne</button>
+            <button class="form-type-tab" onclick="switchFormType('own')" data-i18n="tab_own">Egne</button>
             <button class="form-type-tab" onclick="switchFormType('external')" data-i18n="tab_external">Eksterne</button>
         </div>
 
@@ -305,7 +305,7 @@
                     <span data-i18n="modal_load_title">Hent skjema</span>
                 </div>
                 <div class="modal-tabs">
-                    <button class="modal-tab active" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
+                    <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
                     <button class="modal-tab" onclick="switchHentTab('external')" data-i18n="tab_external">Eksterne</button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
@@ -453,7 +453,7 @@
                 <!-- Standardverdier-side -->
                 <div id="settings-page-defaults" class="settings-page" style="display:none;">
                     <div class="settings-tabs">
-                        <button class="settings-tab active" onclick="switchDefaultsTab('own')" data-i18n="tab_own">Egne</button>
+                        <button class="settings-tab" onclick="switchDefaultsTab('own')" data-i18n="tab_own">Egne</button>
                         <button class="settings-tab" onclick="switchDefaultsTab('external')" data-i18n="tab_external">Eksterne</button>
                     </div>
                     <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
@@ -639,6 +639,17 @@
             var te = document.getElementById('settings-header-title');
             if (te) te.textContent = st;
         }
+        // Activate correct tab immediately to avoid flash
+        var tabIdx = 0;
+        if (h === 'ekstern') tabIdx = 1;
+        if (v === 'view-form') {
+            var ft = document.querySelectorAll('#form-type-tabs .form-type-tab');
+            if (ft.length) ft[tabIdx].classList.add('active');
+        } else if (v === 'saved-modal') {
+            var ht = sessionStorage.getItem('firesafe_hent_tab');
+            var mt = document.querySelectorAll('#saved-modal .modal-tab');
+            if (mt.length) mt[ht === 'external' ? 1 : 0].classList.add('active');
+        }
     })();
     </script>
 
@@ -653,7 +664,7 @@
 
     <script src="lang.js?v=110"></script>
     <script src="script.js?v=122"></script>
-    <script src="script-ui.js?v=143"></script>
+    <script src="script-ui.js?v=144"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
