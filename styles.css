@@ -1124,8 +1124,8 @@ body.settings-modal-open {
 }
 
 .saved-item-action-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 
 .saved-item-action-btn.copy {
@@ -2663,8 +2663,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 
 .settings-delete-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 
 .settings-delete-btn:active {
@@ -3030,8 +3030,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     height: 44px;
 }
 .settings-template-delete-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 .settings-template-delete-btn:active {
     opacity: 0.6;
@@ -3063,8 +3063,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     height: 44px;
 }
 .settings-template-duplicate-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 .settings-template-duplicate-btn:active {
     opacity: 0.6;
