@@ -81,6 +81,8 @@ function closeAllModals() {
     document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_form_type');
+    sessionStorage.removeItem('firesafe_hent_tab');
+    sessionStorage.removeItem('firesafe_defaults_tab');
     showView('view-form');
 }
 
@@ -439,11 +441,13 @@ function closeModal() {
     document.getElementById('external-search').value = '';
     // Reset to own tab
     switchHentTab('own');
+    sessionStorage.removeItem('firesafe_hent_tab');
     // Clear URL hash
     history.replaceState(null, '', window.location.pathname);
 }
 
 function switchHentTab(tab) {
+    sessionStorage.setItem('firesafe_hent_tab', tab);
     const tabs = document.querySelectorAll('#saved-modal .modal-tab');
     tabs.forEach(t => t.classList.remove('active'));
 
@@ -1329,6 +1333,7 @@ function showSettingsMenu() {
     history.replaceState(null, '', '#settings');
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_settings_title');
+    sessionStorage.removeItem('firesafe_defaults_tab');
 }
 
 function showSettingsPage(page) {
@@ -1370,11 +1375,15 @@ function showSettingsPage(page) {
                 _applyOrderNrSettings(settings);
         });
     } else if (page === 'defaults') {
-        _defaultsTab = 'own';
+        var savedDefaultsTab = sessionStorage.getItem('firesafe_defaults_tab') || 'own';
+        _defaultsTab = savedDefaultsTab;
         var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
-        if (tabs.length) { tabs[0].classList.add('active'); tabs[1].classList.remove('active'); }
+        if (tabs.length) {
+            tabs[0].classList.toggle('active', savedDefaultsTab === 'own');
+            tabs[1].classList.toggle('active', savedDefaultsTab === 'external');
+        }
         // Show cached immediately, then background refresh
-        loadDefaultsForTab('own');
+        loadDefaultsForTab(savedDefaultsTab);
         initDefaultsAutoSave();
     } else if (page === 'required') {
         // Show cached immediately
@@ -2383,6 +2392,7 @@ function initDefaultsAutoSave() {
 
 function switchDefaultsTab(tab) {
     _defaultsTab = tab;
+    sessionStorage.setItem('firesafe_defaults_tab', tab);
     var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
     tabs.forEach(function(t) { t.classList.remove('active'); });
     tabs[tab === 'own' ? 0 : 1].classList.add('active');
@@ -3182,6 +3192,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var cachedSaved = safeParseJSON(STORAGE_KEY, []);
         var cachedSent = safeParseJSON(ARCHIVE_KEY, []);
         renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')));
+        var savedTab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
+        switchHentTab(savedTab);
         updateToolbarState();
     } else if (hash === 'settings' || hash.indexOf('settings/') === 0) {
         var subPage = hash.split('/')[1] || sessionStorage.getItem('firesafe_settings_page');
