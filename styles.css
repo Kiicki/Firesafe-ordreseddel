@@ -1111,7 +1111,7 @@ body.settings-modal-open {
 }
 
 .saved-item-action-btn {
-    width: 44px;
+    width: 40px;
     height: 44px;
     border-radius: 6px;
     border: none;
@@ -2655,7 +2655,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #e74c3c;
     cursor: pointer;
     padding: 0;
-    width: 44px;
+    width: 40px;
     height: 44px;
     display: flex;
     align-items: center;
@@ -3026,7 +3026,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
+    width: 40px;
     height: 44px;
 }
 .settings-template-delete-btn svg {
@@ -3059,7 +3059,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
+    width: 40px;
     height: 44px;
 }
 .settings-template-duplicate-btn svg {
