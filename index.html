@@ -632,6 +632,12 @@
         }
         document.getElementById(v).classList.add('active');
         if (b) document.body.classList.add(b);
+        // Restore settings sub-page title immediately to avoid flash
+        var st = sessionStorage.getItem('firesafe_settings_title');
+        if (st && v === 'settings-modal') {
+            var te = document.getElementById('settings-header-title');
+            if (te) te.textContent = st;
+        }
     })();
     </script>
 

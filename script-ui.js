@@ -1322,6 +1322,7 @@ function showSettingsMenu() {
     if (existingBack) existingBack.remove();
     history.replaceState(null, '', '#settings');
     sessionStorage.removeItem('firesafe_settings_page');
+    sessionStorage.removeItem('firesafe_settings_title');
 }
 
 function showSettingsPage(page) {
@@ -1331,6 +1332,7 @@ function showSettingsPage(page) {
     document.body.classList.add('settings-subpage-open');
     history.pushState(null, '', '#settings/' + page);
     sessionStorage.setItem('firesafe_settings_page', page);
+    sessionStorage.setItem('firesafe_settings_title', getSettingsPageTitle(page));
 
     const header = document.getElementById('settings-header');
     if (!header.querySelector('.settings-back-btn')) {
@@ -3138,6 +3140,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Here we only do data-specific init based on hash.
     const hash = window.location.hash.slice(1);
     if (hash === 'skjema' || hash === 'ekstern') {
+        if (hash === 'ekstern') isExternalForm = true;
         document.getElementById('form-header-title').textContent = t('form_title');
         updateFormTypeChip();
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
