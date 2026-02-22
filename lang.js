@@ -210,7 +210,8 @@ const TRANSLATIONS = {
         material_exists: 'Materialet finnes allerede',
 
         // Required fields settings
-        settings_required: 'Krav ved lagring',
+        settings_required: 'Krav ved lagring og eksport',
+        settings_tpl_required: 'Obligatoriske felt',
         settings_req_save: 'Lagre / Eksport',
         settings_req_template: 'Mal',
         settings_req_beskrivelse: 'Beskrivelse (minst 1 ordre)',
@@ -465,7 +466,8 @@ const TRANSLATIONS = {
         material_exists: 'Material already exists',
 
         // Required fields settings
-        settings_required: 'Save requirements',
+        settings_required: 'Save & export requirements',
+        settings_tpl_required: 'Required fields',
         settings_req_save: 'Save / Export',
         settings_req_template: 'Template',
         settings_req_beskrivelse: 'Description (at least 1 order)',
