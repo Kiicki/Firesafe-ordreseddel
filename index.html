@@ -639,16 +639,34 @@
             var te = document.getElementById('settings-header-title');
             if (te) te.textContent = st;
         }
-        // Activate correct tab immediately to avoid flash
-        var tabIdx = 0;
-        if (h === 'ekstern') tabIdx = 1;
+        // Activate correct state immediately to avoid flash
         if (v === 'view-form') {
             var ft = document.querySelectorAll('#form-type-tabs .form-type-tab');
-            if (ft.length) ft[tabIdx].classList.add('active');
+            if (ft.length) ft[h === 'ekstern' ? 1 : 0].classList.add('active');
+            if (h === 'ekstern') {
+                var eb = document.getElementById('external-badge');
+                if (eb) eb.style.display = '';
+            }
+            if (sessionStorage.getItem('firesafe_current_sent') === '1') {
+                var sb = document.getElementById('sent-banner');
+                if (sb) sb.style.display = 'block';
+                var hdb = document.getElementById('header-done-btn');
+                if (hdb) hdb.style.display = 'none';
+            }
         } else if (v === 'saved-modal') {
             var ht = sessionStorage.getItem('firesafe_hent_tab');
             var mt = document.querySelectorAll('#saved-modal .modal-tab');
             if (mt.length) mt[ht === 'external' ? 1 : 0].classList.add('active');
+            if (ht === 'external') {
+                var ow = document.getElementById('own-search-wrap');
+                var ew = document.getElementById('external-search-wrap');
+                if (ow) ow.style.display = 'none';
+                if (ew) ew.style.display = '';
+                var sl = document.getElementById('saved-list');
+                var el = document.getElementById('external-list');
+                if (sl) sl.style.display = 'none';
+                if (el) el.style.display = '';
+            }
         }
     })();
     </script>
