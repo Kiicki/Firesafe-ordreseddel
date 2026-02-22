@@ -531,6 +531,7 @@ function closeTextEditor() {
             currentEditingField.style.display = '';
             if (descBtn) descBtn.style.display = 'none';
         }
+        autoResizeTextarea(currentEditingField);
         currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
     }
     document.getElementById('text-editor-modal').classList.remove('active');
@@ -1170,6 +1171,8 @@ function toggleOrder(headerEl) {
     if (body.style.display === 'none') {
         body.style.display = '';
         arrow.innerHTML = '&#9650;';
+        const desc = card.querySelector('.mobile-order-desc');
+        if (desc && desc.style.display !== 'none') autoResizeTextarea(desc);
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
@@ -1811,6 +1814,9 @@ function setFormData(data) {
         const expanded = idx === 0; // First order expanded by default
         const card = createOrderCard(order, expanded);
         container.appendChild(card);
+    });
+    container.querySelectorAll('.mobile-order-desc').forEach(ta => {
+        if (ta.offsetHeight > 0) autoResizeTextarea(ta);
     });
     renumberOrders();
     updateOrderDeleteStates();
