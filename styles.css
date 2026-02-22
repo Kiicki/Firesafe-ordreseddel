@@ -831,6 +831,16 @@ body.settings-modal-open {
     overflow: clip;
 }
 
+/* Form view: fixed to viewport so form-header can be sticky */
+#view-form.view.active {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 60px;
+    min-height: 0;
+}
+
 #template-modal.view.active > .modal-content,
 #saved-modal.view.active > .modal-content,
 #settings-modal.view.active > .modal-content {
@@ -871,7 +881,8 @@ body.settings-modal-open {
     }
     #template-modal.view.active,
     #saved-modal.view.active,
-    #settings-modal.view.active {
+    #settings-modal.view.active,
+    #view-form.view.active {
         position: static;
         bottom: auto;
         height: auto;
