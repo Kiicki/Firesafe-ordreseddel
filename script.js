@@ -560,20 +560,32 @@ function isMobile() {
 
 // Auto-resize textarea to fit content (maxLines caps visible lines)
 function autoResizeTextarea(textarea, maxLines) {
-    textarea.style.height = '1px';
     textarea.style.overflow = 'hidden';
-    void textarea.offsetHeight;
-    const minHeight = textarea.classList.contains('work-material') ? 18 : 24;
-    let height = Math.max(textarea.scrollHeight, minHeight);
+
     if (maxLines) {
-        const s = getComputedStyle(textarea);
-        const lh = parseFloat(s.lineHeight) || 20;
-        const maxH = Math.ceil(lh * maxLines)
-            + parseFloat(s.paddingTop) + parseFloat(s.paddingBottom)
-            + parseFloat(s.borderTopWidth) + parseFloat(s.borderBottomWidth);
-        height = Math.min(height, maxH);
+        // Measure exact pixel height for maxLines using rows attribute
+        textarea.style.maxHeight = 'none';
+        textarea.rows = maxLines;
+        textarea.style.height = 'auto';
+        void textarea.offsetHeight;
+        var maxH = textarea.offsetHeight;
+
+        // Measure full content height
+        textarea.style.height = '1px';
+        void textarea.offsetHeight;
+        var scrollH = textarea.scrollHeight;
+        var bdr = parseFloat(getComputedStyle(textarea).borderTopWidth) + parseFloat(getComputedStyle(textarea).borderBottomWidth);
+
+        // Set height: content or maxLines, whichever is smaller
+        textarea.style.height = Math.min(scrollH + bdr, maxH) + 'px';
+        textarea.style.maxHeight = '';
+        textarea.removeAttribute('rows');
+    } else {
+        textarea.style.height = '1px';
+        void textarea.offsetHeight;
+        var minHeight = textarea.classList.contains('work-material') ? 18 : 24;
+        textarea.style.height = Math.max(textarea.scrollHeight, minHeight) + 'px';
     }
-    textarea.style.height = height + 'px';
 }
 
 
