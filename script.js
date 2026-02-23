@@ -570,8 +570,10 @@ function autoResizeTextarea(textarea, maxLines) {
     var height = scrollH + border;
     if (maxLines) {
         var lineH = parseFloat(cs.lineHeight);
-        var pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-        var maxH = Math.ceil(lineH * maxLines + pad + border);
+        var padTop = parseFloat(cs.paddingTop);
+        // overflow:hidden clips at padding-box, so visible text = maxH - border - paddingTop
+        // exclude paddingBottom so line N+1 starts exactly at the clip edge
+        var maxH = Math.ceil(lineH * maxLines + padTop + border);
         height = Math.min(height, maxH);
     }
     var minH = textarea.classList.contains('work-material') ? 18 : 24;
