@@ -720,7 +720,7 @@ function createOrderCard(orderData, expanded) {
             <div class="mobile-field${((cachedRequiredSettings || getDefaultRequiredSettings()).save.beskrivelse !== false) ? ' field-required' : ''}">
                 <label data-i18n="order_description">${t('order_description')}</label>
                 <button type="button" class="mobile-desc-btn">+ ${t('order_description')}</button>
-                <textarea class="mobile-order-desc" readonly autocapitalize="sentences"></textarea>
+                <textarea class="mobile-order-desc" rows="1" readonly autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
@@ -1823,6 +1823,12 @@ function setFormData(data) {
     });
     container.querySelectorAll('.mobile-order-desc').forEach(ta => {
         if (ta.offsetHeight > 0) autoResizeTextarea(ta, 4);
+    });
+    // Re-measure after browser has completed first paint (fixes initial load timing)
+    requestAnimationFrame(function() {
+        container.querySelectorAll('.mobile-order-desc').forEach(ta => {
+            if (ta.offsetHeight > 0) autoResizeTextarea(ta, 4);
+        });
     });
     renumberOrders();
     updateOrderDeleteStates();
