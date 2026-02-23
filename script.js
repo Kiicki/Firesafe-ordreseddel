@@ -563,30 +563,29 @@ function autoResizeTextarea(textarea, maxLines) {
     textarea.style.overflow = 'hidden';
 
     if (maxLines) {
-        // Measure scrollHeight for exactly maxLines lines using an invisible clone
+        // Use a clone with field-sizing:content + offsetHeight for BOTH measurements
+        // This guarantees consistency — same method, same element, same coordinate system
         var clone = textarea.cloneNode();
-        clone.style.cssText = 'position:absolute;visibility:hidden;height:1px;max-height:none;overflow:hidden';
+        clone.style.cssText = 'position:absolute;visibility:hidden;max-height:none;overflow:hidden;field-sizing:content;width:' + textarea.offsetWidth + 'px';
         clone.removeAttribute('rows');
+        textarea.parentNode.appendChild(clone);
+
+        // 1) Measure offsetHeight for exactly maxLines lines
         var t = '';
         for (var i = 0; i < maxLines; i++) { if (i) t += '\n'; t += 'X'; }
         clone.value = t;
-        textarea.parentNode.appendChild(clone);
         void clone.offsetHeight;
-        var maxScrollH = clone.scrollHeight;
+        var maxH = clone.offsetHeight;
+
+        // 2) Measure offsetHeight for actual content
+        clone.value = textarea.value;
+        void clone.offsetHeight;
+        var contentH = clone.offsetHeight;
+
         clone.remove();
 
-        // Measure actual content scrollHeight (without rows influence)
         textarea.removeAttribute('rows');
-        textarea.style.maxHeight = 'none';
-        textarea.style.height = '1px';
-        void textarea.offsetHeight;
-        var scrollH = textarea.scrollHeight;
-
-        // Both are scrollHeight (includes padding, excludes border)
-        // Add border for border-box
-        var bdr = parseFloat(getComputedStyle(textarea).borderTopWidth) + parseFloat(getComputedStyle(textarea).borderBottomWidth);
-        textarea.style.height = (Math.min(scrollH, maxScrollH) + bdr) + 'px';
-        textarea.style.maxHeight = '';
+        textarea.style.height = Math.min(contentH, maxH) + 'px';
     } else {
         textarea.style.height = '1px';
         void textarea.offsetHeight;
