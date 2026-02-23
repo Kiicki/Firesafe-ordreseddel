@@ -561,37 +561,21 @@ function isMobile() {
 // Auto-resize textarea to fit content (maxLines caps visible lines)
 function autoResizeTextarea(textarea, maxLines) {
     textarea.style.overflow = 'hidden';
-
+    textarea.rows = 1;
+    textarea.style.height = '0';
+    void textarea.offsetHeight;
+    var scrollH = textarea.scrollHeight;
+    var cs = getComputedStyle(textarea);
+    var border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    var height = scrollH + border;
     if (maxLines) {
-        // Use a clone with field-sizing:content + offsetHeight for BOTH measurements
-        // This guarantees consistency — same method, same element, same coordinate system
-        var clone = textarea.cloneNode();
-        clone.style.cssText = 'position:absolute;visibility:hidden;max-height:none;overflow:hidden;field-sizing:content;width:' + textarea.offsetWidth + 'px';
-        clone.removeAttribute('rows');
-        textarea.parentNode.appendChild(clone);
-
-        // 1) Measure offsetHeight for exactly maxLines lines
-        var t = '';
-        for (var i = 0; i < maxLines; i++) { if (i) t += '\n'; t += 'X'; }
-        clone.value = t;
-        void clone.offsetHeight;
-        var maxH = clone.offsetHeight;
-
-        // 2) Measure offsetHeight for actual content
-        clone.value = textarea.value;
-        void clone.offsetHeight;
-        var contentH = clone.offsetHeight;
-
-        clone.remove();
-
-        textarea.removeAttribute('rows');
-        textarea.style.height = Math.min(contentH, maxH) + 'px';
-    } else {
-        textarea.style.height = '1px';
-        void textarea.offsetHeight;
-        var minHeight = textarea.classList.contains('work-material') ? 18 : 24;
-        textarea.style.height = Math.max(textarea.scrollHeight, minHeight) + 'px';
+        var lineH = parseFloat(cs.lineHeight);
+        var pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        var maxH = Math.ceil(lineH * maxLines + pad + border);
+        height = Math.min(height, maxH);
     }
+    var minH = textarea.classList.contains('work-material') ? 18 : 24;
+    textarea.style.height = Math.max(height, minH) + 'px';
 }
 
 
