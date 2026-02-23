@@ -51,7 +51,8 @@
       "WebFetch(domain:puf.io)",
       "Bash(node -c:*)",
       "Bash(node:*)",
-      "WebFetch(domain:kiicki.github.io)"
+      "WebFetch(domain:kiicki.github.io)",
+      "Bash(git -c:*)"
     ]
   }
 }
