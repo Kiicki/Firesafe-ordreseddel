@@ -657,6 +657,40 @@ function navigateBack() {
     showTemplateModal();
 }
 
+function updatePreviewScale() {
+    var overlay = document.getElementById('preview-overlay');
+    if (!overlay || !overlay.classList.contains('active')) return;
+
+    var fc = document.getElementById('form-container');
+    var scroll = document.getElementById('preview-scroll');
+    var header = document.querySelector('.preview-overlay-header');
+    if (!fc || !scroll) return;
+
+    var cs = getComputedStyle(scroll);
+    var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    var availWidth = scroll.clientWidth - padLR;
+    var scale = Math.min(availWidth / 800, 1);
+
+    if (scale < 1) {
+        fc.style.transformOrigin = 'top left';
+        fc.style.transform = 'scale(' + scale + ')';
+        fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
+        fc.style.marginRight = (-(fc.offsetWidth * (1 - scale))) + 'px';
+        fc.style.marginLeft = '';
+    } else {
+        fc.style.transform = '';
+        fc.style.transformOrigin = '';
+        fc.style.marginLeft = 'auto';
+        fc.style.marginRight = 'auto';
+        fc.style.marginBottom = '';
+    }
+
+    window._previewBaseScale = scale;
+    window._previewCurrentScale = scale;
+
+    if (header) header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
+}
+
 function openPreview() {
     // Sync mobile form data to desktop layout
     syncMobileToOriginal();
@@ -689,31 +723,25 @@ function openPreview() {
 
     // Calculate scale after overlay is visible (never scale up beyond 1)
     requestAnimationFrame(function() {
-        var cs = getComputedStyle(scroll);
-        var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-        var availWidth = scroll.clientWidth - padLR;
-        var scale = Math.min(availWidth / 800, 1);
-        var header = document.querySelector('.preview-overlay-header');
-        if (scale < 1) {
-            fc.style.transformOrigin = 'top left';
-            fc.style.transform = 'scale(' + scale + ')';
-            fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
-            fc.style.marginRight = (-(fc.offsetWidth * (1 - scale))) + 'px';
-            window._previewBaseScale = scale;
-            window._previewCurrentScale = scale;
-            initPreviewPinchZoom(scroll, fc, scale);
-        } else {
-            fc.style.transformOrigin = 'top center';
-            fc.style.margin = '0 auto';
-            window._previewBaseScale = 1;
-            window._previewCurrentScale = 1;
+        updatePreviewScale();
+        var s = window._previewBaseScale;
+        if (s < 1) {
+            initPreviewPinchZoom(scroll, fc, s);
         }
-        // Header matches form visual width
-        header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
     });
+
+    // Recalculate on browser zoom / window resize
+    window._previewResizeHandler = updatePreviewScale;
+    window.addEventListener('resize', window._previewResizeHandler);
 }
 
 function closePreview() {
+    // Remove resize listener
+    if (window._previewResizeHandler) {
+        window.removeEventListener('resize', window._previewResizeHandler);
+        window._previewResizeHandler = null;
+    }
+
     cleanupPreviewPinchZoom();
     document.getElementById('preview-overlay').classList.remove('active');
 
