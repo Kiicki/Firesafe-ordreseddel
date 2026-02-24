@@ -3332,9 +3332,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     padding-top: env(safe-area-inset-top);
     background: #333;
     color: #fff;
-    position: sticky;
-    top: 0;
-    z-index: 1;
     box-sizing: content-box;
 }
 .preview-close-btn {
