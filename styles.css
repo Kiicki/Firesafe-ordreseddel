@@ -482,6 +482,7 @@ body:has(#template-editor-overlay.active) .toolbar button {
 .signature-cell {
     display: flex;
     flex-direction: column;
+    justify-content: flex-end;
 }
 
 .signature-input {
