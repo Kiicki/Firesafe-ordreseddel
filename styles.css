@@ -482,7 +482,6 @@ body:has(#template-editor-overlay.active) .toolbar button {
 .signature-cell {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
 }
 
 .signature-input {
@@ -503,14 +502,17 @@ body:has(#template-editor-overlay.active) .toolbar button {
 }
 
 .signature-input-img {
-    justify-content: center;
+    position: relative;
+    height: 30px;
     border-bottom: 1px solid #000;
-    height: auto;
-    min-height: 30px;
 }
 
 .signature-input-img img {
-    max-height: 40px;
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    right: 0;
+    max-height: 50px;
     max-width: 100%;
     object-fit: contain;
 }
