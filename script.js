@@ -1562,6 +1562,7 @@ function confirmSignature() {
     if (!hasSignature) {
         // Clear signature
         document.getElementById('mobile-kundens-underskrift').value = '';
+        document.getElementById('kundens-underskrift').value = '';
         document.getElementById('signature-preview-img').style.display = 'none';
         document.querySelector('#mobile-signature-preview .signature-placeholder').style.display = '';
     } else {
@@ -1570,6 +1571,7 @@ function confirmSignature() {
 
         if (svgData) {
             document.getElementById('mobile-kundens-underskrift').value = svgData;
+            document.getElementById('kundens-underskrift').value = svgData;
             const previewImg = document.getElementById('signature-preview-img');
             previewImg.src = svgData;
             previewImg.style.display = 'block';
