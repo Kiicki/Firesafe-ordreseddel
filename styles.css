@@ -3329,6 +3329,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .preview-sign-btn:active {
     background: #C94615;
 }
+.preview-sign-btn:disabled {
+    background: #4CAF50;
+    cursor: default;
+    opacity: 0.9;
+}
 .preview-scroll {
     flex: 1;
     overflow-x: hidden;

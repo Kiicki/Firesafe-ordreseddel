@@ -1596,6 +1596,8 @@ function confirmSignature() {
                 desktopImg.style.display = 'none';
             }
         }
+        // Update preview header to show "Ferdig" + "Signert"
+        updatePreviewHeaderState(hasSignature);
     }
 }
 

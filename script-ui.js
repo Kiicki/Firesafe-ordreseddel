@@ -529,6 +529,20 @@ function showSaveMenu() {
 
 // ─── Preview overlay ────────────────────────────────────────────────────────
 
+function updatePreviewHeaderState(hasSig) {
+    var closeBtn = document.querySelector('.preview-close-btn');
+    var signBtn = document.querySelector('.preview-sign-btn');
+    if (hasSig) {
+        closeBtn.textContent = t('btn_done');
+        signBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> ' + t('btn_signed');
+        signBtn.disabled = true;
+    } else {
+        closeBtn.textContent = '\u2715 ' + t('btn_close');
+        signBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> ' + t('btn_sign');
+        signBtn.disabled = false;
+    }
+}
+
 function openPreview() {
     // Sync mobile form data to desktop layout
     syncMobileToOriginal();
@@ -555,6 +569,10 @@ function openPreview() {
 
     // Activate overlay first so scroll has dimensions
     document.getElementById('preview-overlay').classList.add('active');
+
+    // Set header state based on whether signature exists
+    var hasSig = !!document.getElementById('mobile-kundens-underskrift').value;
+    updatePreviewHeaderState(hasSig);
 
     // Calculate scale after overlay is visible (never scale up beyond 1)
     requestAnimationFrame(function() {
