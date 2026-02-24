@@ -1386,11 +1386,8 @@ function closeSignatureOverlay() {
     signaturePaths = signaturePathsBackup;
     cleanupSignatureOverlay();
 
-    // Reopen preview if signing was triggered from preview
-    if (window._reopenPreviewAfterSign) {
-        window._reopenPreviewAfterSign = false;
-        setTimeout(function() { openPreview(); }, 300);
-    }
+    // Clear preview flag (preview is still open, no action needed)
+    window._signedFromPreview = false;
 }
 
 function redrawSignature() {
@@ -1584,10 +1581,19 @@ function confirmSignature() {
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
     cleanupSignatureOverlay();
 
-    // Reopen preview if signing was triggered from preview
-    if (window._reopenPreviewAfterSign) {
-        window._reopenPreviewAfterSign = false;
-        setTimeout(function() { openPreview(); }, 300);
+    // Update desktop signature directly in preview (preview stays open)
+    if (window._signedFromPreview) {
+        window._signedFromPreview = false;
+        var sigData = document.getElementById('mobile-kundens-underskrift').value;
+        var desktopImg = document.getElementById('desktop-signature-img');
+        if (desktopImg) {
+            if (sigData && sigData.startsWith('data:image')) {
+                desktopImg.src = sigData;
+                desktopImg.style.display = 'block';
+            } else {
+                desktopImg.style.display = 'none';
+            }
+        }
     }
 }
 

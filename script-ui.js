@@ -594,10 +594,9 @@ function closePreview() {
 }
 
 function previewSign() {
-    // Close preview first, then open signature overlay
-    closePreview();
+    // Open signature overlay on top of preview (don't close preview)
     openSignatureOverlay();
-    window._reopenPreviewAfterSign = true;
+    window._signedFromPreview = true;
 }
 
 function showExportMenu() {
