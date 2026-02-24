@@ -1739,11 +1739,17 @@ function syncOriginalToMobile() {
         }
     }
 
-    // Load signature preview if exists
+    // Load or clear signature preview
     const signatureData = document.getElementById('mobile-kundens-underskrift').value;
     if (signatureData && signatureData.startsWith('data:image')) {
         loadSignaturePreview(signatureData);
+    } else {
+        clearSignaturePreview();
     }
+
+    // Reset signature drawing paths to match loaded form
+    signaturePaths = [];
+    signaturePathsBackup = [];
 }
 
 
