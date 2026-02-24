@@ -701,12 +701,21 @@ function updatePreviewScale() {
 function updatePreviewOverflow() {
     var scroll = document.getElementById('preview-scroll');
     if (!scroll) return;
-    var fc = document.getElementById('form-container');
-    var header = document.querySelector('.preview-overlay-header');
+
+    // Measure actual overflow with scrollbar hidden
+    scroll.style.overflowY = 'hidden';
+    var rawOverflow = scroll.scrollHeight - scroll.clientHeight;
+
+    // CSS transforms + negative margins inflate scrollHeight —
+    // subtract the vertical margin compensation
     var scale = window._previewCurrentScale || 1;
-    var headerH = header ? header.offsetHeight : 0;
-    var visualH = headerH + fc.offsetHeight * scale;
-    scroll.style.overflowY = visualH > scroll.clientHeight + 5 ? 'auto' : 'hidden';
+    if (scale < 1) {
+        var fc = document.getElementById('form-container');
+        if (fc) rawOverflow -= fc.offsetHeight * (1 - scale);
+    }
+
+    // Only show scrollbar for real, significant overflow (>30px)
+    scroll.style.overflowY = rawOverflow > 30 ? 'auto' : 'hidden';
 }
 
 function openPreview() {
