@@ -3262,15 +3262,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
+    cursor: default;
     background: #fff;
     padding: 0 12px;
     overflow: hidden;
     box-sizing: border-box;
-}
-
-.signature-preview:active {
-    background: #f0f0f0;
 }
 
 .signature-preview img {
