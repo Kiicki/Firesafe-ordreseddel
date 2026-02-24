@@ -674,7 +674,8 @@ function openPreview() {
     // Show and scale to fit screen
     fc.style.display = 'block';
     fc.style.width = '800px';
-    fc.style.transformOrigin = 'top left';
+    fc.style.transformOrigin = 'top center';
+    fc.style.margin = '0 auto';
 
     // Activate overlay first so scroll has dimensions
     document.getElementById('preview-overlay').classList.add('active');
@@ -696,8 +697,6 @@ function openPreview() {
             window._previewCurrentScale = scale;
             initPreviewPinchZoom(scroll, fc, scale);
         } else {
-            // Desktop: center form in scroll area
-            fc.style.margin = '0 auto';
             window._previewBaseScale = 1;
             window._previewCurrentScale = 1;
         }
