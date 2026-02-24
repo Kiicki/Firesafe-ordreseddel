@@ -697,7 +697,8 @@ body.template-modal-open > .top-bar {
 /* Hide toolbar when fullscreen overlay is active */
 .text-editor-modal.active ~ .toolbar,
 .signature-overlay.active ~ .toolbar,
-.picker-overlay.active ~ .toolbar {
+.picker-overlay.active ~ .toolbar,
+.preview-overlay.active ~ .toolbar {
     display: none;
 }
 
@@ -3280,6 +3281,86 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .signature-placeholder {
     color: #999;
     font-size: 14px;
+}
+
+/* Preview overlay */
+.preview-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #e8e8e8;
+    z-index: 45;
+    flex-direction: column;
+}
+.preview-overlay.active {
+    display: flex;
+}
+.preview-overlay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    background: #333;
+    color: #fff;
+    flex-shrink: 0;
+}
+.preview-close-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+.preview-sign-btn {
+    background: #E8501A;
+    border: none;
+    color: #fff;
+    font-size: 15px;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.preview-sign-btn:active {
+    background: #C94615;
+}
+.preview-scroll {
+    flex: 1;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+}
+
+/* Preview button in form */
+.preview-btn {
+    width: 100%;
+    padding: 14px;
+    margin-top: 16px;
+    background: #333;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.preview-btn:active {
+    background: #444;
+}
+.preview-btn svg {
+    flex-shrink: 0;
 }
 
 /* Mobile/Tablet responsive */

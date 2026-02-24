@@ -527,6 +527,69 @@ function showSaveMenu() {
     saveForm();
 }
 
+// ─── Preview overlay ────────────────────────────────────────────────────────
+
+function openPreview() {
+    // Sync mobile form data to desktop layout
+    syncMobileToOriginal();
+    buildDesktopWorkLines();
+
+    // Convert inputs to spans for clean rendering
+    window._previewConverted = convertTextareasToDiv();
+
+    // Temporarily disable all fields for clean look
+    var fc = document.getElementById('form-container');
+    var scroll = document.getElementById('preview-scroll');
+
+    // Move form-container into preview scroll area
+    scroll.appendChild(fc);
+
+    // Show and scale to fit screen
+    fc.style.display = 'block';
+    fc.style.width = '800px';
+    fc.style.transformOrigin = 'top left';
+
+    // Activate overlay first so scroll has dimensions
+    document.getElementById('preview-overlay').classList.add('active');
+
+    // Calculate scale after overlay is visible
+    requestAnimationFrame(function() {
+        var availWidth = scroll.clientWidth - 24; // 24px = padding (12 * 2)
+        var scale = availWidth / 800;
+        fc.style.transform = 'scale(' + scale + ')';
+        // Set explicit height on wrapper so scroll works correctly with transform
+        fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
+    });
+}
+
+function closePreview() {
+    document.getElementById('preview-overlay').classList.remove('active');
+
+    var fc = document.getElementById('form-container');
+    // Move back to original location inside #view-form
+    document.getElementById('view-form').appendChild(fc);
+
+    // Restore original styling
+    fc.style.display = '';
+    fc.style.width = '';
+    fc.style.transform = '';
+    fc.style.transformOrigin = '';
+    fc.style.marginBottom = '';
+
+    // Restore converted elements
+    if (window._previewConverted) {
+        restoreTextareas(window._previewConverted);
+        window._previewConverted = null;
+    }
+}
+
+function previewSign() {
+    // Close preview first, then open signature overlay
+    closePreview();
+    openSignatureOverlay();
+    window._reopenPreviewAfterSign = true;
+}
+
 function showExportMenu() {
     if (isModalOpen()) return;
     const popup = document.getElementById('action-popup');

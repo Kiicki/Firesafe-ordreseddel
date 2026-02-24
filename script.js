@@ -1385,6 +1385,12 @@ function cleanupSignatureOverlay() {
 function closeSignatureOverlay() {
     signaturePaths = signaturePathsBackup;
     cleanupSignatureOverlay();
+
+    // Reopen preview if signing was triggered from preview
+    if (window._reopenPreviewAfterSign) {
+        window._reopenPreviewAfterSign = false;
+        setTimeout(function() { openPreview(); }, 300);
+    }
 }
 
 function redrawSignature() {
@@ -1577,6 +1583,12 @@ function confirmSignature() {
     // Update backup to current paths (user confirmed, so keep changes)
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
     cleanupSignatureOverlay();
+
+    // Reopen preview if signing was triggered from preview
+    if (window._reopenPreviewAfterSign) {
+        window._reopenPreviewAfterSign = false;
+        setTimeout(function() { openPreview(); }, 300);
+    }
 }
 
 function clearSignaturePreview() {
