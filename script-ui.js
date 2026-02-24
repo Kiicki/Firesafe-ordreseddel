@@ -594,9 +594,6 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         } else {
             scrollEl.style.overflowX = 'hidden';
         }
-
-        // Recheck vertical scroll need
-        updatePreviewOverflow();
     }
 
     function onTouchEnd(e) {
@@ -692,30 +689,6 @@ function updatePreviewScale() {
     window._previewCurrentScale = scale;
 
     if (header) header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
-
-    // Enable scroll only when content truly overflows
-    // (CSS default is overflow:hidden — no scrollbar unless we enable it)
-    updatePreviewOverflow();
-}
-
-function updatePreviewOverflow() {
-    var scroll = document.getElementById('preview-scroll');
-    if (!scroll) return;
-
-    // Measure actual overflow with scrollbar hidden
-    scroll.style.overflowY = 'hidden';
-    var rawOverflow = scroll.scrollHeight - scroll.clientHeight;
-
-    // CSS transforms + negative margins inflate scrollHeight —
-    // subtract the vertical margin compensation
-    var scale = window._previewCurrentScale || 1;
-    if (scale < 1) {
-        var fc = document.getElementById('form-container');
-        if (fc) rawOverflow -= fc.offsetHeight * (1 - scale);
-    }
-
-    // Only show scrollbar for real, significant overflow (>30px)
-    scroll.style.overflowY = rawOverflow > 30 ? 'auto' : 'hidden';
 }
 
 function openPreview() {
@@ -755,10 +728,6 @@ function openPreview() {
         if (s < 1) {
             initPreviewPinchZoom(scroll, fc, s);
         }
-        // Double rAF: recheck overflow after browser has fully reflowed
-        requestAnimationFrame(function() {
-            updatePreviewOverflow();
-        });
     });
 
     // Recalculate on browser zoom / window resize
@@ -793,8 +762,6 @@ function closePreview() {
     // Reset header and scroll styles
     var header = document.querySelector('.preview-overlay-header');
     if (header) header.style.maxWidth = '';
-    var scroll = document.getElementById('preview-scroll');
-    if (scroll) scroll.style.overflowY = '';
 
     // Gjenopprett disabled-tilstand
     if (window._previewDisabledFields) {
