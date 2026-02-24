@@ -536,12 +536,12 @@ function updatePreviewHeaderState(hasSig) {
         closeBtn.textContent = t('btn_done');
         closeBtn.classList.add('done');
         signBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> ' + t('btn_signed');
-        signBtn.disabled = true;
+        signBtn.classList.add('signed');
     } else {
         closeBtn.textContent = '\u2715 ' + t('btn_close');
         closeBtn.classList.remove('done');
         signBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> ' + t('btn_sign');
-        signBtn.disabled = false;
+        signBtn.classList.remove('signed');
     }
 }
 
