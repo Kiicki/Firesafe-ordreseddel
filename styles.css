@@ -3297,26 +3297,28 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
-    padding-top: max(8px, env(safe-area-inset-top));
+    height: 44px;
+    padding: 0 12px;
+    padding-top: env(safe-area-inset-top);
     background: #333;
     color: #fff;
     position: sticky;
     top: 0;
     z-index: 1;
+    box-sizing: content-box;
 }
 .preview-close-btn {
     background: none;
     border: 1px solid rgba(255,255,255,0.3);
     color: #fff;
-    font-size: 14px;
-    padding: 6px 16px;
+    font-size: 13px;
+    padding: 4px 14px;
     border-radius: 14px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 .preview-close-btn:active {
     opacity: 0.6;
@@ -3329,14 +3331,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: #E8501A;
     border: none;
     color: #fff;
-    font-size: 14px;
-    padding: 6px 16px;
+    font-size: 13px;
+    padding: 4px 14px;
     border-radius: 14px;
     cursor: pointer;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 .preview-sign-btn:active {
     background: #C94615;
