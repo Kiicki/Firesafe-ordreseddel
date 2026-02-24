@@ -502,17 +502,15 @@ body:has(#template-editor-overlay.active) .toolbar button {
 }
 
 .signature-input-img {
-    position: relative;
     height: 30px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
     border-bottom: 1px solid #000;
 }
 
 .signature-input-img img {
-    position: absolute;
-    bottom: 2px;
-    left: 0;
-    right: 0;
-    max-height: 50px;
+    max-height: 26px;
     max-width: 100%;
     object-fit: contain;
 }
