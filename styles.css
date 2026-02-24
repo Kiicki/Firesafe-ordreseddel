@@ -3424,6 +3424,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     .sent-banner {
         max-width: 800px;
     }
+
+    /* Preview overlay - constrain header and scroll on desktop */
+    .preview-overlay-header {
+        max-width: 824px;
+        margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .preview-scroll {
+        max-width: 824px;
+        margin: 0 auto;
+        width: 100%;
+    }
 }
 
 /* Fakturaadresse display (klikkbar, ser ut som input) */
