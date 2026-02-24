@@ -66,9 +66,13 @@ function formatDateWithTime(date) {
 }
 
 // View system: show one view, hide all others
+var _previousViewId = null;
 function showView(viewId) {
     var target = document.getElementById(viewId);
     if (target.classList.contains('active')) return;
+    // Track previous view for back navigation
+    var current = document.querySelector('.view.active');
+    if (current) _previousViewId = current.id;
     document.querySelectorAll('.view').forEach(function(v) {
         v.classList.remove('active');
     });
@@ -620,11 +624,32 @@ function cleanupPreviewPinchZoom() {
 }
 
 function navigateBack() {
-    if (history.length > 1) {
-        history.back();
-    } else {
-        showTemplateModal();
+    var current = document.querySelector('.view.active');
+    var currentId = current ? current.id : '';
+    var prev = _previousViewId;
+
+    // From form view: check unsaved changes, then go to previous
+    if (currentId === 'view-form') {
+        var target = (prev === 'saved-modal') ? showSavedForms : showTemplateModal;
+        if (isOnFormPage() && hasUnsavedChanges()) {
+            showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
+        } else {
+            target();
+        }
+        return;
     }
+    // From Skjemaer: close and go to form
+    if (currentId === 'saved-modal') {
+        closeModal();
+        return;
+    }
+    // From Innstillinger: close and go to form
+    if (currentId === 'settings-modal') {
+        closeSettingsModal();
+        return;
+    }
+    // Fallback: go home
+    showTemplateModal();
 }
 
 function openPreview() {
