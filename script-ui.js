@@ -594,6 +594,9 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         } else {
             scrollEl.style.overflowX = 'hidden';
         }
+
+        // Show vertical scrollbar only when content needs scrolling
+        scrollEl.style.overflowY = scrollEl.scrollHeight > scrollEl.clientHeight ? 'auto' : 'hidden';
     }
 
     function onTouchEnd(e) {
@@ -689,6 +692,9 @@ function updatePreviewScale() {
     window._previewCurrentScale = scale;
 
     if (header) header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
+
+    // Show scrollbar only when content actually needs scrolling
+    scroll.style.overflowY = scroll.scrollHeight > scroll.clientHeight ? 'auto' : 'hidden';
 }
 
 function openPreview() {
@@ -759,9 +765,11 @@ function closePreview() {
     fc.style.marginLeft = '';
     fc.style.marginRight = '';
 
-    // Reset header width
+    // Reset header and scroll styles
     var header = document.querySelector('.preview-overlay-header');
     if (header) header.style.maxWidth = '';
+    var scroll = document.getElementById('preview-scroll');
+    if (scroll) scroll.style.overflowY = '';
 
     // Gjenopprett disabled-tilstand
     if (window._previewDisabledFields) {
