@@ -3382,13 +3382,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 .preview-scroll {
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-}
-.preview-scroll::-webkit-scrollbar {
-    display: none;
 }
 
 /* Preview button in form */
