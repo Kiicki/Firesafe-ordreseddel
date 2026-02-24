@@ -545,6 +545,80 @@ function updatePreviewHeaderState(hasSig) {
     }
 }
 
+// Pinch-to-zoom for preview overlay (mobile only)
+function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
+    var pinchStartDist = 0;
+    var scaleAtPinchStart = baseScale;
+    var isPinching = false;
+
+    function getTouchDist(e) {
+        var t = e.touches;
+        var dx = t[0].clientX - t[1].clientX;
+        var dy = t[0].clientY - t[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function onTouchStart(e) {
+        if (e.touches.length === 2) {
+            isPinching = true;
+            pinchStartDist = getTouchDist(e);
+            scaleAtPinchStart = window._previewCurrentScale || baseScale;
+            e.preventDefault();
+        }
+    }
+
+    function onTouchMove(e) {
+        if (!isPinching || e.touches.length !== 2) return;
+        e.preventDefault();
+
+        var dist = getTouchDist(e);
+        var ratio = dist / pinchStartDist;
+        var newScale = Math.min(Math.max(scaleAtPinchStart * ratio, baseScale), 1);
+
+        window._previewCurrentScale = newScale;
+        fcEl.style.transform = 'scale(' + newScale + ')';
+        fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
+
+        // Allow horizontal scroll when zoomed in
+        if (newScale > baseScale) {
+            scrollEl.style.overflowX = 'auto';
+        } else {
+            scrollEl.style.overflowX = 'hidden';
+        }
+    }
+
+    function onTouchEnd(e) {
+        if (e.touches.length < 2) {
+            isPinching = false;
+        }
+    }
+
+    scrollEl.addEventListener('touchstart', onTouchStart, { passive: false });
+    scrollEl.addEventListener('touchmove', onTouchMove, { passive: false });
+    scrollEl.addEventListener('touchend', onTouchEnd);
+
+    // Store references for cleanup
+    window._previewPinchHandlers = {
+        el: scrollEl,
+        start: onTouchStart,
+        move: onTouchMove,
+        end: onTouchEnd
+    };
+}
+
+function cleanupPreviewPinchZoom() {
+    var h = window._previewPinchHandlers;
+    if (h) {
+        h.el.removeEventListener('touchstart', h.start);
+        h.el.removeEventListener('touchmove', h.move);
+        h.el.removeEventListener('touchend', h.end);
+        h.el.style.overflowX = 'hidden';
+        window._previewPinchHandlers = null;
+    }
+    window._previewBaseScale = null;
+    window._previewCurrentScale = null;
+}
+
 function openPreview() {
     // Sync mobile form data to desktop layout
     syncMobileToOriginal();
@@ -585,14 +659,20 @@ function openPreview() {
         if (scale < 1) {
             fc.style.transform = 'scale(' + scale + ')';
             fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
+            window._previewBaseScale = scale;
+            window._previewCurrentScale = scale;
+            initPreviewPinchZoom(scroll, fc, scale);
         } else {
             // Desktop: center form in scroll area
             fc.style.margin = '0 auto';
+            window._previewBaseScale = 1;
+            window._previewCurrentScale = 1;
         }
     });
 }
 
 function closePreview() {
+    cleanupPreviewPinchZoom();
     document.getElementById('preview-overlay').classList.remove('active');
 
     var fc = document.getElementById('form-container');
