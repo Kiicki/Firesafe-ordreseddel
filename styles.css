@@ -3333,9 +3333,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: #333;
     color: #fff;
     box-sizing: border-box;
-    max-width: 800px;
-    width: 100%;
-    margin: 0 auto;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 .preview-close-btn {
     background: none;
@@ -3384,7 +3384,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 12px;
     max-width: 800px;
     width: 100%;
     margin: 0 auto;
@@ -3484,10 +3483,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     /* Sent banner - constrain on desktop */
     .sent-banner {
         max-width: 800px;
-    }
-
-    .preview-scroll {
-        padding: 0;
     }
 }
 
