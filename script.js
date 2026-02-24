@@ -1613,6 +1613,9 @@ function clearSignaturePreview() {
 
     const desktopInput = document.getElementById('kundens-underskrift');
     if (desktopInput) desktopInput.value = '';
+
+    signaturePaths = [];
+    signaturePathsBackup = [];
 }
 
 function loadSignaturePreview(dataUrl) {
