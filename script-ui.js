@@ -595,11 +595,8 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
             scrollEl.style.overflowX = 'hidden';
         }
 
-        // Show vertical scrollbar only when visual content needs scrolling
-        var h = document.querySelector('.preview-overlay-header');
-        var hH = h ? h.offsetHeight : 0;
-        var visualH = hH + fcEl.offsetHeight * newScale;
-        scrollEl.style.overflowY = visualH > scrollEl.clientHeight ? 'auto' : 'hidden';
+        // Recheck vertical scroll need
+        updatePreviewOverflow();
     }
 
     function onTouchEnd(e) {
@@ -696,11 +693,20 @@ function updatePreviewScale() {
 
     if (header) header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
 
-    // Show scrollbar only when visual content actually needs scrolling
-    // (scrollHeight is unreliable with CSS transforms + negative margins)
+    // Enable scroll only when content truly overflows
+    // (CSS default is overflow:hidden — no scrollbar unless we enable it)
+    updatePreviewOverflow();
+}
+
+function updatePreviewOverflow() {
+    var scroll = document.getElementById('preview-scroll');
+    if (!scroll) return;
+    var fc = document.getElementById('form-container');
+    var header = document.querySelector('.preview-overlay-header');
+    var scale = window._previewCurrentScale || 1;
     var headerH = header ? header.offsetHeight : 0;
-    var visualContentH = headerH + fc.offsetHeight * scale;
-    scroll.style.overflowY = visualContentH > scroll.clientHeight ? 'auto' : 'hidden';
+    var visualH = headerH + fc.offsetHeight * scale;
+    scroll.style.overflowY = visualH > scroll.clientHeight + 5 ? 'auto' : 'hidden';
 }
 
 function openPreview() {
@@ -740,6 +746,10 @@ function openPreview() {
         if (s < 1) {
             initPreviewPinchZoom(scroll, fc, s);
         }
+        // Double rAF: recheck overflow after browser has fully reflowed
+        requestAnimationFrame(function() {
+            updatePreviewOverflow();
+        });
     });
 
     // Recalculate on browser zoom / window resize
