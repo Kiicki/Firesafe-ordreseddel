@@ -3400,11 +3400,17 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 /* PC: Constrain overlays to match form width */
 @media screen and (min-width: 1025px) {
-    /* Modal overlays - use existing .modal-content wrapper */
+    /* All views - consistent grey background on desktop */
     #template-modal,
     #saved-modal,
-    #settings-modal {
+    #settings-modal,
+    .container.form-view {
         background: #f0f0f0;
+    }
+    /* Constrain form view to same width as modals */
+    .container.form-view {
+        max-width: 800px;
+        margin: 0 auto;
     }
     .modal-content {
         max-width: 800px;
