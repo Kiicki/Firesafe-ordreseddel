@@ -3425,17 +3425,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         max-width: 800px;
     }
 
-    /* Preview overlay - constrain header and scroll on desktop */
+    /* Preview overlay - match header and scroll to form width on desktop */
     .preview-overlay-header {
-        max-width: 824px;
+        max-width: 800px;
         margin: 0 auto;
         width: 100%;
         box-sizing: border-box;
     }
     .preview-scroll {
-        max-width: 824px;
+        max-width: 800px;
         margin: 0 auto;
         width: 100%;
+        box-sizing: border-box;
+        padding: 0;
     }
 }
 

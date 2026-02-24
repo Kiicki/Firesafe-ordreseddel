@@ -558,12 +558,14 @@ function openPreview() {
 
     // Calculate scale after overlay is visible (never scale up beyond 1)
     requestAnimationFrame(function() {
-        var availWidth = scroll.clientWidth - 24; // 24px = padding (12 * 2)
+        var cs = getComputedStyle(scroll);
+        var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        var availWidth = scroll.clientWidth - padLR;
         var scale = Math.min(availWidth / 800, 1);
-        fc.style.transform = 'scale(' + scale + ')';
-        fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
-        // Center on desktop when not scaled
-        fc.style.marginLeft = scale < 1 ? '' : ((availWidth - 800) / 2) + 'px';
+        if (scale < 1) {
+            fc.style.transform = 'scale(' + scale + ')';
+            fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
+        }
     });
 }
 
