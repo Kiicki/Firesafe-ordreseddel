@@ -582,6 +582,7 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         window._previewCurrentScale = newScale;
         fcEl.style.transform = 'scale(' + newScale + ')';
         fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
+        fcEl.style.marginRight = (-(fcEl.offsetWidth * (1 - newScale))) + 'px';
 
         // Header matches form visual width
         var header = document.querySelector('.preview-overlay-header');
@@ -678,8 +679,6 @@ function openPreview() {
     // Show and scale to fit screen
     fc.style.display = 'block';
     fc.style.width = '800px';
-    fc.style.transformOrigin = 'top center';
-    fc.style.margin = '0 auto';
 
     // Activate overlay first so scroll has dimensions
     document.getElementById('preview-overlay').classList.add('active');
@@ -696,12 +695,16 @@ function openPreview() {
         var scale = Math.min(availWidth / 800, 1);
         var header = document.querySelector('.preview-overlay-header');
         if (scale < 1) {
+            fc.style.transformOrigin = 'top left';
             fc.style.transform = 'scale(' + scale + ')';
             fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
+            fc.style.marginRight = (-(fc.offsetWidth * (1 - scale))) + 'px';
             window._previewBaseScale = scale;
             window._previewCurrentScale = scale;
             initPreviewPinchZoom(scroll, fc, scale);
         } else {
+            fc.style.transformOrigin = 'top center';
+            fc.style.margin = '0 auto';
             window._previewBaseScale = 1;
             window._previewCurrentScale = 1;
         }
@@ -726,6 +729,7 @@ function closePreview() {
     fc.style.margin = '';
     fc.style.marginBottom = '';
     fc.style.marginLeft = '';
+    fc.style.marginRight = '';
 
     // Reset header width
     var header = document.querySelector('.preview-overlay-header');
