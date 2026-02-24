@@ -583,6 +583,10 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         fcEl.style.transform = 'scale(' + newScale + ')';
         fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
 
+        // Header matches form visual width
+        var header = document.querySelector('.preview-overlay-header');
+        if (header) header.style.maxWidth = (fcEl.offsetWidth * newScale) + 'px';
+
         // Allow horizontal scroll when zoomed in
         if (newScale > baseScale) {
             scrollEl.style.overflowX = 'auto';
@@ -690,6 +694,7 @@ function openPreview() {
         var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
         var availWidth = scroll.clientWidth - padLR;
         var scale = Math.min(availWidth / 800, 1);
+        var header = document.querySelector('.preview-overlay-header');
         if (scale < 1) {
             fc.style.transform = 'scale(' + scale + ')';
             fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
@@ -700,6 +705,8 @@ function openPreview() {
             window._previewBaseScale = 1;
             window._previewCurrentScale = 1;
         }
+        // Header matches form visual width
+        header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
     });
 }
 
@@ -719,6 +726,10 @@ function closePreview() {
     fc.style.margin = '';
     fc.style.marginBottom = '';
     fc.style.marginLeft = '';
+
+    // Reset header width
+    var header = document.querySelector('.preview-overlay-header');
+    if (header) header.style.maxWidth = '';
 
     // Gjenopprett disabled-tilstand
     if (window._previewDisabledFields) {
