@@ -537,8 +537,12 @@ function openPreview() {
     // Convert inputs to spans for clean rendering
     window._previewConverted = convertTextareasToDiv();
 
-    // Temporarily disable all fields for clean look
     var fc = document.getElementById('form-container');
+
+    // Midlertidig fjern disabled for ren visning (identisk med eksport)
+    var disabledFields = fc.querySelectorAll('input:disabled, textarea:disabled, select:disabled');
+    disabledFields.forEach(function(el) { el.disabled = false; });
+    window._previewDisabledFields = disabledFields;
     var scroll = document.getElementById('preview-scroll');
 
     // Move form-container into preview scroll area
@@ -575,6 +579,12 @@ function closePreview() {
     fc.style.transform = '';
     fc.style.transformOrigin = '';
     fc.style.marginBottom = '';
+
+    // Gjenopprett disabled-tilstand
+    if (window._previewDisabledFields) {
+        window._previewDisabledFields.forEach(function(el) { el.disabled = true; });
+        window._previewDisabledFields = null;
+    }
 
     // Restore converted elements
     if (window._previewConverted) {
