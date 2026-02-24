@@ -2470,6 +2470,33 @@ label.settings-default-label.field-required > span::after {
 }
 
 
+/* Back button in all headers */
+.header-back-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    color: #E8501A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    min-height: 44px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+}
+.header-back-btn:active {
+    opacity: 0.5;
+}
+
+/* Hide header back button on settings sub-pages (settings-back-btn takes over) */
+body.settings-subpage-open .header-back-btn {
+    display: none;
+}
+
 /* Hide X button on settings sub-pages (they have back button instead) */
 body.settings-subpage-open #settings-header .modal-close-btn {
     display: none;

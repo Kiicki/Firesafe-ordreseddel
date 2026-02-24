@@ -619,6 +619,14 @@ function cleanupPreviewPinchZoom() {
     window._previewCurrentScale = null;
 }
 
+function navigateBack() {
+    if (history.length > 1) {
+        history.back();
+    } else {
+        showTemplateModal();
+    }
+}
+
 function openPreview() {
     // Sync mobile form data to desktop layout
     syncMobileToOriginal();
