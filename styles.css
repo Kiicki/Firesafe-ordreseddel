@@ -3313,6 +3313,13 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     padding: 8px 12px;
     cursor: pointer;
 }
+.preview-close-btn.done {
+    background: #E8501A;
+    border-radius: 14px;
+    font-weight: 600;
+    padding: 6px 16px;
+    font-size: 14px;
+}
 .preview-sign-btn {
     background: #E8501A;
     border: none;
