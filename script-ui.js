@@ -565,6 +565,9 @@ function openPreview() {
         if (scale < 1) {
             fc.style.transform = 'scale(' + scale + ')';
             fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
+        } else {
+            // Desktop: center form in scroll area
+            fc.style.margin = '0 auto';
         }
     });
 }
@@ -581,6 +584,7 @@ function closePreview() {
     fc.style.width = '';
     fc.style.transform = '';
     fc.style.transformOrigin = '';
+    fc.style.margin = '';
     fc.style.marginBottom = '';
     fc.style.marginLeft = '';
 

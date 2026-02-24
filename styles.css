@@ -3293,13 +3293,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .preview-overlay.active {
     display: flex;
 }
-.preview-content {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-}
 .preview-overlay-header {
     display: flex;
     justify-content: space-between;
@@ -3308,7 +3301,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     padding-top: max(8px, env(safe-area-inset-top));
     background: #333;
     color: #fff;
-    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 .preview-close-btn {
     background: none;
@@ -3431,12 +3426,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         max-width: 800px;
     }
 
-    /* Preview overlay - match header and scroll to form width on desktop */
-    /* Preview - constrain wrapper so header and scroll share same width */
-    .preview-content {
+    /* Preview - header and form both inside scroll, centered equally */
+    .preview-overlay-header {
         max-width: 800px;
         margin: 0 auto;
         width: 100%;
+        box-sizing: border-box;
     }
     .preview-scroll {
         padding: 0;

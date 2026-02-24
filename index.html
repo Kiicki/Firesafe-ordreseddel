@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=176">
+    <link rel="stylesheet" href="styles.css?v=177">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -618,7 +618,7 @@
 
     <!-- Preview overlay -->
     <div class="preview-overlay" id="preview-overlay">
-        <div class="preview-content">
+        <div class="preview-scroll" id="preview-scroll">
             <div class="preview-overlay-header">
                 <button class="preview-close-btn" onclick="closePreview()">&#10005; Lukk</button>
                 <button class="preview-sign-btn" onclick="previewSign()">
@@ -626,7 +626,7 @@
                     Signer
                 </button>
             </div>
-            <div class="preview-scroll" id="preview-scroll"></div>
+            <!-- form-container appended here by JS -->
         </div>
     </div>
 
@@ -700,7 +700,7 @@
 
     <script src="lang.js?v=111"></script>
     <script src="script.js?v=136"></script>
-    <script src="script-ui.js?v=149"></script>
+    <script src="script-ui.js?v=150"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
