@@ -3485,16 +3485,20 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         max-width: 800px;
     }
 
-    /* Views scroller selv — scrollbar ved viewport-kanten */
+    /* Desktop: views i normal dokumentflyt — body scroller, scrollbar ved viewport-kanten */
     #template-modal.view.active,
     #saved-modal.view.active,
-    #settings-modal.view.active {
-        overflow-y: auto;
+    #settings-modal.view.active,
+    #view-form.view.active {
+        position: static;
+        bottom: auto;
+        height: auto;
+        min-height: calc(100vh - 60px);
+        overflow: visible;
     }
     #template-modal.view.active > .modal-content,
     #saved-modal.view.active > .modal-content,
     #settings-modal.view.active > .modal-content {
-        flex: 1 0 auto;
         overflow: visible;
     }
     #template-modal.view.active .modal-body,
@@ -3503,13 +3507,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         overflow-y: visible;
         flex: none;
     }
-
-    /* Form view: view scroller i stedet for container */
-    #view-form.view.active {
-        overflow-y: auto;
-    }
     .container.form-view {
-        flex: 1 0 auto;
         overflow-y: visible;
     }
 }
