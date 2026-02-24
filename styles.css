@@ -203,7 +203,6 @@ body:has(#template-editor-overlay.active) .toolbar button {
 .form-container {
     background: white;
     border: 1px solid #000;
-    border-bottom: none;
     overflow: visible;
     display: none;
     position: relative;
