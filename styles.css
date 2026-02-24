@@ -504,10 +504,12 @@ body:has(#template-editor-overlay.active) .toolbar button {
 .signature-input-img {
     justify-content: center;
     border-bottom: 1px solid #000;
+    height: auto;
+    min-height: 30px;
 }
 
 .signature-input-img img {
-    max-height: 26px;
+    max-height: 40px;
     max-width: 100%;
     object-fit: contain;
 }
