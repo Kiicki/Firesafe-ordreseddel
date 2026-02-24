@@ -502,11 +502,12 @@ body:has(#template-editor-overlay.active) .toolbar button {
 }
 
 .signature-input-img {
-    height: 45px;
+    height: 30px;
     display: flex;
     align-items: flex-end;
     justify-content: center;
     border-bottom: 1px solid #000;
+    overflow: visible;
 }
 
 .signature-input-img img {
