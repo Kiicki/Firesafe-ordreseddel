@@ -3336,6 +3336,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     position: sticky;
     top: 0;
     z-index: 1;
+    max-width: 800px;
+    width: 100%;
+    margin: 0 auto;
 }
 .preview-close-btn {
     background: none;
@@ -3384,9 +3387,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    max-width: 800px;
-    width: 100%;
-    margin: 0 auto;
 }
 
 /* Preview button in form */
@@ -3483,6 +3483,34 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     /* Sent banner - constrain on desktop */
     .sent-banner {
         max-width: 800px;
+    }
+
+    /* Views scroller selv — scrollbar ved viewport-kanten */
+    #template-modal.view.active,
+    #saved-modal.view.active,
+    #settings-modal.view.active {
+        overflow-y: auto;
+    }
+    #template-modal.view.active > .modal-content,
+    #saved-modal.view.active > .modal-content,
+    #settings-modal.view.active > .modal-content {
+        flex: 1 0 auto;
+        overflow: visible;
+    }
+    #template-modal.view.active .modal-body,
+    #saved-modal.view.active .modal-body,
+    #settings-modal.view.active .modal-body {
+        overflow-y: visible;
+        flex: none;
+    }
+
+    /* Form view: view scroller i stedet for container */
+    #view-form.view.active {
+        overflow-y: auto;
+    }
+    .container.form-view {
+        flex: 1 0 auto;
+        overflow-y: visible;
     }
 }
 
