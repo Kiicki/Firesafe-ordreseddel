@@ -1336,7 +1336,7 @@ body.settings-modal-open {
 
 @media screen and (min-width: 1025px) {
     .container.form-view {
-        background: #f0f0f0;
+        background: #fff;
     }
 }
 
@@ -3437,8 +3437,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     /* All views - consistent grey background on desktop */
     #template-modal,
     #saved-modal,
-    #settings-modal,
-    .container.form-view {
+    #settings-modal {
         background: #f0f0f0;
     }
     /* Constrain form view to same width as modals */

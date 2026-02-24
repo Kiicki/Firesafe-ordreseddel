@@ -717,6 +717,9 @@ function openPreview() {
     // Activate overlay first so scroll has dimensions
     document.getElementById('preview-overlay').classList.add('active');
 
+    // Hide body scroll so form page scrollbar doesn't show behind overlay
+    document.body.style.overflow = 'hidden';
+
     // Set header state based on whether signature exists
     var hasSig = !!document.getElementById('mobile-kundens-underskrift').value;
     updatePreviewHeaderState(hasSig);
@@ -744,6 +747,9 @@ function closePreview() {
 
     cleanupPreviewPinchZoom();
     document.getElementById('preview-overlay').classList.remove('active');
+
+    // Restore body scroll
+    document.body.style.overflow = '';
 
     var fc = document.getElementById('form-container');
     // Move back to original location inside #view-form
