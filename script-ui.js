@@ -595,8 +595,11 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
             scrollEl.style.overflowX = 'hidden';
         }
 
-        // Show vertical scrollbar only when content needs scrolling
-        scrollEl.style.overflowY = scrollEl.scrollHeight > scrollEl.clientHeight ? 'auto' : 'hidden';
+        // Show vertical scrollbar only when visual content needs scrolling
+        var h = document.querySelector('.preview-overlay-header');
+        var hH = h ? h.offsetHeight : 0;
+        var visualH = hH + fcEl.offsetHeight * newScale;
+        scrollEl.style.overflowY = visualH > scrollEl.clientHeight ? 'auto' : 'hidden';
     }
 
     function onTouchEnd(e) {
@@ -693,8 +696,11 @@ function updatePreviewScale() {
 
     if (header) header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
 
-    // Show scrollbar only when content actually needs scrolling
-    scroll.style.overflowY = scroll.scrollHeight > scroll.clientHeight ? 'auto' : 'hidden';
+    // Show scrollbar only when visual content actually needs scrolling
+    // (scrollHeight is unreliable with CSS transforms + negative margins)
+    var headerH = header ? header.offsetHeight : 0;
+    var visualContentH = headerH + fc.offsetHeight * scale;
+    scroll.style.overflowY = visualContentH > scroll.clientHeight ? 'auto' : 'hidden';
 }
 
 function openPreview() {
