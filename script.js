@@ -1351,11 +1351,30 @@ async function openSignatureOverlay() {
     }
     currentPath = [];
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+    window._signatureImageBackup = document.getElementById('mobile-kundens-underskrift').value || '';
 
     requestAnimationFrame(function() {
         requestAnimationFrame(function() {
             initSignatureCanvas();
             redrawSignature();
+
+            // Fallback: if no stroke data but signature image exists (old saved forms),
+            // draw the existing image onto the canvas
+            if (signaturePaths.length === 0) {
+                var sigData = document.getElementById('mobile-kundens-underskrift').value;
+                if (sigData && sigData.startsWith('data:image')) {
+                    var img = new Image();
+                    img.onload = function() {
+                        var cw = signatureCanvas.clientWidth;
+                        var ch = signatureCanvas.clientHeight;
+                        var scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight) * 0.8;
+                        var iw = img.naturalWidth * scale;
+                        var ih = img.naturalHeight * scale;
+                        signatureCtx.drawImage(img, (cw - iw) / 2, (ch - ih) / 2, iw, ih);
+                    };
+                    img.src = sigData;
+                }
+            }
         });
     });
 }
@@ -1384,6 +1403,11 @@ function cleanupSignatureOverlay() {
 
 function closeSignatureOverlay() {
     signaturePaths = signaturePathsBackup;
+    // Restore image values in case Nullstill cleared them
+    if (window._signatureImageBackup) {
+        document.getElementById('mobile-kundens-underskrift').value = window._signatureImageBackup;
+        document.getElementById('kundens-underskrift').value = window._signatureImageBackup;
+    }
     cleanupSignatureOverlay();
 
     // Clear preview flag (preview is still open, no action needed)
@@ -1493,6 +1517,9 @@ function clearSignatureCanvas() {
         signatureCtx.fillRect(0, 0, signatureCanvas.clientWidth, signatureCanvas.clientHeight);
         signaturePaths = [];
         currentPath = [];
+        // Also clear existing image so OK after Nullstill actually removes signature
+        document.getElementById('mobile-kundens-underskrift').value = '';
+        document.getElementById('kundens-underskrift').value = '';
     }
 }
 
@@ -1558,13 +1585,16 @@ function generateSVG(targetHeight, strokeWidth) {
 
 function confirmSignature() {
     const hasSignature = signaturePaths.length > 0;
+    const hasExistingImage = !!document.getElementById('mobile-kundens-underskrift').value;
 
-    if (!hasSignature) {
-        // Clear signature
+    if (!hasSignature && !hasExistingImage) {
+        // No new drawing and no existing signature — clear
         document.getElementById('mobile-kundens-underskrift').value = '';
         document.getElementById('kundens-underskrift').value = '';
         document.getElementById('signature-preview-img').style.display = 'none';
         document.querySelector('#mobile-signature-preview .signature-placeholder').style.display = '';
+    } else if (!hasSignature && hasExistingImage) {
+        // No new drawing but existing signature — keep it as-is
     } else {
         // Generate SVG cropped to signature bounding box (high resolution, bold stroke)
         const svgData = generateSVG(400, 12);
@@ -1780,6 +1810,8 @@ function getFormData() {
         sted: document.getElementById('sted').value,
         signeringDato: document.getElementById('signering-dato').value,
         kundensUnderskrift: document.getElementById('kundens-underskrift').value,
+        signaturePaths: signaturePaths,
+        canvasAspectRatio: canvasAspectRatio || null,
         isExternal: isExternalForm,
         savedAt: new Date().toISOString()
     };
@@ -1805,6 +1837,11 @@ function setFormData(data) {
     setVal('sted', data.sted);
     setVal('signering-dato', data.signeringDato);
     setVal('kundens-underskrift', data.kundensUnderskrift);
+
+    // Restore signature stroke data (for re-editing)
+    signaturePaths = data.signaturePaths || [];
+    signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+    if (data.canvasAspectRatio) canvasAspectRatio = data.canvasAspectRatio;
 
     isExternalForm = !!data.isExternal;
     updateFormTypeChip();
