@@ -3314,6 +3314,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-radius: 14px;
     font-weight: 600;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 .preview-close-btn:active {
     opacity: 0.6;
