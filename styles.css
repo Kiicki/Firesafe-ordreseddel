@@ -714,7 +714,7 @@ body.template-modal-open > .top-bar {
     background: #333;
     color: white;
     padding: 0 15px 0 48px;
-    height: 38px;
+    height: 44px;
     flex-shrink: 0;
     font-weight: bold;
     font-size: 14px;
@@ -756,8 +756,8 @@ body.template-modal-open > .top-bar {
     cursor: pointer;
     padding: 4px 8px;
     line-height: 1;
-    min-width: 38px;
-    min-height: 38px;
+    min-width: 44px;
+    min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -921,8 +921,8 @@ body.settings-modal-open {
 #template-modal .top-bar .btn-login {
     border-radius: 0;
     padding: 0 15px;
-    height: 38px;
-    line-height: 38px;
+    height: 44px;
+    line-height: 44px;
 }
 
 
