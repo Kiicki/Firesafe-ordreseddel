@@ -605,7 +605,9 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         // Update header width to match zoomed form
         var header = document.querySelector('.preview-overlay-header');
         if (header) {
-            header.style.maxWidth = (fcEl.offsetWidth * newScale) + 'px';
+            var visualWidth = fcEl.offsetWidth * newScale;
+            header.style.width = visualWidth + 'px';
+            header.style.maxWidth = 'none';
         }
 
         // Force layout reflow so new scroll dimensions are available
@@ -699,6 +701,7 @@ function updatePreviewScale() {
         fc.style.marginRight = (-(fc.offsetWidth * (1 - scale))) + 'px';
         fc.style.marginLeft = '';
         if (header) {
+            header.style.width = '';
             header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
             header.style.margin = '0';
         }
@@ -709,6 +712,7 @@ function updatePreviewScale() {
         fc.style.marginRight = 'auto';
         fc.style.marginBottom = '';
         if (header) {
+            header.style.width = '';
             header.style.maxWidth = '800px';
             header.style.margin = '0 auto';
         }
@@ -795,6 +799,7 @@ function closePreview() {
     // Reset header styles
     var header = document.querySelector('.preview-overlay-header');
     if (header) {
+        header.style.width = '';
         header.style.maxWidth = '';
         header.style.margin = '';
     }
