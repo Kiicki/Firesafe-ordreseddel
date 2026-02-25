@@ -577,7 +577,7 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
 
         var dist = getTouchDist(e);
         var ratio = dist / pinchStartDist;
-        var newScale = Math.min(Math.max(scaleAtPinchStart * ratio, baseScale), 1);
+        var newScale = Math.min(Math.max(scaleAtPinchStart * ratio, baseScale), 2);
         var oldScale = window._previewCurrentScale || baseScale;
 
         // Pinch midpoint relative to scroll container viewport
