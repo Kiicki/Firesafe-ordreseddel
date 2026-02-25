@@ -584,10 +584,6 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
         fcEl.style.marginRight = (-(fcEl.offsetWidth * (1 - newScale))) + 'px';
 
-        // Header matches form visual width
-        var header = document.querySelector('.preview-overlay-header');
-        if (header) header.style.maxWidth = (fcEl.offsetWidth * newScale) + 'px';
-
         // Allow horizontal scroll when zoomed in
         if (newScale > baseScale) {
             scrollEl.style.overflowX = 'auto';
@@ -663,7 +659,6 @@ function updatePreviewScale() {
 
     var fc = document.getElementById('form-container');
     var scroll = document.getElementById('preview-scroll');
-    var header = document.querySelector('.preview-overlay-header');
     if (!fc || !scroll) return;
 
     var cs = getComputedStyle(scroll);
@@ -687,8 +682,6 @@ function updatePreviewScale() {
 
     window._previewBaseScale = scale;
     window._previewCurrentScale = scale;
-
-    if (header) header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
 }
 
 function openPreview() {
@@ -764,10 +757,6 @@ function closePreview() {
     fc.style.marginBottom = '';
     fc.style.marginLeft = '';
     fc.style.marginRight = '';
-
-    // Reset header and scroll styles
-    var header = document.querySelector('.preview-overlay-header');
-    if (header) header.style.maxWidth = '';
 
     // Gjenopprett disabled-tilstand
     if (window._previewDisabledFields) {

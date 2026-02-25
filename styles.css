@@ -3334,10 +3334,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: #333;
     color: #fff;
     box-sizing: border-box;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    margin: 0 auto;
+    flex-shrink: 0;
 }
 .preview-close-btn {
     background: none;
