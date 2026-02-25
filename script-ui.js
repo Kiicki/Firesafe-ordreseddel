@@ -684,18 +684,28 @@ function updatePreviewScale() {
     var availWidth = scroll.clientWidth - padLR;
     var scale = Math.min(availWidth / 800, 1);
 
+    var header = document.querySelector('.preview-overlay-header');
+
     if (scale < 1) {
         fc.style.transformOrigin = 'top left';
         fc.style.transform = 'scale(' + scale + ')';
         fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
         fc.style.marginRight = (-(fc.offsetWidth * (1 - scale))) + 'px';
         fc.style.marginLeft = '';
+        if (header) {
+            header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
+            header.style.margin = '0';
+        }
     } else {
         fc.style.transform = '';
         fc.style.transformOrigin = '';
         fc.style.marginLeft = 'auto';
         fc.style.marginRight = 'auto';
         fc.style.marginBottom = '';
+        if (header) {
+            header.style.maxWidth = '800px';
+            header.style.margin = '0 auto';
+        }
     }
 
     window._previewBaseScale = scale;
@@ -775,6 +785,13 @@ function closePreview() {
     fc.style.marginBottom = '';
     fc.style.marginLeft = '';
     fc.style.marginRight = '';
+
+    // Reset header styles
+    var header = document.querySelector('.preview-overlay-header');
+    if (header) {
+        header.style.maxWidth = '';
+        header.style.margin = '';
+    }
 
     // Gjenopprett disabled-tilstand
     if (window._previewDisabledFields) {
