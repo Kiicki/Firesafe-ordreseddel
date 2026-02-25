@@ -602,6 +602,12 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
         fcEl.style.marginRight = (-(fcEl.offsetWidth * (1 - newScale))) + 'px';
 
+        // Update header width to match zoomed form
+        var header = document.querySelector('.preview-overlay-header');
+        if (header) {
+            header.style.maxWidth = (fcEl.offsetWidth * newScale) + 'px';
+        }
+
         // Force layout reflow so new scroll dimensions are available
         void scrollEl.scrollWidth;
 
