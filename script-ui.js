@@ -602,14 +602,6 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
         fcEl.style.marginRight = (-(fcEl.offsetWidth * (1 - newScale))) + 'px';
 
-        // Update header width to match zoomed form
-        var header = document.querySelector('.preview-overlay-header');
-        if (header) {
-            var visualWidth = fcEl.offsetWidth * newScale;
-            header.style.width = visualWidth + 'px';
-            header.style.maxWidth = 'none';
-        }
-
         // Force layout reflow so new scroll dimensions are available
         void scrollEl.scrollWidth;
 
@@ -701,7 +693,6 @@ function updatePreviewScale() {
         fc.style.marginRight = (-(fc.offsetWidth * (1 - scale))) + 'px';
         fc.style.marginLeft = '';
         if (header) {
-            header.style.width = '';
             header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
             header.style.margin = '0';
         }
@@ -712,7 +703,6 @@ function updatePreviewScale() {
         fc.style.marginRight = 'auto';
         fc.style.marginBottom = '';
         if (header) {
-            header.style.width = '';
             header.style.maxWidth = '800px';
             header.style.margin = '0 auto';
         }
@@ -799,7 +789,6 @@ function closePreview() {
     // Reset header styles
     var header = document.querySelector('.preview-overlay-header');
     if (header) {
-        header.style.width = '';
         header.style.maxWidth = '';
         header.style.margin = '';
     }
