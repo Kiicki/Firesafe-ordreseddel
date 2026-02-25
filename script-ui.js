@@ -578,6 +578,12 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         var dist = getTouchDist(e);
         var ratio = dist / pinchStartDist;
         var newScale = Math.min(Math.max(scaleAtPinchStart * ratio, baseScale), 1);
+        var oldScale = window._previewCurrentScale || baseScale;
+
+        // Pinch midpoint relative to scroll container viewport
+        var rect = scrollEl.getBoundingClientRect();
+        var midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+        var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
 
         window._previewCurrentScale = newScale;
         fcEl.style.transform = 'scale(' + newScale + ')';
@@ -590,6 +596,10 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         } else {
             scrollEl.style.overflowX = 'hidden';
         }
+
+        // Adjust scroll so pinch midpoint stays under fingers
+        scrollEl.scrollLeft = (scrollEl.scrollLeft + midX) * newScale / oldScale - midX;
+        scrollEl.scrollTop = (scrollEl.scrollTop + midY) * newScale / oldScale - midY;
     }
 
     function onTouchEnd(e) {
