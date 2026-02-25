@@ -1421,7 +1421,7 @@ function redrawSignature() {
 
     signatureCtx.lineCap = 'round';
     signatureCtx.lineJoin = 'round';
-    signatureCtx.lineWidth = 3;
+    signatureCtx.lineWidth = 4;
     signatureCtx.strokeStyle = '#000';
 
     for (const path of signaturePaths) {
@@ -1453,7 +1453,7 @@ function initSignatureCanvas() {
 
     signatureCtx.lineCap = 'round';
     signatureCtx.lineJoin = 'round';
-    signatureCtx.lineWidth = 3;
+    signatureCtx.lineWidth = 4;
     signatureCtx.strokeStyle = '#000';
 
     // Clear canvas
@@ -1597,7 +1597,7 @@ function confirmSignature() {
         // No new drawing but existing signature — keep it as-is
     } else {
         // Generate SVG cropped to signature bounding box (high resolution, bold stroke)
-        const svgData = generateSVG(400, 12);
+        const svgData = generateSVG(400, 18);
 
         if (svgData) {
             document.getElementById('mobile-kundens-underskrift').value = svgData;
