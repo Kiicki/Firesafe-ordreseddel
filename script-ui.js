@@ -585,21 +585,29 @@ function initPreviewPinchZoom(scrollEl, fcEl, baseScale) {
         var midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
         var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
 
-        window._previewCurrentScale = newScale;
-        fcEl.style.transform = 'scale(' + newScale + ')';
-        fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
-        fcEl.style.marginRight = (-(fcEl.offsetWidth * (1 - newScale))) + 'px';
+        // Save scroll position BEFORE layout changes
+        var oldSL = scrollEl.scrollLeft;
+        var oldST = scrollEl.scrollTop;
 
-        // Allow horizontal scroll when zoomed in
+        // Enable horizontal scroll BEFORE changing scale (so scroll range is available)
         if (newScale > baseScale) {
             scrollEl.style.overflowX = 'auto';
         } else {
             scrollEl.style.overflowX = 'hidden';
         }
 
+        // Apply new scale and margins
+        window._previewCurrentScale = newScale;
+        fcEl.style.transform = 'scale(' + newScale + ')';
+        fcEl.style.marginBottom = (-(fcEl.offsetHeight * (1 - newScale))) + 'px';
+        fcEl.style.marginRight = (-(fcEl.offsetWidth * (1 - newScale))) + 'px';
+
+        // Force layout reflow so new scroll dimensions are available
+        void scrollEl.scrollWidth;
+
         // Adjust scroll so pinch midpoint stays under fingers
-        scrollEl.scrollLeft = (scrollEl.scrollLeft + midX) * newScale / oldScale - midX;
-        scrollEl.scrollTop = (scrollEl.scrollTop + midY) * newScale / oldScale - midY;
+        scrollEl.scrollLeft = (oldSL + midX) * newScale / oldScale - midX;
+        scrollEl.scrollTop = (oldST + midY) * newScale / oldScale - midY;
     }
 
     function onTouchEnd(e) {
