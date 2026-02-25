@@ -1784,9 +1784,6 @@ function syncOriginalToMobile() {
         clearSignaturePreview();
     }
 
-    // Reset signature drawing paths to match loaded form
-    signaturePaths = [];
-    signaturePathsBackup = [];
 }
 
 
