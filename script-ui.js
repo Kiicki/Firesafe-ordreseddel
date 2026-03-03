@@ -3632,11 +3632,6 @@ function buildServiceExportTable() {
     var data = getServiceFormData();
     var container = document.getElementById('service-export-container');
 
-    var sigHtml = '';
-    if (data.signatureImage) {
-        sigHtml = '<img src="' + data.signatureImage + '" style="height:40px;margin-left:10px;">';
-    }
-
     // Collect all unique material names across all entries
     var matNames = [];
     var matNameSet = {};
@@ -3649,17 +3644,21 @@ function buildServiceExportTable() {
         });
     });
 
-    var headerCells = '<th>Dato</th><th>Prosjekt nr</th><th>Prosjektnavn</th>';
-    matNames.forEach(function(name) {
-        headerCells += '<th>' + escapeHtml(name) + '</th>';
-    });
+    // Ensure minimum 7 material columns so table fills the landscape page
+    var minMatCols = Math.max(7, matNames.length);
 
-    var rows = '';
-    data.entries.forEach(function(entry) {
-        var cells = '<td>' + escapeHtml(entry.dato) + '</td>' +
-            '<td>' + escapeHtml(entry.prosjektnr) + '</td>' +
-            '<td style="text-align:left">' + escapeHtml(entry.prosjektnavn) + '</td>';
-        // Build a lookup for this entry's materials
+    // Build material header cells
+    var matHeaders = '';
+    for (var mi = 0; mi < minMatCols; mi++) {
+        matHeaders += '<th>' + (matNames[mi] ? escapeHtml(matNames[mi]) : '') + '</th>';
+    }
+    var colCount = 3 + minMatCols; // Dato + Prosjektnr + Prosjektnavn + materials
+
+    // Build sections — one per project, minimum 4
+    var minSections = Math.max(4, data.entries.length);
+    var sectionsHtml = '';
+    for (var s = 0; s < minSections; s++) {
+        var entry = data.entries[s] || {};
         var entryMats = {};
         (entry.materials || []).forEach(function(m) {
             if (m.name) {
@@ -3669,38 +3668,45 @@ function buildServiceExportTable() {
                 entryMats[m.name] = parts.join(' ');
             }
         });
-        matNames.forEach(function(name) {
-            cells += '<td>' + escapeHtml(entryMats[name] || '') + '</td>';
-        });
-        rows += '<tr>' + cells + '</tr>';
-    });
 
-    // Add empty rows to fill at least 10 rows
-    var colCount = 3 + matNames.length;
-    var minRows = Math.max(10, data.entries.length);
-    for (var i = data.entries.length; i < minRows; i++) {
-        var emptyCells = '';
-        for (var c = 0; c < colCount; c++) emptyCells += '<td></td>';
-        rows += '<tr>' + emptyCells + '</tr>';
+        // Data row
+        var cells = '<td>' + escapeHtml(entry.dato || '') + '</td>' +
+            '<td>' + escapeHtml(entry.prosjektnr || '') + '</td>' +
+            '<td>' + escapeHtml(entry.prosjektnavn || '') + '</td>';
+        for (var mc = 0; mc < minMatCols; mc++) {
+            cells += '<td>' + escapeHtml(matNames[mc] ? (entryMats[matNames[mc]] || '') : '') + '</td>';
+        }
+
+        // Empty rows for each section
+        var emptyRow = '<tr>';
+        for (var ec = 0; ec < colCount; ec++) emptyRow += '<td></td>';
+        emptyRow += '</tr>';
+
+        sectionsHtml +=
+            '<div class="service-export-section">' +
+                '<div class="service-export-section-title">Prosjekt ' + (s + 1) + '</div>' +
+                '<table class="service-export-table">' +
+                    '<thead><tr>' +
+                        '<th>Dato</th><th>Prosjektnr.</th><th>Prosjektnavn</th>' + matHeaders +
+                    '</tr></thead>' +
+                    '<tbody>' +
+                        '<tr>' + cells + '</tr>' +
+                        emptyRow +
+                    '</tbody>' +
+                '</table>' +
+            '</div>';
     }
 
     var sigImgHtml = data.signatureImage
-        ? '<img id="service-export-sig-img" src="' + data.signatureImage + '" style="height:40px;margin-left:10px;">'
-        : '<img id="service-export-sig-img" style="display:none;height:40px;margin-left:10px;">';
+        ? '<img id="service-export-sig-img" src="' + data.signatureImage + '" style="height:40px;">'
+        : '<img id="service-export-sig-img" style="display:none;height:40px;">';
 
     container.innerHTML =
         '<div class="service-export-page">' +
-            '<div class="service-export-header">' +
-                '<div class="service-export-title">Lageruttak Servicebiler</div>' +
-                '<div class="service-export-info">' +
-                    '<span><strong>Montør:</strong> ' + escapeHtml(data.montor) + '</span>' +
-                    '<span><strong>Signatur:</strong>' + sigImgHtml + '</span>' +
-                '</div>' +
-            '</div>' +
-            '<table class="service-export-table">' +
-                '<thead><tr>' + headerCells + '</tr></thead>' +
-                '<tbody>' + rows + '</tbody>' +
-            '</table>' +
+            '<div class="service-export-title">Lageruttak Servicebiler</div>' +
+            '<div class="service-export-detail"><strong>Montør:</strong> ' + escapeHtml(data.montor) + '</div>' +
+            '<div class="service-export-detail"><strong>Signatur:</strong> ' + sigImgHtml + '</div>' +
+            sectionsHtml +
         '</div>';
 
     return container;
