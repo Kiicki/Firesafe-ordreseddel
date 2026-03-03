@@ -3340,9 +3340,7 @@ function openNewServiceForm() {
     // Init 4 empty entries
     var container = document.getElementById('service-entries');
     container.innerHTML = '';
-    for (var i = 0; i < 4; i++) {
-        container.appendChild(createServiceEntryCard({}, i === 0));
-    }
+    container.appendChild(createServiceEntryCard({}, true));
     renumberServiceEntries();
     updateServiceDeleteStates();
 
