@@ -1260,6 +1260,9 @@ function createServiceEntryCard(entryData, expanded) {
     var mats = data.materials && data.materials.length > 0 ? data.materials : [];
     renderMaterialSummary(matContainer, mats);
 
+    // Update header live when prosjektnavn changes
+    card.querySelector('.service-entry-prosjektnavn').addEventListener('input', renumberServiceEntries);
+
     return card;
 }
 
@@ -1306,7 +1309,11 @@ function toggleServiceEntry(headerEl) {
 
 function renumberServiceEntries() {
     document.querySelectorAll('#service-entries .service-entry-card').forEach(function(card, idx) {
-        card.querySelector('.service-entry-title').textContent = t('service_entry_title') + ' ' + (idx + 1);
+        var nameInput = card.querySelector('.service-entry-prosjektnavn');
+        var title = nameInput && nameInput.value.trim()
+            ? nameInput.value.trim()
+            : t('service_entry_title') + ' ' + (idx + 1);
+        card.querySelector('.service-entry-title').textContent = title;
     });
 }
 
