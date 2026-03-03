@@ -95,7 +95,7 @@ const TRANSLATIONS = {
         export_and_mark_label: 'Marker som sendt',
         btn_cancel: 'Avbryt',
         btn_clear: 'Fjern',
-        btn_preview: 'Forhåndsvis',
+        btn_preview: 'Vis',
         btn_close: 'Lukk',
         btn_sign: 'Signer',
         btn_done: 'Ferdig',
