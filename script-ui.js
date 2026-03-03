@@ -3707,8 +3707,6 @@ function buildServiceExportTable() {
 }
 
 function openServicePreview() {
-    if (!validateServiceRequiredFields()) return;
-
     var container = buildServiceExportTable();
     container.style.display = 'block';
     container.style.width = '1120px';
