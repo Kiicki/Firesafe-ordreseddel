@@ -1242,11 +1242,11 @@ function createServiceEntryCard(entryData, expanded) {
             '<button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeServiceEntry(this)">' + deleteIcon + '</button>' +
         '</div>' +
         '<div class="service-entry-body" style="' + (expanded ? '' : 'display:none') + '">' +
-            '<div class="mobile-field"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
+            '<div class="mobile-field field-required"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
                 '<input type="text" class="service-entry-dato" value="' + escapeHtml(data.dato || '') + '"></div>' +
-            '<div class="mobile-field"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
+            '<div class="mobile-field field-required"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
                 '<input type="text" class="service-entry-prosjektnr" inputmode="numeric" value="' + escapeHtml(data.prosjektnr || '') + '"></div>' +
-            '<div class="mobile-field"><label data-i18n="label_prosjektnavn">' + t('label_prosjektnavn') + '</label>' +
+            '<div class="mobile-field field-required"><label data-i18n="label_prosjektnavn">' + t('label_prosjektnavn') + '</label>' +
                 '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + escapeHtml(data.prosjektnavn || '') + '"></div>' +
             '<div class="mobile-order-materials-section">' +
                 '<label class="mobile-order-sublabel" data-i18n="order_materials_label">' + t('order_materials_label') + '</label>' +
@@ -2183,6 +2183,35 @@ function validateRequiredFields() {
         }
     }
 
+    return true;
+}
+
+function validateServiceRequiredFields() {
+    // Montør
+    var montor = document.getElementById('service-montor');
+    if (!montor || !montor.value.trim()) {
+        showNotificationModal(t('required_field', t('validation_montor')));
+        return false;
+    }
+    // Each entry: dato, prosjektnr, prosjektnavn
+    var cards = document.querySelectorAll('#service-entries .service-entry-card');
+    for (var i = 0; i < cards.length; i++) {
+        var dato = cards[i].querySelector('.service-entry-dato');
+        if (!dato || !dato.value.trim()) {
+            showNotificationModal(t('required_field', t('label_dato')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+            return false;
+        }
+        var pnr = cards[i].querySelector('.service-entry-prosjektnr');
+        if (!pnr || !pnr.value.trim()) {
+            showNotificationModal(t('required_field', t('label_prosjektnr')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+            return false;
+        }
+        var pnavn = cards[i].querySelector('.service-entry-prosjektnavn');
+        if (!pnavn || !pnavn.value.trim()) {
+            showNotificationModal(t('required_field', t('label_prosjektnavn')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+            return false;
+        }
+    }
     return true;
 }
 

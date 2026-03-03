@@ -3386,11 +3386,7 @@ function closeServiceView() {
 }
 
 async function saveServiceForm() {
-    var montor = document.getElementById('service-montor').value.trim();
-    if (!montor) {
-        showNotificationModal(t('service_montor_required'));
-        return;
-    }
+    if (!validateServiceRequiredFields()) return;
 
     var saveBtn = document.getElementById('service-save-btn');
     if (saveBtn && saveBtn.disabled) return;
@@ -3567,11 +3563,8 @@ function deleteServiceForm(formData) {
 
 function markServiceAsSent() {
     try {
+        if (!validateServiceRequiredFields()) return;
         var data = getServiceFormData();
-        if (!data.montor || !data.montor.trim()) {
-            showNotificationModal(t('service_montor_required'));
-            return;
-        }
 
         var saved = safeParseJSON(SERVICE_STORAGE_KEY, []);
         if (_serviceCurrentId) {
@@ -3710,8 +3703,7 @@ function buildServiceExportTable() {
 }
 
 function openServicePreview() {
-    var montor = document.getElementById('service-montor').value.trim();
-    if (!montor) { showNotificationModal(t('service_montor_required')); return; }
+    if (!validateServiceRequiredFields()) return;
 
     var container = buildServiceExportTable();
     container.style.display = 'block';
@@ -3814,8 +3806,7 @@ function getServiceExportFilename(ext) {
 }
 
 async function doServiceExportPDF(markSent) {
-    var montor = document.getElementById('service-montor').value.trim();
-    if (!montor) { showNotificationModal(t('service_montor_required')); return; }
+    if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
@@ -3835,8 +3826,7 @@ async function doServiceExportPDF(markSent) {
 }
 
 async function doServiceExportPNG(markSent) {
-    var montor = document.getElementById('service-montor').value.trim();
-    if (!montor) { showNotificationModal(t('service_montor_required')); return; }
+    if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
