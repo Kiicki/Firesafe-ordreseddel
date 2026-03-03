@@ -3355,6 +3355,10 @@ function openNewServiceForm() {
     document.getElementById('service-signatur').value = '';
     window._serviceSignaturePaths = [];
     _serviceCurrentId = null;
+    var srvPreviewImg = document.getElementById('service-signature-preview-img');
+    if (srvPreviewImg) { srvPreviewImg.style.display = 'none'; srvPreviewImg.src = ''; }
+    var srvPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
+    if (srvPlaceholder) srvPlaceholder.style.display = '';
 
     // Init 4 empty entries
     var container = document.getElementById('service-entries');
@@ -3975,6 +3979,11 @@ function debouncedServiceSessionSave() {
 
 document.getElementById('service-form').addEventListener('input', function() {
     debouncedServiceSessionSave();
+});
+
+document.getElementById('service-signature-preview').addEventListener('click', function() {
+    signatureTarget = 'service';
+    openSignatureOverlay();
 });
 
 document.addEventListener('DOMContentLoaded', function() {

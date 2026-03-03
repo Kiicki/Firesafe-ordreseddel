@@ -1355,6 +1355,15 @@ function setServiceFormData(data) {
     window._serviceSignaturePaths = data.signaturePaths || [];
     var sigInput = document.getElementById('service-signatur');
     if (sigInput) sigInput.value = data.signatureImage || '';
+    var srvPreviewImg = document.getElementById('service-signature-preview-img');
+    var srvPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
+    if (data.signatureImage && data.signatureImage.startsWith('data:image')) {
+        if (srvPreviewImg) { srvPreviewImg.src = data.signatureImage; srvPreviewImg.style.display = 'block'; }
+        if (srvPlaceholder) srvPlaceholder.style.display = 'none';
+    } else {
+        if (srvPreviewImg) { srvPreviewImg.style.display = 'none'; srvPreviewImg.src = ''; }
+        if (srvPlaceholder) srvPlaceholder.style.display = '';
+    }
 
     // Render entries
     var container = document.getElementById('service-entries');
@@ -1798,6 +1807,20 @@ function confirmSignature() {
         signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
         cleanupSignatureOverlay();
         signatureTarget = 'form';
+
+        // Update service signature preview in form
+        var srvSigData = document.getElementById('service-signatur').value;
+        var srvPreviewImg = document.getElementById('service-signature-preview-img');
+        var srvPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
+        if (srvPreviewImg && srvSigData && srvSigData.startsWith('data:image')) {
+            srvPreviewImg.src = srvSigData;
+            srvPreviewImg.style.display = 'block';
+            if (srvPlaceholder) srvPlaceholder.style.display = 'none';
+        } else if (srvPreviewImg) {
+            srvPreviewImg.style.display = 'none';
+            srvPreviewImg.src = '';
+            if (srvPlaceholder) srvPlaceholder.style.display = '';
+        }
 
         // Update service export table signature if preview is open
         if (window._signedFromServicePreview) {

@@ -581,6 +581,16 @@
                     <div id="service-entries"></div>
                     <button type="button" class="mobile-add-line-btn" onclick="addServiceEntry()" data-i18n="service_add_entry">+ Legg til prosjekt</button>
                 </div>
+                <div class="mobile-section">
+                    <div class="mobile-section-title" data-i18n="section_signing">Signering</div>
+                    <div class="mobile-field">
+                        <label data-i18n="service_label_signatur">Min signatur</label>
+                        <div class="signature-preview" id="service-signature-preview">
+                            <img id="service-signature-preview-img" style="display:none">
+                            <span class="signature-placeholder" data-i18n="signature_not_signed">Ikke signert</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="form-action-btn" onclick="openServicePreview()">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>

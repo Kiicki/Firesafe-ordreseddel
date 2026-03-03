@@ -3477,7 +3477,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: default;
+    cursor: pointer;
     background: #fff;
     padding: 0 12px;
     overflow: hidden;
