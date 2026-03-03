@@ -1958,8 +1958,8 @@ function _clearSentStateAfterSave() {
     if (sessionStorage.getItem('firesafe_current_sent') === '1') {
         sessionStorage.removeItem('firesafe_current_sent');
         document.getElementById('sent-banner').style.display = 'none';
-        var headerDoneBtn = document.getElementById('header-done-btn');
-        if (headerDoneBtn) headerDoneBtn.style.display = '';
+        var btnFormSent = document.getElementById('btn-form-sent');
+        if (btnFormSent) btnFormSent.style.display = '';
     }
 }
 
@@ -1981,7 +1981,7 @@ async function saveForm() {
         }
     }
 
-    const saveBtn = document.querySelector('.btn-save');
+    const saveBtn = document.getElementById('header-save-btn');
     if (saveBtn && saveBtn.disabled) return;
     if (saveBtn) saveBtn.disabled = true;
 

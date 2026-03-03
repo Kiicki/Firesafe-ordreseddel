@@ -98,19 +98,7 @@ function isModalOpen() {
 
 // Update toolbar button states based on current view
 function updateToolbarState() {
-    const isOnForm = !document.body.classList.contains('template-modal-open')
-                  && !document.body.classList.contains('saved-modal-open')
-                  && !document.body.classList.contains('settings-modal-open');
-
-    const saveBtn = document.querySelector('.btn-save');
-    if (saveBtn) {
-        saveBtn.disabled = !isOnForm;
-    }
-
-    const exportBtn = document.querySelector('.btn-export');
-    if (exportBtn) {
-        exportBtn.disabled = !isOnForm;
-    }
+    // No toolbar buttons need disabling anymore — save/export are in the form view itself
 }
 
 function _buildSavedItemHtml(item, index) {
@@ -257,8 +245,8 @@ function setFormReadOnly(readOnly) {
     const fields = document.querySelectorAll('#mobile-form input, #mobile-form textarea, #mobile-form select, #form-container input, #form-container textarea, #form-container select');
     fields.forEach(el => el.disabled = readOnly);
 
-    // Disable save button
-    var headerSaveBtn = document.querySelector('.btn-save');
+    // Disable save button in header
+    var headerSaveBtn = document.getElementById('header-save-btn');
     if (headerSaveBtn) headerSaveBtn.disabled = readOnly;
 
     // Show/hide sent banner
@@ -323,8 +311,8 @@ function loadFormDirect(formData) {
     const isSent = !!formData._isSent;
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
-    var headerDoneBtn = document.getElementById('header-done-btn');
-    if (headerDoneBtn) headerDoneBtn.style.display = isSent ? 'none' : '';
+    var btnFormSent = document.getElementById('btn-form-sent');
+    if (btnFormSent) btnFormSent.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // Set hash based on form type
@@ -1010,8 +998,8 @@ function markCurrentFormAsSent() {
         sessionStorage.setItem('firesafe_current_sent', '1');
         lastSavedData = getFormDataSnapshot();
         document.getElementById('sent-banner').style.display = 'block';
-        var headerDoneBtn = document.getElementById('header-done-btn');
-        if (headerDoneBtn) headerDoneBtn.style.display = 'none';
+        var btnFormSent = document.getElementById('btn-form-sent');
+        if (btnFormSent) btnFormSent.style.display = 'none';
         showNotificationModal(t('marked_as_sent'), true);
         _lastLocalSaveTs = Date.now();
 
@@ -1182,8 +1170,8 @@ function loadExternalFormDirect(form) {
     const isSent = !!form._isSent;
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
-    var headerDoneBtn = document.getElementById('header-done-btn');
-    if (headerDoneBtn) headerDoneBtn.style.display = isSent ? 'none' : '';
+    var btnFormSent = document.getElementById('btn-form-sent');
+    if (btnFormSent) btnFormSent.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // External form = #ekstern
@@ -1579,6 +1567,11 @@ function getSettingsPageTitle(page) {
         materials: t('settings_materials')
     };
     return titles[page] || '';
+}
+
+// Service view — placeholder, will be implemented later
+function showServiceView() {
+    showNotificationModal('Service kommer snart!');
 }
 
 function showSettingsModal() {
@@ -3113,8 +3106,8 @@ function clearForm() {
     sessionStorage.removeItem('firesafe_current');
     sessionStorage.removeItem('firesafe_current_sent');
     document.getElementById('sent-banner').style.display = 'none';
-    var headerDoneBtn = document.getElementById('header-done-btn');
-    if (headerDoneBtn) headerDoneBtn.style.display = '';
+    var btnFormSent = document.getElementById('btn-form-sent');
+    if (btnFormSent) btnFormSent.style.display = '';
     lastSavedData = null;
     isExternalForm = false;
     updateFormTypeChip();
@@ -3449,8 +3442,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
             document.getElementById('sent-banner').style.display = 'block';
-            var headerDoneBtn = document.getElementById('header-done-btn');
-            if (headerDoneBtn) headerDoneBtn.style.display = 'none';
+            var btnFormSent = document.getElementById('btn-form-sent');
+            if (btnFormSent) btnFormSent.style.display = 'none';
         }
         updateToolbarState();
     } else if (hash === 'hent') {

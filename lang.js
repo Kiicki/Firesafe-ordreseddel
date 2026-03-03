@@ -5,7 +5,9 @@ const TRANSLATIONS = {
         toolbar_save: 'Lagre',
         toolbar_forms: 'Skjemaer',
         toolbar_export: 'Eksport',
+        toolbar_service: 'Service',
         toolbar_settings: 'Meny',
+        btn_mark_sent: 'Merk sendt',
 
         // Login
         login: 'Logg inn',
@@ -267,7 +269,9 @@ const TRANSLATIONS = {
         toolbar_save: 'Save',
         toolbar_forms: 'Forms',
         toolbar_export: 'Export',
+        toolbar_service: 'Service',
         toolbar_settings: 'Menu',
+        btn_mark_sent: 'Mark sent',
 
         // Login
         login: 'Log in',
