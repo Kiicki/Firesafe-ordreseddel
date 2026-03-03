@@ -841,31 +841,6 @@ body.template-modal-open > .top-bar {
     border-top: 1px solid #eee;
 }
 
-.service-materials-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-top: 12px;
-}
-
-.service-mat-field label {
-    display: block;
-    font-size: 11px;
-    color: #555;
-    font-weight: 600;
-    margin-bottom: 2px;
-}
-
-.service-mat-field input {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 14px;
-    text-align: center;
-    box-sizing: border-box;
-}
-
 /* Service new form button in template modal */
 .btn-service-new {
     background: #fff !important;

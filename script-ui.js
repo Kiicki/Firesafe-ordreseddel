@@ -3623,9 +3623,21 @@ function buildServiceExportTable() {
         sigHtml = '<img src="' + data.signatureImage + '" style="height:40px;margin-left:10px;">';
     }
 
+    // Collect all unique material names across all entries
+    var matNames = [];
+    var matNameSet = {};
+    data.entries.forEach(function(entry) {
+        (entry.materials || []).forEach(function(m) {
+            if (m.name && !matNameSet[m.name]) {
+                matNameSet[m.name] = true;
+                matNames.push(m.name);
+            }
+        });
+    });
+
     var headerCells = '<th>Dato</th><th>Prosjekt nr</th><th>Prosjektnavn</th>';
-    SERVICE_MATERIALS.forEach(function(m) {
-        headerCells += '<th>' + m.label + '</th>';
+    matNames.forEach(function(name) {
+        headerCells += '<th>' + escapeHtml(name) + '</th>';
     });
 
     var rows = '';
@@ -3633,17 +3645,28 @@ function buildServiceExportTable() {
         var cells = '<td>' + escapeHtml(entry.dato) + '</td>' +
             '<td>' + escapeHtml(entry.prosjektnr) + '</td>' +
             '<td style="text-align:left">' + escapeHtml(entry.prosjektnavn) + '</td>';
-        SERVICE_MATERIALS.forEach(function(m) {
-            cells += '<td>' + escapeHtml((entry.materials && entry.materials[m.key]) || '') + '</td>';
+        // Build a lookup for this entry's materials
+        var entryMats = {};
+        (entry.materials || []).forEach(function(m) {
+            if (m.name) {
+                var parts = [];
+                if (m.antall) parts.push(m.antall);
+                if (m.enhet) parts.push(m.enhet);
+                entryMats[m.name] = parts.join(' ');
+            }
+        });
+        matNames.forEach(function(name) {
+            cells += '<td>' + escapeHtml(entryMats[name] || '') + '</td>';
         });
         rows += '<tr>' + cells + '</tr>';
     });
 
     // Add empty rows to fill at least 10 rows
+    var colCount = 3 + matNames.length;
     var minRows = Math.max(10, data.entries.length);
     for (var i = data.entries.length; i < minRows; i++) {
-        var emptyCells = '<td></td><td></td><td></td>';
-        SERVICE_MATERIALS.forEach(function() { emptyCells += '<td></td>'; });
+        var emptyCells = '';
+        for (var c = 0; c < colCount; c++) emptyCells += '<td></td>';
         rows += '<tr>' + emptyCells + '</tr>';
     }
 

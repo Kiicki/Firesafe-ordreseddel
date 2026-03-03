@@ -11,22 +11,6 @@ const REQUIRED_KEY = 'firesafe_required';
 const SERVICE_STORAGE_KEY = 'firesafe_service';
 const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
 
-const SERVICE_MATERIALS = [
-    { key: 'gpoMortar', label: 'GPO Mortar' },
-    { key: 'fsStein', label: 'FS Stein' },
-    { key: 'lasull', label: 'Lasull' },
-    { key: 'fordroyer', label: 'Fordrøyer' },
-    { key: 'tape', label: 'Tape' },
-    { key: 'fsaPatse', label: 'FSA-Patse' },
-    { key: 'fsaPatron', label: 'FSA-Patron' },
-    { key: 'fsoPatron', label: 'FSO Patron' },
-    { key: 'fsgPelse', label: 'FSG Pelse' },
-    { key: 'fsw', label: 'FSW' },
-    { key: 'fsc', label: 'FSC' },
-    { key: 'fsb1', label: 'FSB-1' },
-    { key: 'fsb2', label: 'FSB-2' }
-];
-
 let authReady = false; // true after first onAuthStateChanged
 let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
@@ -845,7 +829,7 @@ let pickerState = {}; // { "materialenavn": { checked: true, antall: "5", enhet:
 let pickerRenderFn = null; // Reference to renderPickerList inside closure
 
 function openMaterialPicker(btn) {
-    const card = btn.closest('.mobile-order-card');
+    const card = btn.closest('.mobile-order-card') || btn.closest('.service-entry-card');
     pickerOrderCard = card;
     const matContainer = card.querySelector('.mobile-order-materials');
     const existing = getMaterialsFromContainer(matContainer);
@@ -1244,14 +1228,8 @@ function updateOrderDeleteStates() {
 
 function createServiceEntryCard(entryData, expanded) {
     var data = entryData || {};
-    var mats = data.materials || {};
     var card = document.createElement('div');
     card.className = 'service-entry-card';
-
-    var matFieldsHtml = SERVICE_MATERIALS.map(function(m) {
-        return '<div class="service-mat-field"><label>' + m.label + '</label>' +
-            '<input type="text" class="service-mat-input" data-mat-key="' + m.key + '" inputmode="numeric" value="' + (mats[m.key] || '') + '"></div>';
-    }).join('');
 
     card.innerHTML =
         '<div class="service-entry-header" onclick="toggleServiceEntry(this)">' +
@@ -1261,13 +1239,23 @@ function createServiceEntryCard(entryData, expanded) {
         '</div>' +
         '<div class="service-entry-body" style="' + (expanded ? '' : 'display:none') + '">' +
             '<div class="mobile-field"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
-                '<input type="text" class="service-entry-dato" value="' + (data.dato || '') + '"></div>' +
+                '<input type="text" class="service-entry-dato" value="' + escapeHtml(data.dato || '') + '"></div>' +
             '<div class="mobile-field"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
-                '<input type="text" class="service-entry-prosjektnr" inputmode="numeric" value="' + (data.prosjektnr || '') + '"></div>' +
+                '<input type="text" class="service-entry-prosjektnr" inputmode="numeric" value="' + escapeHtml(data.prosjektnr || '') + '"></div>' +
             '<div class="mobile-field"><label data-i18n="label_prosjektnavn">' + t('label_prosjektnavn') + '</label>' +
-                '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + (data.prosjektnavn || '') + '"></div>' +
-            '<div class="service-materials-grid">' + matFieldsHtml + '</div>' +
+                '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + escapeHtml(data.prosjektnavn || '') + '"></div>' +
+            '<div class="mobile-order-materials-section">' +
+                '<label class="mobile-order-sublabel" data-i18n="order_materials_label">' + t('order_materials_label') + '</label>' +
+                '<div class="mobile-order-materials"></div>' +
+                '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
+            '</div>' +
         '</div>';
+
+    // Add materials
+    var matContainer = card.querySelector('.mobile-order-materials');
+    var mats = data.materials && data.materials.length > 0 ? data.materials : [];
+    renderMaterialSummary(matContainer, mats);
+
     return card;
 }
 
@@ -1325,11 +1313,8 @@ function updateServiceDeleteStates() {
 function getServiceFormData() {
     var entries = [];
     document.querySelectorAll('#service-entries .service-entry-card').forEach(function(card) {
-        var mats = {};
-        card.querySelectorAll('.service-mat-input').forEach(function(inp) {
-            var key = inp.getAttribute('data-mat-key');
-            if (key) mats[key] = inp.value;
-        });
+        var matContainer = card.querySelector('.mobile-order-materials');
+        var mats = matContainer ? getMaterialsFromContainer(matContainer) : [];
         entries.push({
             dato: card.querySelector('.service-entry-dato').value,
             prosjektnr: card.querySelector('.service-entry-prosjektnr').value,
