@@ -2,12 +2,14 @@
 // Use window scope to ensure consistency
 if (!window.loadedForms) window.loadedForms = [];
 if (!window.loadedExternalForms) window.loadedExternalForms = [];
+if (!window.loadedServiceForms) window.loadedServiceForms = [];
 var preNewFormData = null;
 
 // Pagination cursors for "Load more"
 var _savedLastDoc = null, _sentLastDoc = null, _savedHasMore = false, _sentHasMore = false;
 var _extLastDoc = null, _extSentLastDoc = null, _extHasMore = false, _extSentHasMore = false;
 var _templateLastDoc = null, _templateHasMore = false;
+var _serviceLastDoc = null, _serviceSentLastDoc = null, _serviceHasMore = false, _serviceSentHasMore = false;
 var _lastLocalSaveTs = 0;
 var _pendingFirestoreOps = Promise.resolve();
 
@@ -17,6 +19,8 @@ function resetPaginationState() {
     _extLastDoc = null; _extSentLastDoc = null;
     _extHasMore = false; _extSentHasMore = false;
     _templateLastDoc = null; _templateHasMore = false;
+    _serviceLastDoc = null; _serviceSentLastDoc = null;
+    _serviceHasMore = false; _serviceSentHasMore = false;
 }
 
 // Refresh data for the currently active view after auth completes
@@ -82,18 +86,20 @@ function showView(viewId) {
 function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
-    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open');
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_form_type');
     sessionStorage.removeItem('firesafe_hent_tab');
     sessionStorage.removeItem('firesafe_defaults_tab');
+    sessionStorage.removeItem('firesafe_service_current');
     showView('view-form');
 }
 
 function isModalOpen() {
     return document.body.classList.contains('template-modal-open')
         || document.body.classList.contains('saved-modal-open')
-        || document.body.classList.contains('settings-modal-open');
+        || document.body.classList.contains('settings-modal-open')
+        || document.body.classList.contains('service-view-open');
 }
 
 // Update toolbar button states based on current view
@@ -445,13 +451,17 @@ function switchHentTab(tab) {
 
     const savedList = document.getElementById('saved-list');
     const externalList = document.getElementById('external-list');
+    const serviceList = document.getElementById('service-list');
     const ownSearch = document.getElementById('own-search-wrap');
     const externalSearch = document.getElementById('external-search-wrap');
+    const serviceSearch = document.getElementById('service-search-wrap');
 
     savedList.style.display = 'none';
     externalList.style.display = 'none';
+    serviceList.style.display = 'none';
     ownSearch.style.display = 'none';
     externalSearch.style.display = 'none';
+    serviceSearch.style.display = 'none';
 
     if (tab === 'own') {
         tabs[0].classList.add('active');
@@ -464,6 +474,12 @@ function switchHentTab(tab) {
         externalSearch.style.display = '';
         externalList.scrollTop = 0;
         loadExternalTab();
+    } else if (tab === 'service') {
+        tabs[2].classList.add('active');
+        serviceList.style.display = '';
+        serviceSearch.style.display = '';
+        serviceList.scrollTop = 0;
+        loadServiceTab();
     }
 }
 
@@ -643,6 +659,11 @@ function navigateBack() {
         } else {
             target();
         }
+        return;
+    }
+    // From service view: go back to home
+    if (currentId === 'service-view') {
+        closeServiceView();
         return;
     }
     // From Skjemaer: close and go to form
@@ -825,6 +846,7 @@ var _searchVersion = 0;
 var _savedFormsAll = null;
 var _externalFormsAll = null;
 var _templatesAll = null;
+var _serviceFormsAll = null;
 
 // Firestore prefix-søk for skjemaer som ikke er lastet inn ennå
 async function firestoreSearchForms(rawTerm, collections, field) {
@@ -929,6 +951,13 @@ function filterList(listId, searchId) {
                     }
                 });
             }
+        } else if (listId === 'service-list') {
+            if (!_serviceFormsAll) _serviceFormsAll = window.loadedServiceForms ? window.loadedServiceForms.slice() : [];
+            if (!term) { var all4 = _serviceFormsAll; _serviceFormsAll = null; renderServiceFormsList(all4); return; }
+            var filtered4 = _serviceFormsAll.filter(function(f) {
+                return (f.montor || '').toLowerCase().indexOf(term) !== -1;
+            });
+            renderServiceFormsList(filtered4);
         }
     }, 150);
 }
@@ -1569,10 +1598,6 @@ function getSettingsPageTitle(page) {
     return titles[page] || '';
 }
 
-// Service view — placeholder, will be implemented later
-function showServiceView() {
-    showNotificationModal('Service kommer snart!');
-}
 
 function showSettingsModal() {
     if (isOnFormPage() && hasUnsavedChanges()) {
@@ -3043,7 +3068,8 @@ function hasUnsavedChanges() {
 function isOnFormPage() {
     return !document.getElementById('saved-modal').classList.contains('active')
         && !document.getElementById('settings-modal').classList.contains('active')
-        && !document.getElementById('template-modal').classList.contains('active');
+        && !document.getElementById('template-modal').classList.contains('active')
+        && !document.getElementById('service-view').classList.contains('active');
 }
 
 function hasAnyFormData() {
@@ -3290,6 +3316,436 @@ async function doExportPNG(markSent) {
     }
 }
 
+// ============================================
+// SERVICE FORM FUNCTIONS
+// ============================================
+
+var _serviceCurrentId = null; // Track current loaded service form id
+var _serviceLastSavedData = null; // For unsaved changes detection
+
+function openNewServiceForm() {
+    // Close template modal
+    document.body.classList.remove('template-modal-open');
+    document.getElementById('template-search').value = '';
+
+    // Reset service form
+    document.getElementById('service-montor').value = '';
+    document.getElementById('service-signatur').value = '';
+    document.getElementById('service-signature-img').style.display = 'none';
+    var placeholder = document.querySelector('#service-signature-preview .signature-placeholder');
+    if (placeholder) placeholder.style.display = '';
+    window._serviceSignaturePaths = [];
+    _serviceCurrentId = null;
+
+    // Init 4 empty entries
+    var container = document.getElementById('service-entries');
+    container.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+        container.appendChild(createServiceEntryCard({}, i === 0));
+    }
+    renumberServiceEntries();
+    updateServiceDeleteStates();
+
+    // Show service view
+    showView('service-view');
+    document.body.classList.add('service-view-open');
+    window.location.hash = 'service';
+    document.getElementById('service-sent-banner').style.display = 'none';
+    document.getElementById('btn-service-sent').style.display = '';
+    document.getElementById('service-save-btn').disabled = false;
+    sessionStorage.removeItem('firesafe_service_sent');
+    _serviceLastSavedData = null;
+    window.scrollTo(0, 0);
+}
+
+function closeServiceView() {
+    document.body.classList.remove('service-view-open');
+    _serviceCurrentId = null;
+    _serviceLastSavedData = null;
+    sessionStorage.removeItem('firesafe_service_current');
+    sessionStorage.removeItem('firesafe_service_sent');
+    showTemplateModal();
+}
+
+function openServiceSignature() {
+    signatureTarget = 'service';
+    openSignatureOverlay();
+}
+
+async function saveServiceForm() {
+    var montor = document.getElementById('service-montor').value.trim();
+    if (!montor) {
+        showNotificationModal(t('service_montor_required'));
+        return;
+    }
+
+    var saveBtn = document.getElementById('service-save-btn');
+    if (saveBtn && saveBtn.disabled) return;
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+        var data = getServiceFormData();
+
+        var saved = safeParseJSON(SERVICE_STORAGE_KEY, []);
+        var archived = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
+
+        // Check if we're re-saving a sent form
+        var wasSent = sessionStorage.getItem('firesafe_service_sent') === '1';
+        if (wasSent && _serviceCurrentId) {
+            var archivedIdx = archived.findIndex(function(item) { return item.id === _serviceCurrentId; });
+            if (archivedIdx !== -1) {
+                data.id = _serviceCurrentId;
+                archived.splice(archivedIdx, 1);
+                safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(archived));
+            }
+        }
+
+        if (_serviceCurrentId) {
+            // Update existing
+            data.id = _serviceCurrentId;
+            var existingIndex = saved.findIndex(function(item) { return item.id === _serviceCurrentId; });
+            if (existingIndex !== -1) {
+                saved[existingIndex] = data;
+            } else {
+                saved.unshift(data);
+            }
+        } else {
+            // New form
+            data.id = Date.now().toString();
+            saved.unshift(data);
+        }
+
+        if (saved.length > 50) saved.pop();
+        safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(saved));
+        _serviceCurrentId = data.id;
+        _serviceLastSavedData = JSON.stringify(data);
+        _lastLocalSaveTs = Date.now();
+
+        // Clear sent state
+        sessionStorage.removeItem('firesafe_service_sent');
+        document.getElementById('service-sent-banner').style.display = 'none';
+        document.getElementById('btn-service-sent').style.display = '';
+
+        showNotificationModal(t('service_save_success'), true);
+
+        // Firebase in background
+        if (currentUser && db) {
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('serviceforms').doc(docId).set(data);
+            }).then(function() {
+                if (wasSent) {
+                    return db.collection('users').doc(currentUser.uid).collection('serviceArchive').doc(docId).delete();
+                }
+            }).catch(function(e) { console.error('Service save Firebase error:', e); });
+        }
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+
+function loadServiceTab() {
+    // Show cached data immediately
+    var cachedSaved = safeParseJSON(SERVICE_STORAGE_KEY, []);
+    var cachedSent = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
+    var cachedForms = cachedSaved.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
+        .concat(cachedSent.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
+        .sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+    renderServiceFormsList(cachedForms);
+
+    // Refresh from Firestore
+    if (currentUser && db) {
+        Promise.all([getServiceForms(), getServiceSentForms()]).then(function(results) {
+            if (Date.now() - _lastLocalSaveTs < 5000) return;
+            var savedResult = results[0], sentResult = results[1];
+            _serviceLastDoc = savedResult.lastDoc;
+            _serviceSentLastDoc = sentResult.lastDoc;
+            safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+            safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+            var allForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
+                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
+                .sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+            if (document.body.classList.contains('saved-modal-open')) {
+                renderServiceFormsList(allForms);
+            }
+        }).catch(function(e) { console.error('Refresh service forms:', e); });
+    }
+}
+
+function _buildServiceItemHtml(item, index) {
+    var montor = item.montor || '';
+    var dato = formatDateWithTime(item.savedAt);
+    var isSent = item._isSent;
+    var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+    var deleteBtn = isSent
+        ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
+        : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
+    return '<div class="saved-item" data-index="' + index + '">' +
+        '<div class="saved-item-info">' +
+            '<div class="saved-item-row1">' + dot + (escapeHtml(montor) || t('no_name')) + '</div>' +
+            (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+        '</div>' +
+        '<div class="saved-item-buttons">' + deleteBtn + '</div>' +
+    '</div>';
+}
+
+function renderServiceFormsList(forms) {
+    var listEl = document.getElementById('service-list');
+    if (!forms || forms.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">' + t('service_no_saved') + '</div>';
+        window.loadedServiceForms = [];
+        return;
+    }
+    window.loadedServiceForms = forms;
+    listEl.innerHTML = forms.map(function(item, i) { return _buildServiceItemHtml(item, i); }).join('');
+    // Attach form data to DOM elements
+    listEl.querySelectorAll('.saved-item').forEach(function(el, i) {
+        el._formData = window.loadedServiceForms[i];
+    });
+}
+
+function loadServiceFormDirect(formData) {
+    if (!formData) return;
+
+    // Close saved modal
+    document.body.classList.remove('saved-modal-open');
+    sessionStorage.removeItem('firesafe_hent_tab');
+
+    // Set data
+    _serviceCurrentId = formData.id || null;
+    setServiceFormData(formData);
+
+    // Show service view
+    showView('service-view');
+    document.body.classList.add('service-view-open');
+    window.location.hash = 'service';
+
+    var isSent = !!formData._isSent;
+    document.getElementById('service-sent-banner').style.display = isSent ? 'block' : 'none';
+    document.getElementById('btn-service-sent').style.display = isSent ? 'none' : '';
+    sessionStorage.setItem('firesafe_service_sent', isSent ? '1' : '');
+    _serviceLastSavedData = JSON.stringify(formData);
+    window.scrollTo(0, 0);
+}
+
+function deleteServiceForm(formData) {
+    if (!formData) return;
+    var isSent = formData._isSent;
+    showConfirmModal(t('delete_confirm'), function() {
+        var lsKey = isSent ? SERVICE_ARCHIVE_KEY : SERVICE_STORAGE_KEY;
+        var col = isSent ? 'serviceArchive' : 'serviceforms';
+        var list = safeParseJSON(lsKey, []);
+        var idx = list.findIndex(function(f) { return f.id === formData.id; });
+        if (idx !== -1) { list.splice(idx, 1); safeSetItem(lsKey, JSON.stringify(list)); }
+        // Remove from loaded list
+        var loadedIdx = window.loadedServiceForms.findIndex(function(f) { return f.id === formData.id; });
+        if (loadedIdx !== -1) window.loadedServiceForms.splice(loadedIdx, 1);
+        renderServiceFormsList(window.loadedServiceForms);
+        _lastLocalSaveTs = Date.now();
+        // Firebase
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection(col).doc(formData.id).delete()
+                .catch(function(e) { console.error('Delete service form error:', e); });
+        }
+    });
+}
+
+function markServiceAsSent() {
+    try {
+        var data = getServiceFormData();
+        if (!data.montor || !data.montor.trim()) {
+            showNotificationModal(t('service_montor_required'));
+            return;
+        }
+
+        var saved = safeParseJSON(SERVICE_STORAGE_KEY, []);
+        if (_serviceCurrentId) {
+            data.id = _serviceCurrentId;
+        } else {
+            data.id = Date.now().toString();
+        }
+
+        var archived = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
+        var archivedExisting = archived.findIndex(function(item) { return item.id === data.id; });
+        if (archivedExisting !== -1) {
+            archived[archivedExisting] = data;
+        } else {
+            archived.unshift(data);
+        }
+        safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(archived));
+
+        // Update UI
+        sessionStorage.setItem('firesafe_service_sent', '1');
+        _serviceCurrentId = data.id;
+        _serviceLastSavedData = JSON.stringify(data);
+        document.getElementById('service-sent-banner').style.display = 'block';
+        document.getElementById('btn-service-sent').style.display = 'none';
+        showNotificationModal(t('marked_as_sent'), true);
+        _lastLocalSaveTs = Date.now();
+
+        // Firebase
+        if (currentUser && db) {
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('serviceArchive').doc(docId).set(data);
+            }).then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('serviceforms').doc(docId).delete();
+            }).catch(function(e) { console.error('Mark service as sent error:', e); });
+        }
+    } catch(e) {
+        console.error('Mark service as sent error:', e);
+    }
+}
+
+// Service export
+function showServiceExportMenu() {
+    var popup = document.getElementById('action-popup');
+    document.getElementById('action-popup-title').textContent = t('export_title');
+    var buttonsEl = document.getElementById('action-popup-buttons');
+    var isSent = sessionStorage.getItem('firesafe_service_sent') === '1';
+    var checkboxHtml = isSent ? '' :
+        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:8px 0">' +
+            '<input type="checkbox" id="service-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
+            t('export_and_mark_label') +
+        '</label>';
+    buttonsEl.innerHTML = checkboxHtml +
+        '<div class="confirm-modal-buttons">' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPDF(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPNG(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+        '</div>';
+    popup.classList.add('active');
+}
+
+function buildServiceExportTable() {
+    var data = getServiceFormData();
+    var container = document.getElementById('service-export-container');
+
+    var sigHtml = '';
+    if (data.signatureImage) {
+        sigHtml = '<img src="' + data.signatureImage + '" style="height:40px;margin-left:10px;">';
+    }
+
+    var headerCells = '<th>Dato</th><th>Prosjekt nr</th><th>Prosjektnavn</th>';
+    SERVICE_MATERIALS.forEach(function(m) {
+        headerCells += '<th>' + m.label + '</th>';
+    });
+
+    var rows = '';
+    data.entries.forEach(function(entry) {
+        var cells = '<td>' + escapeHtml(entry.dato) + '</td>' +
+            '<td>' + escapeHtml(entry.prosjektnr) + '</td>' +
+            '<td style="text-align:left">' + escapeHtml(entry.prosjektnavn) + '</td>';
+        SERVICE_MATERIALS.forEach(function(m) {
+            cells += '<td>' + escapeHtml((entry.materials && entry.materials[m.key]) || '') + '</td>';
+        });
+        rows += '<tr>' + cells + '</tr>';
+    });
+
+    // Add empty rows to fill at least 10 rows
+    var minRows = Math.max(10, data.entries.length);
+    for (var i = data.entries.length; i < minRows; i++) {
+        var emptyCells = '<td></td><td></td><td></td>';
+        SERVICE_MATERIALS.forEach(function() { emptyCells += '<td></td>'; });
+        rows += '<tr>' + emptyCells + '</tr>';
+    }
+
+    container.innerHTML =
+        '<div class="service-export-page">' +
+            '<div class="service-export-header">' +
+                '<div class="service-export-title">Lageruttak Servicebiler</div>' +
+                '<div class="service-export-info">' +
+                    '<span><strong>Montør:</strong> ' + escapeHtml(data.montor) + '</span>' +
+                    '<span><strong>Signatur:</strong>' + sigHtml + '</span>' +
+                '</div>' +
+            '</div>' +
+            '<table class="service-export-table">' +
+                '<thead><tr>' + headerCells + '</tr></thead>' +
+                '<tbody>' + rows + '</tbody>' +
+            '</table>' +
+        '</div>';
+
+    return container;
+}
+
+async function renderServiceToCanvas() {
+    var container = buildServiceExportTable();
+    container.style.display = 'block';
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '1120px';
+    container.style.visibility = 'hidden';
+    container.style.zIndex = '-1';
+
+    await new Promise(function(resolve) { requestAnimationFrame(function() { requestAnimationFrame(resolve); }); });
+    container.style.visibility = 'visible';
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '';
+
+    var canvas = await html2canvas(container, {
+        scale: 3,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+    });
+
+    container.style.display = 'none';
+    container.style.position = '';
+    container.style.left = '';
+    container.style.width = '';
+    container.style.visibility = '';
+    container.style.zIndex = '';
+
+    return canvas;
+}
+
+function getServiceExportFilename(ext) {
+    var montor = (document.getElementById('service-montor').value || 'service').replace(/\s+/g, '_');
+    var dato = formatDate(new Date()).replace(/\./g, '-');
+    return 'lageruttak_' + montor + '_' + dato + '.' + ext;
+}
+
+async function doServiceExportPDF(markSent) {
+    var montor = document.getElementById('service-montor').value.trim();
+    if (!montor) { showNotificationModal(t('service_montor_required')); return; }
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderServiceToCanvas();
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF('l', 'mm', 'a4'); // landscape
+        var imgWidth = 297; // A4 landscape width
+        var imgHeight = (canvas.height * imgWidth) / canvas.width;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        pdf.save(getServiceExportFilename('pdf'));
+        if (markSent) markServiceAsSent();
+    } catch(error) {
+        showNotificationModal(t('export_pdf_error') + error.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doServiceExportPNG(markSent) {
+    var montor = document.getElementById('service-montor').value.trim();
+    if (!montor) { showNotificationModal(t('service_montor_required')); return; }
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderServiceToCanvas();
+        var link = document.createElement('a');
+        link.download = getServiceExportFilename('png');
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        if (markSent) markServiceAsSent();
+    } catch(error) {
+        showNotificationModal(t('export_png_error') + error.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
 // Background click handler removed - saved-modal is now a view, not an overlay
 
 // Event delegation for saved-list items
@@ -3365,6 +3821,28 @@ document.getElementById('template-list').addEventListener('click', function(e) {
     loadTemplateDirect(templateData);
 });
 
+
+// Event delegation for service-list items
+document.getElementById('service-list').addEventListener('click', function(e) {
+    var savedItem = e.target.closest('.saved-item');
+    if (!savedItem) return;
+
+    var formData = savedItem._formData;
+    if (!formData) return;
+
+    var btn = e.target.closest('button');
+    if (btn) {
+        if (btn.classList.contains('disabled')) return;
+        e.stopPropagation();
+        if (btn.classList.contains('delete')) {
+            deleteServiceForm(formData);
+        }
+        return;
+    }
+
+    // Click on item row - load the service form
+    loadServiceFormDirect(formData);
+});
 
 // Background click handler removed - template-modal is now a view, not an overlay
 
@@ -3481,6 +3959,20 @@ document.addEventListener('DOMContentLoaded', function() {
             showSettingsMenu();
         }
         updateToolbarState();
+    } else if (hash === 'service') {
+        // Service view — restore from session if available
+        var serviceCurrent = sessionStorage.getItem('firesafe_service_current');
+        if (serviceCurrent) {
+            try {
+                var sData = JSON.parse(serviceCurrent);
+                _serviceCurrentId = sData.id || null;
+                setServiceFormData(sData);
+                _serviceLastSavedData = serviceCurrent;
+                var wasSent = sessionStorage.getItem('firesafe_service_sent') === '1';
+                document.getElementById('service-sent-banner').style.display = wasSent ? 'block' : 'none';
+                document.getElementById('btn-service-sent').style.display = wasSent ? 'none' : '';
+            } catch(e) {}
+        }
     } else if (!hash || hash === '') {
         // Home page - render cached templates (filter out deactivated)
         var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
@@ -3530,6 +4022,12 @@ window.addEventListener('hashchange', function() {
         document.getElementById('form-header-title').textContent = t('form_title');
         updateFormTypeChip();
         updateToolbarState();
+    } else if (hash === 'service') {
+        if (!document.body.classList.contains('service-view-open')) {
+            showView('service-view');
+            document.body.classList.add('service-view-open');
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+        }
     } else {
         // No hash = home = template modal
         showTemplateModal();

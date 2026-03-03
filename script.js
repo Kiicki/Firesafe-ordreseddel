@@ -8,6 +8,24 @@ const MATERIALS_KEY = 'firesafe_materials';
 const EXTERNAL_KEY = 'firesafe_external';
 const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
 const REQUIRED_KEY = 'firesafe_required';
+const SERVICE_STORAGE_KEY = 'firesafe_service';
+const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
+
+const SERVICE_MATERIALS = [
+    { key: 'gpoMortar', label: 'GPO Mortar' },
+    { key: 'fsStein', label: 'FS Stein' },
+    { key: 'lasull', label: 'Lasull' },
+    { key: 'fordroyer', label: 'Fordrøyer' },
+    { key: 'tape', label: 'Tape' },
+    { key: 'fsaPatse', label: 'FSA-Patse' },
+    { key: 'fsaPatron', label: 'FSA-Patron' },
+    { key: 'fsoPatron', label: 'FSO Patron' },
+    { key: 'fsgPelse', label: 'FSG Pelse' },
+    { key: 'fsw', label: 'FSW' },
+    { key: 'fsc', label: 'FSC' },
+    { key: 'fsb1', label: 'FSB-1' },
+    { key: 'fsb2', label: 'FSB-2' }
+];
 
 let authReady = false; // true after first onAuthStateChanged
 let cachedRequiredSettings = null;
@@ -1222,6 +1240,177 @@ function updateOrderDeleteStates() {
     deleteButtons.forEach(btn => { btn.disabled = cards.length <= 1; });
 }
 
+// --- Service entry card functions ---
+
+function createServiceEntryCard(entryData, expanded) {
+    var data = entryData || {};
+    var mats = data.materials || {};
+    var card = document.createElement('div');
+    card.className = 'service-entry-card';
+
+    var matFieldsHtml = SERVICE_MATERIALS.map(function(m) {
+        return '<div class="service-mat-field"><label>' + m.label + '</label>' +
+            '<input type="text" class="service-mat-input" data-mat-key="' + m.key + '" inputmode="numeric" value="' + (mats[m.key] || '') + '"></div>';
+    }).join('');
+
+    card.innerHTML =
+        '<div class="service-entry-header" onclick="toggleServiceEntry(this)">' +
+            '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
+            '<span class="service-entry-title">' + t('service_entry_title') + '</span>' +
+            '<button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeServiceEntry(this)">' + deleteIcon + '</button>' +
+        '</div>' +
+        '<div class="service-entry-body" style="' + (expanded ? '' : 'display:none') + '">' +
+            '<div class="mobile-field"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
+                '<input type="text" class="service-entry-dato" value="' + (data.dato || '') + '"></div>' +
+            '<div class="mobile-field"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
+                '<input type="text" class="service-entry-prosjektnr" inputmode="numeric" value="' + (data.prosjektnr || '') + '"></div>' +
+            '<div class="mobile-field"><label data-i18n="label_prosjektnavn">' + t('label_prosjektnavn') + '</label>' +
+                '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + (data.prosjektnavn || '') + '"></div>' +
+            '<div class="service-materials-grid">' + matFieldsHtml + '</div>' +
+        '</div>';
+    return card;
+}
+
+function addServiceEntry() {
+    var container = document.getElementById('service-entries');
+    container.querySelectorAll('.service-entry-card').forEach(function(card) {
+        var body = card.querySelector('.service-entry-body');
+        if (body.style.display !== 'none') {
+            body.style.display = 'none';
+            card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
+        }
+    });
+    var card = createServiceEntryCard({}, true);
+    container.appendChild(card);
+    updateServiceDeleteStates();
+    renumberServiceEntries();
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function removeServiceEntry(btn) {
+    var card = btn.closest('.service-entry-card');
+    var container = document.getElementById('service-entries');
+    if (container.querySelectorAll('.service-entry-card').length <= 1) return;
+    showConfirmModal(t('service_entry_delete_confirm'), function() {
+        card.remove();
+        updateServiceDeleteStates();
+        renumberServiceEntries();
+    }, t('btn_remove'), '#e74c3c');
+}
+
+function toggleServiceEntry(headerEl) {
+    var body = headerEl.nextElementSibling;
+    var arrow = headerEl.querySelector('.mobile-order-arrow');
+    if (body.style.display === 'none') {
+        body.style.display = '';
+        arrow.innerHTML = '&#9650;';
+    } else {
+        body.style.display = 'none';
+        arrow.innerHTML = '&#9660;';
+    }
+}
+
+function renumberServiceEntries() {
+    document.querySelectorAll('#service-entries .service-entry-card').forEach(function(card, idx) {
+        card.querySelector('.service-entry-title').textContent = t('service_entry_title') + ' ' + (idx + 1);
+    });
+}
+
+function updateServiceDeleteStates() {
+    var cards = document.querySelectorAll('#service-entries .service-entry-card');
+    var delBtns = document.querySelectorAll('#service-entries .mobile-order-header-delete');
+    delBtns.forEach(function(btn) { btn.disabled = cards.length <= 1; });
+}
+
+function getServiceFormData() {
+    var entries = [];
+    document.querySelectorAll('#service-entries .service-entry-card').forEach(function(card) {
+        var mats = {};
+        card.querySelectorAll('.service-mat-input').forEach(function(inp) {
+            var key = inp.getAttribute('data-mat-key');
+            if (key) mats[key] = inp.value;
+        });
+        entries.push({
+            dato: card.querySelector('.service-entry-dato').value,
+            prosjektnr: card.querySelector('.service-entry-prosjektnr').value,
+            prosjektnavn: card.querySelector('.service-entry-prosjektnavn').value,
+            materials: mats
+        });
+    });
+    return {
+        type: 'service',
+        montor: document.getElementById('service-montor').value,
+        signaturePaths: window._serviceSignaturePaths || [],
+        canvasAspectRatio: canvasAspectRatio,
+        signatureImage: document.getElementById('service-signatur').value,
+        entries: entries,
+        savedAt: new Date().toISOString()
+    };
+}
+
+function setServiceFormData(data) {
+    if (!data) return;
+    var montorEl = document.getElementById('service-montor');
+    if (montorEl) montorEl.value = data.montor || '';
+
+    // Restore signature
+    window._serviceSignaturePaths = data.signaturePaths || [];
+    var sigInput = document.getElementById('service-signatur');
+    if (sigInput) sigInput.value = data.signatureImage || '';
+    var sigImg = document.getElementById('service-signature-img');
+    var sigPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
+    if (data.signatureImage) {
+        if (sigImg) { sigImg.src = data.signatureImage; sigImg.style.display = ''; }
+        if (sigPlaceholder) sigPlaceholder.style.display = 'none';
+    } else {
+        if (sigImg) sigImg.style.display = 'none';
+        if (sigPlaceholder) sigPlaceholder.style.display = '';
+    }
+
+    // Render entries
+    var container = document.getElementById('service-entries');
+    container.innerHTML = '';
+    var list = data.entries && data.entries.length > 0 ? data.entries : [{}];
+    list.forEach(function(entry, idx) {
+        container.appendChild(createServiceEntryCard(entry, idx === 0));
+    });
+    renumberServiceEntries();
+    updateServiceDeleteStates();
+}
+
+// Firebase helpers for service forms
+async function getServiceForms(lastDoc) {
+    if (currentUser && db) {
+        try {
+            var q = db.collection('users').doc(currentUser.uid).collection('serviceforms')
+                .orderBy('savedAt', 'desc').limit(50);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return {
+                forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }),
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
+            };
+        } catch(e) { console.error('getServiceForms error:', e); }
+    }
+    return { forms: safeParseJSON(SERVICE_STORAGE_KEY, []), lastDoc: null };
+}
+
+async function getServiceSentForms(lastDoc) {
+    if (currentUser && db) {
+        try {
+            var q = db.collection('users').doc(currentUser.uid).collection('serviceArchive')
+                .orderBy('savedAt', 'desc').limit(50);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return {
+                forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }),
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
+            };
+        } catch(e) { console.error('getServiceSentForms error:', e); }
+    }
+    return { forms: safeParseJSON(SERVICE_ARCHIVE_KEY, []), lastDoc: null };
+}
+
 // Get all orders data from mobile form
 function getOrdersData() {
     const orders = [];
@@ -1282,6 +1471,7 @@ function syncMobileToOriginal() {
 // SIGNATURE (SVG-based for perfect scaling)
 // ============================================
 
+var signatureTarget = 'form'; // 'form' or 'service'
 let signatureCanvas = null;
 let signatureCtx = null;
 let isDrawing = false;
@@ -1350,8 +1540,14 @@ async function openSignatureOverlay() {
         window.addEventListener('orientationchange', handleSignatureOrientationChange);
     }
     currentPath = [];
-    signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
-    window._signatureImageBackup = document.getElementById('mobile-kundens-underskrift').value || '';
+    if (signatureTarget === 'service') {
+        signaturePaths = window._serviceSignaturePaths || [];
+        signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+        window._signatureImageBackup = document.getElementById('service-signatur').value || '';
+    } else {
+        signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+        window._signatureImageBackup = document.getElementById('mobile-kundens-underskrift').value || '';
+    }
 
     requestAnimationFrame(function() {
         requestAnimationFrame(function() {
@@ -1361,7 +1557,9 @@ async function openSignatureOverlay() {
             // Fallback: if no stroke data but signature image exists (old saved forms),
             // draw the existing image onto the canvas
             if (signaturePaths.length === 0) {
-                var sigData = document.getElementById('mobile-kundens-underskrift').value;
+                var sigData = signatureTarget === 'service'
+                    ? document.getElementById('service-signatur').value
+                    : document.getElementById('mobile-kundens-underskrift').value;
                 if (sigData && sigData.startsWith('data:image')) {
                     var img = new Image();
                     img.onload = function() {
@@ -1404,11 +1602,19 @@ function cleanupSignatureOverlay() {
 function closeSignatureOverlay() {
     signaturePaths = signaturePathsBackup;
     // Restore image values in case Nullstill cleared them
-    if (window._signatureImageBackup) {
-        document.getElementById('mobile-kundens-underskrift').value = window._signatureImageBackup;
-        document.getElementById('kundens-underskrift').value = window._signatureImageBackup;
+    if (signatureTarget === 'service') {
+        if (window._signatureImageBackup) {
+            document.getElementById('service-signatur').value = window._signatureImageBackup;
+        }
+        window._serviceSignaturePaths = JSON.parse(JSON.stringify(signaturePathsBackup));
+    } else {
+        if (window._signatureImageBackup) {
+            document.getElementById('mobile-kundens-underskrift').value = window._signatureImageBackup;
+            document.getElementById('kundens-underskrift').value = window._signatureImageBackup;
+        }
     }
     cleanupSignatureOverlay();
+    signatureTarget = 'form';
 
     // Clear preview flag (preview is still open, no action needed)
     window._signedFromPreview = false;
@@ -1585,6 +1791,32 @@ function generateSVG(targetHeight, strokeWidth) {
 
 function confirmSignature() {
     const hasSignature = signaturePaths.length > 0;
+
+    if (signatureTarget === 'service') {
+        var hasExistingServiceImage = !!document.getElementById('service-signatur').value;
+        if (!hasSignature && !hasExistingServiceImage) {
+            document.getElementById('service-signatur').value = '';
+            document.getElementById('service-signature-img').style.display = 'none';
+            document.querySelector('#service-signature-preview .signature-placeholder').style.display = '';
+        } else if (!hasSignature && hasExistingServiceImage) {
+            // keep as-is
+        } else {
+            var svgData = generateSVG(400, 18);
+            if (svgData) {
+                document.getElementById('service-signatur').value = svgData;
+                var previewImg = document.getElementById('service-signature-img');
+                previewImg.src = svgData;
+                previewImg.style.display = 'block';
+                document.querySelector('#service-signature-preview .signature-placeholder').style.display = 'none';
+            }
+        }
+        window._serviceSignaturePaths = JSON.parse(JSON.stringify(signaturePaths));
+        signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
+        cleanupSignatureOverlay();
+        signatureTarget = 'form';
+        return;
+    }
+
     const hasExistingImage = !!document.getElementById('mobile-kundens-underskrift').value;
 
     if (!hasSignature && !hasExistingImage) {

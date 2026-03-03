@@ -262,6 +262,19 @@ const TRANSLATIONS = {
         export_hours: 'Timer:',
         export_hours_unit: 'timer',
         export_total: 'Totalt:',
+
+        // Service (Lageruttak)
+        tab_service: 'Service',
+        service_title: 'Lageruttak Servicebiler',
+        service_new_form: 'Nytt serviceskjema',
+        service_entries_title: 'Prosjekter',
+        service_add_entry: '+ Legg til prosjekt',
+        service_entry_title: 'Prosjekt',
+        service_entry_delete_confirm: 'Slett dette prosjektet?',
+        service_save_success: 'Serviceskjema lagret!',
+        service_no_saved: 'Ingen lagrede serviceskjemaer',
+        service_montor_required: 'Du må fylle inn montør',
+        service_label_signatur: 'Signatur',
     },
     en: {
         // Toolbar
@@ -526,5 +539,18 @@ const TRANSLATIONS = {
         export_hours: 'Hours:',
         export_hours_unit: 'hours',
         export_total: 'Total:',
+
+        // Service (Warehouse withdrawal)
+        tab_service: 'Service',
+        service_title: 'Warehouse Withdrawal Service Vehicles',
+        service_new_form: 'New service form',
+        service_entries_title: 'Projects',
+        service_add_entry: '+ Add project',
+        service_entry_title: 'Project',
+        service_entry_delete_confirm: 'Delete this project?',
+        service_save_success: 'Service form saved!',
+        service_no_saved: 'No saved service forms',
+        service_montor_required: 'You must fill in technician',
+        service_label_signatur: 'Signature',
     }
 };

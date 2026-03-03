@@ -809,6 +809,128 @@ body.template-modal-open > .top-bar {
     color: #E8501A;
 }
 
+/* Service entry cards */
+.service-entry-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.service-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 12px;
+    background: #f5f5f5;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.service-entry-title {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.service-entry-body {
+    padding: 12px;
+    border-top: 1px solid #eee;
+}
+
+.service-materials-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.service-mat-field label {
+    display: block;
+    font-size: 11px;
+    color: #555;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.service-mat-field input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+/* Service new form button in template modal */
+.btn-service-new {
+    background: #fff !important;
+    color: #E8501A !important;
+    border: 2px solid #E8501A !important;
+}
+
+/* Service export table (hidden, for PDF generation) */
+.service-export-container {
+    background: white;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    padding: 15px;
+}
+
+.service-export-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 8px;
+}
+
+.service-export-title {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.service-export-meta {
+    text-align: right;
+    font-size: 12px;
+}
+
+.service-export-meta img {
+    max-height: 40px;
+    margin-top: 4px;
+}
+
+.service-export-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.service-export-table th,
+.service-export-table td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    text-align: center;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.service-export-table th {
+    background: #e0e0e0;
+    font-weight: bold;
+}
+
+.service-export-table td:nth-child(1),
+.service-export-table td:nth-child(2),
+.service-export-table td:nth-child(3) {
+    text-align: left;
+    white-space: normal;
+}
+
 .modal-close-btn {
     background: none;
     border: none;
@@ -893,13 +1015,28 @@ body.settings-modal-open {
 }
 
 /* Form view: fixed to viewport so form-header can be sticky */
-#view-form.view.active {
+#view-form.view.active,
+#service-view.view.active {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 60px;
     min-height: 0;
+}
+
+#service-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+body.service-view-open #view-form {
+    display: none;
+}
+
+body.service-view-open {
+    padding-bottom: 0;
 }
 
 #template-modal.view.active > .modal-content,
@@ -943,7 +1080,8 @@ body.settings-modal-open {
     #template-modal.view.active,
     #saved-modal.view.active,
     #settings-modal.view.active,
-    #view-form.view.active {
+    #view-form.view.active,
+    #service-view.view.active {
         position: static;
         bottom: auto;
         height: auto;
@@ -3544,7 +3682,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     #template-modal.view.active,
     #saved-modal.view.active,
     #settings-modal.view.active,
-    #view-form.view.active {
+    #view-form.view.active,
+    #service-view.view.active {
         position: static;
         bottom: auto;
         height: auto;

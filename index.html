@@ -323,6 +323,7 @@
                 <div class="modal-tabs">
                     <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
                     <button class="modal-tab" onclick="switchHentTab('external')" data-i18n="tab_external">Eksterne</button>
+                    <button class="modal-tab" onclick="switchHentTab('service')" data-i18n="tab_service">Service</button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
                     <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterList('saved-list', 'saved-search')">
@@ -330,9 +331,13 @@
                 <div class="modal-search" id="external-search-wrap" style="display:none;">
                     <input type="text" id="external-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterList('external-list', 'external-search')">
                 </div>
+                <div class="modal-search" id="service-search-wrap" style="display:none;">
+                    <input type="text" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('service-list', 'service-search')">
+                </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
             <div class="modal-body" id="external-list" style="display:none;"></div>
+            <div class="modal-body" id="service-list" style="display:none;"></div>
         </div>
     </div>
 
@@ -352,6 +357,7 @@
                 </div>
                 <div class="modal-footer-skip" onclick="event.stopPropagation()">
                     <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_blank_form">Nytt skjema</button>
+                    <button class="btn-skip-template btn-service-new" onclick="openNewServiceForm()" data-i18n="service_new_form">Nytt serviceskjema</button>
                 </div>
                 <div class="modal-search">
                     <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjektmal..." oninput="filterList('template-list', 'template-search')">
@@ -551,6 +557,52 @@
 
     </div>
 
+    <!-- Service View (Lageruttak Servicebiler) -->
+    <div class="container service-view view" id="service-view">
+        <div class="modal-content">
+            <div class="modal-header" id="service-header">
+                <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                <span data-i18n="service_title">Lageruttak Servicebiler</span>
+                <button class="header-save-btn" id="service-save-btn" onclick="saveServiceForm()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
+            </div>
+            <div id="service-sent-banner" class="sent-banner" style="display:none;">
+                <span data-i18n="sent_banner_text">Dette skjemaet er sendt</span>
+            </div>
+            <div class="mobile-form" id="service-form">
+                <div class="mobile-section">
+                    <div class="mobile-field">
+                        <label data-i18n="label_montor">Montør</label>
+                        <input type="text" id="service-montor" autocapitalize="words">
+                    </div>
+                    <div class="mobile-field">
+                        <label data-i18n="service_label_signatur">Signatur</label>
+                        <div class="signature-preview" id="service-signature-preview" onclick="openServiceSignature()">
+                            <img id="service-signature-img" style="display:none">
+                            <span class="signature-placeholder" data-i18n="signature_tap_to_sign">Trykk for å signere</span>
+                        </div>
+                        <input type="hidden" id="service-signatur">
+                    </div>
+                </div>
+                <div class="mobile-section">
+                    <div class="mobile-section-title" data-i18n="service_entries_title">Prosjekter</div>
+                    <div id="service-entries"></div>
+                    <button type="button" class="mobile-add-line-btn" onclick="addServiceEntry()" data-i18n="service_add_entry">+ Legg til prosjekt</button>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="form-action-btn" onclick="showServiceExportMenu()">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        <span data-i18n="toolbar_export">Eksport</span>
+                    </button>
+                    <button type="button" class="form-action-btn btn-form-sent" id="btn-service-sent" onclick="markServiceAsSent()">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                        <span data-i18n="btn_mark_sent">Merk sendt</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="service-export-container" style="display:none;"></div>
+    </div>
+
     <!-- Material picker overlay -->
     <div class="picker-overlay" id="picker-overlay">
         <div class="overlay-content">
@@ -655,6 +707,7 @@
             if (!h && sessionStorage.getItem('firesafe_form_type')) h = sessionStorage.getItem('firesafe_form_type') === 'external' ? 'ekstern' : 'skjema';
             if (h === 'hent') { v = 'saved-modal'; b = 'saved-modal-open'; }
             else if (h === 'settings' || h.indexOf('settings/') === 0) { v = 'settings-modal'; b = 'settings-modal-open'; }
+            else if (h === 'service') { v = 'service-view'; b = 'service-view-open'; }
             else if (h === 'skjema' || h === 'ekstern') { v = 'view-form'; }
             else { v = 'template-modal'; b = 'template-modal-open'; }
             // Show cached email immediately
@@ -687,7 +740,7 @@
         } else if (v === 'saved-modal') {
             var ht = sessionStorage.getItem('firesafe_hent_tab');
             var mt = document.querySelectorAll('#saved-modal .modal-tab');
-            if (mt.length) mt[ht === 'external' ? 1 : 0].classList.add('active');
+            if (mt.length) mt[ht === 'external' ? 1 : ht === 'service' ? 2 : 0].classList.add('active');
             if (ht === 'external') {
                 var ow = document.getElementById('own-search-wrap');
                 var ew = document.getElementById('external-search-wrap');
@@ -697,6 +750,15 @@
                 var el = document.getElementById('external-list');
                 if (sl) sl.style.display = 'none';
                 if (el) el.style.display = '';
+            } else if (ht === 'service') {
+                var ow2 = document.getElementById('own-search-wrap');
+                var sw = document.getElementById('service-search-wrap');
+                if (ow2) ow2.style.display = 'none';
+                var sl2 = document.getElementById('saved-list');
+                var svl = document.getElementById('service-list');
+                if (sl2) sl2.style.display = 'none';
+                if (sw) sw.style.display = '';
+                if (svl) svl.style.display = '';
             }
         }
     })();
@@ -706,7 +768,6 @@
     <div class="toolbar" role="toolbar" aria-label="Hovedhandlinger">
         <button class="btn-new" onclick="newForm()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span data-i18n="toolbar_home">Hjem</span></button>
         <button class="btn-load" onclick="showSavedForms()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg><span data-i18n="toolbar_forms">Skjemaer</span></button>
-        <button class="btn-service" onclick="showServiceView()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg><span data-i18n="toolbar_service">Service</span></button>
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
