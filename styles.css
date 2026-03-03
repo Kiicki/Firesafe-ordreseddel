@@ -1039,6 +1039,21 @@ body.service-view-open {
     padding-bottom: 0;
 }
 
+.container.service-view {
+    flex: 1;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.service-view > .modal-content {
+    overflow: visible;
+    flex: none;
+}
+
 #template-modal.view.active > .modal-content,
 #saved-modal.view.active > .modal-content,
 #settings-modal.view.active > .modal-content {
