@@ -1082,7 +1082,11 @@ function pickerOverlayConfirm() {
 
     const matContainer = pickerOrderCard.querySelector('.mobile-order-materials');
     renderMaterialSummary(matContainer, materials);
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    if (pickerOrderCard.closest('#service-entries')) {
+        sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+    } else {
+        sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+    }
     closePickerOverlay();
 }
 
@@ -1272,6 +1276,7 @@ function addServiceEntry() {
     container.appendChild(card);
     updateServiceDeleteStates();
     renumberServiceEntries();
+    sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -1283,6 +1288,7 @@ function removeServiceEntry(btn) {
         card.remove();
         updateServiceDeleteStates();
         renumberServiceEntries();
+        sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
     }, t('btn_remove'), '#e74c3c');
 }
 

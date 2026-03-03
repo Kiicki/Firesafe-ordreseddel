@@ -3372,6 +3372,7 @@ function openNewServiceForm() {
     document.getElementById('service-save-btn').disabled = false;
     sessionStorage.removeItem('firesafe_service_sent');
     _serviceLastSavedData = null;
+    sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
     window.scrollTo(0, 0);
 }
 
@@ -3439,6 +3440,7 @@ async function saveServiceForm() {
         document.getElementById('btn-service-sent').style.display = '';
 
         showNotificationModal(t('service_save_success'), true);
+        sessionStorage.setItem('firesafe_service_current', JSON.stringify(data));
 
         // Firebase in background
         if (currentUser && db) {
@@ -3537,6 +3539,7 @@ function loadServiceFormDirect(formData) {
     document.getElementById('btn-service-sent').style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_service_sent', isSent ? '1' : '');
     _serviceLastSavedData = JSON.stringify(formData);
+    sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
     window.scrollTo(0, 0);
 }
 
@@ -3969,6 +3972,21 @@ document.getElementById('form-container').addEventListener('input', function() {
     debouncedSessionSave();
 });
 
+// Debounced session save for service form
+var serviceSessionSaveTimeout = null;
+function debouncedServiceSessionSave() {
+    clearTimeout(serviceSessionSaveTimeout);
+    serviceSessionSaveTimeout = setTimeout(function() {
+        if (document.body.classList.contains('service-view-open')) {
+            sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+        }
+    }, 1500);
+}
+
+document.getElementById('service-form').addEventListener('input', function() {
+    debouncedServiceSessionSave();
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     // PWA pull-to-refresh workaround: Force layout recalculation
     setTimeout(function() {
@@ -4064,7 +4082,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         updateToolbarState();
     } else if (hash === 'service') {
-        // Service view — restore from session if available
+        // Show service view
+        showView('service-view');
+        document.body.classList.add('service-view-open');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+        // Restore from session if available
         var serviceCurrent = sessionStorage.getItem('firesafe_service_current');
         if (serviceCurrent) {
             try {
@@ -4076,6 +4098,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('service-sent-banner').style.display = wasSent ? 'block' : 'none';
                 document.getElementById('btn-service-sent').style.display = wasSent ? 'none' : '';
             } catch(e) {}
+        }
+        // Ensure at least 1 entry card exists
+        var entriesContainer = document.getElementById('service-entries');
+        if (entriesContainer && entriesContainer.children.length === 0) {
+            entriesContainer.appendChild(createServiceEntryCard({}, true));
+            renumberServiceEntries();
+            updateServiceDeleteStates();
         }
     } else if (!hash || hash === '') {
         // Home page - render cached templates (filter out deactivated)
