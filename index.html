@@ -574,14 +574,7 @@
                         <label data-i18n="label_montor">Montør</label>
                         <input type="text" id="service-montor" autocapitalize="words">
                     </div>
-                    <div class="mobile-field">
-                        <label data-i18n="service_label_signatur">Signatur</label>
-                        <div class="signature-preview" id="service-signature-preview" onclick="openServiceSignature()">
-                            <img id="service-signature-img" style="display:none">
-                            <span class="signature-placeholder" data-i18n="signature_tap_to_sign">Trykk for å signere</span>
-                        </div>
-                        <input type="hidden" id="service-signatur">
-                    </div>
+                    <input type="hidden" id="service-signatur">
                 </div>
                 <div class="mobile-section">
                     <div class="mobile-section-title" data-i18n="service_entries_title">Prosjekter</div>
@@ -589,6 +582,10 @@
                     <button type="button" class="mobile-add-line-btn" onclick="addServiceEntry()" data-i18n="service_add_entry">+ Legg til prosjekt</button>
                 </div>
                 <div class="form-actions">
+                    <button type="button" class="form-action-btn" onclick="openServicePreview()">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span data-i18n="btn_preview">Vis</span>
+                    </button>
                     <button type="button" class="form-action-btn" onclick="showServiceExportMenu()">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                         <span data-i18n="toolbar_export">Eksport</span>

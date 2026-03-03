@@ -781,19 +781,34 @@ function closePreview() {
     // Restore body scroll
     document.body.style.overflow = '';
 
-    var fc = document.getElementById('form-container');
-    // Move back to original location inside #view-form
-    document.getElementById('view-form').appendChild(fc);
+    if (window._servicePreviewActive) {
+        // Service preview cleanup
+        var sc = document.getElementById('service-export-container');
+        document.getElementById('service-view').appendChild(sc);
+        sc.style.display = 'none';
+        sc.style.width = '';
+        sc.style.transform = '';
+        sc.style.transformOrigin = '';
+        sc.style.margin = '';
+        sc.style.marginBottom = '';
+        sc.style.marginLeft = '';
+        sc.style.marginRight = '';
+        window._servicePreviewActive = false;
+    } else {
+        var fc = document.getElementById('form-container');
+        // Move back to original location inside #view-form
+        document.getElementById('view-form').appendChild(fc);
 
-    // Restore original styling
-    fc.style.display = '';
-    fc.style.width = '';
-    fc.style.transform = '';
-    fc.style.transformOrigin = '';
-    fc.style.margin = '';
-    fc.style.marginBottom = '';
-    fc.style.marginLeft = '';
-    fc.style.marginRight = '';
+        // Restore original styling
+        fc.style.display = '';
+        fc.style.width = '';
+        fc.style.transform = '';
+        fc.style.transformOrigin = '';
+        fc.style.margin = '';
+        fc.style.marginBottom = '';
+        fc.style.marginLeft = '';
+        fc.style.marginRight = '';
+    }
 
     // Reset header styles
     var header = document.querySelector('.preview-overlay-header');
@@ -816,9 +831,16 @@ function closePreview() {
 }
 
 function previewSign() {
-    // Open signature overlay on top of preview (don't close preview)
-    openSignatureOverlay();
-    window._signedFromPreview = true;
+    if (window._servicePreviewActive) {
+        // Service preview: open signature for service
+        signatureTarget = 'service';
+        openSignatureOverlay();
+        window._signedFromServicePreview = true;
+    } else {
+        // Regular form preview
+        openSignatureOverlay();
+        window._signedFromPreview = true;
+    }
 }
 
 function showExportMenu() {
@@ -3331,9 +3353,6 @@ function openNewServiceForm() {
     // Reset service form
     document.getElementById('service-montor').value = '';
     document.getElementById('service-signatur').value = '';
-    document.getElementById('service-signature-img').style.display = 'none';
-    var placeholder = document.querySelector('#service-signature-preview .signature-placeholder');
-    if (placeholder) placeholder.style.display = '';
     window._serviceSignaturePaths = [];
     _serviceCurrentId = null;
 
@@ -3363,11 +3382,6 @@ function closeServiceView() {
     sessionStorage.removeItem('firesafe_service_current');
     sessionStorage.removeItem('firesafe_service_sent');
     showTemplateModal();
-}
-
-function openServiceSignature() {
-    signatureTarget = 'service';
-    openSignatureOverlay();
 }
 
 async function saveServiceForm() {
@@ -3670,13 +3684,17 @@ function buildServiceExportTable() {
         rows += '<tr>' + emptyCells + '</tr>';
     }
 
+    var sigImgHtml = data.signatureImage
+        ? '<img id="service-export-sig-img" src="' + data.signatureImage + '" style="height:40px;margin-left:10px;">'
+        : '<img id="service-export-sig-img" style="display:none;height:40px;margin-left:10px;">';
+
     container.innerHTML =
         '<div class="service-export-page">' +
             '<div class="service-export-header">' +
                 '<div class="service-export-title">Lageruttak Servicebiler</div>' +
                 '<div class="service-export-info">' +
                     '<span><strong>Montør:</strong> ' + escapeHtml(data.montor) + '</span>' +
-                    '<span><strong>Signatur:</strong>' + sigHtml + '</span>' +
+                    '<span><strong>Signatur:</strong>' + sigImgHtml + '</span>' +
                 '</div>' +
             '</div>' +
             '<table class="service-export-table">' +
@@ -3686,6 +3704,71 @@ function buildServiceExportTable() {
         '</div>';
 
     return container;
+}
+
+function openServicePreview() {
+    var montor = document.getElementById('service-montor').value.trim();
+    if (!montor) { showNotificationModal(t('service_montor_required')); return; }
+
+    var container = buildServiceExportTable();
+    container.style.display = 'block';
+    container.style.width = '1120px';
+
+    var scroll = document.getElementById('preview-scroll');
+    scroll.appendChild(container);
+
+    window._servicePreviewActive = true;
+    document.getElementById('preview-overlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Set header state based on whether service signature exists
+    var hasSig = !!document.getElementById('service-signatur').value;
+    updatePreviewHeaderState(hasSig);
+
+    requestAnimationFrame(function() {
+        updateServicePreviewScale();
+    });
+
+    window._previewResizeHandler = updateServicePreviewScale;
+    window.addEventListener('resize', window._previewResizeHandler);
+}
+
+function updateServicePreviewScale() {
+    var overlay = document.getElementById('preview-overlay');
+    if (!overlay || !overlay.classList.contains('active')) return;
+
+    var container = document.getElementById('service-export-container');
+    var scroll = document.getElementById('preview-scroll');
+    if (!container || !scroll) return;
+
+    var cs = getComputedStyle(scroll);
+    var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    var availWidth = scroll.clientWidth - padLR;
+    var scale = Math.min(availWidth / 1120, 1);
+
+    var header = document.querySelector('.preview-overlay-header');
+
+    if (scale < 1) {
+        container.style.transformOrigin = 'top left';
+        container.style.transform = 'scale(' + scale + ')';
+        container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
+        container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
+        container.style.marginLeft = '';
+        if (header) {
+            header.style.maxWidth = (container.offsetWidth * scale) + 'px';
+            header.style.margin = '0';
+        }
+    } else {
+        container.style.transform = '';
+        container.style.transformOrigin = '';
+        container.style.marginLeft = 'auto';
+        container.style.marginRight = 'auto';
+        container.style.marginBottom = '';
+        if (header) {
+            header.style.maxWidth = '1120px';
+            header.style.margin = '0 auto';
+        }
+    }
 }
 
 async function renderServiceToCanvas() {

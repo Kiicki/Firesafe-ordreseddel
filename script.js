@@ -1342,15 +1342,6 @@ function setServiceFormData(data) {
     window._serviceSignaturePaths = data.signaturePaths || [];
     var sigInput = document.getElementById('service-signatur');
     if (sigInput) sigInput.value = data.signatureImage || '';
-    var sigImg = document.getElementById('service-signature-img');
-    var sigPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
-    if (data.signatureImage) {
-        if (sigImg) { sigImg.src = data.signatureImage; sigImg.style.display = ''; }
-        if (sigPlaceholder) sigPlaceholder.style.display = 'none';
-    } else {
-        if (sigImg) sigImg.style.display = 'none';
-        if (sigPlaceholder) sigPlaceholder.style.display = '';
-    }
 
     // Render entries
     var container = document.getElementById('service-entries');
@@ -1601,8 +1592,9 @@ function closeSignatureOverlay() {
     cleanupSignatureOverlay();
     signatureTarget = 'form';
 
-    // Clear preview flag (preview is still open, no action needed)
+    // Clear preview flags (preview is still open, no action needed)
     window._signedFromPreview = false;
+    window._signedFromServicePreview = false;
 }
 
 function redrawSignature() {
@@ -1781,24 +1773,34 @@ function confirmSignature() {
         var hasExistingServiceImage = !!document.getElementById('service-signatur').value;
         if (!hasSignature && !hasExistingServiceImage) {
             document.getElementById('service-signatur').value = '';
-            document.getElementById('service-signature-img').style.display = 'none';
-            document.querySelector('#service-signature-preview .signature-placeholder').style.display = '';
         } else if (!hasSignature && hasExistingServiceImage) {
             // keep as-is
         } else {
             var svgData = generateSVG(400, 18);
             if (svgData) {
                 document.getElementById('service-signatur').value = svgData;
-                var previewImg = document.getElementById('service-signature-img');
-                previewImg.src = svgData;
-                previewImg.style.display = 'block';
-                document.querySelector('#service-signature-preview .signature-placeholder').style.display = 'none';
             }
         }
         window._serviceSignaturePaths = JSON.parse(JSON.stringify(signaturePaths));
         signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
         cleanupSignatureOverlay();
         signatureTarget = 'form';
+
+        // Update service export table signature if preview is open
+        if (window._signedFromServicePreview) {
+            window._signedFromServicePreview = false;
+            var sigData = document.getElementById('service-signatur').value;
+            var exportSigImg = document.getElementById('service-export-sig-img');
+            if (exportSigImg) {
+                if (sigData && sigData.startsWith('data:image')) {
+                    exportSigImg.src = sigData;
+                    exportSigImg.style.display = '';
+                } else {
+                    exportSigImg.style.display = 'none';
+                }
+            }
+            updatePreviewHeaderState(hasSignature);
+        }
         return;
     }
 
