@@ -1866,7 +1866,7 @@ function renderMaterialSettingsItems() {
         return;
     }
     container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-pipe-toggle${item.isPipe ? ' active' : ''}" onclick="toggleMaterialPipe(${idx})" title="${t('settings_pipe_toggle')}">R\u00f8r</button><button class="settings-dim-toggle${item.hasDimensions ? ' active' : ''}" onclick="toggleMaterialDimensions(${idx})" title="${t('settings_dim_toggle')}">M\u00e5l</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-pipe-toggle${item.isPipe ? ' active' : ''}" onclick="toggleMaterialPipe(${idx})" title="${t('settings_pipe_toggle')}">R\u00f8r</button><button class="settings-dim-toggle${item.hasDimensions ? ' active' : ''}" onclick="toggleMaterialDimensions(${idx})" title="${t('settings_dim_toggle')}">M\u00e5l</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
@@ -2141,6 +2141,8 @@ async function toggleMaterialPipe(idx) {
     if (settingsMaterials[idx].isPipe) {
         settingsMaterials[idx].needsSpec = true;
         settingsMaterials[idx].hasDimensions = false;
+    } else if (!settingsMaterials[idx].hasDimensions) {
+        settingsMaterials[idx].needsSpec = false;
     }
     renderMaterialSettingsItems();
     await saveMaterialSettings();
@@ -2152,6 +2154,8 @@ async function toggleMaterialDimensions(idx) {
     if (settingsMaterials[idx].hasDimensions) {
         settingsMaterials[idx].needsSpec = true;
         settingsMaterials[idx].isPipe = false;
+    } else if (!settingsMaterials[idx].isPipe) {
+        settingsMaterials[idx].needsSpec = false;
     }
     renderMaterialSettingsItems();
     await saveMaterialSettings();
