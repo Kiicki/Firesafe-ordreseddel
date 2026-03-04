@@ -3644,21 +3644,18 @@ function buildServiceExportTable() {
         });
     });
 
-    // Ensure minimum 7 material columns so table fills the landscape page
-    var minMatCols = Math.max(7, matNames.length);
-
-    // Build material header cells
-    var matHeaders = '';
-    for (var mi = 0; mi < minMatCols; mi++) {
-        matHeaders += '<th>' + (matNames[mi] ? escapeHtml(matNames[mi]) : '') + '</th>';
-    }
-    var colCount = 3 + minMatCols; // Dato + Prosjektnr + Prosjektnavn + materials
+    // Split materials into rows of 7 columns, minimum 2 rows (14 slots)
+    var matCols = 7;
+    var matRowCount = Math.max(2, Math.ceil(matNames.length / matCols));
 
     // Build sections — one per project, minimum 4
     var minSections = Math.max(4, data.entries.length);
     var sectionsHtml = '';
+
     for (var s = 0; s < minSections; s++) {
         var entry = data.entries[s] || {};
+
+        // Build material lookup for this entry
         var entryMats = {};
         (entry.materials || []).forEach(function(m) {
             if (m.name) {
@@ -3669,32 +3666,46 @@ function buildServiceExportTable() {
             }
         });
 
-        // Data row
-        var cells = '<td>' + escapeHtml(entry.dato || '') + '</td>' +
-            '<td>' + escapeHtml(entry.prosjektnr || '') + '</td>' +
-            '<td>' + escapeHtml(entry.prosjektnavn || '') + '</td>';
-        for (var mc = 0; mc < minMatCols; mc++) {
-            cells += '<td>' + escapeHtml(matNames[mc] ? (entryMats[matNames[mc]] || '') : '') + '</td>';
+        var totalRows = matRowCount * 2; // each mat row = 1 header + 1 data
+
+        // Row 1: info cells with rowspan + first material header row
+        var row1 = '<tr>' +
+            '<td rowspan="' + totalRows + '" class="se-info-cell"><strong>Dato:</strong><br>' + escapeHtml(entry.dato || '') + '</td>' +
+            '<td rowspan="' + totalRows + '" class="se-info-cell"><strong>Prosjekt nr:</strong><br>' + escapeHtml(entry.prosjektnr || '') + '</td>' +
+            '<td rowspan="' + totalRows + '" class="se-info-cell"><strong>Prosjektnavn</strong><br>' + escapeHtml(entry.prosjektnavn || '') + '</td>';
+        for (var c = 0; c < matCols; c++) {
+            var matIdx = c;
+            row1 += '<th>' + (matNames[matIdx] ? escapeHtml(matNames[matIdx]) : '') + '</th>';
+        }
+        row1 += '</tr>';
+
+        // Row 2: first material data row
+        var row2 = '<tr>';
+        for (var c = 0; c < matCols; c++) {
+            var matIdx = c;
+            row2 += '<td>' + (matNames[matIdx] ? escapeHtml(entryMats[matNames[matIdx]] || '') : '') + '</td>';
+        }
+        row2 += '</tr>';
+
+        // Additional material row pairs (row 3+4, 5+6, etc.)
+        var extraRows = '';
+        for (var mr = 1; mr < matRowCount; mr++) {
+            var headerRow = '<tr>';
+            var dataRow = '<tr>';
+            for (var c = 0; c < matCols; c++) {
+                var matIdx = mr * matCols + c;
+                headerRow += '<th>' + (matNames[matIdx] ? escapeHtml(matNames[matIdx]) : '') + '</th>';
+                dataRow += '<td>' + (matNames[matIdx] ? escapeHtml(entryMats[matNames[matIdx]] || '') : '') + '</td>';
+            }
+            headerRow += '</tr>';
+            dataRow += '</tr>';
+            extraRows += headerRow + dataRow;
         }
 
-        // Empty rows for each section
-        var emptyRow = '<tr>';
-        for (var ec = 0; ec < colCount; ec++) emptyRow += '<td></td>';
-        emptyRow += '</tr>';
-
         sectionsHtml +=
-            '<div class="service-export-section">' +
-                '<div class="service-export-section-title">Prosjekt ' + (s + 1) + '</div>' +
-                '<table class="service-export-table">' +
-                    '<thead><tr>' +
-                        '<th>Dato</th><th>Prosjektnr.</th><th>Prosjektnavn</th>' + matHeaders +
-                    '</tr></thead>' +
-                    '<tbody>' +
-                        '<tr>' + cells + '</tr>' +
-                        emptyRow +
-                    '</tbody>' +
-                '</table>' +
-            '</div>';
+            '<table class="service-export-table">' +
+                row1 + row2 + extraRows +
+            '</table>';
     }
 
     var sigImgHtml = data.signatureImage
@@ -3703,9 +3714,13 @@ function buildServiceExportTable() {
 
     container.innerHTML =
         '<div class="service-export-page">' +
-            '<div class="service-export-title">Lageruttak Servicebiler</div>' +
-            '<div class="service-export-detail"><strong>Montør:</strong> ' + escapeHtml(data.montor) + '</div>' +
-            '<div class="service-export-detail"><strong>Signatur:</strong> ' + sigImgHtml + '</div>' +
+            '<div class="service-export-header">' +
+                '<div class="service-export-title">Lageruttak Servicebiler</div>' +
+                '<div class="service-export-info">' +
+                    '<div>Navn montør: ' + escapeHtml(data.montor) + '</div>' +
+                    '<div>Signatur: ' + sigImgHtml + '</div>' +
+                '</div>' +
+            '</div>' +
             sectionsHtml +
         '</div>';
 

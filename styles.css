@@ -858,58 +858,55 @@ body.template-modal-open > .top-bar {
     font-size: 11px;
 }
 
+.service-export-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
 .service-export-title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: bold;
-    margin-bottom: 6px;
 }
 
-.service-export-detail {
+.service-export-info {
+    text-align: right;
     font-size: 12px;
-    margin-bottom: 4px;
+    line-height: 1.6;
 }
 
-.service-export-detail img {
+.service-export-info img {
     max-height: 40px;
     vertical-align: middle;
-}
-
-.service-export-section {
-    margin-top: 12px;
-}
-
-.service-export-section-title {
-    font-size: 12px;
-    font-weight: bold;
-    margin-bottom: 4px;
-    border-bottom: 1px solid #000;
-    padding-bottom: 2px;
 }
 
 .service-export-table {
     width: 100%;
     border-collapse: collapse;
+    margin-bottom: 8px;
 }
 
 .service-export-table th,
 .service-export-table td {
     border: 1px solid #000;
-    padding: 4px 6px;
+    padding: 3px 5px;
     text-align: center;
     font-size: 10px;
     white-space: nowrap;
 }
 
 .service-export-table th {
-    background: #e0e0e0;
+    background: #e8e8e8;
     font-weight: bold;
 }
 
-.service-export-table td:nth-child(1),
-.service-export-table td:nth-child(2),
-.service-export-table td:nth-child(3) {
+.service-export-table .se-info-cell {
     text-align: left;
     white-space: normal;
+    vertical-align: top;
+    font-size: 10px;
+    min-width: 80px;
 }
 
 .modal-close-btn {
