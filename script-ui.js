@@ -1806,9 +1806,13 @@ function normalizeMaterialData(data) {
     if (!data) return { materials: [], units: [] };
     let materials = data.materials || [];
     if (materials.length > 0 && typeof materials[0] === 'string') {
-        materials = materials.map(name => ({ name: name, needsSpec: false, isPipe: false, hasDimensions: false }));
+        materials = materials.map(name => ({ name: name, needsSpec: false, hasRunningMeter: false }));
     } else {
-        materials = materials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, isPipe: !!m.isPipe, hasDimensions: !!m.hasDimensions }));
+        materials = materials.map(m => ({
+            name: m.name,
+            needsSpec: !!m.needsSpec || !!m.isPipe || !!m.hasDimensions,
+            hasRunningMeter: !!m.hasRunningMeter || !!m.isPipe
+        }));
     }
     let units = data.units || [];
     if (units.length > 0 && typeof units[0] === 'string') {
@@ -1832,7 +1836,7 @@ async function getMaterialSettings() {
 
 function saveMaterialSettings() {
     if (!isAdmin) return;
-    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, isPipe: !!m.isPipe, hasDimensions: !!m.hasDimensions })), units: settingsUnits.slice() };
+    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, hasRunningMeter: !!m.hasRunningMeter })), units: settingsUnits.slice() };
     // localStorage + cache first (optimistic)
     safeSetItem(MATERIALS_KEY, JSON.stringify(data));
     cachedMaterialOptions = data.materials.slice();
@@ -1866,7 +1870,7 @@ function renderMaterialSettingsItems() {
         return;
     }
     container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-pipe-toggle${item.isPipe ? ' active' : ''}" onclick="toggleMaterialPipe(${idx})" title="${t('settings_pipe_toggle')}">R\u00f8r</button><button class="settings-dim-toggle${item.hasDimensions ? ' active' : ''}" onclick="toggleMaterialDimensions(${idx})" title="${t('settings_dim_toggle')}">M\u00e5l</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-lm-toggle${item.hasRunningMeter ? ' active' : ''}${!item.needsSpec ? ' disabled' : ''}" onclick="toggleMaterialRunningMeter(${idx})" title="${t('settings_lm_toggle')}"${!item.needsSpec ? ' disabled' : ''}>LM</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
@@ -1985,7 +1989,7 @@ async function addSettingsMaterial() {
         showNotificationModal(t('settings_material_exists'));
         return;
     }
-    settingsMaterials.push({ name: val, needsSpec: false, isPipe: false, hasDimensions: false });
+    settingsMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false });
     settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     input.value = '';
     renderMaterialSettingsItems();
@@ -2128,34 +2132,17 @@ async function toggleMaterialSpec(idx) {
     if (!isAdmin) return;
     settingsMaterials[idx].needsSpec = !settingsMaterials[idx].needsSpec;
     if (!settingsMaterials[idx].needsSpec) {
-        settingsMaterials[idx].isPipe = false;
-        settingsMaterials[idx].hasDimensions = false;
+        settingsMaterials[idx].hasRunningMeter = false;
     }
     renderMaterialSettingsItems();
     await saveMaterialSettings();
 }
 
-async function toggleMaterialPipe(idx) {
+async function toggleMaterialRunningMeter(idx) {
     if (!isAdmin) return;
-    settingsMaterials[idx].isPipe = !settingsMaterials[idx].isPipe;
-    if (settingsMaterials[idx].isPipe) {
+    settingsMaterials[idx].hasRunningMeter = !settingsMaterials[idx].hasRunningMeter;
+    if (settingsMaterials[idx].hasRunningMeter) {
         settingsMaterials[idx].needsSpec = true;
-        settingsMaterials[idx].hasDimensions = false;
-    } else if (!settingsMaterials[idx].hasDimensions) {
-        settingsMaterials[idx].needsSpec = false;
-    }
-    renderMaterialSettingsItems();
-    await saveMaterialSettings();
-}
-
-async function toggleMaterialDimensions(idx) {
-    if (!isAdmin) return;
-    settingsMaterials[idx].hasDimensions = !settingsMaterials[idx].hasDimensions;
-    if (settingsMaterials[idx].hasDimensions) {
-        settingsMaterials[idx].needsSpec = true;
-        settingsMaterials[idx].isPipe = false;
-    } else if (!settingsMaterials[idx].isPipe) {
-        settingsMaterials[idx].needsSpec = false;
     }
     renderMaterialSettingsItems();
     await saveMaterialSettings();
@@ -3691,7 +3678,7 @@ function buildServiceExportTable() {
         var entryMats = {};
         (entry.materials || []).forEach(function(m) {
             if (m.name) {
-                var pipeInfo = getPipeMaterialInfo(m.name);
+                var pipeInfo = getRunningMeterInfo(m.name);
                 if (pipeInfo && m.antall) {
                     var rounds = parseFloat((m.antall || '').replace(',', '.'));
                     if (!isNaN(rounds) && rounds > 0) {

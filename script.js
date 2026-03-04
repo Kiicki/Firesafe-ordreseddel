@@ -783,12 +783,12 @@ function createOrderCard(orderData, expanded) {
 }
 
 // Pipe sealant helpers
-function getPipeMaterialInfo(matName) {
+function getRunningMeterInfo(matName) {
     if (!matName) return null;
     var allMats = cachedMaterialOptions || [];
     for (var i = 0; i < allMats.length; i++) {
         var m = allMats[i];
-        if (m.isPipe && matName.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) {
+        if (m.hasRunningMeter && matName.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) {
             var rest = matName.substring(m.name.length + 1);
             var diamMatch = rest.match(/\u00f8?(\d+(?:[.,]\d+)?)/);
             if (diamMatch) {
@@ -817,7 +817,7 @@ function createMaterialSummaryRow(m) {
     div.setAttribute('data-mat-enhet', m.enhet || '');
     const nameText = escapeHtml(m.name) || t('placeholder_material');
     const detailParts = [];
-    const pipeInfo = getPipeMaterialInfo(m.name);
+    const pipeInfo = getRunningMeterInfo(m.name);
     if (pipeInfo && m.antall) {
         var rounds = parseFloat((m.antall || '').replace(',', '.'));
         if (!isNaN(rounds) && rounds > 0) {
@@ -891,16 +891,14 @@ function openMaterialPicker(btn) {
         }
     });
 
-    function buildRow(name, isChecked, antall, enhet, needsSpec, isPipeMat, isDimMat) {
+    function buildRow(name, isChecked, antall, enhet, needsSpec, hasLM) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
         const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
-        const pipeBadge = (needsSpec && isPipeMat) ? '<span class="picker-mat-pipe-dot"></span>' : '';
-        const dimBadge = (needsSpec && isDimMat) ? '<span class="picker-mat-dim-dot"></span>' : '';
         const disabledAttr = needsSpec ? ' disabled' : '';
-        const antallPlaceholder = isPipeMat ? t('placeholder_rounds') : t('placeholder_quantity');
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}" data-is-pipe="${isPipeMat ? '1' : '0'}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}${pipeBadge}${dimBadge}</div>
+        const antallPlaceholder = hasLM ? t('placeholder_rounds') : t('placeholder_quantity');
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}" data-has-lm="${hasLM ? '1' : '0'}">
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
             <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>
         </div>`;
@@ -908,7 +906,7 @@ function openMaterialPicker(btn) {
 
     // Helper: find base material object for a name (checks if it's a spec-derived name)
     function findBaseMaterial(name) {
-        return allMaterials.find(m => (m.needsSpec || m.isPipe || m.hasDimensions) && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
+        return allMaterials.find(m => m.needsSpec && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
     }
 
     function renderPickerList() {
@@ -920,11 +918,11 @@ function openMaterialPicker(btn) {
         allMaterials.forEach(matObj => {
             if (matObj.needsSpec) {
                 // Base spec material: always show as unchecked launcher
-                entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', needsSpec: true, isSpecDerived: false, isPipe: !!matObj.isPipe, hasDim: !!matObj.hasDimensions });
+                entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', needsSpec: true, isSpecDerived: false, hasLM: !!matObj.hasRunningMeter });
             } else {
                 const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
                 const isChecked = state && state.checked;
-                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: state ? (state.enhet || '') : '', needsSpec: false, isSpecDerived: false, isPipe: false, hasDim: false });
+                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: state ? (state.enhet || '') : '', needsSpec: false, isSpecDerived: false, hasLM: false });
             }
         });
 
@@ -933,11 +931,11 @@ function openMaterialPicker(btn) {
             const state = pickerState[name];
             const baseMat = findBaseMaterial(name);
             if (baseMat) {
-                // Spec-derived entry (e.g. "Kabelhylser Ø50") — always show while in pickerState
-                entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: true, isPipe: !!baseMat.isPipe, hasDim: !!baseMat.hasDimensions });
+                // Spec-derived entry (e.g. "Kabelhylser ø50") — always show while in pickerState
+                entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: true, hasLM: !!baseMat.hasRunningMeter });
             } else if (state.checked && !allMaterials.some(m => m.name.toLowerCase() === name.toLowerCase())) {
                 // Custom entry not in settings — only show when checked
-                entries.push({ name, isChecked: true, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: false, isPipe: false, hasDim: false });
+                entries.push({ name, isChecked: true, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: false, hasLM: false });
             }
         });
 
@@ -946,7 +944,7 @@ function openMaterialPicker(btn) {
 
         let html = '';
         entries.forEach(e => {
-            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.needsSpec, e.isPipe, e.hasDim);
+            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.needsSpec, e.hasLM);
         });
 
         if (!html) {
@@ -967,27 +965,17 @@ function openMaterialPicker(btn) {
 
             nameDiv.addEventListener('click', function() {
                 if (needsSpec) {
-                    const matObj = allMaterials.find(m => m.name === name);
-                    const isPipeMat = matObj && matObj.isPipe;
-                    const isDimMat = matObj && matObj.hasDimensions;
-                    var popupMode = isPipeMat ? 'pipe' : (isDimMat ? 'dimensions' : 'text');
-                    // Open spec popup instead of toggling
+                    const hasLM = row.getAttribute('data-has-lm') === '1';
+                    // Open spec popup (diameter + optional length)
                     openSpecPopup(name, function(spec) {
-                        var fullName;
-                        if (isPipeMat) {
-                            fullName = name + ' \u00f8' + spec;
-                        } else if (isDimMat) {
-                            fullName = name + ' ' + spec;
-                        } else {
-                            fullName = name + ' ' + spec;
-                        }
+                        var fullName = name + ' ' + spec;
                         const newState = { checked: true, antall: '', enhet: '' };
-                        if (isPipeMat) {
+                        if (hasLM) {
                             newState.enhet = 'runder';
                         }
                         pickerState[fullName] = newState;
                         renderPickerList();
-                    }, popupMode);
+                    });
                     return;
                 }
                 const isChecked = pickerState[name] && pickerState[name].checked;
@@ -1035,7 +1023,7 @@ function openMaterialPicker(btn) {
             settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
             settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
             if (!settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
-                settingsMaterials.push({ name: val, needsSpec: false, isPipe: false, hasDimensions: false });
+                settingsMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false });
                 settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
                 cachedMaterialOptions = settingsMaterials.slice();
                 allMaterials.length = 0;
@@ -1044,7 +1032,7 @@ function openMaterialPicker(btn) {
             }
         } else {
             // Non-admin: add to picker list for this session only
-            allMaterials.push({ name: val, needsSpec: false, isPipe: false, hasDimensions: false });
+            allMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false });
             allMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
         }
         searchInput.value = '';
@@ -1076,40 +1064,23 @@ function closePickerOverlay() {
     pickerOrderCard = null;
 }
 
-// Spec popup for materials that need a specification (e.g. size)
+// Spec popup for materials that need a specification (diameter + optional length)
 let specPopupCallback = null;
-let specPopupMode = 'text'; // 'text', 'pipe', 'dimensions'
 
-function openSpecPopup(baseName, callback, mode) {
-    mode = mode || 'text';
-    specPopupMode = mode;
+function openSpecPopup(baseName, callback) {
     const input = document.getElementById('spec-popup-input');
     const input2 = document.getElementById('spec-popup-input2');
     input.value = '';
     input2.value = '';
 
-    if (mode === 'pipe') {
-        document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 diameter (mm)';
-        input.placeholder = t('pipe_popup_placeholder');
-        input.inputMode = 'numeric';
-        input.pattern = '[0-9]*';
-        input2.style.display = 'none';
-    } else if (mode === 'dimensions') {
-        document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 ' + t('settings_dim_toggle').toLowerCase();
-        input.placeholder = t('dim_popup_diameter_placeholder');
-        input.inputMode = 'numeric';
-        input.pattern = '[0-9]*';
-        input2.placeholder = t('dim_popup_length_placeholder');
-        input2.inputMode = 'numeric';
-        input2.pattern = '[0-9]*';
-        input2.style.display = '';
-    } else {
-        document.getElementById('spec-popup-title').textContent = baseName;
-        input.placeholder = t('spec_popup_placeholder');
-        input.inputMode = 'text';
-        input.pattern = '';
-        input2.style.display = 'none';
-    }
+    document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 diameter (mm)';
+    input.placeholder = t('dim_popup_diameter_placeholder');
+    input.inputMode = 'numeric';
+    input.pattern = '[0-9]*';
+    input2.placeholder = t('dim_popup_length_placeholder');
+    input2.inputMode = 'numeric';
+    input2.pattern = '[0-9]*';
+    input2.style.display = '';
 
     specPopupCallback = callback;
     var keyHandler = function(e) {
@@ -1124,9 +1095,7 @@ function openSpecPopup(baseName, callback, mode) {
 
 function closeSpecPopup() {
     document.getElementById('spec-popup').classList.remove('active');
-    document.getElementById('spec-popup-input2').style.display = 'none';
     specPopupCallback = null;
-    specPopupMode = 'text';
 }
 
 function confirmSpecPopup() {
@@ -1134,30 +1103,19 @@ function confirmSpecPopup() {
     const val2 = document.getElementById('spec-popup-input2').value.trim();
     if (!val1) return;
 
-    if (specPopupMode === 'pipe') {
-        const num = parseInt(val1, 10);
-        if (isNaN(num) || num <= 0) {
-            showNotificationModal(t('pipe_invalid_diameter'));
-            return;
-        }
-        if (specPopupCallback) specPopupCallback(val1);
-    } else if (specPopupMode === 'dimensions') {
-        const diam = parseInt(val1, 10);
-        if (isNaN(diam) || diam <= 0) {
-            showNotificationModal(t('dim_invalid_diameter'));
-            return;
-        }
-        var spec = '\u00f8' + diam;
-        if (val2) {
-            const len = parseInt(val2, 10);
-            if (!isNaN(len) && len > 0) {
-                spec += 'x' + len;
-            }
-        }
-        if (specPopupCallback) specPopupCallback(spec);
-    } else {
-        if (specPopupCallback) specPopupCallback(val1);
+    const diam = parseInt(val1, 10);
+    if (isNaN(diam) || diam <= 0) {
+        showNotificationModal(t('dim_invalid_diameter'));
+        return;
     }
+    var spec = '\u00f8' + diam;
+    if (val2) {
+        const len = parseInt(val2, 10);
+        if (!isNaN(len) && len > 0) {
+            spec += 'x' + len;
+        }
+    }
+    if (specPopupCallback) specPopupCallback(spec);
     closeSpecPopup();
 }
 
@@ -2088,7 +2046,7 @@ function buildDesktopWorkLines() {
                 const antallNum = parseFloat((m.antall || '').replace(',', '.'));
 
                 // Check if pipe sealant material
-                const pipeInfo = getPipeMaterialInfo(m.name);
+                const pipeInfo = getRunningMeterInfo(m.name);
                 if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
                     var lm = calculatePipeRunningMeters(pipeInfo.diameter, antallNum);
                     var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' rdr)';

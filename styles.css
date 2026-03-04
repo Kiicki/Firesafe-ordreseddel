@@ -2940,7 +2940,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-color: #E8501A;
     color: white;
 }
-.settings-pipe-toggle {
+.settings-lm-toggle {
     background: none;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -2952,55 +2952,18 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     flex-shrink: 0;
     line-height: 1;
 }
-.settings-pipe-toggle.active {
+.settings-lm-toggle.active {
     background: #2196F3;
     border-color: #2196F3;
     color: white;
 }
-.settings-readonly .settings-pipe-toggle {
-    opacity: 0.5;
+.settings-lm-toggle.disabled {
+    opacity: 0.3;
     pointer-events: none;
 }
-.picker-mat-pipe-dot {
-    width: 6px;
-    height: 6px;
-    background: #2196F3;
-    border-radius: 50%;
-    display: inline-block;
-    margin-left: 4px;
-    flex-shrink: 0;
-    vertical-align: middle;
-}
-.settings-dim-toggle {
-    background: none;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    padding: 4px 8px;
-    color: #999;
-    font-size: 11px;
-    font-weight: 600;
-    flex-shrink: 0;
-    line-height: 1;
-}
-.settings-dim-toggle.active {
-    background: #4CAF50;
-    border-color: #4CAF50;
-    color: white;
-}
-.settings-readonly .settings-dim-toggle {
+.settings-readonly .settings-lm-toggle {
     opacity: 0.5;
     pointer-events: none;
-}
-.picker-mat-dim-dot {
-    width: 6px;
-    height: 6px;
-    background: #4CAF50;
-    border-radius: 50%;
-    display: inline-block;
-    margin-left: 4px;
-    flex-shrink: 0;
-    vertical-align: middle;
 }
 
 /* Toggle switch for required fields settings */
