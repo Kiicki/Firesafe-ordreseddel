@@ -214,7 +214,11 @@ const TRANSLATIONS = {
         picker_incomplete: '{0} mangler antall eller enhet.',
         picker_search_placeholder: 'Søk eller legg til materiale...',
         settings_spec_toggle: 'Trenger spesifikasjon',
+        settings_pipe_toggle: 'Rørpakning-materiale',
         spec_popup_placeholder: 'f.eks. Ø50mm',
+        pipe_popup_placeholder: 'Diameter i mm (f.eks. 50)',
+        pipe_invalid_diameter: 'Vennligst oppgi en gyldig diameter i mm',
+        placeholder_rounds: 'Runder',
         material_exists: 'Materialet finnes allerede',
 
         // Required fields settings
@@ -491,7 +495,11 @@ const TRANSLATIONS = {
         picker_incomplete: '{0} is missing quantity or unit.',
         picker_search_placeholder: 'Search or add material...',
         settings_spec_toggle: 'Needs specification',
+        settings_pipe_toggle: 'Pipe sealant material',
         spec_popup_placeholder: 'e.g. Ø50mm',
+        pipe_popup_placeholder: 'Diameter in mm (e.g. 50)',
+        pipe_invalid_diameter: 'Please enter a valid diameter in mm',
+        placeholder_rounds: 'Rounds',
         material_exists: 'Material already exists',
 
         // Required fields settings

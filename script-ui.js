@@ -1806,7 +1806,9 @@ function normalizeMaterialData(data) {
     if (!data) return { materials: [], units: [] };
     let materials = data.materials || [];
     if (materials.length > 0 && typeof materials[0] === 'string') {
-        materials = materials.map(name => ({ name: name, needsSpec: false }));
+        materials = materials.map(name => ({ name: name, needsSpec: false, isPipe: false }));
+    } else {
+        materials = materials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, isPipe: !!m.isPipe }));
     }
     let units = data.units || [];
     if (units.length > 0 && typeof units[0] === 'string') {
@@ -1830,7 +1832,7 @@ async function getMaterialSettings() {
 
 function saveMaterialSettings() {
     if (!isAdmin) return;
-    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec })), units: settingsUnits.slice() };
+    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, isPipe: !!m.isPipe })), units: settingsUnits.slice() };
     // localStorage + cache first (optimistic)
     safeSetItem(MATERIALS_KEY, JSON.stringify(data));
     cachedMaterialOptions = data.materials.slice();
@@ -1864,7 +1866,7 @@ function renderMaterialSettingsItems() {
         return;
     }
     container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
+        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-pipe-toggle${item.isPipe ? ' active' : ''}" onclick="toggleMaterialPipe(${idx})" title="${t('settings_pipe_toggle')}">R\u00f8r</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
     ).join('');
 }
 
@@ -1983,7 +1985,7 @@ async function addSettingsMaterial() {
         showNotificationModal(t('settings_material_exists'));
         return;
     }
-    settingsMaterials.push({ name: val, needsSpec: false });
+    settingsMaterials.push({ name: val, needsSpec: false, isPipe: false });
     settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     input.value = '';
     renderMaterialSettingsItems();
@@ -2125,6 +2127,19 @@ function editSettingsMaterial(idx) {
 async function toggleMaterialSpec(idx) {
     if (!isAdmin) return;
     settingsMaterials[idx].needsSpec = !settingsMaterials[idx].needsSpec;
+    if (!settingsMaterials[idx].needsSpec) {
+        settingsMaterials[idx].isPipe = false;
+    }
+    renderMaterialSettingsItems();
+    await saveMaterialSettings();
+}
+
+async function toggleMaterialPipe(idx) {
+    if (!isAdmin) return;
+    settingsMaterials[idx].isPipe = !settingsMaterials[idx].isPipe;
+    if (settingsMaterials[idx].isPipe) {
+        settingsMaterials[idx].needsSpec = true;
+    }
     renderMaterialSettingsItems();
     await saveMaterialSettings();
 }
@@ -3659,10 +3674,24 @@ function buildServiceExportTable() {
         var entryMats = {};
         (entry.materials || []).forEach(function(m) {
             if (m.name) {
-                var parts = [];
-                if (m.antall) parts.push(m.antall);
-                if (m.enhet) parts.push(m.enhet);
-                entryMats[m.name] = parts.join(' ');
+                var pipeInfo = getPipeMaterialInfo(m.name);
+                if (pipeInfo && m.antall) {
+                    var rounds = parseFloat((m.antall || '').replace(',', '.'));
+                    if (!isNaN(rounds) && rounds > 0) {
+                        var lm = calculatePipeRunningMeters(pipeInfo.diameter, rounds);
+                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' rdr / ' + formatRunningMeters(lm) + ' cm';
+                    } else {
+                        var parts = [];
+                        if (m.antall) parts.push(m.antall);
+                        if (m.enhet) parts.push(m.enhet);
+                        entryMats[m.name] = parts.join(' ');
+                    }
+                } else {
+                    var parts = [];
+                    if (m.antall) parts.push(m.antall);
+                    if (m.enhet) parts.push(m.enhet);
+                    entryMats[m.name] = parts.join(' ');
+                }
             }
         });
 

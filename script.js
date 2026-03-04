@@ -782,6 +782,33 @@ function createOrderCard(orderData, expanded) {
     return card;
 }
 
+// Pipe sealant helpers
+function getPipeMaterialInfo(matName) {
+    if (!matName) return null;
+    var allMats = cachedMaterialOptions || [];
+    for (var i = 0; i < allMats.length; i++) {
+        var m = allMats[i];
+        if (m.isPipe && matName.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) {
+            var rest = matName.substring(m.name.length + 1);
+            var diamMatch = rest.match(/\u00f8?(\d+(?:[.,]\d+)?)/);
+            if (diamMatch) {
+                return { baseName: m.name, diameter: parseFloat(diamMatch[1].replace(',', '.')) };
+            }
+        }
+    }
+    return null;
+}
+
+function calculatePipeRunningMeters(diameterMm, rounds) {
+    if (!diameterMm || !rounds || isNaN(diameterMm) || isNaN(rounds)) return 0;
+    return Math.PI * diameterMm * rounds / 10;
+}
+
+function formatRunningMeters(value) {
+    if (!value || value === 0) return '0';
+    return value.toFixed(2).replace('.', ',');
+}
+
 function createMaterialSummaryRow(m) {
     const div = document.createElement('div');
     div.className = 'mobile-material-row';
@@ -790,8 +817,21 @@ function createMaterialSummaryRow(m) {
     div.setAttribute('data-mat-enhet', m.enhet || '');
     const nameText = escapeHtml(m.name) || t('placeholder_material');
     const detailParts = [];
-    if (m.antall) detailParts.push(escapeHtml(m.antall));
-    if (m.enhet) detailParts.push(escapeHtml(m.enhet));
+    const pipeInfo = getPipeMaterialInfo(m.name);
+    if (pipeInfo && m.antall) {
+        var rounds = parseFloat((m.antall || '').replace(',', '.'));
+        if (!isNaN(rounds) && rounds > 0) {
+            var lm = calculatePipeRunningMeters(pipeInfo.diameter, rounds);
+            detailParts.push(escapeHtml(m.antall) + ' rdr');
+            detailParts.push(formatRunningMeters(lm) + ' cm');
+        } else {
+            if (m.antall) detailParts.push(escapeHtml(m.antall));
+            if (m.enhet) detailParts.push(escapeHtml(m.enhet));
+        }
+    } else {
+        if (m.antall) detailParts.push(escapeHtml(m.antall));
+        if (m.enhet) detailParts.push(escapeHtml(m.enhet));
+    }
     const detail = detailParts.length > 0 ? detailParts.join(' ') : '';
     div.innerHTML = `
         <div class="mat-summary-row">
@@ -851,21 +891,23 @@ function openMaterialPicker(btn) {
         }
     });
 
-    function buildRow(name, isChecked, antall, enhet, needsSpec) {
+    function buildRow(name, isChecked, antall, enhet, needsSpec, isPipeMat) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
         const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
+        const pipeBadge = (needsSpec && isPipeMat) ? '<span class="picker-mat-pipe-dot"></span>' : '';
         const disabledAttr = needsSpec ? ' disabled' : '';
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}</div>
-            <input type="text" class="picker-mat-antall" placeholder="${t('placeholder_quantity')}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
+        const antallPlaceholder = isPipeMat ? t('placeholder_rounds') : t('placeholder_quantity');
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}" data-is-pipe="${isPipeMat ? '1' : '0'}">
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}${pipeBadge}</div>
+            <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
             <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>
         </div>`;
     }
 
     // Helper: find base material object for a name (checks if it's a spec-derived name)
     function findBaseMaterial(name) {
-        return allMaterials.find(m => m.needsSpec && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
+        return allMaterials.find(m => (m.needsSpec || m.isPipe) && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
     }
 
     function renderPickerList() {
@@ -877,11 +919,11 @@ function openMaterialPicker(btn) {
         allMaterials.forEach(matObj => {
             if (matObj.needsSpec) {
                 // Base spec material: always show as unchecked launcher
-                entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', needsSpec: true, isSpecDerived: false });
+                entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', needsSpec: true, isSpecDerived: false, isPipe: !!matObj.isPipe });
             } else {
                 const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
                 const isChecked = state && state.checked;
-                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: state ? (state.enhet || '') : '', needsSpec: false, isSpecDerived: false });
+                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: state ? (state.enhet || '') : '', needsSpec: false, isSpecDerived: false, isPipe: false });
             }
         });
 
@@ -891,10 +933,10 @@ function openMaterialPicker(btn) {
             const baseMat = findBaseMaterial(name);
             if (baseMat) {
                 // Spec-derived entry (e.g. "Kabelhylser Ø50") — always show while in pickerState
-                entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: true });
+                entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: true, isPipe: !!baseMat.isPipe });
             } else if (state.checked && !allMaterials.some(m => m.name.toLowerCase() === name.toLowerCase())) {
                 // Custom entry not in settings — only show when checked
-                entries.push({ name, isChecked: true, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: false });
+                entries.push({ name, isChecked: true, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: false, isPipe: false });
             }
         });
 
@@ -903,7 +945,7 @@ function openMaterialPicker(btn) {
 
         let html = '';
         entries.forEach(e => {
-            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.needsSpec);
+            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.needsSpec, e.isPipe);
         });
 
         if (!html) {
@@ -924,12 +966,18 @@ function openMaterialPicker(btn) {
 
             nameDiv.addEventListener('click', function() {
                 if (needsSpec) {
+                    const matObj = allMaterials.find(m => m.name === name);
+                    const isPipeMat = matObj && matObj.isPipe;
                     // Open spec popup instead of toggling
                     openSpecPopup(name, function(spec) {
-                        const fullName = name + ' ' + spec;
-                        pickerState[fullName] = { checked: true, antall: '', enhet: '' };
+                        const fullName = isPipeMat ? name + ' \u00f8' + spec : name + ' ' + spec;
+                        const newState = { checked: true, antall: '', enhet: '' };
+                        if (isPipeMat) {
+                            newState.enhet = 'runder';
+                        }
+                        pickerState[fullName] = newState;
                         renderPickerList();
-                    });
+                    }, isPipeMat);
                     return;
                 }
                 const isChecked = pickerState[name] && pickerState[name].checked;
@@ -977,7 +1025,7 @@ function openMaterialPicker(btn) {
             settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
             settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
             if (!settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
-                settingsMaterials.push({ name: val, needsSpec: false });
+                settingsMaterials.push({ name: val, needsSpec: false, isPipe: false });
                 settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
                 cachedMaterialOptions = settingsMaterials.slice();
                 allMaterials.length = 0;
@@ -986,7 +1034,7 @@ function openMaterialPicker(btn) {
             }
         } else {
             // Non-admin: add to picker list for this session only
-            allMaterials.push({ name: val, needsSpec: false });
+            allMaterials.push({ name: val, needsSpec: false, isPipe: false });
             allMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
         }
         searchInput.value = '';
@@ -1020,12 +1068,22 @@ function closePickerOverlay() {
 
 // Spec popup for materials that need a specification (e.g. size)
 let specPopupCallback = null;
+let specPopupIsPipe = false;
 
-function openSpecPopup(baseName, callback) {
+function openSpecPopup(baseName, callback, isPipe) {
     document.getElementById('spec-popup-title').textContent = baseName;
     const input = document.getElementById('spec-popup-input');
     input.value = '';
-    input.placeholder = t('spec_popup_placeholder');
+    specPopupIsPipe = !!isPipe;
+    if (isPipe) {
+        input.placeholder = t('pipe_popup_placeholder');
+        input.inputMode = 'numeric';
+        input.pattern = '[0-9]*';
+    } else {
+        input.placeholder = t('spec_popup_placeholder');
+        input.inputMode = 'text';
+        input.pattern = '';
+    }
     specPopupCallback = callback;
     input.onkeydown = function(e) {
         if (e.key === 'Enter') { e.preventDefault(); confirmSpecPopup(); }
@@ -1038,11 +1096,19 @@ function openSpecPopup(baseName, callback) {
 function closeSpecPopup() {
     document.getElementById('spec-popup').classList.remove('active');
     specPopupCallback = null;
+    specPopupIsPipe = false;
 }
 
 function confirmSpecPopup() {
     const spec = document.getElementById('spec-popup-input').value.trim();
     if (!spec) return;
+    if (specPopupIsPipe) {
+        const num = parseInt(spec, 10);
+        if (isNaN(num) || num <= 0) {
+            showNotificationModal(t('pipe_invalid_diameter'));
+            return;
+        }
+    }
     if (specPopupCallback) specPopupCallback(spec);
     closeSpecPopup();
 }
@@ -1972,16 +2038,25 @@ function buildDesktopWorkLines() {
             filledMats.forEach(m => {
                 const capName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
                 const antallNum = parseFloat((m.antall || '').replace(',', '.'));
-                const unitObj = (cachedUnitOptions || []).find(u =>
-                    (typeof u === 'object' ? u.plural : u).toLowerCase() === (m.enhet || '').toLowerCase()
-                );
-                let unitText;
-                if (unitObj && typeof unitObj === 'object') {
-                    unitText = (antallNum === 1 ? unitObj.singular : unitObj.plural).toLowerCase();
+
+                // Check if pipe sealant material
+                const pipeInfo = getPipeMaterialInfo(m.name);
+                if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
+                    var lm = calculatePipeRunningMeters(pipeInfo.diameter, antallNum);
+                    var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' rdr)';
+                    addRow(displayName, formatRunningMeters(lm), 'cm', { alignRight: true });
                 } else {
-                    unitText = (m.enhet || '').toLowerCase();
+                    const unitObj = (cachedUnitOptions || []).find(u =>
+                        (typeof u === 'object' ? u.plural : u).toLowerCase() === (m.enhet || '').toLowerCase()
+                    );
+                    let unitText;
+                    if (unitObj && typeof unitObj === 'object') {
+                        unitText = (antallNum === 1 ? unitObj.singular : unitObj.plural).toLowerCase();
+                    } else {
+                        unitText = (m.enhet || '').toLowerCase();
+                    }
+                    addRow(capName, (m.antall || '').replace('.', ','), unitText, { alignRight: true });
                 }
-                addRow(capName, (m.antall || '').replace('.', ','), unitText, { alignRight: true });
             });
         }
 
