@@ -895,10 +895,11 @@ function openMaterialPicker(btn) {
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
         const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
+        const lmBadge = hasLM ? '<span class="picker-mat-lm-dot"></span>' : '';
         const disabledAttr = needsSpec ? ' disabled' : '';
         const antallPlaceholder = hasLM ? t('placeholder_rounds') : t('placeholder_quantity');
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}" data-has-lm="${hasLM ? '1' : '0'}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}</div>
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}${lmBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
             <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>
         </div>`;

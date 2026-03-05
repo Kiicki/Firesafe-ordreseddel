@@ -2252,6 +2252,16 @@ label.settings-default-label.field-required > span::after {
     flex-shrink: 0;
     vertical-align: middle;
 }
+.picker-mat-lm-dot {
+    width: 6px;
+    height: 6px;
+    background: #2196F3;
+    border-radius: 50%;
+    display: inline-block;
+    margin-left: 2px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
 
 /* Spec popup */
 .spec-popup-backdrop {
