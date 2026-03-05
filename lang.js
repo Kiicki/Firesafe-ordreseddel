@@ -216,9 +216,11 @@ const TRANSLATIONS = {
         settings_spec_toggle: 'Trenger spesifikasjon',
         settings_lm_toggle: 'Løpende meter',
         dim_popup_diameter_placeholder: 'Diameter (mm)',
+        dim_popup_generic_placeholder: 'Bredde / Diameter (mm)',
         dim_popup_length_placeholder: 'Lengde (mm) \u2014 valgfri',
-        dim_invalid_diameter: 'Vennligst oppgi en gyldig diameter',
-        placeholder_rounds: 'Runder',
+        dim_popup_title_diameter: 'diameter (mm)',
+        dim_popup_title_dimensions: 'mål (mm)',
+        dim_invalid_diameter: 'Vennligst oppgi et gyldig mål',
         material_exists: 'Materialet finnes allerede',
 
         // Required fields settings
@@ -497,9 +499,11 @@ const TRANSLATIONS = {
         settings_spec_toggle: 'Needs specification',
         settings_lm_toggle: 'Running meters',
         dim_popup_diameter_placeholder: 'Diameter (mm)',
+        dim_popup_generic_placeholder: 'Width / Diameter (mm)',
         dim_popup_length_placeholder: 'Length (mm) \u2014 optional',
-        dim_invalid_diameter: 'Please enter a valid diameter',
-        placeholder_rounds: 'Rounds',
+        dim_popup_title_diameter: 'diameter (mm)',
+        dim_popup_title_dimensions: 'dimensions (mm)',
+        dim_invalid_diameter: 'Please enter a valid measurement',
         material_exists: 'Material already exists',
 
         // Required fields settings

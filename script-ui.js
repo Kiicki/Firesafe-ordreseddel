@@ -3683,7 +3683,7 @@ function buildServiceExportTable() {
                     var rounds = parseFloat((m.antall || '').replace(',', '.'));
                     if (!isNaN(rounds) && rounds > 0) {
                         var lm = calculatePipeRunningMeters(pipeInfo.diameter, rounds);
-                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' rdr / ' + formatRunningMeters(lm) + ' cm';
+                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' ' + (m.enhet || '') + ' / ' + formatRunningMeters(lm) + ' cm';
                     } else {
                         var parts = [];
                         if (m.antall) parts.push(m.antall);

@@ -822,7 +822,7 @@ function createMaterialSummaryRow(m) {
         var rounds = parseFloat((m.antall || '').replace(',', '.'));
         if (!isNaN(rounds) && rounds > 0) {
             var lm = calculatePipeRunningMeters(pipeInfo.diameter, rounds);
-            detailParts.push(escapeHtml(m.antall) + ' rdr');
+            detailParts.push(escapeHtml(m.antall) + ' ' + escapeHtml(m.enhet || ''));
             detailParts.push(formatRunningMeters(lm) + ' cm');
         } else {
             if (m.antall) detailParts.push(escapeHtml(m.antall));
@@ -897,7 +897,7 @@ function openMaterialPicker(btn) {
         const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
         const lmBadge = hasLM ? '<span class="picker-mat-lm-dot"></span>' : '';
         const disabledAttr = needsSpec ? ' disabled' : '';
-        const antallPlaceholder = hasLM ? t('placeholder_rounds') : t('placeholder_quantity');
+        const antallPlaceholder = t('placeholder_quantity');
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}" data-has-lm="${hasLM ? '1' : '0'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(name)}</span>${specBadge}${lmBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
@@ -967,16 +967,11 @@ function openMaterialPicker(btn) {
             nameDiv.addEventListener('click', function() {
                 if (needsSpec) {
                     const hasLM = row.getAttribute('data-has-lm') === '1';
-                    // Open spec popup (diameter + optional length)
                     openSpecPopup(name, function(spec) {
                         var fullName = name + ' ' + spec;
-                        const newState = { checked: true, antall: '', enhet: '' };
-                        if (hasLM) {
-                            newState.enhet = 'runder';
-                        }
-                        pickerState[fullName] = newState;
+                        pickerState[fullName] = { checked: true, antall: '', enhet: '' };
                         renderPickerList();
-                    });
+                    }, hasLM);
                     return;
                 }
                 const isChecked = pickerState[name] && pickerState[name].checked;
@@ -1067,15 +1062,22 @@ function closePickerOverlay() {
 
 // Spec popup for materials that need a specification (diameter + optional length)
 let specPopupCallback = null;
+let specPopupUseDiameter = false; // true = ø prefix (LM materials), false = plain numbers
 
-function openSpecPopup(baseName, callback) {
+function openSpecPopup(baseName, callback, hasLM) {
+    specPopupUseDiameter = !!hasLM;
     const input = document.getElementById('spec-popup-input');
     const input2 = document.getElementById('spec-popup-input2');
     input.value = '';
     input2.value = '';
 
-    document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 diameter (mm)';
-    input.placeholder = t('dim_popup_diameter_placeholder');
+    if (hasLM) {
+        document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 ' + t('dim_popup_title_diameter');
+        input.placeholder = t('dim_popup_diameter_placeholder');
+    } else {
+        document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 ' + t('dim_popup_title_dimensions');
+        input.placeholder = t('dim_popup_generic_placeholder');
+    }
     input.inputMode = 'numeric';
     input.pattern = '[0-9]*';
     input2.placeholder = t('dim_popup_length_placeholder');
@@ -1097,6 +1099,7 @@ function openSpecPopup(baseName, callback) {
 function closeSpecPopup() {
     document.getElementById('spec-popup').classList.remove('active');
     specPopupCallback = null;
+    specPopupUseDiameter = false;
 }
 
 function confirmSpecPopup() {
@@ -1104,16 +1107,16 @@ function confirmSpecPopup() {
     const val2 = document.getElementById('spec-popup-input2').value.trim();
     if (!val1) return;
 
-    const diam = parseInt(val1, 10);
-    if (isNaN(diam) || diam <= 0) {
+    const num1 = parseInt(val1, 10);
+    if (isNaN(num1) || num1 <= 0) {
         showNotificationModal(t('dim_invalid_diameter'));
         return;
     }
-    var spec = '\u00f8' + diam;
+    var spec = specPopupUseDiameter ? '\u00f8' + num1 : '' + num1;
     if (val2) {
-        const len = parseInt(val2, 10);
-        if (!isNaN(len) && len > 0) {
-            spec += 'x' + len;
+        const num2 = parseInt(val2, 10);
+        if (!isNaN(num2) && num2 > 0) {
+            spec += 'x' + num2;
         }
     }
     if (specPopupCallback) specPopupCallback(spec);
@@ -2050,7 +2053,7 @@ function buildDesktopWorkLines() {
                 const pipeInfo = getRunningMeterInfo(m.name);
                 if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
                     var lm = calculatePipeRunningMeters(pipeInfo.diameter, antallNum);
-                    var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' rdr)';
+                    var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' ' + (m.enhet || '') + ')';
                     addRow(displayName, formatRunningMeters(lm), 'cm', { alignRight: true });
                 } else {
                     const unitObj = (cachedUnitOptions || []).find(u =>
