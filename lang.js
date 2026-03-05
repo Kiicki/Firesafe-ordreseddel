@@ -7,7 +7,7 @@ const TRANSLATIONS = {
         toolbar_export: 'Eksport',
         toolbar_service: 'Service',
         toolbar_settings: 'Meny',
-        btn_mark_sent: 'Merk sendt',
+        btn_mark_sent: 'Ferdig',
 
         // Login
         login: 'Logg inn',
@@ -290,7 +290,7 @@ const TRANSLATIONS = {
         toolbar_export: 'Export',
         toolbar_service: 'Service',
         toolbar_settings: 'Menu',
-        btn_mark_sent: 'Mark sent',
+        btn_mark_sent: 'Done',
 
         // Login
         login: 'Log in',
