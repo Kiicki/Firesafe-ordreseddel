@@ -2829,6 +2829,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-list-item {
     display: flex;
     align-items: center;
+    gap: 6px;
     padding: 8px 4px 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
