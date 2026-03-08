@@ -1096,14 +1096,14 @@ function openSpecPopup(baseName, callback, hasLM) {
         document.getElementById('spec-popup-title').textContent = baseName;
         label1.textContent = t('dim_popup_diameter_placeholder');
         label2.textContent = t('dim_popup_rounds_placeholder');
-        input.placeholder = '';
-        input2.placeholder = '';
+        input.placeholder = t('dim_popup_diameter_placeholder');
+        input2.placeholder = t('dim_popup_rounds_placeholder');
     } else {
         document.getElementById('spec-popup-title').textContent = baseName;
         label1.textContent = t('dim_popup_generic_placeholder');
         label2.textContent = t('dim_popup_length_placeholder');
-        input.placeholder = '';
-        input2.placeholder = '';
+        input.placeholder = t('dim_popup_generic_placeholder');
+        input2.placeholder = t('dim_popup_length_placeholder');
     }
     input.inputMode = 'numeric';
     input.pattern = '[0-9]*';
