@@ -1806,12 +1806,13 @@ function normalizeMaterialData(data) {
     if (!data) return { materials: [], units: [] };
     let materials = data.materials || [];
     if (materials.length > 0 && typeof materials[0] === 'string') {
-        materials = materials.map(name => ({ name: name, needsSpec: false, hasRunningMeter: false }));
+        materials = materials.map(name => ({ name: name, needsSpec: false, hasRunningMeter: false, defaultUnit: '' }));
     } else {
         materials = materials.map(m => ({
             name: m.name,
             needsSpec: !!m.needsSpec || !!m.isPipe || !!m.hasDimensions,
-            hasRunningMeter: !!m.hasRunningMeter || !!m.isPipe
+            hasRunningMeter: !!m.hasRunningMeter || !!m.isPipe,
+            defaultUnit: m.defaultUnit || ''
         }));
     }
     let units = data.units || [];
@@ -1836,7 +1837,7 @@ async function getMaterialSettings() {
 
 function saveMaterialSettings() {
     if (!isAdmin) return;
-    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, hasRunningMeter: !!m.hasRunningMeter })), units: settingsUnits.slice() };
+    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, hasRunningMeter: !!m.hasRunningMeter, defaultUnit: m.defaultUnit || '' })), units: settingsUnits.slice() };
     // localStorage + cache first (optimistic)
     safeSetItem(MATERIALS_KEY, JSON.stringify(data));
     cachedMaterialOptions = data.materials.slice();
@@ -1869,9 +1870,11 @@ function renderMaterialSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
         return;
     }
-    container.innerHTML = settingsMaterials.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Spec</button><button class="settings-lm-toggle${item.hasRunningMeter ? ' active' : ''}${!item.needsSpec ? ' disabled' : ''}" onclick="toggleMaterialRunningMeter(${idx})" title="${t('settings_lm_toggle')}"${!item.needsSpec ? ' disabled' : ''}>LM</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
-    ).join('');
+    container.innerHTML = settingsMaterials.map((item, idx) => {
+        const unitLabel = item.hasRunningMeter ? 'stk' : (item.defaultUnit || '—');
+        const unitLocked = item.hasRunningMeter;
+        return `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Mål</button><button class="settings-lm-toggle${item.hasRunningMeter ? ' active' : ''}${!item.needsSpec ? ' disabled' : ''}" onclick="toggleMaterialRunningMeter(${idx})" title="${t('settings_lm_toggle')}"${!item.needsSpec ? ' disabled' : ''}>Løpemeter</button><button class="settings-default-unit-btn${unitLocked ? ' locked' : ''}" onclick="${unitLocked ? '' : 'setMaterialDefaultUnit(' + idx + ', this)'}" title="${t('settings_default_unit')}"${unitLocked ? ' disabled' : ''}>${escapeHtml(unitLabel)}</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`;
+    }).join('');
 }
 
 function renderUnitSettingsItems() {
@@ -1989,7 +1992,7 @@ async function addSettingsMaterial() {
         showNotificationModal(t('settings_material_exists'));
         return;
     }
-    settingsMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false });
+    settingsMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false, defaultUnit: '' });
     settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     input.value = '';
     renderMaterialSettingsItems();
@@ -2143,9 +2146,66 @@ async function toggleMaterialRunningMeter(idx) {
     settingsMaterials[idx].hasRunningMeter = !settingsMaterials[idx].hasRunningMeter;
     if (settingsMaterials[idx].hasRunningMeter) {
         settingsMaterials[idx].needsSpec = true;
+        settingsMaterials[idx].defaultUnit = 'stk';
     }
     renderMaterialSettingsItems();
     await saveMaterialSettings();
+}
+
+function setMaterialDefaultUnit(idx, btnEl) {
+    if (!isAdmin) return;
+    const allUnits = cachedUnitOptions || [];
+    const overlay = document.getElementById('unit-picker-overlay');
+    const listEl = document.getElementById('unit-picker-list');
+    const currentEnhet = settingsMaterials[idx].defaultUnit || '';
+
+    let html = '';
+    allUnits.forEach(u => {
+        const label = typeof u === 'object' ? u.plural : u;
+        const selected = label === currentEnhet ? ' unit-picker-item-selected' : '';
+        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(label)}</button>`;
+    });
+    listEl.innerHTML = html;
+
+    const headerClearBtn = document.getElementById('unit-picker-clear-btn');
+    if (headerClearBtn) {
+        headerClearBtn.style.display = currentEnhet ? '' : 'none';
+        headerClearBtn.onclick = function() {
+            settingsMaterials[idx].defaultUnit = '';
+            renderMaterialSettingsItems();
+            saveMaterialSettings();
+            closeUnitPicker();
+        };
+    }
+
+    const customEl = overlay.querySelector('.unit-picker-custom');
+    const customInput = customEl.querySelector('input');
+    customInput.value = '';
+    customInput.placeholder = t('picker_custom') + '...';
+
+    unitPickerCallback = function(value) {
+        settingsMaterials[idx].defaultUnit = value;
+        renderMaterialSettingsItems();
+        saveMaterialSettings();
+    };
+
+    listEl.querySelectorAll('.unit-picker-item').forEach(item => {
+        item.addEventListener('click', function() {
+            unitPickerCallback(this.textContent);
+            closeUnitPicker();
+        });
+    });
+
+    const customOk = customEl.querySelector('.unit-picker-custom-ok');
+    customOk.onclick = function() {
+        const val = customInput.value.trim();
+        if (val) {
+            unitPickerCallback(val);
+            closeUnitPicker();
+        }
+    };
+
+    overlay.classList.add('active');
 }
 
 
@@ -3680,10 +3740,10 @@ function buildServiceExportTable() {
             if (m.name) {
                 var pipeInfo = getRunningMeterInfo(m.name);
                 if (pipeInfo && m.antall) {
-                    var rounds = parseFloat((m.antall || '').replace(',', '.'));
-                    if (!isNaN(rounds) && rounds > 0) {
-                        var lm = calculatePipeRunningMeters(pipeInfo.diameter, rounds);
-                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' ' + (m.enhet || '') + ' / ' + formatRunningMeters(lm) + ' cm';
+                    var pipes = parseFloat((m.antall || '').replace(',', '.'));
+                    if (!isNaN(pipes) && pipes > 0) {
+                        var lm = calculatePipeRunningMeters(pipeInfo.diameter, pipeInfo.rounds, pipes);
+                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ' / ' + formatRunningMeters(lm) + ' cm';
                     } else {
                         var parts = [];
                         if (m.antall) parts.push(m.antall);
