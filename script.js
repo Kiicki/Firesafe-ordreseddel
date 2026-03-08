@@ -1087,24 +1087,30 @@ function openSpecPopup(baseName, callback, hasLM) {
     specPopupUseDiameter = !!hasLM;
     const input = document.getElementById('spec-popup-input');
     const input2 = document.getElementById('spec-popup-input2');
+    const label1 = document.getElementById('spec-popup-label1');
+    const label2 = document.getElementById('spec-popup-label2');
     input.value = '';
     input2.value = '';
 
     if (hasLM) {
-        document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 ' + t('dim_popup_title_diameter');
-        input.placeholder = t('dim_popup_diameter_placeholder');
-        input2.placeholder = t('dim_popup_rounds_placeholder');
-        input2.value = '1';
+        document.getElementById('spec-popup-title').textContent = baseName;
+        label1.textContent = t('dim_popup_diameter_placeholder');
+        label2.textContent = t('dim_popup_rounds_placeholder');
+        input.placeholder = 'mm';
+        input2.placeholder = '1';
     } else {
-        document.getElementById('spec-popup-title').textContent = baseName + ' \u2014 ' + t('dim_popup_title_dimensions');
-        input.placeholder = t('dim_popup_generic_placeholder');
-        input2.placeholder = t('dim_popup_length_placeholder');
+        document.getElementById('spec-popup-title').textContent = baseName;
+        label1.textContent = t('dim_popup_generic_placeholder');
+        label2.textContent = t('dim_popup_length_placeholder');
+        input.placeholder = 'mm';
+        input2.placeholder = 'mm';
     }
     input.inputMode = 'numeric';
     input.pattern = '[0-9]*';
     input2.inputMode = 'numeric';
     input2.pattern = '[0-9]*';
     input2.style.display = '';
+    label2.style.display = '';
 
     specPopupCallback = callback;
     var keyHandler = function(e) {
@@ -1135,13 +1141,11 @@ function confirmSpecPopup() {
     }
     var spec;
     if (specPopupUseDiameter) {
-        // LM material: diameter + optional rounds
+        // LM material: diameter + optional rounds (empty = 1)
         spec = '\u00f8' + num1;
-        if (val2) {
-            const rounds = parseInt(val2, 10);
-            if (!isNaN(rounds) && rounds > 1) {
-                spec += 'r' + rounds;
-            }
+        var rounds = val2 ? parseInt(val2, 10) : 1;
+        if (!isNaN(rounds) && rounds > 1) {
+            spec += 'r' + rounds;
         }
     } else {
         // Regular spec: width/diameter + optional length
