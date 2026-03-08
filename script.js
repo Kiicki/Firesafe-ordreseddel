@@ -1097,7 +1097,7 @@ function openSpecPopup(baseName, callback, hasLM) {
         label1.textContent = t('dim_popup_diameter_placeholder');
         label2.textContent = t('dim_popup_rounds_placeholder');
         input.placeholder = 'mm';
-        input2.placeholder = '1';
+        input2.placeholder = '';
     } else {
         document.getElementById('spec-popup-title').textContent = baseName;
         label1.textContent = t('dim_popup_generic_placeholder');
