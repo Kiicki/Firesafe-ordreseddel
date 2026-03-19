@@ -1742,22 +1742,15 @@ function showSettingsPage(page) {
         var cachedMat = localStorage.getItem(MATERIALS_KEY);
         var cachedData = normalizeMaterialData(cachedMat ? JSON.parse(cachedMat) : null);
         settingsMaterials = cachedData.materials.slice();
-        settingsUnits = cachedData.units.slice();
         settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-        sortUnits(settingsUnits);
         renderMaterialSettingsItems();
-        renderUnitSettingsItems();
         document.getElementById('settings-new-material').value = '';
-        collapseUnitAddRow();
         // Background refresh
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
             settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
-            settingsUnits = (data && data.units) ? data.units.slice() : [];
             settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-            sortUnits(settingsUnits);
             renderMaterialSettingsItems();
-            renderUnitSettingsItems();
         });
     }
 }
@@ -1800,26 +1793,41 @@ function _getCachedRequiredSettings() {
 // ============================================
 
 let settingsMaterials = [];
-let settingsUnits = [];
+
+function normalizeAllowedUnits(arr, defaultUnit) {
+    if (!arr || arr.length === 0) {
+        return defaultUnit ? [{ singular: defaultUnit, plural: defaultUnit }] : [];
+    }
+    return arr.map(function(u) {
+        if (typeof u === 'string') return { singular: u, plural: u };
+        return { singular: u.singular || u.plural || '', plural: u.plural || u.singular || '' };
+    });
+}
 
 function normalizeMaterialData(data) {
     if (!data) return { materials: [], units: [] };
     let materials = data.materials || [];
     if (materials.length > 0 && typeof materials[0] === 'string') {
-        materials = materials.map(name => ({ name: name, needsSpec: false, hasRunningMeter: false, defaultUnit: '' }));
+        materials = materials.map(name => ({ name: name, type: 'standard', defaultUnit: '', allowedUnits: [] }));
     } else {
-        materials = materials.map(m => ({
-            name: m.name,
-            needsSpec: !!m.needsSpec || !!m.isPipe || !!m.hasDimensions,
-            hasRunningMeter: !!m.hasRunningMeter || !!m.isPipe,
-            defaultUnit: m.defaultUnit || ''
-        }));
+        materials = materials.map(m => {
+            // Migrate old types to new system
+            var type = m.type || 'standard';
+            if (type === 'pipe' || type === 'collar' || type === 'runmeter') type = 'brannpakning';
+            if (type === 'dimension') type = 'kabelhylse';
+            if (!m.type) {
+                if (m.hasRunningMeter || m.isPipe) type = 'brannpakning';
+                else if (m.needsSpec || m.hasDimensions) type = 'kabelhylse';
+            }
+            return {
+                name: m.name,
+                type: type,
+                defaultUnit: m.defaultUnit || '',
+                allowedUnits: normalizeAllowedUnits(m.allowedUnits, m.defaultUnit || '')
+            };
+        });
     }
-    let units = data.units || [];
-    if (units.length > 0 && typeof units[0] === 'string') {
-        units = units.map(u => ({ singular: u, plural: u }));
-    }
-    return { materials, units };
+    return { materials, units: [] };
 }
 
 async function getMaterialSettings() {
@@ -1837,13 +1845,11 @@ async function getMaterialSettings() {
 
 function saveMaterialSettings() {
     if (!isAdmin) return;
-    const data = { materials: settingsMaterials.map(m => ({ name: m.name, needsSpec: !!m.needsSpec, hasRunningMeter: !!m.hasRunningMeter, defaultUnit: m.defaultUnit || '' })), units: settingsUnits.slice() };
+    const data = { materials: settingsMaterials.map(m => ({ name: m.name, type: m.type || 'standard', defaultUnit: m.defaultUnit || '', allowedUnits: m.allowedUnits || [] })), units: [] };
     // localStorage + cache first (optimistic)
     safeSetItem(MATERIALS_KEY, JSON.stringify(data));
     cachedMaterialOptions = data.materials.slice();
     cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-    cachedUnitOptions = settingsUnits.slice();
-    sortUnits(cachedUnitOptions);
 
     // Firebase in background
     if (currentUser && db) {
@@ -1855,13 +1861,9 @@ function saveMaterialSettings() {
 async function loadMaterialSettingsToModal() {
     const data = await getMaterialSettings();
     settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
-    settingsUnits = (data && data.units) ? data.units.slice() : [];
     settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-    sortUnits(settingsUnits);
     renderMaterialSettingsItems();
-    renderUnitSettingsItems();
     document.getElementById('settings-new-material').value = '';
-    collapseUnitAddRow();
 }
 
 function renderMaterialSettingsItems() {
@@ -1870,110 +1872,172 @@ function renderMaterialSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
         return;
     }
+    // Remember which groups were expanded
+    const expandedSet = new Set();
+    container.querySelectorAll('.settings-material-group.expanded').forEach(el => {
+        const name = el.querySelector('.settings-material-name');
+        if (name) expandedSet.add(name.textContent);
+    });
     container.innerHTML = settingsMaterials.map((item, idx) => {
-        const unitLabel = item.hasRunningMeter ? 'stk' : (item.defaultUnit || '—');
-        const unitLocked = item.hasRunningMeter;
-        return `<div class="settings-list-item"><span onclick="editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span><button class="settings-spec-toggle${item.needsSpec ? ' active' : ''}" onclick="toggleMaterialSpec(${idx})" title="${t('settings_spec_toggle')}">Mål</button><button class="settings-lm-toggle${item.hasRunningMeter ? ' active' : ''}${!item.needsSpec ? ' disabled' : ''}" onclick="toggleMaterialRunningMeter(${idx})" title="${t('settings_lm_toggle')}"${!item.needsSpec ? ' disabled' : ''}>Løpemeter</button><button class="settings-default-unit-btn${unitLocked ? ' locked' : ''}" onclick="${unitLocked ? '' : 'setMaterialDefaultUnit(' + idx + ', this)'}" title="${t('settings_default_unit')}"${unitLocked ? ' disabled' : ''}>${escapeHtml(unitLabel)}</button><button class="settings-delete-btn" onclick="removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`;
+        const unitLocked = item.type === 'mansjett' || item.type === 'brannpakning';
+        const units = unitLocked ? [{ singular: 'stk', plural: 'stk' }] : (item.allowedUnits && item.allowedUnits.length > 0 ? item.allowedUnits : (item.defaultUnit ? [{ singular: item.defaultUnit, plural: item.defaultUnit }] : []));
+        const defaultUnit = item.defaultUnit || '';
+        const unitsHtml = units.map((u, ui) => {
+            const label = typeof u === 'string' ? u : (u.singular && u.singular !== u.plural ? u.singular + ' / ' + u.plural : u.plural);
+            const unitPlural = typeof u === 'string' ? u : u.plural;
+            const isDefault = units.length === 1 || unitPlural === defaultUnit;
+            const starIcon = isDefault ? '<span class="settings-material-unit-star">★</span>' : '<span class="settings-material-unit-star empty">☆</span>';
+            const removeBtn = unitLocked ? '' : `<button class="settings-material-unit-remove" onclick="event.stopPropagation();removeMaterialUnit(${idx},${ui})">&times;</button>`;
+            const setDefaultClick = unitLocked ? '' : `event.stopPropagation();setDefaultUnit(${idx},${ui})`;
+            const editClick = unitLocked ? '' : `editMaterialUnit(${idx},${ui},this)`;
+            return `<div class="settings-material-unit-item">
+                <span class="settings-material-unit-default" onclick="${setDefaultClick}">${starIcon}</span>
+                <span class="settings-material-unit-text" onclick="${editClick}">${escapeHtml(label)}</span>${removeBtn}</div>`;
+        }).join('');
+        const addRow = unitLocked ? '' : `<div class="settings-material-unit-add" onclick="addMaterialUnit(${idx})">+ Legg til enhet</div>`;
+        // Summary line for collapsed state
+        const summaryParts = units.map(u => typeof u === 'string' ? u : u.plural);
+        const summaryText = summaryParts.length > 0 ? summaryParts.join(', ') : 'Ingen enheter';
+        const isExpanded = expandedSet.has(item.name);
+        const matType = item.type || 'standard';
+        return `<div class="settings-material-group${isExpanded ? ' expanded' : ''}">
+            <div class="settings-material-header" onclick="toggleMaterialExpand(this)">
+                <span class="settings-material-name" onclick="event.stopPropagation();editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span>
+                <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}">${t('material_type_' + matType)}</button>
+                <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
+                <span class="settings-material-expand">&rsaquo;</span>
+            </div>
+            <div class="settings-material-summary">${escapeHtml(summaryText)}</div>
+            <div class="settings-material-body">${unitsHtml}${addRow}</div>
+        </div>`;
     }).join('');
 }
 
-function renderUnitSettingsItems() {
-    const container = document.getElementById('settings-unit-items');
-    if (settingsUnits.length === 0) {
-        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_units') + '</div>';
-        return;
-    }
-    container.innerHTML = settingsUnits.map((item, idx) =>
-        `<div class="settings-list-item"><span onclick="editSettingsUnit(${idx})">${item.singular === item.plural ? escapeHtml(item.singular) : escapeHtml(item.singular) + ' / ' + escapeHtml(item.plural)}</span><button class="settings-delete-btn" onclick="removeSettingsUnit(${idx})" title="${t('btn_remove')}">${deleteIcon}</button></div>`
-    ).join('');
+function toggleMaterialExpand(headerEl) {
+    const group = headerEl.closest('.settings-material-group');
+    if (group) group.classList.toggle('expanded');
 }
 
-function editSettingsUnit(idx) {
+function addMaterialUnit(idx) {
     if (!isAdmin) return;
-    const container = document.getElementById('settings-unit-items');
-    const item = container.children[idx];
-    const span = item.querySelector('span');
-    if (!span) return;
-    const oldSingular = settingsUnits[idx].singular;
-    const oldPlural = settingsUnits[idx].plural;
+    const mat = settingsMaterials[idx];
+    if (!mat.allowedUnits) mat.allowedUnits = [];
+    const container = document.getElementById('settings-material-items');
+    const group = container.children[idx];
+    const addRow = group.querySelector('.settings-material-unit-add');
+    if (!addRow) return;
 
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex;flex:1;gap:4px;min-width:0;';
+    // Check if already editing
+    if (group.querySelector('.settings-material-unit-edit')) return;
 
+    const editRow = document.createElement('div');
+    editRow.className = 'settings-material-unit-edit';
     const inputS = document.createElement('input');
     inputS.type = 'text';
-    inputS.className = 'settings-unit-input';
-    inputS.value = oldSingular;
     inputS.placeholder = 'Entall';
-
+    inputS.autocapitalize = 'sentences';
     const inputP = document.createElement('input');
     inputP.type = 'text';
-    inputP.className = 'settings-unit-input';
-    inputP.value = oldPlural;
     inputP.placeholder = 'Flertall';
+    inputP.autocapitalize = 'sentences';
+    editRow.appendChild(inputS);
+    editRow.appendChild(inputP);
+    addRow.before(editRow);
+    inputS.focus();
 
-    wrapper.appendChild(inputS);
-    wrapper.appendChild(inputP);
-    span.replaceWith(wrapper);
+    let saved = false;
+    function save(e) {
+        if (saved) return;
+        // Don't save if focus moved to sibling input
+        if (e && (e.relatedTarget === inputS || e.relatedTarget === inputP)) return;
+        saved = true;
+        const singular = inputS.value.trim();
+        const plural = inputP.value.trim();
+        if (plural && !mat.allowedUnits.some(u => (typeof u === 'string' ? u : u.plural).toLowerCase() === plural.toLowerCase())) {
+            mat.allowedUnits.push({ singular: singular || plural, plural: plural });
+            if (!mat.defaultUnit) mat.defaultUnit = plural;
+            saveMaterialSettings();
+        }
+        renderMaterialSettingsItems();
+    }
+    inputS.addEventListener('blur', save);
+    inputP.addEventListener('blur', save);
+    function handleKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); if (e.target === inputS) inputP.focus(); else inputP.blur(); }
+        if (e.key === 'Escape') { saved = true; renderMaterialSettingsItems(); }
+    }
+    inputS.addEventListener('keydown', handleKey);
+    inputP.addEventListener('keydown', handleKey);
+}
+
+function editMaterialUnit(idx, unitIdx, itemEl) {
+    if (!isAdmin) return;
+    const mat = settingsMaterials[idx];
+    const units = mat.allowedUnits || [];
+    const oldUnit = units[unitIdx] || { singular: '', plural: '' };
+    const oldS = typeof oldUnit === 'string' ? oldUnit : oldUnit.singular;
+    const oldP = typeof oldUnit === 'string' ? oldUnit : oldUnit.plural;
+
+    const editRow = document.createElement('div');
+    editRow.className = 'settings-material-unit-edit';
+    const inputS = document.createElement('input');
+    inputS.type = 'text';
+    inputS.value = oldS;
+    inputS.placeholder = 'Entall';
+    const inputP = document.createElement('input');
+    inputP.type = 'text';
+    inputP.value = oldP;
+    inputP.placeholder = 'Flertall';
+    editRow.appendChild(inputS);
+    editRow.appendChild(inputP);
+    itemEl.replaceWith(editRow);
     inputS.focus();
     inputS.select();
 
     let saved = false;
-    function handleBlur(e) {
+    function save(e) {
         if (saved) return;
-        // If focus moved to the sibling input, don't save yet
-        if (e.relatedTarget === inputS || e.relatedTarget === inputP) return;
+        if (e && (e.relatedTarget === inputS || e.relatedTarget === inputP)) return;
         saved = true;
-
-        // Check if a unit span was clicked (relatedTarget is null for non-focusable spans,
-        // so we use mousedown capture instead)
-        const pendingPlural = container._pendingEditPlural;
-        delete container._pendingEditPlural;
-        container.removeEventListener('mousedown', onMousedown);
-
-        const newS = inputS.value.trim();
-        const newP = inputP.value.trim();
-        const changed = !(!newS && !newP) && !(newS === oldSingular && newP === oldPlural);
-
-        if (changed) {
-            if (newP && settingsUnits.some((u, i) => i !== idx && u.plural.toLowerCase() === newP.toLowerCase())) {
-                showNotificationModal(t('settings_unit_exists'));
-                renderUnitSettingsItems();
-                if (pendingPlural) { const ni = settingsUnits.findIndex(u => u.plural === pendingPlural); if (ni >= 0) editSettingsUnit(ni); }
-                return;
-            }
-            settingsUnits[idx].singular = newS || oldSingular;
-            settingsUnits[idx].plural = newP || oldPlural;
-            sortUnits(settingsUnits);
+        const singular = inputS.value.trim();
+        const plural = inputP.value.trim();
+        if (plural && (singular !== oldS || plural !== oldP)) {
+            if (!mat.allowedUnits) mat.allowedUnits = units.slice();
+            mat.allowedUnits[unitIdx] = { singular: singular || plural, plural: plural };
+            if (unitIdx === 0) mat.defaultUnit = plural;
+            saveMaterialSettings();
         }
-
-        renderUnitSettingsItems();
-        if (pendingPlural) {
-            const ni = settingsUnits.findIndex(u => u.plural === pendingPlural);
-            if (ni >= 0) editSettingsUnit(ni);
-        }
-        if (changed) saveMaterialSettings();
+        renderMaterialSettingsItems();
     }
-
-    // Capture mousedown on other unit spans before blur fires
-    function onMousedown(e) {
-        const clickedSpan = e.target.closest('.settings-list-item span');
-        if (clickedSpan) {
-            const clickedItem = clickedSpan.parentElement;
-            const clickIdx = Array.from(container.children).indexOf(clickedItem);
-            if (clickIdx >= 0) container._pendingEditPlural = settingsUnits[clickIdx].plural;
-        }
-    }
-    container.addEventListener('mousedown', onMousedown);
-
-    inputS.addEventListener('blur', handleBlur);
-    inputP.addEventListener('blur', handleBlur);
+    inputS.addEventListener('blur', save);
+    inputP.addEventListener('blur', save);
     function handleKey(e) {
-        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
-        if (e.key === 'Escape') { saved = true; container.removeEventListener('mousedown', onMousedown); renderUnitSettingsItems(); }
+        if (e.key === 'Enter') { e.preventDefault(); if (e.target === inputS) inputP.focus(); else inputP.blur(); }
+        if (e.key === 'Escape') { saved = true; renderMaterialSettingsItems(); }
     }
     inputS.addEventListener('keydown', handleKey);
     inputP.addEventListener('keydown', handleKey);
+}
+
+function setDefaultUnit(idx, unitIdx) {
+    if (!isAdmin) return;
+    const mat = settingsMaterials[idx];
+    if (!mat.allowedUnits || !mat.allowedUnits[unitIdx]) return;
+    const u = mat.allowedUnits[unitIdx];
+    mat.defaultUnit = (typeof u === 'string' ? u : u.plural) || '';
+    renderMaterialSettingsItems();
+    saveMaterialSettings();
+}
+
+function removeMaterialUnit(idx, unitIdx) {
+    if (!isAdmin) return;
+    const mat = settingsMaterials[idx];
+    if (!mat.allowedUnits || mat.allowedUnits.length <= 1) return;
+    mat.allowedUnits.splice(unitIdx, 1);
+    const first = mat.allowedUnits[0];
+    mat.defaultUnit = (typeof first === 'string' ? first : first.plural) || '';
+    renderMaterialSettingsItems();
+    saveMaterialSettings();
 }
 
 function toggleSettingsSection(section) {
@@ -1986,87 +2050,54 @@ function toggleSettingsSection(section) {
 async function addSettingsMaterial() {
     if (!isAdmin) return;
     const input = document.getElementById('settings-new-material');
+    const singularInput = document.getElementById('settings-new-material-singular');
+    const pluralInput = document.getElementById('settings-new-material-plural');
     const val = input.value.trim();
-    if (!val) return;
+    const typeSelect = document.getElementById('settings-new-material-type');
+    const type = typeSelect.value;
+    const singular = singularInput.value.trim();
+    const plural = pluralInput.value.trim();
+    const needsUnit = type !== 'mansjett' && type !== 'brannpakning';
+
+    // Validate all required fields
+    if (!val || (needsUnit && (!singular || !plural))) {
+        if (!val) input.classList.add('settings-input-error');
+        if (needsUnit && !singular) singularInput.classList.add('settings-input-error');
+        if (needsUnit && !plural) pluralInput.classList.add('settings-input-error');
+        setTimeout(() => {
+            input.classList.remove('settings-input-error');
+            singularInput.classList.remove('settings-input-error');
+            pluralInput.classList.remove('settings-input-error');
+        }, 1500);
+        return;
+    }
     if (settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
         showNotificationModal(t('settings_material_exists'));
         return;
     }
-    settingsMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false, defaultUnit: '' });
+    const allowedUnits = [];
+    let defaultUnit = '';
+    if (singular || plural) {
+        const unitObj = { singular: singular || plural, plural: plural || singular };
+        allowedUnits.push(unitObj);
+        defaultUnit = unitObj.plural;
+    }
+    if (type === 'mansjett' || type === 'brannpakning') {
+        defaultUnit = 'stk';
+        allowedUnits.length = 0;
+        allowedUnits.push({ singular: 'stk', plural: 'stk' });
+    }
+    settingsMaterials.push({ name: val, type: type, defaultUnit: defaultUnit, allowedUnits: allowedUnits });
     settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     input.value = '';
+    singularInput.value = '';
+    pluralInput.value = '';
+    typeSelect.value = 'standard';
     renderMaterialSettingsItems();
     await saveMaterialSettings();
     showNotificationModal(t('settings_material_added'), true);
 }
 
-async function addSettingsUnit() {
-    if (!isAdmin) return;
-    const singularInput = document.getElementById('settings-new-unit-singular');
-    const pluralInput = document.getElementById('settings-new-unit-plural');
-    if (!singularInput || !pluralInput) return;
-    const singular = singularInput.value.trim();
-    const plural = pluralInput.value.trim();
-    if (!singular || !plural) return;
-    if (settingsUnits.some(u => u.plural.toLowerCase() === plural.toLowerCase())) {
-        showNotificationModal(t('settings_unit_exists'));
-        return;
-    }
-    settingsUnits.push({ singular, plural });
-    sortUnits(settingsUnits);
-    collapseUnitAddRow();
-    renderUnitSettingsItems();
-    await saveMaterialSettings();
-    showNotificationModal(t('settings_unit_added'), true);
-}
-
-function expandUnitAddRow() {
-    const singleInput = document.getElementById('settings-new-unit');
-    if (!singleInput) return;
-    const addRow = document.getElementById('settings-unit-add-row');
-    const btn = addRow.querySelector('.settings-add-btn');
-
-    const inputS = document.createElement('input');
-    inputS.type = 'text';
-    inputS.className = 'settings-unit-input';
-    inputS.id = 'settings-new-unit-singular';
-    inputS.placeholder = 'Entall';
-    inputS.autocapitalize = 'sentences';
-
-    const inputP = document.createElement('input');
-    inputP.type = 'text';
-    inputP.className = 'settings-unit-input';
-    inputP.id = 'settings-new-unit-plural';
-    inputP.placeholder = 'Flertall';
-    inputP.autocapitalize = 'sentences';
-
-    singleInput.replaceWith(inputS);
-    btn.before(inputP);
-    inputS.focus();
-
-    async function maybeCollapse() {
-        await new Promise(r => setTimeout(r, 10));
-        if (document.activeElement === inputS || document.activeElement === inputP) return;
-        if (inputS.value.trim() || inputP.value.trim()) return;
-        collapseUnitAddRow();
-    }
-    inputS.addEventListener('blur', maybeCollapse);
-    inputP.addEventListener('blur', maybeCollapse);
-}
-
-function collapseUnitAddRow() {
-    const inputS = document.getElementById('settings-new-unit-singular');
-    const inputP = document.getElementById('settings-new-unit-plural');
-    if (!inputS && !inputP) return;
-    const singleInput = document.createElement('input');
-    singleInput.type = 'text';
-    singleInput.id = 'settings-new-unit';
-    singleInput.placeholder = 'Ny enhet';
-    singleInput.autocapitalize = 'sentences';
-    singleInput.setAttribute('onfocus', 'expandUnitAddRow()');
-    if (inputP) inputP.remove();
-    if (inputS) inputS.replaceWith(singleInput);
-}
 
 function removeSettingsMaterial(idx) {
     if (!isAdmin) return;
@@ -2078,27 +2109,19 @@ function removeSettingsMaterial(idx) {
     });
 }
 
-function removeSettingsUnit(idx) {
-    if (!isAdmin) return;
-    const item = settingsUnits[idx];
-    showConfirmModal(t('settings_material_remove', item.plural), async function() {
-        settingsUnits.splice(idx, 1);
-        renderUnitSettingsItems();
-        await saveMaterialSettings();
-    });
-}
 
 function editSettingsMaterial(idx) {
     if (!isAdmin) return;
     const container = document.getElementById('settings-material-items');
     const item = container.children[idx];
-    const span = item.querySelector('span');
+    const span = item.querySelector('.settings-material-name') || item.querySelector('span');
     if (!span) return;
     const oldVal = settingsMaterials[idx].name;
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'settings-list-edit-input';
     input.value = oldVal;
+    input.onclick = function(e) { e.stopPropagation(); };
     span.replaceWith(input);
     input.focus();
     input.select();
@@ -2109,8 +2132,9 @@ function editSettingsMaterial(idx) {
         const newVal = input.value.trim();
         if (!newVal || newVal === oldVal) {
             const newSpan = document.createElement('span');
+            newSpan.className = 'settings-material-name';
             newSpan.textContent = oldVal;
-            newSpan.setAttribute('onclick', 'editSettingsMaterial(' + idx + ')');
+            newSpan.setAttribute('onclick', 'event.stopPropagation();editSettingsMaterial(' + idx + ')');
             if (input.parentNode) input.replaceWith(newSpan);
             return;
         }
@@ -2131,82 +2155,86 @@ function editSettingsMaterial(idx) {
     });
 }
 
-async function toggleMaterialSpec(idx) {
-    if (!isAdmin) return;
-    settingsMaterials[idx].needsSpec = !settingsMaterials[idx].needsSpec;
-    if (!settingsMaterials[idx].needsSpec) {
-        settingsMaterials[idx].hasRunningMeter = false;
-    }
-    renderMaterialSettingsItems();
-    await saveMaterialSettings();
-}
+function openMatTypeDropdown(btn, idx) {
+    // Remove any existing dropdown
+    const existing = document.querySelector('.mat-type-backdrop');
+    if (existing) { closeMatTypeDropdown(); return; }
 
-async function toggleMaterialRunningMeter(idx) {
-    if (!isAdmin) return;
-    settingsMaterials[idx].hasRunningMeter = !settingsMaterials[idx].hasRunningMeter;
-    if (settingsMaterials[idx].hasRunningMeter) {
-        settingsMaterials[idx].needsSpec = true;
-        settingsMaterials[idx].defaultUnit = 'stk';
-    }
-    renderMaterialSettingsItems();
-    await saveMaterialSettings();
-}
+    const current = btn.dataset.value;
+    const types = [
+        { value: 'standard', icon: '#', desc: t('material_type_standard_desc'), lm: false },
+        { value: 'mansjett', icon: '○', desc: t('material_type_mansjett_desc'), lm: true },
+        { value: 'brannpakning', icon: '◎', desc: t('material_type_brannpakning_desc'), lm: true },
+        { value: 'kabelhylse', icon: '⬡', desc: t('material_type_kabelhylse_desc'), lm: false }
+    ];
 
-function setMaterialDefaultUnit(idx, btnEl) {
-    if (!isAdmin) return;
-    const allUnits = cachedUnitOptions || [];
-    const overlay = document.getElementById('unit-picker-overlay');
-    const listEl = document.getElementById('unit-picker-list');
-    const currentEnhet = settingsMaterials[idx].defaultUnit || '';
+    // Backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'mat-type-backdrop';
+    backdrop.onclick = () => closeMatTypeDropdown();
 
-    let html = '';
-    allUnits.forEach(u => {
-        const label = typeof u === 'object' ? u.plural : u;
-        const selected = label === currentEnhet ? ' unit-picker-item-selected' : '';
-        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(label)}</button>`;
-    });
-    listEl.innerHTML = html;
+    // Dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'mat-type-dropdown';
 
-    const headerClearBtn = document.getElementById('unit-picker-clear-btn');
-    if (headerClearBtn) {
-        headerClearBtn.style.display = currentEnhet ? '' : 'none';
-        headerClearBtn.onclick = function() {
-            settingsMaterials[idx].defaultUnit = '';
-            renderMaterialSettingsItems();
-            saveMaterialSettings();
-            closeUnitPicker();
+
+
+    types.forEach(({ value, icon, desc, lm }) => {
+        const isActive = value === current;
+        const item = document.createElement('div');
+        item.className = 'mat-type-dropdown-item' + (isActive ? ' active' : '');
+        const lmBadge = lm ? '<span class="mat-type-lm-badge">→ løpemeter</span>' : '';
+
+        item.innerHTML = `
+            <div class="mat-type-icon">${icon}</div>
+            <div class="mat-type-text">
+                <div class="mat-type-label">${t('material_type_' + value)}${lmBadge}</div>
+                <div class="mat-type-desc">${desc.split(' — ')[1] || desc}</div>
+            </div>
+            <div class="mat-type-check">${isActive ? '✓' : ''}</div>
+        `;
+
+        item.onclick = (e) => {
+            e.stopPropagation();
+            closeMatTypeDropdown();
+            if (value !== current) changeMaterialType(idx, value);
         };
-    }
-
-    const customEl = overlay.querySelector('.unit-picker-custom');
-    const customInput = customEl.querySelector('input');
-    customInput.value = '';
-    customInput.placeholder = t('picker_custom') + '...';
-
-    unitPickerCallback = function(value) {
-        settingsMaterials[idx].defaultUnit = value;
-        renderMaterialSettingsItems();
-        saveMaterialSettings();
-    };
-
-    listEl.querySelectorAll('.unit-picker-item').forEach(item => {
-        item.addEventListener('click', function() {
-            unitPickerCallback(this.textContent);
-            closeUnitPicker();
-        });
+        dropdown.appendChild(item);
     });
 
-    const customOk = customEl.querySelector('.unit-picker-custom-ok');
-    customOk.onclick = function() {
-        const val = customInput.value.trim();
-        if (val) {
-            unitPickerCallback(val);
-            closeUnitPicker();
-        }
-    };
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dropdown);
 
-    overlay.classList.add('active');
+    // Animate in
+    requestAnimationFrame(() => {
+        backdrop.classList.add('visible');
+        dropdown.classList.add('visible');
+    });
 }
+
+function closeMatTypeDropdown() {
+    const backdrop = document.querySelector('.mat-type-backdrop');
+    const dropdown = document.querySelector('.mat-type-dropdown');
+    if (!backdrop) return;
+    backdrop.classList.remove('visible');
+    if (dropdown) dropdown.classList.remove('visible');
+    setTimeout(() => {
+        backdrop?.remove();
+        dropdown?.remove();
+    }, 150);
+}
+
+async function changeMaterialType(idx, type) {
+    if (!isAdmin) return;
+    settingsMaterials[idx].type = type;
+    if (type === 'mansjett' || type === 'brannpakning') {
+        settingsMaterials[idx].defaultUnit = 'stk';
+        settingsMaterials[idx].allowedUnits = [{ singular: 'stk', plural: 'stk' }];
+    }
+    renderMaterialSettingsItems();
+    await saveMaterialSettings();
+}
+
 
 
 // ============================================
@@ -2215,7 +2243,6 @@ function setMaterialDefaultUnit(idx, btnEl) {
 
 // Cache for dropdown options
 let cachedMaterialOptions = null;
-let cachedUnitOptions = null;
 
 async function getDropdownOptions() {
     // Show cached immediately so picker is never empty
@@ -2224,19 +2251,15 @@ async function getDropdownOptions() {
         if (stored) {
             var cached = normalizeMaterialData(JSON.parse(stored));
             cachedMaterialOptions = (cached && cached.materials) ? cached.materials : [];
-            cachedUnitOptions = (cached && cached.units) ? cached.units : [];
             cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-            sortUnits(cachedUnitOptions);
         }
     }
     // Refresh from Firebase
     const data = await getMaterialSettings();
     cachedMaterialOptions = (data && data.materials) ? data.materials : [];
-    cachedUnitOptions = (data && data.units) ? data.units : [];
     cachedMaterialOptions.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-    sortUnits(cachedUnitOptions);
     // Cache to localStorage for offline use
-    safeSetItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: cachedUnitOptions }));
+    safeSetItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: [] }));
 }
 
 
@@ -3742,7 +3765,7 @@ function buildServiceExportTable() {
                 if (pipeInfo && m.antall) {
                     var pipes = parseFloat((m.antall || '').replace(',', '.'));
                     if (!isNaN(pipes) && pipes > 0) {
-                        var lm = calculatePipeRunningMeters(pipeInfo.diameter, pipeInfo.rounds, pipes);
+                        var lm = calculateRunningMeters(pipeInfo, pipes);
                         entryMats[m.name] = (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ' / ' + formatRunningMeters(lm) + ' cm';
                     } else {
                         var parts = [];

@@ -11,6 +11,8 @@ const REQUIRED_KEY = 'firesafe_required';
 const SERVICE_STORAGE_KEY = 'firesafe_service';
 const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
 
+const DEV_MODE = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
 let authReady = false; // true after first onAuthStateChanged
 let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
@@ -98,9 +100,11 @@ let currentUser = null;
 let isAdmin = localStorage.getItem('firesafe_admin') === '1';
 
 try {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.firestore();
-    auth = firebase.auth();
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        auth = firebase.auth();
+    }
 } catch (e) {
     // Firebase not configured
 }
@@ -139,6 +143,15 @@ if (auth) {
         loadedExternalForms = [];
 
         if (!user) {
+            // Dev bypass: skip login screen on local dev
+            if (DEV_MODE) {
+                currentUser = { uid: 'dev-local', email: 'dev@localhost', displayName: 'Dev Mode' };
+                isAdmin = true;
+                safeSetItem('firesafe_logged_in', '1');
+                updateLoginButton();
+                showTemplateModal();
+                return;
+            }
             window._explicitLogout = false;
             if (localStorage.getItem('firesafe_logged_in')) {
                 // Kan være midlertidig null under auth-init. Vent før vi rydder.
@@ -788,23 +801,38 @@ function getRunningMeterInfo(matName) {
     var allMats = cachedMaterialOptions || [];
     for (var i = 0; i < allMats.length; i++) {
         var m = allMats[i];
-        if (m.hasRunningMeter && matName.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) {
+        if ((m.type === 'mansjett' || m.type === 'brannpakning') && matName.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) {
             var rest = matName.substring(m.name.length + 1);
-            // Parse "ø50" or "ø50r2" format
-            var match = rest.match(/ø?(\d+(?:[.,]\d+)?)(?:r(\d+))?/);
-            if (match) {
-                var diameter = parseFloat(match[1].replace(',', '.'));
-                var rounds = match[2] ? parseInt(match[2], 10) : 1;
-                return { baseName: m.name, diameter: diameter, rounds: rounds };
+            // Strip "mm" suffix before parsing
+            rest = rest.replace(/mm(?=r\d+$|$)/, '');
+            // Parse round "ø50" / "ø50r2" or square "90x90" / "90x90r2"
+            var roundMatch = rest.match(/^ø(\d+(?:[.,]\d+)?)(?:r(\d+))?$/);
+            if (roundMatch) {
+                var diameter = parseFloat(roundMatch[1].replace(',', '.'));
+                var rounds = roundMatch[2] ? parseInt(roundMatch[2], 10) : 1;
+                return { baseName: m.name, diameter: diameter, rounds: rounds, isSquare: false };
+            }
+            var squareMatch = rest.match(/^(\d+)x(\d+)(?:r(\d+))?$/);
+            if (squareMatch) {
+                var width = parseInt(squareMatch[1], 10);
+                var height = parseInt(squareMatch[2], 10);
+                var sqRounds = squareMatch[3] ? parseInt(squareMatch[3], 10) : 1;
+                return { baseName: m.name, width: width, height: height, rounds: sqRounds, isSquare: true };
             }
         }
     }
     return null;
 }
 
-function calculatePipeRunningMeters(diameterMm, roundsPerPipe, pipes) {
-    if (!diameterMm || !roundsPerPipe || !pipes || isNaN(diameterMm) || isNaN(roundsPerPipe) || isNaN(pipes)) return 0;
-    return Math.PI * diameterMm * roundsPerPipe * pipes / 10;
+function calculateRunningMeters(info, quantity) {
+    if (!info || !quantity || isNaN(quantity)) return 0;
+    var circumference;
+    if (info.isSquare) {
+        circumference = 2 * (info.width + info.height);
+    } else {
+        circumference = Math.PI * info.diameter;
+    }
+    return circumference * info.rounds * quantity / 10;
 }
 
 function formatRunningMeters(value) {
@@ -818,14 +846,14 @@ function createMaterialSummaryRow(m) {
     div.setAttribute('data-mat-name', m.name || '');
     div.setAttribute('data-mat-antall', m.antall || '');
     div.setAttribute('data-mat-enhet', m.enhet || '');
-    const nameDisplay = (m.name || '').replace(/^(.+ ø\d+)r(\d+)$/, '$1 ($2r)');
+    const nameDisplay = (m.name || '').replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
     const nameText = escapeHtml(nameDisplay) || t('placeholder_material');
     const detailParts = [];
     const pipeInfo = getRunningMeterInfo(m.name);
     if (pipeInfo && m.antall) {
         var pipes = parseFloat((m.antall || '').replace(',', '.'));
         if (!isNaN(pipes) && pipes > 0) {
-            var lm = calculatePipeRunningMeters(pipeInfo.diameter, pipeInfo.rounds, pipes);
+            var lm = calculateRunningMeters(pipeInfo, pipes);
             detailParts.push(escapeHtml(m.antall) + ' ' + escapeHtml(m.enhet || 'stk'));
             detailParts.push(formatRunningMeters(lm) + ' cm');
         } else {
@@ -879,7 +907,6 @@ function openMaterialPicker(btn) {
     const existing = getMaterialsFromContainer(matContainer);
 
     const allMaterials = cachedMaterialOptions || [];
-    const allUnits = cachedUnitOptions || [];
 
     const modal = document.getElementById('picker-overlay');
     const searchInput = document.getElementById('picker-overlay-search');
@@ -889,9 +916,17 @@ function openMaterialPicker(btn) {
 
     // Initialize pickerState from existing materials
     pickerState = {};
+    var dupCounters = {};
     existing.forEach(m => {
         if (m.name) {
-            pickerState[m.name] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+            // If this name already exists in pickerState, use __N suffix for duplicates
+            if (pickerState[m.name]) {
+                if (!dupCounters[m.name]) dupCounters[m.name] = 1;
+                dupCounters[m.name]++;
+                pickerState[m.name + '__' + dupCounters[m.name]] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+            } else {
+                pickerState[m.name] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+            }
         }
     });
 
@@ -902,58 +937,74 @@ function openMaterialPicker(btn) {
         return name;
     }
 
-    function buildRow(name, isChecked, antall, enhet, needsSpec, hasLM) {
-        const displayName = formatDisplayName(name);
+    function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride) {
+        const displayName = displayNameOverride ? formatDisplayName(displayNameOverride) : formatDisplayName(name);
         const enhetLabel = enhet || t('placeholder_unit');
         const enhetClass = enhet ? '' : ' placeholder';
-        const specBadge = needsSpec ? '<span class="picker-mat-spec-dot"></span>' : '';
-        const lmBadge = hasLM ? '<span class="picker-mat-lm-dot"></span>' : '';
-        const disabledAttr = needsSpec ? ' disabled' : '';
+        const isLauncher = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
+        const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>';
+        const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
+            : matType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
+            : matType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
+            : '';
+        const specBadge = typeDot;
+        const lmBadge = '';
+        const disabledAttr = isLauncher ? ' disabled' : '';
         const antallPlaceholder = t('placeholder_quantity');
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-needs-spec="${needsSpec ? '1' : '0'}" data-has-lm="${hasLM ? '1' : '0'}">
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${specBadge}${lmBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
-            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>
+            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>${dupBtn}
         </div>`;
     }
 
     // Helper: find base material object for a name (checks if it's a spec-derived name)
     function findBaseMaterial(name) {
-        return allMaterials.find(m => m.needsSpec && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
+        return allMaterials.find(m => (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse') && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
     }
 
     function renderPickerList() {
         pickerRenderFn = renderPickerList; // Expose for unitPickerCallback
         // Build list: configured materials + checked spec-derived entries + checked custom entries
-        const entries = []; // { name, isChecked, antall, enhet, needsSpec, isSpecDerived }
+        const entries = [];
 
         // Add all configured materials
         allMaterials.forEach(matObj => {
-            if (matObj.needsSpec) {
-                // Base spec material: always show as unchecked launcher
-                entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', needsSpec: true, isSpecDerived: false, hasLM: !!matObj.hasRunningMeter });
+            var matType = matObj.type || 'standard';
+            if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
+                // Spec material: show as launcher only if no derived entries exist yet
+                const hasDerived = Object.keys(pickerState).some(k => k.toLowerCase().startsWith(matObj.name.toLowerCase() + ' '));
+                if (!hasDerived) {
+                    entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', matType: matType, isSpecDerived: false });
+                }
             } else {
                 const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
                 const isChecked = state && state.checked;
                 const defUnit = matObj.defaultUnit || '';
                 const enhet = state ? (state.enhet || defUnit) : defUnit;
-                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: enhet, needsSpec: false, isSpecDerived: false, hasLM: false });
+                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: enhet, matType: 'standard', isSpecDerived: false });
             }
         });
 
-        // Add pickerState entries that are spec-derived or custom
+        // Add pickerState entries that are spec-derived, duplicates, or custom
         Object.keys(pickerState).forEach(name => {
             const state = pickerState[name];
             const baseMat = findBaseMaterial(name);
-            if (baseMat) {
-                // Spec-derived entry (e.g. "Kabelhylser ø50") — always show while in pickerState
-                const defUnit = baseMat.hasRunningMeter ? 'stk' : (baseMat.defaultUnit || '');
+            // Check for duplicate entries (e.g. "FSA__2")
+            const dupMatch = name.match(/^(.+)__(\d+)$/);
+            if (dupMatch) {
+                const baseName = dupMatch[1];
+                const baseMatObj = allMaterials.find(m => m.name === baseName);
+                entries.push({ name, displayName: baseName, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', matType: 'standard', isSpecDerived: true });
+            } else if (baseMat) {
+                // Spec-derived entry (e.g. "Kabelhylse ø50x250mm")
+                const defUnit = (baseMat.type === 'mansjett' || baseMat.type === 'brannpakning') ? 'stk' : (baseMat.defaultUnit || '');
                 const enhet = state.enhet || defUnit;
                 if (!state.enhet && defUnit) state.enhet = defUnit;
-                entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: enhet, needsSpec: false, isSpecDerived: true, hasLM: !!baseMat.hasRunningMeter });
+                entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: enhet, matType: 'standard', isSpecDerived: true });
             } else if (state.checked && !allMaterials.some(m => m.name.toLowerCase() === name.toLowerCase())) {
                 // Custom entry not in settings — only show when checked
-                entries.push({ name, isChecked: true, antall: state.antall || '', enhet: state.enhet || '', needsSpec: false, isSpecDerived: false, hasLM: false });
+                entries.push({ name, isChecked: true, antall: state.antall || '', enhet: state.enhet || '', matType: 'standard', isSpecDerived: false });
             }
         });
 
@@ -962,7 +1013,7 @@ function openMaterialPicker(btn) {
 
         let html = '';
         entries.forEach(e => {
-            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.needsSpec, e.hasLM);
+            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName);
         });
 
         if (!html) {
@@ -979,18 +1030,17 @@ function openMaterialPicker(btn) {
             const antallInput = row.querySelector('.picker-mat-antall');
             const enhetBtn = row.querySelector('.picker-mat-enhet-btn');
             const name = row.getAttribute('data-mat-name');
-            const needsSpec = row.getAttribute('data-needs-spec') === '1';
+            const matType = row.getAttribute('data-mat-type') || 'standard';
 
             nameDiv.addEventListener('click', function() {
-                if (needsSpec) {
-                    const hasLM = row.getAttribute('data-has-lm') === '1';
+                if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
                     const baseMat = allMaterials.find(m => m.name === name);
                     openSpecPopup(name, function(spec) {
                         var fullName = name + ' ' + spec;
-                        var defUnit = baseMat ? (baseMat.hasRunningMeter ? 'stk' : (baseMat.defaultUnit || '')) : '';
+                        var defUnit = baseMat ? ((baseMat.type === 'mansjett' || baseMat.type === 'brannpakning') ? 'stk' : (baseMat.defaultUnit || '')) : '';
                         pickerState[fullName] = { checked: true, antall: '', enhet: defUnit };
                         renderPickerList();
-                    }, hasLM);
+                    }, matType);
                     return;
                 }
                 const isChecked = pickerState[name] && pickerState[name].checked;
@@ -1017,8 +1067,49 @@ function openMaterialPicker(btn) {
 
             enhetBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                openUnitPicker(name, this);
+                // Find allowed units for this material (handle __N keys)
+                var lookupName = name.replace(/__\d+$/, '');
+                var matObj = allMaterials.find(m => m.name === lookupName) || findBaseMaterial(name);
+                var allowed = matObj && matObj.allowedUnits && matObj.allowedUnits.length > 0 ? matObj.allowedUnits : (matObj && matObj.defaultUnit ? [matObj.defaultUnit] : []);
+                openUnitPicker(name, this, allowed);
             });
+
+            // Duplicate button
+            var dupBtn = row.querySelector('.picker-mat-dup-btn');
+            if (dupBtn) {
+                dupBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var baseName = name.replace(/__\d+$/, '');
+                    // Check if this is a spec-derived material (has a base spec material)
+                    var specBaseMat = findBaseMaterial(baseName) || findBaseMaterial(name);
+                    if (!specBaseMat) {
+                        // Also check if the material itself is a spec type
+                        var selfMat = allMaterials.find(m => m.name === baseName);
+                        if (selfMat && (selfMat.type === 'mansjett' || selfMat.type === 'brannpakning' || selfMat.type === 'kabelhylse')) {
+                            specBaseMat = selfMat;
+                        }
+                    }
+                    if (specBaseMat) {
+                        // Spec material: open spec popup to add another variant
+                        var specName = specBaseMat.name;
+                        var specType = specBaseMat.type;
+                        openSpecPopup(specName, function(spec) {
+                            var fullName = specName + ' ' + spec;
+                            var defUnit = (specType === 'mansjett' || specType === 'brannpakning') ? 'stk' : (specBaseMat.defaultUnit || '');
+                            pickerState[fullName] = { checked: true, antall: '', enhet: defUnit };
+                            renderPickerList();
+                        }, specType);
+                    } else {
+                        // Standard material: create __N duplicate
+                        var n = 2;
+                        while (pickerState[baseName + '__' + n]) n++;
+                        var newKey = baseName + '__' + n;
+                        pickerState[newKey] = { checked: false, antall: '', enhet: '' };
+                        renderPickerList();
+                    }
+                });
+            }
         });
     }
 
@@ -1036,9 +1127,8 @@ function openMaterialPicker(btn) {
         // Save to global settings (admin only)
         if (isAdmin) {
             settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
-            settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
             if (!settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
-                settingsMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false, defaultUnit: '' });
+                settingsMaterials.push({ name: val, type: 'standard', defaultUnit: '', allowedUnits: [] });
                 settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
                 cachedMaterialOptions = settingsMaterials.slice();
                 allMaterials.length = 0;
@@ -1047,7 +1137,7 @@ function openMaterialPicker(btn) {
             }
         } else {
             // Non-admin: add to picker list for this session only
-            allMaterials.push({ name: val, needsSpec: false, hasRunningMeter: false, defaultUnit: '' });
+            allMaterials.push({ name: val, type: 'standard', defaultUnit: '' });
             allMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
         }
         searchInput.value = '';
@@ -1079,38 +1169,51 @@ function closePickerOverlay() {
     pickerOrderCard = null;
 }
 
-// Spec popup for materials that need a specification (diameter + optional length)
+// Spec popup for materials that need a specification
 let specPopupCallback = null;
-let specPopupUseDiameter = false; // true = ø prefix (LM materials), false = plain numbers
+let specPopupMatType = 'kabelhylse'; // 'mansjett' | 'brannpakning' | 'kabelhylse'
 
-function openSpecPopup(baseName, callback, hasLM) {
-    specPopupUseDiameter = !!hasLM;
+function openSpecPopup(baseName, callback, matType) {
+    specPopupMatType = matType || 'kabelhylse';
     const input = document.getElementById('spec-popup-input');
     const input2 = document.getElementById('spec-popup-input2');
-    const label1 = document.getElementById('spec-popup-label1');
-    const label2 = document.getElementById('spec-popup-label2');
+    const input3 = document.getElementById('spec-popup-input3');
     input.value = '';
     input2.value = '';
+    input3.value = '';
 
-    if (hasLM) {
-        document.getElementById('spec-popup-title').textContent = baseName;
-        label1.textContent = t('dim_popup_diameter_placeholder');
-        label2.textContent = t('dim_popup_rounds_placeholder');
-        input.placeholder = t('dim_popup_diameter_placeholder');
-        input2.placeholder = t('dim_popup_rounds_placeholder');
+    document.getElementById('spec-popup-title').textContent = baseName;
+
+    const label1 = document.getElementById('spec-popup-label1');
+    const label2 = document.getElementById('spec-popup-label2');
+    const label3 = document.getElementById('spec-popup-label3');
+    const field2 = document.getElementById('spec-popup-field2');
+    const field3 = document.getElementById('spec-popup-field3');
+
+    input.placeholder = '';
+    label1.innerHTML = t('dim_popup_width_placeholder') + ' <span class="spec-required-star">*</span>';
+    input2.placeholder = '';
+    label2.textContent = t('dim_popup_height_placeholder');
+    field2.style.display = '';
+
+    if (specPopupMatType === 'mansjett') {
+        field3.style.display = 'none';
+    } else if (specPopupMatType === 'brannpakning') {
+        field3.style.display = '';
+        input3.placeholder = '';
+        label3.textContent = t('dim_popup_rounds_placeholder');
     } else {
-        document.getElementById('spec-popup-title').textContent = baseName;
-        label1.textContent = t('dim_popup_generic_placeholder');
-        label2.textContent = t('dim_popup_length_placeholder');
-        input.placeholder = t('dim_popup_generic_placeholder');
-        input2.placeholder = t('dim_popup_length_placeholder');
+        field3.style.display = '';
+        input3.placeholder = '';
+        label3.textContent = t('dim_popup_depth_placeholder');
     }
+
     input.inputMode = 'numeric';
     input.pattern = '[0-9]*';
     input2.inputMode = 'numeric';
     input2.pattern = '[0-9]*';
-    input2.style.display = '';
-    label2.style.display = '';
+    input3.inputMode = 'numeric';
+    input3.pattern = '[0-9]*';
 
     specPopupCallback = callback;
     var keyHandler = function(e) {
@@ -1119,6 +1222,7 @@ function openSpecPopup(baseName, callback, hasLM) {
     };
     input.onkeydown = keyHandler;
     input2.onkeydown = keyHandler;
+    input3.onkeydown = keyHandler;
     document.getElementById('spec-popup').classList.add('active');
     setTimeout(function() { input.focus(); }, 100);
 }
@@ -1126,12 +1230,13 @@ function openSpecPopup(baseName, callback, hasLM) {
 function closeSpecPopup() {
     document.getElementById('spec-popup').classList.remove('active');
     specPopupCallback = null;
-    specPopupUseDiameter = false;
+    specPopupMatType = 'kabelhylse';
 }
 
 function confirmSpecPopup() {
     const val1 = document.getElementById('spec-popup-input').value.trim();
     const val2 = document.getElementById('spec-popup-input2').value.trim();
+    const val3 = document.getElementById('spec-popup-input3').value.trim();
     if (!val1) return;
 
     const num1 = parseInt(val1, 10);
@@ -1139,22 +1244,41 @@ function confirmSpecPopup() {
         showNotificationModal(t('dim_invalid_diameter'));
         return;
     }
+    var num2 = val2 ? parseInt(val2, 10) : 0;
+    var num3 = val3 ? parseInt(val3, 10) : 0;
     var spec;
-    if (specPopupUseDiameter) {
-        // LM material: diameter + optional rounds (empty = 1)
-        spec = '\u00f8' + num1;
-        var rounds = val2 ? parseInt(val2, 10) : 1;
-        if (!isNaN(rounds) && rounds > 1) {
+
+    if (specPopupMatType === 'mansjett') {
+        // Mansjett: bredde/Ø + høyde(valgfri), ingen runder
+        var isSquare = num2 > 0;
+        if (isSquare) {
+            spec = num1 + 'x' + num2 + 'mm';
+        } else {
+            spec = '\u00f8' + num1 + 'mm';
+        }
+    } else if (specPopupMatType === 'brannpakning') {
+        // Brannpakning: bredde/Ø + høyde(valgfri) + runder(valgfri)
+        var isSquare = num2 > 0;
+        var rounds = num3 > 0 ? num3 : 0;
+        if (isSquare) {
+            spec = num1 + 'x' + num2;
+        } else {
+            spec = '\u00f8' + num1;
+        }
+        spec += 'mm';
+        if (rounds > 1) {
             spec += 'r' + rounds;
         }
     } else {
-        // Regular spec: width/diameter + optional length
-        spec = '' + num1;
-        if (val2) {
-            const num2 = parseInt(val2, 10);
-            if (!isNaN(num2) && num2 > 0) {
-                spec += 'x' + num2;
-            }
+        // Kabelhylse: bredde/Ø + høyde(valgfri) + dybde
+        if (num2 > 0 && num3 > 0) {
+            spec = num1 + 'x' + num2 + 'x' + num3 + 'mm';
+        } else if (num3 > 0) {
+            spec = '\u00f8' + num1 + 'x' + num3 + 'mm';
+        } else if (num2 > 0) {
+            spec = num1 + 'x' + num2 + 'mm';
+        } else {
+            spec = '\u00f8' + num1 + 'mm';
         }
     }
     if (specPopupCallback) specPopupCallback(spec);
@@ -1190,7 +1314,9 @@ function pickerOverlayConfirm() {
     const materials = [];
     for (const [name, state] of Object.entries(pickerState)) {
         if (state.checked) {
-            materials.push({ name, antall: state.antall || '', enhet: state.enhet || '' });
+            // Strip __N suffix for duplicated entries
+            const realName = name.replace(/__\d+$/, '');
+            materials.push({ name: realName, antall: state.antall || '', enhet: state.enhet || '' });
         }
     }
 
@@ -1207,33 +1333,24 @@ function pickerOverlayConfirm() {
 // Unit picker overlay
 let unitPickerCallback = null;
 
-function openUnitPicker(matName, btnEl) {
-    const allUnits = cachedUnitOptions || [];
+function openUnitPicker(matName, btnEl, allowedUnits) {
+    allowedUnits = allowedUnits || [];
     const overlay = document.getElementById('unit-picker-overlay');
     const listEl = document.getElementById('unit-picker-list');
     const currentEnhet = btnEl.getAttribute('data-enhet') || '';
 
     let html = '';
-    allUnits.forEach(u => {
-        const label = typeof u === 'object' ? u.plural : u;
-        const selected = label === currentEnhet ? ' unit-picker-item-selected' : '';
-        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(label)}</button>`;
+    allowedUnits.forEach(u => {
+        const label = typeof u === 'string' ? u : u.plural;
+        const isSelected = label === currentEnhet;
+        const selected = isSelected ? ' unit-picker-item-selected' : '';
+        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(label)}<span class="unit-picker-item-check">${isSelected ? '✓' : ''}</span></button>`;
     });
 
     listEl.innerHTML = html;
 
-    // Show/hide clear button in header
-    const headerClearBtn = document.getElementById('unit-picker-clear-btn');
-    if (headerClearBtn) {
-        headerClearBtn.style.display = currentEnhet ? '' : 'none';
-        headerClearBtn.onclick = function() {
-            unitPickerCallback('');
-            closeUnitPicker();
-        };
-    }
-
     // Custom input row (outside scrollable list)
-    const isCustom = currentEnhet && !allUnits.some(u => (typeof u === 'object' ? u.plural : u).toLowerCase() === currentEnhet.toLowerCase());
+    const isCustom = currentEnhet && !allowedUnits.some(u => (typeof u === 'string' ? u : u.plural).toLowerCase() === currentEnhet.toLowerCase());
     const customEl = overlay.querySelector('.unit-picker-custom');
     const customInput = customEl.querySelector('input');
     customInput.value = isCustom ? currentEnhet : '';
@@ -1249,15 +1366,6 @@ function openUnitPicker(matName, btnEl) {
         if (value && pickerState[matName].antall && !pickerState[matName].checked) {
             pickerState[matName].checked = true;
             if (pickerRenderFn) pickerRenderFn();
-        }
-        // Save custom unit to global settings (admin only)
-        if (isAdmin && value && !(cachedUnitOptions || []).some(u => (typeof u === 'object' ? u.plural : u).toLowerCase() === value.toLowerCase())) {
-            settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
-            settingsUnits = cachedUnitOptions ? cachedUnitOptions.slice() : [];
-            settingsUnits.push({ singular: value, plural: value });
-            sortUnits(settingsUnits);
-            cachedUnitOptions = settingsUnits.slice();
-            saveMaterialSettings();
         }
     };
 
@@ -1280,11 +1388,16 @@ function openUnitPicker(matName, btnEl) {
     };
 
     overlay.classList.add('active');
+    requestAnimationFrame(() => overlay.classList.add('visible'));
 }
 
 function closeUnitPicker() {
-    document.getElementById('unit-picker-overlay').classList.remove('active');
-    unitPickerCallback = null;
+    const overlay = document.getElementById('unit-picker-overlay');
+    overlay.classList.remove('visible');
+    setTimeout(() => {
+        overlay.classList.remove('active');
+        unitPickerCallback = null;
+    }, 150);
 }
 
 function toggleOrder(headerEl) {
@@ -2085,25 +2198,31 @@ function buildDesktopWorkLines() {
             addRow('Materiell:', '', '', { bold: true, alignRight: true });
             filledMats.forEach(m => {
                 const rawName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
-                // Format "FSW ø50r2" → "FSW ø50 (2r)" for display
-                const capName = rawName.replace(/^(.+ ø\d+)r(\d+)$/, '$1 ($2r)');
+                // Format "FSW ø50r2" → "FSW ø50 (2r)" or "FSW 90x90r2" → "FSW 90x90 (2r)"
+                const capName = rawName.replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
                 const antallNum = parseFloat((m.antall || '').replace(',', '.'));
 
                 // Check if pipe sealant material
                 const pipeInfo = getRunningMeterInfo(m.name);
                 if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
-                    var lm = calculatePipeRunningMeters(pipeInfo.diameter, pipeInfo.rounds, antallNum);
+                    var lm = calculateRunningMeters(pipeInfo, antallNum);
                     var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ')';
                     addRow(displayName, formatRunningMeters(lm), 'cm', { alignRight: true });
                 } else {
-                    const unitObj = (cachedUnitOptions || []).find(u =>
-                        (typeof u === 'object' ? u.plural : u).toLowerCase() === (m.enhet || '').toLowerCase()
-                    );
-                    let unitText;
-                    if (unitObj && typeof unitObj === 'object') {
-                        unitText = (antallNum === 1 ? unitObj.singular : unitObj.plural).toLowerCase();
-                    } else {
-                        unitText = (m.enhet || '').toLowerCase();
+                    // Singular/plural lookup from material's allowedUnits
+                    var unitText = (m.enhet || '').toLowerCase();
+                    if (cachedMaterialOptions && m.enhet) {
+                        var matConfig = cachedMaterialOptions.find(function(cm) { return cm.name.toLowerCase() === m.name.toLowerCase(); });
+                        if (!matConfig) {
+                            // Try base material for spec-derived names
+                            matConfig = cachedMaterialOptions.find(function(cm) { return (cm.type === 'mansjett' || cm.type === 'brannpakning' || cm.type === 'kabelhylse') && m.name.toLowerCase().startsWith(cm.name.toLowerCase() + ' '); });
+                        }
+                        if (matConfig && matConfig.allowedUnits) {
+                            var unitObj = matConfig.allowedUnits.find(function(u) { return typeof u === 'object' && u.plural && u.plural.toLowerCase() === m.enhet.toLowerCase(); });
+                            if (unitObj) {
+                                unitText = (antallNum === 1 ? unitObj.singular : unitObj.plural).toLowerCase();
+                            }
+                        }
                     }
                     addRow(capName, (m.antall || '').replace('.', ','), unitText, { alignRight: true });
                 }

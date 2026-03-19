@@ -431,7 +431,7 @@
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('materials')">
-                            <span data-i18n="settings_materials">Materialer og enheter</span>
+                            <span data-i18n="settings_materials">Materialer</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('language')">
@@ -498,28 +498,33 @@
                     <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
                 </div>
 
-                <!-- Materialer og enheter-side -->
+                <!-- Materialer-side -->
                 <div id="settings-page-materials" class="settings-page" style="display:none;">
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('materials')">
-                        <span data-i18n="settings_materials_list">Materialer</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-materials">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-materials">
-                        <div id="settings-material-items" class="settings-list-container"></div>
-                        <div class="settings-add-row">
-                            <input type="text" id="settings-new-material" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale" autocapitalize="sentences">
-                            <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
+                    <div id="settings-material-items" class="settings-list-container"></div>
+                    <div class="settings-add-material-row">
+                        <div class="settings-add-material-top">
+                            <label class="settings-add-label">Nytt materiale <span class="spec-required-star">*</span></label>
+                            <input type="text" id="settings-new-material" autocapitalize="sentences">
                         </div>
-                    </div>
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('units')">
-                        <span data-i18n="settings_units_list">Enheter</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-units">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-units">
-                        <div id="settings-unit-items" class="settings-list-container"></div>
-                        <div class="settings-add-row" id="settings-unit-add-row">
-                            <input type="text" id="settings-new-unit" placeholder="Ny enhet" autocapitalize="sentences" onfocus="expandUnitAddRow()">
-                            <button type="button" class="settings-add-btn" onclick="addSettingsUnit()" data-i18n="btn_add">Legg til</button>
+                        <div class="settings-add-material-mid">
+                            <label class="settings-add-label">Type <span class="spec-required-star">*</span></label>
+                            <select id="settings-new-material-type" class="settings-material-type-select">
+                                <option value="standard" data-i18n="material_type_standard_desc">Standard — antall + enhet</option>
+                                <option value="mansjett" data-i18n="material_type_mansjett_desc">Mansjett — bredde/Ø, høyde</option>
+                                <option value="brannpakning" data-i18n="material_type_brannpakning_desc">Brannpakning — bredde/Ø, høyde, runder</option>
+                                <option value="kabelhylse" data-i18n="material_type_kabelhylse_desc">Kabelhylse — bredde/Ø, høyde, dybde</option>
+                            </select>
+                        </div>
+                        <div class="settings-add-material-btm">
+                            <div class="settings-add-unit-fields">
+                                <label class="settings-add-label">Entall <span class="spec-required-star">*</span></label>
+                                <input type="text" id="settings-new-material-singular" autocapitalize="sentences">
+                            </div>
+                            <div class="settings-add-unit-fields">
+                                <label class="settings-add-label">Flertall <span class="spec-required-star">*</span></label>
+                                <input type="text" id="settings-new-material-plural" autocapitalize="sentences">
+                            </div>
+                            <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>
                 </div>
@@ -631,10 +636,6 @@
         <div class="unit-picker-sheet">
             <div class="unit-picker-header">
                 <span data-i18n="placeholder_unit">Enhet</span>
-                <div class="unit-picker-header-actions">
-                    <button type="button" id="unit-picker-clear-btn" class="unit-picker-header-clear" style="display:none" data-i18n="btn_clear">Fjern</button>
-                    <button type="button" onclick="closeUnitPicker()" data-i18n="btn_cancel">Avbryt</button>
-                </div>
             </div>
             <div class="unit-picker-list" id="unit-picker-list"></div>
             <div class="unit-picker-custom">
@@ -651,10 +652,18 @@
                 <span id="spec-popup-title"></span>
             </div>
             <div class="spec-popup-body">
-                <label id="spec-popup-label1" class="spec-popup-label"></label>
-                <input type="text" id="spec-popup-input" placeholder="f.eks. Ø50mm" autocapitalize="off">
-                <label id="spec-popup-label2" class="spec-popup-label"></label>
-                <input type="text" id="spec-popup-input2" placeholder="" autocapitalize="off">
+                <div class="spec-popup-field">
+                    <label id="spec-popup-label1" class="spec-popup-label"><span class="spec-required-star">*</span></label>
+                    <input type="text" id="spec-popup-input" placeholder="" autocapitalize="off">
+                </div>
+                <div class="spec-popup-field" id="spec-popup-field2">
+                    <label id="spec-popup-label2" class="spec-popup-label"></label>
+                    <input type="text" id="spec-popup-input2" placeholder="" autocapitalize="off">
+                </div>
+                <div class="spec-popup-field" id="spec-popup-field3">
+                    <label id="spec-popup-label3" class="spec-popup-label"></label>
+                    <input type="text" id="spec-popup-input3" placeholder="" autocapitalize="off">
+                </div>
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecPopup()" data-i18n="btn_cancel">Avbryt</button>
