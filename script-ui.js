@@ -3740,6 +3740,11 @@ function buildServiceExportTable() {
     data.entries.forEach(function(entry) {
         (entry.materials || []).forEach(function(m) {
             if (m.name && !matNameSet[m.name]) {
+                // Skip spec-base materials
+                var isSpecBase = cachedMaterialOptions && cachedMaterialOptions.some(function(o) {
+                    return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
+                });
+                if (isSpecBase) return;
                 matNameSet[m.name] = true;
                 matNames.push(m.name);
             }
@@ -3766,7 +3771,7 @@ function buildServiceExportTable() {
                     var pipes = parseFloat((m.antall || '').replace(',', '.'));
                     if (!isNaN(pipes) && pipes > 0) {
                         var lm = calculateRunningMeters(pipeInfo, pipes);
-                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ' / ' + formatRunningMeters(lm) + ' cm';
+                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ' / ' + formatRunningMeters(lm) + ' meter';
                     } else {
                         var parts = [];
                         if (m.antall) parts.push(m.antall);

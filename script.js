@@ -805,8 +805,8 @@ function getRunningMeterInfo(matName) {
             var rest = matName.substring(m.name.length + 1);
             // Strip "mm" suffix before parsing
             rest = rest.replace(/mm(?=r\d+$|$)/, '');
-            // Parse round "ø50" / "ø50r2" or square "90x90" / "90x90r2"
-            var roundMatch = rest.match(/^ø(\d+(?:[.,]\d+)?)(?:r(\d+))?$/);
+            // Parse round "ø50" / "Ø50" / "ø50r2" or square "90x90" / "90x90r2"
+            var roundMatch = rest.match(/^[øØ](\d+(?:[.,]\d+)?)(?:r(\d+))?$/);
             if (roundMatch) {
                 var diameter = parseFloat(roundMatch[1].replace(',', '.'));
                 var rounds = roundMatch[2] ? parseInt(roundMatch[2], 10) : 1;
@@ -832,7 +832,7 @@ function calculateRunningMeters(info, quantity) {
     } else {
         circumference = Math.PI * info.diameter;
     }
-    return circumference * info.rounds * quantity / 10;
+    return circumference * info.rounds * quantity / 1000;
 }
 
 function formatRunningMeters(value) {
@@ -855,7 +855,7 @@ function createMaterialSummaryRow(m) {
         if (!isNaN(pipes) && pipes > 0) {
             var lm = calculateRunningMeters(pipeInfo, pipes);
             detailParts.push(escapeHtml(m.antall) + ' ' + escapeHtml(m.enhet || 'stk'));
-            detailParts.push(formatRunningMeters(lm) + ' cm');
+            detailParts.push(formatRunningMeters(lm) + ' meter');
         } else {
             if (m.antall) detailParts.push(escapeHtml(m.antall));
             if (m.enhet) detailParts.push(escapeHtml(m.enhet));
@@ -876,9 +876,15 @@ function createMaterialSummaryRow(m) {
 function renderMaterialSummary(matContainer, materials) {
     matContainer.innerHTML = '';
     materials.forEach(m => {
-        if (m.name || m.antall || m.enhet) {
-            matContainer.appendChild(createMaterialSummaryRow(m));
+        if (!m.name && !m.antall && !m.enhet) return;
+        // Skip spec-base materials
+        if (cachedMaterialOptions) {
+            var specBase = cachedMaterialOptions.find(function(o) {
+                return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
+            });
+            if (specBase) return;
         }
+        matContainer.appendChild(createMaterialSummaryRow(m));
     });
 }
 
@@ -919,6 +925,11 @@ function openMaterialPicker(btn) {
     var dupCounters = {};
     existing.forEach(m => {
         if (m.name) {
+            // Skip spec-base materials (e.g. "FSC" when type is mansjett/brannpakning/kabelhylse)
+            var isSpecBase = allMaterials.some(function(o) {
+                return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
+            });
+            if (isSpecBase) return;
             // If this name already exists in pickerState, use __N suffix for duplicates
             if (pickerState[m.name]) {
                 if (!dupCounters[m.name]) dupCounters[m.name] = 1;
@@ -949,8 +960,8 @@ function openMaterialPicker(btn) {
             : '';
         const specBadge = typeDot;
         const lmBadge = '';
-        const disabledAttr = isLauncher ? ' disabled' : '';
         const antallPlaceholder = t('placeholder_quantity');
+        const disabledAttr = isLauncher ? ' disabled' : '';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${specBadge}${lmBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
@@ -975,7 +986,7 @@ function openMaterialPicker(btn) {
                 // Spec material: show as launcher only if no derived entries exist yet
                 const hasDerived = Object.keys(pickerState).some(k => k.toLowerCase().startsWith(matObj.name.toLowerCase() + ' '));
                 if (!hasDerived) {
-                    entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: '', matType: matType, isSpecDerived: false });
+                    entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: matObj.defaultUnit || '', matType: matType, isSpecDerived: false });
                 }
             } else {
                 const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
@@ -1058,6 +1069,11 @@ function openMaterialPicker(btn) {
             antallInput.addEventListener('input', function() {
                 if (!pickerState[name]) pickerState[name] = { checked: false, antall: '', enhet: '' };
                 pickerState[name].antall = this.value;
+                // Capture default enhet from button if not already set in state
+                if (!pickerState[name].enhet) {
+                    var btnEnhet = enhetBtn.getAttribute('data-enhet') || '';
+                    if (btnEnhet) pickerState[name].enhet = btnEnhet;
+                }
                 // Auto-select when both antall and enhet are filled
                 if (this.value && pickerState[name].enhet && !pickerState[name].checked) {
                     pickerState[name].checked = true;
@@ -1201,11 +1217,11 @@ function openSpecPopup(baseName, callback, matType) {
     } else if (specPopupMatType === 'brannpakning') {
         field3.style.display = '';
         input3.placeholder = '';
-        label3.textContent = t('dim_popup_rounds_placeholder');
+        label3.innerHTML = t('dim_popup_rounds_placeholder') + ' <span class="spec-required-star">*</span>';
     } else {
         field3.style.display = '';
         input3.placeholder = '';
-        label3.textContent = t('dim_popup_depth_placeholder');
+        label3.innerHTML = t('dim_popup_depth_placeholder') + ' <span class="spec-required-star">*</span>';
     }
 
     input.inputMode = 'numeric';
@@ -1254,31 +1270,28 @@ function confirmSpecPopup() {
         if (isSquare) {
             spec = num1 + 'x' + num2 + 'mm';
         } else {
-            spec = '\u00f8' + num1 + 'mm';
+            spec = '\u00d8' + num1 + 'mm';
         }
     } else if (specPopupMatType === 'brannpakning') {
-        // Brannpakning: bredde/Ø + høyde(valgfri) + runder(valgfri)
+        // Brannpakning: bredde/Ø + høyde(valgfri) + runder(obligatorisk)
+        if (!num3 || num3 <= 0) return; // Runder er obligatorisk
         var isSquare = num2 > 0;
-        var rounds = num3 > 0 ? num3 : 0;
         if (isSquare) {
             spec = num1 + 'x' + num2;
         } else {
-            spec = '\u00f8' + num1;
+            spec = '\u00d8' + num1;
         }
         spec += 'mm';
-        if (rounds > 1) {
-            spec += 'r' + rounds;
+        if (num3 > 1) {
+            spec += 'r' + num3;
         }
     } else {
-        // Kabelhylse: bredde/Ø + høyde(valgfri) + dybde
-        if (num2 > 0 && num3 > 0) {
+        // Kabelhylse: bredde/Ø + høyde(valgfri) + dybde(obligatorisk)
+        if (!num3 || num3 <= 0) return; // Dybde er obligatorisk
+        if (num2 > 0) {
             spec = num1 + 'x' + num2 + 'x' + num3 + 'mm';
-        } else if (num3 > 0) {
-            spec = '\u00f8' + num1 + 'x' + num3 + 'mm';
-        } else if (num2 > 0) {
-            spec = num1 + 'x' + num2 + 'mm';
         } else {
-            spec = '\u00f8' + num1 + 'mm';
+            spec = '\u00d8' + num1 + 'x' + num3 + 'mm';
         }
     }
     if (specPopupCallback) specPopupCallback(spec);
@@ -1288,16 +1301,26 @@ function confirmSpecPopup() {
 function pickerOverlayConfirm() {
     if (!pickerOrderCard) { closePickerOverlay(); return; }
 
-    // Auto-check materials that have both antall and enhet filled
+    // Helper: check if name is a spec-base material (launcher) — should never be exported
+    var allMats = cachedMaterialOptions || [];
+    function isSpecBase(name) {
+        return allMats.some(function(m) {
+            return m.name === name && (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse');
+        });
+    }
+
+    // Auto-check materials that have both antall and enhet filled (skip spec-base launchers)
     for (const [name, state] of Object.entries(pickerState)) {
+        if (isSpecBase(name)) continue;
         if (!state.checked && state.antall && state.enhet) {
             state.checked = true;
         }
     }
 
-    // Validate: warn if any material has partial data (antall or enhet but not both)
+    // Validate: warn if any material has partial data (skip spec-base launchers)
     const incomplete = [];
     for (const [name, state] of Object.entries(pickerState)) {
+        if (isSpecBase(name)) continue;
         const hasAntall = !!state.antall;
         const hasEnhet = !!state.enhet;
         if (state.checked && (!hasAntall || !hasEnhet)) {
@@ -1313,6 +1336,7 @@ function pickerOverlayConfirm() {
 
     const materials = [];
     for (const [name, state] of Object.entries(pickerState)) {
+        if (isSpecBase(name)) continue;
         if (state.checked) {
             // Strip __N suffix for duplicated entries
             const realName = name.replace(/__\d+$/, '');
@@ -1372,7 +1396,9 @@ function openUnitPicker(matName, btnEl, allowedUnits) {
     // Unit item click
     listEl.querySelectorAll('.unit-picker-item').forEach(item => {
         item.addEventListener('click', function() {
-            unitPickerCallback(this.textContent);
+            // Get only the label text, excluding the check mark span
+            var label = this.childNodes[0].textContent;
+            unitPickerCallback(label);
             closeUnitPicker();
         });
     });
@@ -2193,7 +2219,17 @@ function buildDesktopWorkLines() {
         }
 
         // Materials
-        const filledMats = (order.materials || []).filter(m => m.name || m.antall || m.enhet);
+        const filledMats = (order.materials || []).filter(m => {
+            if (!m.name && !m.antall && !m.enhet) return false;
+            // Skip spec-base materials that shouldn't be exported
+            if (cachedMaterialOptions) {
+                var specBase = cachedMaterialOptions.find(function(o) {
+                    return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
+                });
+                if (specBase) return false;
+            }
+            return true;
+        });
         if (filledMats.length > 0) {
             addRow('Materiell:', '', '', { bold: true, alignRight: true });
             filledMats.forEach(m => {
@@ -2207,7 +2243,7 @@ function buildDesktopWorkLines() {
                 if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
                     var lm = calculateRunningMeters(pipeInfo, antallNum);
                     var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ')';
-                    addRow(displayName, formatRunningMeters(lm), 'cm', { alignRight: true });
+                    addRow(displayName, formatRunningMeters(lm), 'meter', { alignRight: true });
                 } else {
                     // Singular/plural lookup from material's allowedUnits
                     var unitText = (m.enhet || '').toLowerCase();

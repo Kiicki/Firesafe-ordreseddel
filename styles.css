@@ -2083,6 +2083,13 @@ label.settings-default-label.field-required > span::after {
     outline: none;
     border-color: #E8501A;
 }
+.picker-mat-antall:disabled,
+.picker-mat-enhet-btn:disabled {
+    opacity: 1;
+    color: inherit;
+    -webkit-text-fill-color: inherit;
+    background: #fff;
+}
 
 .picker-mat-enhet-btn {
     width: 90px;
@@ -3426,10 +3433,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     flex: 1;
     min-width: 0;
 }
+.settings-add-unit-fields input {
+    width: 100%;
+    flex: none;
+}
 .settings-add-material-row .settings-add-material-btm {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
+    gap: 10px;
     padding: 8px 12px;
     border-top: 1px solid #f0f0f0;
 }
