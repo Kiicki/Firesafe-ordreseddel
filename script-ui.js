@@ -793,6 +793,19 @@ function closePreview() {
         sc.style.marginBottom = '';
         sc.style.marginLeft = '';
         sc.style.marginRight = '';
+        sc.style.position = '';
+        sc.style.top = '';
+        sc.style.left = '';
+        sc.style.height = '';
+        sc.style.overflow = '';
+        var scroll = document.getElementById('preview-scroll');
+        scroll.style.position = '';
+        scroll.style.height = '';
+        scroll.style.overflowX = '';
+        if (scroll._rotatedScrollHandler) {
+            scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
+            scroll._rotatedScrollHandler = null;
+        }
         window._servicePreviewActive = false;
     } else {
         var fc = document.getElementById('form-container');
@@ -3740,8 +3753,8 @@ function buildServiceExportTable() {
         return m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
     });
 
-    // 5 columns per row, minimum 2 rows, expands if more materials
-    var matCols = 5;
+    // 7 columns per row, minimum 2 rows, expands if more materials
+    var matCols = 7;
     var matRowCount = Math.max(2, Math.ceil(matNames.length / matCols));
     // Pad to fill all slots
     while (matNames.length < matCols * matRowCount) matNames.push('');
@@ -3918,32 +3931,95 @@ function updateServicePreviewScale() {
     var scroll = document.getElementById('preview-scroll');
     if (!container || !scroll) return;
 
-    var cs = getComputedStyle(scroll);
-    var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-    var availWidth = scroll.clientWidth - padLR;
-    var scale = Math.min(availWidth / 1120, 1);
-
     var header = document.querySelector('.preview-overlay-header');
+    var headerHeight = header ? header.offsetHeight : 0;
+    var scrollWidth = scroll.clientWidth;
+    var scrollHeight = window.innerHeight - headerHeight;
 
-    if (scale < 1) {
+    if (scrollWidth < scrollHeight) {
+        // Portrait: rotate to landscape, scale width (1120px) to fit viewport height
+        var contentHeight = container.offsetHeight;
+        var scale = Math.min(scrollHeight / 1120, 1);
+        var scaledW = 1120 * scale;
+        var scaledH = contentHeight * scale;
+
+        // How much rotated content extends beyond screen width
+        var overflow = Math.max(0, scaledH - scrollWidth);
+
         container.style.transformOrigin = 'top left';
-        container.style.transform = 'scale(' + scale + ')';
-        container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
-        container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
-        container.style.marginLeft = '';
+        container.style.position = 'relative';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '1120px';
+        // DOM height = viewport + overflow → provides scroll range for panning
+        container.style.height = (scrollHeight + overflow) + 'px';
+        container.style.overflow = 'visible';
+
+        // Prevent horizontal scroll from the 1120px DOM width
+        scroll.style.overflowX = 'hidden';
+
+        // Scroll-driven panning: vertical scroll pans horizontally through rotated sections
+        function onRotatedScroll() {
+            var scrollPx = scroll.scrollTop;
+            // translate Y compensates for scroll so table stays vertically fixed
+            // translate X pans through sections based on scroll position
+            container.style.transform = 'translate(' + (-scrollPx) + 'px, ' + (scaledW + scrollPx) + 'px) rotate(-90deg) scale(' + scale + ')';
+        }
+
+        onRotatedScroll();
+
+        // Attach scroll handler (cleanup old one first)
+        if (scroll._rotatedScrollHandler) {
+            scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
+        }
+        scroll._rotatedScrollHandler = onRotatedScroll;
+        scroll.addEventListener('scroll', onRotatedScroll);
+
         if (header) {
-            header.style.maxWidth = (container.offsetWidth * scale) + 'px';
+            header.style.maxWidth = scrollWidth + 'px';
             header.style.margin = '0';
         }
     } else {
-        container.style.transform = '';
-        container.style.transformOrigin = '';
-        container.style.marginLeft = 'auto';
-        container.style.marginRight = 'auto';
-        container.style.marginBottom = '';
-        if (header) {
-            header.style.maxWidth = '1120px';
-            header.style.margin = '0 auto';
+        // Desktop: scale normally
+        var cs = getComputedStyle(scroll);
+        var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        var availWidth = scrollWidth - padLR;
+        var scale = Math.min(availWidth / 1120, 1);
+
+        container.style.position = '';
+        container.style.left = '';
+        container.style.top = '';
+        container.style.height = '';
+        scroll.style.position = '';
+        scroll.style.height = '';
+        scroll.style.overflowX = '';
+
+        // Remove rotated scroll handler if present
+        if (scroll._rotatedScrollHandler) {
+            scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
+            scroll._rotatedScrollHandler = null;
+        }
+
+        if (scale < 1) {
+            container.style.transformOrigin = 'top left';
+            container.style.transform = 'scale(' + scale + ')';
+            container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
+            container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
+            container.style.marginLeft = '';
+            if (header) {
+                header.style.maxWidth = (container.offsetWidth * scale) + 'px';
+                header.style.margin = '0';
+            }
+        } else {
+            container.style.transform = '';
+            container.style.transformOrigin = '';
+            container.style.marginLeft = 'auto';
+            container.style.marginRight = 'auto';
+            container.style.marginBottom = '';
+            if (header) {
+                header.style.maxWidth = '1120px';
+                header.style.margin = '0 auto';
+            }
         }
     }
 }
