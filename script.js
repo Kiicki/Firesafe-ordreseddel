@@ -961,11 +961,11 @@ function openMaterialPicker(btn) {
         const specBadge = typeDot;
         const lmBadge = '';
         const antallPlaceholder = t('placeholder_quantity');
-        const disabledAttr = isLauncher ? ' disabled' : '';
+        const readonlyAttr = isChecked ? '' : ' readonly';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${specBadge}${lmBadge}</div>
-            <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
-            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>${dupBtn}
+            <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${readonlyAttr}>
+            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}">${escapeHtml(enhetLabel)}</button>${dupBtn}
         </div>`;
     }
 
@@ -1067,22 +1067,20 @@ function openMaterialPicker(btn) {
             });
 
             antallInput.addEventListener('input', function() {
-                if (!pickerState[name]) pickerState[name] = { checked: false, antall: '', enhet: '' };
+                // Only allow input if material is checked
+                if (!pickerState[name] || !pickerState[name].checked) return;
                 pickerState[name].antall = this.value;
                 // Capture default enhet from button if not already set in state
                 if (!pickerState[name].enhet) {
                     var btnEnhet = enhetBtn.getAttribute('data-enhet') || '';
                     if (btnEnhet) pickerState[name].enhet = btnEnhet;
                 }
-                // Auto-select when both antall and enhet are filled
-                if (this.value && pickerState[name].enhet && !pickerState[name].checked) {
-                    pickerState[name].checked = true;
-                    renderPickerList();
-                }
             });
 
             enhetBtn.addEventListener('click', function(e) {
                 e.preventDefault();
+                // Only allow unit picker if material is checked
+                if (!pickerState[name] || !pickerState[name].checked) return;
                 // Find allowed units for this material (handle __N keys)
                 var lookupName = name.replace(/__\d+$/, '');
                 var matObj = allMaterials.find(m => m.name === lookupName) || findBaseMaterial(name);
@@ -1117,11 +1115,13 @@ function openMaterialPicker(btn) {
                             renderPickerList();
                         }, specType);
                     } else {
-                        // Standard material: create __N duplicate
+                        // Standard material: create __N duplicate with default unit
+                        var matObj = allMaterials.find(m => m.name === baseName);
+                        var defUnit = matObj ? (matObj.defaultUnit || '') : '';
                         var n = 2;
                         while (pickerState[baseName + '__' + n]) n++;
                         var newKey = baseName + '__' + n;
-                        pickerState[newKey] = { checked: false, antall: '', enhet: '' };
+                        pickerState[newKey] = { checked: false, antall: '', enhet: defUnit };
                         renderPickerList();
                     }
                 });
@@ -1309,13 +1309,7 @@ function pickerOverlayConfirm() {
         });
     }
 
-    // Auto-check materials that have both antall and enhet filled (skip spec-base launchers)
-    for (const [name, state] of Object.entries(pickerState)) {
-        if (isSpecBase(name)) continue;
-        if (!state.checked && state.antall && state.enhet) {
-            state.checked = true;
-        }
-    }
+
 
     // Validate: warn if any material has partial data (skip spec-base launchers)
     const incomplete = [];

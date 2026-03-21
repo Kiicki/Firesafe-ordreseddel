@@ -3734,115 +3734,153 @@ function buildServiceExportTable() {
     var data = getServiceFormData();
     var container = document.getElementById('service-export-container');
 
-    // Collect all unique material names across all entries
-    var matNames = [];
-    var matNameSet = {};
-    data.entries.forEach(function(entry) {
-        (entry.materials || []).forEach(function(m) {
-            if (m.name && !matNameSet[m.name]) {
-                // Skip spec-base materials
-                var isSpecBase = cachedMaterialOptions && cachedMaterialOptions.some(function(o) {
-                    return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
-                });
-                if (isSpecBase) return;
-                matNameSet[m.name] = true;
-                matNames.push(m.name);
-            }
-        });
+    // Get ALL materials from settings (not just used ones)
+    var allMats = cachedMaterialOptions || [];
+    var matNames = allMats.map(function(m) {
+        return m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
     });
 
-    // Split materials into rows of 7 columns, minimum 2 rows (14 slots)
-    var matCols = 7;
+    // 5 columns per row, minimum 2 rows, expands if more materials
+    var matCols = 5;
     var matRowCount = Math.max(2, Math.ceil(matNames.length / matCols));
+    // Pad to fill all slots
+    while (matNames.length < matCols * matRowCount) matNames.push('');
 
-    // Build sections — one per project, minimum 4
-    var minSections = Math.max(4, data.entries.length);
-    var sectionsHtml = '';
-
-    for (var s = 0; s < minSections; s++) {
-        var entry = data.entries[s] || {};
-
-        // Build material lookup for this entry
-        var entryMats = {};
-        (entry.materials || []).forEach(function(m) {
-            if (m.name) {
-                var pipeInfo = getRunningMeterInfo(m.name);
-                if (pipeInfo && m.antall) {
-                    var pipes = parseFloat((m.antall || '').replace(',', '.'));
-                    if (!isNaN(pipes) && pipes > 0) {
-                        var lm = calculateRunningMeters(pipeInfo, pipes);
-                        entryMats[m.name] = (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ' / ' + formatRunningMeters(lm) + ' meter';
-                    } else {
-                        var parts = [];
-                        if (m.antall) parts.push(m.antall);
-                        if (m.enhet) parts.push(m.enhet);
-                        entryMats[m.name] = parts.join(' ');
-                    }
-                } else {
-                    var parts = [];
-                    if (m.antall) parts.push(m.antall);
-                    if (m.enhet) parts.push(m.enhet);
-                    entryMats[m.name] = parts.join(' ');
-                }
-            }
-        });
-
-        var totalRows = matRowCount * 2; // each mat row = 1 header + 1 data
-
-        // Row 1: info cells with rowspan + first material header row
-        var row1 = '<tr>' +
-            '<td rowspan="' + totalRows + '" class="se-info-cell"><strong>Dato:</strong><br>' + escapeHtml(entry.dato || '') + '</td>' +
-            '<td rowspan="' + totalRows + '" class="se-info-cell"><strong>Prosjekt nr:</strong><br>' + escapeHtml(entry.prosjektnr || '') + '</td>' +
-            '<td rowspan="' + totalRows + '" class="se-info-cell"><strong>Prosjektnavn</strong><br>' + escapeHtml(entry.prosjektnavn || '') + '</td>';
-        for (var c = 0; c < matCols; c++) {
-            var matIdx = c;
-            row1 += '<th>' + (matNames[matIdx] ? escapeHtml(matNames[matIdx]) : '') + '</th>';
-        }
-        row1 += '</tr>';
-
-        // Row 2: first material data row
-        var row2 = '<tr>';
-        for (var c = 0; c < matCols; c++) {
-            var matIdx = c;
-            row2 += '<td>' + (matNames[matIdx] ? escapeHtml(entryMats[matNames[matIdx]] || '') : '') + '</td>';
-        }
-        row2 += '</tr>';
-
-        // Additional material row pairs (row 3+4, 5+6, etc.)
-        var extraRows = '';
-        for (var mr = 1; mr < matRowCount; mr++) {
-            var headerRow = '<tr>';
-            var dataRow = '<tr>';
-            for (var c = 0; c < matCols; c++) {
-                var matIdx = mr * matCols + c;
-                headerRow += '<th>' + (matNames[matIdx] ? escapeHtml(matNames[matIdx]) : '') + '</th>';
-                dataRow += '<td>' + (matNames[matIdx] ? escapeHtml(entryMats[matNames[matIdx]] || '') : '') + '</td>';
-            }
-            headerRow += '</tr>';
-            dataRow += '</tr>';
-            extraRows += headerRow + dataRow;
-        }
-
-        sectionsHtml +=
-            '<table class="service-export-table">' +
-                row1 + row2 + extraRows +
-            '</table>';
+    // Helper: check if material is a spec type
+    function isSpecType(baseName) {
+        var mat = allMats.find(function(m) { return m.name === baseName; });
+        return mat && (mat.type === 'mansjett' || mat.type === 'brannpakning' || mat.type === 'kabelhylse');
     }
+
+    // Helper: build cell value for a material in an entry
+    function buildCellValue(baseName, entryMaterials) {
+        if (!baseName) return '';
+        var mats = entryMaterials || [];
+
+        if (isSpecType(baseName)) {
+            // Spec material: collect all derived entries matching this base
+            var mat = allMats.find(function(m) { return m.name === baseName; });
+            var hasLM = mat && (mat.type === 'mansjett' || mat.type === 'brannpakning');
+            var lines = [];
+            mats.forEach(function(m) {
+                if (!m.name) return;
+                if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
+                    var pipeInfo = getRunningMeterInfo(m.name);
+                    var pipes = parseFloat((m.antall || '').replace(',', '.'));
+                    var spec = m.name.substring(baseName.length + 1);
+                    if (hasLM && pipeInfo && !isNaN(pipes) && pipes > 0) {
+                        // Mansjett/Brannpakning: show only running meters
+                        var lm = calculateRunningMeters(pipeInfo, pipes);
+                        lines.push(formatRunningMeters(lm) + ' meter');
+                    } else {
+                        // Kabelhylse: show spec + antall + enhet on one line
+                        var text = '';
+                        if (spec) text += escapeHtml(spec);
+                        if (m.antall) text += ' ' + escapeHtml((m.antall || '').replace('.', ',')) + ' ' + escapeHtml(m.enhet || 'stk');
+                        lines.push(text.trim());
+                    }
+                }
+            });
+            return lines.join('<br>');
+        } else {
+            // Standard material: direct match by name
+            var matched = [];
+            mats.forEach(function(m) {
+                if (m.name && m.name.toLowerCase() === baseName.toLowerCase() && m.antall) {
+                    matched.push(escapeHtml((m.antall || '').replace('.', ',')) + ' ' + escapeHtml(m.enhet || ''));
+                }
+            });
+            return matched.join('<br>');
+        }
+    }
+
+    // Build one single table for the entire export
+    var minSections = Math.max(4, data.entries.length);
+    var totalRows = matRowCount * 2; // 4 rows per section
+    var totalCols = 3 + matCols; // 3 info cols + 7 material cols
 
     var sigImgHtml = data.signatureImage
         ? '<img id="service-export-sig-img" src="' + data.signatureImage + '" style="height:40px;">'
         : '<img id="service-export-sig-img" style="display:none;height:40px;">';
 
+    // Colgroup for consistent column widths
+    var colgroup = '<colgroup>';
+    colgroup += '<col style="width:7%">'; // Dato
+    colgroup += '<col style="width:7%">'; // Prosjekt nr
+    colgroup += '<col style="width:10%">'; // Prosjektnavn
+    for (var c = 0; c < matCols; c++) {
+        colgroup += '<col>';
+    }
+    colgroup += '</colgroup>';
+
+    // Header: 2 rows — title rowspan=2, montør row 1, signatur row 2
+    var headerRow =
+        '<tr>' +
+            '<td rowspan="2" colspan="3" class="se-title-cell"><strong>Lageruttak Servicebiler</strong></td>' +
+            '<td class="se-montor-label">Navn montør:</td>' +
+            '<td colspan="' + (matCols - 1) + '" class="se-montor-value">' + escapeHtml(data.montor) + '</td>' +
+        '</tr>' +
+        '<tr>' +
+            '<td class="se-montor-label">Signatur:</td>' +
+            '<td colspan="' + (matCols - 1) + '" class="se-montor-value">' + sigImgHtml + '</td>' +
+        '</tr>';
+
+    var allRows = headerRow;
+
+    var totalMatRows = matRowCount * 2; // header + data per group
+
+    for (var s = 0; s < minSections; s++) {
+        var entry = data.entries[s] || {};
+        var valueRowspan = totalMatRows - 1; // all rows except the label row
+
+        // First material group: info labels + material headers
+        allRows += '<tr>' +
+            '<td class="se-info-label-cell">Dato:</td>' +
+            '<td class="se-info-label-cell">Prosjekt nr:</td>' +
+            '<td class="se-info-label-cell">Prosjektnavn</td>';
+        for (var c = 0; c < matCols; c++) {
+            allRows += '<th>' + escapeHtml(matNames[c] || '') + '</th>';
+        }
+        allRows += '</tr>';
+
+        // First material group: info values (rowspan covers remaining rows) + material data
+        allRows += '<tr>' +
+            '<td rowspan="' + valueRowspan + '" class="se-info-value-cell">' + escapeHtml(entry.dato || '') + '</td>' +
+            '<td rowspan="' + valueRowspan + '" class="se-info-value-cell">' + escapeHtml(entry.prosjektnr || '') + '</td>' +
+            '<td rowspan="' + valueRowspan + '" class="se-info-value-cell">' + escapeHtml(entry.prosjektnavn || '') + '</td>';
+        for (var c = 0; c < matCols; c++) {
+            allRows += '<td>' + buildCellValue(matNames[c], entry.materials) + '</td>';
+        }
+        allRows += '</tr>';
+
+        // Additional material groups (2nd, 3rd, etc.)
+        for (var mr = 1; mr < matRowCount; mr++) {
+            // Header row
+            allRows += '<tr>';
+            for (var c = 0; c < matCols; c++) {
+                var idx = mr * matCols + c;
+                allRows += '<th>' + escapeHtml(matNames[idx] || '') + '</th>';
+            }
+            allRows += '</tr>';
+
+            // Data row
+            allRows += '<tr>';
+            for (var c = 0; c < matCols; c++) {
+                var idx = mr * matCols + c;
+                allRows += '<td>' + buildCellValue(matNames[idx], entry.materials) + '</td>';
+            }
+            allRows += '</tr>';
+        }
+
+        // Separator row between/after sections
+        allRows += '<tr class="se-separator"><td colspan="' + (3 + matCols) + '"></td></tr>';
+    }
+
     container.innerHTML =
         '<div class="service-export-page">' +
-            '<div class="service-export-header">' +
-                '<div class="service-export-title">Lageruttak Servicebiler</div>' +
-                '<div class="service-export-info">' +
-                    '<div>Navn montør: ' + escapeHtml(data.montor) + '</div>' +
-                    '<div>Signatur: ' + sigImgHtml + '</div>' +
-                '</div>' +
-            '</div>' +
-            sectionsHtml +
+            '<table class="service-export-table">' +
+                colgroup + allRows +
+            '</table>' +
         '</div>';
 
     return container;
