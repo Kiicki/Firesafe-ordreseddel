@@ -914,6 +914,9 @@ body.template-modal-open > .top-bar {
     background: #fff;
     font-weight: bold;
 }
+.se-has-value {
+    background: #FFF9C4;
+}
 
 .se-info-label-cell {
     text-align: left !important;
@@ -993,11 +996,8 @@ body.settings-modal-open #view-form {
     display: none;
 }
 
-body.template-modal-open,
-body.saved-modal-open,
-body.settings-modal-open {
-    padding-bottom: 0;
-}
+/* Removed padding-bottom: 0 — mobile views use position: fixed; bottom: 60px,
+   desktop needs body padding for toolbar spacing */
 
 /* Modal views: fixed to viewport, internal scroll in modal-body */
 #template-modal.view.active,
@@ -1033,9 +1033,8 @@ body.settings-modal-open {
 body.service-view-open #view-form {
     display: none;
 }
-
 body.service-view-open {
-    padding-bottom: 0;
+    background: #fff;
 }
 
 .container.service-view {
@@ -2648,6 +2647,7 @@ label.settings-default-label.field-required > span::after {
 /* Settings modal */
 .settings-page {
     display: block;
+    padding-bottom: 8px;
 }
 
 #settings-modal .modal-body {
@@ -4092,7 +4092,21 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
 
-    /* Signature overlay - always fullscreen, no desktop constraints */
+    /* Signature overlay - constrain to same width as preview on desktop */
+    .signature-overlay {
+        background: #f0f0f0;
+        align-items: center;
+    }
+    .signature-overlay-header {
+        max-width: 800px;
+        width: 100%;
+    }
+    #signature-canvas {
+        max-width: 800px;
+        width: 100%;
+        background: #fff;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
 
     /* Toolbar - constrain on desktop */
     .toolbar {

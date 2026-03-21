@@ -1743,8 +1743,8 @@ function updateSignatureLayout() {
     var overlay = document.getElementById('signature-overlay');
     if (!overlay.classList.contains('active') || signatureOrientationLocked) return;
 
-    if (window.innerHeight > window.innerWidth) {
-        // Portrait: CSS rotation to landscape
+    if (window.innerWidth < 800 && window.innerHeight > window.innerWidth) {
+        // Portrait on mobile/tablet: CSS rotation to landscape
         overlay.style.right = 'auto';
         overlay.style.bottom = 'auto';
         overlay.style.width = window.innerHeight + 'px';

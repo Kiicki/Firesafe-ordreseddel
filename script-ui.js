@@ -3754,7 +3754,7 @@ function buildServiceExportTable() {
     });
 
     // 7 columns per row, minimum 2 rows, expands if more materials
-    var matCols = 7;
+    var matCols = 5;
     var matRowCount = Math.max(2, Math.ceil(matNames.length / matCols));
     // Pad to fill all slots
     while (matNames.length < matCols * matRowCount) matNames.push('');
@@ -3862,7 +3862,8 @@ function buildServiceExportTable() {
             '<td rowspan="' + valueRowspan + '" class="se-info-value-cell">' + escapeHtml(entry.prosjektnr || '') + '</td>' +
             '<td rowspan="' + valueRowspan + '" class="se-info-value-cell">' + escapeHtml(entry.prosjektnavn || '') + '</td>';
         for (var c = 0; c < matCols; c++) {
-            allRows += '<td>' + buildCellValue(matNames[c], entry.materials) + '</td>';
+            var val = buildCellValue(matNames[c], entry.materials);
+            allRows += '<td' + (val ? ' class="se-has-value"' : '') + '>' + val + '</td>';
         }
         allRows += '</tr>';
 
@@ -3880,7 +3881,8 @@ function buildServiceExportTable() {
             allRows += '<tr>';
             for (var c = 0; c < matCols; c++) {
                 var idx = mr * matCols + c;
-                allRows += '<td>' + buildCellValue(matNames[idx], entry.materials) + '</td>';
+                var val = buildCellValue(matNames[idx], entry.materials);
+                allRows += '<td' + (val ? ' class="se-has-value"' : '') + '>' + val + '</td>';
             }
             allRows += '</tr>';
         }
@@ -3902,7 +3904,7 @@ function buildServiceExportTable() {
 function openServicePreview() {
     var container = buildServiceExportTable();
     container.style.display = 'block';
-    container.style.width = '1120px';
+    container.style.width = '800px';
 
     var scroll = document.getElementById('preview-scroll');
     scroll.appendChild(container);
@@ -3936,11 +3938,11 @@ function updateServicePreviewScale() {
     var scrollWidth = scroll.clientWidth;
     var scrollHeight = window.innerHeight - headerHeight;
 
-    if (scrollWidth < scrollHeight) {
-        // Portrait: rotate to landscape, scale width (1120px) to fit viewport height
+    if (scrollWidth < 800) {
+        // Portrait: rotate to landscape, scale width (800px) to fit viewport height
         var contentHeight = container.offsetHeight;
-        var scale = Math.min(scrollHeight / 1120, 1);
-        var scaledW = 1120 * scale;
+        var scale = Math.min(scrollHeight / 800, 1);
+        var scaledW = 800 * scale;
         var scaledH = contentHeight * scale;
 
         // How much rotated content extends beyond screen width
@@ -3950,12 +3952,12 @@ function updateServicePreviewScale() {
         container.style.position = 'relative';
         container.style.top = '0';
         container.style.left = '0';
-        container.style.width = '1120px';
+        container.style.width = '800px';
         // DOM height = viewport + overflow → provides scroll range for panning
         container.style.height = (scrollHeight + overflow) + 'px';
         container.style.overflow = 'visible';
 
-        // Prevent horizontal scroll from the 1120px DOM width
+        // Prevent horizontal scroll from the 800px DOM width
         scroll.style.overflowX = 'hidden';
 
         // Scroll-driven panning: vertical scroll pans horizontally through rotated sections
@@ -3984,7 +3986,7 @@ function updateServicePreviewScale() {
         var cs = getComputedStyle(scroll);
         var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
         var availWidth = scrollWidth - padLR;
-        var scale = Math.min(availWidth / 1120, 1);
+        var scale = Math.min(availWidth / 800, 1);
 
         container.style.position = '';
         container.style.left = '';
@@ -4017,7 +4019,7 @@ function updateServicePreviewScale() {
             container.style.marginRight = 'auto';
             container.style.marginBottom = '';
             if (header) {
-                header.style.maxWidth = '1120px';
+                header.style.maxWidth = '800px';
                 header.style.margin = '0 auto';
             }
         }
@@ -4030,7 +4032,7 @@ async function renderServiceToCanvas() {
     container.style.position = 'fixed';
     container.style.left = '0';
     container.style.top = '0';
-    container.style.width = '1120px';
+    container.style.width = '800px';
     container.style.visibility = 'hidden';
     container.style.zIndex = '-1';
 
