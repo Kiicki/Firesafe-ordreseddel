@@ -1510,11 +1510,13 @@ function showSettingsPage(page) {
         // Show cached immediately
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('save');
+        renderRequiredSettingsItems('service');
         // Background refresh
         getRequiredSettings().then(function(settings) {
             if (document.body.classList.contains('settings-modal-open')) {
                 cachedRequiredSettings = settings;
                 renderRequiredSettingsItems('save');
+                renderRequiredSettingsItems('service');
             }
         });
     } else if (page === 'language') {
@@ -1577,7 +1579,8 @@ function _getCachedRequiredSettings() {
             var defaults = getDefaultRequiredSettings();
             return {
                 save: Object.assign({}, defaults.save, data.save || {}),
-                template: Object.assign({}, defaults.template, data.template || {})
+                template: Object.assign({}, defaults.template, data.template || {}),
+                service: Object.assign({}, defaults.service, data.service || {})
             };
         } catch (e) {}
     }
@@ -2086,6 +2089,14 @@ function getDefaultRequiredSettings() {
             oppdragsgiver: false,
             kundensRef: false,
             fakturaadresse: false
+        },
+        service: {
+            montor: true,
+            dato: true,
+            prosjektnr: true,
+            prosjektnavn: true,
+            materialer: true,
+            signatur: false
         }
     };
 }
@@ -2112,6 +2123,14 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'oppdragsgiver',  labelKey: 'label_oppdragsgiver' },
         { key: 'kundensRef',     labelKey: 'label_kundens_ref' },
         { key: 'fakturaadresse', labelKey: 'label_fakturaadresse' }
+    ],
+    service: [
+        { key: 'montor',       labelKey: 'label_montor' },
+        { key: 'dato',         labelKey: 'label_dato' },
+        { key: 'prosjektnr',   labelKey: 'label_prosjektnr' },
+        { key: 'prosjektnavn', labelKey: 'label_prosjektnavn' },
+        { key: 'materialer',   labelKey: 'order_materials_label' },
+        { key: 'signatur',     labelKey: 'label_kundens_underskrift' }
     ]
 };
 
@@ -2138,7 +2157,8 @@ async function getRequiredSettings() {
                 const defaults = getDefaultRequiredSettings();
                 return {
                     save: { ...defaults.save, ...(data.save || {}) },
-                    template: { ...defaults.template, ...(data.template || {}) }
+                    template: { ...defaults.template, ...(data.template || {}) },
+                    service: { ...defaults.service, ...(data.service || {}) }
                 };
             }
         } catch (e) {
@@ -2152,7 +2172,8 @@ async function getRequiredSettings() {
             const defaults = getDefaultRequiredSettings();
             return {
                 save: { ...defaults.save, ...(data.save || {}) },
-                template: { ...defaults.template, ...(data.template || {}) }
+                template: { ...defaults.template, ...(data.template || {}) },
+                service: { ...defaults.service, ...(data.service || {}) }
             };
         } catch (e) {}
     }
@@ -2178,6 +2199,7 @@ async function loadRequiredSettingsToModal() {
     cachedRequiredSettings = data;
     renderRequiredSettingsItems('save');
     renderRequiredSettingsItems('template');
+    renderRequiredSettingsItems('service');
 }
 
 function renderRequiredSettingsItems(section) {
@@ -2209,6 +2231,24 @@ async function toggleRequiredField(section, key, value) {
     if (!settings[section]) settings[section] = {};
     settings[section][key] = value;
     await saveRequiredSettings(settings);
+}
+
+function switchRequiredTab(tab) {
+    // Toggle tab active state
+    var tabs = document.querySelectorAll('#settings-page-required .settings-tab');
+    tabs.forEach(function(t, i) {
+        t.classList.toggle('active', (tab === 'own' && i === 0) || (tab === 'service' && i === 1));
+    });
+
+    // Toggle content
+    var ownContent = document.getElementById('required-own-content');
+    var serviceContent = document.getElementById('required-service-content');
+    if (ownContent) ownContent.style.display = tab === 'own' ? '' : 'none';
+    if (serviceContent) serviceContent.style.display = tab === 'service' ? '' : 'none';
+
+    if (tab === 'service') {
+        renderRequiredSettingsItems('service');
+    }
 }
 
 // ============================================
@@ -2530,6 +2570,59 @@ function updateRequiredIndicators() {
             }
         }
     }
+
+    // Service form required indicators
+    const serviceReqs = settings.service || {};
+
+    // Service montør field
+    const serviceMontor = document.getElementById('service-montor');
+    if (serviceMontor) {
+        const serviceMontorField = serviceMontor.closest('.mobile-field');
+        if (serviceMontorField) {
+            if (serviceReqs.montor !== false) {
+                serviceMontorField.classList.add('field-required');
+            } else {
+                serviceMontorField.classList.remove('field-required');
+            }
+        }
+    }
+
+    // Service signature field
+    const serviceSigPreview = document.getElementById('service-signature-preview');
+    if (serviceSigPreview) {
+        const serviceSigField = serviceSigPreview.closest('.mobile-field');
+        if (serviceSigField) {
+            if (serviceReqs.signatur) {
+                serviceSigField.classList.add('field-required');
+            } else {
+                serviceSigField.classList.remove('field-required');
+            }
+        }
+    }
+
+    // Service entry card fields (dynamic)
+    document.querySelectorAll('#service-entries .service-entry-card').forEach(function(card) {
+        var datoField = card.querySelector('.service-entry-dato');
+        if (datoField) {
+            var f = datoField.closest('.mobile-field');
+            if (f) f.classList.toggle('field-required', serviceReqs.dato !== false);
+        }
+        var pnrField = card.querySelector('.service-entry-prosjektnr');
+        if (pnrField) {
+            var f = pnrField.closest('.mobile-field');
+            if (f) f.classList.toggle('field-required', serviceReqs.prosjektnr !== false);
+        }
+        var pnavnField = card.querySelector('.service-entry-prosjektnavn');
+        if (pnavnField) {
+            var f = pnavnField.closest('.mobile-field');
+            if (f) f.classList.toggle('field-required', serviceReqs.prosjektnavn !== false);
+        }
+        // Materials section
+        var matSection = card.querySelector('.mobile-order-materials-section');
+        if (matSection) {
+            matSection.classList.toggle('field-required', serviceReqs.materialer !== false);
+        }
+    });
 }
 
 // ============================================
@@ -2541,15 +2634,18 @@ const DEFAULT_FIELDS = ['montor', 'avdeling', 'sted'];
 var _defaultsTab = 'own';
 
 async function getDefaultSettings(tab) {
+    var isService = tab === 'service';
+    var fbDoc = isService ? 'defaults_service' : 'defaults';
+    var storageKey = isService ? SERVICE_DEFAULTS_KEY : DEFAULTS_KEY;
     if (currentUser && db) {
         try {
-            var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
+            var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).get();
             if (doc.exists) return doc.data();
         } catch (e) {
             console.error('Defaults error:', e);
         }
     }
-    var stored = localStorage.getItem(DEFAULTS_KEY);
+    var stored = localStorage.getItem(storageKey);
     return stored ? JSON.parse(stored) : {};
 }
 
@@ -2558,26 +2654,41 @@ async function syncDefaultsToLocal() {
     try {
         var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
         if (doc.exists) safeSetItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
+        var sDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_service').get();
+        if (sDoc.exists) safeSetItem(SERVICE_DEFAULTS_KEY, JSON.stringify(sDoc.data()));
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
 function saveDefaultSettings() {
+    if (_defaultsTab === 'service') {
+        // Save service defaults
+        var sDefaults = {};
+        var montorEl = document.getElementById('default-service-montor');
+        if (montorEl && montorEl.value.trim()) sDefaults.montor = montorEl.value.trim();
+        var existing = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
+        if (existing.autofill_uke !== undefined) sDefaults.autofill_uke = existing.autofill_uke;
+        safeSetItem(SERVICE_DEFAULTS_KEY, JSON.stringify(sDefaults));
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_service').set(sDefaults)
+                .catch(function(e) { console.error('Save service defaults error:', e); });
+        }
+        return;
+    }
+
+    // Save ordreseddel defaults
     var defaults = {};
     DEFAULT_FIELDS.forEach(field => {
         var val = document.getElementById('default-' + field).value.trim();
         if (val) defaults[field] = val;
     });
-    // Behold autofill-toggles fra eksisterende data
     var key = DEFAULTS_KEY;
     var fbDoc = 'defaults';
     var existing = safeParseJSON(key, {});
     ['autofill_uke', 'autofill_dato', 'autofill_sted'].forEach(function(k) {
         if (existing[k] !== undefined) defaults[k] = existing[k];
     });
-    // localStorage first (optimistic)
     safeSetItem(key, JSON.stringify(defaults));
 
-    // Firebase in background
     if (currentUser && db) {
         db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults)
             .catch(function(e) { console.error('Save defaults error:', e); });
@@ -2605,36 +2716,69 @@ function initDefaultsAutoSave() {
             });
         }
     });
+
+    // Service defaults auto-save
+    var serviceMontor = document.getElementById('default-service-montor');
+    if (serviceMontor) {
+        serviceMontor.addEventListener('blur', function() {
+            var prev = _defaultsTab;
+            _defaultsTab = 'service';
+            saveDefaultSettings();
+            _defaultsTab = prev;
+            showNotificationModal(t('settings_defaults_saved'), true);
+        });
+    }
 }
 
 function switchDefaultsTab(tab) {
-    _defaultsTab = 'own';
-    sessionStorage.setItem('firesafe_defaults_tab', 'own');
-    loadDefaultsForTab('own');
+    _defaultsTab = tab;
+    sessionStorage.setItem('firesafe_defaults_tab', tab);
+
+    // Toggle tab active state
+    var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
+    tabs.forEach(function(t, i) {
+        t.classList.toggle('active', (tab === 'own' && i === 0) || (tab === 'service' && i === 1));
+    });
+
+    // Toggle content
+    var ownContent = document.getElementById('defaults-own-content');
+    var serviceContent = document.getElementById('defaults-service-content');
+    if (ownContent) ownContent.style.display = tab === 'own' ? '' : 'none';
+    if (serviceContent) serviceContent.style.display = tab === 'service' ? '' : 'none';
+
+    loadDefaultsForTab(tab);
 }
 
-function _applyDefaultsToUI(defaults) {
-    DEFAULT_FIELDS.forEach(function(field) {
-        var input = document.getElementById('default-' + field);
-        if (input) {
-            input.value = defaults[field] || '';
-            defaultsInitialValues[field] = input.value;
-        }
-    });
-    ['uke', 'dato', 'sted'].forEach(function(key) {
-        var cb = document.getElementById('autofill-' + key);
-        if (cb) cb.checked = defaults['autofill_' + key] !== false;
-    });
+function _applyDefaultsToUI(defaults, tab) {
+    if (!tab || tab === 'own') {
+        DEFAULT_FIELDS.forEach(function(field) {
+            var input = document.getElementById('default-' + field);
+            if (input) {
+                input.value = defaults[field] || '';
+                defaultsInitialValues[field] = input.value;
+            }
+        });
+        ['uke', 'dato', 'sted'].forEach(function(key) {
+            var cb = document.getElementById('autofill-' + key);
+            if (cb) cb.checked = defaults['autofill_' + key] !== false;
+        });
+    } else if (tab === 'service') {
+        var montorEl = document.getElementById('default-service-montor');
+        if (montorEl) montorEl.value = defaults.montor || '';
+        var datoEl = document.getElementById('autofill-service-dato');
+        if (datoEl) datoEl.checked = defaults.autofill_dato !== false;
+    }
 }
 
 function loadDefaultsForTab(tab) {
+    var storageKey = tab === 'service' ? SERVICE_DEFAULTS_KEY : DEFAULTS_KEY;
     // Show cached immediately
-    var stored = localStorage.getItem(DEFAULTS_KEY);
-    _applyDefaultsToUI(stored ? JSON.parse(stored) : {});
+    var stored = localStorage.getItem(storageKey);
+    _applyDefaultsToUI(stored ? JSON.parse(stored) : {}, tab);
     // Background refresh
     getDefaultSettings(tab).then(function(defaults) {
         if (document.body.classList.contains('settings-modal-open'))
-            _applyDefaultsToUI(defaults);
+            _applyDefaultsToUI(defaults, tab);
     });
 }
 
@@ -2662,9 +2806,10 @@ function getAutofillFlags(type) {
     };
 }
 
-function saveAutofillToggle(key, value) {
-    var storageKey = DEFAULTS_KEY;
-    var fbDoc = 'defaults';
+function saveAutofillToggle(key, value, type) {
+    var isService = type === 'service' || _defaultsTab === 'service';
+    var storageKey = isService ? SERVICE_DEFAULTS_KEY : DEFAULTS_KEY;
+    var fbDoc = isService ? 'defaults_service' : 'defaults';
     var stored = localStorage.getItem(storageKey);
     var defaults = stored ? JSON.parse(stored) : {};
     defaults['autofill_' + key] = value;
@@ -3180,8 +3325,9 @@ function openNewServiceForm() {
     document.body.classList.remove('template-modal-open');
     document.getElementById('template-search').value = '';
 
-    // Reset service form
-    document.getElementById('service-montor').value = '';
+    // Reset service form and autofill from service defaults
+    var serviceDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
+    document.getElementById('service-montor').value = serviceDefaults.montor || '';
     document.getElementById('service-signatur').value = '';
     window._serviceSignaturePaths = [];
     _serviceCurrentId = null;
@@ -3190,10 +3336,14 @@ function openNewServiceForm() {
     var srvPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
     if (srvPlaceholder) srvPlaceholder.style.display = '';
 
-    // Init 4 empty entries
+    // Init empty entry with autofill
     var container = document.getElementById('service-entries');
     container.innerHTML = '';
-    container.appendChild(createServiceEntryCard({}, true));
+    var entryData = {};
+    if (serviceDefaults.autofill_dato !== false) {
+        entryData.dato = formatDate(new Date());
+    }
+    container.appendChild(createServiceEntryCard(entryData, true));
     renumberServiceEntries();
     updateServiceDeleteStates();
 
@@ -3326,6 +3476,7 @@ function _buildServiceItemHtml(item, index) {
     var dato = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+    var copyBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
@@ -3334,7 +3485,7 @@ function _buildServiceItemHtml(item, index) {
             '<div class="saved-item-row1">' + dot + (escapeHtml(montor) || t('no_name')) + '</div>' +
             (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
         '</div>' +
-        '<div class="saved-item-buttons">' + deleteBtn + '</div>' +
+        '<div class="saved-item-buttons">' + copyBtn + deleteBtn + '</div>' +
     '</div>';
 }
 
@@ -3376,6 +3527,45 @@ function loadServiceFormDirect(formData) {
     _serviceLastSavedData = JSON.stringify(formData);
     sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
     window.scrollTo(0, 0);
+}
+
+function duplicateServiceForm(formData) {
+    if (!formData) return;
+    var copy = JSON.parse(JSON.stringify(formData));
+    // Clear ID and sent state
+    delete copy.id;
+    delete copy._isSent;
+    copy.savedAt = new Date().toISOString();
+
+    // Clear signature
+    copy.signatureImage = '';
+    copy.signaturePaths = [];
+
+    // Autofill dato in entries if enabled
+    var serviceDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
+    if (serviceDefaults.autofill_dato !== false && copy.entries) {
+        var today = formatDate(new Date());
+        copy.entries.forEach(function(entry) { entry.dato = today; });
+    }
+
+    // Load into form
+    _serviceCurrentId = null;
+    setServiceFormData(copy);
+
+    // Close modal and show service view
+    document.body.classList.remove('saved-modal-open');
+    sessionStorage.removeItem('firesafe_hent_tab');
+    showView('service-view');
+    document.body.classList.add('service-view-open');
+    window.location.hash = 'service';
+    document.getElementById('service-sent-banner').style.display = 'none';
+    document.getElementById('btn-service-sent').style.display = '';
+    document.getElementById('service-save-btn').disabled = false;
+    sessionStorage.removeItem('firesafe_service_sent');
+    _serviceLastSavedData = null;
+    sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+    window.scrollTo(0, 0);
+    showNotificationModal(t('duplicated_success'), true);
 }
 
 function deleteServiceForm(formData) {
@@ -3890,6 +4080,8 @@ document.getElementById('service-list').addEventListener('click', function(e) {
         e.stopPropagation();
         if (btn.classList.contains('delete')) {
             deleteServiceForm(formData);
+        } else if (btn.classList.contains('copy')) {
+            duplicateServiceForm(formData);
         }
         return;
     }

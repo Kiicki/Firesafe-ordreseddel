@@ -464,23 +464,52 @@
 
                 <!-- Standardverdier-side -->
                 <div id="settings-page-defaults" class="settings-page" style="display:none;">
-                    <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
-                    <div class="settings-group">
-                        <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
-                        <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
-                        <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
+                    <div class="settings-tabs">
+                        <button class="settings-tab active" onclick="switchDefaultsTab('own')" data-i18n="form_title">Ordreseddel</button>
+                        <button class="settings-tab" onclick="switchDefaultsTab('service')" data-i18n="tab_service">Service</button>
                     </div>
-                    <div class="settings-section-header" data-i18n="settings_autofill_header">Automatisk utfylling</div>
-                    <div class="settings-group">
-                        <div class="settings-toggle-item"><span data-i18n="label_uke">Uke</span><label class="settings-toggle"><input type="checkbox" id="autofill-uke" checked onchange="saveAutofillToggle('uke', this.checked)"><span class="settings-toggle-slider"></span></label></div>
-                        <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-dato" checked onchange="saveAutofillToggle('dato', this.checked)"><span class="settings-toggle-slider"></span></label></div>
-                        <div class="settings-toggle-item"><span data-i18n="label_sted">Sted</span><label class="settings-toggle"><input type="checkbox" id="autofill-sted" checked onchange="saveAutofillToggle('sted', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+
+                    <!-- Ordreseddel defaults -->
+                    <div id="defaults-own-content">
+                        <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
+                        <div class="settings-group">
+                            <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
+                            <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
+                            <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
+                        </div>
+                        <div class="settings-section-header" data-i18n="settings_autofill_header">Automatisk utfylling</div>
+                        <div class="settings-group">
+                            <div class="settings-toggle-item"><span data-i18n="label_uke">Uke</span><label class="settings-toggle"><input type="checkbox" id="autofill-uke" checked onchange="saveAutofillToggle('uke', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+                            <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-dato" checked onchange="saveAutofillToggle('dato', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+                            <div class="settings-toggle-item"><span data-i18n="label_sted">Sted</span><label class="settings-toggle"><input type="checkbox" id="autofill-sted" checked onchange="saveAutofillToggle('sted', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+                        </div>
+                    </div>
+
+                    <!-- Service defaults -->
+                    <div id="defaults-service-content" style="display:none">
+                        <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
+                        <div class="settings-group">
+                            <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-service-montor"></label>
+                        </div>
+                        <div class="settings-section-header" data-i18n="settings_autofill_header">Automatisk utfylling</div>
+                        <div class="settings-group">
+                            <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-service-dato" checked onchange="saveAutofillToggle('dato', this.checked, 'service')"><span class="settings-toggle-slider"></span></label></div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Obligatoriske felt-side (lagre/eksport) -->
                 <div id="settings-page-required" class="settings-page" style="display:none;">
-                    <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
+                    <div class="settings-tabs">
+                        <button class="settings-tab active" onclick="switchRequiredTab('own')">Ordreseddel</button>
+                        <button class="settings-tab" onclick="switchRequiredTab('service')">Lageruttak</button>
+                    </div>
+                    <div id="required-own-content">
+                        <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
+                    </div>
+                    <div id="required-service-content" style="display:none">
+                        <div id="settings-fields-service-items" class="settings-list-container settings-group"></div>
+                    </div>
                 </div>
 
                 <!-- Materialer-side -->

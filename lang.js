@@ -5,7 +5,7 @@ const TRANSLATIONS = {
         toolbar_save: 'Lagre',
         toolbar_forms: 'Skjemaer',
         toolbar_export: 'Eksport',
-        toolbar_service: 'Service',
+        toolbar_service: 'Lageruttak',
         toolbar_settings: 'Meny',
         btn_mark_sent: 'Ferdig',
 
@@ -277,15 +277,15 @@ const TRANSLATIONS = {
         export_total: 'Totalt:',
 
         // Service (Lageruttak)
-        tab_service: 'Service',
+        tab_service: 'Lageruttak',
         service_title: 'Lageruttak Servicebiler',
-        service_new_form: 'Nytt serviceskjema',
+        service_new_form: 'Nytt lageruttak',
         service_entries_title: 'Prosjekter',
         service_add_entry: '+ Legg til prosjekt',
         service_entry_title: 'Prosjekt',
         service_entry_delete_confirm: 'Slett dette prosjektet?',
-        service_save_success: 'Serviceskjema lagret!',
-        service_no_saved: 'Ingen lagrede serviceskjemaer',
+        service_save_success: 'Lageruttak lagret!',
+        service_no_saved: 'Ingen lagrede lageruttak',
         service_montor_required: 'Du må fylle inn montør',
         service_label_signatur: 'Signatur',
     },
@@ -295,7 +295,7 @@ const TRANSLATIONS = {
         toolbar_save: 'Save',
         toolbar_forms: 'Forms',
         toolbar_export: 'Export',
-        toolbar_service: 'Service',
+        toolbar_service: 'Withdrawal',
         toolbar_settings: 'Menu',
         btn_mark_sent: 'Done',
 
@@ -567,15 +567,15 @@ const TRANSLATIONS = {
         export_total: 'Total:',
 
         // Service (Warehouse withdrawal)
-        tab_service: 'Service',
+        tab_service: 'Withdrawal',
         service_title: 'Warehouse Withdrawal Service Vehicles',
-        service_new_form: 'New service form',
+        service_new_form: 'New withdrawal',
         service_entries_title: 'Projects',
         service_add_entry: '+ Add project',
         service_entry_title: 'Project',
         service_entry_delete_confirm: 'Delete this project?',
-        service_save_success: 'Service form saved!',
-        service_no_saved: 'No saved service forms',
+        service_save_success: 'Withdrawal saved!',
+        service_no_saved: 'No saved withdrawals',
         service_montor_required: 'You must fill in technician',
         service_label_signatur: 'Signature',
     }

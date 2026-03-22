@@ -5,6 +5,7 @@ const SETTINGS_KEY = 'firesafe_settings';
 const DEFAULTS_KEY = 'firesafe_defaults';
 const MATERIALS_KEY = 'firesafe_materials';
 const REQUIRED_KEY = 'firesafe_required';
+const SERVICE_DEFAULTS_KEY = 'firesafe_defaults_service';
 const SERVICE_STORAGE_KEY = 'firesafe_service';
 const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
 
@@ -1396,6 +1397,12 @@ function createServiceEntryCard(entryData, expanded) {
     var card = document.createElement('div');
     card.className = 'service-entry-card';
 
+    var srvReq = cachedRequiredSettings ? cachedRequiredSettings.service : getDefaultRequiredSettings().service;
+    var datoReq = srvReq.dato !== false ? ' field-required' : '';
+    var pnrReq = srvReq.prosjektnr !== false ? ' field-required' : '';
+    var pnavnReq = srvReq.prosjektnavn !== false ? ' field-required' : '';
+    var matReq = srvReq.materialer !== false ? ' field-required' : '';
+
     card.innerHTML =
         '<div class="service-entry-header" onclick="toggleServiceEntry(this)">' +
             '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
@@ -1403,13 +1410,13 @@ function createServiceEntryCard(entryData, expanded) {
             '<button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeServiceEntry(this)">' + deleteIcon + '</button>' +
         '</div>' +
         '<div class="service-entry-body" style="' + (expanded ? '' : 'display:none') + '">' +
-            '<div class="mobile-field field-required"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
+            '<div class="mobile-field' + datoReq + '"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
                 '<input type="text" class="service-entry-dato" value="' + escapeHtml(data.dato || '') + '"></div>' +
-            '<div class="mobile-field field-required"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
+            '<div class="mobile-field' + pnrReq + '"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
                 '<input type="text" class="service-entry-prosjektnr" inputmode="numeric" value="' + escapeHtml(data.prosjektnr || '') + '"></div>' +
-            '<div class="mobile-field field-required"><label data-i18n="label_prosjektnavn">' + t('label_prosjektnavn') + '</label>' +
+            '<div class="mobile-field' + pnavnReq + '"><label data-i18n="label_prosjektnavn">' + t('label_prosjektnavn') + '</label>' +
                 '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + escapeHtml(data.prosjektnavn || '') + '"></div>' +
-            '<div class="mobile-order-materials-section">' +
+            '<div class="mobile-order-materials-section' + matReq + '">' +
                 '<label class="mobile-order-sublabel" data-i18n="order_materials_label">' + t('order_materials_label') + '</label>' +
                 '<div class="mobile-order-materials"></div>' +
                 '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
@@ -1707,6 +1714,7 @@ async function openSignatureOverlay() {
         signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
         window._signatureImageBackup = document.getElementById('mobile-kundens-underskrift').value || '';
     }
+    window._canvasAspectRatioBackup = canvasAspectRatio;
 
     requestAnimationFrame(function() {
         requestAnimationFrame(function() {
@@ -1760,16 +1768,21 @@ function cleanupSignatureOverlay() {
 
 function closeSignatureOverlay() {
     signaturePaths = signaturePathsBackup;
+    canvasAspectRatio = window._canvasAspectRatioBackup || canvasAspectRatio;
     // Restore image values in case Nullstill cleared them
     if (signatureTarget === 'service') {
-        if (window._signatureImageBackup) {
+        if (window._signatureImageBackup !== undefined) {
             document.getElementById('service-signatur').value = window._signatureImageBackup;
         }
         window._serviceSignaturePaths = JSON.parse(JSON.stringify(signaturePathsBackup));
     } else {
-        if (window._signatureImageBackup) {
+        if (window._signatureImageBackup !== undefined) {
             document.getElementById('mobile-kundens-underskrift').value = window._signatureImageBackup;
             document.getElementById('kundens-underskrift').value = window._signatureImageBackup;
+        }
+        // Re-snapshot so unsaved-changes detection stays accurate
+        if (typeof lastSavedData !== 'undefined' && lastSavedData !== null) {
+            lastSavedData = getFormDataSnapshot();
         }
     }
     cleanupSignatureOverlay();
@@ -2394,31 +2407,60 @@ function validateRequiredFields() {
 }
 
 function validateServiceRequiredFields() {
+    var req = cachedRequiredSettings ? cachedRequiredSettings.service : getDefaultRequiredSettings().service;
+
     // Montør
-    var montor = document.getElementById('service-montor');
-    if (!montor || !montor.value.trim()) {
-        showNotificationModal(t('required_field', t('validation_montor')));
-        return false;
+    if (req.montor !== false) {
+        var montor = document.getElementById('service-montor');
+        if (!montor || !montor.value.trim()) {
+            showNotificationModal(t('required_field', t('validation_montor')));
+            return false;
+        }
     }
-    // Each entry: dato, prosjektnr, prosjektnavn
+
+    // Each entry card fields
     var cards = document.querySelectorAll('#service-entries .service-entry-card');
     for (var i = 0; i < cards.length; i++) {
-        var dato = cards[i].querySelector('.service-entry-dato');
-        if (!dato || !dato.value.trim()) {
-            showNotificationModal(t('required_field', t('label_dato')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
-            return false;
+        if (req.dato !== false) {
+            var dato = cards[i].querySelector('.service-entry-dato');
+            if (!dato || !dato.value.trim()) {
+                showNotificationModal(t('required_field', t('label_dato')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+                return false;
+            }
         }
-        var pnr = cards[i].querySelector('.service-entry-prosjektnr');
-        if (!pnr || !pnr.value.trim()) {
-            showNotificationModal(t('required_field', t('label_prosjektnr')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
-            return false;
+        if (req.prosjektnr !== false) {
+            var pnr = cards[i].querySelector('.service-entry-prosjektnr');
+            if (!pnr || !pnr.value.trim()) {
+                showNotificationModal(t('required_field', t('label_prosjektnr')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+                return false;
+            }
         }
-        var pnavn = cards[i].querySelector('.service-entry-prosjektnavn');
-        if (!pnavn || !pnavn.value.trim()) {
-            showNotificationModal(t('required_field', t('label_prosjektnavn')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+        if (req.prosjektnavn !== false) {
+            var pnavn = cards[i].querySelector('.service-entry-prosjektnavn');
+            if (!pnavn || !pnavn.value.trim()) {
+                showNotificationModal(t('required_field', t('label_prosjektnavn')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+                return false;
+            }
+        }
+        if (req.materialer !== false) {
+            var matContainer = cards[i].querySelector('.mobile-order-materials');
+            var matItems = matContainer ? matContainer.querySelectorAll('.mobile-material-row') : [];
+            if (matItems.length === 0) {
+                showNotificationModal(t('required_field', t('order_materials_label')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+                return false;
+            }
+        }
+    }
+
+    // Signature
+    if (req.signatur) {
+        var sigInput = document.getElementById('service-signatur');
+        if (!sigInput || !sigInput.value) {
+            showNotificationModal(t('required_field', t('validation_signatur')));
             return false;
         }
     }
+
     return true;
 }
 
