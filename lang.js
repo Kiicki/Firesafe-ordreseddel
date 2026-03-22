@@ -109,7 +109,7 @@ const TRANSLATIONS = {
 
         // Hent modal
         modal_load_title: 'Skjemaer',
-        tab_own: 'Egne',
+        tab_own: 'Ordreseddel',
         search_placeholder: 'Søk ordrenummer...',
         search_template_placeholder: 'Søk prosjektmal...',
         loading: 'Laster...',
@@ -140,7 +140,7 @@ const TRANSLATIONS = {
         // Templates
         template_modal_title: 'Velg prosjektmal',
         template_new_form: 'Eget skjema',
-        template_blank_form: 'Nytt skjema',
+        template_blank_form: '+ Ordreseddel',
         template_save_success: 'Prosjektmal lagret!',
         template_duplicated: 'Mal duplisert — rediger og lagre!',
         template_update_success: 'Mal oppdatert!',
@@ -279,7 +279,7 @@ const TRANSLATIONS = {
         // Service (Lageruttak)
         tab_service: 'Lageruttak',
         service_title: 'Lageruttak Servicebiler',
-        service_new_form: 'Nytt lageruttak',
+        service_new_form: '+ Lageruttak',
         service_entries_title: 'Prosjekter',
         service_add_entry: '+ Legg til prosjekt',
         service_entry_title: 'Prosjekt',
@@ -399,7 +399,7 @@ const TRANSLATIONS = {
 
         // Hent modal
         modal_load_title: 'Forms',
-        tab_own: 'Own',
+        tab_own: 'Order form',
         search_placeholder: 'Search order number...',
         search_template_placeholder: 'Search project template...',
         loading: 'Loading...',
@@ -430,7 +430,7 @@ const TRANSLATIONS = {
         // Templates
         template_modal_title: 'Choose project template',
         template_new_form: 'Own form',
-        template_blank_form: 'New form',
+        template_blank_form: '+ Order form',
         template_save_success: 'Project template saved!',
         template_duplicated: 'Template duplicated — edit and save!',
         template_update_success: 'Template updated!',
@@ -569,7 +569,7 @@ const TRANSLATIONS = {
         // Service (Warehouse withdrawal)
         tab_service: 'Withdrawal',
         service_title: 'Warehouse Withdrawal Service Vehicles',
-        service_new_form: 'New withdrawal',
+        service_new_form: '+ Withdrawal',
         service_entries_title: 'Projects',
         service_add_entry: '+ Add project',
         service_entry_title: 'Project',
