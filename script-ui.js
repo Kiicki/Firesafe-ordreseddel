@@ -924,7 +924,9 @@ function filterList(listId, searchId) {
             if (!_templatesAll) _templatesAll = window.loadedTemplates ? window.loadedTemplates.slice() : [];
             if (!term) { var all3 = _templatesAll; _templatesAll = null; renderTemplateList(all3, false, _templateHasMore); return; }
             var filtered3 = _templatesAll.filter(function(f) {
-                return (f.prosjektnavn || '').toLowerCase().startsWith(term);
+                return (f.prosjektnavn || '').toLowerCase().startsWith(term) ||
+                       (f.oppdragsgiver || '').toLowerCase().startsWith(term) ||
+                       (f.prosjektnr || '').toLowerCase().startsWith(term);
             });
             renderTemplateList(filtered3);
             // Søk i Firestore etter ulastede maler
