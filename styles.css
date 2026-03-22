@@ -3447,6 +3447,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     width: 100%;
     flex: none;
 }
+.settings-add-unit-fields input:disabled {
+    background: #f0f0f0;
+    color: #999;
+    opacity: 0.7;
+}
 .settings-add-material-row .settings-add-material-btm {
     display: flex;
     align-items: flex-end;
