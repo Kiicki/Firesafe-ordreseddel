@@ -1092,7 +1092,7 @@ body.service-view-open {
 }
 
 /* Keyboard open: revert to document flow so everything scrolls together */
-@media (max-height: 500px) and (orientation: portrait) {
+@media (max-height: 600px) and (orientation: portrait) {
     .sticky-header,
     #form-header {
         position: static;

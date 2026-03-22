@@ -3510,8 +3510,24 @@ function loadServiceTab() {
 }
 
 function _buildServiceItemHtml(item, index) {
-    var montor = item.montor || '';
-    var dato = formatDateWithTime(item.savedAt);
+    // Build title from first entry's dato: "Uke X • DD.MM.YYYY"
+    var entryDato = item.entries && item.entries[0] ? item.entries[0].dato : '';
+    var title = '';
+    if (entryDato) {
+        // Parse DD.MM.YYYY
+        var parts = entryDato.split('.');
+        if (parts.length === 3) {
+            var d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            if (!isNaN(d.getTime())) {
+                title = 'Uke ' + getWeekNumber(d) + ' \u2022 ' + entryDato;
+            } else {
+                title = entryDato;
+            }
+        } else {
+            title = entryDato;
+        }
+    }
+    var savedAtStr = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
     var copyBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>';
@@ -3520,8 +3536,8 @@ function _buildServiceItemHtml(item, index) {
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
-            '<div class="saved-item-row1">' + dot + (escapeHtml(montor) || t('no_name')) + '</div>' +
-            (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+            '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + '</div>' +
+            (savedAtStr ? '<div class="saved-item-date">' + escapeHtml(savedAtStr) + '</div>' : '') +
         '</div>' +
         '<div class="saved-item-buttons">' + copyBtn + deleteBtn + '</div>' +
     '</div>';

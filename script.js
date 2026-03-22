@@ -1282,13 +1282,6 @@ function openUnitPicker(matName, btnEl, allowedUnits) {
 
     listEl.innerHTML = html;
 
-    // Custom input row (outside scrollable list)
-    const isCustom = currentEnhet && !allowedUnits.some(u => (typeof u === 'string' ? u : u.plural).toLowerCase() === currentEnhet.toLowerCase());
-    const customEl = overlay.querySelector('.unit-picker-custom');
-    const customInput = customEl.querySelector('input');
-    customInput.value = isCustom ? currentEnhet : '';
-    customInput.placeholder = t('picker_custom') + '...';
-
     unitPickerCallback = function(value) {
         btnEl.setAttribute('data-enhet', value);
         btnEl.textContent = value || t('placeholder_unit');
@@ -1311,16 +1304,6 @@ function openUnitPicker(matName, btnEl, allowedUnits) {
             closeUnitPicker();
         });
     });
-
-    // Custom OK click (use onclick to avoid listener accumulation)
-    const customOk = customEl.querySelector('.unit-picker-custom-ok');
-    customOk.onclick = function() {
-        const val = customInput.value.trim();
-        if (val) {
-            unitPickerCallback(val);
-            closeUnitPicker();
-        }
-    };
 
     overlay.classList.add('active');
     requestAnimationFrame(() => overlay.classList.add('visible'));
