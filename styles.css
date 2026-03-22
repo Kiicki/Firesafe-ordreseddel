@@ -1020,6 +1020,15 @@ body.settings-modal-open #view-form {
     overflow: clip;
 }
 
+/* Lock body scroll when fixed views are active */
+body:has(#view-form.view.active),
+body:has(#service-view.view.active),
+body:has(#template-modal.view.active),
+body:has(#saved-modal.view.active),
+body:has(#settings-modal.view.active) {
+    overflow: hidden;
+}
+
 /* Form view: fixed to viewport so form-header can be sticky */
 #view-form.view.active,
 #service-view.view.active {
@@ -1092,7 +1101,7 @@ body.service-view-open {
 }
 
 /* Keyboard open: revert to document flow so everything scrolls together */
-@media (max-height: 600px) and (orientation: portrait) {
+@media (max-height: 500px) and (orientation: portrait) {
     .sticky-header,
     #form-header {
         position: static;
