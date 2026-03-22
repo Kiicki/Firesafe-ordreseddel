@@ -111,7 +111,7 @@ const TRANSLATIONS = {
         modal_load_title: 'Skjemaer',
         tab_own: 'Ordreseddel',
         search_placeholder: 'Søk ordrenummer...',
-        search_template_placeholder: 'Søk ordreseddelmal...',
+        search_template_placeholder: 'Søk ordreseddel-mal...',
         loading: 'Laster...',
         no_saved_forms: 'Ingen lagrede skjemaer',
         no_templates: 'Ingen prosjektmaler',
