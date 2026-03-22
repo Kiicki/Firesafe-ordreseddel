@@ -643,6 +643,7 @@ function navigateBack() {
     // From service view: go back to home
     if (currentId === 'service-view') {
         closeServiceView();
+        showTemplateModal();
         return;
     }
     // From Skjemaer: close and go to form
@@ -3406,7 +3407,6 @@ function closeServiceView() {
     _serviceLastSavedData = null;
     sessionStorage.removeItem('firesafe_service_current');
     sessionStorage.removeItem('firesafe_service_sent');
-    showTemplateModal();
 }
 
 async function saveServiceForm() {
@@ -4342,7 +4342,7 @@ window.addEventListener('hashchange', function() {
     const hash = window.location.hash.slice(1);
     // Don't close modals for hent/settings - those functions handle it themselves
     if (hash === 'hent') {
-        showSavedForms();
+        if (!document.body.classList.contains('saved-modal-open')) showSavedForms();
     } else if (hash === 'settings' || hash.indexOf('settings/') === 0) {
         if (!document.body.classList.contains('settings-modal-open')) {
             showSettingsModal();
