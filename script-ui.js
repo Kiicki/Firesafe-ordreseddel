@@ -1680,7 +1680,7 @@ function renderMaterialSettingsItems() {
         if (name) expandedSet.add(name.textContent);
     });
     container.innerHTML = settingsMaterials.map((item, idx) => {
-        const unitLocked = item.type === 'mansjett' || item.type === 'brannpakning';
+        const unitLocked = item.type !== 'standard';
         const units = unitLocked ? [{ singular: 'stk', plural: 'stk' }] : (item.allowedUnits && item.allowedUnits.length > 0 ? item.allowedUnits : (item.defaultUnit ? [{ singular: item.defaultUnit, plural: item.defaultUnit }] : []));
         const defaultUnit = item.defaultUnit || '';
         const unitsHtml = units.map((u, ui) => {
@@ -1848,6 +1848,24 @@ function toggleSettingsSection(section) {
     arrow.classList.toggle('open');
 }
 
+function updateSettingsUnitFields() {
+    var type = document.getElementById('settings-new-material-type').value;
+    var singular = document.getElementById('settings-new-material-singular');
+    var plural = document.getElementById('settings-new-material-plural');
+    var fixedUnit = type !== 'standard';
+    if (fixedUnit) {
+        singular.value = 'stk';
+        plural.value = 'stk';
+        singular.readOnly = true;
+        plural.readOnly = true;
+    } else {
+        if (singular.value === 'stk' && singular.readOnly) singular.value = '';
+        if (plural.value === 'stk' && plural.readOnly) plural.value = '';
+        singular.readOnly = false;
+        plural.readOnly = false;
+    }
+}
+
 async function addSettingsMaterial() {
     if (!isAdmin) return;
     const input = document.getElementById('settings-new-material');
@@ -1858,7 +1876,7 @@ async function addSettingsMaterial() {
     const type = typeSelect.value;
     const singular = singularInput.value.trim();
     const plural = pluralInput.value.trim();
-    const needsUnit = type !== 'mansjett' && type !== 'brannpakning';
+    const needsUnit = type === 'standard';
 
     // Validate all required fields
     if (!val || (needsUnit && (!singular || !plural))) {
@@ -1883,7 +1901,7 @@ async function addSettingsMaterial() {
         allowedUnits.push(unitObj);
         defaultUnit = unitObj.plural;
     }
-    if (type === 'mansjett' || type === 'brannpakning') {
+    if (type !== 'standard') {
         defaultUnit = 'stk';
         allowedUnits.length = 0;
         allowedUnits.push({ singular: 'stk', plural: 'stk' });
@@ -2028,7 +2046,7 @@ function closeMatTypeDropdown() {
 async function changeMaterialType(idx, type) {
     if (!isAdmin) return;
     settingsMaterials[idx].type = type;
-    if (type === 'mansjett' || type === 'brannpakning') {
+    if (type !== 'standard') {
         settingsMaterials[idx].defaultUnit = 'stk';
         settingsMaterials[idx].allowedUnits = [{ singular: 'stk', plural: 'stk' }];
     }
