@@ -988,6 +988,13 @@ body.template-modal-open > .top-bar {
 .template-home-wrapper {
     padding: 2px 15px 5px 15px;
 }
+.template-section-header {
+    padding: 8px 15px 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #888;
+    flex-shrink: 0;
+}
 
 /* Hide form view when modal views are open, remove body padding */
 body.template-modal-open #view-form,

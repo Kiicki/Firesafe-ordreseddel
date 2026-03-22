@@ -139,6 +139,7 @@ const TRANSLATIONS = {
 
         // Templates
         template_modal_title: 'Velg prosjektmal',
+        template_section_title: 'Ordreseddel-maler',
         template_new_form: 'Eget skjema',
         template_blank_form: '+ Ordreseddel',
         template_save_success: 'Prosjektmal lagret!',
@@ -429,6 +430,7 @@ const TRANSLATIONS = {
 
         // Templates
         template_modal_title: 'Choose project template',
+        template_section_title: 'Order form templates',
         template_new_form: 'Own form',
         template_blank_form: '+ Order form',
         template_save_success: 'Project template saved!',
