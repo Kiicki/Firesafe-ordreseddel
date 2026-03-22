@@ -3677,6 +3677,7 @@ function markServiceAsSent() {
         closeServiceView();
         loadedForms = [];
         _showSavedFormsDirectly();
+        switchHentTab('service');
 
         // Firebase
         if (currentUser && db) {
