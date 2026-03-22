@@ -1856,13 +1856,13 @@ function updateSettingsUnitFields() {
     if (fixedUnit) {
         singular.value = 'stk';
         plural.value = 'stk';
-        singular.readOnly = true;
-        plural.readOnly = true;
+        singular.disabled = true;
+        plural.disabled = true;
     } else {
-        if (singular.value === 'stk' && singular.readOnly) singular.value = '';
-        if (plural.value === 'stk' && plural.readOnly) plural.value = '';
-        singular.readOnly = false;
-        plural.readOnly = false;
+        if (singular.value === 'stk' && singular.disabled) singular.value = '';
+        if (plural.value === 'stk' && plural.disabled) plural.value = '';
+        singular.disabled = false;
+        plural.disabled = false;
     }
 }
 
