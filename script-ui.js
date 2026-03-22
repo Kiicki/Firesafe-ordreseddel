@@ -3939,6 +3939,11 @@ document.getElementById('service-signature-preview').addEventListener('click', f
     openSignatureOverlay();
 });
 
+document.getElementById('mobile-signature-preview').addEventListener('click', function() {
+    signatureTarget = 'form';
+    openSignatureOverlay();
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     // PWA pull-to-refresh workaround: Force layout recalculation
     setTimeout(function() {
