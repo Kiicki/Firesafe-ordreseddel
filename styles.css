@@ -1632,6 +1632,17 @@ body.service-view-open {
     margin-bottom: 4px;
 }
 
+input.date-invalid {
+    border-color: #e74c3c !important;
+    box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.25) !important;
+    background: #fff5f5 !important;
+}
+.date-error-msg {
+    color: #e74c3c;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
 .mobile-field.field-required > label::after,
 .mobile-order-materials-section.field-required > label::after {
     content: ' *';

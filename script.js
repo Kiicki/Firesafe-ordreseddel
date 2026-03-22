@@ -516,6 +516,49 @@ function closeTextEditor() {
     currentEditingField = null;
 }
 
+// Validate DD.MM.YYYY format and return Date object or null
+function parseDateDMY(str) {
+    if (!str) return null;
+    var m = str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!m) return null;
+    var d = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+    if (d.getDate() !== parseInt(m[1]) || d.getMonth() !== parseInt(m[2]) - 1) return null;
+    return d;
+}
+
+// Init date input: comma→dot, validate on blur
+function initDateInput(input) {
+    if (!input || input._dateInitDone) return;
+    input._dateInitDone = true;
+    // Create error message element
+    var errMsg = document.createElement('div');
+    errMsg.className = 'date-error-msg';
+    errMsg.textContent = 'Ugyldig dato. Bruk DD.MM.ÅÅÅÅ';
+    errMsg.style.display = 'none';
+    input.parentNode.appendChild(errMsg);
+
+    function showDateError(show) {
+        if (show) {
+            input.classList.add('date-invalid');
+            errMsg.style.display = '';
+        } else {
+            input.classList.remove('date-invalid');
+            errMsg.style.display = 'none';
+        }
+    }
+
+    input.addEventListener('input', function() {
+        this.value = this.value.replace(/,/g, '.');
+        var val = this.value.trim();
+        showDateError(val && !parseDateDMY(val));
+    });
+    input.addEventListener('blur', function() {
+        var val = this.value.trim();
+        if (!val) { showDateError(false); return; }
+        showDateError(!parseDateDMY(val));
+    });
+}
+
 // Format today's date as DD.MM.YYYY
 function formatDate(date) {
     const d = date.getDate().toString().padStart(2, '0');
@@ -1394,7 +1437,7 @@ function createServiceEntryCard(entryData, expanded) {
         '</div>' +
         '<div class="service-entry-body" style="' + (expanded ? '' : 'display:none') + '">' +
             '<div class="mobile-field' + datoReq + '"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
-                '<input type="text" class="service-entry-dato" value="' + escapeHtml(data.dato || '') + '"></div>' +
+                '<input type="text" class="service-entry-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ" value="' + escapeHtml(data.dato || '') + '"></div>' +
             '<div class="mobile-field' + pnrReq + '"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
                 '<input type="text" class="service-entry-prosjektnr" inputmode="numeric" value="' + escapeHtml(data.prosjektnr || '') + '"></div>' +
             '<div class="mobile-field' + pnavnReq + '"><label data-i18n="label_prosjektnavn">' + t('label_prosjektnavn') + '</label>' +
@@ -1414,6 +1457,9 @@ function createServiceEntryCard(entryData, expanded) {
     // Update header live when prosjektnavn changes
     card.querySelector('.service-entry-prosjektnavn').addEventListener('input', renumberServiceEntries);
 
+    // Init date input validation
+    initDateInput(card.querySelector('.service-entry-dato'));
+
     return card;
 }
 
@@ -1426,7 +1472,13 @@ function addServiceEntry() {
             card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
         }
     });
-    var card = createServiceEntryCard({}, true);
+    var entryData = {};
+    var svcDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
+    if (svcDefaults.autofill_dato !== false) {
+        var now = new Date();
+        entryData.dato = formatDate(now);
+    }
+    var card = createServiceEntryCard(entryData, true);
     container.appendChild(card);
     updateServiceDeleteStates();
     renumberServiceEntries();
@@ -2410,6 +2462,13 @@ function validateServiceRequiredFields() {
                 showNotificationModal(t('required_field', t('label_dato')) + ' (' + t('service_entry_title') + ' ' + (i + 1) + ')');
                 return false;
             }
+        }
+        // Validate date format if filled
+        var datoEl = cards[i].querySelector('.service-entry-dato');
+        if (datoEl && datoEl.value.trim() && !parseDateDMY(datoEl.value.trim())) {
+            datoEl.classList.add('date-invalid');
+            showNotificationModal('Ugyldig datoformat. Bruk DD.MM.ÅÅÅÅ (' + t('service_entry_title') + ' ' + (i + 1) + ')');
+            return false;
         }
         if (req.prosjektnr !== false) {
             var pnr = cards[i].querySelector('.service-entry-prosjektnr');

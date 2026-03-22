@@ -3514,15 +3514,9 @@ function _buildServiceItemHtml(item, index) {
     var entryDato = item.entries && item.entries[0] ? item.entries[0].dato : '';
     var title = '';
     if (entryDato) {
-        // Parse DD.MM.YYYY
-        var parts = entryDato.split('.');
-        if (parts.length === 3) {
-            var d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-            if (!isNaN(d.getTime())) {
-                title = 'Uke ' + getWeekNumber(d) + ' \u2022 ' + entryDato;
-            } else {
-                title = entryDato;
-            }
+        var d = parseDateDMY(entryDato);
+        if (d) {
+            title = 'Uke ' + getWeekNumber(d) + ' \u2022 ' + entryDato;
         } else {
             title = entryDato;
         }
@@ -4191,6 +4185,9 @@ document.getElementById('mobile-signature-preview').addEventListener('click', fu
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Init date inputs
+    initDateInput(document.getElementById('mobile-signering-dato'));
+
     // PWA pull-to-refresh workaround: Force layout recalculation
     setTimeout(function() {
         void document.body.offsetHeight;
