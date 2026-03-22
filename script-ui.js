@@ -194,7 +194,10 @@ function _mergeAndDedup(saved, sent) {
     }
     var result = [];
     for (var key in byNr) result.push(byNr[key]);
-    return result.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+    return result.sort(function(a, b) {
+        if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
+        return (b.savedAt || '').localeCompare(a.savedAt || '');
+    });
 }
 
 function _showSavedFormsDirectly() {
@@ -1545,6 +1548,10 @@ function showSettingsPage(page) {
         settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
         renderMaterialSettingsItems();
         document.getElementById('settings-new-material').value = '';
+        document.getElementById('settings-new-material-type').value = 'standard';
+        document.getElementById('settings-new-material-singular').value = '';
+        document.getElementById('settings-new-material-plural').value = '';
+        updateSettingsUnitFields();
         // Background refresh
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
@@ -1673,7 +1680,7 @@ function renderMaterialSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
         return;
     }
-    // Remember which groups were expanded
+    // Remember which groups were expanded (preserved during edits)
     const expandedSet = new Set();
     container.querySelectorAll('.settings-material-group.expanded').forEach(el => {
         const name = el.querySelector('.settings-material-name');
@@ -1696,9 +1703,15 @@ function renderMaterialSettingsItems() {
                 <span class="settings-material-unit-text" onclick="${editClick}">${escapeHtml(label)}</span>${removeBtn}</div>`;
         }).join('');
         const addRow = unitLocked ? '' : `<div class="settings-material-unit-add" onclick="addMaterialUnit(${idx})">+ Legg til enhet</div>`;
-        // Summary line for collapsed state
-        const summaryParts = units.map(u => typeof u === 'string' ? u : u.plural);
-        const summaryText = summaryParts.length > 0 ? summaryParts.join(', ') : 'Ingen enheter';
+        // Summary line for collapsed state — show default unit (singular form)
+        var defaultSingular = '';
+        if (defaultUnit && units.length > 0) {
+            var defUnit = units.find(function(u) { return (typeof u === 'string' ? u : u.plural) === defaultUnit; });
+            defaultSingular = defUnit ? (defUnit.singular || defUnit.plural || defUnit) : defaultUnit;
+        } else if (units.length > 0) {
+            defaultSingular = units[0].singular || units[0].plural || units[0];
+        }
+        const summaryText = defaultSingular || 'Ingen enheter';
         const isExpanded = expandedSet.has(item.name);
         const matType = item.type || 'standard';
         return `<div class="settings-material-group${isExpanded ? ' expanded' : ''}">
@@ -1708,7 +1721,7 @@ function renderMaterialSettingsItems() {
                 <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
                 <span class="settings-material-expand">&rsaquo;</span>
             </div>
-            <div class="settings-material-summary">${escapeHtml(summaryText)}</div>
+            <div class="settings-material-summary" onclick="toggleMaterialExpand(this.previousElementSibling)">${escapeHtml(summaryText)}</div>
             <div class="settings-material-body">${unitsHtml}${addRow}</div>
         </div>`;
     }).join('');
@@ -1745,6 +1758,7 @@ function addMaterialUnit(idx) {
     editRow.appendChild(inputP);
     addRow.before(editRow);
     inputS.focus();
+    editRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     let saved = false;
     function save(e) {
@@ -1912,6 +1926,7 @@ async function addSettingsMaterial() {
     singularInput.value = '';
     pluralInput.value = '';
     typeSelect.value = 'standard';
+    updateSettingsUnitFields();
     renderMaterialSettingsItems();
     await saveMaterialSettings();
     showNotificationModal(t('settings_material_added'), true);
@@ -3469,7 +3484,10 @@ function loadServiceTab() {
     var cachedSent = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
     var cachedForms = cachedSaved.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
         .concat(cachedSent.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
-        .sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+        .sort(function(a, b) {
+            if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
+            return (b.savedAt || '').localeCompare(a.savedAt || '');
+        });
     renderServiceFormsList(cachedForms);
 
     // Refresh from Firestore
@@ -4236,7 +4254,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show cached data immediately
         var cachedSaved = safeParseJSON(STORAGE_KEY, []);
         var cachedSent = safeParseJSON(ARCHIVE_KEY, []);
-        renderSavedFormsList(cachedSaved.map(f => ({ ...f, _isSent: false })).concat(cachedSent.map(f => ({ ...f, _isSent: true }))).sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')));
+        renderSavedFormsList(_mergeAndDedup(
+            cachedSaved.map(f => ({ ...f, _isSent: false })),
+            cachedSent.map(f => ({ ...f, _isSent: true }))
+        ));
         var savedTab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
         switchHentTab(savedTab);
         updateToolbarState();

@@ -843,9 +843,9 @@ body.template-modal-open > .top-bar {
 
 /* Service new form button in template modal */
 .btn-service-new {
-    background: #fff !important;
-    color: #E8501A !important;
-    border: 2px solid #E8501A !important;
+    background: transparent !important;
+    color: #495057 !important;
+    border: 1.5px solid #495057 !important;
 }
 
 /* Service export table (hidden, for PDF generation) */
@@ -1215,9 +1215,9 @@ body.service-view-open {
 .btn-skip-template {
     flex: 1;
     padding: 8px;
-    border: 1.5px solid #495057;
-    background: transparent;
-    color: #495057;
+    border: 2px solid #E8501A;
+    background: #fff;
+    color: #E8501A;
     border-radius: 8px;
     font-size: 13px;
     font-weight: 500;
@@ -3186,6 +3186,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 13px;
     color: #888;
     border-top: 1px solid #f0f0f0;
+    cursor: pointer;
 }
 .settings-material-group.expanded .settings-material-summary {
     display: none;
@@ -3218,8 +3219,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 .settings-material-unit-default {
     cursor: pointer;
-    padding: 0 6px 0 0;
-    font-size: 14px;
+    padding: 8px 12px 8px 4px;
+    margin: -8px 0 -8px -4px;
+    font-size: 16px;
     line-height: 1;
 }
 .settings-material-unit-star {
@@ -3447,10 +3449,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     width: 100%;
     flex: none;
 }
-.settings-add-unit-fields input:disabled {
-    background: #f0f0f0;
-    color: #999;
-    opacity: 0.7;
+.settings-add-unit-fields input:disabled,
+#settings-new-material-singular:disabled,
+#settings-new-material-plural:disabled {
+    background: #e8e8e8 !important;
+    color: #999 !important;
+    border-color: #ccc !important;
+    cursor: not-allowed !important;
+    -webkit-text-fill-color: #999;
+    opacity: 1;
 }
 .settings-add-material-row .settings-add-material-btm {
     display: flex;
