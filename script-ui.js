@@ -200,7 +200,7 @@ function _mergeAndDedup(saved, sent) {
     });
 }
 
-function _showSavedFormsDirectly() {
+function _showSavedFormsDirectly(tab) {
     closeAllModals();
     if (window.location.hash !== '#hent') {
         window.location.hash = 'hent';
@@ -220,7 +220,7 @@ function _showSavedFormsDirectly() {
     updateToolbarState();
     document.getElementById('saved-list').scrollTop = 0;
 
-    switchHentTab('own');
+    switchHentTab(tab || 'own');
 
     // Refresh from Firestore in background
     if (currentUser && db) {
@@ -3461,6 +3461,8 @@ async function saveServiceForm() {
 
         showNotificationModal(t('service_save_success'), true);
         sessionStorage.setItem('firesafe_service_current', JSON.stringify(data));
+        closeServiceView();
+        _showSavedFormsDirectly('service');
 
         // Firebase in background
         if (currentUser && db) {
@@ -3676,8 +3678,7 @@ function markServiceAsSent() {
         _lastLocalSaveTs = Date.now();
         closeServiceView();
         loadedForms = [];
-        _showSavedFormsDirectly();
-        switchHentTab('service');
+        _showSavedFormsDirectly('service');
 
         // Firebase
         if (currentUser && db) {
