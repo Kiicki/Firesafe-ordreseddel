@@ -1021,12 +1021,14 @@ body.settings-modal-open #view-form {
 }
 
 /* Lock body scroll when fixed views are active */
-body:has(#view-form.view.active),
-body:has(#service-view.view.active),
-body:has(#template-modal.view.active),
-body:has(#saved-modal.view.active),
-body:has(#settings-modal.view.active) {
-    overflow: hidden;
+@media (min-height: 501px) {
+    body:has(#view-form.view.active),
+    body:has(#service-view.view.active),
+    body:has(#template-modal.view.active),
+    body:has(#saved-modal.view.active),
+    body:has(#settings-modal.view.active) {
+        overflow: hidden;
+    }
 }
 
 /* Form view: fixed to viewport so form-header can be sticky */
