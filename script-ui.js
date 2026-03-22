@@ -1,13 +1,11 @@
 // Cache for loaded forms (to use with index-based functions)
 // Use window scope to ensure consistency
 if (!window.loadedForms) window.loadedForms = [];
-if (!window.loadedExternalForms) window.loadedExternalForms = [];
 if (!window.loadedServiceForms) window.loadedServiceForms = [];
 var preNewFormData = null;
 
 // Pagination cursors for "Load more"
 var _savedLastDoc = null, _sentLastDoc = null, _savedHasMore = false, _sentHasMore = false;
-var _extLastDoc = null, _extSentLastDoc = null, _extHasMore = false, _extSentHasMore = false;
 var _templateLastDoc = null, _templateHasMore = false;
 var _serviceLastDoc = null, _serviceSentLastDoc = null, _serviceHasMore = false, _serviceSentHasMore = false;
 var _lastLocalSaveTs = 0;
@@ -16,8 +14,6 @@ var _pendingFirestoreOps = Promise.resolve();
 function resetPaginationState() {
     _savedLastDoc = null; _sentLastDoc = null;
     _savedHasMore = false; _sentHasMore = false;
-    _extLastDoc = null; _extSentLastDoc = null;
-    _extHasMore = false; _extSentHasMore = false;
     _templateLastDoc = null; _templateHasMore = false;
     _serviceLastDoc = null; _serviceSentLastDoc = null;
     _serviceHasMore = false; _serviceSentHasMore = false;
@@ -81,6 +77,8 @@ function showView(viewId) {
         v.classList.remove('active');
     });
     target.classList.add('active');
+    target.scrollTop = 0;
+    window.scrollTo(0, 0);
 }
 
 function closeAllModals() {
@@ -218,9 +216,8 @@ function _showSavedFormsDirectly() {
     document.body.classList.add('saved-modal-open');
     updateToolbarState();
     document.getElementById('saved-list').scrollTop = 0;
-    document.getElementById('external-list').scrollTop = 0;
 
-    switchHentTab(isExternalForm ? 'external' : 'own');
+    switchHentTab('own');
 
     // Refresh from Firestore in background
     if (currentUser && db) {
@@ -298,9 +295,6 @@ function setFormReadOnly(readOnly) {
         row.style.pointerEvents = readOnly ? 'none' : '';
     });
 
-    // Disable form type tabs
-    var formTypeTabs = document.getElementById('form-type-tabs');
-    if (formTypeTabs) formTypeTabs.classList.toggle('disabled', readOnly);
 }
 
 function loadForm(index) {
@@ -322,8 +316,8 @@ function loadFormDirect(formData) {
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
     closeModal();
     // Set hash based on form type
-    window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
-    sessionStorage.setItem('firesafe_form_type', isExternalForm ? 'external' : 'own');
+    window.location.hash = 'skjema';
+    sessionStorage.setItem('firesafe_form_type', 'own');
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
@@ -344,8 +338,6 @@ async function duplicateFormDirect(form) {
     // Tøm ordrenummer og sett nytt
     document.getElementById('ordreseddel-nr').value = '';
     document.getElementById('mobile-ordreseddel-nr').value = '';
-    isExternalForm = false;
-    updateFormTypeChip();
     autoFillOrderNumber();
 
     // Sett uke og dato basert på autofyll-innstillinger
@@ -377,7 +369,6 @@ async function duplicateFormDirect(form) {
     lastSavedData = null;
     setFormReadOnly(false);
     closeModal();
-    // Duplicated form is always regular (not external)
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_form_type', 'own');
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
@@ -436,7 +427,6 @@ function closeModal() {
     document.body.classList.remove('saved-modal-open');
     updateToolbarState();
     document.getElementById('saved-search').value = '';
-    document.getElementById('external-search').value = '';
     // Reset to own tab
     switchHentTab('own');
     sessionStorage.removeItem('firesafe_hent_tab');
@@ -450,17 +440,13 @@ function switchHentTab(tab) {
     tabs.forEach(t => t.classList.remove('active'));
 
     const savedList = document.getElementById('saved-list');
-    const externalList = document.getElementById('external-list');
     const serviceList = document.getElementById('service-list');
     const ownSearch = document.getElementById('own-search-wrap');
-    const externalSearch = document.getElementById('external-search-wrap');
     const serviceSearch = document.getElementById('service-search-wrap');
 
     savedList.style.display = 'none';
-    externalList.style.display = 'none';
     serviceList.style.display = 'none';
     ownSearch.style.display = 'none';
-    externalSearch.style.display = 'none';
     serviceSearch.style.display = 'none';
 
     if (tab === 'own') {
@@ -468,14 +454,8 @@ function switchHentTab(tab) {
         savedList.style.display = '';
         ownSearch.style.display = '';
         savedList.scrollTop = 0;
-    } else if (tab === 'external') {
-        tabs[1].classList.add('active');
-        externalList.style.display = '';
-        externalSearch.style.display = '';
-        externalList.scrollTop = 0;
-        loadExternalTab();
     } else if (tab === 'service') {
-        tabs[2].classList.add('active');
+        tabs[1].classList.add('active');
         serviceList.style.display = '';
         serviceSearch.style.display = '';
         serviceList.scrollTop = 0;
@@ -497,10 +477,6 @@ function showItemMenu(event, type, index, isSent) {
             actions.push({ label: t('duplicate_btn'), onclick: 'duplicateForm(null, ' + index + ')' });
         }
         actions.push({ label: t('delete_btn'), onclick: 'deleteForm(null, ' + index + ')', disabled: isSent });
-    } else if (type === 'external') {
-        var extForm = window.loadedExternalForms[index];
-        if (extForm) title = extForm.ordreseddelNr || '';
-        actions.push({ label: t('delete_btn'), onclick: 'deleteExternalForm(null, ' + index + ')' });
     } else if (type === 'template') {
         var tmpl = window.loadedTemplates[index];
         if (tmpl) {
@@ -879,7 +855,6 @@ function showExportMenu() {
 var _filterTimeout = null;
 var _searchVersion = 0;
 var _savedFormsAll = null;
-var _externalFormsAll = null;
 var _templatesAll = null;
 var _serviceFormsAll = null;
 
@@ -945,27 +920,6 @@ function filterList(listId, searchId) {
                     }
                 });
             }
-        } else if (listId === 'external-list') {
-            if (!_externalFormsAll) _externalFormsAll = window.loadedExternalForms ? window.loadedExternalForms.slice() : [];
-            if (!term) { var all2 = _externalFormsAll; _externalFormsAll = null; renderExternalFormsList(all2, false, _extHasMore || _extSentHasMore); return; }
-            var filtered2 = _externalFormsAll.filter(function(f) {
-                return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
-            });
-            renderExternalFormsList(filtered2);
-            // Søk i Firestore etter ulastede eksterne skjemaer
-            if ((_extHasMore || _extSentHasMore) && currentUser && db) {
-                var ver2 = ++_searchVersion;
-                firestoreSearchForms(rawTerm, [
-                    { name: 'external', isSent: false },
-                    { name: 'externalArchive', isSent: true }
-                ]).then(function(fsResults) {
-                    if (ver2 !== _searchVersion) return;
-                    var merged = mergeSearchResults(filtered2, fsResults);
-                    if (merged.length > filtered2.length) {
-                        renderExternalFormsList(merged);
-                    }
-                });
-            }
         } else if (listId === 'template-list') {
             if (!_templatesAll) _templatesAll = window.loadedTemplates ? window.loadedTemplates.slice() : [];
             if (!term) { var all3 = _templatesAll; _templatesAll = null; renderTemplateList(all3, false, _templateHasMore); return; }
@@ -1001,21 +955,19 @@ function moveCurrentToSaved() {
     const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
     if (!ordrenr) return;
 
-    const formsCol = isExternalForm ? 'external' : 'forms';
-    const archiveCol = isExternalForm ? 'externalArchive' : 'archive';
-    const sKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
-    const aKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
+    const formsCol = 'forms';
+    const archiveCol = 'archive';
 
     // localStorage first (optimistic)
-    var archived = safeParseJSON(aKey, []);
+    var archived = safeParseJSON(ARCHIVE_KEY, []);
     var formIndex = archived.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
     var formId = (formIndex !== -1) ? archived[formIndex].id : null;
     if (formIndex !== -1) {
-        var saved = safeParseJSON(sKey, []);
+        var saved = safeParseJSON(STORAGE_KEY, []);
         var movedForm = archived.splice(formIndex, 1)[0];
         saved.unshift(movedForm);
-        safeSetItem(aKey, JSON.stringify(archived));
-        safeSetItem(sKey, JSON.stringify(saved));
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+        safeSetItem(STORAGE_KEY, JSON.stringify(saved));
     }
 
     _lastLocalSaveTs = Date.now();
@@ -1035,27 +987,25 @@ function moveCurrentToSaved() {
 function markCurrentFormAsSent() {
     try {
         var data = getFormData();
-        var formsCollection = isExternalForm ? 'external' : 'forms';
-        var archiveCollection = isExternalForm ? 'externalArchive' : 'archive';
-        var storageKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
-        var archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
+        var formsCollection = 'forms';
+        var archiveCollection = 'archive';
 
         // localStorage: legg til i archived, IKKE fjern fra saved (sikkerhetskopi)
-        var saved = safeParseJSON(storageKey, []);
+        var saved = safeParseJSON(STORAGE_KEY, []);
         var existingIndex = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (existingIndex !== -1) {
             data.id = saved[existingIndex].id;
         } else {
             data.id = Date.now().toString();
         }
-        var archived = safeParseJSON(archiveKey, []);
+        var archived = safeParseJSON(ARCHIVE_KEY, []);
         var archivedExisting = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (archivedExisting !== -1) {
             archived[archivedExisting] = data;
         } else {
             archived.unshift(data);
         }
-        safeSetItem(archiveKey, JSON.stringify(archived));
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
         addToOrderNumberIndex(data.ordreseddelNr);
 
         // Update UI state
@@ -1066,6 +1016,8 @@ function markCurrentFormAsSent() {
         if (btnFormSent) btnFormSent.style.display = 'none';
         showNotificationModal(t('marked_as_sent'), true);
         _lastLocalSaveTs = Date.now();
+        loadedForms = [];
+        _showSavedFormsDirectly();
 
         // Firebase: serialisert via _pendingFirestoreOps for å unngå race conditions
         if (currentUser && db) {
@@ -1121,175 +1073,6 @@ function moveToSaved(event, index) {
         }
     }, t('btn_move'), '#333');
 }
-
-// === External forms tab ===
-
-function renderExternalFormsList(forms, append, hasMore) {
-    var listEl = document.getElementById('external-list');
-    var existingBtn = listEl.querySelector('.load-more-btn');
-    if (existingBtn) existingBtn.remove();
-
-    if (!append) {
-        if (!forms || forms.length === 0) {
-            listEl.innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
-            return;
-        }
-        window.loadedExternalForms = forms;
-        listEl.innerHTML = forms.map(function(item, i) { return _buildSavedItemHtml(item, i); }).join('');
-    } else {
-        var startIndex = window.loadedExternalForms.length;
-        window.loadedExternalForms = window.loadedExternalForms.concat(forms);
-        var html = forms.map(function(item, i) { return _buildSavedItemHtml(item, startIndex + i); }).join('');
-        listEl.insertAdjacentHTML('beforeend', html);
-    }
-
-    listEl.querySelectorAll('.saved-item').forEach(function(el, i) {
-        el._formData = window.loadedExternalForms[i];
-    });
-
-    if (hasMore) {
-        listEl.insertAdjacentHTML('beforeend', '<button class="load-more-btn" onclick="loadMoreExternalForms()">' + t('load_more') + '</button>');
-    }
-}
-
-async function loadMoreExternalForms() {
-    var btn = document.querySelector('#external-list .load-more-btn');
-    if (btn) btn.textContent = '...';
-    var newForms = [];
-    if (_extHasMore && _extLastDoc) {
-        var result = await getExternalForms(_extLastDoc);
-        _extLastDoc = result.lastDoc;
-        _extHasMore = result.hasMore;
-        newForms = newForms.concat(result.forms);
-    }
-    if (_extSentHasMore && _extSentLastDoc) {
-        var result2 = await getExternalSentForms(_extSentLastDoc);
-        _extSentLastDoc = result2.lastDoc;
-        _extSentHasMore = result2.hasMore;
-        newForms = newForms.concat(result2.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
-    }
-    newForms.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
-    renderExternalFormsList(newForms, true, _extHasMore || _extSentHasMore);
-}
-
-async function loadExternalTab() {
-    // Show cached data immediately
-    const cachedForms = safeParseJSON(EXTERNAL_KEY, []);
-    const cachedSent = safeParseJSON(EXTERNAL_ARCHIVE_KEY, []);
-    const cached = _mergeAndDedup(
-        cachedForms.map(f => ({ ...f, _isSent: false })),
-        cachedSent.map(f => ({ ...f, _isSent: true }))
-    );
-    renderExternalFormsList(cached);
-
-    var results = await Promise.all([getExternalForms(), getExternalSentForms()]);
-    if (Date.now() - _lastLocalSaveTs < 5000) return;
-    var extResult = results[0], extSentResult = results[1];
-    _extLastDoc = extResult.lastDoc;
-    _extSentLastDoc = extSentResult.lastDoc;
-    _extHasMore = extResult.hasMore;
-    _extSentHasMore = extSentResult.hasMore;
-    if (currentUser) {
-        safeSetItem(EXTERNAL_KEY, JSON.stringify(extResult.forms.slice(0, 50)));
-        safeSetItem(EXTERNAL_ARCHIVE_KEY, JSON.stringify(extSentResult.forms.slice(0, 50)));
-    }
-    window.loadedExternalForms = _mergeAndDedup(
-        extResult.forms.map(f => ({ ...f, _isSent: false })),
-        extSentResult.forms.map(f => ({ ...f, _isSent: true }))
-    );
-    if (!document.body.classList.contains('saved-modal-open')) return;
-    if (currentUser || window.loadedExternalForms.length > 0) {
-        renderExternalFormsList(window.loadedExternalForms, false, _extHasMore || _extSentHasMore);
-    }
-}
-
-function loadExternalForm(index) {
-    const form = window.loadedExternalForms[index];
-    if (!form) return;
-    loadExternalFormDirect(form);
-}
-
-function loadExternalFormDirect(form) {
-    if (!form) return;
-    setFormData(form);
-    isExternalForm = true;
-    updateFormTypeChip();
-
-    // Autofyll med eksterne innstillinger
-    autoFillDefaults('external');
-    var flags = getAutofillFlags('external');
-    var now = new Date();
-    if (flags.uke) {
-        var week = 'Uke ' + getWeekNumber(now);
-        document.getElementById('dato').value = week;
-        document.getElementById('mobile-dato').value = week;
-    }
-    if (flags.dato) {
-        var today = formatDate(now);
-        document.getElementById('signering-dato').value = today;
-        document.getElementById('mobile-signering-dato').value = today;
-    }
-
-    lastSavedData = getFormDataSnapshot();
-    const isSent = !!form._isSent;
-    // Show sent banner but keep form editable
-    document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
-    var btnFormSent = document.getElementById('btn-form-sent');
-    if (btnFormSent) btnFormSent.style.display = isSent ? 'none' : '';
-    sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
-    closeModal();
-    // External form = #ekstern
-    window.location.hash = 'ekstern';
-    sessionStorage.setItem('firesafe_form_type', 'external');
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-    // Update form header title
-    document.getElementById('form-header-title').textContent = t('form_title');
-    window.scrollTo(0, 0);
-}
-
-function deleteExternalForm(event, index) {
-    if (event) event.stopPropagation();
-    const form = window.loadedExternalForms[index];
-    if (!form) return;
-    deleteExternalFormDirect(form);
-}
-
-function deleteExternalFormDirect(form) {
-    if (!form) return;
-    const isSent = form._isSent;
-    const confirmMsg = isSent ? t('delete_sent_confirm') : t('delete_confirm');
-
-    showConfirmModal(confirmMsg, function() {
-        const col = isSent ? 'externalArchive' : 'external';
-        const lsKey = isSent ? EXTERNAL_ARCHIVE_KEY : EXTERNAL_KEY;
-
-        // Optimistic removal: update local state + DOM immediately
-        var arrIdx = window.loadedExternalForms.findIndex(function(f) { return f.id === form.id; });
-        if (arrIdx !== -1) window.loadedExternalForms.splice(arrIdx, 1);
-        var lsList = safeParseJSON(lsKey, []);
-        var lsIdx = lsList.findIndex(function(f) { return f.id === form.id; });
-        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(lsKey, JSON.stringify(lsList)); }
-        // Remove DOM element
-        document.querySelectorAll('#external-list .saved-item').forEach(function(el) {
-            if (el._formData && el._formData.id === form.id) el.remove();
-        });
-        // Show empty message if no items left
-        if (window.loadedExternalForms.length === 0) {
-            document.getElementById('external-list').innerHTML = '<div class="no-saved">' + t('no_external_forms') + '</div>';
-        }
-
-        _lastLocalSaveTs = Date.now();
-
-        // Firebase in background (serialized)
-        if (currentUser && db) {
-            var docId = form.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection(col).doc(docId).delete();
-            }).catch(function(e) { console.error('Delete external error:', e); });
-        }
-    });
-}
-
 
 // ============================================
 // PROSJEKTMALER
@@ -1573,6 +1356,12 @@ function closeTemplateModal() {
     updateOrderDeleteStates();
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     lastSavedData = getFormDataSnapshot();
+
+    // Scroll to top after all content is set
+    requestAnimationFrame(function() {
+        document.getElementById('view-form').scrollTop = 0;
+        window.scrollTo(0, 0);
+    });
 }
 
 
@@ -1713,15 +1502,9 @@ function showSettingsPage(page) {
                 _applyOrderNrSettings(settings);
         });
     } else if (page === 'defaults') {
-        var savedDefaultsTab = sessionStorage.getItem('firesafe_defaults_tab') || 'own';
-        _defaultsTab = savedDefaultsTab;
-        var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
-        if (tabs.length) {
-            tabs[0].classList.toggle('active', savedDefaultsTab === 'own');
-            tabs[1].classList.toggle('active', savedDefaultsTab === 'external');
-        }
+        _defaultsTab = 'own';
         // Show cached immediately, then background refresh
-        loadDefaultsForTab(savedDefaultsTab);
+        loadDefaultsForTab('own');
         initDefaultsAutoSave();
     } else if (page === 'required') {
         // Show cached immediately
@@ -2758,29 +2541,23 @@ const DEFAULT_FIELDS = ['montor', 'avdeling', 'sted'];
 var _defaultsTab = 'own';
 
 async function getDefaultSettings(tab) {
-    var key = tab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
-    var fbDoc = tab === 'external' ? 'defaults_external' : 'defaults';
     if (currentUser && db) {
         try {
-            var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).get();
+            var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
             if (doc.exists) return doc.data();
         } catch (e) {
             console.error('Defaults error:', e);
         }
     }
-    var stored = localStorage.getItem(key);
+    var stored = localStorage.getItem(DEFAULTS_KEY);
     return stored ? JSON.parse(stored) : {};
 }
 
 async function syncDefaultsToLocal() {
     if (!db || !currentUser) return;
     try {
-        var results = await Promise.all([
-            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get(),
-            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_external').get()
-        ]);
-        if (results[0].exists) safeSetItem(DEFAULTS_KEY, JSON.stringify(results[0].data()));
-        if (results[1].exists) safeSetItem(DEFAULTS_EXTERNAL_KEY, JSON.stringify(results[1].data()));
+        var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults').get();
+        if (doc.exists) safeSetItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
@@ -2791,8 +2568,8 @@ function saveDefaultSettings() {
         if (val) defaults[field] = val;
     });
     // Behold autofill-toggles fra eksisterende data
-    var key = _defaultsTab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
-    var fbDoc = _defaultsTab === 'external' ? 'defaults_external' : 'defaults';
+    var key = DEFAULTS_KEY;
+    var fbDoc = 'defaults';
     var existing = safeParseJSON(key, {});
     ['autofill_uke', 'autofill_dato', 'autofill_sted'].forEach(function(k) {
         if (existing[k] !== undefined) defaults[k] = existing[k];
@@ -2831,12 +2608,9 @@ function initDefaultsAutoSave() {
 }
 
 function switchDefaultsTab(tab) {
-    _defaultsTab = tab;
-    sessionStorage.setItem('firesafe_defaults_tab', tab);
-    var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
-    tabs.forEach(function(t) { t.classList.remove('active'); });
-    tabs[tab === 'own' ? 0 : 1].classList.add('active');
-    loadDefaultsForTab(tab);
+    _defaultsTab = 'own';
+    sessionStorage.setItem('firesafe_defaults_tab', 'own');
+    loadDefaultsForTab('own');
 }
 
 function _applyDefaultsToUI(defaults) {
@@ -2855,8 +2629,7 @@ function _applyDefaultsToUI(defaults) {
 
 function loadDefaultsForTab(tab) {
     // Show cached immediately
-    var key = tab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
-    var stored = localStorage.getItem(key);
+    var stored = localStorage.getItem(DEFAULTS_KEY);
     _applyDefaultsToUI(stored ? JSON.parse(stored) : {});
     // Background refresh
     getDefaultSettings(tab).then(function(defaults) {
@@ -2866,8 +2639,7 @@ function loadDefaultsForTab(tab) {
 }
 
 function autoFillDefaults(type) {
-    var key = type === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
-    var stored = localStorage.getItem(key);
+    var stored = localStorage.getItem(DEFAULTS_KEY);
     var defaults = stored ? JSON.parse(stored) : {};
     DEFAULT_FIELDS.forEach(field => {
         if (defaults[field]) {
@@ -2881,8 +2653,7 @@ function autoFillDefaults(type) {
 }
 
 function getAutofillFlags(type) {
-    var key = type === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
-    var stored = localStorage.getItem(key);
+    var stored = localStorage.getItem(DEFAULTS_KEY);
     var defaults = stored ? JSON.parse(stored) : {};
     return {
         uke: defaults.autofill_uke !== false,
@@ -2892,8 +2663,8 @@ function getAutofillFlags(type) {
 }
 
 function saveAutofillToggle(key, value) {
-    var storageKey = _defaultsTab === 'external' ? DEFAULTS_EXTERNAL_KEY : DEFAULTS_KEY;
-    var fbDoc = _defaultsTab === 'external' ? 'defaults_external' : 'defaults';
+    var storageKey = DEFAULTS_KEY;
+    var fbDoc = 'defaults';
     var stored = localStorage.getItem(storageKey);
     var defaults = stored ? JSON.parse(stored) : {};
     defaults['autofill_' + key] = value;
@@ -3137,61 +2908,7 @@ function isNumberInRanges(nr, ranges) {
 }
 
 function updateFormTypeChip() {
-    var tabs = document.querySelectorAll('#form-type-tabs .form-type-tab');
-    if (!tabs.length) return;
-    tabs[0].classList.toggle('active', !isExternalForm);
-    tabs[1].classList.toggle('active', isExternalForm);
-    var badge = document.getElementById('external-badge');
-    if (badge) badge.style.display = isExternalForm ? '' : 'none';
-}
-
-function switchFormType(type) {
-    var newExternal = type === 'external';
-    if (newExternal === isExternalForm) return;
-    isExternalForm = newExternal;
-    updateFormTypeChip();
-    window.location.hash = isExternalForm ? 'ekstern' : 'skjema';
-    sessionStorage.setItem('firesafe_form_type', isExternalForm ? 'external' : 'own');
-    document.getElementById('form-header-title').textContent =
-        t('form_title');
-
-    // Ordrenummer: eksterne bruker ikke egne nummerområder
-    if (isExternalForm) {
-        document.getElementById('ordreseddel-nr').value = '';
-        document.getElementById('mobile-ordreseddel-nr').value = '';
-    } else {
-        autoFillOrderNumber();
-    }
-
-    // Tøm autofyll-felt først, så applyer riktig profil
-    DEFAULT_FIELDS.forEach(function(field) {
-        var el = document.getElementById(field);
-        var mobileEl = document.getElementById('mobile-' + field);
-        if (el) el.value = '';
-        if (mobileEl) mobileEl.value = '';
-    });
-    document.getElementById('dato').value = '';
-    document.getElementById('mobile-dato').value = '';
-    document.getElementById('signering-dato').value = '';
-    document.getElementById('mobile-signering-dato').value = '';
-
-    // Applyer autofyll fra riktig profil
-    var afType = isExternalForm ? 'external' : undefined;
-    autoFillDefaults(afType);
-    var flags = getAutofillFlags(afType);
-    var now = new Date();
-    if (flags.uke) {
-        var week = 'Uke ' + getWeekNumber(now);
-        document.getElementById('dato').value = week;
-        document.getElementById('mobile-dato').value = week;
-    }
-    if (flags.dato) {
-        var today = formatDate(now);
-        document.getElementById('signering-dato').value = today;
-        document.getElementById('mobile-signering-dato').value = today;
-    }
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-    lastSavedData = getFormDataSnapshot();
+    // No-op: external forms removed
 }
 
 
@@ -3272,8 +2989,6 @@ function clearForm() {
     var btnFormSent = document.getElementById('btn-form-sent');
     if (btnFormSent) btnFormSent.style.display = '';
     lastSavedData = null;
-    isExternalForm = false;
-    updateFormTypeChip();
     updateFakturaadresseDisplay('fakturaadresse-display-text', '');
 
     // Reset orders to 1 empty card
@@ -3492,7 +3207,12 @@ function openNewServiceForm() {
     sessionStorage.removeItem('firesafe_service_sent');
     _serviceLastSavedData = null;
     sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
-    window.scrollTo(0, 0);
+
+    // Scroll to top after all content is set
+    requestAnimationFrame(function() {
+        document.getElementById('service-view').scrollTop = 0;
+        window.scrollTo(0, 0);
+    });
 }
 
 function closeServiceView() {
@@ -3709,6 +3429,9 @@ function markServiceAsSent() {
         document.getElementById('btn-service-sent').style.display = 'none';
         showNotificationModal(t('marked_as_sent'), true);
         _lastLocalSaveTs = Date.now();
+        closeServiceView();
+        loadedForms = [];
+        _showSavedFormsDirectly();
 
         // Firebase
         if (currentUser && db) {
@@ -4131,32 +3854,6 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
     loadFormDirect(savedItem._formData);
 });
 
-// Event delegation for external-list items
-document.getElementById('external-list').addEventListener('click', function(e) {
-    const savedItem = e.target.closest('.saved-item');
-    if (!savedItem) return;
-
-    // Get form data directly from the element
-    const formData = savedItem._formData;
-    if (!formData) return;
-
-    // Check if click was on a button
-    const btn = e.target.closest('button');
-    if (btn) {
-        if (btn.classList.contains('disabled')) return;
-        e.stopPropagation();
-        if (btn.classList.contains('delete')) {
-            deleteExternalFormDirect(formData);
-        } else if (btn.classList.contains('copy')) {
-            duplicateFormDirect(formData);
-        }
-        return;
-    }
-
-    // Click on item row - load the form
-    loadExternalFormDirect(formData);
-});
-
 // Event delegation for template-list items
 document.getElementById('template-list').addEventListener('click', function(e) {
     const savedItem = e.target.closest('.saved-item');
@@ -4290,10 +3987,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Here we only do data-specific init based on hash.
     const hash = window.location.hash.slice(1);
     var formTypeFromSession = sessionStorage.getItem('firesafe_form_type');
-    if (hash === 'skjema' || hash === 'ekstern' || (!hash && formTypeFromSession)) {
-        if (hash === 'ekstern' || (!hash && formTypeFromSession === 'external')) isExternalForm = true;
+    if (hash === 'skjema' || (!hash && formTypeFromSession)) {
         document.getElementById('form-header-title').textContent = t('form_title');
-        updateFormTypeChip();
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
             document.getElementById('sent-banner').style.display = 'block';
@@ -4402,13 +4097,6 @@ window.addEventListener('hashchange', function() {
         showView('view-form');
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
         document.getElementById('form-header-title').textContent = t('form_title');
-        updateFormTypeChip();
-        updateToolbarState();
-    } else if (hash === 'ekstern') {
-        showView('view-form');
-        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
-        document.getElementById('form-header-title').textContent = t('form_title');
-        updateFormTypeChip();
         updateToolbarState();
     } else if (hash === 'service') {
         if (!document.body.classList.contains('service-view-open')) {

@@ -54,11 +54,6 @@
                 <span class="sent-banner-hint" data-i18n="sent_banner_hint">Trykk «Lagre» for å flytte til lagrede skjemaer</span>
             </div>
 
-        <div class="form-type-tabs" id="form-type-tabs">
-            <button class="form-type-tab" onclick="switchFormType('own')" data-i18n="tab_own">Egne</button>
-            <button class="form-type-tab" onclick="switchFormType('external')" data-i18n="tab_external">Eksterne</button>
-        </div>
-
         <!-- Mobile-friendly input form -->
         <div class="mobile-form" id="mobile-form">
             <div class="mobile-section">
@@ -66,7 +61,6 @@
                     <label data-i18n="label_ordreseddel_nr">Ordreseddel nr.</label>
                     <div class="input-with-copy">
                         <input type="text" id="mobile-ordreseddel-nr" inputmode="numeric" >
-                        <span class="external-badge" id="external-badge" style="display:none" data-i18n="external_badge">Eksternt</span>
                         <button type="button" class="copy-btn" onclick="copyOrderNumber()" title="Kopier"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
                     </div>
                 </div>
@@ -322,21 +316,16 @@
                 </div>
                 <div class="modal-tabs">
                     <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
-                    <button class="modal-tab" onclick="switchHentTab('external')" data-i18n="tab_external">Eksterne</button>
                     <button class="modal-tab" onclick="switchHentTab('service')" data-i18n="tab_service">Service</button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
                     <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterList('saved-list', 'saved-search')">
-                </div>
-                <div class="modal-search" id="external-search-wrap" style="display:none;">
-                    <input type="text" id="external-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordrenummer..." oninput="filterList('external-list', 'external-search')">
                 </div>
                 <div class="modal-search" id="service-search-wrap" style="display:none;">
                     <input type="text" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('service-list', 'service-search')">
                 </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
-            <div class="modal-body" id="external-list" style="display:none;"></div>
             <div class="modal-body" id="service-list" style="display:none;"></div>
         </div>
     </div>
@@ -475,10 +464,6 @@
 
                 <!-- Standardverdier-side -->
                 <div id="settings-page-defaults" class="settings-page" style="display:none;">
-                    <div class="settings-tabs">
-                        <button class="settings-tab" onclick="switchDefaultsTab('own')" data-i18n="tab_own">Egne</button>
-                        <button class="settings-tab" onclick="switchDefaultsTab('external')" data-i18n="tab_external">Eksterne</button>
-                    </div>
                     <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
                     <div class="settings-group">
                         <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
@@ -624,10 +609,6 @@
                 <button class="picker-overlay-done" onclick="pickerOverlayConfirm()" data-i18n="picker_ok">Ok</button>
             </div>
             <div class="picker-overlay-list" id="picker-overlay-list"></div>
-            <div class="picker-overlay-search">
-                <input type="text" id="picker-overlay-search" autocapitalize="sentences" data-i18n-placeholder="placeholder_new_material" placeholder="Nytt materiale">
-                <button type="button" class="picker-overlay-add-btn" id="picker-overlay-add-btn" data-i18n="btn_add">Legg til</button>
-            </div>
         </div>
     </div>
 
@@ -723,11 +704,11 @@
         } else {
             var h = location.hash.slice(1);
             if (!h && sessionStorage.getItem('firesafe_settings_page')) h = 'settings';
-            if (!h && sessionStorage.getItem('firesafe_form_type')) h = sessionStorage.getItem('firesafe_form_type') === 'external' ? 'ekstern' : 'skjema';
+            if (!h && sessionStorage.getItem('firesafe_form_type')) h = 'skjema';
             if (h === 'hent') { v = 'saved-modal'; b = 'saved-modal-open'; }
             else if (h === 'settings' || h.indexOf('settings/') === 0) { v = 'settings-modal'; b = 'settings-modal-open'; }
             else if (h === 'service') { v = 'service-view'; b = 'service-view-open'; }
-            else if (h === 'skjema' || h === 'ekstern') { v = 'view-form'; }
+            else if (h === 'skjema') { v = 'view-form'; }
             else { v = 'template-modal'; b = 'template-modal-open'; }
             // Show cached email immediately
             var email = localStorage.getItem('firesafe_email');
@@ -744,12 +725,6 @@
         }
         // Activate correct state immediately to avoid flash
         if (v === 'view-form') {
-            var ft = document.querySelectorAll('#form-type-tabs .form-type-tab');
-            if (ft.length) ft[h === 'ekstern' ? 1 : 0].classList.add('active');
-            if (h === 'ekstern') {
-                var eb = document.getElementById('external-badge');
-                if (eb) eb.style.display = '';
-            }
             if (sessionStorage.getItem('firesafe_current_sent') === '1') {
                 var sb = document.getElementById('sent-banner');
                 if (sb) sb.style.display = 'block';
@@ -759,17 +734,8 @@
         } else if (v === 'saved-modal') {
             var ht = sessionStorage.getItem('firesafe_hent_tab');
             var mt = document.querySelectorAll('#saved-modal .modal-tab');
-            if (mt.length) mt[ht === 'external' ? 1 : ht === 'service' ? 2 : 0].classList.add('active');
-            if (ht === 'external') {
-                var ow = document.getElementById('own-search-wrap');
-                var ew = document.getElementById('external-search-wrap');
-                if (ow) ow.style.display = 'none';
-                if (ew) ew.style.display = '';
-                var sl = document.getElementById('saved-list');
-                var el = document.getElementById('external-list');
-                if (sl) sl.style.display = 'none';
-                if (el) el.style.display = '';
-            } else if (ht === 'service') {
+            if (mt.length) mt[ht === 'service' ? 1 : 0].classList.add('active');
+            if (ht === 'service') {
                 var ow2 = document.getElementById('own-search-wrap');
                 var sw = document.getElementById('service-search-wrap');
                 if (ow2) ow2.style.display = 'none';

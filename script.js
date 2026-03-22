@@ -3,10 +3,7 @@ const ARCHIVE_KEY = 'firesafe_arkiv';
 const TEMPLATE_KEY = 'firesafe_maler';
 const SETTINGS_KEY = 'firesafe_settings';
 const DEFAULTS_KEY = 'firesafe_defaults';
-const DEFAULTS_EXTERNAL_KEY = 'firesafe_defaults_external';
 const MATERIALS_KEY = 'firesafe_materials';
-const EXTERNAL_KEY = 'firesafe_external';
-const EXTERNAL_ARCHIVE_KEY = 'firesafe_external_arkiv';
 const REQUIRED_KEY = 'firesafe_required';
 const SERVICE_STORAGE_KEY = 'firesafe_service';
 const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
@@ -140,7 +137,6 @@ if (auth) {
         localStorage.removeItem('firesafe_admin');
         updateLoginButton();
         loadedForms = [];
-        loadedExternalForms = [];
 
         if (!user) {
             // Dev bypass: skip login screen on local dev
@@ -186,8 +182,8 @@ if (auth) {
         // Clear cached data when switching to a different user
         var lastUid = localStorage.getItem('firesafe_last_uid');
         if (lastUid && lastUid !== user.uid) {
-            [SETTINGS_KEY, DEFAULTS_KEY, DEFAULTS_EXTERNAL_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
-             STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, EXTERNAL_KEY, EXTERNAL_ARCHIVE_KEY,
+            [SETTINGS_KEY, DEFAULTS_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
+             STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY,
              'firesafe_lang']
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
@@ -368,37 +364,6 @@ async function getSentForms(lastDoc) {
     return { forms: safeParseJSON(ARCHIVE_KEY, []), lastDoc: null, hasMore: false };
 }
 
-async function getExternalForms(lastDoc) {
-    if (currentUser && db) {
-        try {
-            var q = db.collection('users').doc(currentUser.uid).collection('external').orderBy('savedAt', 'desc').limit(PAGE_SIZE);
-            if (lastDoc) q = q.startAfter(lastDoc);
-            var snapshot = await q.get();
-            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
-        } catch (e) {
-            console.error('Firestore error:', e);
-            return { forms: safeParseJSON(EXTERNAL_KEY, []), lastDoc: null, hasMore: false };
-        }
-    }
-    if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
-    return { forms: safeParseJSON(EXTERNAL_KEY, []), lastDoc: null, hasMore: false };
-}
-
-async function getExternalSentForms(lastDoc) {
-    if (currentUser && db) {
-        try {
-            var q = db.collection('users').doc(currentUser.uid).collection('externalArchive').orderBy('savedAt', 'desc').limit(PAGE_SIZE);
-            if (lastDoc) q = q.startAfter(lastDoc);
-            var snapshot = await q.get();
-            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
-        } catch (e) {
-            console.error('Firestore error:', e);
-            return { forms: safeParseJSON(EXTERNAL_ARCHIVE_KEY, []), lastDoc: null, hasMore: false };
-        }
-    }
-    return { forms: safeParseJSON(EXTERNAL_ARCHIVE_KEY, []), lastDoc: null, hasMore: false };
-}
-
 // --- Order number index (lightweight cache of all used order numbers) ---
 const USED_NUMBERS_KEY = 'firesafe_used_numbers';
 
@@ -411,7 +376,7 @@ async function syncOrderNumberIndex() {
     } else {
         // Migrasjon: første gang — scan collections én gang og lagre til Firestore-dokument
         const numbers = new Set();
-        const collections = ['forms', 'archive', 'external', 'externalArchive'];
+        const collections = ['forms', 'archive'];
         var snaps = await Promise.all(collections.map(function(col) {
             return db.collection('users').doc(currentUser.uid).collection(col).get().catch(function() { return { docs: [] }; });
         }));
@@ -464,12 +429,10 @@ function removeFromOrderNumberIndex(nr) {
 
 // Track last saved form data for unsaved changes detection
 let lastSavedData = null;
-let isExternalForm = false;
 
 function getFormDataSnapshot() {
     const data = getFormData();
     delete data.savedAt;
-    delete data.isExternal;
     return JSON.stringify(data);
 }
 
@@ -915,10 +878,7 @@ function openMaterialPicker(btn) {
     const allMaterials = cachedMaterialOptions || [];
 
     const modal = document.getElementById('picker-overlay');
-    const searchInput = document.getElementById('picker-overlay-search');
     const list = document.getElementById('picker-overlay-list');
-
-    searchInput.value = '';
 
     // Initialize pickerState from existing materials
     pickerState = {};
@@ -1129,53 +1089,7 @@ function openMaterialPicker(btn) {
         });
     }
 
-    function addCustomMaterial() {
-        const val = searchInput.value.trim();
-        if (!val) return;
-        // Check if already exists
-        if (allMaterials.some(o => o.name.toLowerCase() === val.toLowerCase()) ||
-            (pickerState[val] && pickerState[val].checked)) {
-            searchInput.value = '';
-            showNotificationModal(t('material_exists'));
-            return;
-        }
-        pickerState[val] = { checked: true, antall: '', enhet: '' };
-        // Save to global settings (admin only)
-        if (isAdmin) {
-            settingsMaterials = cachedMaterialOptions ? cachedMaterialOptions.slice() : [];
-            if (!settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
-                settingsMaterials.push({ name: val, type: 'standard', defaultUnit: '', allowedUnits: [] });
-                settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-                cachedMaterialOptions = settingsMaterials.slice();
-                allMaterials.length = 0;
-                allMaterials.push(...cachedMaterialOptions);
-                saveMaterialSettings();
-            }
-        } else {
-            // Non-admin: add to picker list for this session only
-            allMaterials.push({ name: val, type: 'standard', defaultUnit: '' });
-            allMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-        }
-        searchInput.value = '';
-        renderPickerList();
-    }
-
     renderPickerList();
-
-    // Add custom material on Enter (use onkeydown to avoid listener accumulation)
-    searchInput.oninput = null;
-    searchInput.onkeydown = function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            addCustomMaterial();
-        }
-    };
-
-    // Add button next to search field
-    const addBtn = document.getElementById('picker-overlay-add-btn');
-    if (addBtn) {
-        addBtn.onclick = function() { addCustomMaterial(); };
-    }
 
     modal.classList.add('active');
 }
@@ -1617,7 +1531,7 @@ function setServiceFormData(data) {
     container.innerHTML = '';
     var list = data.entries && data.entries.length > 0 ? data.entries : [{}];
     list.forEach(function(entry, idx) {
-        container.appendChild(createServiceEntryCard(entry, idx === 0));
+        container.appendChild(createServiceEntryCard(entry, list.length === 1));
     });
     renumberServiceEntries();
     updateServiceDeleteStates();
@@ -2338,7 +2252,6 @@ function getFormData() {
         kundensUnderskrift: document.getElementById('kundens-underskrift').value,
         signaturePaths: signaturePaths,
         canvasAspectRatio: canvasAspectRatio || null,
-        isExternal: isExternalForm,
         savedAt: new Date().toISOString()
     };
 }
@@ -2368,9 +2281,6 @@ function setFormData(data) {
     signaturePaths = data.signaturePaths || [];
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
     if (data.canvasAspectRatio) canvasAspectRatio = data.canvasAspectRatio;
-
-    isExternalForm = !!data.isExternal;
-    updateFormTypeChip();
 
     syncOriginalToMobile();
     updateFakturaadresseDisplay('fakturaadresse-display-text', data.fakturaadresse || '');
@@ -2409,7 +2319,7 @@ function setFormData(data) {
     container.innerHTML = '';
     const ordersList = orders && orders.length > 0 ? orders : [{ description: '', materials: [], timer: '' }];
     ordersList.forEach((order, idx) => {
-        const expanded = idx === 0; // First order expanded by default
+        const expanded = ordersList.length === 1;
         const card = createOrderCard(order, expanded);
         container.appendChild(card);
     });
@@ -2528,16 +2438,6 @@ async function saveForm() {
     const orderNr = document.getElementById('mobile-ordreseddel-nr').value.trim();
     const orderSettings = typeof _getCachedOrderNrSettings === 'function' ? _getCachedOrderNrSettings() : await getOrderNrSettings();
     const ranges = (orderSettings && orderSettings.ranges) ? orderSettings.ranges : [];
-    if (ranges.length > 0) {
-        if (!isExternalForm && !isNumberInRanges(orderNr, ranges)) {
-            showNotificationModal(t('validation_nr_not_in_range', orderNr));
-            return;
-        }
-        if (isExternalForm && isNumberInRanges(orderNr, ranges)) {
-            showNotificationModal(t('validation_nr_is_own'));
-            return;
-        }
-    }
 
     const saveBtn = document.getElementById('header-save-btn');
     if (saveBtn && saveBtn.disabled) return;
@@ -2546,14 +2446,12 @@ async function saveForm() {
     try {
         const data = getFormData();
 
-        const formsCollection = isExternalForm ? 'external' : 'forms';
-        const archiveCollection = isExternalForm ? 'externalArchive' : 'archive';
-        const storageKey = isExternalForm ? EXTERNAL_KEY : STORAGE_KEY;
-        const archiveKey = isExternalForm ? EXTERNAL_ARCHIVE_KEY : ARCHIVE_KEY;
+        const formsCollection = 'forms';
+        const archiveCollection = 'archive';
 
         // Always use localStorage first (optimistic)
-        const saved = safeParseJSON(storageKey, []);
-        const archived = safeParseJSON(archiveKey, []);
+        const saved = safeParseJSON(STORAGE_KEY, []);
+        const archived = safeParseJSON(ARCHIVE_KEY, []);
 
         // Sjekk sendte for duplikater
         var archivedIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
@@ -2561,9 +2459,7 @@ async function saveForm() {
             if (sessionStorage.getItem('firesafe_current_sent') === '1') {
                 // Bevar ID fra arkivert skjema slik at det oppdateres, ikke dupliseres
                 data.id = archived[archivedIdx].id;
-                // Fjern fra arkiv — lagres til saved nedenfor
-                archived.splice(archivedIdx, 1);
-                safeSetItem(archiveKey, JSON.stringify(archived));
+                // Arkiv-fjerning skjer i confirm-callback nedenfor, ikke her
             } else {
                 showNotificationModal(t('duplicate_in_sent', data.ordreseddelNr));
                 return;
@@ -2575,13 +2471,22 @@ async function saveForm() {
         );
 
         if (existingIndex !== -1) {
-            showConfirmModal(t('confirm_update'), function() {
+            var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+            showConfirmModal(t(isSent ? 'confirm_move_to_saved' : 'confirm_update'), function() {
+                // Fjern fra arkiv først (hvis sendt skjema)
+                if (archivedIdx !== -1) {
+                    var freshArchived = safeParseJSON(ARCHIVE_KEY, []);
+                    var idx = freshArchived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+                    if (idx !== -1) {
+                        freshArchived.splice(idx, 1);
+                        safeSetItem(ARCHIVE_KEY, JSON.stringify(freshArchived));
+                    }
+                }
                 data.id = saved[existingIndex].id;
                 saved[existingIndex] = data;
-                safeSetItem(storageKey, JSON.stringify(saved));
+                safeSetItem(STORAGE_KEY, JSON.stringify(saved));
                 addToOrderNumberIndex(data.ordreseddelNr);
                 loadedForms = [];
-                loadedExternalForms = [];
                 lastSavedData = getFormDataSnapshot();
                 _clearSentStateAfterSave();
                 _lastLocalSaveTs = Date.now();
@@ -2601,13 +2506,21 @@ async function saveForm() {
             }, t('btn_update'), '#E8501A');
         } else {
             // Save new form directly (no confirmation needed)
+            // Fjern fra arkiv først (hvis sendt skjema)
+            if (archivedIdx !== -1) {
+                var freshArchived2 = safeParseJSON(ARCHIVE_KEY, []);
+                var idx2 = freshArchived2.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+                if (idx2 !== -1) {
+                    freshArchived2.splice(idx2, 1);
+                    safeSetItem(ARCHIVE_KEY, JSON.stringify(freshArchived2));
+                }
+            }
             if (!data.id) data.id = Date.now().toString();
             saved.unshift(data);
             if (saved.length > 50) saved.pop();
-            safeSetItem(storageKey, JSON.stringify(saved));
+            safeSetItem(STORAGE_KEY, JSON.stringify(saved));
             addToOrderNumberIndex(data.ordreseddelNr);
             loadedForms = [];
-            loadedExternalForms = [];
             lastSavedData = getFormDataSnapshot();
             _clearSentStateAfterSave();
             _lastLocalSaveTs = Date.now();

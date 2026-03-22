@@ -82,6 +82,7 @@ const TRANSLATIONS = {
         // Save confirmations
         confirm_save: 'Er du sikker på at du vil lagre skjemaet?',
         confirm_update: 'Dette ordrenummeret finnes allerede. Vil du oppdatere det?',
+        confirm_move_to_saved: 'Vil du flytte denne ordreseddelen tilbake til lagrede?',
         save_success: 'Skjema lagret!',
         update_success: 'Skjema oppdatert!',
         save_error: 'Feil ved lagring: ',
@@ -109,12 +110,10 @@ const TRANSLATIONS = {
         // Hent modal
         modal_load_title: 'Skjemaer',
         tab_own: 'Egne',
-        tab_external: 'Eksterne',
         search_placeholder: 'Søk ordrenummer...',
         search_template_placeholder: 'Søk prosjektmal...',
         loading: 'Laster...',
         no_saved_forms: 'Ingen lagrede skjemaer',
-        no_external_forms: 'Ingen eksterne skjemaer',
         no_templates: 'Ingen prosjektmaler',
         load_more: 'Last flere',
 
@@ -269,13 +268,7 @@ const TRANSLATIONS = {
         confirm_default: 'Er du sikker?',
         btn_remove: 'Fjern',
 
-        // External order
-        external_order_btn: 'Ekstern skjema',
-        external_badge: 'Eksternt',
         form_title: 'Ordreseddel',
-        external_form_title: 'Ekstern ordreseddel',
-        validation_nr_not_in_range: 'Ordrenummer {0} er ikke innenfor dine registrerte områder',
-        validation_nr_is_own: 'Dette nummeret tilhører dine egne områder. Bruk «Nytt skjema» i stedet.',
 
         // Desktop export labels (used in buildDesktopWorkLines)
         export_materials: 'Materiell:',
@@ -379,6 +372,7 @@ const TRANSLATIONS = {
         // Save confirmations
         confirm_save: 'Are you sure you want to save the form?',
         confirm_update: 'This order number already exists. Do you want to update it?',
+        confirm_move_to_saved: 'Do you want to move this order form back to saved?',
         save_success: 'Form saved!',
         update_success: 'Form updated!',
         save_error: 'Error saving: ',
@@ -406,12 +400,10 @@ const TRANSLATIONS = {
         // Hent modal
         modal_load_title: 'Forms',
         tab_own: 'Own',
-        tab_external: 'External',
         search_placeholder: 'Search order number...',
         search_template_placeholder: 'Search project template...',
         loading: 'Loading...',
         no_saved_forms: 'No saved forms',
-        no_external_forms: 'No external forms',
         no_templates: 'No project templates',
         load_more: 'Load more',
 
@@ -566,13 +558,7 @@ const TRANSLATIONS = {
         confirm_default: 'Are you sure?',
         btn_remove: 'Remove',
 
-        // External order
-        external_order_btn: 'External form',
-        external_badge: 'External',
         form_title: 'Order form',
-        external_form_title: 'External order form',
-        validation_nr_not_in_range: 'Order number {0} is not within your registered ranges',
-        validation_nr_is_own: 'This number belongs to your own ranges. Use "New form" instead.',
 
         // Desktop export labels (used in buildDesktopWorkLines)
         export_materials: 'Materials:',
