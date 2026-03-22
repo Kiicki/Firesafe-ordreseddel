@@ -1020,17 +1020,6 @@ body.settings-modal-open #view-form {
     overflow: clip;
 }
 
-/* Lock body scroll when fixed views are active */
-@media (min-height: 501px) {
-    body:has(#view-form.view.active),
-    body:has(#service-view.view.active),
-    body:has(#template-modal.view.active),
-    body:has(#saved-modal.view.active),
-    body:has(#settings-modal.view.active) {
-        overflow: hidden;
-    }
-}
-
 /* Form view: fixed to viewport so form-header can be sticky */
 #view-form.view.active,
 #service-view.view.active {
@@ -3783,6 +3772,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     padding: 20px;
     width: 90%;
     max-width: 400px;
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
 }
 .template-editor-header {
     display: flex;
