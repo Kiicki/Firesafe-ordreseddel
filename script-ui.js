@@ -3659,6 +3659,13 @@ function markServiceAsSent() {
         }
         safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(archived));
 
+        // Fjern fra saved for å unngå duplikater
+        var savedIdx = saved.findIndex(function(item) { return item.id === data.id; });
+        if (savedIdx !== -1) {
+            saved.splice(savedIdx, 1);
+            safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(saved));
+        }
+
         // Update UI
         sessionStorage.setItem('firesafe_service_sent', '1');
         _serviceCurrentId = data.id;
