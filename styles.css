@@ -1059,6 +1059,102 @@ body.service-view-open {
     flex: none;
 }
 
+/* Bil (Vehicle Inventory) view */
+.home-actions {
+    display: flex;
+    gap: 10px;
+}
+.home-actions .btn-skip-template {
+    flex: 1;
+}
+.btn-template-picker {
+    width: 100%;
+}
+.bil-actions {
+    display: flex;
+    gap: 10px;
+}
+.bil-btn-pafylling {
+    border-color: #ccc !important;
+    color: #333 !important;
+}
+.bil-empty-msg {
+    color: #888;
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
+}
+.bil-history-card {
+    border-left: 4px solid #ccc;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: #fafafa;
+}
+.bil-card-pafylling {
+    border-left-color: #4caf50;
+}
+.bil-card-uttak {
+    border-left-color: #E8501A;
+}
+.bil-history-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.bil-history-type {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.bil-card-pafylling .bil-history-type {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.bil-card-uttak .bil-history-type {
+    background: #fff3e0;
+    color: #e65100;
+}
+.bil-history-title {
+    flex: 1;
+    font-weight: 500;
+    font-size: 14px;
+}
+.bil-history-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #d32f2f;
+}
+.bil-history-hidden {
+    display: none;
+}
+.bil-history-hidden.bil-history-hidden-active {
+    display: block;
+}
+.bil-history-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    padding: 8px 0;
+    width: 100%;
+    text-align: left;
+}
+.bil-history-mat {
+    font-size: 13px;
+    color: #555;
+    padding: 2px 0;
+}
+
 #template-modal.view.active > .modal-content,
 #saved-modal.view.active > .modal-content,
 #settings-modal.view.active > .modal-content {

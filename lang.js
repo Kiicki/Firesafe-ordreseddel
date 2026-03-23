@@ -289,6 +289,22 @@ const TRANSLATIONS = {
         service_no_saved: 'Ingen lagrede lageruttak',
         service_montor_required: 'Du må fylle inn montør',
         service_label_signatur: 'Signatur',
+        template_pick: 'Velg prosjektmal',
+        template_picker_title: 'Prosjektmaler',
+        no_templates: 'Ingen prosjektmaler',
+
+        // Bil (Vehicle inventory)
+        toolbar_bil: 'Bil',
+        bil_title: 'Bilbeholdning',
+        bil_add_pafylling: '+ Legg til påfylling',
+        bil_history_title: 'Historikk',
+        bil_pafylling_saved: 'Påfylling registrert!',
+        bil_delete_pafylling_confirm: 'Slett denne påfyllingen?',
+        bil_history_pafylling: 'Påfylling',
+        bil_history_uttak: 'Uttak',
+        bil_no_history: 'Ingen historikk ennå',
+        bil_show_more: 'Vis mer ({0} til)',
+        bil_show_less: 'Vis mindre',
     },
     en: {
         // Toolbar
@@ -580,5 +596,21 @@ const TRANSLATIONS = {
         service_no_saved: 'No saved withdrawals',
         service_montor_required: 'You must fill in technician',
         service_label_signatur: 'Signature',
+        template_pick: 'Select project template',
+        template_picker_title: 'Project templates',
+        no_templates: 'No project templates',
+
+        // Bil (Vehicle inventory)
+        toolbar_bil: 'Vehicle',
+        bil_title: 'Vehicle Inventory',
+        bil_add_pafylling: '+ Add stock',
+        bil_history_title: 'History',
+        bil_pafylling_saved: 'Stock added!',
+        bil_delete_pafylling_confirm: 'Delete this stock entry?',
+        bil_history_pafylling: 'Added',
+        bil_history_uttak: 'Withdrawal',
+        bil_no_history: 'No history yet',
+        bil_show_more: 'Show more ({0} more)',
+        bil_show_less: 'Show less',
     }
 };

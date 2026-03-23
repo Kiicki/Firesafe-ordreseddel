@@ -57,6 +57,9 @@
         <!-- Mobile-friendly input form -->
         <div class="mobile-form" id="mobile-form">
             <div class="mobile-section">
+                <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openTemplatePicker()" data-i18n="template_pick">Velg prosjektmal</button>
+            </div>
+            <div class="mobile-section">
                 <div class="mobile-field">
                     <label data-i18n="label_ordreseddel_nr">Ordreseddel nr.</label>
                     <div class="input-with-copy">
@@ -344,15 +347,20 @@
                         <div class="beta-label" data-i18n="beta_label">Beta</div>
                     </div>
                 </div>
-                <div class="modal-footer-skip" onclick="event.stopPropagation()">
-                    <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_blank_form">Nytt skjema</button>
-                    <button class="btn-skip-template btn-service-new" onclick="openNewServiceForm()" data-i18n="service_new_form">Nytt serviceskjema</button>
+                <div class="modal-footer-skip home-actions" onclick="event.stopPropagation()">
+                    <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_blank_form">+ Ordreseddel</button>
+                    <button class="btn-skip-template" onclick="openNewServiceForm()" data-i18n="service_new_form">+ Lageruttak</button>
                 </div>
-                <div class="modal-search">
-                    <input type="text" id="template-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjektmal..." oninput="filterList('template-list', 'template-search')">
+                <div class="modal-footer-skip" onclick="event.stopPropagation()">
+                    <button class="btn-skip-template bil-btn-pafylling" onclick="openBilPafylling()" data-i18n="bil_add_pafylling">+ Legg til påfylling</button>
                 </div>
             </div>
-            <div class="modal-body" id="template-list"></div>
+            <div class="modal-body">
+                <div class="mobile-section">
+                    <div class="mobile-section-title" data-i18n="bil_history_title">Historikk</div>
+                    <div id="bil-history-list"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -589,6 +597,9 @@
             </div>
             <div class="mobile-form" id="service-form">
                 <div class="mobile-section">
+                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openServiceTemplatePicker(this)" data-i18n="template_pick">Velg prosjektmal</button>
+                </div>
+                <div class="mobile-section">
                     <div class="mobile-field field-required">
                         <label data-i18n="label_montor">Montør</label>
                         <input type="text" id="service-montor" autocapitalize="words">
@@ -629,6 +640,7 @@
         <div id="service-export-container" style="display:none;"></div>
     </div>
 
+    <!-- Bil (Vehicle inventory) view -->
     <!-- Material picker overlay -->
     <div class="picker-overlay" id="picker-overlay">
         <div class="overlay-content">
@@ -638,6 +650,23 @@
                 <button class="picker-overlay-done" onclick="pickerOverlayConfirm()" data-i18n="picker_ok">Ok</button>
             </div>
             <div class="picker-overlay-list" id="picker-overlay-list"></div>
+        </div>
+    </div>
+
+    <!-- Template picker overlay -->
+    <div class="picker-overlay" id="template-picker-overlay">
+        <div class="overlay-content">
+            <div class="picker-overlay-header">
+                <button class="picker-overlay-cancel" onclick="closeTemplatePicker()" data-i18n="btn_cancel">Avbryt</button>
+                <span class="picker-overlay-title" data-i18n="template_picker_title">Prosjektmaler</span>
+                <div style="width:40px"></div>
+            </div>
+            <div class="picker-overlay-body">
+                <div class="modal-search" style="padding:0 0 10px 0">
+                    <input type="text" id="template-picker-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjektmal..." oninput="filterList('template-picker-list', 'template-picker-search')">
+                </div>
+                <div id="template-picker-list"></div>
+            </div>
         </div>
     </div>
 

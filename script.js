@@ -8,6 +8,7 @@ const REQUIRED_KEY = 'firesafe_required';
 const SERVICE_DEFAULTS_KEY = 'firesafe_defaults_service';
 const SERVICE_STORAGE_KEY = 'firesafe_service';
 const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
+const BIL_STORAGE_KEY = 'firesafe_bil_pafylling';
 
 const DEV_MODE = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
@@ -913,11 +914,14 @@ let pickerOrderCard = null;
 let pickerState = {}; // { "materialenavn": { checked: true, antall: "5", enhet: "stk" } }
 let pickerRenderFn = null; // Reference to renderPickerList inside closure
 
-function openMaterialPicker(btn) {
-    const card = btn.closest('.mobile-order-card') || btn.closest('.service-entry-card');
+var pickerConfirmCallback = null;
+
+function openMaterialPicker(btn, onConfirm) {
+    pickerConfirmCallback = onConfirm || null;
+    const card = btn ? (btn.closest('.mobile-order-card') || btn.closest('.service-entry-card')) : null;
     pickerOrderCard = card;
-    const matContainer = card.querySelector('.mobile-order-materials');
-    const existing = getMaterialsFromContainer(matContainer);
+    const matContainer = card ? card.querySelector('.mobile-order-materials') : null;
+    const existing = matContainer ? getMaterialsFromContainer(matContainer) : [];
 
     const allMaterials = cachedMaterialOptions || [];
 
@@ -1257,7 +1261,7 @@ function confirmSpecPopup() {
 }
 
 function pickerOverlayConfirm() {
-    if (!pickerOrderCard) { closePickerOverlay(); return; }
+    if (!pickerOrderCard && !pickerConfirmCallback) { closePickerOverlay(); return; }
 
     // Helper: check if name is a spec-base material (launcher) — should never be exported
     var allMats = cachedMaterialOptions || [];
@@ -1294,6 +1298,13 @@ function pickerOverlayConfirm() {
             const realName = name.replace(/__\d+$/, '');
             materials.push({ name: realName, antall: state.antall || '', enhet: state.enhet || '' });
         }
+    }
+
+    if (pickerConfirmCallback) {
+        pickerConfirmCallback(materials);
+        pickerConfirmCallback = null;
+        closePickerOverlay();
+        return;
     }
 
     const matContainer = pickerOrderCard.querySelector('.mobile-order-materials');

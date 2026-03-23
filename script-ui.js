@@ -946,6 +946,16 @@ function filterList(listId, searchId) {
                     }
                 });
             }
+        } else if (listId === 'template-picker-list') {
+            var cachedAll = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
+            var pickerListEl = document.getElementById('template-picker-list');
+            if (!term) { _renderTemplatePickerList(cachedAll, pickerListEl); return; }
+            var filteredPicker = cachedAll.filter(function(f) {
+                return (f.prosjektnavn || '').toLowerCase().startsWith(term) ||
+                       (f.oppdragsgiver || '').toLowerCase().startsWith(term) ||
+                       (f.prosjektnr || '').toLowerCase().startsWith(term);
+            });
+            _renderTemplatePickerList(filteredPicker, pickerListEl);
         } else if (listId === 'service-list') {
             if (!_serviceFormsAll) _serviceFormsAll = window.loadedServiceForms ? window.loadedServiceForms.slice() : [];
             if (!term) { var all4 = _serviceFormsAll; _serviceFormsAll = null; renderServiceFormsList(all4); return; }
@@ -1167,6 +1177,7 @@ function _buildTemplateItemHtml(item, index) {
 
 function renderTemplateList(templates, append, hasMore) {
     var listEl = document.getElementById('template-list');
+    if (!listEl) return;
     var existingBtn = listEl.querySelector('.load-more-btn');
     if (existingBtn) existingBtn.remove();
 
@@ -1208,27 +1219,10 @@ function showTemplateModal() {
     closeAllModals();
     history.replaceState(null, '', window.location.pathname);
 
-    // Show cached templates immediately (filter out deactivated)
-    const cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
-    renderTemplateList(cached);
-
     showView('template-modal');
     document.body.classList.add('template-modal-open');
     updateToolbarState();
-
-    // Refresh from Firestore in background
-    if (currentUser && db) {
-        getTemplates().then(function(result) {
-            _templateLastDoc = result.lastDoc;
-            _templateHasMore = result.hasMore;
-            safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
-            // Only update if still on template-modal (filter out deactivated)
-            if (document.body.classList.contains('template-modal-open')) {
-                var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
-                renderTemplateList(activeTemplates, false, _templateHasMore);
-            }
-        }).catch(function(e) { console.error('Refresh templates:', e); });
-    }
+    renderBilHistory();
 }
 
 function autoFillOrderNumber() {
@@ -1278,7 +1272,6 @@ function loadTemplateDirect(template) {
     showView('view-form');
     document.body.classList.remove('template-modal-open');
     updateToolbarState();
-    document.getElementById('template-search').value = '';
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_form_type', 'own');
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
@@ -1304,14 +1297,10 @@ function deleteTemplateDirect(template) {
         var lsList = safeParseJSON(TEMPLATE_KEY, []);
         var lsIdx = lsList.findIndex(function(t) { return t.id === template.id; });
         if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
-        // Remove DOM element
-        document.querySelectorAll('#template-list .saved-item').forEach(function(el) {
+        // Remove DOM element from picker if open
+        document.querySelectorAll('#template-picker-list .saved-item').forEach(function(el) {
             if (el._formData && el._formData.id === template.id) el.remove();
         });
-        // Show empty message if no items left
-        if (window.loadedTemplates.length === 0) {
-            document.getElementById('template-list').innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
-        }
 
         // Firebase in background
         if (currentUser && db) {
@@ -1355,7 +1344,6 @@ function closeTemplateModal() {
     showView('view-form');
     document.body.classList.remove('template-modal-open');
     updateToolbarState();
-    document.getElementById('template-search').value = '';
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_form_type', 'own');
     document.getElementById('form-header-title').textContent = t('form_title');
@@ -3359,7 +3347,6 @@ var _serviceLastSavedData = null; // For unsaved changes detection
 function openNewServiceForm() {
     // Close template modal
     document.body.classList.remove('template-modal-open');
-    document.getElementById('template-search').value = '';
 
     // Reset service form and autofill from service defaults
     var serviceDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
@@ -4101,27 +4088,14 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
     loadFormDirect(savedItem._formData);
 });
 
-// Event delegation for template-list items
-document.getElementById('template-list').addEventListener('click', function(e) {
-    const savedItem = e.target.closest('.saved-item');
-    if (!savedItem) return;
+// Event delegation for template picker overlay
 
-    // Get template data directly from the element
-    const templateData = savedItem._formData;
-    if (!templateData) return;
-
-    // Check if click was on delete button
-    const btn = e.target.closest('button');
-    if (btn && btn.classList.contains('delete')) {
-        e.stopPropagation();
-        deleteTemplateDirect(templateData);
-        return;
-    }
-
-    // Click on item row - load the template
-    loadTemplateDirect(templateData);
+// Event delegation for template picker overlay
+document.getElementById('template-picker-list').addEventListener('click', function(e) {
+    var savedItem = e.target.closest('.saved-item');
+    if (!savedItem || !savedItem._formData) return;
+    _applyTemplateToForm(savedItem._formData);
 });
-
 
 // Event delegation for service-list items
 document.getElementById('service-list').addEventListener('click', function(e) {
@@ -4370,4 +4344,257 @@ window.addEventListener('hashchange', function() {
     }
 });
 
+// ===== Bil (Vehicle Inventory) =====
 
+function renderBilHistory() {
+    var listEl = document.getElementById('bil-history-list');
+    var items = [];
+
+    // Påfyllinger
+    var pafyllinger = safeParseJSON(BIL_STORAGE_KEY, []);
+    for (var i = 0; i < pafyllinger.length; i++) {
+        var p = pafyllinger[i];
+        items.push({
+            type: 'pafylling',
+            id: p.id,
+            dato: p.dato || '',
+            createdAt: p.createdAt || '',
+            materials: p.materials || []
+        });
+    }
+
+    // Uttak (sent service forms)
+    var archived = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
+    for (var i2 = 0; i2 < archived.length; i2++) {
+        var form = archived[i2];
+        var entries = form.entries || [];
+        for (var j = 0; j < entries.length; j++) {
+            var entry = entries[j];
+            if (!entry.materials || entry.materials.length === 0) continue;
+            items.push({
+                type: 'uttak',
+                dato: entry.dato || '',
+                createdAt: form.savedAt || '',
+                prosjektnr: entry.prosjektnr || '',
+                prosjektnavn: entry.prosjektnavn || '',
+                materials: entry.materials
+            });
+        }
+    }
+
+    // Sort by createdAt descending
+    items.sort(function(a, b) {
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
+
+    if (items.length === 0) {
+        listEl.innerHTML = '<div class="bil-empty-msg">' + t('bil_no_history') + '</div>';
+        return;
+    }
+
+    var html = '';
+    for (var i3 = 0; i3 < items.length; i3++) {
+        var item = items[i3];
+        var isPafylling = item.type === 'pafylling';
+        var typeLabel = isPafylling ? t('bil_history_pafylling') : t('bil_history_uttak');
+        var title = isPafylling
+            ? item.dato
+            : (item.prosjektnr ? item.prosjektnr + (item.prosjektnavn ? ' \u2014 ' + item.prosjektnavn : '') : item.dato);
+
+        var matsHtml = '';
+        for (var j2 = 0; j2 < item.materials.length; j2++) {
+            var m = item.materials[j2];
+            matsHtml += '<div class="bil-history-mat">' + escapeHtml(m.name) + ' ' + escapeHtml(m.antall || '0') + ' ' + escapeHtml(m.enhet || '') + '</div>';
+        }
+
+        var deleteBtn = isPafylling
+            ? '<button class="bil-history-delete" onclick="deleteBilPafylling(\'' + item.id + '\')" title="Slett">' + deleteIcon + '</button>'
+            : '';
+
+        var hiddenClass = i3 >= 3 ? ' bil-history-hidden' : '';
+        html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + '">' +
+            '<div class="bil-history-header">' +
+                '<span class="bil-history-type">' + typeLabel + '</span>' +
+                '<span class="bil-history-title">' + escapeHtml(title) + '</span>' +
+                deleteBtn +
+            '</div>' +
+            '<div class="bil-history-materials">' + matsHtml + '</div>' +
+        '</div>';
+    }
+
+    if (items.length > 3) {
+        var remaining = items.length - 3;
+        html += '<button type="button" class="bil-history-toggle" id="bil-history-more" onclick="toggleBilHistory()">' + t('bil_show_more', remaining) + '</button>';
+    }
+
+    listEl.innerHTML = html;
+}
+
+function toggleBilHistory() {
+    var hidden = document.querySelectorAll('.bil-history-hidden');
+    var btn = document.getElementById('bil-history-more');
+    var isExpanded = hidden.length > 0 && !hidden[0].classList.contains('bil-history-hidden-active');
+    for (var i = 0; i < hidden.length; i++) {
+        hidden[i].classList.toggle('bil-history-hidden-active', isExpanded);
+    }
+    if (btn) {
+        btn.textContent = isExpanded ? t('bil_show_less') : t('bil_show_more', hidden.length);
+    }
+}
+
+function openBilPafylling() {
+    openMaterialPicker(null, function(materials) {
+        if (materials.length > 0) {
+            saveBilPafylling(materials);
+        }
+    });
+}
+
+function saveBilPafylling(materials) {
+    var record = {
+        id: Date.now().toString(),
+        dato: formatDate(new Date()),
+        materials: materials,
+        createdAt: new Date().toISOString()
+    };
+    var list = safeParseJSON(BIL_STORAGE_KEY, []);
+    list.unshift(record);
+    safeSetItem(BIL_STORAGE_KEY, JSON.stringify(list));
+
+    // Firebase sync
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid)
+          .collection('bilPafylling').doc(record.id).set(record)
+          .catch(function(e) { console.error('Bil påfylling Firebase error:', e); });
+    }
+
+    renderBilHistory();
+    showNotificationModal(t('bil_pafylling_saved'), true);
+}
+
+function deleteBilPafylling(id) {
+    showConfirmModal(t('bil_delete_pafylling_confirm'), function() {
+        var list = safeParseJSON(BIL_STORAGE_KEY, []);
+        var idx = list.findIndex(function(item) { return item.id === id; });
+        if (idx !== -1) {
+            list.splice(idx, 1);
+            safeSetItem(BIL_STORAGE_KEY, JSON.stringify(list));
+        }
+
+        // Firebase sync
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid)
+              .collection('bilPafylling').doc(id).delete()
+              .catch(function(e) { console.error('Delete bil påfylling Firebase error:', e); });
+        }
+
+        renderBilHistory();
+    }, t('btn_delete'), '#d32f2f');
+}
+
+// ===== Template Picker (in-form) =====
+
+function openTemplatePicker() {
+    var overlay = document.getElementById('template-picker-overlay');
+    var listEl = document.getElementById('template-picker-list');
+    var searchEl = document.getElementById('template-picker-search');
+    searchEl.value = '';
+
+    // Load cached templates
+    var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
+    _renderTemplatePickerList(cached, listEl);
+
+    overlay.classList.add('active');
+    requestAnimationFrame(function() { overlay.classList.add('visible'); });
+
+    // Refresh from Firestore
+    if (currentUser && db) {
+        getTemplates().then(function(result) {
+            _templateLastDoc = result.lastDoc;
+            _templateHasMore = result.hasMore;
+            safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+            var active = result.forms.filter(function(t) { return t.active !== false; });
+            if (overlay.classList.contains('active')) {
+                _renderTemplatePickerList(active, listEl);
+            }
+        }).catch(function(e) { console.error('Template picker refresh:', e); });
+    }
+}
+
+function closeTemplatePicker() {
+    var overlay = document.getElementById('template-picker-overlay');
+    overlay.classList.remove('visible');
+    setTimeout(function() { overlay.classList.remove('active'); }, 150);
+}
+
+function _renderTemplatePickerList(templates, listEl) {
+    if (!templates || templates.length === 0) {
+        listEl.innerHTML = '<div class="bil-empty-msg">' + t('no_templates') + '</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < templates.length; i++) {
+        html += _buildTemplateItemHtml(templates[i], i);
+    }
+    listEl.innerHTML = html;
+
+    // Attach click handlers
+    var items = listEl.querySelectorAll('.saved-item');
+    for (var j = 0; j < items.length; j++) {
+        items[j]._formData = templates[j];
+    }
+}
+
+var _serviceTemplateTargetCard = null;
+
+function openServiceTemplatePicker(btn) {
+    // Find the first expanded entry card, or the first one
+    var cards = document.querySelectorAll('#service-entries .service-entry-card');
+    _serviceTemplateTargetCard = null;
+    for (var i = 0; i < cards.length; i++) {
+        var body = cards[i].querySelector('.service-entry-body');
+        if (body && body.style.display !== 'none') {
+            _serviceTemplateTargetCard = cards[i];
+            break;
+        }
+    }
+    if (!_serviceTemplateTargetCard && cards.length > 0) {
+        _serviceTemplateTargetCard = cards[0];
+    }
+    openTemplatePicker();
+}
+
+function _applyTemplateToForm(template) {
+    if (!template) return;
+
+    if (_serviceTemplateTargetCard) {
+        // Apply to service entry card
+        var card = _serviceTemplateTargetCard;
+        var pnr = card.querySelector('.service-entry-prosjektnr');
+        var pnavn = card.querySelector('.service-entry-prosjektnavn');
+        if (pnr && template.prosjektnr) pnr.value = template.prosjektnr;
+        if (pnavn && template.prosjektnavn) pnavn.value = template.prosjektnavn;
+        _serviceTemplateTargetCard = null;
+        renumberServiceEntries();
+    } else {
+        // Apply to ordreseddel form
+        var fields = {
+            'oppdragsgiver': template.oppdragsgiver,
+            'prosjektnr': template.prosjektnr,
+            'prosjektnavn': template.prosjektnavn,
+            'kundens-ref': template.kundensRef,
+            'fakturaadresse': template.fakturaadresse
+        };
+        for (var id in fields) {
+            var val = fields[id];
+            if (val) {
+                var el = document.getElementById(id);
+                var mobileEl = document.getElementById('mobile-' + id);
+                if (el) el.value = val;
+                if (mobileEl) mobileEl.value = val;
+            }
+        }
+        updateFakturaadresseDisplay('fakturaadresse-display-text', template.fakturaadresse || '');
+    }
+    closeTemplatePicker();
+}
