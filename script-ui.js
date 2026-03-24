@@ -41,6 +41,7 @@ function refreshActiveView() {
             }
         }).catch(function(e) { console.error('Refresh saved forms:', e); });
     } else if (document.body.classList.contains('template-modal-open')) {
+        renderBilHistory();
         getTemplates().then(function(result) {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
@@ -4294,6 +4295,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Home page - render cached templates (filter out deactivated)
         var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
         renderTemplateList(cached);
+        renderBilHistory();
         updateToolbarState();
         // Background refresh
         if (currentUser && db) {
