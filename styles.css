@@ -1606,7 +1606,7 @@ body.service-view-open {
 
 /* Hide buttons on export */
 @media print {
-    .toolbar, .top-bar, #template-modal, #saved-modal, #settings-modal {
+    .toolbar, .top-bar, #template-modal, #saved-modal, #settings-modal, #calculator-modal {
         display: none !important;
     }
     body {
@@ -4365,5 +4365,211 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         min-height: 80px;
         cursor: text;
     }
+}
+
+/* ===== Calculator ===== */
+.calc-section {
+    padding: 8px 0;
+}
+
+.calc-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.calc-card:active {
+    background: #f5f5f5;
+}
+
+.calc-card-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #FFF3EE;
+    border-radius: 10px;
+    color: #E8501A;
+}
+
+.calc-card-icon svg {
+    stroke: #E8501A;
+}
+
+.calc-card-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.calc-card-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: #222;
+}
+
+.calc-card-desc {
+    font-size: 13px;
+    color: #888;
+    margin-top: 2px;
+}
+
+.calc-card-arrow {
+    flex-shrink: 0;
+    color: #bbb;
+}
+
+/* Calculator pages */
+.calc-page {
+    padding: 0 0 20px;
+}
+
+/* Input section */
+.calc-input-group {
+    margin-bottom: 16px;
+}
+
+.calc-input-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.calc-input-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+}
+
+.calc-input-wrap:focus-within {
+    border-color: #E8501A;
+    box-shadow: 0 0 0 3px rgba(232,80,26,0.08);
+}
+
+.calc-input-prefix {
+    padding: 10px 0 10px 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ccc;
+    user-select: none;
+}
+
+.calc-input-wrap input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 10px 6px;
+    font-size: 15px;
+    font-weight: 600;
+    background: transparent;
+    min-width: 0;
+}
+
+.calc-input-suffix {
+    padding: 10px 12px 10px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ccc;
+    user-select: none;
+}
+
+/* Multicollar calculated result row */
+.calc-table-result td {
+    background: #E8501A !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #d44615 !important;
+}
+
+.calc-table-result .calc-clip-large {
+    color: rgba(255,255,255,0.7);
+}
+
+/* Reference table */
+.calc-table {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #eee;
+}
+
+.calc-table-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 12px 0;
+}
+
+.calc-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: center;
+}
+
+.calc-table th {
+    padding: 10px 6px;
+    font-weight: 700;
+    color: #999;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.calc-table td {
+    padding: 10px 6px;
+    color: #555;
+    font-weight: 500;
+    border-bottom: 1px solid #f5f5f5;
+    transition: background 0.15s, color 0.15s;
+}
+
+.calc-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.calc-table tbody tr {
+    cursor: pointer;
+}
+
+.calc-table tbody tr:active td {
+    background: #f5f5f5;
+}
+
+.calc-table tr.calc-table-highlight td {
+    background: #FFF3EE;
+    font-weight: 700;
+    color: #E8501A;
+}
+
+.calc-table tr.calc-table-highlight td:first-child {
+    box-shadow: inset 3px 0 0 #E8501A;
+}
+
+.calc-clip-large {
+    font-size: 12px;
+    color: #999;
+}
+
+.calc-table-highlight .calc-clip-large {
+    color: #d4845e;
 }
 

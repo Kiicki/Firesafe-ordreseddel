@@ -85,7 +85,7 @@ function showView(viewId) {
 function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
-    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open', 'calculator-modal-open');
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_form_type');
     sessionStorage.removeItem('firesafe_hent_tab');
@@ -98,7 +98,8 @@ function isModalOpen() {
     return document.body.classList.contains('template-modal-open')
         || document.body.classList.contains('saved-modal-open')
         || document.body.classList.contains('settings-modal-open')
-        || document.body.classList.contains('service-view-open');
+        || document.body.classList.contains('service-view-open')
+        || document.body.classList.contains('calculator-modal-open');
 }
 
 // Update toolbar button states based on current view
@@ -655,6 +656,12 @@ function navigateBack() {
     // From Innstillinger: close and go to form
     if (currentId === 'settings-modal') {
         closeSettingsModal();
+        return;
+    }
+    // From Calculator: go home
+    if (currentId === 'calculator-modal') {
+        document.body.classList.remove('calculator-modal-open');
+        showTemplateModal();
         return;
     }
     // Fallback: go home
@@ -4266,11 +4273,18 @@ document.addEventListener('DOMContentLoaded', function() {
             showSettingsMenu();
         }
         updateToolbarState();
+    } else if (hash === 'calc') {
+        showView('calculator-modal');
+        document.body.classList.add('calculator-modal-open');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open');
+        document.querySelector('.calc-section').style.display = '';
+        document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
+        updateToolbarState();
     } else if (hash === 'service') {
         // Show service view
         showView('service-view');
         document.body.classList.add('service-view-open');
-        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
         // Restore from session if available
         var serviceCurrent = sessionStorage.getItem('firesafe_service_current');
         if (serviceCurrent) {
@@ -4338,13 +4352,134 @@ window.addEventListener('hashchange', function() {
         if (!document.body.classList.contains('service-view-open')) {
             showView('service-view');
             document.body.classList.add('service-view-open');
-            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
+        }
+    } else if (hash === 'calc') {
+        if (!document.body.classList.contains('calculator-modal-open')) {
+            _showCalculatorDirectly();
         }
     } else {
         // No hash = home = template modal
         showTemplateModal();
     }
 });
+
+// ===== Calculator =====
+
+// Multicollar formulas (derived from manufacturer data):
+// - Segment pitch on strip: 15mm (2610mm roll / 174 segments)
+// - Hinge circle radius = pipe_radius + segment_pitch (15mm)
+// - Circumference at hinge circle = π × (d + 2 × 15) = π × (d + 30)
+// - Segments = round(π(d + 30) / 15), minimum 15
+// - Collars per roll: floor(174 / segments)
+var MC_SEGMENT_PITCH = 15;     // mm per segment on flat strip
+var MC_SEGMENTS_PER_ROLL = 174; // 2610mm / 15mm
+var MC_MIN_SEGMENTS = 15;
+
+function mcCalcSegments(diameter) {
+    var n = Math.round(Math.PI * (diameter + 2 * MC_SEGMENT_PITCH) / MC_SEGMENT_PITCH);
+    return Math.max(MC_MIN_SEGMENTS, n);
+}
+
+function mcCalcPerRoll(segments) {
+    return Math.floor(MC_SEGMENTS_PER_ROLL / segments);
+}
+
+function mcCalcClips(diameter) {
+    if (diameter >= 200) {
+        var regular = Math.ceil(diameter / 200);
+        var large = diameter <= 250 ? 5 : Math.ceil(diameter / 50);
+        return regular + ' <span class="calc-clip-large">(+' + large + 'L)</span>';
+    }
+    return Math.max(2, Math.ceil(diameter / 48));
+}
+
+function showCalculator() {
+    if (isOnFormPage() && hasUnsavedChanges()) {
+        showConfirmModal(t('unsaved_warning'), _showCalculatorDirectly, t('btn_continue'), '#E8501A');
+        return;
+    }
+    _showCalculatorDirectly();
+}
+
+function _showCalculatorDirectly() {
+    closeAllModals();
+    window.location.hash = 'calc';
+    showView('calculator-modal');
+    document.body.classList.add('calculator-modal-open');
+    // Show menu, hide calc pages
+    document.querySelector('.calc-section').style.display = '';
+    document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
+    updateToolbarState();
+}
+
+function showCalcPage(page) {
+    document.querySelector('.calc-section').style.display = 'none';
+    var pageEl = document.getElementById('calc-page-' + page);
+    if (pageEl) pageEl.style.display = '';
+    // Update header
+    var header = document.querySelector('#calculator-modal .modal-header span');
+    if (page === 'multicollar') header.textContent = 'Multicollar';
+    // Clear input
+    var input = document.getElementById('calc-mc-diameter');
+    if (input) { input.value = ''; input.focus(); }
+    document.getElementById('calc-mc-result').style.display = 'none';
+}
+
+function calcMulticollar() {
+    var input = document.getElementById('calc-mc-diameter');
+    var resultEl = document.getElementById('calc-mc-result');
+    var val = parseInt(input.value, 10);
+
+    // Clear table highlights
+    document.querySelectorAll('#calc-page-multicollar .calc-table-highlight').forEach(function(r) {
+        r.classList.remove('calc-table-highlight');
+    });
+
+    if (!val || val < 1) {
+        resultEl.style.display = 'none';
+        return;
+    }
+
+    var segments = mcCalcSegments(val);
+    var cutLength = segments * MC_SEGMENT_PITCH;
+
+    document.getElementById('calc-mc-seg-value').textContent = segments;
+    document.getElementById('calc-mc-cut-length').textContent = cutLength;
+    document.getElementById('calc-mc-diameter-echo').textContent = val;
+    document.getElementById('calc-mc-clips').innerHTML = mcCalcClips(val);
+
+    // Check if this diameter matches a table row exactly
+    var rows = document.querySelectorAll('#calc-page-multicollar .calc-table tbody tr:not(.calc-table-result)');
+    var exactMatch = false;
+    for (var i = 0; i < rows.length; i++) {
+        var rowD = parseInt(rows[i].getAttribute('data-mc-d'), 10);
+        if ((i === 0 && val >= 16 && val <= rowD) || (i > 0 && val === rowD)) {
+            rows[i].classList.add('calc-table-highlight');
+            rows[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            exactMatch = true;
+            break;
+        }
+    }
+
+    // Show calculated result row only for custom diameters not in table
+    if (exactMatch) {
+        resultEl.style.display = 'none';
+    } else {
+        resultEl.style.display = 'table-row';
+        resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function onCalcTableRowClick(row) {
+    var d = parseInt(row.getAttribute('data-mc-d'), 10);
+    if (!d) return;
+    var input = document.getElementById('calc-mc-diameter');
+    input.value = d;
+    calcMulticollar();
+    // Scroll to top to see result
+    document.querySelector('#calculator-modal .modal-content').scrollTop = 0;
+}
 
 // ===== Bil (Vehicle Inventory) =====
 

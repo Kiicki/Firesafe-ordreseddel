@@ -161,7 +161,7 @@ if (auth) {
                         showView('login-view');
                         var loginCard = document.getElementById('login-card');
                         if (loginCard) loginCard.style.display = '';
-                        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+                        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
                     }
                 }, 3000);
                 return;
@@ -171,7 +171,7 @@ if (auth) {
             showView('login-view');
             var loginCard = document.getElementById('login-card');
             if (loginCard) loginCard.style.display = '';
-            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
             return;
         }
 
@@ -271,6 +271,7 @@ function handleAuth() {
     var onLoggedInView = document.body.classList.contains('settings-modal-open') ||
         document.body.classList.contains('template-modal-open') ||
         document.body.classList.contains('saved-modal-open') ||
+        document.body.classList.contains('calculator-modal-open') ||
         document.getElementById('view-form').classList.contains('active');
 
     if (currentUser || onLoggedInView) {
@@ -284,7 +285,7 @@ function handleAuth() {
             currentUser = null;
             isAdmin = false;
             window._explicitLogout = true;
-            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open');
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
             history.replaceState(null, '', window.location.pathname);
             showView('login-view');
             var loginCard = document.getElementById('login-card');

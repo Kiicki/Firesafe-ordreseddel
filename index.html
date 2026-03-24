@@ -762,6 +762,7 @@
             if (h === 'hent') { v = 'saved-modal'; b = 'saved-modal-open'; }
             else if (h === 'settings' || h.indexOf('settings/') === 0) { v = 'settings-modal'; b = 'settings-modal-open'; }
             else if (h === 'service') { v = 'service-view'; b = 'service-view-open'; }
+            else if (h === 'calc') { v = 'calculator-modal'; b = 'calculator-modal-open'; }
             else if (h === 'skjema') { v = 'view-form'; }
             else { v = 'template-modal'; b = 'template-modal-open'; }
             // Show cached email immediately
@@ -803,10 +804,74 @@
     })();
     </script>
 
+    <!-- Calculator View -->
+    <div class="modal view" id="calculator-modal">
+        <div class="modal-content">
+            <div class="sticky-header">
+                <div class="modal-header">
+                    <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                    <span data-i18n="calc_title">Kalkulator</span>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="calc-section">
+                    <div class="calc-card" onclick="showCalcPage('multicollar')">
+                        <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg></div>
+                        <div class="calc-card-text">
+                            <div class="calc-card-title">Multicollar</div>
+                            <div class="calc-card-desc" data-i18n="calc_multicollar_desc">Rørdiameter → segmenter</div>
+                        </div>
+                        <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                </div>
+                <!-- Multicollar calculator page -->
+                <div class="calc-page" id="calc-page-multicollar" style="display:none">
+                    <div class="calc-input-group">
+                        <label class="calc-input-label" for="calc-mc-diameter" data-i18n="calc_pipe_diameter">Rørdiameter (mm)</label>
+                        <div class="calc-input-wrap">
+                            <span class="calc-input-prefix">Ø</span>
+                            <input type="number" id="calc-mc-diameter" inputmode="numeric" placeholder="50" oninput="calcMulticollar()">
+                            <span class="calc-input-suffix">mm</span>
+                        </div>
+                    </div>
+                    <div class="calc-table">
+                        <table>
+                            <thead><tr><th>Ø mm</th><th>Seg</th><th>Kapp mm</th><th>Clips</th></tr></thead>
+                            <tbody>
+                                <tr class="calc-table-result" id="calc-mc-result" style="display:none">
+                                    <td id="calc-mc-diameter-echo"></td>
+                                    <td id="calc-mc-seg-value"></td>
+                                    <td id="calc-mc-cut-length"></td>
+                                    <td id="calc-mc-clips"></td>
+                                </tr>
+                                <tr data-mc-d="40" onclick="onCalcTableRowClick(this)"><td>16–40</td><td>15</td><td>225</td><td>2</td></tr>
+                                <tr data-mc-d="50" onclick="onCalcTableRowClick(this)"><td>50</td><td>17</td><td>255</td><td>2</td></tr>
+                                <tr data-mc-d="56" onclick="onCalcTableRowClick(this)"><td>56</td><td>18</td><td>270</td><td>2</td></tr>
+                                <tr data-mc-d="63" onclick="onCalcTableRowClick(this)"><td>63</td><td>19</td><td>285</td><td>2</td></tr>
+                                <tr data-mc-d="75" onclick="onCalcTableRowClick(this)"><td>75</td><td>22</td><td>330</td><td>2</td></tr>
+                                <tr data-mc-d="80" onclick="onCalcTableRowClick(this)"><td>80</td><td>23</td><td>345</td><td>2</td></tr>
+                                <tr data-mc-d="90" onclick="onCalcTableRowClick(this)"><td>90</td><td>25</td><td>375</td><td>2</td></tr>
+                                <tr data-mc-d="100" onclick="onCalcTableRowClick(this)"><td>100</td><td>27</td><td>405</td><td>3</td></tr>
+                                <tr data-mc-d="110" onclick="onCalcTableRowClick(this)"><td>110</td><td>29</td><td>435</td><td>3</td></tr>
+                                <tr data-mc-d="125" onclick="onCalcTableRowClick(this)"><td>125</td><td>32</td><td>480</td><td>3</td></tr>
+                                <tr data-mc-d="140" onclick="onCalcTableRowClick(this)"><td>140</td><td>36</td><td>540</td><td>3</td></tr>
+                                <tr data-mc-d="160" onclick="onCalcTableRowClick(this)"><td>160</td><td>40</td><td>600</td><td>4</td></tr>
+                                <tr data-mc-d="200" onclick="onCalcTableRowClick(this)"><td>200</td><td>48</td><td>720</td><td>1 <span class="calc-clip-large">(+5L)</span></td></tr>
+                                <tr data-mc-d="250" onclick="onCalcTableRowClick(this)"><td>250</td><td>59</td><td>885</td><td>2 <span class="calc-clip-large">(+5L)</span></td></tr>
+                                <tr data-mc-d="315" onclick="onCalcTableRowClick(this)"><td>315</td><td>72</td><td>1080</td><td>2 <span class="calc-clip-large">(+6L)</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toolbar - alltid sist i DOM for riktig rekkefølge når keyboard er åpen -->
     <div class="toolbar" role="toolbar" aria-label="Hovedhandlinger">
         <button class="btn-new" onclick="newForm()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span data-i18n="toolbar_home">Hjem</span></button>
         <button class="btn-load" onclick="showSavedForms()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg><span data-i18n="toolbar_forms">Skjemaer</span></button>
+        <button class="btn-calc" onclick="showCalculator()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg><span data-i18n="toolbar_calc">Kalkulator</span></button>
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 

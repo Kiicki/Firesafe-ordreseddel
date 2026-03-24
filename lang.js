@@ -305,6 +305,20 @@ const TRANSLATIONS = {
         bil_no_history: 'Ingen historikk ennå',
         bil_show_more: 'Vis mer ({0} til)',
         bil_show_less: 'Vis mindre',
+
+        // Calculator
+        toolbar_calc: 'Kalkulator',
+        calc_title: 'Kalkulator',
+        calc_multicollar_desc: 'Rørdiameter → segmenter',
+        calc_pipe_diameter: 'Rørdiameter (mm)',
+        calc_segments: 'Segmenter',
+        calc_per_roll: 'Per rull',
+        calc_reference_table: 'Referansetabell',
+        calc_too_large: 'Diameter over 80mm — se produsentens tabell',
+        calc_too_small: 'Diameter under 16mm — se produsentens tabell',
+        calc_circumference: 'Omkrets',
+        calc_cut_length: 'kapplengde',
+        calc_cut_length_short: 'Kapp',
     },
     en: {
         // Toolbar
@@ -612,5 +626,19 @@ const TRANSLATIONS = {
         bil_no_history: 'No history yet',
         bil_show_more: 'Show more ({0} more)',
         bil_show_less: 'Show less',
+
+        // Calculator
+        toolbar_calc: 'Calculator',
+        calc_title: 'Calculator',
+        calc_multicollar_desc: 'Pipe diameter → segments',
+        calc_pipe_diameter: 'Pipe diameter (mm)',
+        calc_segments: 'Segments',
+        calc_per_roll: 'Per roll',
+        calc_reference_table: 'Reference table',
+        calc_too_large: 'Diameter over 80mm — see manufacturer table',
+        calc_too_small: 'Diameter under 16mm — see manufacturer table',
+        calc_circumference: 'Circumference',
+        calc_cut_length: 'cut length',
+        calc_cut_length_short: 'Cut',
     }
 };
