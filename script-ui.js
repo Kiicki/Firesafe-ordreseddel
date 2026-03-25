@@ -4501,17 +4501,19 @@ function bpAddRow() {
     var tr = document.createElement('tr');
     tr.id = 'bp-row-' + _bpRowCount;
     tr.innerHTML =
-        '<td><input type="number" inputmode="numeric" class="bp-dim-w" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" class="bp-dim-h" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" value="1" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" value="1" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="bp-dim-w" placeholder="110" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="bp-dim-h" placeholder="—" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" placeholder="1" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" placeholder="1" oninput="bpCalc()"></td>' +
         '<td class="bp-result-cell"><span class="bp-result-val">—</span></td>';
+    tr.setAttribute('data-had-value', 'false');
     tbody.appendChild(tr);
-    // Auto-remove row when Ø/B is cleared and blurred
+    // Auto-remove row when Ø/B is cleared and blurred (only if it had value before)
     tr.querySelector('.bp-dim-w').addEventListener('blur', function() {
+        var row = this.closest('tr');
         var allRows = document.querySelectorAll('#bp-rows tr');
-        if (allRows.length > 1 && !this.value) {
-            this.closest('tr').remove();
+        if (allRows.length > 1 && !this.value && row.getAttribute('data-had-value') === 'true') {
+            row.remove();
             bpCalc();
         }
     });
@@ -4525,6 +4527,7 @@ function bpCalc() {
     for (var i = 0; i < rows.length; i++) {
         var allInputs = rows[i].querySelectorAll('input');
         var w = parseFloat(allInputs[0].value) || 0;
+        if (w > 0) rows[i].setAttribute('data-had-value', 'true');
         var h = parseFloat(allInputs[1].value) || 0;
         var pipes = parseFloat(allInputs[2].value) || 0;
         var rounds = parseFloat(allInputs[3].value) || 0;
@@ -4544,6 +4547,13 @@ function bpCalc() {
         }
     }
     document.getElementById('bp-total-value').textContent = total.toFixed(2) + ' m';
+
+    // Disable "add" button if any row has empty Ø/B
+    var hasEmpty = false;
+    for (var j = 0; j < rows.length; j++) {
+        if (!rows[j].querySelector('.bp-dim-w').value) { hasEmpty = true; break; }
+    }
+    document.getElementById('bp-add-btn').disabled = hasEmpty;
 }
 
 // ===== Bil (Vehicle Inventory) =====

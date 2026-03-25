@@ -4597,8 +4597,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 .bp-table th {
     padding: 8px 6px;
-    font-weight: 600;
-    color: #aaa;
+    font-weight: 700;
+    color: #777;
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -4664,36 +4664,45 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .bp-add-btn {
     width: 100%;
     padding: 10px;
-    border: 2px dashed #e0e0e0;
-    border-radius: 10px;
-    background: none;
+    border: none;
+    border-radius: 0;
+    background: #fafafa;
     font-size: 13px;
     font-weight: 600;
-    color: #aaa;
+    color: #E8501A;
     cursor: pointer;
+    border-top: 1px solid #eee;
+    transition: background 0.15s;
 }
 
-.bp-add-btn:active {
-    border-color: #E8501A;
-    color: #E8501A;
+.bp-add-btn:active:not(:disabled) {
+    background: #FFF3EE;
+}
+
+.bp-add-btn:disabled {
+    color: #ddd;
+    cursor: not-allowed;
 }
 
 .bp-total {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 14px;
-    padding: 12px 16px;
-    background: #E8501A;
-    border-radius: 10px;
-    font-size: 13px;
+    padding: 12px 14px;
+    background: #f8f8f8;
+    border-top: 1px solid #eee;
+    font-size: 12px;
     font-weight: 700;
-    color: rgba(255,255,255,0.8);
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .bp-total-value {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 800;
-    color: #fff;
+    color: #E8501A;
+    text-transform: none;
+    letter-spacing: 0;
 }
 
