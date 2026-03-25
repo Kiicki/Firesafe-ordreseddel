@@ -4505,27 +4505,18 @@ function bpAddRow() {
         '<td><input type="number" inputmode="numeric" class="bp-dim-h" oninput="bpCalc()"></td>' +
         '<td><input type="number" inputmode="numeric" value="1" oninput="bpCalc()"></td>' +
         '<td><input type="number" inputmode="numeric" value="1" oninput="bpCalc()"></td>' +
-        '<td class="bp-result-cell"><span class="bp-result-val">—</span><button type="button" class="bp-delete-btn" onclick="bpDeleteRow(this)">&times;</button></td>';
+        '<td class="bp-result-cell"><span class="bp-result-val">—</span></td>';
     tbody.appendChild(tr);
-    bpUpdateDeleteBtns();
+    // Auto-remove row when Ø/B is cleared and blurred
+    tr.querySelector('.bp-dim-w').addEventListener('blur', function() {
+        var allRows = document.querySelectorAll('#bp-rows tr');
+        if (allRows.length > 1 && !this.value) {
+            this.closest('tr').remove();
+            bpCalc();
+        }
+    });
     bpCalc();
-    // Focus the diameter input
     tr.querySelector('input').focus();
-}
-
-function bpDeleteRow(btn) {
-    var tr = btn.closest('tr');
-    if (tr) tr.remove();
-    bpUpdateDeleteBtns();
-    bpCalc();
-}
-
-function bpUpdateDeleteBtns() {
-    var rows = document.querySelectorAll('#bp-rows tr');
-    var btns = document.querySelectorAll('#bp-rows .bp-delete-btn');
-    for (var i = 0; i < btns.length; i++) {
-        btns[i].style.display = rows.length <= 1 ? 'none' : '';
-    }
 }
 
 function bpCalc() {
