@@ -319,6 +319,15 @@ const TRANSLATIONS = {
         calc_circumference: 'Omkrets',
         calc_cut_length: 'kapplengde',
         calc_cut_length_short: 'Kapp',
+
+        // Brannpakning
+        calc_bp_title: 'Brannpakning',
+        calc_bp_desc: 'Beregn lengde i meter',
+        calc_bp_pipe: 'Rør',
+        calc_bp_pipes: 'Antall',
+        calc_bp_rounds: 'Runder',
+        calc_bp_add_pipe: 'Legg til rør',
+        calc_bp_total: 'Totalt',
     },
     en: {
         // Toolbar
@@ -640,5 +649,14 @@ const TRANSLATIONS = {
         calc_circumference: 'Circumference',
         calc_cut_length: 'cut length',
         calc_cut_length_short: 'Cut',
+
+        // Brannpakning
+        calc_bp_title: 'Fire seal',
+        calc_bp_desc: 'Calculate length in meters',
+        calc_bp_pipe: 'Pipe',
+        calc_bp_pipes: 'Qty',
+        calc_bp_rounds: 'Rounds',
+        calc_bp_add_pipe: 'Add pipe',
+        calc_bp_total: 'Total',
     }
 };

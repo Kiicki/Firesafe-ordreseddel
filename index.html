@@ -823,6 +823,14 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
+                    <div class="calc-card" onclick="showCalcPage('brannpakning')">
+                        <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M12 6v6l4 2"/></svg></div>
+                        <div class="calc-card-text">
+                            <div class="calc-card-title" data-i18n="calc_bp_title">Brannpakning</div>
+                            <div class="calc-card-desc" data-i18n="calc_bp_desc">Beregn lengde i meter</div>
+                        </div>
+                        <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
                 </div>
                 <!-- Multicollar calculator page -->
                 <div class="calc-page" id="calc-page-multicollar" style="display:none">
@@ -861,6 +869,21 @@
                                 <tr data-mc-d="315" onclick="onCalcTableRowClick(this)"><td>315</td><td>72</td><td>1080</td><td>2 <span class="calc-clip-large">(+6L)</span></td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+                <!-- Brannpakning calculator page -->
+                <div class="calc-page" id="calc-page-brannpakning" style="display:none">
+                    <div class="bp-table">
+                        <table>
+                            <colgroup><col class="bp-col-w"><col class="bp-col-h"><col class="bp-col-sm"><col class="bp-col-sm"><col class="bp-col-result"></colgroup>
+                            <thead><tr><th>Ø / B</th><th>H</th><th>Ant</th><th>Rnd</th><th>Meter</th></tr></thead>
+                            <tbody id="bp-rows"></tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="bp-add-btn" onclick="bpAddRow()">+ <span data-i18n="calc_bp_add_pipe">Legg til rør</span></button>
+                    <div class="bp-total" id="bp-total">
+                        <span data-i18n="calc_bp_total">Totalt</span>
+                        <span class="bp-total-value" id="bp-total-value"></span>
                     </div>
                 </div>
             </div>

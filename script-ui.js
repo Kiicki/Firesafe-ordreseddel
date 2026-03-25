@@ -4415,15 +4415,25 @@ function _showCalculatorDirectly() {
 
 function showCalcPage(page) {
     document.querySelector('.calc-section').style.display = 'none';
+    document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
     var pageEl = document.getElementById('calc-page-' + page);
     if (pageEl) pageEl.style.display = '';
     // Update header
     var header = document.querySelector('#calculator-modal .modal-header span');
-    if (page === 'multicollar') header.textContent = 'Multicollar';
-    // Clear input
-    var input = document.getElementById('calc-mc-diameter');
-    if (input) { input.value = ''; input.focus(); }
-    document.getElementById('calc-mc-result').style.display = 'none';
+    if (page === 'multicollar') {
+        header.textContent = 'Multicollar';
+        var input = document.getElementById('calc-mc-diameter');
+        if (input) { input.value = ''; input.focus(); }
+        document.getElementById('calc-mc-result').style.display = 'none';
+        document.querySelectorAll('#calc-page-multicollar .calc-table-highlight').forEach(function(r) {
+            r.classList.remove('calc-table-highlight');
+        });
+    } else if (page === 'brannpakning') {
+        header.textContent = t('calc_bp_title');
+        // Init with one row if empty
+        var container = document.getElementById('bp-rows');
+        if (container.children.length === 0) bpAddRow();
+    }
 }
 
 function calcMulticollar() {
@@ -4479,6 +4489,70 @@ function onCalcTableRowClick(row) {
     calcMulticollar();
     // Scroll to top to see result
     document.querySelector('#calculator-modal .modal-content').scrollTop = 0;
+}
+
+// ===== Brannpakning calculator =====
+
+var _bpRowCount = 0;
+
+function bpAddRow() {
+    _bpRowCount++;
+    var tbody = document.getElementById('bp-rows');
+    var tr = document.createElement('tr');
+    tr.id = 'bp-row-' + _bpRowCount;
+    tr.innerHTML =
+        '<td><input type="number" inputmode="numeric" class="bp-dim-w" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="bp-dim-h" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" value="1" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" value="1" oninput="bpCalc()"></td>' +
+        '<td class="bp-result-cell"><span class="bp-result-val">—</span><button type="button" class="bp-delete-btn" onclick="bpDeleteRow(this)">&times;</button></td>';
+    tbody.appendChild(tr);
+    bpUpdateDeleteBtns();
+    bpCalc();
+    // Focus the diameter input
+    tr.querySelector('input').focus();
+}
+
+function bpDeleteRow(btn) {
+    var tr = btn.closest('tr');
+    if (tr) tr.remove();
+    bpUpdateDeleteBtns();
+    bpCalc();
+}
+
+function bpUpdateDeleteBtns() {
+    var rows = document.querySelectorAll('#bp-rows tr');
+    var btns = document.querySelectorAll('#bp-rows .bp-delete-btn');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].style.display = rows.length <= 1 ? 'none' : '';
+    }
+}
+
+function bpCalc() {
+    var rows = document.querySelectorAll('#bp-rows tr');
+    var total = 0;
+    for (var i = 0; i < rows.length; i++) {
+        var allInputs = rows[i].querySelectorAll('input');
+        var w = parseFloat(allInputs[0].value) || 0;
+        var h = parseFloat(allInputs[1].value) || 0;
+        var pipes = parseFloat(allInputs[2].value) || 0;
+        var rounds = parseFloat(allInputs[3].value) || 0;
+
+        // Round: π × d, Rectangular: 2 × (B + H)
+        var perimeter = h > 0 ? 2 * (w + h) : Math.PI * w;
+        var length = perimeter * pipes * rounds / 1000;
+
+        var valSpan = rows[i].querySelector('.bp-result-val');
+        if (w > 0 && pipes > 0 && rounds > 0) {
+            valSpan.textContent = length.toFixed(2);
+            valSpan.style.color = '';
+            total += length;
+        } else {
+            valSpan.textContent = '—';
+            valSpan.style.color = '#ddd';
+        }
+    }
+    document.getElementById('bp-total-value').textContent = total.toFixed(2) + ' m';
 }
 
 // ===== Bil (Vehicle Inventory) =====
