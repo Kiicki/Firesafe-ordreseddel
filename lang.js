@@ -59,6 +59,7 @@ const TRANSLATIONS = {
 
         // Order cards
         order_description: 'Beskrivelse',
+        order_title: 'Bestilling',
         order_materials_label: 'Materialer',
         order_add_material: 'Materialer',
         order_hours: 'Timer',
@@ -389,6 +390,7 @@ const TRANSLATIONS = {
 
         // Order cards
         order_description: 'Description',
+        order_title: 'Order',
         order_materials_label: 'Materials',
         order_add_material: 'Materials',
         order_hours: 'Hours',

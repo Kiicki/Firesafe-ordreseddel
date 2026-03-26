@@ -2081,6 +2081,8 @@ function getDefaultRequiredSettings() {
             sted: true,
             signeringDato: true,
             beskrivelse: true,
+            materialer: false,
+            timer: false,
             signatur: false
         },
         template: {
@@ -2115,6 +2117,8 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'sted',           labelKey: 'label_sted' },
         { key: 'signeringDato',  labelKey: 'label_dato' },
         { key: 'beskrivelse',    labelKey: 'settings_req_beskrivelse' },
+        { key: 'materialer',    labelKey: 'order_materials_label' },
+        { key: 'timer',         labelKey: 'order_hours' },
         { key: 'signatur',       labelKey: 'label_kundens_underskrift' }
     ],
     template: [
@@ -2231,6 +2235,7 @@ async function toggleRequiredField(section, key, value) {
     if (!settings[section]) settings[section] = {};
     settings[section][key] = value;
     await saveRequiredSettings(settings);
+    updateRequiredIndicators();
 }
 
 function switchRequiredTab(tab) {
@@ -2555,6 +2560,34 @@ function updateRequiredIndicators() {
             field.classList.add('field-required');
         } else {
             field.classList.remove('field-required');
+        }
+    });
+
+    // Materials and Timer labels in order cards
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
+        // Materials label (mobile-order-sublabel with data-i18n="order_materials_label")
+        var matLabel = card.querySelector('label[data-i18n="order_materials_label"]');
+        if (matLabel) {
+            if (saveReqs.materialer) {
+                if (!matLabel.querySelector('.required-star')) {
+                    matLabel.innerHTML = matLabel.textContent.trim() + ' <span class="required-star" style="color:#e74c3c;font-weight:bold">*</span>';
+                }
+            } else {
+                var star = matLabel.querySelector('.required-star');
+                if (star) star.remove();
+            }
+        }
+        // Timer field
+        var timerInput = card.querySelector('.mobile-order-timer');
+        if (timerInput) {
+            var timerField = timerInput.closest('.mobile-field');
+            if (timerField) {
+                if (saveReqs.timer) {
+                    timerField.classList.add('field-required');
+                } else {
+                    timerField.classList.remove('field-required');
+                }
+            }
         }
     });
 

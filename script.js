@@ -825,7 +825,7 @@ function createOrderCard(orderData, expanded) {
     card.innerHTML = `
         <div class="mobile-order-header" onclick="toggleOrder(this)">
             <span class="mobile-order-arrow">${expanded ? '&#9650;' : '&#9660;'}</span>
-            <span class="mobile-order-title">${t('order_description')}</span>
+            <span class="mobile-order-title">${t('order_title')}</span>
             <button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeOrder(this)">${deleteIcon}</button>
         </div>
         <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
@@ -835,12 +835,12 @@ function createOrderCard(orderData, expanded) {
                 <textarea class="mobile-order-desc" rows="1" readonly autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section">
-                <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
+                <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' <span class="required-star" style="color:#e74c3c;font-weight:bold">*</span>' : ''}</label>
                 <div class="mobile-order-materials"></div>
                 <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
             </div>
             <div class="mobile-work-row">
-                <div class="mobile-field" style="flex:1">
+                <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.timer ? ' field-required' : ''}" style="flex:1">
                     <label data-i18n="order_hours">${t('order_hours')}</label>
                     <input type="text" class="mobile-order-timer" inputmode="decimal">
                 </div>
@@ -1734,7 +1734,7 @@ function toggleOrder(headerEl) {
 
 function renumberOrders() {
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach((card, idx) => {
-        card.querySelector('.mobile-order-title').textContent = t('order_description') + ' ' + (idx + 1);
+        card.querySelector('.mobile-order-title').textContent = t('order_title') + ' ' + (idx + 1);
     });
 }
 
@@ -1752,6 +1752,7 @@ function addOrder() {
     container.appendChild(card);
     updateOrderDeleteStates();
     renumberOrders();
+    if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -2787,6 +2788,31 @@ function validateRequiredFields() {
             const descVal = descInput.getAttribute('data-full-value') || descInput.value;
             if (!descVal.trim()) {
                 showNotificationModal(t('required_description', i + 1));
+                return false;
+            }
+        }
+    }
+
+    // Validate materialer
+    if (saveReqs.materialer) {
+        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        for (let i = 0; i < orderCards.length; i++) {
+            const matContainer = orderCards[i].querySelector('.mobile-order-materials');
+            const mats = matContainer ? matContainer.querySelectorAll('.mobile-material-row') : [];
+            if (mats.length === 0) {
+                showNotificationModal(t('required_field', t('order_materials_label')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
+                return false;
+            }
+        }
+    }
+
+    // Validate timer
+    if (saveReqs.timer) {
+        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        for (let i = 0; i < orderCards.length; i++) {
+            const timerInput = orderCards[i].querySelector('.mobile-order-timer');
+            if (!timerInput || !timerInput.value.trim()) {
+                showNotificationModal(t('required_field', t('order_hours')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
         }
