@@ -539,12 +539,8 @@
                         </div>
                         <div class="settings-add-material-btm">
                             <div class="settings-add-unit-fields">
-                                <label class="settings-add-label">Entall <span class="spec-required-star">*</span></label>
-                                <input type="text" id="settings-new-material-singular" autocapitalize="sentences">
-                            </div>
-                            <div class="settings-add-unit-fields">
-                                <label class="settings-add-label">Flertall <span class="spec-required-star">*</span></label>
-                                <input type="text" id="settings-new-material-plural" autocapitalize="sentences">
+                                <label class="settings-add-label">Variant (valgfri)</label>
+                                <input type="text" id="settings-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron, plate">
                             </div>
                             <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
                         </div>
@@ -699,6 +695,11 @@
                     <label id="spec-popup-label3" class="spec-popup-label"></label>
                     <input type="text" id="spec-popup-input3" placeholder="" autocapitalize="off">
                 </div>
+                <div class="spec-popup-field" id="spec-popup-meter-field" style="display:none">
+                    <label class="spec-popup-label">Meter <span class="spec-required-star">*</span></label>
+                    <input type="text" id="spec-popup-meter-input" placeholder="" inputmode="decimal" autocapitalize="off">
+                </div>
+                <button type="button" id="spec-popup-meter-toggle" class="spec-popup-meter-toggle" onclick="toggleSpecMeterMode()" style="display:none">Eller fyll inn meter direkte</button>
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecPopup()" data-i18n="btn_cancel">Avbryt</button>
@@ -706,6 +707,20 @@
             </div>
         </div>
     </div>
+
+    <!-- Variant popup -->
+    <div class="spec-popup-backdrop" id="variant-popup" onclick="if(event.target===this)closeVariantPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span id="variant-popup-title"></span>
+            </div>
+            <div class="spec-popup-body" id="variant-popup-list"></div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeVariantPopup()">Avbryt</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Fakturaadresse popup -->
     <div class="fakturaadresse-popup-backdrop" id="fakturaadresse-popup" onclick="if(event.target===this)closeFakturaadressePopup()">

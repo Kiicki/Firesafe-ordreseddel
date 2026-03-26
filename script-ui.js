@@ -1546,8 +1546,7 @@ function showSettingsPage(page) {
         renderMaterialSettingsItems();
         document.getElementById('settings-new-material').value = '';
         document.getElementById('settings-new-material-type').value = 'standard';
-        document.getElementById('settings-new-material-singular').value = '';
-        document.getElementById('settings-new-material-plural').value = '';
+        document.getElementById('settings-new-material-variant').value = '';
         updateSettingsUnitFields();
         // Background refresh
         getMaterialSettings().then(function(data) {
@@ -1600,13 +1599,12 @@ function _getCachedRequiredSettings() {
 let settingsMaterials = [];
 
 function normalizeAllowedUnits(arr, defaultUnit) {
-    if (!arr || arr.length === 0) {
-        return defaultUnit ? [{ singular: defaultUnit, plural: defaultUnit }] : [];
-    }
+    if (!arr || arr.length === 0) return [];
     return arr.map(function(u) {
-        if (typeof u === 'string') return { singular: u, plural: u };
-        return { singular: u.singular || u.plural || '', plural: u.plural || u.singular || '' };
-    });
+        if (typeof u === 'string') return u;
+        // Convert {singular, plural} objects to just the plural string (backward compat)
+        return u.plural || u.singular || '';
+    }).filter(function(u) { return u; });
 }
 
 function normalizeMaterialData(data) {
@@ -1677,52 +1675,43 @@ function renderMaterialSettingsItems() {
         container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
         return;
     }
-    // Remember which groups were expanded (preserved during edits)
+    // Remember which groups were expanded
     const expandedSet = new Set();
     container.querySelectorAll('.settings-material-group.expanded').forEach(el => {
-        const name = el.querySelector('.settings-material-name');
-        if (name) expandedSet.add(name.textContent);
+        const name = el.querySelector('.settings-material-name-display');
+        if (name) {
+            expandedSet.add(name.textContent);
+        }
     });
     container.innerHTML = settingsMaterials.map((item, idx) => {
         const unitLocked = item.type !== 'standard';
-        const units = unitLocked ? [{ singular: 'stk', plural: 'stk' }] : (item.allowedUnits && item.allowedUnits.length > 0 ? item.allowedUnits : (item.defaultUnit ? [{ singular: item.defaultUnit, plural: item.defaultUnit }] : []));
-        const defaultUnit = item.defaultUnit || '';
-        const unitsHtml = units.map((u, ui) => {
-            const label = typeof u === 'string' ? u : (u.singular && u.singular !== u.plural ? u.singular + ' / ' + u.plural : u.plural);
-            const unitPlural = typeof u === 'string' ? u : u.plural;
-            const isDefault = units.length === 1 || unitPlural === defaultUnit;
-            const starIcon = isDefault ? '<span class="settings-material-unit-star">★</span>' : '<span class="settings-material-unit-star empty">☆</span>';
-            const removeBtn = unitLocked ? '' : `<button class="settings-material-unit-remove" onclick="event.stopPropagation();removeMaterialUnit(${idx},${ui})">&times;</button>`;
-            const setDefaultClick = unitLocked ? '' : `event.stopPropagation();setDefaultUnit(${idx},${ui})`;
-            const editClick = unitLocked ? '' : `editMaterialUnit(${idx},${ui},this)`;
+        const variants = unitLocked ? [] : (item.allowedUnits || []);
+        const variantsHtml = variants.map((u, ui) => {
+            const label = typeof u === 'string' ? u : (u.plural || u.singular || '');
+            const isDefault = ui === 0;
+            const starIcon = isDefault ? '<span class="settings-material-unit-star" title="Standard">★</span>' : '<span class="settings-material-unit-star empty" title="Sett som standard" onclick="event.stopPropagation();setDefaultVariant(' + idx + ',' + ui + ')">☆</span>';
+            const removeBtn = `<button class="settings-material-unit-remove" onclick="event.stopPropagation();removeMaterialUnit(${idx},${ui})">&times;</button>`;
+            const editClick = `editMaterialUnit(${idx},${ui},this)`;
             return `<div class="settings-material-unit-item">
-                <span class="settings-material-unit-default" onclick="${setDefaultClick}">${starIcon}</span>
-                <span class="settings-material-unit-text" onclick="${editClick}">${escapeHtml(label)}</span>${removeBtn}</div>`;
+                ${starIcon}<span class="settings-material-unit-text" onclick="${editClick}">${escapeHtml(label)}</span>${removeBtn}</div>`;
         }).join('');
-        const addRow = unitLocked ? '' : `<div class="settings-material-unit-add" onclick="addMaterialUnit(${idx})">+ Legg til enhet</div>`;
-        // Summary line for collapsed state — show default unit (singular form)
-        var defaultSingular = '';
-        if (defaultUnit && units.length > 0) {
-            var defUnit = units.find(function(u) { return (typeof u === 'string' ? u : u.plural) === defaultUnit; });
-            defaultSingular = defUnit ? (defUnit.singular || defUnit.plural || defUnit) : defaultUnit;
-        } else if (units.length > 0) {
-            defaultSingular = units[0].singular || units[0].plural || units[0];
-        }
-        const summaryText = defaultSingular || 'Ingen enheter';
+        const addRow = unitLocked ? '' : `<div class="settings-material-unit-add" onclick="addMaterialUnit(${idx})">+ Legg til variant</div>`;
         const isExpanded = expandedSet.has(item.name);
         const matType = item.type || 'standard';
+        const bodyContent = unitLocked ? '' : `${variantsHtml}${addRow}`;
         return `<div class="settings-material-group${isExpanded ? ' expanded' : ''}">
             <div class="settings-material-header" onclick="toggleMaterialExpand(this)">
-                <span class="settings-material-name" onclick="event.stopPropagation();editSettingsMaterial(${idx})">${escapeHtml(item.name)}</span>
+                <span class="settings-material-name-display">${escapeHtml(item.name)}</span>
                 <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}">${t('material_type_' + matType)}</button>
                 <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
+                <button class="settings-material-edit-btn" onclick="event.stopPropagation();editSettingsMaterial(${idx})" title="Rediger navn">✏️</button>
                 <span class="settings-material-expand">&rsaquo;</span>
             </div>
-            <div class="settings-material-summary" onclick="toggleMaterialExpand(this.previousElementSibling)">${escapeHtml(summaryText)}</div>
-            <div class="settings-material-body">${unitsHtml}${addRow}</div>
+            <div class="settings-material-body">${bodyContent}</div>
         </div>`;
     }).join('');
 }
+
 
 function toggleMaterialExpand(headerEl) {
     const group = headerEl.closest('.settings-material-group');
@@ -1735,7 +1724,7 @@ function addMaterialUnit(idx) {
     if (!mat.allowedUnits) mat.allowedUnits = [];
     const container = document.getElementById('settings-material-items');
     const group = container.children[idx];
-    const addRow = group.querySelector('.settings-material-unit-add');
+    const addRow = group.querySelector('[data-tab="units"] .settings-material-unit-add');
     if (!addRow) return;
 
     // Check if already editing
@@ -1743,100 +1732,98 @@ function addMaterialUnit(idx) {
 
     const editRow = document.createElement('div');
     editRow.className = 'settings-material-unit-edit';
-    const inputS = document.createElement('input');
-    inputS.type = 'text';
-    inputS.placeholder = 'Entall';
-    inputS.autocapitalize = 'sentences';
-    const inputP = document.createElement('input');
-    inputP.type = 'text';
-    inputP.placeholder = 'Flertall';
-    inputP.autocapitalize = 'sentences';
-    editRow.appendChild(inputS);
-    editRow.appendChild(inputP);
+    const inputV = document.createElement('input');
+    inputV.type = 'text';
+    inputV.placeholder = 'Variantnavn';
+    inputV.autocapitalize = 'sentences';
+    var okBtn = document.createElement('button');
+    okBtn.className = 'settings-unit-save settings-unit-save-ok';
+    okBtn.textContent = 'OK';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'settings-unit-save settings-unit-cancel';
+    cancelBtn.textContent = '✕';
+    editRow.appendChild(inputV);
+    editRow.appendChild(okBtn);
+    editRow.appendChild(cancelBtn);
     addRow.before(editRow);
-    inputS.focus();
+    addRow.style.display = 'none';
+    inputV.focus();
     editRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-    let saved = false;
-    function save(e) {
-        if (saved) return;
-        // Don't save if focus moved to sibling input
-        if (e && (e.relatedTarget === inputS || e.relatedTarget === inputP)) return;
-        saved = true;
-        const singular = inputS.value.trim();
-        const plural = inputP.value.trim();
-        if (plural && !mat.allowedUnits.some(u => (typeof u === 'string' ? u : u.plural).toLowerCase() === plural.toLowerCase())) {
-            mat.allowedUnits.push({ singular: singular || plural, plural: plural });
-            if (!mat.defaultUnit) mat.defaultUnit = plural;
+    function save() {
+        const variant = inputV.value.trim();
+        if (variant && !mat.allowedUnits.some(u => (typeof u === 'string' ? u : (u.plural || u.singular || '')).toLowerCase() === variant.toLowerCase())) {
+            mat.allowedUnits.push(variant);
             saveMaterialSettings();
         }
         renderMaterialSettingsItems();
     }
-    inputS.addEventListener('blur', save);
-    inputP.addEventListener('blur', save);
+    function cancel() { renderMaterialSettingsItems(); }
+    okBtn.addEventListener('click', save);
+    cancelBtn.addEventListener('click', cancel);
     function handleKey(e) {
-        if (e.key === 'Enter') { e.preventDefault(); if (e.target === inputS) inputP.focus(); else inputP.blur(); }
-        if (e.key === 'Escape') { saved = true; renderMaterialSettingsItems(); }
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { cancel(); }
     }
-    inputS.addEventListener('keydown', handleKey);
-    inputP.addEventListener('keydown', handleKey);
+    inputV.addEventListener('keydown', handleKey);
 }
 
 function editMaterialUnit(idx, unitIdx, itemEl) {
     if (!isAdmin) return;
     const mat = settingsMaterials[idx];
     const units = mat.allowedUnits || [];
-    const oldUnit = units[unitIdx] || { singular: '', plural: '' };
-    const oldS = typeof oldUnit === 'string' ? oldUnit : oldUnit.singular;
-    const oldP = typeof oldUnit === 'string' ? oldUnit : oldUnit.plural;
+    const oldUnit = units[unitIdx] || '';
+    const oldValue = typeof oldUnit === 'string' ? oldUnit : (oldUnit.plural || oldUnit.singular || '');
 
     const editRow = document.createElement('div');
     editRow.className = 'settings-material-unit-edit';
-    const inputS = document.createElement('input');
-    inputS.type = 'text';
-    inputS.value = oldS;
-    inputS.placeholder = 'Entall';
-    const inputP = document.createElement('input');
-    inputP.type = 'text';
-    inputP.value = oldP;
-    inputP.placeholder = 'Flertall';
-    editRow.appendChild(inputS);
-    editRow.appendChild(inputP);
+    const inputV = document.createElement('input');
+    inputV.type = 'text';
+    inputV.value = oldValue;
+    inputV.placeholder = 'Variantnavn';
+    var okBtn = document.createElement('button');
+    okBtn.className = 'settings-unit-save settings-unit-save-ok';
+    okBtn.textContent = 'OK';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'settings-unit-save settings-unit-cancel';
+    cancelBtn.textContent = '✕';
+    editRow.appendChild(inputV);
+    editRow.appendChild(okBtn);
+    editRow.appendChild(cancelBtn);
     itemEl.replaceWith(editRow);
-    inputS.focus();
-    inputS.select();
+    inputV.focus();
+    inputV.select();
 
-    let saved = false;
-    function save(e) {
-        if (saved) return;
-        if (e && (e.relatedTarget === inputS || e.relatedTarget === inputP)) return;
-        saved = true;
-        const singular = inputS.value.trim();
-        const plural = inputP.value.trim();
-        if (plural && (singular !== oldS || plural !== oldP)) {
+    function save() {
+        const variant = inputV.value.trim();
+        if (variant && variant !== oldValue) {
             if (!mat.allowedUnits) mat.allowedUnits = units.slice();
-            mat.allowedUnits[unitIdx] = { singular: singular || plural, plural: plural };
-            if (unitIdx === 0) mat.defaultUnit = plural;
+            mat.allowedUnits[unitIdx] = variant;
             saveMaterialSettings();
         }
         renderMaterialSettingsItems();
     }
-    inputS.addEventListener('blur', save);
-    inputP.addEventListener('blur', save);
+    function cancel() { renderMaterialSettingsItems(); }
+    okBtn.addEventListener('click', save);
+    cancelBtn.addEventListener('click', cancel);
     function handleKey(e) {
-        if (e.key === 'Enter') { e.preventDefault(); if (e.target === inputS) inputP.focus(); else inputP.blur(); }
-        if (e.key === 'Escape') { saved = true; renderMaterialSettingsItems(); }
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { cancel(); }
     }
-    inputS.addEventListener('keydown', handleKey);
-    inputP.addEventListener('keydown', handleKey);
+    inputV.addEventListener('keydown', handleKey);
 }
 
 function setDefaultUnit(idx, unitIdx) {
+    // No longer needed — kept as no-op for backward compat
+}
+
+function setDefaultVariant(idx, unitIdx) {
     if (!isAdmin) return;
-    const mat = settingsMaterials[idx];
-    if (!mat.allowedUnits || !mat.allowedUnits[unitIdx]) return;
-    const u = mat.allowedUnits[unitIdx];
-    mat.defaultUnit = (typeof u === 'string' ? u : u.plural) || '';
+    var mat = settingsMaterials[idx];
+    if (!mat.allowedUnits || unitIdx === 0) return;
+    // Move selected variant to first position (default)
+    var variant = mat.allowedUnits.splice(unitIdx, 1)[0];
+    mat.allowedUnits.unshift(variant);
     renderMaterialSettingsItems();
     saveMaterialSettings();
 }
@@ -1844,13 +1831,12 @@ function setDefaultUnit(idx, unitIdx) {
 function removeMaterialUnit(idx, unitIdx) {
     if (!isAdmin) return;
     const mat = settingsMaterials[idx];
-    if (!mat.allowedUnits || mat.allowedUnits.length <= 1) return;
+    if (!mat.allowedUnits) return;
     mat.allowedUnits.splice(unitIdx, 1);
-    const first = mat.allowedUnits[0];
-    mat.defaultUnit = (typeof first === 'string' ? first : first.plural) || '';
     renderMaterialSettingsItems();
     saveMaterialSettings();
 }
+
 
 function toggleSettingsSection(section) {
     const body = document.getElementById('settings-body-' + section);
@@ -1861,43 +1847,31 @@ function toggleSettingsSection(section) {
 
 function updateSettingsUnitFields() {
     var type = document.getElementById('settings-new-material-type').value;
-    var singular = document.getElementById('settings-new-material-singular');
-    var plural = document.getElementById('settings-new-material-plural');
+    var variantField = document.getElementById('settings-new-material-variant');
+    var variantContainer = variantField ? variantField.closest('.settings-add-unit-fields') : null;
     var fixedUnit = type !== 'standard';
-    if (fixedUnit) {
-        singular.value = 'stk';
-        plural.value = 'stk';
-        singular.disabled = true;
-        plural.disabled = true;
-    } else {
-        if (singular.value === 'stk' && singular.disabled) singular.value = '';
-        if (plural.value === 'stk' && plural.disabled) plural.value = '';
-        singular.disabled = false;
-        plural.disabled = false;
+    if (variantContainer) {
+        variantContainer.style.display = fixedUnit ? 'none' : '';
+    }
+    if (fixedUnit && variantField) {
+        variantField.value = '';
     }
 }
 
 async function addSettingsMaterial() {
     if (!isAdmin) return;
     const input = document.getElementById('settings-new-material');
-    const singularInput = document.getElementById('settings-new-material-singular');
-    const pluralInput = document.getElementById('settings-new-material-plural');
+    const variantInput = document.getElementById('settings-new-material-variant');
     const val = input.value.trim();
     const typeSelect = document.getElementById('settings-new-material-type');
     const type = typeSelect.value;
-    const singular = singularInput.value.trim();
-    const plural = pluralInput.value.trim();
-    const needsUnit = type === 'standard';
+    const variant = variantInput.value.trim();
 
-    // Validate all required fields
-    if (!val || (needsUnit && (!singular || !plural))) {
-        if (!val) input.classList.add('settings-input-error');
-        if (needsUnit && !singular) singularInput.classList.add('settings-input-error');
-        if (needsUnit && !plural) pluralInput.classList.add('settings-input-error');
+    // Validate required fields
+    if (!val) {
+        input.classList.add('settings-input-error');
         setTimeout(() => {
             input.classList.remove('settings-input-error');
-            singularInput.classList.remove('settings-input-error');
-            pluralInput.classList.remove('settings-input-error');
         }, 1500);
         return;
     }
@@ -1906,22 +1880,17 @@ async function addSettingsMaterial() {
         return;
     }
     const allowedUnits = [];
-    let defaultUnit = '';
-    if (singular || plural) {
-        const unitObj = { singular: singular || plural, plural: plural || singular };
-        allowedUnits.push(unitObj);
-        defaultUnit = unitObj.plural;
+    let defaultUnit = 'stk';
+    if (type === 'standard' && variant) {
+        allowedUnits.push(variant);
     }
     if (type !== 'standard') {
         defaultUnit = 'stk';
-        allowedUnits.length = 0;
-        allowedUnits.push({ singular: 'stk', plural: 'stk' });
     }
     settingsMaterials.push({ name: val, type: type, defaultUnit: defaultUnit, allowedUnits: allowedUnits });
     settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
     input.value = '';
-    singularInput.value = '';
-    pluralInput.value = '';
+    variantInput.value = '';
     typeSelect.value = 'standard';
     updateSettingsUnitFields();
     renderMaterialSettingsItems();
@@ -1945,7 +1914,7 @@ function editSettingsMaterial(idx) {
     if (!isAdmin) return;
     const container = document.getElementById('settings-material-items');
     const item = container.children[idx];
-    const span = item.querySelector('.settings-material-name') || item.querySelector('span');
+    const span = item.querySelector('.settings-material-name-display');
     if (!span) return;
     const oldVal = settingsMaterials[idx].name;
     const input = document.createElement('input');
@@ -1963,9 +1932,8 @@ function editSettingsMaterial(idx) {
         const newVal = input.value.trim();
         if (!newVal || newVal === oldVal) {
             const newSpan = document.createElement('span');
-            newSpan.className = 'settings-material-name';
+            newSpan.className = 'settings-material-name-display';
             newSpan.textContent = oldVal;
-            newSpan.setAttribute('onclick', 'event.stopPropagation();editSettingsMaterial(' + idx + ')');
             if (input.parentNode) input.replaceWith(newSpan);
             return;
         }
@@ -3715,7 +3683,9 @@ function buildServiceExportTable() {
     // Get ALL materials from settings (not just used ones)
     var allMats = cachedMaterialOptions || [];
     var matNames = allMats.map(function(m) {
-        return m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
+        if (!m.name) return '';
+        var n = m.name.charAt(0).toUpperCase() + m.name.slice(1);
+        return formatKabelhylseSpec(n.replace(/ø(?=\d)/g, 'Ø'));
     });
 
     // 7 columns per row, minimum 2 rows, expands if more materials
@@ -3745,7 +3715,7 @@ function buildServiceExportTable() {
                 if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
                     var pipeInfo = getRunningMeterInfo(m.name);
                     var pipes = parseFloat((m.antall || '').replace(',', '.'));
-                    var spec = m.name.substring(baseName.length + 1);
+                    var spec = formatKabelhylseSpec(m.name.substring(baseName.length + 1).replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
                     if (hasLM && pipeInfo && !isNaN(pipes) && pipes > 0) {
                         // Mansjett/Brannpakning: show only running meters
                         var lm = calculateRunningMeters(pipeInfo, pipes);
@@ -3754,7 +3724,7 @@ function buildServiceExportTable() {
                         // Kabelhylse: show spec + antall + enhet on one line
                         var text = '';
                         if (spec) text += escapeHtml(spec);
-                        if (m.antall) text += ' ' + escapeHtml((m.antall || '').replace('.', ',')) + ' ' + escapeHtml(m.enhet || 'stk');
+                        if (m.antall) text += ' ' + escapeHtml((m.antall || '').replace('.', ',')) + ' stk';
                         lines.push(text.trim());
                     }
                 }
@@ -3765,7 +3735,12 @@ function buildServiceExportTable() {
             var matched = [];
             mats.forEach(function(m) {
                 if (m.name && m.name.toLowerCase() === baseName.toLowerCase() && m.antall) {
-                    matched.push(escapeHtml((m.antall || '').replace('.', ',')) + ' ' + escapeHtml(m.enhet || ''));
+                    var variantSuffix = '';
+                    var mEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
+                    if (mEnhet && mEnhet !== 'stk' && mEnhet !== 'meter') {
+                        variantSuffix = ' ' + mEnhet;
+                    }
+                    matched.push(escapeHtml((m.antall || '').replace('.', ',')) + ' stk' + escapeHtml(variantSuffix));
                 }
             });
             return matched.join('<br>');
@@ -4614,9 +4589,58 @@ function renderBilHistory() {
             : (item.prosjektnr ? item.prosjektnr + (item.prosjektnavn ? ' \u2014 ' + item.prosjektnavn : '') : item.dato);
 
         var matsHtml = '';
-        for (var j2 = 0; j2 < item.materials.length; j2++) {
-            var m = item.materials[j2];
-            matsHtml += '<div class="bil-history-mat">' + escapeHtml(m.name) + ' ' + escapeHtml(m.antall || '0') + ' ' + escapeHtml(m.enhet || '') + '</div>';
+        // Helper to build detail parts for a material
+        function buildBilDetail(m) {
+            var detailParts = [];
+            var pipeInfo = getRunningMeterInfo(m.name);
+            var pipes = parseFloat((m.antall || '').replace(',', '.'));
+            if (pipeInfo && !isNaN(pipes) && pipes > 0) {
+                var lm = calculateRunningMeters(pipeInfo, pipes);
+                detailParts.push(escapeHtml(m.antall || '0') + ' stk');
+                detailParts.push(formatRunningMeters(lm) + ' meter');
+            } else {
+                detailParts.push(escapeHtml(m.antall || '0') + ' stk');
+            }
+            return detailParts.join(' ');
+        }
+        // Helper to format a full material name (with variant appended)
+        function formatBilName(m) {
+            var bilName = (m.name || '');
+            bilName = bilName.charAt(0).toUpperCase() + bilName.slice(1);
+            bilName = formatKabelhylseSpec(bilName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+            var bilEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
+            if (bilEnhet && bilEnhet !== 'stk' && bilEnhet !== 'meter') {
+                bilName += ' ' + bilEnhet;
+            }
+            return bilName;
+        }
+        var bilGroups = groupMaterialsByBase(item.materials);
+        for (var g = 0; g < bilGroups.length; g++) {
+            var bilGroup = bilGroups[g];
+            if (!bilGroup.isSpecGroup) {
+                for (var fi = 0; fi < bilGroup.items.length; fi++) {
+                    var m = bilGroup.items[fi];
+                    matsHtml += '<div class="bil-history-mat"><div class="mat-summary-row">'
+                        + '<span class="mat-summary-name">' + escapeHtml(formatBilName(m)) + '</span>'
+                        + '<span class="mat-summary-detail">' + buildBilDetail(m) + '</span>'
+                        + '</div></div>';
+                }
+            } else {
+                matsHtml += '<div class="bil-history-mat"><div class="bil-history-group-header">'
+                    + escapeHtml(bilGroup.baseName.charAt(0).toUpperCase() + bilGroup.baseName.slice(1))
+                    + '</div>';
+                for (var gi = 0; gi < bilGroup.items.length; gi++) {
+                    var gm = bilGroup.items[gi];
+                    var subName = getGroupedDisplayName(gm, bilGroup.baseName);
+                    subName = subName.charAt(0).toUpperCase() + subName.slice(1);
+                    subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+                    matsHtml += '<div class="bil-history-grouped"><div class="mat-summary-row">'
+                        + '<span class="mat-summary-name">' + escapeHtml(subName) + '</span>'
+                        + '<span class="mat-summary-detail">' + buildBilDetail(gm) + '</span>'
+                        + '</div></div>';
+                }
+                matsHtml += '</div>';
+            }
         }
 
         var deleteBtn = isPafylling

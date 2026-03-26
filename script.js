@@ -17,6 +17,96 @@ let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 function sortUnits(arr) { arr.sort((a, b) => (a.plural || '').localeCompare(b.plural || '', 'no')); }
 
+// Normalize kabelhylse formats and ensure consistent × usage
+function formatKabelhylseSpec(name) {
+    return name
+        .replace(/Ø(\d+)mm Dybde (\d+)mm/, 'Ø$1mm (d$2mm)')
+        .replace(/Ø(\d+)mm dyp (\d+)/, 'Ø$1mm (d$2mm)')
+        .replace(/Ø(\d+)mm \(d(\d+)\)/, 'Ø$1mm (d$2mm)')
+        .replace(/Ø(\d+)x(\d+)mm\b/, 'Ø$1mm (d$2mm)')
+        .replace(/(\d+)x(\d+)mm Dybde (\d+)mm/, '$1×$2mm (d$3mm)')
+        .replace(/(\d+)x(\d+)mm dyp (\d+)/, '$1×$2mm (d$3mm)')
+        .replace(/(\d+)x(\d+)mm \(d(\d+)\)/, '$1×$2mm (d$3mm)')
+        .replace(/(\d+)x(\d+)x(\d+)mm/, '$1×$2mm (d$3mm)')
+        .replace(/(\d+)x(\d+)/, '$1×$2');
+}
+
+function getBaseMaterialName(name) {
+    if (cachedMaterialOptions) {
+        var specBase = cachedMaterialOptions.find(function(m) {
+            return (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse') &&
+                name.toLowerCase().startsWith(m.name.toLowerCase() + ' ');
+        });
+        if (specBase) return specBase.name;
+    }
+    return name;
+}
+
+function groupMaterialsByBase(materials) {
+    var groups = [];
+    var groupMap = {};
+    materials.forEach(function(m) {
+        var baseName = getBaseMaterialName(m.name || '');
+        var isSpec = baseName !== (m.name || ''); // true if name was shortened (spec-derived)
+        if (isSpec && groupMap[baseName]) {
+            // Add to existing spec group
+            groupMap[baseName].items.push(m);
+        } else if (isSpec) {
+            // Start new spec group
+            groupMap[baseName] = { baseName: baseName, items: [m], isSpecGroup: true };
+            groups.push(groupMap[baseName]);
+        } else {
+            // Standard material — always flat (own group with 1 item)
+            groups.push({ baseName: baseName, items: [m], isSpecGroup: false });
+        }
+    });
+    // Sort: single/standard items first, then spec groups
+    groups.sort(function(a, b) {
+        var aSpec = a.isSpecGroup && a.items.length >= 1 ? 1 : 0;
+        var bSpec = b.isSpecGroup && b.items.length >= 1 ? 1 : 0;
+        if (aSpec !== bSpec) return aSpec - bSpec;
+        return a.baseName.localeCompare(b.baseName, 'nb');
+    });
+    return groups;
+}
+
+// Get display name for a sub-item within a group (strip base name for spec materials, show variant for standard)
+function getGroupedDisplayName(m, baseName) {
+    var name = m.name || '';
+    // For spec-derived materials, strip the base name prefix to show just the spec
+    if (name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
+        return name.substring(baseName.length + 1);
+    }
+    // For standard materials with variants (like FSA), show the variant from enhet
+    var enhetVal = normalizeVariant(name, m.enhet || '').toLowerCase();
+    if (enhetVal && enhetVal !== 'stk' && enhetVal !== 'meter') {
+        return enhetVal;
+    }
+    return name;
+}
+
+// Normalize stored enhet against current variant names from settings
+function normalizeVariant(materialName, enhet) {
+    if (!enhet || enhet === 'stk' || enhet === 'meter') return enhet;
+    if (!cachedMaterialOptions) return enhet;
+    var matConfig = cachedMaterialOptions.find(function(cm) { return cm.name.toLowerCase() === materialName.toLowerCase(); });
+    if (!matConfig || !matConfig.allowedUnits || matConfig.allowedUnits.length === 0) return enhet;
+    // Check if stored enhet matches a variant (case-insensitive, startsWith to handle old plural forms)
+    var enhetLower = enhet.toLowerCase();
+    for (var i = 0; i < matConfig.allowedUnits.length; i++) {
+        var v = matConfig.allowedUnits[i];
+        var variantName = (typeof v === 'string' ? v : (v.plural || v.singular || v)).toLowerCase();
+        if (enhetLower === variantName || enhetLower.startsWith(variantName) || variantName.startsWith(enhetLower)) {
+            return typeof v === 'string' ? v : (v.plural || v.singular || v);
+        }
+    }
+    return enhet;
+}
+
+function getInflectedUnit(materialName, enhet, antall) {
+    return enhet || '';
+}
+
 // Safe JSON parse from localStorage - prevents crash on corrupt data
 function safeParseJSON(key, fallback) {
     try { var v = JSON.parse(localStorage.getItem(key)); return v || fallback; }
@@ -849,29 +939,42 @@ function formatRunningMeters(value) {
     return value.toFixed(2).replace('.', ',');
 }
 
-function createMaterialSummaryRow(m) {
+function createMaterialSummaryRow(m, groupBaseName) {
     const div = document.createElement('div');
     div.className = 'mobile-material-row';
     div.setAttribute('data-mat-name', m.name || '');
     div.setAttribute('data-mat-antall', m.antall || '');
     div.setAttribute('data-mat-enhet', m.enhet || '');
-    const nameDisplay = (m.name || '').replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
-    const nameText = escapeHtml(nameDisplay) || t('placeholder_material');
+    var nameFormatted;
+    if (groupBaseName) {
+        // Grouped sub-row: show just the spec/variant part
+        var subName = getGroupedDisplayName(m, groupBaseName);
+        subName = subName.charAt(0).toUpperCase() + subName.slice(1);
+        nameFormatted = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+    } else {
+        var rawName = (m.name || '');
+        rawName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+        nameFormatted = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+        // Append variant to name if enhet is not stk/meter (it's a variant like "patron")
+        var enhetVal = normalizeVariant(m.name, m.enhet || '').toLowerCase();
+        if (enhetVal && enhetVal !== 'stk' && enhetVal !== 'meter') {
+            nameFormatted += ' ' + enhetVal;
+        }
+    }
+    const nameText = escapeHtml(nameFormatted) || t('placeholder_material');
     const detailParts = [];
     const pipeInfo = getRunningMeterInfo(m.name);
     if (pipeInfo && m.antall) {
         var pipes = parseFloat((m.antall || '').replace(',', '.'));
         if (!isNaN(pipes) && pipes > 0) {
             var lm = calculateRunningMeters(pipeInfo, pipes);
-            detailParts.push(escapeHtml(m.antall) + ' ' + escapeHtml(m.enhet || 'stk'));
+            detailParts.push(escapeHtml(m.antall) + ' stk');
             detailParts.push(formatRunningMeters(lm) + ' meter');
         } else {
-            if (m.antall) detailParts.push(escapeHtml(m.antall));
-            if (m.enhet) detailParts.push(escapeHtml(m.enhet));
+            if (m.antall) detailParts.push(escapeHtml(m.antall) + ' stk');
         }
     } else {
-        if (m.antall) detailParts.push(escapeHtml(m.antall));
-        if (m.enhet) detailParts.push(escapeHtml(m.enhet));
+        if (m.antall) detailParts.push(escapeHtml(m.antall) + ' stk');
     }
     const detail = detailParts.length > 0 ? detailParts.join(' ') : '';
     div.innerHTML = `
@@ -884,16 +987,35 @@ function createMaterialSummaryRow(m) {
 
 function renderMaterialSummary(matContainer, materials) {
     matContainer.innerHTML = '';
-    materials.forEach(m => {
-        if (!m.name && !m.antall && !m.enhet) return;
-        // Skip spec-base materials
-        if (cachedMaterialOptions) {
+    // Filter out empty and spec-base materials first
+    var filtered = materials.filter(function(m) {
+        if (!m.name && !m.antall && !m.enhet) return false;
+        if (cachedMaterialOptions && m.enhet !== 'meter') {
             var specBase = cachedMaterialOptions.find(function(o) {
                 return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
             });
-            if (specBase) return;
+            if (specBase) return false;
         }
-        matContainer.appendChild(createMaterialSummaryRow(m));
+        return true;
+    });
+    // Group by base material name
+    var groups = groupMaterialsByBase(filtered);
+    groups.forEach(function(group) {
+        if (!group.isSpecGroup) {
+            // Standard material or single spec — render flat
+            group.items.forEach(function(m) { matContainer.appendChild(createMaterialSummaryRow(m)); });
+        } else {
+            // Spec group with multiple items — header + indented sub-rows
+            var headerDiv = document.createElement('div');
+            headerDiv.className = 'mat-summary-group-header';
+            headerDiv.textContent = group.baseName.charAt(0).toUpperCase() + group.baseName.slice(1);
+            matContainer.appendChild(headerDiv);
+            group.items.forEach(function(m) {
+                var subRow = createMaterialSummaryRow(m, group.baseName);
+                subRow.classList.add('mat-summary-grouped');
+                matContainer.appendChild(subRow);
+            });
+        }
     });
 }
 
@@ -934,11 +1056,13 @@ function openMaterialPicker(btn, onConfirm) {
     var dupCounters = {};
     existing.forEach(m => {
         if (m.name) {
-            // Skip spec-base materials (e.g. "FSC" when type is mansjett/brannpakning/kabelhylse)
-            var isSpecBase = allMaterials.some(function(o) {
-                return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
-            });
-            if (isSpecBase) return;
+            // Skip spec-base materials (e.g. "FSC" when type is mansjett/brannpakning/kabelhylse), but not direct meter entries
+            if (m.enhet !== 'meter') {
+                var isSpecBase = allMaterials.some(function(o) {
+                    return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
+                });
+                if (isSpecBase) return;
+            }
             // If this name already exists in pickerState, use __N suffix for duplicates
             if (pickerState[m.name]) {
                 if (!dupCounters[m.name]) dupCounters[m.name] = 1;
@@ -951,16 +1075,19 @@ function openMaterialPicker(btn, onConfirm) {
     });
 
     function formatDisplayName(name) {
-        // Convert "FSW ø50r2" to "FSW ø50 (2r)" for display
-        var match = name.match(/^(.+ ø\d+)r(\d+)$/);
-        if (match) return match[1] + ' (' + match[2] + 'r)';
-        return name;
+        // Capitalize first letter, normalize ø→Ø for diameter, format kabelhylse, format rounds
+        var normalized = name.charAt(0).toUpperCase() + name.slice(1);
+        normalized = normalized.replace(/ø(?=\d)/g, 'Ø');
+        normalized = formatKabelhylseSpec(normalized);
+        normalized = normalized.replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+        return normalized;
     }
 
-    function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride) {
+    function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride, hasVariants) {
         const displayName = displayNameOverride ? formatDisplayName(displayNameOverride) : formatDisplayName(name);
-        const enhetLabel = enhet || t('placeholder_unit');
-        const enhetClass = enhet ? '' : ' placeholder';
+        const enhetLower = (enhet || '').toLowerCase();
+        const enhetLabel = enhetLower || 'stk';
+        const enhetClass = '';
         const isLauncher = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
         const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>';
         const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
@@ -970,11 +1097,15 @@ function openMaterialPicker(btn, onConfirm) {
         const specBadge = typeDot;
         const lmBadge = '';
         const antallPlaceholder = t('placeholder_quantity');
-        const readonlyAttr = isChecked ? '' : ' readonly';
+        const disabledAttr = isChecked ? '' : ' disabled';
+        const isClickableEnhet = hasVariants || (enhetLower && enhetLower !== 'stk');
+        const enhetHtml = isClickableEnhet
+            ? `<button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhetLower)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>`
+            : `<span class="picker-mat-enhet-static">${escapeHtml(enhetLabel)}</span>`;
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${specBadge}${lmBadge}</div>
-            <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${readonlyAttr}>
-            <button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhet)}">${escapeHtml(enhetLabel)}</button>${dupBtn}
+            <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
+            ${enhetHtml}${dupBtn}
         </div>`;
     }
 
@@ -998,11 +1129,13 @@ function openMaterialPicker(btn, onConfirm) {
                     entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: matObj.defaultUnit || '', matType: matType, isSpecDerived: false });
                 }
             } else {
+                // Standard material — use default variant as enhet if available
                 const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
                 const isChecked = state && state.checked;
-                const defUnit = matObj.defaultUnit || '';
-                const enhet = state ? (state.enhet || defUnit) : defUnit;
-                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: enhet, matType: 'standard', isSpecDerived: false });
+                var hasVariants = matObj.allowedUnits && matObj.allowedUnits.length > 0;
+                var defaultVariant = hasVariants ? (typeof matObj.allowedUnits[0] === 'string' ? matObj.allowedUnits[0] : (matObj.allowedUnits[0].plural || matObj.allowedUnits[0])) : '';
+                const enhet = state ? (state.enhet || defaultVariant || 'stk') : (defaultVariant || 'stk');
+                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: enhet, matType: 'standard', isSpecDerived: false, hasVariants: hasVariants });
             }
         });
 
@@ -1010,6 +1143,12 @@ function openMaterialPicker(btn, onConfirm) {
         Object.keys(pickerState).forEach(name => {
             const state = pickerState[name];
             const baseMat = findBaseMaterial(name);
+            // Check for meter entries (e.g. "FSW__meter")
+            const meterMatch = name.match(/^(.+)__meter$/);
+            if (meterMatch) {
+                entries.push({ name, displayName: meterMatch[1], isChecked: state.checked, antall: state.antall || '', enhet: 'meter', matType: 'standard', isSpecDerived: true });
+                return;
+            }
             // Check for duplicate entries (e.g. "FSA__2")
             const dupMatch = name.match(/^(.+)__(\d+)$/);
             if (dupMatch) {
@@ -1018,9 +1157,8 @@ function openMaterialPicker(btn, onConfirm) {
                 entries.push({ name, displayName: baseName, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', matType: 'standard', isSpecDerived: true });
             } else if (baseMat) {
                 // Spec-derived entry (e.g. "Kabelhylse ø50x250mm")
-                const defUnit = (baseMat.type === 'mansjett' || baseMat.type === 'brannpakning') ? 'stk' : (baseMat.defaultUnit || '');
-                const enhet = state.enhet || defUnit;
-                if (!state.enhet && defUnit) state.enhet = defUnit;
+                const enhet = state.enhet || 'stk';
+                if (!state.enhet) state.enhet = 'stk';
                 entries.push({ name, isChecked: state.checked, antall: state.antall || '', enhet: enhet, matType: 'standard', isSpecDerived: true });
             } else if (state.checked && !allMaterials.some(m => m.name.toLowerCase() === name.toLowerCase())) {
                 // Custom entry not in settings — only show when checked
@@ -1031,9 +1169,88 @@ function openMaterialPicker(btn, onConfirm) {
         // Sort alphabetically
         entries.sort((a, b) => a.name.localeCompare(b.name, 'nb'));
 
+        // Group entries by base material name
+        var pickerGroups = [];
+        var pickerGroupMap = {};
+        entries.forEach(function(e) {
+            // Determine base name for grouping
+            var baseName;
+            var dupMatch = e.name.match(/^(.+)__(\d+)$/);
+            var meterMatch = e.name.match(/^(.+)__meter$/);
+            if (dupMatch) {
+                baseName = dupMatch[1];
+            } else if (meterMatch) {
+                baseName = meterMatch[1];
+            } else {
+                var specBase = findBaseMaterial(e.name);
+                baseName = specBase ? specBase.name : e.name;
+            }
+            if (!pickerGroupMap[baseName]) {
+                // Find type for group header
+                var baseMatObj = allMaterials.find(function(m) { return m.name === baseName; });
+                var groupType = baseMatObj ? (baseMatObj.type || 'standard') : 'standard';
+                var isSpec = groupType === 'mansjett' || groupType === 'brannpakning' || groupType === 'kabelhylse';
+                pickerGroupMap[baseName] = { baseName: baseName, items: [], groupType: groupType, isSpecGroup: isSpec };
+                pickerGroups.push(pickerGroupMap[baseName]);
+            }
+            pickerGroupMap[baseName].items.push(e);
+        });
+
+        // Sort: flat items first, spec groups last
+        pickerGroups.sort(function(a, b) {
+            var aIsGroup = a.isSpecGroup && a.items.length >= 1 ? 1 : 0;
+            var bIsGroup = b.isSpecGroup && b.items.length >= 1 ? 1 : 0;
+            if (aIsGroup !== bIsGroup) return aIsGroup - bIsGroup;
+            return a.baseName.localeCompare(b.baseName, 'nb');
+        });
+
         let html = '';
-        entries.forEach(e => {
-            html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName);
+        pickerGroups.forEach(function(group) {
+            if (!group.isSpecGroup) {
+                // Standard material or single spec — render flat
+                group.items.forEach(function(e) {
+                    html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName, e.hasVariants);
+                });
+            } else {
+                // Multi-item group — render header + indented sub-rows
+                var gType = group.groupType;
+                var isSpec = gType === 'mansjett' || gType === 'brannpakning' || gType === 'kabelhylse';
+                var typeDot = gType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
+                    : gType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
+                    : gType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
+                    : '';
+                html += '<div class="picker-mat-group-header" data-mat-name="' + escapeHtml(group.baseName) + '" data-mat-type="' + (gType || 'standard') + '">'
+                    + '<span class="picker-mat-name">' + escapeHtml(group.baseName) + '</span>' + typeDot + '</div>';
+                group.items.forEach(function(e) {
+                    // Build sub-row display name: strip base name for spec-derived, show variant for duplicates
+                    var subDisplay = e.displayName || e.name;
+                    if (isSpec && e.name.toLowerCase().startsWith(group.baseName.toLowerCase() + ' ')) {
+                        subDisplay = e.name.substring(group.baseName.length + 1);
+                    } else if (e.name.match(/^(.+)__(\d+)$/)) {
+                        // Duplicate: show variant from enhet if available
+                        var dupEnhet = normalizeVariant(group.baseName, e.enhet || '').toLowerCase();
+                        if (dupEnhet && dupEnhet !== 'stk' && dupEnhet !== 'meter') {
+                            subDisplay = dupEnhet.charAt(0).toUpperCase() + dupEnhet.slice(1);
+                        } else {
+                            subDisplay = group.baseName;
+                        }
+                    } else if (e.name === group.baseName) {
+                        // Original entry with variant
+                        var origEnhet = normalizeVariant(group.baseName, e.enhet || '').toLowerCase();
+                        if (origEnhet && origEnhet !== 'stk' && origEnhet !== 'meter') {
+                            subDisplay = origEnhet.charAt(0).toUpperCase() + origEnhet.slice(1);
+                        }
+                    }
+                    // For meter entries, show base name + "meter"
+                    if (e.name.match(/^(.+)__meter$/)) {
+                        subDisplay = e.displayName || group.baseName;
+                    }
+                    var rowHtml = buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, subDisplay, e.hasVariants);
+                    // Add grouped class to the row
+                    rowHtml = rowHtml.replace('class="picker-mat-row', 'class="picker-mat-row picker-mat-grouped');
+                    html += rowHtml;
+                });
+            }
         });
 
         if (!html) {
@@ -1045,6 +1262,40 @@ function openMaterialPicker(btn, onConfirm) {
     }
 
     function attachRowListeners() {
+        // Group header click handlers
+        list.querySelectorAll('.picker-mat-group-header').forEach(function(header) {
+            header.addEventListener('click', function() {
+                var headerName = header.getAttribute('data-mat-name');
+                var headerType = header.getAttribute('data-mat-type') || 'standard';
+                if (headerType === 'mansjett' || headerType === 'brannpakning' || headerType === 'kabelhylse') {
+                    // Spec material header: open spec popup
+                    openSpecPopup(headerName, function(spec, meterValue) {
+                        if (meterValue !== undefined) {
+                            pickerState[headerName + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                        } else {
+                            var fullName = headerName + ' ' + spec;
+                            pickerState[fullName] = { checked: true, antall: '', enhet: 'stk' };
+                        }
+                        renderPickerList();
+                    }, headerType);
+                } else {
+                    // Standard material with variants: toggle with default variant
+                    var stdMatObj = allMaterials.find(function(m) { return m.name === headerName; });
+                    var stdVariants = stdMatObj && stdMatObj.allowedUnits && stdMatObj.allowedUnits.length > 0 ? stdMatObj.allowedUnits : null;
+                    var defaultEnhet = stdVariants ? (typeof stdVariants[0] === 'string' ? stdVariants[0] : (stdVariants[0].plural || stdVariants[0])) : 'stk';
+                    var isChecked = pickerState[headerName] && pickerState[headerName].checked;
+                    if (isChecked) {
+                        pickerState[headerName].checked = false;
+                    } else {
+                        pickerState[headerName] = pickerState[headerName] || { checked: false, antall: '', enhet: defaultEnhet };
+                        pickerState[headerName].checked = true;
+                        if (!pickerState[headerName].enhet) pickerState[headerName].enhet = defaultEnhet;
+                    }
+                    renderPickerList();
+                }
+            });
+        });
+
         list.querySelectorAll('.picker-mat-row').forEach(row => {
             const nameDiv = row.querySelector('.picker-mat-check');
             const antallInput = row.querySelector('.picker-mat-antall');
@@ -1055,22 +1306,29 @@ function openMaterialPicker(btn, onConfirm) {
             nameDiv.addEventListener('click', function() {
                 if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
                     const baseMat = allMaterials.find(m => m.name === name);
-                    openSpecPopup(name, function(spec) {
-                        var fullName = name + ' ' + spec;
-                        var defUnit = baseMat ? ((baseMat.type === 'mansjett' || baseMat.type === 'brannpakning') ? 'stk' : (baseMat.defaultUnit || '')) : '';
-                        pickerState[fullName] = { checked: true, antall: '', enhet: defUnit };
+                    openSpecPopup(name, function(spec, meterValue) {
+                        if (meterValue !== undefined) {
+                            pickerState[name + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                        } else {
+                            var fullName = name + ' ' + spec;
+                            pickerState[fullName] = { checked: true, antall: '', enhet: 'stk' };
+                        }
                         renderPickerList();
                     }, matType);
                     return;
                 }
+                // Standard material: toggle with default variant as enhet
+                var stdMatObj = allMaterials.find(m => m.name === name);
+                var stdVariants = stdMatObj && stdMatObj.allowedUnits && stdMatObj.allowedUnits.length > 0 ? stdMatObj.allowedUnits : null;
+                var defaultEnhet = stdVariants ? (typeof stdVariants[0] === 'string' ? stdVariants[0] : (stdVariants[0].plural || stdVariants[0])) : 'stk';
                 const isChecked = pickerState[name] && pickerState[name].checked;
                 if (isChecked) {
                     pickerState[name].checked = false;
                 } else {
-                    pickerState[name] = pickerState[name] || { checked: false, antall: '', enhet: '' };
+                    pickerState[name] = pickerState[name] || { checked: false, antall: '', enhet: defaultEnhet };
                     pickerState[name].checked = true;
                     pickerState[name].antall = antallInput.value;
-                    pickerState[name].enhet = enhetBtn.getAttribute('data-enhet') || '';
+                    if (!pickerState[name].enhet) pickerState[name].enhet = defaultEnhet;
                 }
                 renderPickerList();
             });
@@ -1080,21 +1338,34 @@ function openMaterialPicker(btn, onConfirm) {
                 if (!pickerState[name] || !pickerState[name].checked) return;
                 pickerState[name].antall = this.value;
                 // Capture default enhet from button if not already set in state
-                if (!pickerState[name].enhet) {
+                if (!pickerState[name].enhet && enhetBtn) {
                     var btnEnhet = enhetBtn.getAttribute('data-enhet') || '';
                     if (btnEnhet) pickerState[name].enhet = btnEnhet;
                 }
             });
 
-            enhetBtn.addEventListener('click', function(e) {
+            if (enhetBtn) enhetBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 // Only allow unit picker if material is checked
                 if (!pickerState[name] || !pickerState[name].checked) return;
-                // Find allowed units for this material (handle __N keys)
+                // Find material object (handle __N keys)
+                if (!pickerState[name] || !pickerState[name].checked) return;
                 var lookupName = name.replace(/__\d+$/, '');
                 var matObj = allMaterials.find(m => m.name === lookupName) || findBaseMaterial(name);
-                var allowed = matObj && matObj.allowedUnits && matObj.allowedUnits.length > 0 ? matObj.allowedUnits : (matObj && matObj.defaultUnit ? [matObj.defaultUnit] : []);
-                openUnitPicker(name, this, allowed);
+                var variants = matObj && matObj.allowedUnits && matObj.allowedUnits.length > 0 ? matObj.allowedUnits : null;
+                if (variants) {
+                    var btnEl = this;
+                    var options = [];
+                    variants.forEach(function(v) {
+                        var label = typeof v === 'string' ? v : (v.plural || v);
+                        options.push({ label: label, type: 'variant' });
+                    });
+                    openVariantPopup(matObj.name, options, function(selected, type) {
+                        pickerState[name].enhet = selected;
+                        btnEl.setAttribute('data-enhet', selected);
+                        btnEl.textContent = selected;
+                    });
+                }
             });
 
             // Duplicate button
@@ -1117,20 +1388,25 @@ function openMaterialPicker(btn, onConfirm) {
                         // Spec material: open spec popup to add another variant
                         var specName = specBaseMat.name;
                         var specType = specBaseMat.type;
-                        openSpecPopup(specName, function(spec) {
-                            var fullName = specName + ' ' + spec;
-                            var defUnit = (specType === 'mansjett' || specType === 'brannpakning') ? 'stk' : (specBaseMat.defaultUnit || '');
-                            pickerState[fullName] = { checked: true, antall: '', enhet: defUnit };
+                        openSpecPopup(specName, function(spec, meterValue) {
+                            if (meterValue !== undefined) {
+                                pickerState[specName + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                            } else {
+                                var fullName = specName + ' ' + spec;
+                                pickerState[fullName] = { checked: true, antall: '', enhet: 'stk' };
+                            }
                             renderPickerList();
                         }, specType);
                     } else {
-                        // Standard material: create __N duplicate with default unit
-                        var matObj = allMaterials.find(m => m.name === baseName);
-                        var defUnit = matObj ? (matObj.defaultUnit || '') : '';
+                        // Standard material: create __N duplicate with default variant
+                        var dupMatObj = allMaterials.find(m => m.name === baseName);
+                        var defEnhet = dupMatObj && dupMatObj.allowedUnits && dupMatObj.allowedUnits.length > 0
+                            ? (typeof dupMatObj.allowedUnits[0] === 'string' ? dupMatObj.allowedUnits[0] : (dupMatObj.allowedUnits[0].plural || dupMatObj.allowedUnits[0]))
+                            : 'stk';
                         var n = 2;
                         while (pickerState[baseName + '__' + n]) n++;
                         var newKey = baseName + '__' + n;
-                        pickerState[newKey] = { checked: false, antall: '', enhet: defUnit };
+                        pickerState[newKey] = { checked: false, antall: '', enhet: defEnhet };
                         renderPickerList();
                     }
                 });
@@ -1151,6 +1427,7 @@ function closePickerOverlay() {
 // Spec popup for materials that need a specification
 let specPopupCallback = null;
 let specPopupMatType = 'kabelhylse'; // 'mansjett' | 'brannpakning' | 'kabelhylse'
+let specMeterMode = false;
 
 function openSpecPopup(baseName, callback, matType) {
     specPopupMatType = matType || 'kabelhylse';
@@ -1194,6 +1471,20 @@ function openSpecPopup(baseName, callback, matType) {
     input3.inputMode = 'numeric';
     input3.pattern = '[0-9]*';
 
+    // Meter mode toggle (only for mansjett/brannpakning)
+    specMeterMode = false;
+    var meterToggle = document.getElementById('spec-popup-meter-toggle');
+    var meterField = document.getElementById('spec-popup-meter-field');
+    var meterInput = document.getElementById('spec-popup-meter-input');
+    meterInput.value = '';
+    meterField.style.display = 'none';
+    if (specPopupMatType === 'mansjett' || specPopupMatType === 'brannpakning') {
+        meterToggle.style.display = '';
+        meterToggle.textContent = 'Eller fyll inn meter direkte';
+    } else {
+        meterToggle.style.display = 'none';
+    }
+
     specPopupCallback = callback;
     var keyHandler = function(e) {
         if (e.key === 'Enter') { e.preventDefault(); confirmSpecPopup(); }
@@ -1202,6 +1493,7 @@ function openSpecPopup(baseName, callback, matType) {
     input.onkeydown = keyHandler;
     input2.onkeydown = keyHandler;
     input3.onkeydown = keyHandler;
+    meterInput.onkeydown = keyHandler;
     document.getElementById('spec-popup').classList.add('active');
     setTimeout(function() { input.focus(); }, 100);
 }
@@ -1210,9 +1502,46 @@ function closeSpecPopup() {
     document.getElementById('spec-popup').classList.remove('active');
     specPopupCallback = null;
     specPopupMatType = 'kabelhylse';
+    specMeterMode = false;
+}
+
+function toggleSpecMeterMode() {
+    specMeterMode = !specMeterMode;
+    var field1 = document.getElementById('spec-popup-input').parentElement;
+    var field2 = document.getElementById('spec-popup-field2');
+    var field3 = document.getElementById('spec-popup-field3');
+    var meterField = document.getElementById('spec-popup-meter-field');
+    var toggle = document.getElementById('spec-popup-meter-toggle');
+
+    if (specMeterMode) {
+        field1.style.display = 'none';
+        field2.style.display = 'none';
+        field3.style.display = 'none';
+        meterField.style.display = '';
+        toggle.textContent = 'Tilbake til rør-mål';
+        setTimeout(function() { document.getElementById('spec-popup-meter-input').focus(); }, 50);
+    } else {
+        field1.style.display = '';
+        field2.style.display = '';
+        field3.style.display = specPopupMatType === 'mansjett' ? 'none' : '';
+        meterField.style.display = 'none';
+        toggle.textContent = 'Eller fyll inn meter direkte';
+        setTimeout(function() { document.getElementById('spec-popup-input').focus(); }, 50);
+    }
 }
 
 function confirmSpecPopup() {
+    // Meter mode: pass meter value directly
+    if (specMeterMode) {
+        var meterVal = document.getElementById('spec-popup-meter-input').value.trim().replace(',', '.');
+        var meterNum = parseFloat(meterVal);
+        if (!meterVal || isNaN(meterNum) || meterNum <= 0) return;
+        var displayVal = meterVal.replace('.', ',');
+        if (specPopupCallback) specPopupCallback(null, displayVal);
+        closeSpecPopup();
+        return;
+    }
+
     const val1 = document.getElementById('spec-popup-input').value.trim();
     const val2 = document.getElementById('spec-popup-input2').value.trim();
     const val3 = document.getElementById('spec-popup-input3').value.trim();
@@ -1252,9 +1581,9 @@ function confirmSpecPopup() {
         // Kabelhylse: bredde/Ø + høyde(valgfri) + dybde(obligatorisk)
         if (!num3 || num3 <= 0) return; // Dybde er obligatorisk
         if (num2 > 0) {
-            spec = num1 + 'x' + num2 + 'x' + num3 + 'mm';
+            spec = num1 + 'x' + num2 + 'mm (d' + num3 + 'mm)';
         } else {
-            spec = '\u00d8' + num1 + 'x' + num3 + 'mm';
+            spec = '\u00d8' + num1 + 'mm (d' + num3 + 'mm)';
         }
     }
     if (specPopupCallback) specPopupCallback(spec);
@@ -1282,8 +1611,6 @@ function pickerOverlayConfirm() {
         const hasEnhet = !!state.enhet;
         if (state.checked && (!hasAntall || !hasEnhet)) {
             incomplete.push(name);
-        } else if (!state.checked && (hasAntall !== hasEnhet)) {
-            incomplete.push(name);
         }
     }
     if (incomplete.length > 0) {
@@ -1295,8 +1622,8 @@ function pickerOverlayConfirm() {
     for (const [name, state] of Object.entries(pickerState)) {
         if (isSpecBase(name)) continue;
         if (state.checked) {
-            // Strip __N suffix for duplicated entries
-            const realName = name.replace(/__\d+$/, '');
+            // Strip __N or __meter suffix for duplicated/meter entries
+            const realName = name.replace(/__(\d+|meter)$/, '');
             materials.push({ name: realName, antall: state.antall || '', enhet: state.enhet || '' });
         }
     }
@@ -1321,21 +1648,11 @@ function pickerOverlayConfirm() {
 // Unit picker overlay
 let unitPickerCallback = null;
 
-function openUnitPicker(matName, btnEl, allowedUnits) {
-    allowedUnits = allowedUnits || [];
+function openUnitPicker(matName, btnEl, allowedUnits, matObj) {
     const overlay = document.getElementById('unit-picker-overlay');
     const listEl = document.getElementById('unit-picker-list');
-    const currentEnhet = btnEl.getAttribute('data-enhet') || '';
 
-    let html = '';
-    allowedUnits.forEach(u => {
-        const label = typeof u === 'string' ? u : u.plural;
-        const isSelected = label === currentEnhet;
-        const selected = isSelected ? ' unit-picker-item-selected' : '';
-        html += `<button type="button" class="unit-picker-item${selected}">${escapeHtml(label)}<span class="unit-picker-item-check">${isSelected ? '✓' : ''}</span></button>`;
-    });
-
-    listEl.innerHTML = html;
+    listEl.innerHTML = '';
 
     unitPickerCallback = function(value) {
         btnEl.setAttribute('data-enhet', value);
@@ -1371,6 +1688,32 @@ function closeUnitPicker() {
         overlay.classList.remove('active');
         unitPickerCallback = null;
     }, 150);
+}
+
+// Variant popup for standard materials with variants
+let variantPopupCallback = null;
+
+function openVariantPopup(baseName, options, callback) {
+    variantPopupCallback = callback;
+    document.getElementById('variant-popup-title').textContent = baseName;
+    var listEl = document.getElementById('variant-popup-list');
+    var html = '';
+    options.forEach(function(v) {
+        var label = v.label || (typeof v === 'string' ? v : (v.plural || v.singular || v));
+        html += '<button type="button" class="variant-popup-btn" onclick="selectVariant(\'' + escapeHtml(label).replace(/'/g, "\\'") + '\',\'variant\')">' + escapeHtml(label) + '</button>';
+    });
+    listEl.innerHTML = html;
+    document.getElementById('variant-popup').classList.add('active');
+}
+
+function selectVariant(variant, type) {
+    if (variantPopupCallback) variantPopupCallback(variant, type || 'variant');
+    closeVariantPopup();
+}
+
+function closeVariantPopup() {
+    document.getElementById('variant-popup').classList.remove('active');
+    variantPopupCallback = null;
 }
 
 function toggleOrder(headerEl) {
@@ -2189,8 +2532,8 @@ function buildDesktopWorkLines() {
         // Materials
         const filledMats = (order.materials || []).filter(m => {
             if (!m.name && !m.antall && !m.enhet) return false;
-            // Skip spec-base materials that shouldn't be exported
-            if (cachedMaterialOptions) {
+            // Skip spec-base materials that shouldn't be exported (but not direct meter entries)
+            if (cachedMaterialOptions && m.enhet !== 'meter') {
                 var specBase = cachedMaterialOptions.find(function(o) {
                     return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
                 });
@@ -2200,35 +2543,43 @@ function buildDesktopWorkLines() {
         });
         if (filledMats.length > 0) {
             addRow('Materiell:', '', '', { bold: true, alignRight: true });
-            filledMats.forEach(m => {
-                const rawName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
-                // Format "FSW ø50r2" → "FSW ø50 (2r)" or "FSW 90x90r2" → "FSW 90x90 (2r)"
-                const capName = rawName.replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+            // Helper to add a single material row to export
+            function addExportMatRow(m, displayNameOverride) {
+                var capName;
+                if (displayNameOverride) {
+                    capName = displayNameOverride;
+                } else {
+                    const rawName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
+                    capName = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+                    var expEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
+                    if (expEnhet && expEnhet !== 'stk' && expEnhet !== 'meter') {
+                        capName += ' ' + expEnhet;
+                    }
+                }
                 const antallNum = parseFloat((m.antall || '').replace(',', '.'));
-
-                // Check if pipe sealant material
                 const pipeInfo = getRunningMeterInfo(m.name);
                 if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
                     var lm = calculateRunningMeters(pipeInfo, antallNum);
-                    var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' ' + (m.enhet || 'stk') + ')';
+                    var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
                     addRow(displayName, formatRunningMeters(lm), 'meter', { alignRight: true });
                 } else {
-                    // Singular/plural lookup from material's allowedUnits
-                    var unitText = (m.enhet || '').toLowerCase();
-                    if (cachedMaterialOptions && m.enhet) {
-                        var matConfig = cachedMaterialOptions.find(function(cm) { return cm.name.toLowerCase() === m.name.toLowerCase(); });
-                        if (!matConfig) {
-                            // Try base material for spec-derived names
-                            matConfig = cachedMaterialOptions.find(function(cm) { return (cm.type === 'mansjett' || cm.type === 'brannpakning' || cm.type === 'kabelhylse') && m.name.toLowerCase().startsWith(cm.name.toLowerCase() + ' '); });
-                        }
-                        if (matConfig && matConfig.allowedUnits) {
-                            var unitObj = matConfig.allowedUnits.find(function(u) { return typeof u === 'object' && u.plural && u.plural.toLowerCase() === m.enhet.toLowerCase(); });
-                            if (unitObj) {
-                                unitText = (antallNum === 1 ? unitObj.singular : unitObj.plural).toLowerCase();
-                            }
-                        }
-                    }
-                    addRow(capName, (m.antall || '').replace('.', ','), unitText, { alignRight: true });
+                    addRow(capName, (m.antall || '').replace('.', ','), 'stk', { alignRight: true });
+                }
+            }
+            // Group materials for export
+            var exportGroups = groupMaterialsByBase(filledMats);
+            exportGroups.forEach(function(group) {
+                if (!group.isSpecGroup) {
+                    group.items.forEach(function(gm) { addExportMatRow(gm); });
+                } else {
+                    // Group header row (bold base name)
+                    addRow('  ' + group.baseName.charAt(0).toUpperCase() + group.baseName.slice(1) + ':', '', '', { bold: true, alignRight: true });
+                    group.items.forEach(function(gm) {
+                        var subName = getGroupedDisplayName(gm, group.baseName);
+                        subName = subName.charAt(0).toUpperCase() + subName.slice(1);
+                        subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+                        addExportMatRow(gm, '    ' + subName);
+                    });
                 }
             });
         }
