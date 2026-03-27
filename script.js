@@ -20,16 +20,16 @@ function sortUnits(arr) { arr.sort((a, b) => (a.plural || '').localeCompare(b.pl
 // Normalize kabelhylse formats and ensure consistent × usage
 function formatKabelhylseSpec(name) {
     return name
-        // Round kabelhylse: Ø60x250mm / Ø60mm dyp 250 / Ø60mm (d250) → Ø60mm (d250mm)
-        .replace(/Ø(\d+)mm Dybde (\d+)(?:mm)?/, 'Ø$1mm (d$2mm)')
-        .replace(/Ø(\d+)mm dyp (\d+)(?:mm)?/, 'Ø$1mm (d$2mm)')
-        .replace(/Ø(\d+)mm \(d(\d+)(?:mm)?\)/, 'Ø$1mm (d$2mm)')
-        .replace(/Ø(\d+)x(\d+)mm\b/, 'Ø$1mm (d$2mm)')
-        // Square kabelhylse: 90x90x400mm / 90x90mm dyp 400 / 90x90mm (d400) → 90×90mm (d400mm)
-        .replace(/(\d+)x(\d+)mm Dybde (\d+)(?:mm)?/, '$1×$2mm (d$3mm)')
-        .replace(/(\d+)x(\d+)mm dyp (\d+)(?:mm)?/, '$1×$2mm (d$3mm)')
-        .replace(/(\d+)x(\d+)mm \(d(\d+)(?:mm)?\)/, '$1×$2mm (d$3mm)')
-        .replace(/(\d+)x(\d+)x(\d+)mm/, '$1×$2mm (d$3mm)')
+        // Round kabelhylse: Ø60x250mm / Ø60mm dyp 250 / Ø60mm (d250) → Ø60×250mm
+        .replace(/Ø(\d+)mm Dybde (\d+)(?:mm)?/, 'Ø$1×$2mm')
+        .replace(/Ø(\d+)mm dyp (\d+)(?:mm)?/, 'Ø$1×$2mm')
+        .replace(/Ø(\d+)mm \(d(\d+)(?:mm)?\)/, 'Ø$1×$2mm')
+        .replace(/Ø(\d+)x(\d+)mm\b/, 'Ø$1×$2mm')
+        // Square kabelhylse: 90x90x400mm / 90x90mm dyp 400 / 90x90mm (d400) → 90×90×400mm
+        .replace(/(\d+)x(\d+)mm Dybde (\d+)(?:mm)?/, '$1×$2×$3mm')
+        .replace(/(\d+)x(\d+)mm dyp (\d+)(?:mm)?/, '$1×$2×$3mm')
+        .replace(/(\d+)x(\d+)mm \(d(\d+)(?:mm)?\)/, '$1×$2×$3mm')
+        .replace(/(\d+)x(\d+)x(\d+)mm/, '$1×$2×$3mm')
         // General: normalize x → × between dimensions
         .replace(/(\d+)x(\d+)/, '$1×$2');
 }
@@ -983,11 +983,11 @@ function createMaterialSummaryRow(m, groupBaseName) {
         // Grouped sub-row: show just the spec/variant part
         var subName = getGroupedDisplayName(m, groupBaseName);
         subName = subName.charAt(0).toUpperCase() + subName.slice(1);
-        nameFormatted = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+        nameFormatted = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
     } else {
         var rawName = (m.name || '');
         rawName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-        nameFormatted = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+        nameFormatted = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
         // Append variant to name if enhet is not stk/meter (it's a variant like "patron")
         var enhetVal = normalizeVariant(m.name, m.enhet || '').toLowerCase();
         if (enhetVal && enhetVal !== 'stk' && enhetVal !== 'meter') {
@@ -1112,7 +1112,7 @@ function openMaterialPicker(btn, onConfirm) {
         var normalized = name.charAt(0).toUpperCase() + name.slice(1);
         normalized = normalized.replace(/ø(?=\d)/g, 'Ø');
         normalized = formatKabelhylseSpec(normalized);
-        normalized = normalized.replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+        normalized = normalized.replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
         return normalized;
     }
 
@@ -1610,15 +1610,15 @@ function confirmSpecPopup() {
         }
         spec += 'mm';
         if (num3 > 1) {
-            spec += 'r' + num3;
+            spec += ' ' + num3 + ' lag';
         }
     } else {
         // Kabelhylse: bredde/Ø + høyde(valgfri) + dybde(obligatorisk)
         if (!num3 || num3 <= 0) return; // Dybde er obligatorisk
         if (num2 > 0) {
-            spec = num1 + 'x' + num2 + 'mm (d' + num3 + 'mm)';
+            spec = num1 + 'x' + num2 + 'x' + num3 + 'mm';
         } else {
-            spec = '\u00d8' + num1 + 'mm (d' + num3 + 'mm)';
+            spec = '\u00d8' + num1 + 'x' + num3 + 'mm';
         }
     }
     if (specPopupCallback) specPopupCallback(spec);
@@ -2648,7 +2648,7 @@ function buildDesktopWorkLines() {
                     capName = displayNameOverride;
                 } else {
                     const rawName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
-                    capName = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+                    capName = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
                     var expEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
                     if (expEnhet && expEnhet !== 'stk' && expEnhet !== 'meter') {
                         capName += ' ' + expEnhet;
@@ -2675,7 +2675,7 @@ function buildDesktopWorkLines() {
                     group.items.forEach(function(gm) {
                         var subName = getGroupedDisplayName(gm, group.baseName);
                         subName = subName.charAt(0).toUpperCase() + subName.slice(1);
-                        subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+                        subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
                         addExportMatRow(gm, '    ' + subName);
                     });
                 }

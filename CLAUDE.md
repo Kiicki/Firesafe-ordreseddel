@@ -56,11 +56,15 @@ Og innloggingsknappen:
 
 ## VIKTIG: Mobil og keyboard-oppførsel
 
-### Toolbar når keyboard er åpent
-- Toolbar skal ALDRI være fixed/floating over tastaturet
-- Toolbar skal være på bunnen av siden (i normal dokumentflyt)
+### Toolbar (bunn) når keyboard er åpent
+- Toolbar (bunnen) skal ALDRI være fixed/floating over tastaturet
+- Toolbar skal være på bunnen av siden (i normal dokumentflyt) når tastaturet er åpent
 - Brukeren kommer til toolbar ved å scrolle ned
-- Tastaturet tar ~50% av skjermen - vi kan ikke ha fixed elementer i tillegg
+
+### Headere (topp) når keyboard er åpent
+- Headere (`#form-header`, `.sticky-header`, `#service-header`) skal ALLTID forbli `position: sticky`
+- Headere inneholder viktige knapper (Lagre, Tilbake) som brukeren trenger tilgang til
+- 44px header øverst er akseptabelt selv med tastatur åpent
 
 ### Keyboard-håndtering
 - IKKE lag egendefinert JavaScript for keyboard-håndtering
@@ -71,8 +75,9 @@ Og innloggingsknappen:
 ### Hvorfor dette er viktig
 På mobil har vi begrenset plass. Når tastaturet er åpent:
 - Skjermen er allerede halvert av tastaturet
-- Fixed elementer over tastaturet gjør det umulig å se innholdet
+- Fixed toolbar over tastaturet gjør det umulig å se innholdet
 - Brukeren må kunne scrolle fritt for å se alt innhold
+- Headere øverst er OK fordi de gir tilgang til viktige funksjoner
 
 ## Filstruktur
 

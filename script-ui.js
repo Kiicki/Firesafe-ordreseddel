@@ -3776,7 +3776,7 @@ function buildServiceExportTable() {
                 if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
                     var pipeInfo = getRunningMeterInfo(m.name);
                     var pipes = parseFloat((m.antall || '').replace(',', '.'));
-                    var spec = formatKabelhylseSpec(m.name.substring(baseName.length + 1).replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+                    var spec = formatKabelhylseSpec(m.name.substring(baseName.length + 1).replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
                     if (hasLM && pipeInfo && !isNaN(pipes) && pipes > 0) {
                         // Mansjett/Brannpakning: show only running meters
                         var lm = calculateRunningMeters(pipeInfo, pipes);
@@ -4668,7 +4668,7 @@ function renderBilHistory() {
         function formatBilName(m) {
             var bilName = (m.name || '');
             bilName = bilName.charAt(0).toUpperCase() + bilName.slice(1);
-            bilName = formatKabelhylseSpec(bilName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+            bilName = formatKabelhylseSpec(bilName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
             var bilEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
             if (bilEnhet && bilEnhet !== 'stk' && bilEnhet !== 'meter') {
                 bilName += ' ' + bilEnhet;
@@ -4694,7 +4694,7 @@ function renderBilHistory() {
                     var gm = bilGroup.items[gi];
                     var subName = getGroupedDisplayName(gm, bilGroup.baseName);
                     subName = subName.charAt(0).toUpperCase() + subName.slice(1);
-                    subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2r)');
+                    subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
                     matsHtml += '<div class="bil-history-grouped"><div class="mat-summary-row">'
                         + '<span class="mat-summary-name">' + escapeHtml(subName) + '</span>'
                         + '<span class="mat-summary-detail">' + buildBilDetail(gm) + '</span>'

@@ -1198,11 +1198,8 @@ body.service-view-open {
 }
 
 /* Keyboard open: revert to document flow so everything scrolls together */
+/* Headers (.sticky-header, #form-header) keep position: sticky so Lagre/back buttons stay visible */
 @media (max-height: 500px) and (orientation: portrait) {
-    .sticky-header,
-    #form-header {
-        position: static;
-    }
     #template-modal.view.active,
     #saved-modal.view.active,
     #settings-modal.view.active,
