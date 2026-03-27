@@ -1805,6 +1805,46 @@ label.settings-default-label.field-required > span::after {
     background: #e8e8e8;
 }
 
+.mobile-order-dager {
+    display: flex;
+    gap: 5px;
+    flex-wrap: nowrap;
+}
+
+.dag-chip {
+    flex: 1;
+    padding: 8px 0;
+    min-height: 38px;
+    border: 2px solid #ddd;
+    border-radius: 18px;
+    background: #f5f5f5;
+    color: #333;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+.dag-chip.active {
+    background: #c0392b;
+    color: #fff;
+    border-color: #c0392b;
+}
+
+.dag-chip:active {
+    transform: scale(0.95);
+}
+
+.mobile-order-merknad {
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.4;
+    min-height: 44px;
+}
+
 .mobile-work-row {
     display: flex;
     gap: 10px;

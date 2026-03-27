@@ -2081,6 +2081,8 @@ function getDefaultRequiredSettings() {
             sted: true,
             signeringDato: true,
             beskrivelse: true,
+            dager: false,
+            merknad: false,
             materialer: false,
             timer: false,
             signatur: false
@@ -2117,6 +2119,8 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'sted',           labelKey: 'label_sted' },
         { key: 'signeringDato',  labelKey: 'label_dato' },
         { key: 'beskrivelse',    labelKey: 'settings_req_beskrivelse' },
+        { key: 'dager',         labelKey: 'order_days' },
+        { key: 'merknad',       labelKey: 'order_merknad' },
         { key: 'materialer',    labelKey: 'order_materials_label' },
         { key: 'timer',         labelKey: 'order_hours' },
         { key: 'signatur',       labelKey: 'label_kundens_underskrift' }
@@ -2575,6 +2579,30 @@ function updateRequiredIndicators() {
             } else {
                 var star = matLabel.querySelector('.required-star');
                 if (star) star.remove();
+            }
+        }
+        // Dager field
+        var dagerContainer = card.querySelector('.mobile-order-dager');
+        if (dagerContainer) {
+            var dagerField = dagerContainer.closest('.mobile-field');
+            if (dagerField) {
+                if (saveReqs.dager) {
+                    dagerField.classList.add('field-required');
+                } else {
+                    dagerField.classList.remove('field-required');
+                }
+            }
+        }
+        // Merknad field
+        var merknadInput = card.querySelector('.mobile-order-merknad');
+        if (merknadInput) {
+            var merknadField = merknadInput.closest('.mobile-field');
+            if (merknadField) {
+                if (saveReqs.merknad) {
+                    merknadField.classList.add('field-required');
+                } else {
+                    merknadField.classList.remove('field-required');
+                }
             }
         }
         // Timer field

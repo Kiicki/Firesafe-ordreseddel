@@ -63,6 +63,9 @@ const TRANSLATIONS = {
         order_materials_label: 'Materialer',
         order_add_material: 'Materialer',
         order_hours: 'Timer',
+        order_days: 'Dag(er)',
+        order_merknad: 'Merknad',
+        order_merknad_placeholder: 'Valgfri merknad...',
         order_add: '+ Legg til bestilling',
         order_delete_confirm: 'Slett denne bestillingen?',
 
@@ -394,6 +397,9 @@ const TRANSLATIONS = {
         order_materials_label: 'Materials',
         order_add_material: 'Materials',
         order_hours: 'Hours',
+        order_days: 'Day(s)',
+        order_merknad: 'Note',
+        order_merknad_placeholder: 'Optional note...',
         order_add: '+ Add order',
         order_delete_confirm: 'Delete this order?',
 

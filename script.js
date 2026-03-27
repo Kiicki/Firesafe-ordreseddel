@@ -837,6 +837,22 @@ function createOrderCard(orderData, expanded) {
                 <button type="button" class="mobile-desc-btn">+ ${t('order_description')}</button>
                 <textarea class="mobile-order-desc" rows="1" readonly autocapitalize="sentences"></textarea>
             </div>
+            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
+                <label data-i18n="order_days">${t('order_days')}</label>
+                <div class="mobile-order-dager">
+                    <button type="button" class="dag-chip" data-dag="ma">Ma</button>
+                    <button type="button" class="dag-chip" data-dag="ti">Ti</button>
+                    <button type="button" class="dag-chip" data-dag="on">On</button>
+                    <button type="button" class="dag-chip" data-dag="to">To</button>
+                    <button type="button" class="dag-chip" data-dag="fr">Fr</button>
+                    <button type="button" class="dag-chip" data-dag="lo">Lø</button>
+                    <button type="button" class="dag-chip" data-dag="so">Sø</button>
+                </div>
+            </div>
+            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
+                <label data-i18n="order_merknad">${t('order_merknad')}</label>
+                <textarea class="mobile-order-merknad" rows="2" autocapitalize="sentences" placeholder="${t('order_merknad_placeholder')}"></textarea>
+            </div>
             <div class="mobile-order-materials-section">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' <span class="required-star" style="color:#e74c3c;font-weight:bold">*</span>' : ''}</label>
                 <div class="mobile-order-materials"></div>
@@ -885,6 +901,20 @@ function createOrderCard(orderData, expanded) {
         descInput.style.resize = 'vertical';
         descInput.style.minHeight = '80px';
     }
+
+    // Set dager (toggle active chips)
+    const dager = orderData.dager || [];
+    card.querySelectorAll('.dag-chip').forEach(chip => {
+        if (dager.indexOf(chip.getAttribute('data-dag')) !== -1) {
+            chip.classList.add('active');
+        }
+        chip.addEventListener('click', function() {
+            this.classList.toggle('active');
+        });
+    });
+
+    // Set merknad
+    card.querySelector('.mobile-order-merknad').value = orderData.merknad || '';
 
     // Set timer
     card.querySelector('.mobile-order-timer').value = orderData.timer || '';
@@ -1753,7 +1783,7 @@ function addOrder() {
             card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
         }
     });
-    const card = createOrderCard({ description: '', materials: [], timer: '' }, true);
+    const card = createOrderCard({ description: '', dager: [], merknad: '', materials: [], timer: '' }, true);
     container.appendChild(card);
     updateOrderDeleteStates();
     renumberOrders();
@@ -1979,10 +2009,13 @@ function getOrdersData() {
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(card => {
         const descInput = card.querySelector('.mobile-order-desc');
         const description = descInput.getAttribute('data-full-value') || descInput.value;
+        const dagerBtns = card.querySelectorAll('.dag-chip.active');
+        const dager = Array.from(dagerBtns).map(b => b.getAttribute('data-dag'));
+        const merknad = card.querySelector('.mobile-order-merknad').value;
         const timer = card.querySelector('.mobile-order-timer').value;
         const matContainer = card.querySelector('.mobile-order-materials');
         const materials = getMaterialsFromContainer(matContainer);
-        orders.push({ description, materials, timer });
+        orders.push({ description, dager, merknad, materials, timer });
     });
     return orders;
 }
@@ -2530,9 +2563,68 @@ function buildDesktopWorkLines() {
     let totalTimer = 0;
 
     orders.forEach((order, idx) => {
-        // Description
-        if (order.description) {
-            addRow(order.description, '', '');
+        // Description (with dager and merknad combined, bold labels)
+        if (order.description || (order.dager && order.dager.length > 0) || order.merknad) {
+            const row = document.createElement('div');
+            row.className = 'work-line';
+            const descDiv = document.createElement('div');
+            descDiv.className = 'work-line-desc';
+            const descContent = document.createElement('div');
+            descContent.className = 'work-line-desc-text';
+
+            if (order.description) {
+                // Split description into paragraphs and render with controlled spacing
+                const paragraphs = order.description.split(/\n\n+/);
+                paragraphs.forEach((para, pIdx) => {
+                    if (pIdx > 0) {
+                        const spacer = document.createElement('div');
+                        spacer.style.height = '6px';
+                        descContent.appendChild(spacer);
+                    }
+                    descContent.appendChild(document.createTextNode(para));
+                });
+            }
+
+            const hasMeta = (order.dager && order.dager.length > 0) || order.merknad;
+            if (order.description && hasMeta) {
+                const spacer = document.createElement('div');
+                spacer.style.height = '6px';
+                descContent.appendChild(spacer);
+            }
+
+            if (order.dager && order.dager.length > 0) {
+                const dagMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
+                const dagText = order.dager.map(d => dagMap[d] || d).join(', ');
+                const dagLabel = document.createElement('strong');
+                dagLabel.textContent = 'Dag(er): ';
+                descContent.appendChild(dagLabel);
+                descContent.appendChild(document.createTextNode(dagText));
+            }
+
+            if (order.merknad) {
+                if (order.dager && order.dager.length > 0) {
+                    descContent.appendChild(document.createTextNode('\n'));
+                }
+                const merknadLabel = document.createElement('strong');
+                merknadLabel.textContent = 'Merknad: ';
+                descContent.appendChild(merknadLabel);
+                descContent.appendChild(document.createTextNode(order.merknad));
+            }
+
+            descDiv.appendChild(descContent);
+            row.appendChild(descDiv);
+
+            const antallDiv = document.createElement('div');
+            antallDiv.className = 'work-line-antall';
+            antallDiv.appendChild(document.createElement('span'));
+            row.appendChild(antallDiv);
+
+            const enhetDiv = document.createElement('div');
+            enhetDiv.className = 'work-line-enhet';
+            enhetDiv.appendChild(document.createElement('span'));
+            row.appendChild(enhetDiv);
+
+            container.appendChild(row);
         }
 
         // Materials
@@ -2793,6 +2885,30 @@ function validateRequiredFields() {
             const descVal = descInput.getAttribute('data-full-value') || descInput.value;
             if (!descVal.trim()) {
                 showNotificationModal(t('required_description', i + 1));
+                return false;
+            }
+        }
+    }
+
+    // Validate dager
+    if (saveReqs.dager) {
+        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        for (let i = 0; i < orderCards.length; i++) {
+            const activeChips = orderCards[i].querySelectorAll('.dag-chip.active');
+            if (activeChips.length === 0) {
+                showNotificationModal(t('required_field', t('order_days')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
+                return false;
+            }
+        }
+    }
+
+    // Validate merknad
+    if (saveReqs.merknad) {
+        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        for (let i = 0; i < orderCards.length; i++) {
+            const merknadInput = orderCards[i].querySelector('.mobile-order-merknad');
+            if (!merknadInput || !merknadInput.value.trim()) {
+                showNotificationModal(t('required_field', t('order_merknad')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
         }
