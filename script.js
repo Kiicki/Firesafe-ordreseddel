@@ -2397,10 +2397,9 @@ function confirmSignature() {
 
     if (signatureTarget === 'service') {
         var hasExistingServiceImage = !!document.getElementById('service-signatur').value;
-        if (!hasSignature && !hasExistingServiceImage) {
+        if (!hasSignature) {
             document.getElementById('service-signatur').value = '';
-        } else if (!hasSignature && hasExistingServiceImage) {
-            // keep as-is
+            window._serviceSignaturePaths = [];
         } else {
             var svgData = generateSVG(400, 18);
             if (svgData) {

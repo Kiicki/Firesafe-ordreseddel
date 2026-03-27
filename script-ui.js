@@ -856,10 +856,13 @@ function showExportMenu() {
             '<input type="checkbox" id="export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
             t('export_and_mark_label') +
         '</label>';
+    var shareBtn = (navigator.share && navigator.canShare) ?
+        '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> ' + t('btn_share') + '</button>' : '';
     let html = checkboxHtml +
         '<div class="confirm-modal-buttons">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPNG(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+            shareBtn +
         '</div>';
     buttonsEl.innerHTML = html;
     popup.classList.add('active');
@@ -3398,6 +3401,27 @@ async function doExportPNG(markSent) {
     }
 }
 
+async function doSharePDF() {
+    if (!validateRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderFormToCanvas();
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF('p', 'mm', 'a4');
+        var imgWidth = 210;
+        var imgHeight = (canvas.height * imgWidth) / canvas.width;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        var blob = pdf.output('blob');
+        var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
+        await navigator.share({ files: [file] });
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
 // ============================================
 // SERVICE FORM FUNCTIONS
 // ============================================
@@ -3455,6 +3479,14 @@ function closeServiceView() {
     _serviceLastSavedData = null;
     sessionStorage.removeItem('firesafe_service_current');
     sessionStorage.removeItem('firesafe_service_sent');
+
+    // Clear service signature preview
+    document.getElementById('service-signatur').value = '';
+    window._serviceSignaturePaths = [];
+    var srvPreviewImg = document.getElementById('service-signature-preview-img');
+    if (srvPreviewImg) { srvPreviewImg.style.display = 'none'; srvPreviewImg.src = ''; }
+    var srvPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
+    if (srvPlaceholder) srvPlaceholder.style.display = '';
 }
 
 async function saveServiceForm() {
@@ -3754,10 +3786,13 @@ function showServiceExportMenu() {
             '<input type="checkbox" id="service-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
             t('export_and_mark_label') +
         '</label>';
+    var shareBtn = (navigator.share && navigator.canShare) ?
+        '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> ' + t('btn_share') + '</button>' : '';
     buttonsEl.innerHTML = checkboxHtml +
         '<div class="confirm-modal-buttons">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPDF(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPNG(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+            shareBtn +
         '</div>';
     popup.classList.add('active');
 }
@@ -3839,8 +3874,8 @@ function buildServiceExportTable() {
     var totalCols = 3 + matCols; // 3 info cols + 7 material cols
 
     var sigImgHtml = data.signatureImage
-        ? '<img id="service-export-sig-img" src="' + data.signatureImage + '" style="height:40px;">'
-        : '<img id="service-export-sig-img" style="display:none;height:40px;">';
+        ? '<img id="service-export-sig-img" src="' + data.signatureImage + '" style="height:20px;">'
+        : '<img id="service-export-sig-img" style="display:none;height:20px;">';
 
     // Colgroup for consistent column widths
     var colgroup = '<colgroup>';
@@ -3856,8 +3891,8 @@ function buildServiceExportTable() {
     var headerRow =
         '<tr>' +
             '<td rowspan="2" colspan="3" class="se-title-cell"><strong>Lageruttak Servicebiler</strong></td>' +
-            '<td class="se-montor-label">Navn montør:</td>' +
-            '<td colspan="' + (matCols - 1) + '" class="se-montor-value">' + escapeHtml(data.montor) + '</td>' +
+            '<td class="se-montor-label" style="line-height:20px;">Navn montør:</td>' +
+            '<td colspan="' + (matCols - 1) + '" class="se-montor-value" style="line-height:20px;">' + escapeHtml(data.montor) + '</td>' +
         '</tr>' +
         '<tr>' +
             '<td class="se-montor-label">Signatur:</td>' +
@@ -4124,6 +4159,27 @@ async function doServiceExportPNG(markSent) {
         if (markSent) markServiceAsSent();
     } catch(error) {
         showNotificationModal(t('export_png_error') + error.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doServiceSharePDF() {
+    if (!validateServiceRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderServiceToCanvas();
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF('l', 'mm', 'a4');
+        var imgWidth = 297;
+        var imgHeight = (canvas.height * imgWidth) / canvas.width;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        var blob = pdf.output('blob');
+        var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
+        await navigator.share({ files: [file] });
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }

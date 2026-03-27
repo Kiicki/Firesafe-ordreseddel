@@ -111,6 +111,8 @@ const TRANSLATIONS = {
         delete_btn: 'Slett',
         export_pdf_error: 'Feil ved generering av PDF: ',
         export_png_error: 'Feil ved generering av PNG: ',
+        btn_share: 'Del',
+        share_error: 'Feil ved deling: ',
 
         // Hent modal
         modal_load_title: 'Skjemaer',
@@ -446,6 +448,8 @@ const TRANSLATIONS = {
         delete_btn: 'Delete',
         export_pdf_error: 'Error generating PDF: ',
         export_png_error: 'Error generating PNG: ',
+        btn_share: 'Share',
+        share_error: 'Error sharing: ',
 
         // Hent modal
         modal_load_title: 'Forms',

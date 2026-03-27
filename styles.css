@@ -865,20 +865,21 @@ body.template-modal-open > .top-bar {
     white-space: nowrap !important;
 }
 
-.se-montor-label {
+.se-montor-label,
+.se-montor-value {
     text-align: left !important;
     white-space: nowrap !important;
     font-size: 10px;
+    height: 30px;
+    vertical-align: middle !important;
 }
 
 .se-montor-value {
-    text-align: left !important;
     white-space: normal !important;
-    font-size: 10px;
 }
 
 .se-montor-value img {
-    max-height: 36px;
+    max-height: 20px;
     vertical-align: middle;
 }
 
@@ -4227,8 +4228,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 
 .signature-preview img {
-    max-height: 36px;
+    height: 36px;
     max-width: 100%;
+    object-fit: contain;
 }
 
 .signature-placeholder {
