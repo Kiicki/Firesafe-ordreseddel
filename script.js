@@ -818,6 +818,7 @@ function copyOrderNumber() {
 // --- Order card functions ---
 const deleteIcon = '<svg viewBox="4 2 16 20" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
 const copyIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+const duplicateIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/><path d="M12 10h2v3h3v2h-3v3h-2v-3h-2v-2h2v-3z"/></svg>';
 
 function createOrderCard(orderData, expanded) {
     const card = document.createElement('div');
@@ -1122,7 +1123,7 @@ function openMaterialPicker(btn, onConfirm) {
         const enhetLabel = enhetLower || 'stk';
         const enhetClass = '';
         const isLauncher = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
-        const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>';
+        const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser">' + duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
         const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
             : matType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
             : matType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'

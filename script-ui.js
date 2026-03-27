@@ -112,7 +112,8 @@ function _buildSavedItemHtml(item, index) {
     var dato = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
-    var copyBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>';
+    var clipBtn = '<button class="saved-item-action-btn clipboard" title="' + t('copy_btn') + '">' + copyIcon + '</button>';
+    var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
@@ -121,7 +122,7 @@ function _buildSavedItemHtml(item, index) {
             '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
             (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
         '</div>' +
-        '<div class="saved-item-buttons">' + copyBtn + deleteBtn + '</div>' +
+        '<div class="saved-item-buttons">' + clipBtn + dupBtn + deleteBtn + '</div>' +
     '</div>';
 }
 
@@ -2294,7 +2295,7 @@ function _renderSettingsTemplateListFromData(templates) {
                 (detail ? '<div class="settings-template-item-row2">' + detail + '</div>' : '') +
             '</div>' +
             '<div class="settings-template-item-actions">' +
-                duplicateBtn + copyIcon + '</button>' +
+                duplicateBtn + duplicateIcon + '</button>' +
                 delBtn +
                     deleteIcon +
                 '</button>' +
@@ -2745,7 +2746,7 @@ function saveDefaultSettings() {
     var key = DEFAULTS_KEY;
     var fbDoc = 'defaults';
     var existing = safeParseJSON(key, {});
-    ['autofill_uke', 'autofill_dato', 'autofill_sted'].forEach(function(k) {
+    ['autofill_montor', 'autofill_avdeling', 'autofill_sted', 'autofill_uke', 'autofill_dato'].forEach(function(k) {
         if (existing[k] !== undefined) defaults[k] = existing[k];
     });
     safeSetItem(key, JSON.stringify(defaults));
@@ -2819,15 +2820,33 @@ function _applyDefaultsToUI(defaults, tab) {
                 defaultsInitialValues[field] = input.value;
             }
         });
-        ['uke', 'dato', 'sted'].forEach(function(key) {
+        ['montor', 'avdeling', 'sted', 'uke', 'dato'].forEach(function(key) {
             var cb = document.getElementById('autofill-' + key);
-            if (cb) cb.checked = defaults['autofill_' + key] !== false;
+            if (cb) {
+                cb.checked = defaults['autofill_' + key] !== false;
+                _updateAutofillInputState(key);
+            }
         });
     } else if (tab === 'service') {
         var montorEl = document.getElementById('default-service-montor');
         if (montorEl) montorEl.value = defaults.montor || '';
+        var montorCb = document.getElementById('autofill-service-montor');
+        if (montorCb) {
+            montorCb.checked = defaults.autofill_montor !== false;
+            _updateAutofillInputState('montor', 'service');
+        }
         var datoEl = document.getElementById('autofill-service-dato');
         if (datoEl) datoEl.checked = defaults.autofill_dato !== false;
+    }
+}
+
+function _updateAutofillInputState(key, type) {
+    var prefix = type === 'service' ? 'default-service-' : 'default-';
+    var cbId = type === 'service' ? 'autofill-service-' + key : 'autofill-' + key;
+    var input = document.getElementById(prefix + key);
+    var cb = document.getElementById(cbId);
+    if (input && cb) {
+        input.disabled = !cb.checked;
     }
 }
 
@@ -2848,7 +2867,7 @@ function autoFillDefaults(type) {
     var defaults = stored ? JSON.parse(stored) : {};
     DEFAULT_FIELDS.forEach(field => {
         if (defaults[field]) {
-            if (field === 'sted' && defaults.autofill_sted === false) return;
+            if (defaults['autofill_' + field] === false) return;
             var el = document.getElementById(field);
             var mobileEl = document.getElementById('mobile-' + field);
             if (el) el.value = defaults[field];
@@ -2861,6 +2880,8 @@ function getAutofillFlags(type) {
     var stored = localStorage.getItem(DEFAULTS_KEY);
     var defaults = stored ? JSON.parse(stored) : {};
     return {
+        montor: defaults.autofill_montor !== false,
+        avdeling: defaults.autofill_avdeling !== false,
         uke: defaults.autofill_uke !== false,
         dato: defaults.autofill_dato !== false,
         sted: defaults.autofill_sted !== false
@@ -2875,6 +2896,9 @@ function saveAutofillToggle(key, value, type) {
     var defaults = stored ? JSON.parse(stored) : {};
     defaults['autofill_' + key] = value;
     safeSetItem(storageKey, JSON.stringify(defaults));
+
+    // Update input disabled state
+    _updateAutofillInputState(key, isService ? 'service' : undefined);
 
     // Firebase in background
     if (currentUser && db) {
@@ -3550,7 +3574,8 @@ function _buildServiceItemHtml(item, index) {
     var savedAtStr = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
-    var copyBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + copyIcon + '</button>';
+    var clipBtn = '<button class="saved-item-action-btn clipboard" title="' + t('copy_btn') + '">' + copyIcon + '</button>';
+    var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
@@ -3559,7 +3584,7 @@ function _buildServiceItemHtml(item, index) {
             '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + '</div>' +
             (savedAtStr ? '<div class="saved-item-date">' + escapeHtml(savedAtStr) + '</div>' : '') +
         '</div>' +
-        '<div class="saved-item-buttons">' + copyBtn + deleteBtn + '</div>' +
+        '<div class="saved-item-buttons">' + clipBtn + dupBtn + deleteBtn + '</div>' +
     '</div>';
 }
 
@@ -4120,7 +4145,16 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
     if (btn) {
         e.stopPropagation();
         if (btn.classList.contains('disabled')) return;
-        if (btn.classList.contains('copy')) {
+        if (btn.classList.contains('clipboard')) {
+            var nr = savedItem._formData.ordreseddelNr || '';
+            if (nr) {
+                navigator.clipboard.writeText(nr).then(function() {
+                    showNotificationModal(t('copied_to_clipboard'), true);
+                }).catch(function() {
+                    showNotificationModal(t('copied_to_clipboard'), true);
+                });
+            }
+        } else if (btn.classList.contains('copy')) {
             duplicateFormDirect(savedItem._formData);
         } else if (btn.classList.contains('delete')) {
             deleteFormDirect(savedItem._formData);
@@ -4153,7 +4187,16 @@ document.getElementById('service-list').addEventListener('click', function(e) {
     if (btn) {
         if (btn.classList.contains('disabled')) return;
         e.stopPropagation();
-        if (btn.classList.contains('delete')) {
+        if (btn.classList.contains('clipboard')) {
+            var nr = formData.ordreseddelNr || '';
+            if (nr) {
+                navigator.clipboard.writeText(nr).then(function() {
+                    showNotificationModal(t('copied_to_clipboard'), true);
+                }).catch(function() {
+                    showNotificationModal(t('copied_to_clipboard'), true);
+                });
+            }
+        } else if (btn.classList.contains('delete')) {
             deleteServiceForm(formData);
         } else if (btn.classList.contains('copy')) {
             duplicateServiceForm(formData);

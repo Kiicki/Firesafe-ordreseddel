@@ -479,28 +479,39 @@
 
                     <!-- Ordreseddel defaults -->
                     <div id="defaults-own-content">
-                        <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
                         <div class="settings-group">
-                            <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
-                            <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
-                            <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
-                        </div>
-                        <div class="settings-section-header" data-i18n="settings_autofill_header">Automatisk utfylling</div>
-                        <div class="settings-group">
+                            <div class="settings-autofill-row">
+                                <div class="settings-autofill-field">
+                                    <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
+                                </div>
+                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-montor" checked onchange="saveAutofillToggle('montor', this.checked)"><span class="settings-toggle-slider"></span></label>
+                            </div>
+                            <div class="settings-autofill-row">
+                                <div class="settings-autofill-field">
+                                    <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
+                                </div>
+                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-avdeling" checked onchange="saveAutofillToggle('avdeling', this.checked)"><span class="settings-toggle-slider"></span></label>
+                            </div>
+                            <div class="settings-autofill-row">
+                                <div class="settings-autofill-field">
+                                    <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
+                                </div>
+                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-sted" checked onchange="saveAutofillToggle('sted', this.checked)"><span class="settings-toggle-slider"></span></label>
+                            </div>
                             <div class="settings-toggle-item"><span data-i18n="label_uke">Uke</span><label class="settings-toggle"><input type="checkbox" id="autofill-uke" checked onchange="saveAutofillToggle('uke', this.checked)"><span class="settings-toggle-slider"></span></label></div>
                             <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-dato" checked onchange="saveAutofillToggle('dato', this.checked)"><span class="settings-toggle-slider"></span></label></div>
-                            <div class="settings-toggle-item"><span data-i18n="label_sted">Sted</span><label class="settings-toggle"><input type="checkbox" id="autofill-sted" checked onchange="saveAutofillToggle('sted', this.checked)"><span class="settings-toggle-slider"></span></label></div>
                         </div>
                     </div>
 
                     <!-- Service defaults -->
                     <div id="defaults-service-content" style="display:none">
-                        <div class="settings-section-header" data-i18n="settings_values_header">Verdier</div>
                         <div class="settings-group">
-                            <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-service-montor"></label>
-                        </div>
-                        <div class="settings-section-header" data-i18n="settings_autofill_header">Automatisk utfylling</div>
-                        <div class="settings-group">
+                            <div class="settings-autofill-row">
+                                <div class="settings-autofill-field">
+                                    <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-service-montor"></label>
+                                </div>
+                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-service-montor" checked onchange="saveAutofillToggle('montor', this.checked, 'service')"><span class="settings-toggle-slider"></span></label>
+                            </div>
                             <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-service-dato" checked onchange="saveAutofillToggle('dato', this.checked, 'service')"><span class="settings-toggle-slider"></span></label></div>
                         </div>
                     </div>

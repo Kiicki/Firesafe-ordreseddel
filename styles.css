@@ -3858,6 +3858,30 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border: none;
     border-radius: 0;
     margin-bottom: 0;
+    padding: 16px 12px;
+}
+.settings-autofill-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding-right: 12px;
+    padding-bottom: 12px;
+}
+.settings-autofill-field {
+    flex: 1;
+    min-width: 0;
+}
+.settings-autofill-row .settings-default-label {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.settings-autofill-toggle {
+    flex-shrink: 0;
+    margin-bottom: 4px;
+}
+.settings-autofill-row .settings-default-label input:disabled {
+    background: #f0f0f0;
+    color: #999;
 }
 .settings-group .settings-menu-item {
     border: none;
