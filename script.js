@@ -1206,8 +1206,10 @@ function openMaterialPicker(btn, onConfirm) {
 
         let html = '';
         pickerGroups.forEach(function(group) {
-            if (!group.isSpecGroup) {
-                // Standard material or single spec — render flat
+            // Check if spec group only has launcher (no actual spec-derived entries)
+            var isLauncherOnly = group.isSpecGroup && group.items.length === 1 && group.items[0].name === group.baseName;
+            if (!group.isSpecGroup || isLauncherOnly) {
+                // Standard material or spec launcher without derived entries — render flat
                 group.items.forEach(function(e) {
                     html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName, e.hasVariants);
                 });
