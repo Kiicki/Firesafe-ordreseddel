@@ -20,14 +20,17 @@ function sortUnits(arr) { arr.sort((a, b) => (a.plural || '').localeCompare(b.pl
 // Normalize kabelhylse formats and ensure consistent × usage
 function formatKabelhylseSpec(name) {
     return name
-        .replace(/Ø(\d+)mm Dybde (\d+)mm/, 'Ø$1mm (d$2mm)')
-        .replace(/Ø(\d+)mm dyp (\d+)/, 'Ø$1mm (d$2mm)')
-        .replace(/Ø(\d+)mm \(d(\d+)\)/, 'Ø$1mm (d$2mm)')
+        // Round kabelhylse: Ø60x250mm / Ø60mm dyp 250 / Ø60mm (d250) → Ø60mm (d250mm)
+        .replace(/Ø(\d+)mm Dybde (\d+)(?:mm)?/, 'Ø$1mm (d$2mm)')
+        .replace(/Ø(\d+)mm dyp (\d+)(?:mm)?/, 'Ø$1mm (d$2mm)')
+        .replace(/Ø(\d+)mm \(d(\d+)(?:mm)?\)/, 'Ø$1mm (d$2mm)')
         .replace(/Ø(\d+)x(\d+)mm\b/, 'Ø$1mm (d$2mm)')
-        .replace(/(\d+)x(\d+)mm Dybde (\d+)mm/, '$1×$2mm (d$3mm)')
-        .replace(/(\d+)x(\d+)mm dyp (\d+)/, '$1×$2mm (d$3mm)')
-        .replace(/(\d+)x(\d+)mm \(d(\d+)\)/, '$1×$2mm (d$3mm)')
+        // Square kabelhylse: 90x90x400mm / 90x90mm dyp 400 / 90x90mm (d400) → 90×90mm (d400mm)
+        .replace(/(\d+)x(\d+)mm Dybde (\d+)(?:mm)?/, '$1×$2mm (d$3mm)')
+        .replace(/(\d+)x(\d+)mm dyp (\d+)(?:mm)?/, '$1×$2mm (d$3mm)')
+        .replace(/(\d+)x(\d+)mm \(d(\d+)(?:mm)?\)/, '$1×$2mm (d$3mm)')
         .replace(/(\d+)x(\d+)x(\d+)mm/, '$1×$2mm (d$3mm)')
+        // General: normalize x → × between dimensions
         .replace(/(\d+)x(\d+)/, '$1×$2');
 }
 
@@ -1123,8 +1126,8 @@ function openMaterialPicker(btn, onConfirm) {
         allMaterials.forEach(matObj => {
             var matType = matObj.type || 'standard';
             if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
-                // Spec material: show as launcher only if no derived entries exist yet
-                const hasDerived = Object.keys(pickerState).some(k => k.toLowerCase().startsWith(matObj.name.toLowerCase() + ' '));
+                // Spec material: show as launcher only if no checked derived entries exist
+                const hasDerived = Object.keys(pickerState).some(k => k.toLowerCase().startsWith(matObj.name.toLowerCase() + ' ') && pickerState[k].checked);
                 if (!hasDerived) {
                     entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: matObj.defaultUnit || '', matType: matType, isSpecDerived: false });
                 }
