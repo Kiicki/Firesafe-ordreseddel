@@ -1167,7 +1167,7 @@ function openMaterialPicker(btn, onConfirm) {
                 const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
                 const isChecked = state && state.checked;
                 var hasVariants = matObj.allowedUnits && matObj.allowedUnits.length > 0;
-                var defaultVariant = hasVariants ? (typeof matObj.allowedUnits[0] === 'string' ? matObj.allowedUnits[0] : (matObj.allowedUnits[0].plural || matObj.allowedUnits[0])) : '';
+                var defaultVariant = matObj.defaultUnit || (hasVariants ? (typeof matObj.allowedUnits[0] === 'string' ? matObj.allowedUnits[0] : (matObj.allowedUnits[0].plural || matObj.allowedUnits[0])) : '');
                 const enhet = state ? (state.enhet || defaultVariant || 'stk') : (defaultVariant || 'stk');
                 entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: enhet, matType: 'standard', isSpecDerived: false, hasVariants: hasVariants });
             }
@@ -1436,9 +1436,10 @@ function openMaterialPicker(btn, onConfirm) {
                     } else {
                         // Standard material: create __N duplicate with default variant
                         var dupMatObj = allMaterials.find(m => m.name === baseName);
-                        var defEnhet = dupMatObj && dupMatObj.allowedUnits && dupMatObj.allowedUnits.length > 0
+                        var defEnhet = dupMatObj && dupMatObj.defaultUnit ? dupMatObj.defaultUnit
+                            : (dupMatObj && dupMatObj.allowedUnits && dupMatObj.allowedUnits.length > 0
                             ? (typeof dupMatObj.allowedUnits[0] === 'string' ? dupMatObj.allowedUnits[0] : (dupMatObj.allowedUnits[0].plural || dupMatObj.allowedUnits[0]))
-                            : 'stk';
+                            : 'stk');
                         var n = 2;
                         while (pickerState[baseName + '__' + n]) n++;
                         var newKey = baseName + '__' + n;

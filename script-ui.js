@@ -1693,12 +1693,12 @@ function renderMaterialSettingsItems() {
         const variants = unitLocked ? [] : (item.allowedUnits || []);
         const variantsHtml = variants.map((u, ui) => {
             const label = typeof u === 'string' ? u : (u.plural || u.singular || '');
-            const isDefault = ui === 0;
+            const isDefault = label === (item.defaultUnit || '') || (!item.defaultUnit && ui === 0);
             const starIcon = isDefault ? '<span class="settings-material-unit-star" title="Standard">★</span>' : '<span class="settings-material-unit-star empty" title="Sett som standard" onclick="event.stopPropagation();setDefaultVariant(' + idx + ',' + ui + ')">☆</span>';
             const removeBtn = `<button class="settings-material-unit-remove" onclick="event.stopPropagation();removeMaterialUnit(${idx},${ui})">&times;</button>`;
-            const editClick = `editMaterialUnit(${idx},${ui},this)`;
+            const editBtn = `<button class="settings-material-unit-edit-btn" onclick="event.stopPropagation();editMaterialUnit(${idx},${ui},this)" title="Rediger">✏️</button>`;
             return `<div class="settings-material-unit-item">
-                ${starIcon}<span class="settings-material-unit-text" onclick="${editClick}">${escapeHtml(label)}</span>${removeBtn}</div>`;
+                ${starIcon}<span class="settings-material-unit-text">${escapeHtml(label)}</span>${editBtn}${removeBtn}</div>`;
         }).join('');
         const addRow = unitLocked ? '' : `<div class="settings-material-unit-add" onclick="addMaterialUnit(${idx})">+ Legg til variant</div>`;
         const isExpanded = expandedSet.has(item.name);
@@ -1825,10 +1825,10 @@ function setDefaultUnit(idx, unitIdx) {
 function setDefaultVariant(idx, unitIdx) {
     if (!isAdmin) return;
     var mat = settingsMaterials[idx];
-    if (!mat.allowedUnits || unitIdx === 0) return;
-    // Move selected variant to first position (default)
-    var variant = mat.allowedUnits.splice(unitIdx, 1)[0];
-    mat.allowedUnits.unshift(variant);
+    if (!mat.allowedUnits) return;
+    var variant = mat.allowedUnits[unitIdx];
+    var label = typeof variant === 'string' ? variant : (variant.plural || variant.singular || '');
+    mat.defaultUnit = label;
     renderMaterialSettingsItems();
     saveMaterialSettings();
 }
