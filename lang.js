@@ -113,6 +113,8 @@ const TRANSLATIONS = {
         export_png_error: 'Feil ved generering av PNG: ',
         btn_share: 'Del',
         share_error: 'Feil ved deling: ',
+        share_not_supported: 'Deling støttes ikke i denne nettleseren. Bruk Chrome eller en mobil nettleser.',
+        export_download: 'Last ned',
 
         // Hent modal
         modal_load_title: 'Skjemaer',
@@ -450,6 +452,8 @@ const TRANSLATIONS = {
         export_png_error: 'Error generating PNG: ',
         btn_share: 'Share',
         share_error: 'Error sharing: ',
+        share_not_supported: 'Sharing is not supported in this browser. Use Chrome or a mobile browser.',
+        export_download: 'Download',
 
         // Hent modal
         modal_load_title: 'Forms',

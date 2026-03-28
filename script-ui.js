@@ -856,13 +856,23 @@ function showExportMenu() {
             '<input type="checkbox" id="export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
             t('export_and_mark_label') +
         '</label>';
-    var shareBtn = (navigator.share && navigator.canShare) ?
-        '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> ' + t('btn_share') + '</button>' : '';
+    var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var canShare = !!(navigator.share && navigator.canShare);
+    var shareBtnPDF = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
+    var shareBtnPNG = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
     let html = checkboxHtml +
-        '<div class="confirm-modal-buttons">' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPNG(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
-            shareBtn +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
+        '<div class="confirm-modal-buttons">' +
+            shareBtnPDF + shareBtnPNG +
         '</div>';
     buttonsEl.innerHTML = html;
     popup.classList.add('active');
@@ -3422,6 +3432,24 @@ async function doSharePDF() {
     }
 }
 
+async function doSharePNG() {
+    if (!validateRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderFormToCanvas();
+        var dataUrl = canvas.toDataURL('image/png');
+        var res = await fetch(dataUrl);
+        var blob = await res.blob();
+        var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
+        await navigator.share({ files: [file] });
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
 // ============================================
 // SERVICE FORM FUNCTIONS
 // ============================================
@@ -3786,13 +3814,23 @@ function showServiceExportMenu() {
             '<input type="checkbox" id="service-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
             t('export_and_mark_label') +
         '</label>';
-    var shareBtn = (navigator.share && navigator.canShare) ?
-        '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> ' + t('btn_share') + '</button>' : '';
+    var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var canShare = !!(navigator.share && navigator.canShare);
+    var shareBtnPDF = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
+    var shareBtnPNG = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
     buttonsEl.innerHTML = checkboxHtml +
-        '<div class="confirm-modal-buttons">' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPDF(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPNG(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
-            shareBtn +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
+        '<div class="confirm-modal-buttons">' +
+            shareBtnPDF + shareBtnPNG +
         '</div>';
     popup.classList.add('active');
 }
@@ -4177,6 +4215,24 @@ async function doServiceSharePDF() {
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
         var blob = pdf.output('blob');
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
+        await navigator.share({ files: [file] });
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doServiceSharePNG() {
+    if (!validateServiceRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderServiceToCanvas();
+        var dataUrl = canvas.toDataURL('image/png');
+        var res = await fetch(dataUrl);
+        var blob = await res.blob();
+        var file = new File([blob], getServiceExportFilename('png'), { type: 'image/png' });
         await navigator.share({ files: [file] });
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
