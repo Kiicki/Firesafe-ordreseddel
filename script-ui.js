@@ -4732,9 +4732,9 @@ function renderBilHistory() {
         var item = items[i3];
         var isPafylling = item.type === 'pafylling';
         var typeLabel = isPafylling ? t('bil_history_pafylling') : t('bil_history_uttak');
-        var title = isPafylling
-            ? item.dato
-            : (item.prosjektnr ? item.prosjektnr + (item.prosjektnavn ? ' \u2014 ' + item.prosjektnavn : '') : item.dato);
+        var titleHtml = isPafylling
+            ? escapeHtml(item.dato)
+            : (item.prosjektnr ? escapeHtml(item.prosjektnr) + (item.prosjektnavn ? '<span class="bil-history-sep"></span>' + escapeHtml(item.prosjektnavn) : '') : escapeHtml(item.dato));
 
         var matsHtml = '';
         // Helper to build detail parts for a material
@@ -4799,7 +4799,7 @@ function renderBilHistory() {
         html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + '">' +
             '<div class="bil-history-header">' +
                 '<span class="bil-history-type">' + typeLabel + '</span>' +
-                '<span class="bil-history-title">' + escapeHtml(title) + '</span>' +
+                '<span class="bil-history-title">' + titleHtml + '</span>' +
                 deleteBtn +
             '</div>' +
             '<div class="bil-history-materials">' + matsHtml + '</div>' +

@@ -829,7 +829,7 @@ function createOrderCard(orderData, expanded) {
     card.innerHTML = `
         <div class="mobile-order-header" onclick="toggleOrder(this)">
             <span class="mobile-order-arrow">${expanded ? '&#9650;' : '&#9660;'}</span>
-            <span class="mobile-order-title">${t('order_title')}</span>
+            <span class="mobile-order-title"></span>
             <button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeOrder(this)">${deleteIcon}</button>
         </div>
         <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
@@ -902,6 +902,10 @@ function createOrderCard(orderData, expanded) {
         descInput.style.resize = 'vertical';
         descInput.style.minHeight = '80px';
     }
+
+    // Update order title from description
+    updateOrderTitle(card);
+    descInput.addEventListener('input', function() { updateOrderTitle(card); });
 
     // Set dager (toggle active chips)
     const dager = orderData.dager || [];
@@ -1753,6 +1757,20 @@ function closeVariantPopup() {
     variantPopupCallback = null;
 }
 
+function updateOrderTitle(card) {
+    var titleEl = card.querySelector('.mobile-order-title');
+    if (!titleEl) return;
+    var descInput = card.querySelector('.mobile-order-desc');
+    var fullText = descInput ? (descInput.getAttribute('data-full-value') || descInput.value) : '';
+    var firstLine = fullText.split('\n').find(function(l) { return l.trim(); }) || '';
+    if (!firstLine) {
+        var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        var idx = Array.prototype.indexOf.call(cards, card);
+        firstLine = t('order_title') + ' ' + (idx + 1);
+    }
+    titleEl.textContent = firstLine;
+}
+
 function toggleOrder(headerEl) {
     if (event && event.target.closest('.mobile-order-header-delete')) return;
     const card = headerEl.closest('.mobile-order-card');
@@ -1770,8 +1788,8 @@ function toggleOrder(headerEl) {
 }
 
 function renumberOrders() {
-    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach((card, idx) => {
-        card.querySelector('.mobile-order-title').textContent = t('order_title') + ' ' + (idx + 1);
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach((card) => {
+        updateOrderTitle(card);
     });
 }
 

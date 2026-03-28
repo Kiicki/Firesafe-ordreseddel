@@ -305,7 +305,7 @@ const TRANSLATIONS = {
         // Bil (Vehicle inventory)
         toolbar_bil: 'Bil',
         bil_title: 'Bilbeholdning',
-        bil_add_pafylling: '+ Legg til påfylling',
+        bil_add_pafylling: '+ Servicebil',
         bil_history_title: 'Historikk',
         bil_pafylling_saved: 'Påfylling registrert!',
         bil_delete_pafylling_confirm: 'Slett denne påfyllingen?',
@@ -644,7 +644,7 @@ const TRANSLATIONS = {
         // Bil (Vehicle inventory)
         toolbar_bil: 'Vehicle',
         bil_title: 'Vehicle Inventory',
-        bil_add_pafylling: '+ Add stock',
+        bil_add_pafylling: '+ Service vehicle',
         bil_history_title: 'History',
         bil_pafylling_saved: 'Stock added!',
         bil_delete_pafylling_confirm: 'Delete this stock entry?',

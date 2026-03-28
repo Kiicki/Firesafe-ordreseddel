@@ -1110,7 +1110,7 @@ body.service-view-open {
 }
 .bil-history-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     margin-bottom: 6px;
 }
@@ -1133,8 +1133,18 @@ body.service-view-open {
 }
 .bil-history-title {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: break-word;
     font-weight: 500;
     font-size: 14px;
+}
+.bil-history-sep {
+    display: inline-block;
+    width: 1px;
+    height: 12px;
+    background: #aaa;
+    margin: 0 8px;
+    vertical-align: -1px;
 }
 .bil-history-delete {
     background: none;
@@ -1976,6 +1986,8 @@ label.settings-default-label.field-required > span::after {
 }
 
 .mobile-order-title {
+    flex: 1;
+    min-width: 0;
     font-size: 14px;
     font-weight: 500;
     color: #333;
