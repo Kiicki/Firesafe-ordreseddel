@@ -795,6 +795,12 @@ function closePreview() {
             scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
             scroll._rotatedScrollHandler = null;
         }
+        if (scroll._rotatedTouchMove) {
+            scroll.removeEventListener('touchstart', scroll._rotatedTouchStart);
+            scroll.removeEventListener('touchmove', scroll._rotatedTouchMove);
+            scroll._rotatedTouchStart = null;
+            scroll._rotatedTouchMove = null;
+        }
         window._servicePreviewActive = false;
     } else {
         var fc = document.getElementById('form-container');
@@ -812,11 +818,16 @@ function closePreview() {
         fc.style.marginRight = '';
     }
 
-    // Reset header styles
+    // Move header back into scroll container and reset styles
     var header = document.querySelector('.preview-overlay-header');
+    var scroll = document.getElementById('preview-scroll');
+    if (header && scroll && header.parentElement !== scroll) {
+        scroll.insertBefore(header, scroll.firstChild);
+    }
     if (header) {
         header.style.position = '';
         header.style.left = '';
+        header.style.right = '';
         header.style.top = '';
         header.style.width = '';
         header.style.height = '';
@@ -4046,7 +4057,7 @@ function updateServicePreviewScale() {
     var scrollHeight = window.innerHeight - headerHeight;
 
     if (scrollWidth < 800) {
-        // Portrait: rotate to landscape, scale width (800px) to fit viewport height
+        // Portrait: rotate to landscape (rotate 90deg so you tilt phone right to read)
         var headerH = 44;
         var vh = window.innerHeight;
 
@@ -4054,28 +4065,31 @@ function updateServicePreviewScale() {
         var exportPage = container.querySelector('.service-export-page');
         if (exportPage) exportPage.style.padding = '20px 0';
 
-        // Rotate header to landscape (vertical bar on left edge)
-        if (header) {
+        // Move header out of scroll container and rotate to landscape (vertical bar on right edge)
+        var overlay = document.getElementById('preview-overlay');
+        if (header && overlay) {
+            overlay.appendChild(header);
             header.style.position = 'fixed';
-            header.style.left = '0';
+            header.style.right = '0';
             header.style.top = '0';
+            header.style.left = 'auto';
             header.style.width = vh + 'px';
             header.style.height = headerH + 'px';
             header.style.maxWidth = 'none';
             header.style.margin = '0';
-            header.style.transformOrigin = 'top left';
-            header.style.transform = 'translateY(' + vh + 'px) rotate(-90deg)';
+            header.style.transformOrigin = 'top right';
+            header.style.transform = 'translateY(' + vh + 'px) rotate(90deg)';
             header.style.zIndex = '2';
         }
 
-        // Table fits full viewport height, minus header width on the left
-        var tableAreaWidth = scrollWidth - headerH; // available portrait width for landscape sections
+        // Table fills from left, header overlays on right
+        var tableAreaWidth = scrollWidth - headerH;
         var contentHeight = container.offsetHeight;
         var scale = Math.min(vh / 800, 1);
         var scaledW = 800 * scale;
         var scaledH = contentHeight * scale;
 
-        // How much rotated content extends beyond available width
+        // How much rotated content extends beyond available width (minus header on right)
         var overflow = Math.max(0, scaledH - tableAreaWidth);
 
         container.style.transformOrigin = 'top left';
@@ -4093,9 +4107,9 @@ function updateServicePreviewScale() {
         // Scroll-driven panning: vertical scroll pans horizontally through rotated sections
         function onRotatedScroll() {
             var scrollPx = scroll.scrollTop;
-            // translate X: offset by headerH for the rotated header, then pan with scroll
-            // translate Y: compensates for scroll so table stays vertically fixed
-            container.style.transform = 'translate(' + (headerH - scrollPx) + 'px, ' + (scaledW + scrollPx) + 'px) rotate(-90deg) scale(' + scale + ')';
+            // rotate(90deg): tilt phone right to read. Sections pan left-to-right with scroll.
+            var tX = (scrollWidth - headerH) + scrollPx;
+            container.style.transform = 'translate(' + tX + 'px, ' + scrollPx + 'px) rotate(90deg) scale(' + scale + ')';
         }
 
         onRotatedScroll();
@@ -4106,6 +4120,30 @@ function updateServicePreviewScale() {
         }
         scroll._rotatedScrollHandler = onRotatedScroll;
         scroll.addEventListener('scroll', onRotatedScroll);
+
+        // Touch handler: map horizontal swipes to scroll (for landscape viewing)
+        if (!scroll._rotatedTouchMove) {
+            var touchStartX, touchStartY, touchStartScroll;
+            function onTouchStart(e) {
+                if (e.touches.length !== 1) return;
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                touchStartScroll = scroll.scrollTop;
+            }
+            function onTouchMove(e) {
+                if (e.touches.length !== 1) return;
+                var dx = e.touches[0].clientX - touchStartX;
+                var dy = e.touches[0].clientY - touchStartY;
+                // Use dominant axis: horizontal for landscape, vertical for portrait
+                var delta = Math.abs(dx) > Math.abs(dy) ? -dx : -dy;
+                scroll.scrollTop = touchStartScroll + delta;
+                e.preventDefault();
+            }
+            scroll.addEventListener('touchstart', onTouchStart, { passive: true });
+            scroll.addEventListener('touchmove', onTouchMove, { passive: false });
+            scroll._rotatedTouchStart = onTouchStart;
+            scroll._rotatedTouchMove = onTouchMove;
+        }
     } else {
         // Desktop: scale normally
         var cs = getComputedStyle(scroll);
@@ -4121,16 +4159,23 @@ function updateServicePreviewScale() {
         scroll.style.height = '';
         scroll.style.overflowX = '';
 
-        // Remove rotated scroll handler if present
+        // Remove rotated scroll/touch handlers if present
         if (scroll._rotatedScrollHandler) {
             scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
             scroll._rotatedScrollHandler = null;
+        }
+        if (scroll._rotatedTouchMove) {
+            scroll.removeEventListener('touchstart', scroll._rotatedTouchStart);
+            scroll.removeEventListener('touchmove', scroll._rotatedTouchMove);
+            scroll._rotatedTouchStart = null;
+            scroll._rotatedTouchMove = null;
         }
 
         // Reset header from rotated landscape mode
         if (header) {
             header.style.position = '';
             header.style.left = '';
+            header.style.right = '';
             header.style.top = '';
             header.style.width = '';
             header.style.height = '';
