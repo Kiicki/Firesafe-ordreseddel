@@ -202,10 +202,15 @@ body:has(#template-editor-overlay.active) .toolbar button {
 /* Form container - hidden, used only for PDF/JPG export */
 .form-container {
     background: white;
-    border: 1px solid #000;
+    border: 2px solid #000;
     overflow: visible;
     display: none;
     position: relative;
+}
+.form-container *,
+.form-container *::before,
+.form-container *::after {
+    border-width: 2px !important;
 }
 
 /* Form version number - vertical text on left side */
@@ -854,7 +859,7 @@ body.template-modal-open > .top-bar {
     box-sizing: border-box;
     font-family: Arial, sans-serif;
     font-size: 11px;
-    padding: 20px 30px;
+    padding: 0;
 }
 
 .se-title-cell {
@@ -885,8 +890,10 @@ body.template-modal-open > .top-bar {
 
 .service-export-table {
     width: 100%;
-    border-collapse: collapse;
-    border: 1.5px solid #000;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-right: 2px solid #000;
+    border-bottom: 2px solid #000;
 }
 .se-separator td {
     background: #999 !important;
@@ -898,7 +905,10 @@ body.template-modal-open > .top-bar {
 
 .service-export-table th,
 .service-export-table td {
-    border: 1.5px solid #000;
+    border-top: 2px solid #000;
+    border-left: 2px solid #000;
+    border-right: none;
+    border-bottom: none;
     padding: 3px 5px;
     text-align: center;
     font-size: 10px;

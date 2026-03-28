@@ -776,31 +776,13 @@ function closePreview() {
         document.getElementById('service-view').appendChild(sc);
         sc.style.display = 'none';
         sc.style.width = '';
+        sc.style.overflow = '';
         sc.style.transform = '';
         sc.style.transformOrigin = '';
         sc.style.margin = '';
         sc.style.marginBottom = '';
         sc.style.marginLeft = '';
         sc.style.marginRight = '';
-        sc.style.position = '';
-        sc.style.top = '';
-        sc.style.left = '';
-        sc.style.height = '';
-        sc.style.overflow = '';
-        var scroll = document.getElementById('preview-scroll');
-        scroll.style.position = '';
-        scroll.style.height = '';
-        scroll.style.overflowX = '';
-        if (scroll._rotatedScrollHandler) {
-            scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
-            scroll._rotatedScrollHandler = null;
-        }
-        if (scroll._rotatedTouchMove) {
-            scroll.removeEventListener('touchstart', scroll._rotatedTouchStart);
-            scroll.removeEventListener('touchmove', scroll._rotatedTouchMove);
-            scroll._rotatedTouchStart = null;
-            scroll._rotatedTouchMove = null;
-        }
         window._servicePreviewActive = false;
     } else {
         var fc = document.getElementById('form-container');
@@ -818,24 +800,14 @@ function closePreview() {
         fc.style.marginRight = '';
     }
 
-    // Move header back into scroll container and reset styles
+    // Reset header styles
     var header = document.querySelector('.preview-overlay-header');
-    var scroll = document.getElementById('preview-scroll');
-    if (header && scroll && header.parentElement !== scroll) {
-        scroll.insertBefore(header, scroll.firstChild);
-    }
     if (header) {
-        header.style.position = '';
-        header.style.left = '';
-        header.style.right = '';
-        header.style.top = '';
-        header.style.width = '';
+        header.style.maxWidth = '';
+        header.style.margin = '';
         header.style.height = '';
         header.style.maxWidth = '';
         header.style.margin = '';
-        header.style.transform = '';
-        header.style.transformOrigin = '';
-        header.style.zIndex = '';
     }
 
     // Gjenopprett disabled-tilstand
@@ -3854,7 +3826,7 @@ function showServiceExportMenu() {
     popup.classList.add('active');
 }
 
-function buildServiceExportTable() {
+function buildServiceExportTable(cols) {
     var data = getServiceFormData();
     var container = document.getElementById('service-export-container');
 
@@ -3866,8 +3838,7 @@ function buildServiceExportTable() {
         return formatKabelhylseSpec(n.replace(/ø(?=\d)/g, 'Ø'));
     });
 
-    // 7 columns per row, minimum 2 rows, expands if more materials
-    var matCols = 5;
+    var matCols = cols || 3;
     var matRowCount = Math.max(2, Math.ceil(matNames.length / matCols));
     // Pad to fill all slots
     while (matNames.length < matCols * matRowCount) matNames.push('');
@@ -4023,6 +3994,7 @@ function openServicePreview() {
     var container = buildServiceExportTable();
     container.style.display = 'block';
     container.style.width = '800px';
+    container.style.overflow = 'hidden';
 
     var scroll = document.getElementById('preview-scroll');
     scroll.appendChild(container);
@@ -4037,6 +4009,11 @@ function openServicePreview() {
 
     requestAnimationFrame(function() {
         updateServicePreviewScale();
+        // Init pinch-zoom on mobile (same as ordreseddel preview)
+        var baseScale = Math.min(scroll.clientWidth / 800, 1);
+        if (baseScale < 1) {
+            initPreviewPinchZoom(scroll, container, baseScale);
+        }
     });
 
     window._previewResizeHandler = updateServicePreviewScale;
@@ -4052,164 +4029,36 @@ function updateServicePreviewScale() {
     if (!container || !scroll) return;
 
     var header = document.querySelector('.preview-overlay-header');
-    var headerHeight = header ? header.offsetHeight : 0;
-    var scrollWidth = scroll.clientWidth;
-    var scrollHeight = window.innerHeight - headerHeight;
+    var cs = getComputedStyle(scroll);
+    var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    var availWidth = scroll.clientWidth - padLR;
+    var scale = Math.min(availWidth / 800, 1);
 
-    if (scrollWidth < 800) {
-        // Portrait: rotate to landscape (rotate 90deg so you tilt phone right to read)
-        var headerH = 44;
-        var vh = window.innerHeight;
-
-        // Remove side padding on mobile preview
-        var exportPage = container.querySelector('.service-export-page');
-        if (exportPage) exportPage.style.padding = '20px 0';
-
-        // Move header out of scroll container and rotate to landscape (vertical bar on right edge)
-        var overlay = document.getElementById('preview-overlay');
-        if (header && overlay) {
-            overlay.appendChild(header);
-            header.style.position = 'fixed';
-            header.style.right = '0';
-            header.style.top = '0';
-            header.style.left = 'auto';
-            header.style.width = vh + 'px';
-            header.style.height = headerH + 'px';
-            header.style.maxWidth = 'none';
-            header.style.margin = '0';
-            header.style.transformOrigin = 'top right';
-            header.style.transform = 'translateY(' + vh + 'px) rotate(90deg)';
-            header.style.zIndex = '2';
-        }
-
-        // Table fills from left, header overlays on right
-        var tableAreaWidth = scrollWidth - headerH;
-        var contentHeight = container.offsetHeight;
-        var scale = Math.min(vh / 800, 1);
-        var scaledW = 800 * scale;
-        var scaledH = contentHeight * scale;
-
-        // How much rotated content extends beyond available width (minus header on right)
-        var overflow = Math.max(0, scaledH - tableAreaWidth);
-
+    if (scale < 1) {
         container.style.transformOrigin = 'top left';
-        container.style.position = 'relative';
-        container.style.top = '0';
-        container.style.left = '0';
-        container.style.width = '800px';
-        // DOM height = viewport + overflow → provides scroll range for panning
-        container.style.height = (vh + overflow) + 'px';
-        container.style.overflow = 'visible';
-
-        // Prevent horizontal scroll from the 800px DOM width
-        scroll.style.overflowX = 'hidden';
-
-        // Scroll-driven panning: vertical scroll pans horizontally through rotated sections
-        function onRotatedScroll() {
-            var scrollPx = scroll.scrollTop;
-            // rotate(90deg): tilt phone right to read. Sections pan left-to-right with scroll.
-            var tX = (scrollWidth - headerH) + scrollPx;
-            container.style.transform = 'translate(' + tX + 'px, ' + scrollPx + 'px) rotate(90deg) scale(' + scale + ')';
-        }
-
-        onRotatedScroll();
-
-        // Attach scroll handler (cleanup old one first)
-        if (scroll._rotatedScrollHandler) {
-            scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
-        }
-        scroll._rotatedScrollHandler = onRotatedScroll;
-        scroll.addEventListener('scroll', onRotatedScroll);
-
-        // Touch handler: map horizontal swipes to scroll (for landscape viewing)
-        if (!scroll._rotatedTouchMove) {
-            var touchStartX, touchStartY, touchStartScroll;
-            function onTouchStart(e) {
-                if (e.touches.length !== 1) return;
-                touchStartX = e.touches[0].clientX;
-                touchStartY = e.touches[0].clientY;
-                touchStartScroll = scroll.scrollTop;
-            }
-            function onTouchMove(e) {
-                if (e.touches.length !== 1) return;
-                var dx = e.touches[0].clientX - touchStartX;
-                var dy = e.touches[0].clientY - touchStartY;
-                // Use dominant axis: horizontal for landscape, vertical for portrait
-                var delta = Math.abs(dx) > Math.abs(dy) ? -dx : -dy;
-                scroll.scrollTop = touchStartScroll + delta;
-                e.preventDefault();
-            }
-            scroll.addEventListener('touchstart', onTouchStart, { passive: true });
-            scroll.addEventListener('touchmove', onTouchMove, { passive: false });
-            scroll._rotatedTouchStart = onTouchStart;
-            scroll._rotatedTouchMove = onTouchMove;
+        container.style.transform = 'scale(' + scale + ')';
+        container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
+        container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
+        container.style.marginLeft = '';
+        if (header) {
+            header.style.maxWidth = (container.offsetWidth * scale) + 'px';
+            header.style.margin = '0';
         }
     } else {
-        // Desktop: scale normally
-        var cs = getComputedStyle(scroll);
-        var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-        var availWidth = scrollWidth - padLR;
-        var scale = Math.min(availWidth / 800, 1);
-
-        container.style.position = '';
-        container.style.left = '';
-        container.style.top = '';
-        container.style.height = '';
-        scroll.style.position = '';
-        scroll.style.height = '';
-        scroll.style.overflowX = '';
-
-        // Remove rotated scroll/touch handlers if present
-        if (scroll._rotatedScrollHandler) {
-            scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
-            scroll._rotatedScrollHandler = null;
-        }
-        if (scroll._rotatedTouchMove) {
-            scroll.removeEventListener('touchstart', scroll._rotatedTouchStart);
-            scroll.removeEventListener('touchmove', scroll._rotatedTouchMove);
-            scroll._rotatedTouchStart = null;
-            scroll._rotatedTouchMove = null;
-        }
-
-        // Reset header from rotated landscape mode
+        container.style.transform = '';
+        container.style.transformOrigin = '';
+        container.style.marginLeft = 'auto';
+        container.style.marginRight = 'auto';
+        container.style.marginBottom = '';
         if (header) {
-            header.style.position = '';
-            header.style.left = '';
-            header.style.right = '';
-            header.style.top = '';
-            header.style.width = '';
-            header.style.height = '';
-            header.style.transform = '';
-            header.style.transformOrigin = '';
-            header.style.zIndex = '';
-        }
-
-        if (scale < 1) {
-            container.style.transformOrigin = 'top left';
-            container.style.transform = 'scale(' + scale + ')';
-            container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
-            container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
-            container.style.marginLeft = '';
-            if (header) {
-                header.style.maxWidth = (container.offsetWidth * scale) + 'px';
-                header.style.margin = '0';
-            }
-        } else {
-            container.style.transform = '';
-            container.style.transformOrigin = '';
-            container.style.marginLeft = 'auto';
-            container.style.marginRight = 'auto';
-            container.style.marginBottom = '';
-            if (header) {
-                header.style.maxWidth = '800px';
-                header.style.margin = '0 auto';
-            }
+            header.style.maxWidth = '800px';
+            header.style.margin = '0 auto';
         }
     }
 }
 
 async function renderServiceToCanvas() {
-    var container = buildServiceExportTable();
+    var container = buildServiceExportTable(6);
     container.style.display = 'block';
     container.style.position = 'fixed';
     container.style.left = '0';
