@@ -815,8 +815,16 @@ function closePreview() {
     // Reset header styles
     var header = document.querySelector('.preview-overlay-header');
     if (header) {
+        header.style.position = '';
+        header.style.left = '';
+        header.style.top = '';
+        header.style.width = '';
+        header.style.height = '';
         header.style.maxWidth = '';
         header.style.margin = '';
+        header.style.transform = '';
+        header.style.transformOrigin = '';
+        header.style.zIndex = '';
     }
 
     // Gjenopprett disabled-tilstand
@@ -4039,13 +4047,36 @@ function updateServicePreviewScale() {
 
     if (scrollWidth < 800) {
         // Portrait: rotate to landscape, scale width (800px) to fit viewport height
+        var headerH = 44;
+        var vh = window.innerHeight;
+
+        // Remove side padding on mobile preview
+        var exportPage = container.querySelector('.service-export-page');
+        if (exportPage) exportPage.style.padding = '20px 0';
+
+        // Rotate header to landscape (vertical bar on left edge)
+        if (header) {
+            header.style.position = 'fixed';
+            header.style.left = '0';
+            header.style.top = '0';
+            header.style.width = vh + 'px';
+            header.style.height = headerH + 'px';
+            header.style.maxWidth = 'none';
+            header.style.margin = '0';
+            header.style.transformOrigin = 'top left';
+            header.style.transform = 'translateY(' + vh + 'px) rotate(-90deg)';
+            header.style.zIndex = '2';
+        }
+
+        // Table fits full viewport height, minus header width on the left
+        var tableAreaWidth = scrollWidth - headerH; // available portrait width for landscape sections
         var contentHeight = container.offsetHeight;
-        var scale = Math.min(scrollHeight / 800, 1);
+        var scale = Math.min(vh / 800, 1);
         var scaledW = 800 * scale;
         var scaledH = contentHeight * scale;
 
-        // How much rotated content extends beyond screen width
-        var overflow = Math.max(0, scaledH - scrollWidth);
+        // How much rotated content extends beyond available width
+        var overflow = Math.max(0, scaledH - tableAreaWidth);
 
         container.style.transformOrigin = 'top left';
         container.style.position = 'relative';
@@ -4053,7 +4084,7 @@ function updateServicePreviewScale() {
         container.style.left = '0';
         container.style.width = '800px';
         // DOM height = viewport + overflow → provides scroll range for panning
-        container.style.height = (scrollHeight + overflow) + 'px';
+        container.style.height = (vh + overflow) + 'px';
         container.style.overflow = 'visible';
 
         // Prevent horizontal scroll from the 800px DOM width
@@ -4062,9 +4093,9 @@ function updateServicePreviewScale() {
         // Scroll-driven panning: vertical scroll pans horizontally through rotated sections
         function onRotatedScroll() {
             var scrollPx = scroll.scrollTop;
-            // translate Y compensates for scroll so table stays vertically fixed
-            // translate X pans through sections based on scroll position
-            container.style.transform = 'translate(' + (-scrollPx) + 'px, ' + (scaledW + scrollPx) + 'px) rotate(-90deg) scale(' + scale + ')';
+            // translate X: offset by headerH for the rotated header, then pan with scroll
+            // translate Y: compensates for scroll so table stays vertically fixed
+            container.style.transform = 'translate(' + (headerH - scrollPx) + 'px, ' + (scaledW + scrollPx) + 'px) rotate(-90deg) scale(' + scale + ')';
         }
 
         onRotatedScroll();
@@ -4075,11 +4106,6 @@ function updateServicePreviewScale() {
         }
         scroll._rotatedScrollHandler = onRotatedScroll;
         scroll.addEventListener('scroll', onRotatedScroll);
-
-        if (header) {
-            header.style.maxWidth = scrollWidth + 'px';
-            header.style.margin = '0';
-        }
     } else {
         // Desktop: scale normally
         var cs = getComputedStyle(scroll);
@@ -4099,6 +4125,18 @@ function updateServicePreviewScale() {
         if (scroll._rotatedScrollHandler) {
             scroll.removeEventListener('scroll', scroll._rotatedScrollHandler);
             scroll._rotatedScrollHandler = null;
+        }
+
+        // Reset header from rotated landscape mode
+        if (header) {
+            header.style.position = '';
+            header.style.left = '';
+            header.style.top = '';
+            header.style.width = '';
+            header.style.height = '';
+            header.style.transform = '';
+            header.style.transformOrigin = '';
+            header.style.zIndex = '';
         }
 
         if (scale < 1) {
