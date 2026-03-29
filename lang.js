@@ -66,6 +66,8 @@ const TRANSLATIONS = {
         order_days: 'Dag(er)',
         order_merknad: 'Merknad',
         order_merknad_placeholder: 'Valgfri merknad...',
+        order_plan: 'Plan',
+        order_plan_placeholder: 'Etasje(r)...',
         order_add: '+ Legg til bestilling',
         order_delete_confirm: 'Slett denne bestillingen?',
 
@@ -405,6 +407,8 @@ const TRANSLATIONS = {
         order_days: 'Day(s)',
         order_merknad: 'Note',
         order_merknad_placeholder: 'Optional note...',
+        order_plan: 'Floor plan',
+        order_plan_placeholder: 'Floor(s)...',
         order_add: '+ Add order',
         order_delete_confirm: 'Delete this order?',
 

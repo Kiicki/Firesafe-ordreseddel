@@ -2125,6 +2125,7 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'signeringDato',  labelKey: 'label_dato' },
         { key: 'beskrivelse',    labelKey: 'settings_req_beskrivelse' },
         { key: 'dager',         labelKey: 'order_days' },
+        { key: 'plan',          labelKey: 'order_plan' },
         { key: 'merknad',       labelKey: 'order_merknad' },
         { key: 'materialer',    labelKey: 'order_materials_label' },
         { key: 'timer',         labelKey: 'order_hours' },
@@ -2595,6 +2596,18 @@ function updateRequiredIndicators() {
                     dagerField.classList.add('field-required');
                 } else {
                     dagerField.classList.remove('field-required');
+                }
+            }
+        }
+        // Plan field
+        var planInput = card.querySelector('.mobile-order-plan');
+        if (planInput) {
+            var planField = planInput.closest('.mobile-field');
+            if (planField) {
+                if (saveReqs.plan) {
+                    planField.classList.add('field-required');
+                } else {
+                    planField.classList.remove('field-required');
                 }
             }
         }

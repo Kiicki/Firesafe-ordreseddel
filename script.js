@@ -850,6 +850,10 @@ function createOrderCard(orderData, expanded) {
                     <button type="button" class="dag-chip" data-dag="so">Sø</button>
                 </div>
             </div>
+            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.plan ? ' field-required' : ''}">
+                <label data-i18n="order_plan">${t('order_plan')}</label>
+                <input type="text" class="mobile-order-plan" placeholder="${t('order_plan_placeholder')}">
+            </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
                 <label data-i18n="order_merknad">${t('order_merknad')}</label>
                 <textarea class="mobile-order-merknad" rows="2" autocapitalize="sentences" placeholder="${t('order_merknad_placeholder')}"></textarea>
@@ -916,6 +920,13 @@ function createOrderCard(orderData, expanded) {
         chip.addEventListener('click', function() {
             this.classList.toggle('active');
         });
+    });
+
+    // Set plan
+    const planInput = card.querySelector('.mobile-order-plan');
+    planInput.value = orderData.plan || '';
+    planInput.addEventListener('blur', function() {
+        this.value = this.value.split(',').map(s => s.trim()).filter(s => s).join(', ');
     });
 
     // Set merknad
@@ -1803,7 +1814,7 @@ function addOrder() {
             card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
         }
     });
-    const card = createOrderCard({ description: '', dager: [], merknad: '', materials: [], timer: '' }, true);
+    const card = createOrderCard({ description: '', dager: [], plan: '', merknad: '', materials: [], timer: '' }, true);
     container.appendChild(card);
     updateOrderDeleteStates();
     renumberOrders();
@@ -2031,11 +2042,12 @@ function getOrdersData() {
         const description = descInput.getAttribute('data-full-value') || descInput.value;
         const dagerBtns = card.querySelectorAll('.dag-chip.active');
         const dager = Array.from(dagerBtns).map(b => b.getAttribute('data-dag'));
+        const plan = card.querySelector('.mobile-order-plan').value;
         const merknad = card.querySelector('.mobile-order-merknad').value;
         const timer = card.querySelector('.mobile-order-timer').value;
         const matContainer = card.querySelector('.mobile-order-materials');
         const materials = getMaterialsFromContainer(matContainer);
-        orders.push({ description, dager, merknad, materials, timer });
+        orders.push({ description, dager, plan, merknad, materials, timer });
     });
     return orders;
 }
@@ -2582,8 +2594,8 @@ function buildDesktopWorkLines() {
     let totalTimer = 0;
 
     orders.forEach((order, idx) => {
-        // Description (with dager and merknad combined, bold labels)
-        if (order.description || (order.dager && order.dager.length > 0) || order.merknad) {
+        // Description (with dager, plan and merknad combined, bold labels)
+        if (order.description || (order.dager && order.dager.length > 0) || order.plan || order.merknad) {
             const row = document.createElement('div');
             row.className = 'work-line';
             const descDiv = document.createElement('div');
@@ -2604,7 +2616,7 @@ function buildDesktopWorkLines() {
                 });
             }
 
-            const hasMeta = (order.dager && order.dager.length > 0) || order.merknad;
+            const hasMeta = (order.dager && order.dager.length > 0) || order.plan || order.merknad;
             if (order.description && hasMeta) {
                 const spacer = document.createElement('div');
                 spacer.style.height = '6px';
@@ -2620,8 +2632,18 @@ function buildDesktopWorkLines() {
                 descContent.appendChild(document.createTextNode(dagText));
             }
 
-            if (order.merknad) {
+            if (order.plan) {
                 if (order.dager && order.dager.length > 0) {
+                    descContent.appendChild(document.createTextNode('\n'));
+                }
+                const planLabel = document.createElement('strong');
+                planLabel.textContent = 'Plan: ';
+                descContent.appendChild(planLabel);
+                descContent.appendChild(document.createTextNode(order.plan.split(',').map(s => s.trim()).filter(s => s).join(', ')));
+            }
+
+            if (order.merknad) {
+                if ((order.dager && order.dager.length > 0) || order.plan) {
                     descContent.appendChild(document.createTextNode('\n'));
                 }
                 const merknadLabel = document.createElement('strong');
@@ -2916,6 +2938,18 @@ function validateRequiredFields() {
             const activeChips = orderCards[i].querySelectorAll('.dag-chip.active');
             if (activeChips.length === 0) {
                 showNotificationModal(t('required_field', t('order_days')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
+                return false;
+            }
+        }
+    }
+
+    // Validate plan
+    if (saveReqs.plan) {
+        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        for (let i = 0; i < orderCards.length; i++) {
+            const planInput = orderCards[i].querySelector('.mobile-order-plan');
+            if (!planInput || !planInput.value.trim()) {
+                showNotificationModal(t('required_field', t('order_plan')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
         }
