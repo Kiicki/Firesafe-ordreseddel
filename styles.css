@@ -1856,6 +1856,66 @@ label.settings-default-label.field-required > span::after {
     transform: scale(0.95);
 }
 
+.plan-chips-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plan-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.plan-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    background: #c0392b;
+    color: #fff;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+.plan-input-row {
+    display: flex;
+    gap: 6px;
+}
+
+.plan-add-btn {
+    min-width: 44px;
+    border: none;
+    border-radius: 8px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 22px;
+    font-weight: bold;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.plan-add-btn:active {
+    opacity: 0.8;
+}
+
+.plan-input {
+    flex: 1;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .mobile-order-merknad {
     resize: vertical;
     font-family: inherit;
