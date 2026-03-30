@@ -2600,9 +2600,9 @@ function updateRequiredIndicators() {
             }
         }
         // Plan field
-        var planContainer = card.querySelector('.plan-chips-container');
-        if (planContainer) {
-            var planField = planContainer.closest('.mobile-field');
+        var planInput = card.querySelector('.mobile-order-plan');
+        if (planInput) {
+            var planField = planInput.closest('.mobile-field');
             if (planField) {
                 if (saveReqs.plan) {
                     planField.classList.add('field-required');

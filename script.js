@@ -852,13 +852,7 @@ function createOrderCard(orderData, expanded) {
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.plan ? ' field-required' : ''}">
                 <label data-i18n="order_plan">${t('order_plan')}</label>
-                <div class="plan-chips-container">
-                    <div class="plan-chips"></div>
-                    <div class="plan-input-row">
-                        <input type="text" class="plan-input" placeholder="${t('order_plan_placeholder')}">
-                        <button type="button" class="plan-add-btn">+</button>
-                    </div>
-                </div>
+                <input type="text" class="mobile-order-plan" placeholder="${t('order_plan_placeholder')}">
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
                 <label data-i18n="order_merknad">${t('order_merknad')}</label>
@@ -928,38 +922,12 @@ function createOrderCard(orderData, expanded) {
         });
     });
 
-    // Set plan chips
-    const planChips = card.querySelector('.plan-chips');
-    const planInput = card.querySelector('.plan-input');
-    const planAddBtn = card.querySelector('.plan-add-btn');
-
-    function addPlanChip(value) {
-        const v = value.trim().toUpperCase();
-        if (!v) return;
-        const chip = document.createElement('span');
-        chip.className = 'plan-chip';
-        chip.textContent = v + ' ×';
-        chip.addEventListener('click', function() { chip.remove(); });
-        planChips.appendChild(chip);
-    }
-
-    // Load existing plan data
-    const planData = orderData.plan || '';
-    if (planData) {
-        planData.split(',').map(s => s.trim()).filter(s => s).forEach(addPlanChip);
-    }
-
-    planAddBtn.addEventListener('click', function() {
-        addPlanChip(planInput.value);
-        planInput.value = '';
-        planInput.focus();
-    });
-    planInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            addPlanChip(this.value);
-            this.value = '';
-        }
+    // Set plan
+    const planInput = card.querySelector('.mobile-order-plan');
+    planInput.value = orderData.plan || '';
+    planInput.addEventListener('blur', function() {
+        const parts = this.value.split(/[,+\s]+/).filter(s => s);
+        if (parts.length) this.value = parts.map(s => s.toUpperCase()).join(', ');
     });
 
     // Set merknad
@@ -2075,8 +2043,7 @@ function getOrdersData() {
         const description = descInput.getAttribute('data-full-value') || descInput.value;
         const dagerBtns = card.querySelectorAll('.dag-chip.active');
         const dager = Array.from(dagerBtns).map(b => b.getAttribute('data-dag'));
-        const planChips = card.querySelectorAll('.plan-chip');
-        const plan = Array.from(planChips).map(c => c.textContent.replace('×', '').trim()).join(', ');
+        const plan = card.querySelector('.mobile-order-plan').value;
         const merknad = card.querySelector('.mobile-order-merknad').value;
         const timer = card.querySelector('.mobile-order-timer').value;
         const matContainer = card.querySelector('.mobile-order-materials');
@@ -2981,8 +2948,8 @@ function validateRequiredFields() {
     if (saveReqs.plan) {
         const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
         for (let i = 0; i < orderCards.length; i++) {
-            const planChips = orderCards[i].querySelectorAll('.plan-chip');
-            if (!planChips || planChips.length === 0) {
+            const planInput = orderCards[i].querySelector('.mobile-order-plan');
+            if (!planInput || !planInput.value.trim()) {
                 showNotificationModal(t('required_field', t('order_plan')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
