@@ -70,14 +70,16 @@ function formatDateWithTime(date) {
 var _previousViewId = null;
 function showView(viewId) {
     var target = document.getElementById(viewId);
-    if (target.classList.contains('active')) return;
-    // Track previous view for back navigation
-    var current = document.querySelector('.view.active');
-    if (current) _previousViewId = current.id;
-    document.querySelectorAll('.view').forEach(function(v) {
-        v.classList.remove('active');
-    });
-    target.classList.add('active');
+    var alreadyActive = target.classList.contains('active');
+    if (!alreadyActive) {
+        // Track previous view for back navigation
+        var current = document.querySelector('.view.active');
+        if (current) _previousViewId = current.id;
+        document.querySelectorAll('.view').forEach(function(v) {
+            v.classList.remove('active');
+        });
+        target.classList.add('active');
+    }
     target.scrollTop = 0;
     window.scrollTo(0, 0);
 }
@@ -1424,7 +1426,8 @@ function getSettingsPageTitle(page) {
         templates: t('settings_templates'),
         required: t('settings_required'),
         language: t('settings_language'),
-        materials: t('settings_materials')
+        materials: t('settings_materials'),
+        plans: t('settings_plans')
     };
     return titles[page] || '';
 }
@@ -1472,7 +1475,8 @@ function showSettingsMenu() {
 
 function showSettingsPage(page) {
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
-    document.getElementById('settings-page-' + page).style.display = 'block';
+    var pageEl2 = document.getElementById('settings-page-' + page);
+    pageEl2.style.display = pageEl2.classList.contains('settings-page-flex') ? 'flex' : 'block';
     document.getElementById('settings-header-title').textContent = getSettingsPageTitle(page);
     document.body.classList.add('settings-subpage-open');
     history.pushState(null, '', '#settings/' + page);
@@ -1490,7 +1494,7 @@ function showSettingsPage(page) {
 
     // Mark global settings pages as read-only for non-admins
     var pageEl = document.getElementById('settings-page-' + page);
-    if (page === 'materials' && !isAdmin) {
+    if ((page === 'materials' || page === 'plans') && !isAdmin) {
         pageEl.classList.add('settings-readonly');
     } else {
         pageEl.classList.remove('settings-readonly');
@@ -1559,6 +1563,18 @@ function showSettingsPage(page) {
             settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
             settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
             renderMaterialSettingsItems();
+        });
+    } else if (page === 'plans') {
+        // Show cached immediately
+        var storedPlans = localStorage.getItem(PLANS_KEY);
+        settingsPlans = storedPlans ? sortPlans(JSON.parse(storedPlans)) : [];
+        renderPlanSettingsItems();
+        document.getElementById('settings-new-plan').value = '';
+        // Background refresh
+        getPlanSettings().then(function(plans) {
+            if (!document.body.classList.contains('settings-modal-open')) return;
+            settingsPlans = sortPlans(plans || []);
+            renderPlanSettingsItems();
         });
     }
 }
@@ -2047,6 +2063,8 @@ async function changeMaterialType(idx, type) {
 
 // Cache for dropdown options
 let cachedMaterialOptions = null;
+let cachedPlanOptions = [];
+let settingsPlans = [];
 
 async function getDropdownOptions() {
     // Show cached immediately so picker is never empty
@@ -2066,6 +2084,107 @@ async function getDropdownOptions() {
     safeSetItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: [] }));
 }
 
+
+// ============================================
+// PLAN / ETASJE INNSTILLINGER
+// ============================================
+
+async function getPlanSettings() {
+    if (currentUser && db) {
+        try {
+            var doc = await db.collection('settings').doc('plans').get();
+            if (doc.exists) return doc.data().plans || [];
+        } catch (e) { console.error('Plan settings error:', e); }
+    }
+    var stored = localStorage.getItem(PLANS_KEY);
+    return stored ? JSON.parse(stored) : [];
+}
+
+function savePlanSettings() {
+    if (!isAdmin) return;
+    safeSetItem(PLANS_KEY, JSON.stringify(settingsPlans));
+    cachedPlanOptions = sortPlans(settingsPlans.slice());
+    if (currentUser && db) {
+        db.collection('settings').doc('plans').set({ plans: settingsPlans })
+            .catch(function(e) { console.error('Save plan settings error:', e); });
+    }
+}
+
+function renderPlanSettingsItems() {
+    var container = document.getElementById('settings-plan-items');
+    if (settingsPlans.length === 0) {
+        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_plans') + '</div>';
+        return;
+    }
+    var html = '';
+    settingsPlans.forEach(function(name, idx) {
+        html += '<div class="settings-plan-item">' +
+            '<span class="settings-plan-name">' + escapeHtml(name) + '</span>' +
+            '<button type="button" class="settings-plan-remove" onclick="removeSettingsPlan(' + idx + ')">✕</button>' +
+            '</div>';
+    });
+    container.innerHTML = html;
+}
+
+function sortPlans(plans) {
+    return plans.sort(function(a, b) {
+        var aUp = a.toUpperCase(), bUp = b.toUpperCase();
+        var aIsU = aUp.match(/^U(\d+)$/), bIsU = bUp.match(/^U(\d+)$/);
+        var aIsNum = aUp.match(/^\d+$/), bIsNum = bUp.match(/^\d+$/);
+        // U-etasjer først, synkende (U3 før U1)
+        if (aIsU && bIsU) return parseInt(bIsU[1]) - parseInt(aIsU[1]);
+        if (aIsU) return -1;
+        if (bIsU) return 1;
+        // Tall i stigende rekkefølge
+        if (aIsNum && bIsNum) return parseInt(aIsNum[0]) - parseInt(bIsNum[0]);
+        if (aIsNum) return -1;
+        if (bIsNum) return 1;
+        // Resten alfabetisk
+        return aUp.localeCompare(bUp, 'no');
+    });
+}
+
+function addSettingsPlan() {
+    if (!isAdmin) return;
+    var input = document.getElementById('settings-new-plan');
+    var val = input.value.trim().toUpperCase();
+    if (!val) return;
+    if (settingsPlans.some(function(p) { return p.toUpperCase() === val; })) {
+        showNotificationModal(t('settings_plan_exists'));
+        return;
+    }
+    settingsPlans.push(val);
+    sortPlans(settingsPlans);
+    input.value = '';
+    renderPlanSettingsItems();
+    savePlanSettings();
+    // Scroll to the newly added item
+    var idx = settingsPlans.indexOf(val);
+    var container = document.getElementById('settings-plan-items');
+    if (container.children[idx]) {
+        container.children[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+function removeSettingsPlan(idx) {
+    if (!isAdmin) return;
+    var name = settingsPlans[idx];
+    showConfirmModal(t('settings_plan_remove', name), function() {
+        settingsPlans.splice(idx, 1);
+        renderPlanSettingsItems();
+        savePlanSettings();
+    });
+}
+
+async function loadPlanOptions() {
+    // Show cached immediately
+    var stored = localStorage.getItem(PLANS_KEY);
+    cachedPlanOptions = stored ? sortPlans(JSON.parse(stored)) : [];
+    // Refresh from Firebase
+    var plans = await getPlanSettings();
+    cachedPlanOptions = sortPlans(plans);
+    safeSetItem(PLANS_KEY, JSON.stringify(cachedPlanOptions));
+}
 
 // ============================================
 // OBLIGATORISKE FELT INNSTILLINGER
@@ -2600,9 +2719,9 @@ function updateRequiredIndicators() {
             }
         }
         // Plan field
-        var planInput = card.querySelector('.mobile-order-plan');
-        if (planInput) {
-            var planField = planInput.closest('.mobile-field');
+        var planDisplay = card.querySelector('.plan-display');
+        if (planDisplay) {
+            var planField = planDisplay.closest('.mobile-field');
             if (planField) {
                 if (saveReqs.plan) {
                     planField.classList.add('field-required');
@@ -4349,8 +4468,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // Load dropdown options for materials/units
+    // Load dropdown options for materials/units and plans
     getDropdownOptions();
+    loadPlanOptions();
 
     // Load required field settings and update indicators
     getRequiredSettings().then(function(data) {

@@ -202,6 +202,15 @@ const TRANSLATIONS = {
         btn_save_settings: 'Lagre',
         btn_add: 'Legg til',
 
+        // Plan settings
+        settings_plans: 'Plan / Etasjer',
+        settings_plan_add: '+ Legg til etasje',
+        settings_plan_placeholder: 'Etasjenavn...',
+        settings_plan_exists: 'Denne etasjen finnes allerede',
+        settings_plan_remove: 'Fjerne "{0}"?',
+        settings_no_plans: 'Ingen etasjer lagt til',
+        plan_picker_title: 'Velg plan',
+
         // Materials & units settings
         settings_materials: 'Materialer',
         settings_materials_list: 'Materialer',
@@ -542,6 +551,15 @@ const TRANSLATIONS = {
         placeholder_to: 'To',
         btn_save_settings: 'Save',
         btn_add: 'Add',
+
+        // Plan settings
+        settings_plans: 'Floor levels',
+        settings_plan_add: '+ Add floor',
+        settings_plan_placeholder: 'Floor name...',
+        settings_plan_exists: 'This floor already exists',
+        settings_plan_remove: 'Remove "{0}"?',
+        settings_no_plans: 'No floors added',
+        plan_picker_title: 'Select floor',
 
         // Materials & units settings
         settings_materials: 'Materials',

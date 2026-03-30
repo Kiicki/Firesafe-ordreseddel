@@ -63,7 +63,7 @@
                 <div class="mobile-field">
                     <label data-i18n="label_ordreseddel_nr">Ordreseddel nr.</label>
                     <div class="input-with-copy">
-                        <input type="text" id="mobile-ordreseddel-nr" inputmode="numeric" >
+                        <input type="text" id="mobile-ordreseddel-nr" inputmode="numeric">
                         <button type="button" class="copy-btn" onclick="copyOrderNumber()" title="Kopier"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
                     </div>
                 </div>
@@ -90,7 +90,8 @@
                 <div class="mobile-field">
                     <label data-i18n="label_fakturaadresse">Fakturaadresse</label>
                     <div class="fakturaadresse-display" onclick="openFakturaadressePopup('form')">
-                        <span id="fakturaadresse-display-text" class="fakturaadresse-display-placeholder" data-i18n="placeholder_fakturaadresse">Trykk for å fylle ut</span>
+                        <span id="fakturaadresse-display-text" class="fakturaadresse-display-placeholder"></span>
+                        <span class="fakturaadresse-chevron">›</span>
                     </div>
                     <input type="hidden" id="mobile-fakturaadresse">
                 </div>
@@ -386,7 +387,8 @@
                 <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
                 <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span>
                     <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template')">
-                        <span id="tpl-fakturaadresse-display-text" class="fakturaadresse-display-placeholder" data-i18n="placeholder_fakturaadresse">Trykk for å fylle ut</span>
+                        <span id="tpl-fakturaadresse-display-text" class="fakturaadresse-display-placeholder"></span>
+                        <span class="fakturaadresse-chevron">›</span>
                     </div>
                     <input type="hidden" id="tpl-edit-fakturaadresse">
                 </label>
@@ -426,6 +428,10 @@
                         <div class="settings-menu-item" onclick="showSettingsPage('required')">
                             <span data-i18n="settings_required">Krav ved lagring og eksport</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('plans')">
+                            <span data-i18n="settings_plans">Plan / Etasjer</span>
+                            <span class="settings-menu-arrow">›</span>
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('materials')">
                             <span data-i18n="settings_materials">Materialer</span>
@@ -532,6 +538,16 @@
                 </div>
 
                 <!-- Materialer-side -->
+                <div id="settings-page-plans" class="settings-page settings-page-flex" style="display:none;">
+                    <div class="settings-page-scroll">
+                        <div id="settings-plan-items" class="settings-list-container"></div>
+                    </div>
+                    <div class="settings-page-footer settings-add-plan-row">
+                        <input type="text" id="settings-new-plan" data-i18n-placeholder="settings_plan_placeholder" placeholder="Etasjenavn..." autocapitalize="characters" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingsPlan()}">
+                        <button type="button" class="settings-add-plan-btn" onclick="addSettingsPlan()" data-i18n="btn_add">Legg til</button>
+                    </div>
+                </div>
+
                 <div id="settings-page-materials" class="settings-page" style="display:none;">
                     <div id="settings-material-items" class="settings-list-container"></div>
                     <div class="settings-add-material-row">
@@ -732,6 +748,20 @@
         </div>
     </div>
 
+
+    <!-- Plan picker popup -->
+    <div class="spec-popup-backdrop" id="plan-popup" onclick="if(event.target===this)closePlanPicker()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span data-i18n="plan_picker_title">Velg plan</span>
+            </div>
+            <div class="spec-popup-body" id="plan-popup-list"></div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closePlanPicker()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-ok" onclick="confirmPlanPicker()">OK</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Fakturaadresse popup -->
     <div class="fakturaadresse-popup-backdrop" id="fakturaadresse-popup" onclick="if(event.target===this)closeFakturaadressePopup()">

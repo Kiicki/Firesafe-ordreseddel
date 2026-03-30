@@ -5,6 +5,7 @@ const SETTINGS_KEY = 'firesafe_settings';
 const DEFAULTS_KEY = 'firesafe_defaults';
 const MATERIALS_KEY = 'firesafe_materials';
 const REQUIRED_KEY = 'firesafe_required';
+const PLANS_KEY = 'firesafe_plans';
 const SERVICE_DEFAULTS_KEY = 'firesafe_defaults_service';
 const SERVICE_STORAGE_KEY = 'firesafe_service';
 const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
@@ -770,7 +771,7 @@ function updateFakturaadresseDisplay(spanId, value) {
         span.textContent = value;
         span.className = 'fakturaadresse-display-text';
     } else {
-        span.textContent = t('placeholder_fakturaadresse');
+        span.textContent = '';
         span.className = 'fakturaadresse-display-placeholder';
     }
 }
@@ -852,11 +853,14 @@ function createOrderCard(orderData, expanded) {
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.plan ? ' field-required' : ''}">
                 <label data-i18n="order_plan">${t('order_plan')}</label>
-                <input type="text" class="mobile-order-plan" placeholder="${t('order_plan_placeholder')}">
+                <div class="plan-display" onclick="openPlanPicker(this)">
+                    <span class="plan-display-text"></span>
+                    <span class="fakturaadresse-chevron">›</span>
+                </div>
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
                 <label data-i18n="order_merknad">${t('order_merknad')}</label>
-                <textarea class="mobile-order-merknad" rows="2" autocapitalize="sentences" placeholder="${t('order_merknad_placeholder')}"></textarea>
+                <textarea class="mobile-order-merknad" rows="2" autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' <span class="required-star" style="color:#e74c3c;font-weight:bold">*</span>' : ''}</label>
@@ -923,12 +927,11 @@ function createOrderCard(orderData, expanded) {
     });
 
     // Set plan
-    const planInput = card.querySelector('.mobile-order-plan');
-    planInput.value = orderData.plan || '';
-    planInput.addEventListener('blur', function() {
-        const parts = this.value.split(/[,+\s]+/).filter(s => s);
-        if (parts.length) this.value = parts.map(s => s.toUpperCase()).join(', ');
-    });
+    const planDisplay = card.querySelector('.plan-display');
+    const planText = planDisplay.querySelector('.plan-display-text');
+    const planVal = orderData.plan || '';
+    planDisplay.setAttribute('data-plan', planVal);
+    planText.textContent = planVal;
 
     // Set merknad
     card.querySelector('.mobile-order-merknad').value = orderData.merknad || '';
@@ -1769,6 +1772,85 @@ function closeVariantPopup() {
     variantPopupCallback = null;
 }
 
+// ============================================
+// PLAN PICKER
+// ============================================
+let _planPickerDisplay = null;
+let _planPickerState = {};
+
+function openPlanPicker(displayEl) {
+    _planPickerDisplay = displayEl;
+    var existing = (displayEl.getAttribute('data-plan') || '').split(',').map(s => s.trim()).filter(s => s);
+    var options = cachedPlanOptions || [];
+    _planPickerState = {};
+
+    var listEl = document.getElementById('plan-popup-list');
+    var html = '';
+
+    // Add configured options
+    options.forEach(function(name) {
+        _planPickerState[name] = existing.indexOf(name) !== -1;
+        html += '<div class="plan-popup-row' + (_planPickerState[name] ? ' plan-popup-selected' : '') + '" data-plan="' + escapeHtml(name) + '">' +
+            '<span class="plan-popup-check">\u2713</span>' +
+            '<span class="plan-popup-name">' + escapeHtml(name) + '</span>' +
+            '</div>';
+    });
+
+    // Add existing values not in options (backward compat)
+    existing.forEach(function(name) {
+        if (!_planPickerState.hasOwnProperty(name)) {
+            _planPickerState[name] = true;
+            html += '<div class="plan-popup-row plan-popup-selected" data-plan="' + escapeHtml(name) + '">' +
+                '<span class="plan-popup-check">\u2713</span>' +
+                '<span class="plan-popup-name">' + escapeHtml(name) + '</span>' +
+                '</div>';
+        }
+    });
+
+    if (!html) {
+        html = '<div style="padding:16px;color:#999;text-align:center">' + t('settings_no_plans') + '</div>';
+    }
+
+    listEl.innerHTML = html;
+
+    // Attach click handlers
+    listEl.querySelectorAll('.plan-popup-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+            var name = this.getAttribute('data-plan');
+            _planPickerState[name] = !_planPickerState[name];
+            this.classList.toggle('plan-popup-selected');
+        });
+    });
+
+    document.getElementById('plan-popup').classList.add('active');
+}
+
+function confirmPlanPicker() {
+    var selected = [];
+    for (var name in _planPickerState) {
+        if (_planPickerState[name]) selected.push(name);
+    }
+    // Sort by original options order
+    var options = cachedPlanOptions || [];
+    selected.sort(function(a, b) {
+        var ia = options.indexOf(a);
+        var ib = options.indexOf(b);
+        if (ia === -1) ia = 999;
+        if (ib === -1) ib = 999;
+        return ia - ib;
+    });
+    var val = selected.join(', ');
+    _planPickerDisplay.setAttribute('data-plan', val);
+    _planPickerDisplay.querySelector('.plan-display-text').textContent = val;
+    closePlanPicker();
+}
+
+function closePlanPicker() {
+    document.getElementById('plan-popup').classList.remove('active');
+    _planPickerDisplay = null;
+    _planPickerState = {};
+}
+
 function updateOrderTitle(card) {
     var titleEl = card.querySelector('.mobile-order-title');
     if (!titleEl) return;
@@ -1778,9 +1860,17 @@ function updateOrderTitle(card) {
     if (!firstLine) {
         var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
         var idx = Array.prototype.indexOf.call(cards, card);
-        firstLine = t('order_title') + ' ' + (idx + 1);
+        firstLine = t('order_title') + ' ' + (idx >= 0 ? idx + 1 : cards.length + 1);
     }
     titleEl.textContent = firstLine;
+}
+
+function scrollCardToTop(card, smooth) {
+    var scrollContainer = card.closest('.view') || document.documentElement;
+    var containerRect = scrollContainer.getBoundingClientRect();
+    var cardRect = card.getBoundingClientRect();
+    var offset = cardRect.top - containerRect.top + scrollContainer.scrollTop - 60;
+    scrollContainer.scrollTo({ top: offset, behavior: smooth ? 'smooth' : 'instant' });
 }
 
 function toggleOrder(headerEl) {
@@ -1793,9 +1883,11 @@ function toggleOrder(headerEl) {
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
         if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
+        scrollCardToTop(card, false);
     }
 }
 
@@ -1820,7 +1912,7 @@ function addOrder() {
     updateOrderDeleteStates();
     renumberOrders();
     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    requestAnimationFrame(function() { scrollCardToTop(card, true); });
 }
 
 function removeOrder(btn) {
@@ -1924,12 +2016,15 @@ function removeServiceEntry(btn) {
 function toggleServiceEntry(headerEl) {
     var body = headerEl.nextElementSibling;
     var arrow = headerEl.querySelector('.mobile-order-arrow');
+    var card = headerEl.closest('.service-entry-card');
     if (body.style.display === 'none') {
         body.style.display = '';
         arrow.innerHTML = '&#9650;';
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
+        scrollCardToTop(card, false);
     }
 }
 
@@ -2043,7 +2138,7 @@ function getOrdersData() {
         const description = descInput.getAttribute('data-full-value') || descInput.value;
         const dagerBtns = card.querySelectorAll('.dag-chip.active');
         const dager = Array.from(dagerBtns).map(b => b.getAttribute('data-dag'));
-        const plan = card.querySelector('.mobile-order-plan').value;
+        const plan = card.querySelector('.plan-display').getAttribute('data-plan') || '';
         const merknad = card.querySelector('.mobile-order-merknad').value;
         const timer = card.querySelector('.mobile-order-timer').value;
         const matContainer = card.querySelector('.mobile-order-materials');
@@ -2948,8 +3043,8 @@ function validateRequiredFields() {
     if (saveReqs.plan) {
         const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
         for (let i = 0; i < orderCards.length; i++) {
-            const planInput = orderCards[i].querySelector('.mobile-order-plan');
-            if (!planInput || !planInput.value.trim()) {
+            const planDisplay = orderCards[i].querySelector('.plan-display');
+            if (!planDisplay || !(planDisplay.getAttribute('data-plan') || '').trim()) {
                 showNotificationModal(t('required_field', t('order_plan')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }

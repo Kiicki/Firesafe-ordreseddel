@@ -1856,6 +1856,119 @@ label.settings-default-label.field-required > span::after {
     transform: scale(0.95);
 }
 
+.plan-display {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.plan-display:active {
+    background: #f8f8f8;
+}
+
+.plan-display-text {
+    flex: 1;
+    color: #333;
+}
+
+#plan-popup-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.plan-popup-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 8px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.plan-popup-check {
+    display: none;
+}
+
+.plan-popup-selected {
+    background: #c0392b;
+    color: #fff;
+    border-color: #c0392b;
+}
+
+.plan-popup-name {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* Plan settings */
+.settings-add-plan-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #eee;
+}
+
+.settings-add-plan-row input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.settings-add-plan-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.settings-plan-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.settings-plan-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.settings-plan-remove {
+    border: none;
+    background: none;
+    color: #e74c3c;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
 .mobile-order-merknad {
     resize: vertical;
     font-family: inherit;
@@ -2500,7 +2613,10 @@ label.settings-default-label.field-required > span::after {
     border-radius: 12px;
     width: 90%;
     max-width: 320px;
+    max-height: 80vh;
     padding: 20px;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 }
 .spec-popup-header {
@@ -2514,6 +2630,9 @@ label.settings-default-label.field-required > span::after {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 .spec-popup-field {
     display: flex;
@@ -2701,6 +2820,8 @@ label.settings-default-label.field-required > span::after {
     border-radius: 12px;
     width: 300px;
     max-width: calc(100% - 40px);
+    max-height: 80vh;
+    overflow-y: auto;
     text-align: center;
     margin: 20px;
 }
@@ -2906,6 +3027,13 @@ label.settings-default-label.field-required > span::after {
     padding: 16px !important;
 }
 
+
+.settings-page-flex {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
 
 .settings-page-scroll {
     flex: 1;
@@ -4516,6 +4644,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .fakturaadresse-display-placeholder {
     color: #999;
 }
+.fakturaadresse-chevron {
+    margin-left: auto;
+    font-size: 20px;
+    color: #999;
+}
 /* Template editor: matcher settings-default-label input */
 .tpl-fakturaadresse-display {
     margin-top: 4px;
@@ -4542,8 +4675,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-radius: 12px;
     width: 90%;
     max-width: 360px;
+    max-height: 80vh;
     padding: 20px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    display: flex;
+    flex-direction: column;
 }
 .fakturaadresse-popup-header {
     font-weight: 600;
