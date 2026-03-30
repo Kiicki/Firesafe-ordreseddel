@@ -1096,6 +1096,7 @@ body.service-view-open {
     font-size: 14px;
 }
 .bil-history-card {
+    position: relative;
     border-left: 4px solid #ccc;
     margin-bottom: 10px;
     padding: 10px 12px;
@@ -1112,7 +1113,7 @@ body.service-view-open {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
 }
 .bil-history-type {
     font-size: 11px;
@@ -1138,6 +1139,11 @@ body.service-view-open {
     font-weight: 500;
     font-size: 14px;
 }
+.bil-history-subtitle {
+    font-size: 13px;
+    color: #666;
+    padding: 0 12px 2px;
+}
 .bil-history-sep {
     display: inline-block;
     width: 1px;
@@ -1147,6 +1153,9 @@ body.service-view-open {
     vertical-align: -1px;
 }
 .bil-history-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
     background: none;
     border: none;
     cursor: pointer;
