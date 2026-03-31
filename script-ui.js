@@ -41,7 +41,6 @@ function refreshActiveView() {
             }
         }).catch(function(e) { console.error('Refresh saved forms:', e); });
     } else if (document.body.classList.contains('template-modal-open')) {
-        renderBilHistory();
         getTemplates().then(function(result) {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
@@ -87,6 +86,7 @@ function showView(viewId) {
 function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
+    _bilHistoryRendered = false;
     document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open', 'calculator-modal-open');
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_form_type');
@@ -336,7 +336,9 @@ async function duplicateForm(event, index) {
     if (event) event.stopPropagation();
     const form = window.loadedForms[index];
     if (!form) return;
-    await duplicateFormDirect(form);
+    showConfirmModal(t('duplicate_confirm'), function() {
+        duplicateFormDirect(form);
+    }, t('duplicate_btn'));
 }
 
 async function duplicateFormDirect(form) {
@@ -1230,6 +1232,7 @@ async function loadMoreTemplates() {
     }
 }
 
+var _bilHistoryRendered = false;
 function showTemplateModal() {
     closeAllModals();
     history.replaceState(null, '', window.location.pathname);
@@ -1237,7 +1240,10 @@ function showTemplateModal() {
     showView('template-modal');
     document.body.classList.add('template-modal-open');
     updateToolbarState();
-    renderBilHistory();
+    if (!_bilHistoryRendered) {
+        renderBilHistory();
+        _bilHistoryRendered = true;
+    }
 }
 
 function autoFillOrderNumber() {
@@ -1329,6 +1335,7 @@ async function duplicateTemplate(index) {
     const template = window.loadedTemplates[index];
     if (!template) return;
 
+    showConfirmModal(t('duplicate_confirm'), async function() {
     const copy = Object.assign({}, template);
     copy.prosjektnavn = (copy.prosjektnavn || '') + ' (kopi)';
     copy.createdAt = new Date().toISOString();
@@ -1347,6 +1354,7 @@ async function duplicateTemplate(index) {
         db.collection('users').doc(currentUser.uid).collection('templates').doc(copy.id).set(copy)
             .catch(function(e) { console.error('Duplicate template error:', e); });
     }
+    }, t('duplicate_btn'));
 }
 
 function closeTemplateModal() {
@@ -3606,16 +3614,18 @@ function openNewServiceForm() {
     renumberServiceEntries();
     updateServiceDeleteStates();
 
-    // Show service view
-    showView('service-view');
-    document.body.classList.add('service-view-open');
-    window.location.hash = 'service';
+    // Set up service view state before showing
     document.getElementById('service-sent-banner').style.display = 'none';
     document.getElementById('btn-service-sent').style.display = '';
     document.getElementById('service-save-btn').disabled = false;
     sessionStorage.removeItem('firesafe_service_sent');
     _serviceLastSavedData = null;
     sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+
+    // Show service view after content is ready
+    showView('service-view');
+    document.body.classList.add('service-view-open');
+    window.location.hash = 'service';
 
     // Scroll to top after all content is set
     requestAnimationFrame(function() {
@@ -3734,7 +3744,10 @@ function loadServiceTab() {
             safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
             var allForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
                 .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
-                .sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+                .sort(function(a, b) {
+                    if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
+                    return (b.savedAt || '').localeCompare(a.savedAt || '');
+                });
             if (document.body.classList.contains('saved-modal-open')) {
                 renderServiceFormsList(allForms);
             }
@@ -4331,7 +4344,9 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
                 });
             }
         } else if (btn.classList.contains('copy')) {
-            duplicateFormDirect(savedItem._formData);
+            showConfirmModal(t('duplicate_confirm'), function() {
+                duplicateFormDirect(savedItem._formData);
+            }, t('duplicate_btn'));
         } else if (btn.classList.contains('delete')) {
             deleteFormDirect(savedItem._formData);
         }
@@ -4375,7 +4390,9 @@ document.getElementById('service-list').addEventListener('click', function(e) {
         } else if (btn.classList.contains('delete')) {
             deleteServiceForm(formData);
         } else if (btn.classList.contains('copy')) {
-            duplicateServiceForm(formData);
+            showConfirmModal(t('duplicate_confirm'), function() {
+                duplicateServiceForm(formData);
+            }, t('duplicate_btn'));
         }
         return;
     }
@@ -4566,6 +4583,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
         renderTemplateList(cached);
         renderBilHistory();
+        _bilHistoryRendered = true;
         updateToolbarState();
         // Background refresh
         if (currentUser && db) {
@@ -4689,6 +4707,15 @@ function showCalcPage(page) {
         // Init with one row if empty
         var container = document.getElementById('bp-rows');
         if (container.children.length === 0) bpAddRow();
+    } else if (page === 'lysaapning') {
+        header.textContent = t('calc_la_title');
+        document.getElementById('la-hole-w').value = '';
+        document.getElementById('la-hole-h').value = '';
+        document.getElementById('la-rows').innerHTML = '';
+        _laRowCount = 0;
+        laAddRow();
+        document.getElementById('la-result-value').textContent = '—';
+        document.getElementById('la-hole-w').focus();
     }
 }
 
@@ -4812,6 +4839,69 @@ function bpCalc() {
     document.getElementById('bp-add-btn').disabled = hasEmpty;
 }
 
+// ===== Lysåpning Calculator =====
+
+var _laRowCount = 0;
+
+function laAddRow() {
+    _laRowCount++;
+    var tbody = document.getElementById('la-rows');
+    var tr = document.createElement('tr');
+    tr.id = 'la-row-' + _laRowCount;
+    tr.innerHTML =
+        '<td><input type="number" inputmode="numeric" class="la-pipe-w" placeholder="50" oninput="laCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="la-pipe-h" placeholder="—" oninput="laCalc()"></td>';
+    tr.setAttribute('data-had-value', 'false');
+    tbody.appendChild(tr);
+    tr.querySelector('.la-pipe-w').addEventListener('blur', function() {
+        var row = this.closest('tr');
+        var allRows = document.querySelectorAll('#la-rows tr');
+        if (allRows.length > 1 && !this.value && row.getAttribute('data-had-value') === 'true') {
+            row.remove();
+            laCalc();
+        }
+    });
+    laCalc();
+    tr.querySelector('.la-pipe-w').focus();
+}
+
+function laCalc() {
+    var holeW = parseFloat(document.getElementById('la-hole-w').value) || 0;
+    var holeH = parseFloat(document.getElementById('la-hole-h').value) || 0;
+    var holeSize = holeH > 0 ? Math.min(holeW, holeH) : holeW;
+
+    var rows = document.querySelectorAll('#la-rows tr');
+    var totalPipeSize = 0;
+    var hasPipes = false;
+
+    for (var i = 0; i < rows.length; i++) {
+        var pipeW = parseFloat(rows[i].querySelector('.la-pipe-w').value) || 0;
+        var pipeH = parseFloat(rows[i].querySelector('.la-pipe-h').value) || 0;
+        if (pipeW > 0) {
+            rows[i].setAttribute('data-had-value', 'true');
+            totalPipeSize += pipeH > 0 ? Math.max(pipeW, pipeH) : pipeW;
+            hasPipes = true;
+        }
+    }
+
+    var resultEl = document.getElementById('la-result-value');
+    if (holeSize > 0 && hasPipes) {
+        var la = (holeSize - totalPipeSize) / 2;
+        resultEl.textContent = la.toFixed(1) + ' mm';
+        resultEl.style.color = la < 0 ? '#d32f2f' : '';
+    } else {
+        resultEl.textContent = '—';
+        resultEl.style.color = '';
+    }
+
+    // Disable "add" button if any row has empty pipe width
+    var hasEmpty = false;
+    for (var j = 0; j < rows.length; j++) {
+        if (!rows[j].querySelector('.la-pipe-w').value) { hasEmpty = true; break; }
+    }
+    document.getElementById('la-add-btn').disabled = hasEmpty;
+}
+
 // ===== Bil (Vehicle Inventory) =====
 
 function renderBilHistory() {
@@ -4932,7 +5022,7 @@ function renderBilHistory() {
             ? '<button class="bil-history-delete" onclick="deleteBilPafylling(\'' + item.id + '\')" title="Slett">' + deleteIcon + '</button>'
             : '';
 
-        var hiddenClass = i3 >= 3 ? ' bil-history-hidden' : '';
+        var hiddenClass = i3 >= 10 ? ' bil-history-hidden' : '';
         html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + '">' +
             '<div class="bil-history-header">' +
                 '<span class="bil-history-type">' + typeLabel + '</span>' +
@@ -4944,8 +5034,8 @@ function renderBilHistory() {
         '</div>';
     }
 
-    if (items.length > 3) {
-        var remaining = items.length - 3;
+    if (items.length > 10) {
+        var remaining = items.length - 10;
         html += '<button type="button" class="bil-history-toggle" id="bil-history-more" onclick="toggleBilHistory()">' + t('bil_show_more', remaining) + '</button>';
     }
 

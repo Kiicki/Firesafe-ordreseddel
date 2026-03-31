@@ -1085,10 +1085,6 @@ body.service-view-open {
     display: flex;
     gap: 10px;
 }
-.bil-btn-pafylling {
-    border-color: #ccc !important;
-    color: #333 !important;
-}
 .bil-empty-msg {
     color: #888;
     text-align: center;
@@ -1273,33 +1269,48 @@ body.service-view-open {
 #template-modal .top-bar .btn-login {
     border-radius: 0;
     padding: 0 15px;
-    height: 44px;
-    line-height: 44px;
+    height: 32px;
+    line-height: 32px;
+    font-size: 12px;
 }
 
 
 
 /* Kompakt header for template-modal */
 #template-modal .mobile-form-header {
-    margin-bottom: 5px;
-    padding-top: 5px;
-    padding-bottom: 2px;
+    margin-bottom: 2px;
+    padding-top: 2px;
+    padding-bottom: 8px;
+    position: relative;
 }
 
 #template-modal .mobile-form-header h1 {
-    font-size: 20px;
+    font-size: 16px;
+    margin-bottom: 0;
 }
 
 #template-modal .mobile-form-header .mobile-logo-slash {
-    height: 35px;
+    height: 26px;
 }
 
 #template-modal .mobile-form-header p {
-    font-size: 10px;
+    font-size: 9px;
+    margin-top: 1px;
+    margin-bottom: 0;
+}
+
+#template-modal .beta-label {
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    margin: 0;
 }
 
 #template-modal .modal-footer-skip {
     border-top: none;
+}
+#template-modal .modal-body {
+    padding-top: 6px;
 }
 
 /* Statiske elementer i modaler - ikke krymp */
@@ -5071,4 +5082,30 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     text-transform: none;
     letter-spacing: 0;
 }
+
+/* Lysåpning calculator */
+.la-pipe-table {
+    margin-top: 12px;
+}
+
+.la-result {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+}
+
+.la-result-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: #E8501A;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
 

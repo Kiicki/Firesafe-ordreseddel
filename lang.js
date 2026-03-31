@@ -139,6 +139,7 @@ const TRANSLATIONS = {
         marked_as_sent: 'Skjema markert som ferdig!',
         btn_ferdig: 'Marker som ferdig',
         btn_move: 'Flytt',
+        duplicate_confirm: 'Vil du duplisere dette skjemaet?',
         duplicated_success: 'Skjema duplisert — husk å lagre!',
         copied_to_clipboard: 'Kopiert!',
 
@@ -348,6 +349,12 @@ const TRANSLATIONS = {
         calc_bp_rounds: 'Runder',
         calc_bp_add_pipe: 'Legg til rør',
         calc_bp_total: 'Totalt',
+
+        // Lysåpning calculator
+        calc_la_title: 'Lysåpning',
+        calc_la_desc: 'Beregn lysåpning i utsparing',
+        calc_la_add_pipe: 'Legg til rør',
+        calc_la_result: 'Lysåpning',
     },
     en: {
         // Toolbar
@@ -489,6 +496,7 @@ const TRANSLATIONS = {
         marked_as_sent: 'Form marked as done!',
         btn_ferdig: 'Mark as done',
         btn_move: 'Move',
+        duplicate_confirm: 'Do you want to duplicate this form?',
         duplicated_success: 'Form duplicated — remember to save!',
         copied_to_clipboard: 'Copied!',
 
@@ -698,5 +706,11 @@ const TRANSLATIONS = {
         calc_bp_rounds: 'Rounds',
         calc_bp_add_pipe: 'Add pipe',
         calc_bp_total: 'Total',
+
+        // Light opening calculator
+        calc_la_title: 'Light opening',
+        calc_la_desc: 'Calculate light opening in penetration',
+        calc_la_add_pipe: 'Add pipe',
+        calc_la_result: 'Light opening',
     }
 };

@@ -885,6 +885,14 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
+                    <div class="calc-card" onclick="showCalcPage('lysaapning')">
+                        <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="5" y1="12" x2="8" y2="12"/><line x1="16" y1="12" x2="19" y2="12"/></svg></div>
+                        <div class="calc-card-text">
+                            <div class="calc-card-title" data-i18n="calc_la_title">Lysåpning</div>
+                            <div class="calc-card-desc" data-i18n="calc_la_desc">Beregn lysåpning i utsparing</div>
+                        </div>
+                        <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
                 </div>
                 <!-- Multicollar calculator page -->
                 <div class="calc-page" id="calc-page-multicollar" style="display:none">
@@ -938,6 +946,28 @@
                             <span data-i18n="calc_bp_total">Totalt</span>
                             <span class="bp-total-value" id="bp-total-value"></span>
                         </div>
+                    </div>
+                </div>
+                <!-- Lysåpning calculator page -->
+                <div class="calc-page" id="calc-page-lysaapning" style="display:none">
+                    <div class="bp-table">
+                        <table>
+                            <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+                            <thead><tr><th colspan="2">Utsparing (mm)</th></tr><tr><th>Bredde / Diameter</th><th>Høyde</th></tr></thead>
+                            <tbody><tr><td><input type="number" id="la-hole-w" inputmode="numeric" placeholder="150" oninput="laCalc()"></td><td><input type="number" id="la-hole-h" inputmode="numeric" placeholder="—" oninput="laCalc()"></td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="bp-table la-pipe-table">
+                        <table>
+                            <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+                            <thead><tr><th colspan="2">Rør (mm)</th></tr><tr><th>Bredde / Diameter</th><th>Høyde</th></tr></thead>
+                            <tbody id="la-rows"></tbody>
+                        </table>
+                        <button type="button" class="bp-add-btn" id="la-add-btn" onclick="laAddRow()">+ <span data-i18n="calc_la_add_pipe">Legg til rør</span></button>
+                    </div>
+                    <div class="la-result">
+                        <span data-i18n="calc_la_result">Lysåpning</span>
+                        <span class="la-result-value" id="la-result-value">—</span>
                     </div>
                 </div>
             </div>
