@@ -4907,17 +4907,28 @@ function laCalc() {
 async function syncBilHistory() {
     if (!currentUser || !db) return;
     try {
-        // Sync bil påfyllinger
+        // Sync bil påfyllinger (inntak)
         var bilSnap = await db.collection('users').doc(currentUser.uid)
             .collection('bilPafylling').orderBy('createdAt', 'desc').limit(50).get();
         if (!bilSnap.empty) {
             var bilData = bilSnap.docs.map(function(doc) { return doc.data(); });
             safeSetItem(BIL_STORAGE_KEY, JSON.stringify(bilData));
         }
-        // Sync service sent forms (uttak)
-        var sentResult = await getServiceSentForms();
-        if (sentResult.forms && sentResult.forms.length > 0) {
-            safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+        // Sync service forms (lagrede + sendte lageruttak)
+        var serviceResults = await Promise.all([getServiceForms(), getServiceSentForms()]);
+        if (serviceResults[0].forms && serviceResults[0].forms.length > 0) {
+            safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(serviceResults[0].forms.slice(0, 50)));
+        }
+        if (serviceResults[1].forms && serviceResults[1].forms.length > 0) {
+            safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(serviceResults[1].forms.slice(0, 50)));
+        }
+        // Sync ordresedler (lagrede + sendte)
+        var formResults = await Promise.all([getSavedForms(), getSentForms()]);
+        if (formResults[0].forms && formResults[0].forms.length > 0) {
+            safeSetItem(STORAGE_KEY, JSON.stringify(formResults[0].forms.slice(0, 50)));
+        }
+        if (formResults[1].forms && formResults[1].forms.length > 0) {
+            safeSetItem(ARCHIVE_KEY, JSON.stringify(formResults[1].forms.slice(0, 50)));
         }
         // Re-render if on home page
         if (document.body.classList.contains('template-modal-open')) {
