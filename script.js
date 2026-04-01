@@ -315,6 +315,7 @@ if (auth) {
                 syncSettingsToLocal().catch(function() {}),
                 typeof getDropdownOptions === 'function' ? getDropdownOptions().catch(function() {}) : Promise.resolve(),
                 typeof loadPlanOptions === 'function' ? loadPlanOptions().catch(function() {}) : Promise.resolve(),
+                typeof syncBilHistory === 'function' ? syncBilHistory().catch(function() {}) : Promise.resolve(),
                 typeof getRequiredSettings === 'function' ? getRequiredSettings().then(function(data) {
                     cachedRequiredSettings = data;
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();

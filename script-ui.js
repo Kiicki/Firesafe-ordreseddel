@@ -4904,6 +4904,30 @@ function laCalc() {
 
 // ===== Bil (Vehicle Inventory) =====
 
+async function syncBilHistory() {
+    if (!currentUser || !db) return;
+    try {
+        // Sync bil påfyllinger
+        var bilSnap = await db.collection('users').doc(currentUser.uid)
+            .collection('bilPafylling').orderBy('createdAt', 'desc').limit(50).get();
+        if (!bilSnap.empty) {
+            var bilData = bilSnap.docs.map(function(doc) { return doc.data(); });
+            safeSetItem(BIL_STORAGE_KEY, JSON.stringify(bilData));
+        }
+        // Sync service sent forms (uttak)
+        var sentResult = await getServiceSentForms();
+        if (sentResult.forms && sentResult.forms.length > 0) {
+            safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+        }
+        // Re-render if on home page
+        if (document.body.classList.contains('template-modal-open')) {
+            _bilHistoryRendered = false;
+            renderBilHistory();
+            _bilHistoryRendered = true;
+        }
+    } catch (e) { console.error('Sync bil history error:', e); }
+}
+
 function renderBilHistory() {
     var listEl = document.getElementById('bil-history-list');
     var items = [];
