@@ -1457,9 +1457,7 @@ body.service-view-open {
 
 #saved-list .saved-item-info,
 #service-list .saved-item-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    min-width: 0;
 }
 
 .saved-item-date {
@@ -1469,10 +1467,27 @@ body.service-view-open {
     white-space: nowrap;
 }
 
+
 .saved-item-row1 {
     font-weight: 600;
     font-size: 14px;
     color: #222;
+}
+
+.saved-item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.saved-item-subtitle {
+    font-size: 12px;
+    color: #888;
+    margin-top: 1px;
+}
+
+.saved-item-subtitle .bil-history-sep {
+    margin: 0 4px;
 }
 
 .saved-item-row2 {

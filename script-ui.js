@@ -119,10 +119,20 @@ function _buildSavedItemHtml(item, index) {
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
+    var subtitle = '';
+    if (item.prosjektnr || item.prosjektnavn) {
+        var parts = [];
+        if (item.prosjektnr) parts.push(escapeHtml(item.prosjektnr));
+        if (item.prosjektnavn) parts.push(escapeHtml(item.prosjektnavn));
+        subtitle = '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>';
+    }
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
-            '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
-            (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+            '<div class="saved-item-header">' +
+                '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
+                (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+            '</div>' +
+            subtitle +
         '</div>' +
         '<div class="saved-item-buttons">' + clipBtn + dupBtn + deleteBtn + '</div>' +
     '</div>';
@@ -3756,16 +3766,29 @@ function loadServiceTab() {
 }
 
 function _buildServiceItemHtml(item, index) {
-    // Build title from first entry's dato: "Uke X • DD.MM.YYYY"
-    var entryDato = item.entries && item.entries[0] ? item.entries[0].dato : '';
+    // Build title from first entry: "Uke X • prosjektnr | prosjektnavn" or fallback to dato
+    var entry = item.entries && item.entries[0] ? item.entries[0] : {};
+    var entryDato = entry.dato || '';
     var title = '';
     if (entryDato) {
         var d = parseDateDMY(entryDato);
         if (d) {
-            title = 'Uke ' + getWeekNumber(d) + ' \u2022 ' + entryDato;
+            title = 'Uke ' + getWeekNumber(d);
         } else {
             title = entryDato;
         }
+    }
+    // Add dato fallback to title if no week number
+    if (entryDato && title !== entryDato && !title) {
+        title = entryDato;
+    }
+    // Subtitle: prosjektnr + prosjektnavn
+    var serviceSubtitle = '';
+    var projectParts = [];
+    if (entry.prosjektnr) projectParts.push(escapeHtml(entry.prosjektnr));
+    if (entry.prosjektnavn) projectParts.push(escapeHtml(entry.prosjektnavn));
+    if (projectParts.length > 0) {
+        serviceSubtitle = '<div class="saved-item-subtitle">' + projectParts.join(' <span class="bil-history-sep"></span> ') + '</div>';
     }
     var savedAtStr = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
@@ -3777,8 +3800,11 @@ function _buildServiceItemHtml(item, index) {
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
-            '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + '</div>' +
-            (savedAtStr ? '<div class="saved-item-date">' + escapeHtml(savedAtStr) + '</div>' : '') +
+            '<div class="saved-item-header">' +
+                '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + '</div>' +
+                (savedAtStr ? '<div class="saved-item-date">' + escapeHtml(savedAtStr) + '</div>' : '') +
+            '</div>' +
+            serviceSubtitle +
         '</div>' +
         '<div class="saved-item-buttons">' + clipBtn + dupBtn + deleteBtn + '</div>' +
     '</div>';
