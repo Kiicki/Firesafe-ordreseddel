@@ -3706,14 +3706,17 @@ async function saveServiceForm() {
         _lastLocalSaveTs = Date.now();
 
         // Clear sent state
+        var wasSentService = sessionStorage.getItem('firesafe_service_sent') === '1';
         sessionStorage.removeItem('firesafe_service_sent');
         document.getElementById('service-sent-banner').style.display = 'none';
         document.getElementById('btn-service-sent').style.display = '';
 
         showNotificationModal(t('service_save_success'), true);
         sessionStorage.setItem('firesafe_service_current', JSON.stringify(data));
-        closeServiceView();
-        _showSavedFormsDirectly('service');
+        if (!wasSentService) {
+            closeServiceView();
+            _showSavedFormsDirectly('service');
+        }
 
         // Firebase in background
         if (currentUser && db) {

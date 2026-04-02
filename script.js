@@ -3233,9 +3233,11 @@ async function saveForm() {
                 addToOrderNumberIndex(data.ordreseddelNr);
                 loadedForms = [];
                 lastSavedData = getFormDataSnapshot();
+                var wasSent = isSent;
                 _clearSentStateAfterSave();
                 _lastLocalSaveTs = Date.now();
-                showNotificationModal(t('save_success'), true); showSavedForms();
+                showNotificationModal(t(wasSent ? 'update_success' : 'save_success'), true);
+                if (!wasSent) showSavedForms();
 
                 // Firebase: serialisert via _pendingFirestoreOps
                 if (currentUser && db) {
@@ -3267,9 +3269,11 @@ async function saveForm() {
             addToOrderNumberIndex(data.ordreseddelNr);
             loadedForms = [];
             lastSavedData = getFormDataSnapshot();
+            var wasSent2 = sessionStorage.getItem('firesafe_current_sent') === '1';
             _clearSentStateAfterSave();
             _lastLocalSaveTs = Date.now();
-            showNotificationModal(t('save_success'), true); showSavedForms();
+            showNotificationModal(t('save_success'), true);
+            if (!wasSent2) showSavedForms();
 
             // Firebase: serialisert via _pendingFirestoreOps
             if (currentUser && db) {
