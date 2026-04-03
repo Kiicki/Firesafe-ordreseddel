@@ -129,8 +129,7 @@ function _buildSavedItemHtml(item, index) {
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-header">' +
-                '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + '</div>' +
-                (dato ? '<div class="saved-item-date">' + escapeHtml(dato) + '</div>' : '') +
+                '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + (dato ? '<span class="saved-item-date-inline">' + escapeHtml(dato) + '</span>' : '') + '</div>' +
             '</div>' +
             subtitle +
         '</div>' +
@@ -3796,7 +3795,6 @@ function _buildServiceItemHtml(item, index) {
     var savedAtStr = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
-    var clipBtn = '<button class="saved-item-action-btn clipboard" title="' + t('copy_btn') + '">' + copyIcon + '</button>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
@@ -3804,12 +3802,11 @@ function _buildServiceItemHtml(item, index) {
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-header">' +
-                '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + '</div>' +
-                (savedAtStr ? '<div class="saved-item-date">' + escapeHtml(savedAtStr) + '</div>' : '') +
+                '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + (savedAtStr ? '<span class="saved-item-date-inline">' + escapeHtml(savedAtStr) + '</span>' : '') + '</div>' +
             '</div>' +
             serviceSubtitle +
         '</div>' +
-        '<div class="saved-item-buttons">' + clipBtn + dupBtn + deleteBtn + '</div>' +
+        '<div class="saved-item-buttons">' + dupBtn + deleteBtn + '</div>' +
     '</div>';
 }
 

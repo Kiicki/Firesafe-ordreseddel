@@ -1490,6 +1490,19 @@ body.service-view-open {
     margin: 0 4px;
 }
 
+.saved-item-date-inline {
+    color: #888;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.saved-item-date-inline::before {
+    content: '•';
+    margin: 0 6px;
+    color: #999;
+    font-size: 14px;
+}
+
 .saved-item-row2 {
     color: #777;
     font-size: 13px;
