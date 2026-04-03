@@ -672,10 +672,18 @@ function navigateBack() {
         closeSettingsModal();
         return;
     }
-    // From Calculator: go home
+    // From Calculator: if on a calc page, go back to menu; otherwise go home
     if (currentId === 'calculator-modal') {
-        document.body.classList.remove('calculator-modal-open');
-        showTemplateModal();
+        var activePage = document.querySelector('.calc-page[style=""]') || document.querySelector('.calc-page:not([style*="none"])');
+        if (activePage && activePage.style.display !== 'none') {
+            // Go back to calculator menu
+            document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
+            document.querySelector('.calc-section').style.display = '';
+            document.querySelector('#calculator-modal .modal-header span').textContent = t('calc_title');
+        } else {
+            document.body.classList.remove('calculator-modal-open');
+            showTemplateModal();
+        }
         return;
     }
     // Fallback: go home
@@ -4730,18 +4738,12 @@ function showCalcPage(page) {
         });
     } else if (page === 'brannpakning') {
         header.textContent = t('calc_bp_title');
-        // Init with one row if empty
-        var container = document.getElementById('bp-rows');
-        if (container.children.length === 0) bpAddRow();
+        bpReset();
     } else if (page === 'lysaapning') {
         header.textContent = t('calc_la_title');
-        document.getElementById('la-hole-w').value = '';
-        document.getElementById('la-hole-h').value = '';
-        document.getElementById('la-rows').innerHTML = '';
-        _laRowCount = 0;
-        laAddRow();
-        document.getElementById('la-result-value').textContent = '—';
-        document.getElementById('la-hole-w').focus();
+        document.getElementById('la-sections').innerHTML = '';
+        _laSectionCount = 0;
+        laAddSection();
     }
 }
 
@@ -4804,39 +4806,42 @@ function onCalcTableRowClick(row) {
 
 var _bpRowCount = 0;
 
-function bpAddRow() {
+function bpAddRow(focus) {
     _bpRowCount++;
     var tbody = document.getElementById('bp-rows');
     var tr = document.createElement('tr');
     tr.id = 'bp-row-' + _bpRowCount;
     tr.innerHTML =
-        '<td><input type="number" inputmode="numeric" class="bp-dim-w" placeholder="110" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="bp-dim-w" placeholder="—" oninput="bpCalc()"></td>' +
         '<td><input type="number" inputmode="numeric" class="bp-dim-h" placeholder="—" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" placeholder="1" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" placeholder="1" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" placeholder="—" oninput="bpCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" placeholder="—" oninput="bpCalc()"></td>' +
         '<td class="bp-result-cell"><span class="bp-result-val">—</span></td>';
-    tr.setAttribute('data-had-value', 'false');
     tbody.appendChild(tr);
-    // Auto-remove row when Ø/B is cleared and blurred (only if it had value before)
-    tr.querySelector('.bp-dim-w').addEventListener('blur', function() {
+    tr.querySelector('.bp-result-cell').addEventListener('click', function() {
         var row = this.closest('tr');
-        var allRows = document.querySelectorAll('#bp-rows tr');
-        if (allRows.length > 1 && !this.value && row.getAttribute('data-had-value') === 'true') {
-            row.remove();
-            bpCalc();
-        }
+        row.classList.toggle('bp-row-disabled');
+        bpCalc();
     });
+    if (focus) {
+        tr.querySelector('input').focus();
+    }
+}
+
+function bpReset() {
+    document.getElementById('bp-rows').innerHTML = '';
+    _bpRowCount = 0;
+    for (var i = 0; i < 10; i++) bpAddRow(false);
     bpCalc();
-    tr.querySelector('input').focus();
 }
 
 function bpCalc() {
     var rows = document.querySelectorAll('#bp-rows tr');
     var total = 0;
     for (var i = 0; i < rows.length; i++) {
+        var isDisabled = rows[i].classList.contains('bp-row-disabled');
         var allInputs = rows[i].querySelectorAll('input');
         var w = parseFloat(allInputs[0].value) || 0;
-        if (w > 0) rows[i].setAttribute('data-had-value', 'true');
         var h = parseFloat(allInputs[1].value) || 0;
         var pipes = parseFloat(allInputs[2].value) || 0;
         var rounds = parseFloat(allInputs[3].value) || 0;
@@ -4849,83 +4854,138 @@ function bpCalc() {
         if (w > 0 && pipes > 0 && rounds > 0) {
             valSpan.textContent = length.toFixed(2);
             valSpan.style.color = '';
-            total += length;
+            if (!isDisabled) total += length;
         } else {
             valSpan.textContent = '—';
-            valSpan.style.color = '#ddd';
+            valSpan.style.color = (w === 0 && h === 0 && pipes === 0 && rounds === 0) ? '#ddd' : '';
         }
     }
     document.getElementById('bp-total-value').textContent = total.toFixed(2) + ' m';
-
-    // Disable "add" button if any row has empty Ø/B
-    var hasEmpty = false;
-    for (var j = 0; j < rows.length; j++) {
-        if (!rows[j].querySelector('.bp-dim-w').value) { hasEmpty = true; break; }
-    }
-    document.getElementById('bp-add-btn').disabled = hasEmpty;
 }
 
 // ===== Lysåpning Calculator =====
 
-var _laRowCount = 0;
+var _laSectionCount = 0;
 
-function laAddRow() {
-    _laRowCount++;
-    var tbody = document.getElementById('la-rows');
+function laAddSection() {
+    _laSectionCount++;
+    var container = document.getElementById('la-sections');
+    var section = document.createElement('div');
+    section.className = 'la-section';
+    section.id = 'la-section-' + _laSectionCount;
+    var sectionNum = document.getElementById('la-sections').children.length + 1;
+    section.innerHTML =
+        '<div class="la-section-header"><span>Utsparing ' + sectionNum + '</span><button type="button" class="la-section-remove" onclick="laRemoveSection(this.closest(\'.la-section\'))">✕</button></div>' +
+        '<div class="bp-table">' +
+            '<table>' +
+                '<colgroup><col style="width:15%"><col style="width:35%"><col style="width:35%"><col style="width:15%"></colgroup>' +
+                '<thead><tr><th></th><th>Bredde / Ø</th><th>Høyde</th><th></th></tr></thead>' +
+                '<tbody>' +
+                    '<tr class="la-hole-row"><td class="la-label">Utsp.</td><td><input type="number" inputmode="numeric" class="la-hole-w" placeholder="—" oninput="laCalc()"></td><td><input type="number" inputmode="numeric" class="la-hole-h" placeholder="—" oninput="laCalc()"></td><td class="la-result-cell"><span class="la-result-value">—</span></td></tr>' +
+                '</tbody>' +
+                '<tbody class="la-pipe-rows"></tbody>' +
+            '</table>' +
+            '<div class="la-section-actions">' +
+                '<button type="button" class="bp-add-btn" onclick="laAddPipe(this.closest(\'.la-section\'))">+ Rør</button>' +
+                '<button type="button" class="bp-add-btn calc-reset-btn" onclick="laResetSection(this.closest(\'.la-section\'))">Nullstill</button>' +
+            '</div>' +
+        '</div>';
+    container.appendChild(section);
+    // Add 1 pipe row
+    laAddPipe(section, false);
+    return section;
+}
+
+function laAddPipe(sectionEl, focus) {
+    if (focus === undefined) focus = true;
+    var tbody = sectionEl.querySelector('.la-pipe-rows');
+    var pipeCount = tbody.children.length + 1;
     var tr = document.createElement('tr');
-    tr.id = 'la-row-' + _laRowCount;
     tr.innerHTML =
-        '<td><input type="number" inputmode="numeric" class="la-pipe-w" placeholder="50" oninput="laCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" class="la-pipe-h" placeholder="—" oninput="laCalc()"></td>';
-    tr.setAttribute('data-had-value', 'false');
+        '<td class="la-label">Rør ' + pipeCount + '</td>' +
+        '<td><input type="number" inputmode="numeric" class="la-pipe-w" placeholder="—" oninput="laCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="la-pipe-h" placeholder="—" oninput="laCalc()"></td>' +
+        '<td class="la-pipe-remove-cell"><button type="button" class="la-pipe-remove" onclick="laRemovePipe(this)">✕</button></td>';
     tbody.appendChild(tr);
-    tr.querySelector('.la-pipe-w').addEventListener('blur', function() {
-        var row = this.closest('tr');
-        var allRows = document.querySelectorAll('#la-rows tr');
-        if (allRows.length > 1 && !this.value && row.getAttribute('data-had-value') === 'true') {
-            row.remove();
-            laCalc();
-        }
-    });
+    if (focus) {
+        tr.querySelector('.la-pipe-w').focus();
+    }
+}
+
+function laRemovePipe(btn) {
+    var tr = btn.closest('tr');
+    var section = tr.closest('.la-section');
+    var tbody = section.querySelector('.la-pipe-rows');
+    if (tbody.children.length <= 1) return;
+    tr.remove();
+    // Renumber pipes
+    var rows = tbody.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+        rows[i].querySelector('.la-label').textContent = 'Rør ' + (i + 1);
+    }
     laCalc();
-    tr.querySelector('.la-pipe-w').focus();
+}
+
+function laRemoveSection(sectionEl) {
+    var container = document.getElementById('la-sections');
+    if (container.children.length <= 1) return;
+    sectionEl.remove();
+    laRenumberSections();
+    laCalc();
+}
+
+function laRenumberSections() {
+    var sections = document.querySelectorAll('.la-section');
+    for (var i = 0; i < sections.length; i++) {
+        sections[i].querySelector('.la-section-header > span').textContent = 'Utsparing ' + (i + 1);
+    }
+}
+
+function laResetSection(sectionEl) {
+    sectionEl.querySelector('.la-hole-w').value = '';
+    sectionEl.querySelector('.la-hole-h').value = '';
+    var tbody = sectionEl.querySelector('.la-pipe-rows');
+    tbody.innerHTML = '';
+    laAddPipe(sectionEl, false);
+    laCalc();
+}
+
+function laReset() {
+    document.getElementById('la-sections').innerHTML = '';
+    _laSectionCount = 0;
+    laAddSection();
 }
 
 function laCalc() {
-    var holeW = parseFloat(document.getElementById('la-hole-w').value) || 0;
-    var holeH = parseFloat(document.getElementById('la-hole-h').value) || 0;
-    var holeSize = holeH > 0 ? Math.min(holeW, holeH) : holeW;
+    var sections = document.querySelectorAll('.la-section');
+    for (var s = 0; s < sections.length; s++) {
+        var holeW = parseFloat(sections[s].querySelector('.la-hole-w').value) || 0;
+        var holeH = parseFloat(sections[s].querySelector('.la-hole-h').value) || 0;
+        var holeSize = holeH > 0 ? Math.min(holeW, holeH) : holeW;
 
-    var rows = document.querySelectorAll('#la-rows tr');
-    var totalPipeSize = 0;
-    var hasPipes = false;
+        var rows = sections[s].querySelectorAll('.la-pipe-rows tr');
+        var totalPipeSize = 0;
+        var hasPipes = false;
 
-    for (var i = 0; i < rows.length; i++) {
-        var pipeW = parseFloat(rows[i].querySelector('.la-pipe-w').value) || 0;
-        var pipeH = parseFloat(rows[i].querySelector('.la-pipe-h').value) || 0;
-        if (pipeW > 0) {
-            rows[i].setAttribute('data-had-value', 'true');
-            totalPipeSize += pipeH > 0 ? Math.max(pipeW, pipeH) : pipeW;
-            hasPipes = true;
+        for (var i = 0; i < rows.length; i++) {
+            var pipeW = parseFloat(rows[i].querySelector('.la-pipe-w').value) || 0;
+            var pipeH = parseFloat(rows[i].querySelector('.la-pipe-h').value) || 0;
+            if (pipeW > 0) {
+                totalPipeSize += pipeH > 0 ? Math.max(pipeW, pipeH) : pipeW;
+                hasPipes = true;
+            }
+        }
+
+        var resultEl = sections[s].querySelector('.la-result-value');
+        if (holeSize > 0 && hasPipes) {
+            var la = (holeSize - totalPipeSize) / 2;
+            resultEl.textContent = la.toFixed(1);
+            resultEl.style.color = la < 0 ? '#d32f2f' : '';
+        } else {
+            resultEl.textContent = '—';
+            resultEl.style.color = '#ddd';
         }
     }
-
-    var resultEl = document.getElementById('la-result-value');
-    if (holeSize > 0 && hasPipes) {
-        var la = (holeSize - totalPipeSize) / 2;
-        resultEl.textContent = la.toFixed(1) + ' mm';
-        resultEl.style.color = la < 0 ? '#d32f2f' : '';
-    } else {
-        resultEl.textContent = '—';
-        resultEl.style.color = '';
-    }
-
-    // Disable "add" button if any row has empty pipe width
-    var hasEmpty = false;
-    for (var j = 0; j < rows.length; j++) {
-        if (!rows[j].querySelector('.la-pipe-w').value) { hasEmpty = true; break; }
-    }
-    document.getElementById('la-add-btn').disabled = hasEmpty;
 }
 
 // ===== Bil (Vehicle Inventory) =====

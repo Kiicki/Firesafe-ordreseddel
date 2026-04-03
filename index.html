@@ -941,33 +941,21 @@
                             <thead><tr><th>Bredde<br>Diameter</th><th>Høyde</th><th>Antall</th><th>Runder</th><th>Meter</th></tr></thead>
                             <tbody id="bp-rows"></tbody>
                         </table>
-                        <button type="button" class="bp-add-btn" id="bp-add-btn" onclick="bpAddRow()">+ <span data-i18n="calc_bp_add_pipe">Legg til rør</span></button>
-                        <div class="bp-total" id="bp-total">
-                            <span data-i18n="calc_bp_total">Totalt</span>
-                            <span class="bp-total-value" id="bp-total-value"></span>
-                        </div>
+                    </div>
+                    <div class="calc-actions">
+                        <button type="button" class="calc-action-btn" onclick="bpAddRow(true)">+ <span data-i18n="calc_bp_add_pipe">Legg til rør</span></button>
+                        <button type="button" class="calc-action-btn calc-reset-btn" onclick="bpReset()">Nullstill</button>
+                    </div>
+                    <div class="bp-total" id="bp-total">
+                        <span data-i18n="calc_bp_total">Totalt</span>
+                        <span class="bp-total-value" id="bp-total-value"></span>
                     </div>
                 </div>
                 <!-- Lysåpning calculator page -->
                 <div class="calc-page" id="calc-page-lysaapning" style="display:none">
-                    <div class="bp-table">
-                        <table>
-                            <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
-                            <thead><tr><th colspan="2">Utsparing (mm)</th></tr><tr><th>Bredde / Diameter</th><th>Høyde</th></tr></thead>
-                            <tbody><tr><td><input type="number" id="la-hole-w" inputmode="numeric" placeholder="150" oninput="laCalc()"></td><td><input type="number" id="la-hole-h" inputmode="numeric" placeholder="—" oninput="laCalc()"></td></tr></tbody>
-                        </table>
-                    </div>
-                    <div class="bp-table la-pipe-table">
-                        <table>
-                            <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
-                            <thead><tr><th colspan="2">Rør (mm)</th></tr><tr><th>Bredde / Diameter</th><th>Høyde</th></tr></thead>
-                            <tbody id="la-rows"></tbody>
-                        </table>
-                        <button type="button" class="bp-add-btn" id="la-add-btn" onclick="laAddRow()">+ <span data-i18n="calc_la_add_pipe">Legg til rør</span></button>
-                    </div>
-                    <div class="la-result">
-                        <span data-i18n="calc_la_result">Lysåpning</span>
-                        <span class="la-result-value" id="la-result-value">—</span>
+                    <div id="la-sections"></div>
+                    <div class="calc-actions">
+                        <button type="button" class="calc-action-btn" onclick="laAddSection()">+ Utsparing</button>
                     </div>
                 </div>
             </div>
