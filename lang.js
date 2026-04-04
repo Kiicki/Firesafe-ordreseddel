@@ -3,7 +3,7 @@ const TRANSLATIONS = {
         // Toolbar
         toolbar_home: 'Hjem',
         toolbar_save: 'Lagre',
-        toolbar_forms: 'Skjemaer',
+        toolbar_forms: 'Lagret',
         toolbar_export: 'Eksport',
         toolbar_service: 'Lageruttak',
         toolbar_settings: 'Meny',
@@ -360,7 +360,7 @@ const TRANSLATIONS = {
         // Toolbar
         toolbar_home: 'Home',
         toolbar_save: 'Save',
-        toolbar_forms: 'Forms',
+        toolbar_forms: 'Saved',
         toolbar_export: 'Export',
         toolbar_service: 'Withdrawal',
         toolbar_settings: 'Menu',
