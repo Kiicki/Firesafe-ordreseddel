@@ -2879,6 +2879,8 @@ async function syncDefaultsToLocal() {
         if (doc.exists) safeSetItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
         var sDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_service').get();
         if (sDoc.exists) safeSetItem(SERVICE_DEFAULTS_KEY, JSON.stringify(sDoc.data()));
+        var plateDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('plateSize').get();
+        if (plateDoc.exists) localStorage.setItem('firesafe_plate_size', JSON.stringify(plateDoc.data()));
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
@@ -5029,7 +5031,12 @@ function bplReset() {
 function bplSetDefault() {
     var w = parseFloat(document.getElementById('bpl-plate-w').value) || 1200;
     var h = parseFloat(document.getElementById('bpl-plate-h').value) || 600;
-    localStorage.setItem('firesafe_plate_size', JSON.stringify({ w: w, h: h }));
+    var data = { w: w, h: h };
+    localStorage.setItem('firesafe_plate_size', JSON.stringify(data));
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('plateSize').set(data)
+            .catch(function(e) { console.error('Save plate size error:', e); });
+    }
     showNotificationModal('Standard platestørrelse lagret: ' + w + ' × ' + h + ' mm', true);
 }
 
