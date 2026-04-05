@@ -5223,6 +5223,22 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-color: #eee;
 }
 
+.bpl-set-default-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 9px;
+    color: #E8501A;
+    padding: 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.bpl-set-default-btn:active {
+    opacity: 0.6;
+}
+
 .bp-row-disabled {
     opacity: 0.35;
     background: #f5f5f5;

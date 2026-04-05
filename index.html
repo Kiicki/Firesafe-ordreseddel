@@ -893,6 +893,14 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
+                    <div class="calc-card" onclick="showCalcPage('brannplate')">
+                        <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="1"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></div>
+                        <div class="calc-card-text">
+                            <div class="calc-card-title" data-i18n="calc_plate_title">Brannplate</div>
+                            <div class="calc-card-desc" data-i18n="calc_plate_desc">Beregn antall brannplater</div>
+                        </div>
+                        <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
                 </div>
                 <!-- Multicollar calculator page -->
                 <div class="calc-page" id="calc-page-multicollar" style="display:none">
@@ -956,6 +964,31 @@
                     <div id="la-sections"></div>
                     <div class="calc-actions">
                         <button type="button" class="calc-action-btn" onclick="laAddSection()">+ Utsparing</button>
+                    </div>
+                </div>
+                <!-- Brannplate calculator page -->
+                <div class="calc-page" id="calc-page-brannplate" style="display:none">
+                    <div class="bp-table">
+                        <table>
+                            <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+                            <thead><tr><th data-i18n="calc_plate_size">Platestørrelse (mm)</th><th><button type="button" class="bpl-set-default-btn" onclick="bplSetDefault()">Sett standard</button></th></tr></thead>
+                            <tbody><tr><td><input type="number" id="bpl-plate-w" inputmode="numeric" oninput="bplCalc()"></td><td><input type="number" id="bpl-plate-h" inputmode="numeric" oninput="bplCalc()"></td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="bp-table" style="margin-top:8px">
+                        <table>
+                            <colgroup><col class="bp-col-w"><col class="bp-col-h"><col class="bp-col-sm"><col class="bp-col-result"></colgroup>
+                            <thead><tr><th>Bredde (mm)</th><th>Høyde (mm)</th><th>Antall</th><th>Plater</th></tr></thead>
+                            <tbody id="bpl-rows"></tbody>
+                        </table>
+                    </div>
+                    <div class="calc-actions">
+                        <button type="button" class="calc-action-btn" onclick="bplAddRow(true)">+ <span data-i18n="calc_plate_add">Legg til</span></button>
+                        <button type="button" class="calc-action-btn calc-reset-btn" onclick="bplReset()">Nullstill</button>
+                    </div>
+                    <div class="bp-total">
+                        <span data-i18n="calc_plate_count">Brannplater</span>
+                        <span class="bp-total-value" id="bpl-plate-count">0</span>
                     </div>
                 </div>
             </div>

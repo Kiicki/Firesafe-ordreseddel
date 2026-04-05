@@ -355,6 +355,14 @@ const TRANSLATIONS = {
         calc_la_desc: 'Beregn lysåpning i utsparing',
         calc_la_add_pipe: 'Legg til rør',
         calc_la_result: 'Lysåpning',
+
+        // Brannplate calculator
+        calc_plate_title: 'Brannplate',
+        calc_plate_desc: 'Beregn antall brannplater',
+        calc_plate_add: 'Legg til',
+        calc_plate_total_area: 'Totalt areal',
+        calc_plate_count: 'Brannplater',
+        calc_plate_size: 'Platestørrelse (mm)',
     },
     en: {
         // Toolbar
@@ -712,5 +720,13 @@ const TRANSLATIONS = {
         calc_la_desc: 'Calculate light opening in penetration',
         calc_la_add_pipe: 'Add pipe',
         calc_la_result: 'Light opening',
+
+        // Fire board calculator
+        calc_plate_title: 'Fire board',
+        calc_plate_desc: 'Calculate fire boards needed',
+        calc_plate_add: 'Add row',
+        calc_plate_total_area: 'Total area',
+        calc_plate_count: 'Fire boards',
+        calc_plate_size: 'Board size (mm)',
     }
 };

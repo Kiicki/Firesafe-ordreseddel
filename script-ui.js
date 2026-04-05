@@ -4739,6 +4739,9 @@ function showCalcPage(page) {
     } else if (page === 'brannpakning') {
         header.textContent = t('calc_bp_title');
         bpReset();
+    } else if (page === 'brannplate') {
+        header.textContent = t('calc_plate_title');
+        bplReset();
     } else if (page === 'lysaapning') {
         header.textContent = t('calc_la_title');
         document.getElementById('la-sections').innerHTML = '';
@@ -4986,6 +4989,78 @@ function laCalc() {
             resultEl.style.color = '#ddd';
         }
     }
+}
+
+// ===== Brannplate Calculator =====
+
+var _bplRowCount = 0;
+
+function bplAddRow(focus) {
+    _bplRowCount++;
+    var tbody = document.getElementById('bpl-rows');
+    var tr = document.createElement('tr');
+    tr.id = 'bpl-row-' + _bplRowCount;
+    tr.innerHTML =
+        '<td><input type="number" inputmode="numeric" class="bpl-w" placeholder="—" oninput="bplCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="bpl-h" placeholder="—" oninput="bplCalc()"></td>' +
+        '<td><input type="number" inputmode="numeric" class="bpl-qty" placeholder="—" oninput="bplCalc()"></td>' +
+        '<td class="bp-result-cell"><span class="bp-result-val">—</span></td>';
+    tbody.appendChild(tr);
+    tr.querySelector('.bp-result-cell').addEventListener('click', function() {
+        var row = this.closest('tr');
+        row.classList.toggle('bp-row-disabled');
+        bplCalc();
+    });
+    if (focus) {
+        tr.querySelector('input').focus();
+    }
+}
+
+function bplReset() {
+    var defaults = JSON.parse(localStorage.getItem('firesafe_plate_size') || '{"w":1200,"h":600}');
+    document.getElementById('bpl-plate-w').value = defaults.w;
+    document.getElementById('bpl-plate-h').value = defaults.h;
+    document.getElementById('bpl-rows').innerHTML = '';
+    _bplRowCount = 0;
+    for (var i = 0; i < 10; i++) bplAddRow(false);
+    bplCalc();
+}
+
+function bplSetDefault() {
+    var w = parseFloat(document.getElementById('bpl-plate-w').value) || 1200;
+    var h = parseFloat(document.getElementById('bpl-plate-h').value) || 600;
+    localStorage.setItem('firesafe_plate_size', JSON.stringify({ w: w, h: h }));
+    showNotificationModal('Standard platestørrelse lagret: ' + w + ' × ' + h + ' mm', true);
+}
+
+function bplCalc() {
+    var rows = document.querySelectorAll('#bpl-rows tr');
+    var totalPlates = 0;
+
+    for (var i = 0; i < rows.length; i++) {
+        var isDisabled = rows[i].classList.contains('bp-row-disabled');
+        var w = parseFloat(rows[i].querySelector('.bpl-w').value) || 0;
+        var h = parseFloat(rows[i].querySelector('.bpl-h').value) || 0;
+        var qty = parseFloat(rows[i].querySelector('.bpl-qty').value) || 0;
+
+        var plateW = parseFloat(document.getElementById('bpl-plate-w').value) || 0;
+        var plateH = parseFloat(document.getElementById('bpl-plate-h').value) || 0;
+        var plateArea = plateW * plateH;
+
+        var area = w * h * qty;
+        var valSpan = rows[i].querySelector('.bp-result-val');
+        if (w > 0 && h > 0 && qty > 0 && plateArea > 0) {
+            var plates = area / plateArea;
+            valSpan.textContent = plates.toFixed(2);
+            valSpan.style.color = '';
+            if (!isDisabled) totalPlates += plates;
+        } else {
+            valSpan.textContent = '—';
+            valSpan.style.color = (w === 0 && h === 0 && qty === 0) ? '#ddd' : '';
+        }
+    }
+
+    document.getElementById('bpl-plate-count').textContent = totalPlates > 0 ? totalPlates.toFixed(2) : '0';
 }
 
 // ===== Bil (Vehicle Inventory) =====
