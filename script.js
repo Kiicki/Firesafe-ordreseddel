@@ -539,7 +539,7 @@ function getFormDataSnapshot() {
 let pendingConfirmAction = null;
 
 function showConfirmModal(message, onConfirm, buttonText, buttonColor) {
-    saveViewScroll();
+
     document.getElementById('confirm-modal-text').textContent = message;
     const okBtn = document.getElementById('confirm-btn-ok');
     okBtn.textContent = buttonText || t('btn_remove');
@@ -554,7 +554,7 @@ function closeConfirmModal(confirmed) {
         pendingConfirmAction();
     }
     pendingConfirmAction = null;
-    restoreViewScroll();
+
 }
 
 // Toast notification
@@ -728,7 +728,7 @@ function parseFakturaadresse(str) {
 var _fakturaadresseTarget = null;
 
 function openFakturaadressePopup(target) {
-    saveViewScroll();
+
     _fakturaadresseTarget = target;
     var currentVal = '';
     if (target === 'form') {
@@ -751,7 +751,7 @@ function closeFakturaadressePopup() {
         document.getElementById('template-editor-overlay').classList.add('active');
     }
     _fakturaadresseTarget = null;
-    restoreViewScroll();
+
 }
 
 function confirmFakturaadressePopup() {
@@ -1099,7 +1099,7 @@ let pickerRenderFn = null; // Reference to renderPickerList inside closure
 var pickerConfirmCallback = null;
 
 function openMaterialPicker(btn, onConfirm) {
-    saveViewScroll();
+
     pickerConfirmCallback = onConfirm || null;
     const card = btn ? (btn.closest('.mobile-order-card') || btn.closest('.service-entry-card')) : null;
     pickerOrderCard = card;
@@ -1485,7 +1485,7 @@ function openMaterialPicker(btn, onConfirm) {
 function closePickerOverlay() {
     document.getElementById('picker-overlay').classList.remove('active');
     pickerOrderCard = null;
-    restoreViewScroll();
+
 }
 
 // Spec popup for materials that need a specification
@@ -1787,7 +1787,7 @@ let _planPickerDisplay = null;
 let _planPickerState = {};
 
 function openPlanPicker(displayEl) {
-    saveViewScroll();
+
     _planPickerDisplay = displayEl;
     var existing = (displayEl.getAttribute('data-plan') || '').split(',').map(s => s.trim()).filter(s => s);
     var options = cachedPlanOptions || [];
@@ -1858,7 +1858,7 @@ function closePlanPicker() {
     document.getElementById('plan-popup').classList.remove('active');
     _planPickerDisplay = null;
     _planPickerState = {};
-    restoreViewScroll();
+
 }
 
 function updateOrderTitle(card) {
@@ -1875,17 +1875,6 @@ function updateOrderTitle(card) {
     titleEl.textContent = firstLine;
 }
 
-// Save/restore scroll position for active view when popups open/close
-var _savedViewScrollTop = 0;
-function saveViewScroll() {
-    var view = document.querySelector('.view.active');
-    if (view) _savedViewScrollTop = view.scrollTop;
-}
-function restoreViewScroll() {
-    var view = document.querySelector('.view.active');
-    if (view) requestAnimationFrame(function() { view.scrollTop = _savedViewScrollTop; });
-}
-
 function scrollCardToTop(card, smooth) {
     var scrollContainer = card.closest('.view') || document.documentElement;
     var containerRect = scrollContainer.getBoundingClientRect();
@@ -1896,8 +1885,7 @@ function scrollCardToTop(card, smooth) {
 
 function toggleOrder(headerEl) {
     if (event && event.target.closest('.mobile-order-header-delete')) return;
-    var keyboardWasOpen = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-    if (keyboardWasOpen) document.activeElement.blur();
+    if (document.activeElement) document.activeElement.blur();
     const card = headerEl.closest('.mobile-order-card');
     const body = card.querySelector('.mobile-order-body');
     const arrow = card.querySelector('.mobile-order-arrow');
@@ -1906,13 +1894,11 @@ function toggleOrder(headerEl) {
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
         if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
-        var delay = keyboardWasOpen ? 400 : 0;
-        setTimeout(function() { scrollCardToTop(card, true); }, delay);
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        var delay2 = keyboardWasOpen ? 400 : 0;
-        setTimeout(function() { scrollCardToTop(card, false); }, delay2);
+        scrollCardToTop(card, false);
     }
 }
 
@@ -1937,10 +1923,8 @@ function addOrder() {
     updateOrderDeleteStates();
     renumberOrders();
     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
-    var keyboardWasOpen = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-    if (keyboardWasOpen) document.activeElement.blur();
-    var delay = keyboardWasOpen ? 400 : 0;
-    setTimeout(function() { scrollCardToTop(card, true); }, delay);
+    if (document.activeElement) document.activeElement.blur();
+    requestAnimationFrame(function() { scrollCardToTop(card, true); });
 }
 
 function removeOrder(btn) {
@@ -2042,21 +2026,18 @@ function removeServiceEntry(btn) {
 }
 
 function toggleServiceEntry(headerEl) {
-    var keyboardWasOpen = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-    if (keyboardWasOpen) document.activeElement.blur();
+    if (document.activeElement) document.activeElement.blur();
     var body = headerEl.nextElementSibling;
     var arrow = headerEl.querySelector('.mobile-order-arrow');
     var card = headerEl.closest('.service-entry-card');
     if (body.style.display === 'none') {
         body.style.display = '';
         arrow.innerHTML = '&#9650;';
-        var delay = keyboardWasOpen ? 400 : 0;
-        setTimeout(function() { scrollCardToTop(card, true); }, delay);
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        var delay2 = keyboardWasOpen ? 400 : 0;
-        setTimeout(function() { scrollCardToTop(card, false); }, delay2);
+        scrollCardToTop(card, false);
     }
 }
 
