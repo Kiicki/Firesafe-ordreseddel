@@ -4521,6 +4521,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
+    // Prevent scroll jump when keyboard opens/closes on mobile
+    if (window.visualViewport) {
+        var _lastScrollTop = 0;
+        var _activeScrollContainer = null;
+        document.addEventListener('focusin', function() {
+            var view = document.querySelector('.view.active');
+            if (view) {
+                _activeScrollContainer = view;
+                _lastScrollTop = view.scrollTop;
+            }
+        });
+        window.visualViewport.addEventListener('resize', function() {
+            if (_activeScrollContainer && _activeScrollContainer.classList.contains('active')) {
+                _activeScrollContainer.scrollTop = _lastScrollTop;
+            }
+        });
+    }
+
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
     loadPlanOptions();
