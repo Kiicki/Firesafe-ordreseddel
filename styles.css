@@ -1031,11 +1031,14 @@ body.settings-modal-open #view-form {
     overflow: clip;
 }
 
-/* Form view */
+/* Form view: fixed to viewport so form-header can be sticky */
 #view-form.view.active,
 #service-view.view.active {
-    height: calc(100dvh - 60px);
-    overflow-y: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 60px;
     min-height: 0;
 }
 
