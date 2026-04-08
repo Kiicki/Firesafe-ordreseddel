@@ -4522,6 +4522,27 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
+    // Correct browser's aggressive focus scroll - keep field near bottom of visible area
+    document.addEventListener('focusin', function(e) {
+        var el = e.target;
+        if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+        var view = el.closest('.view.active');
+        if (!view || getComputedStyle(view).position !== 'fixed') return;
+        // Wait for browser to finish its scroll + keyboard to open
+        setTimeout(function() {
+            var rect = el.getBoundingClientRect();
+            var viewRect = view.getBoundingClientRect();
+            var visibleBottom = viewRect.bottom;
+            var fieldTop = rect.top;
+            // If field is too far above the bottom (over-scrolled), scroll down
+            var idealTop = visibleBottom - rect.height - 60;
+            if (fieldTop < idealTop - 100) {
+                var correction = idealTop - fieldTop;
+                view.scrollTop -= correction;
+            }
+        }, 350);
+    });
+
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
     loadPlanOptions();
