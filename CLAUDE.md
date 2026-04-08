@@ -54,30 +54,6 @@ Og innloggingsknappen:
 - Endringer i HTML/CSS/design er alltid trygt
 - Nye funksjoner kan legges til uten å røre Firebase-koden
 
-## VIKTIG: Mobil og keyboard-oppførsel
-
-### Toolbar (bunn) når keyboard er åpent
-- Toolbar (bunnen) skal ALDRI være fixed/floating over tastaturet
-- Toolbar skal være på bunnen av siden (i normal dokumentflyt) når tastaturet er åpent
-- Brukeren kommer til toolbar ved å scrolle ned
-
-### Headere (topp) når keyboard er åpent
-- Headere (`#form-header`, `.sticky-header`, `#service-header`) skal ALLTID forbli `position: sticky`
-- Headere inneholder viktige knapper (Lagre, Tilbake) som brukeren trenger tilgang til
-- 44px header øverst er akseptabelt selv med tastatur åpent
-
-### Keyboard-håndtering
-- IKKE lag egendefinert JavaScript for keyboard-håndtering
-- La browseren håndtere keyboard nativt via `interactive-widget=resizes-content` i viewport meta
-- IKKE bruk `body.keyboard-open` klasser eller lignende
-- IKKE endre element-høyder basert på `visualViewport`
-
-### Hvorfor dette er viktig
-På mobil har vi begrenset plass. Når tastaturet er åpent:
-- Skjermen er allerede halvert av tastaturet
-- Fixed toolbar over tastaturet gjør det umulig å se innholdet
-- Brukeren må kunne scrolle fritt for å se alt innhold
-- Headere øverst er OK fordi de gir tilgang til viktige funksjoner
 
 ## Filstruktur
 
