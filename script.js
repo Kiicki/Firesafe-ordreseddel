@@ -1896,10 +1896,8 @@ function scrollCardToTop(card, smooth) {
 
 function toggleOrder(headerEl) {
     if (event && event.target.closest('.mobile-order-header-delete')) return;
-    // Close keyboard first if open
-    if (document.activeElement && document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
-        document.activeElement.blur();
-    }
+    var keyboardWasOpen = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+    if (keyboardWasOpen) document.activeElement.blur();
     const card = headerEl.closest('.mobile-order-card');
     const body = card.querySelector('.mobile-order-body');
     const arrow = card.querySelector('.mobile-order-arrow');
@@ -1908,11 +1906,13 @@ function toggleOrder(headerEl) {
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
         if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
-        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+        var delay = keyboardWasOpen ? 400 : 0;
+        setTimeout(function() { scrollCardToTop(card, true); }, delay);
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        scrollCardToTop(card, false);
+        var delay2 = keyboardWasOpen ? 400 : 0;
+        setTimeout(function() { scrollCardToTop(card, false); }, delay2);
     }
 }
 
@@ -1937,10 +1937,10 @@ function addOrder() {
     updateOrderDeleteStates();
     renumberOrders();
     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
-    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
-        document.activeElement.blur();
-    }
-    requestAnimationFrame(function() { scrollCardToTop(card, true); });
+    var keyboardWasOpen = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+    if (keyboardWasOpen) document.activeElement.blur();
+    var delay = keyboardWasOpen ? 400 : 0;
+    setTimeout(function() { scrollCardToTop(card, true); }, delay);
 }
 
 function removeOrder(btn) {
@@ -2042,20 +2042,21 @@ function removeServiceEntry(btn) {
 }
 
 function toggleServiceEntry(headerEl) {
-    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
-        document.activeElement.blur();
-    }
+    var keyboardWasOpen = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+    if (keyboardWasOpen) document.activeElement.blur();
     var body = headerEl.nextElementSibling;
     var arrow = headerEl.querySelector('.mobile-order-arrow');
     var card = headerEl.closest('.service-entry-card');
     if (body.style.display === 'none') {
         body.style.display = '';
         arrow.innerHTML = '&#9650;';
-        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+        var delay = keyboardWasOpen ? 400 : 0;
+        setTimeout(function() { scrollCardToTop(card, true); }, delay);
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        scrollCardToTop(card, false);
+        var delay2 = keyboardWasOpen ? 400 : 0;
+        setTimeout(function() { scrollCardToTop(card, false); }, delay2);
     }
 }
 
