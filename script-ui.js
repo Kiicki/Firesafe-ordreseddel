@@ -4521,19 +4521,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // Prevent browser auto-scroll on input focus inside fixed containers
-    document.addEventListener('focusin', function(e) {
-        var target = e.target;
-        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
-        var view = target.closest('.view.active');
-        if (!view || getComputedStyle(view).position !== 'fixed') return;
-        var savedScroll = view.scrollTop;
-        requestAnimationFrame(function() {
-            if (view.scrollTop !== savedScroll) {
-                view.scrollTop = savedScroll;
-            }
-        });
-    });
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
