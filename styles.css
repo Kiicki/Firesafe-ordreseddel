@@ -1040,7 +1040,6 @@ body.settings-modal-open #view-form {
     right: 0;
     bottom: 60px;
     min-height: 0;
-    overflow-anchor: none;
 }
 
 #service-header {

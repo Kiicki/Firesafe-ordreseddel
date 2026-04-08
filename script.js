@@ -1877,6 +1877,10 @@ function scrollCardToTop(card, smooth) {
 
 function toggleOrder(headerEl) {
     if (event && event.target.closest('.mobile-order-header-delete')) return;
+    // Close keyboard first if open
+    if (document.activeElement && document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+        document.activeElement.blur();
+    }
     const card = headerEl.closest('.mobile-order-card');
     const body = card.querySelector('.mobile-order-body');
     const arrow = card.querySelector('.mobile-order-arrow');
@@ -1885,12 +1889,11 @@ function toggleOrder(headerEl) {
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
         if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
-        // Delay scroll to allow keyboard to close and viewport to resize
-        setTimeout(function() { scrollCardToTop(card, true); }, 300);
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        setTimeout(function() { scrollCardToTop(card, false); }, 300);
+        scrollCardToTop(card, false);
     }
 }
 
@@ -1915,7 +1918,10 @@ function addOrder() {
     updateOrderDeleteStates();
     renumberOrders();
     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
-    setTimeout(function() { scrollCardToTop(card, true); }, 300);
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        document.activeElement.blur();
+    }
+    requestAnimationFrame(function() { scrollCardToTop(card, true); });
 }
 
 function removeOrder(btn) {
@@ -2017,17 +2023,20 @@ function removeServiceEntry(btn) {
 }
 
 function toggleServiceEntry(headerEl) {
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        document.activeElement.blur();
+    }
     var body = headerEl.nextElementSibling;
     var arrow = headerEl.querySelector('.mobile-order-arrow');
     var card = headerEl.closest('.service-entry-card');
     if (body.style.display === 'none') {
         body.style.display = '';
         arrow.innerHTML = '&#9650;';
-        setTimeout(function() { scrollCardToTop(card, true); }, 300);
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        setTimeout(function() { scrollCardToTop(card, false); }, 300);
+        scrollCardToTop(card, false);
     }
 }
 
