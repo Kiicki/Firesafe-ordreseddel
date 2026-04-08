@@ -539,6 +539,7 @@ function getFormDataSnapshot() {
 let pendingConfirmAction = null;
 
 function showConfirmModal(message, onConfirm, buttonText, buttonColor) {
+    saveViewScroll();
     document.getElementById('confirm-modal-text').textContent = message;
     const okBtn = document.getElementById('confirm-btn-ok');
     okBtn.textContent = buttonText || t('btn_remove');
@@ -553,6 +554,7 @@ function closeConfirmModal(confirmed) {
         pendingConfirmAction();
     }
     pendingConfirmAction = null;
+    restoreViewScroll();
 }
 
 // Toast notification
@@ -726,6 +728,7 @@ function parseFakturaadresse(str) {
 var _fakturaadresseTarget = null;
 
 function openFakturaadressePopup(target) {
+    saveViewScroll();
     _fakturaadresseTarget = target;
     var currentVal = '';
     if (target === 'form') {
@@ -748,6 +751,7 @@ function closeFakturaadressePopup() {
         document.getElementById('template-editor-overlay').classList.add('active');
     }
     _fakturaadresseTarget = null;
+    restoreViewScroll();
 }
 
 function confirmFakturaadressePopup() {
@@ -1095,6 +1099,7 @@ let pickerRenderFn = null; // Reference to renderPickerList inside closure
 var pickerConfirmCallback = null;
 
 function openMaterialPicker(btn, onConfirm) {
+    saveViewScroll();
     pickerConfirmCallback = onConfirm || null;
     const card = btn ? (btn.closest('.mobile-order-card') || btn.closest('.service-entry-card')) : null;
     pickerOrderCard = card;
@@ -1480,6 +1485,7 @@ function openMaterialPicker(btn, onConfirm) {
 function closePickerOverlay() {
     document.getElementById('picker-overlay').classList.remove('active');
     pickerOrderCard = null;
+    restoreViewScroll();
 }
 
 // Spec popup for materials that need a specification
@@ -1781,6 +1787,7 @@ let _planPickerDisplay = null;
 let _planPickerState = {};
 
 function openPlanPicker(displayEl) {
+    saveViewScroll();
     _planPickerDisplay = displayEl;
     var existing = (displayEl.getAttribute('data-plan') || '').split(',').map(s => s.trim()).filter(s => s);
     var options = cachedPlanOptions || [];
@@ -1851,6 +1858,7 @@ function closePlanPicker() {
     document.getElementById('plan-popup').classList.remove('active');
     _planPickerDisplay = null;
     _planPickerState = {};
+    restoreViewScroll();
 }
 
 function updateOrderTitle(card) {
@@ -1865,6 +1873,17 @@ function updateOrderTitle(card) {
         firstLine = t('order_title') + ' ' + (idx >= 0 ? idx + 1 : cards.length + 1);
     }
     titleEl.textContent = firstLine;
+}
+
+// Save/restore scroll position for active view when popups open/close
+var _savedViewScrollTop = 0;
+function saveViewScroll() {
+    var view = document.querySelector('.view.active');
+    if (view) _savedViewScrollTop = view.scrollTop;
+}
+function restoreViewScroll() {
+    var view = document.querySelector('.view.active');
+    if (view) requestAnimationFrame(function() { view.scrollTop = _savedViewScrollTop; });
 }
 
 function scrollCardToTop(card, smooth) {
