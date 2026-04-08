@@ -4522,26 +4522,43 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Correct browser's aggressive focus scroll - keep field near bottom of visible area
-    document.addEventListener('focusin', function(e) {
-        var el = e.target;
-        if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
-        var view = el.closest('.view.active');
-        if (!view || getComputedStyle(view).position !== 'fixed') return;
-        // Wait for browser to finish its scroll + keyboard to open
-        setTimeout(function() {
-            var rect = el.getBoundingClientRect();
-            var viewRect = view.getBoundingClientRect();
-            var visibleBottom = viewRect.bottom;
-            var fieldTop = rect.top;
-            // If field is too far above the bottom (over-scrolled), scroll down
-            var idealTop = visibleBottom - rect.height - 60;
-            if (fieldTop < idealTop - 100) {
-                var correction = idealTop - fieldTop;
-                view.scrollTop -= correction;
-            }
-        }, 350);
-    });
+    // Prevent aggressive browser focus scroll — keep field just above keyboard
+    (function() {
+        var _savedScroll = 0;
+        var _savedView = null;
+
+        document.addEventListener('pointerdown', function(e) {
+            var target = e.target.closest('input, textarea');
+            if (!target) return;
+            var view = target.closest('.view.active');
+            if (!view || getComputedStyle(view).position !== 'fixed') return;
+            _savedView = view;
+            _savedScroll = view.scrollTop;
+        }, true);
+
+        document.addEventListener('focusin', function(e) {
+            if (!_savedView) return;
+            var el = e.target;
+            if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+            var view = _savedView;
+            var scroll = _savedScroll;
+            _savedView = null;
+
+            // Restore scroll immediately to cancel browser's auto-scroll
+            view.scrollTop = scroll;
+
+            // After keyboard opens, scroll just enough to show the field
+            setTimeout(function() {
+                var rect = el.getBoundingClientRect();
+                var viewBottom = view.getBoundingClientRect().bottom;
+                // If field is below visible area, scroll up just enough
+                if (rect.bottom > viewBottom - 10) {
+                    var needed = rect.bottom - viewBottom + 50;
+                    view.scrollTo({ top: view.scrollTop + needed, behavior: 'smooth' });
+                }
+            }, 400);
+        });
+    })();
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
