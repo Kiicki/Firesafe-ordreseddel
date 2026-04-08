@@ -4522,22 +4522,6 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Ensure focused input is visible above keyboard (overlays-content mode)
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', function() {
-            var el = document.activeElement;
-            if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
-            var view = el.closest('.view.active');
-            if (!view) return;
-            var rect = el.getBoundingClientRect();
-            var keyboardTop = window.visualViewport.height + window.visualViewport.offsetTop;
-            if (rect.bottom > keyboardTop - 10) {
-                var offset = rect.bottom - keyboardTop + 40;
-                view.scrollTo({ top: view.scrollTop + offset, behavior: 'smooth' });
-            }
-        });
-    }
-
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
     loadPlanOptions();
