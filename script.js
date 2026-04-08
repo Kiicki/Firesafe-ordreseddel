@@ -1885,11 +1885,12 @@ function toggleOrder(headerEl) {
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
         if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
-        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+        // Delay scroll to allow keyboard to close and viewport to resize
+        setTimeout(function() { scrollCardToTop(card, true); }, 300);
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        scrollCardToTop(card, false);
+        setTimeout(function() { scrollCardToTop(card, false); }, 300);
     }
 }
 
@@ -1914,7 +1915,7 @@ function addOrder() {
     updateOrderDeleteStates();
     renumberOrders();
     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
-    requestAnimationFrame(function() { scrollCardToTop(card, true); });
+    setTimeout(function() { scrollCardToTop(card, true); }, 300);
 }
 
 function removeOrder(btn) {
@@ -2022,11 +2023,11 @@ function toggleServiceEntry(headerEl) {
     if (body.style.display === 'none') {
         body.style.display = '';
         arrow.innerHTML = '&#9650;';
-        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+        setTimeout(function() { scrollCardToTop(card, true); }, 300);
     } else {
         body.style.display = 'none';
         arrow.innerHTML = '&#9660;';
-        scrollCardToTop(card, false);
+        setTimeout(function() { scrollCardToTop(card, false); }, 300);
     }
 }
 
