@@ -4522,22 +4522,45 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Preserve scroll position when keyboard closes (viewport resize)
+    // Preserve scroll position when keyboard closes
     if (window.visualViewport) {
-        var _preBlurScroll = null;
-        var _preBlurView = null;
-        document.addEventListener('focusout', function(e) {
-            var view = document.querySelector('.view.active');
-            if (view && getComputedStyle(view).position === 'fixed') {
-                _preBlurView = view;
-                _preBlurScroll = view.scrollTop;
+        var _lastKnownScroll = null;
+        var _lastKnownView = null;
+
+        // Continuously track scroll position of active view
+        document.addEventListener('scroll', function(e) {
+            var view = e.target;
+            if (view && view.classList && view.classList.contains('active') && view.classList.contains('view')) {
+                _lastKnownView = view;
+                _lastKnownScroll = view.scrollTop;
+            }
+        }, true);
+
+        // Also track on input focus (browser may auto-scroll before we get scroll event)
+        document.addEventListener('focusin', function(e) {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+            var view = e.target.closest('.view.active');
+            if (view) {
+                _lastKnownView = view;
+                _lastKnownScroll = view.scrollTop;
             }
         });
+
+        var _lastViewportHeight = window.visualViewport.height;
         window.visualViewport.addEventListener('resize', function() {
-            // Only restore if keyboard is closing (viewport expanding) and no input is focused
-            if (_preBlurView && !document.activeElement.matches('input, textarea')) {
-                _preBlurView.scrollTop = _preBlurScroll;
-                _preBlurView = null;
+            var newHeight = window.visualViewport.height;
+            var isExpanding = newHeight > _lastViewportHeight;
+            _lastViewportHeight = newHeight;
+            if (isExpanding && _lastKnownView && _lastKnownScroll !== null) {
+                var view = _lastKnownView;
+                var scroll = _lastKnownScroll;
+                // Restore after browser finishes its own scroll adjustments
+                requestAnimationFrame(function() {
+                    view.scrollTop = scroll;
+                    requestAnimationFrame(function() {
+                        view.scrollTop = scroll;
+                    });
+                });
             }
         });
     }
