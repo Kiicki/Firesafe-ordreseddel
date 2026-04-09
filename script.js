@@ -2435,31 +2435,28 @@ function handlePointerDown(e) {
     currentPath = [{x: coords.x, y: coords.y}];
 }
 
-var _sigPendingDraw = false;
-var _sigPendingCoords = null;
-
 function handlePointerMove(e) {
     if (!isDrawing) return;
     e.preventDefault();
-    _sigPendingCoords = getCanvasCoords(e);
-    if (_sigPendingDraw) return;
-    _sigPendingDraw = true;
-    requestAnimationFrame(function() {
-        _sigPendingDraw = false;
-        if (!_sigPendingCoords || !isDrawing) return;
-        var coords = _sigPendingCoords;
-        var w = signatureCanvas.clientWidth;
-        var h = signatureCanvas.clientHeight;
+    var w = signatureCanvas.clientWidth;
+    var h = signatureCanvas.clientHeight;
 
-        signatureCtx.beginPath();
-        signatureCtx.moveTo(lastX * w, lastY * h);
-        signatureCtx.lineTo(coords.x * w, coords.y * h);
-        signatureCtx.stroke();
+    // Use coalesced events for smooth lines with all intermediate points
+    var events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
+    if (events.length === 0) events = [e];
 
-        currentPath.push({x: coords.x, y: coords.y});
-        lastX = coords.x;
-        lastY = coords.y;
-    });
+    signatureCtx.beginPath();
+    signatureCtx.moveTo(lastX * w, lastY * h);
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        var x = ev.offsetX / w;
+        var y = ev.offsetY / h;
+        signatureCtx.lineTo(x * w, y * h);
+        currentPath.push({x: x, y: y});
+        lastX = x;
+        lastY = y;
+    }
+    signatureCtx.stroke();
 }
 
 function handlePointerUp() {
