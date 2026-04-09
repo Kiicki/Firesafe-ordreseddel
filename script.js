@@ -2435,21 +2435,31 @@ function handlePointerDown(e) {
     currentPath = [{x: coords.x, y: coords.y}];
 }
 
+var _sigPendingDraw = false;
+var _sigPendingCoords = null;
+
 function handlePointerMove(e) {
     if (!isDrawing) return;
     e.preventDefault();
-    const coords = getCanvasCoords(e);
-    const w = signatureCanvas.clientWidth;
-    const h = signatureCanvas.clientHeight;
+    _sigPendingCoords = getCanvasCoords(e);
+    if (_sigPendingDraw) return;
+    _sigPendingDraw = true;
+    requestAnimationFrame(function() {
+        _sigPendingDraw = false;
+        if (!_sigPendingCoords || !isDrawing) return;
+        var coords = _sigPendingCoords;
+        var w = signatureCanvas.clientWidth;
+        var h = signatureCanvas.clientHeight;
 
-    signatureCtx.beginPath();
-    signatureCtx.moveTo(lastX * w, lastY * h);
-    signatureCtx.lineTo(coords.x * w, coords.y * h);
-    signatureCtx.stroke();
+        signatureCtx.beginPath();
+        signatureCtx.moveTo(lastX * w, lastY * h);
+        signatureCtx.lineTo(coords.x * w, coords.y * h);
+        signatureCtx.stroke();
 
-    currentPath.push({x: coords.x, y: coords.y});
-    lastX = coords.x;
-    lastY = coords.y;
+        currentPath.push({x: coords.x, y: coords.y});
+        lastX = coords.x;
+        lastY = coords.y;
+    });
 }
 
 function handlePointerUp() {
