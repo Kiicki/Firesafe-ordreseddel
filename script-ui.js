@@ -4522,6 +4522,26 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
+    // Preserve scroll position when keyboard closes (viewport resize)
+    if (window.visualViewport) {
+        var _preBlurScroll = null;
+        var _preBlurView = null;
+        document.addEventListener('focusout', function(e) {
+            var view = document.querySelector('.view.active');
+            if (view && getComputedStyle(view).position === 'fixed') {
+                _preBlurView = view;
+                _preBlurScroll = view.scrollTop;
+            }
+        });
+        window.visualViewport.addEventListener('resize', function() {
+            // Only restore if keyboard is closing (viewport expanding) and no input is focused
+            if (_preBlurView && !document.activeElement.matches('input, textarea')) {
+                _preBlurView.scrollTop = _preBlurScroll;
+                _preBlurView = null;
+            }
+        });
+    }
+
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
     loadPlanOptions();
