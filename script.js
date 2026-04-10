@@ -279,10 +279,13 @@ if (auth) {
         var lastUid = localStorage.getItem('firesafe_last_uid');
         if (lastUid && lastUid !== user.uid) {
             [SETTINGS_KEY, DEFAULTS_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
-             STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY,
-             'firesafe_lang']
+             STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, PLANS_KEY, BIL_STORAGE_KEY,
+             SERVICE_STORAGE_KEY, SERVICE_ARCHIVE_KEY, SERVICE_DEFAULTS_KEY,
+             'firesafe_lang', 'firesafe_plate_size']
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
+            if (typeof cachedMaterialOptions !== 'undefined') cachedMaterialOptions = null;
+            if (typeof cachedPlanOptions !== 'undefined') cachedPlanOptions = [];
             currentLang = 'no';
             applyTranslations();
             if (typeof resetPaginationState === 'function') resetPaginationState();
@@ -1099,7 +1102,18 @@ let pickerRenderFn = null; // Reference to renderPickerList inside closure
 var pickerConfirmCallback = null;
 
 function openMaterialPicker(btn, onConfirm) {
-
+    // If material cache is empty and user is logged in, fetch from Firebase first
+    if ((!cachedMaterialOptions || cachedMaterialOptions.length === 0) && currentUser && db && typeof getDropdownOptions === 'function') {
+        const modal = document.getElementById('picker-overlay');
+        const list = document.getElementById('picker-overlay-list');
+        list.innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('loading') + '</div>';
+        modal.classList.add('active');
+        getDropdownOptions().then(function() {
+            modal.classList.remove('active');
+            openMaterialPicker(btn, onConfirm);
+        });
+        return;
+    }
     pickerConfirmCallback = onConfirm || null;
     const card = btn ? (btn.closest('.mobile-order-card') || btn.closest('.service-entry-card')) : null;
     pickerOrderCard = card;
@@ -1787,8 +1801,19 @@ let _planPickerDisplay = null;
 let _planPickerState = {};
 
 function openPlanPicker(displayEl) {
-
     _planPickerDisplay = displayEl;
+    document.getElementById('plan-popup').classList.add('active');
+
+    // If cache is empty and user is logged in, fetch from Firebase first
+    if ((!cachedPlanOptions || cachedPlanOptions.length === 0) && currentUser && db && typeof loadPlanOptions === 'function') {
+        document.getElementById('plan-popup-list').innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('loading') + '</div>';
+        loadPlanOptions().then(function() { _renderPlanPickerList(displayEl); });
+        return;
+    }
+    _renderPlanPickerList(displayEl);
+}
+
+function _renderPlanPickerList(displayEl) {
     var existing = (displayEl.getAttribute('data-plan') || '').split(',').map(s => s.trim()).filter(s => s);
     var options = cachedPlanOptions || [];
     _planPickerState = {};
@@ -1830,8 +1855,6 @@ function openPlanPicker(displayEl) {
             this.classList.toggle('plan-popup-selected');
         });
     });
-
-    document.getElementById('plan-popup').classList.add('active');
 }
 
 function confirmPlanPicker() {

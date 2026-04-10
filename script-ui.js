@@ -1530,9 +1530,12 @@ function showSettingsPage(page) {
         document.getElementById('settings-new-end').value = '';
         document.getElementById('settings-give-start').value = '';
         document.getElementById('settings-give-end').value = '';
-        // Show cached immediately
-        _applyOrderNrSettings(_getCachedOrderNrSettings());
-        // Background refresh
+        var cachedOrdrenr = _getCachedOrderNrSettings();
+        // Show cached immediately if available
+        if (cachedOrdrenr) {
+            _applyOrderNrSettings(cachedOrdrenr);
+        }
+        // Refresh from Firebase
         getOrderNrSettings().then(function(settings) {
             if (document.body.classList.contains('settings-modal-open'))
                 _applyOrderNrSettings(settings);
@@ -1572,17 +1575,21 @@ function showSettingsPage(page) {
             });
         });
     } else if (page === 'materials') {
-        // Show cached immediately
         var cachedMat = localStorage.getItem(MATERIALS_KEY);
         var cachedData = normalizeMaterialData(cachedMat ? JSON.parse(cachedMat) : null);
         settingsMaterials = cachedData.materials.slice();
         settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-        renderMaterialSettingsItems();
         document.getElementById('settings-new-material').value = '';
         document.getElementById('settings-new-material-type').value = 'standard';
         document.getElementById('settings-new-material-variant').value = '';
         updateSettingsUnitFields();
-        // Background refresh
+        // Show loading if cache is empty and user is logged in (Firebase has data)
+        if (settingsMaterials.length === 0 && currentUser && db) {
+            document.getElementById('settings-material-items').innerHTML = '<div class="settings-loading">' + t('loading') + '</div>';
+        } else {
+            renderMaterialSettingsItems();
+        }
+        // Refresh from Firebase
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
             settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
@@ -1590,12 +1597,16 @@ function showSettingsPage(page) {
             renderMaterialSettingsItems();
         });
     } else if (page === 'plans') {
-        // Show cached immediately
         var storedPlans = localStorage.getItem(PLANS_KEY);
         settingsPlans = storedPlans ? sortPlans(JSON.parse(storedPlans)) : [];
-        renderPlanSettingsItems();
         document.getElementById('settings-new-plan').value = '';
-        // Background refresh
+        // Show loading if cache is empty and user is logged in
+        if (settingsPlans.length === 0 && currentUser && db) {
+            document.getElementById('settings-plan-items').innerHTML = '<div class="settings-loading">' + t('loading') + '</div>';
+        } else {
+            renderPlanSettingsItems();
+        }
+        // Refresh from Firebase
         getPlanSettings().then(function(plans) {
             if (!document.body.classList.contains('settings-modal-open')) return;
             settingsPlans = sortPlans(plans || []);

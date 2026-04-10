@@ -3310,6 +3310,13 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     margin-bottom: 8px;
 }
 
+.settings-loading {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    padding: 30px 20px;
+}
+
 .settings-list-item {
     display: flex;
     align-items: center;
