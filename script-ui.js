@@ -4522,51 +4522,17 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Lock scroll position during keyboard close
-    (function() {
-        var _lockedView = null;
-        var _lockedTop = null;
-        var _lockUntil = 0;
-
-        function captureUserScroll() {
-            // Only capture if not currently locked (avoid capturing browser restoration)
-            if (Date.now() < _lockUntil) return;
-            var view = document.querySelector('.view.active');
-            if (view && getComputedStyle(view).position === 'fixed') {
-                _lockedView = view;
-                _lockedTop = view.scrollTop;
-            }
-        }
-        document.addEventListener('touchstart', captureUserScroll, { passive: true, capture: true });
-        document.addEventListener('touchmove', captureUserScroll, { passive: true, capture: true });
-        document.addEventListener('touchend', captureUserScroll, { passive: true, capture: true });
-
-        // Block scroll changes during lock period (capture scroll events and revert)
-        document.addEventListener('scroll', function(e) {
-            if (Date.now() >= _lockUntil) return;
-            if (!_lockedView || e.target !== _lockedView) return;
-            if (_lockedView.scrollTop !== _lockedTop) {
-                _lockedView.scrollTop = _lockedTop;
-            }
-        }, { capture: true, passive: true });
-
-        // Activate lock when input loses focus (keyboard closing)
-        document.addEventListener('focusout', function(e) {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-            if (!_lockedView || _lockedTop === null) return;
-            _lockUntil = Date.now() + 800;
-            // Force scrollTop continuously
-            var startLock = function() {
-                if (Date.now() < _lockUntil && _lockedView) {
-                    if (_lockedView.scrollTop !== _lockedTop) {
-                        _lockedView.scrollTop = _lockedTop;
-                    }
-                    requestAnimationFrame(startLock);
-                }
-            };
-            startLock();
-        });
-    })();
+    // After keyboard closes, scroll the previously focused input back into view
+    document.addEventListener('focusout', function(e) {
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+        var input = e.target;
+        // Wait for keyboard close animation, then ensure input is visible
+        setTimeout(function() {
+            // Don't scroll if user has focused something else
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+            input.scrollIntoView({ block: 'nearest' });
+        }, 350);
+    });
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
