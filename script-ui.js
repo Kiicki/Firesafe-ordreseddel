@@ -4524,43 +4524,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Preserve scroll position when keyboard closes
     if (window.visualViewport) {
-        var _lastKnownScroll = null;
-        var _lastKnownView = null;
+        var _userScroll = null;
+        var _userView = null;
+        var _trackingScroll = true;
 
-        // Continuously track scroll position of active view
+        // Track user scrolling (wheel/touch)
         document.addEventListener('scroll', function(e) {
+            if (!_trackingScroll) return;
             var view = e.target;
             if (view && view.classList && view.classList.contains('active') && view.classList.contains('view')) {
-                _lastKnownView = view;
-                _lastKnownScroll = view.scrollTop;
+                _userView = view;
+                _userScroll = view.scrollTop;
             }
         }, true);
 
-        // Also track on input focus (browser may auto-scroll before we get scroll event)
-        document.addEventListener('focusin', function(e) {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-            var view = e.target.closest('.view.active');
-            if (view) {
-                _lastKnownView = view;
-                _lastKnownScroll = view.scrollTop;
+        // Track on touchend (user finished scrolling)
+        document.addEventListener('touchend', function() {
+            var view = document.querySelector('.view.active');
+            if (view && _trackingScroll) {
+                _userView = view;
+                _userScroll = view.scrollTop;
             }
         });
 
-        var _lastViewportHeight = window.visualViewport.height;
+        var _lastVH = window.visualViewport.height;
         window.visualViewport.addEventListener('resize', function() {
-            var newHeight = window.visualViewport.height;
-            var isExpanding = newHeight > _lastViewportHeight;
-            _lastViewportHeight = newHeight;
-            if (isExpanding && _lastKnownView && _lastKnownScroll !== null) {
-                var view = _lastKnownView;
-                var scroll = _lastKnownScroll;
-                // Restore after browser finishes its own scroll adjustments
-                requestAnimationFrame(function() {
+            var newH = window.visualViewport.height;
+            var isExpanding = newH > _lastVH + 50;
+            _lastVH = newH;
+            if (isExpanding && _userView && _userScroll !== null) {
+                var view = _userView;
+                var scroll = _userScroll;
+                // Stop tracking so browser's auto-scroll doesn't overwrite saved position
+                _trackingScroll = false;
+                // Restore multiple times over the next few frames
+                var attempts = 0;
+                var restore = function() {
                     view.scrollTop = scroll;
-                    requestAnimationFrame(function() {
-                        view.scrollTop = scroll;
-                    });
-                });
+                    attempts++;
+                    if (attempts < 10) requestAnimationFrame(restore);
+                    else _trackingScroll = true;
+                };
+                requestAnimationFrame(restore);
             }
         });
     }
