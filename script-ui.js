@@ -4522,42 +4522,41 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Lock scroll position during keyboard close to prevent browser jump-back
+    // Track user's actual scroll position via touch (not browser-induced scrolls)
     if (window.visualViewport) {
-        var _scrollLockTop = null;
-        var _scrollLockView = null;
-        var _scrollLockTimer = null;
+        var _userScrollTop = null;
+        var _userScrollView = null;
 
-        document.addEventListener('focusout', function(e) {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+        // Update user position on every touch interaction
+        function captureUserScroll() {
             var view = document.querySelector('.view.active');
-            if (!view || getComputedStyle(view).position !== 'fixed') return;
-            // Capture current scroll position when input loses focus
-            _scrollLockView = view;
-            _scrollLockTop = view.scrollTop;
-            // Lock scroll to this position for the next 600ms (keyboard close animation)
-            clearTimeout(_scrollLockTimer);
-            var startTime = Date.now();
-            var lock = function() {
-                if (_scrollLockView && _scrollLockView.scrollTop !== _scrollLockTop) {
-                    _scrollLockView.scrollTop = _scrollLockTop;
-                }
-                if (Date.now() - startTime < 600) {
-                    requestAnimationFrame(lock);
-                } else {
-                    _scrollLockView = null;
-                    _scrollLockTop = null;
-                }
-            };
-            requestAnimationFrame(lock);
+            if (view && getComputedStyle(view).position === 'fixed') {
+                _userScrollView = view;
+                _userScrollTop = view.scrollTop;
+            }
+        }
+        document.addEventListener('touchstart', captureUserScroll, { passive: true });
+        document.addEventListener('touchmove', captureUserScroll, { passive: true });
+        document.addEventListener('touchend', captureUserScroll, { passive: true });
+
+        // When focus changes to a new input, also update (the input's location is "where user is")
+        document.addEventListener('focusin', function(e) {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+            captureUserScroll();
         });
 
-        // If user focuses another input, cancel lock
-        document.addEventListener('focusin', function(e) {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                _scrollLockView = null;
-                _scrollLockTop = null;
-            }
+        // On focusout (keyboard closing), lock to the last user-known position
+        document.addEventListener('focusout', function(e) {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+            if (!_userScrollView || _userScrollTop === null) return;
+            var view = _userScrollView;
+            var top = _userScrollTop;
+            var startTime = Date.now();
+            var lock = function() {
+                if (view.scrollTop !== top) view.scrollTop = top;
+                if (Date.now() - startTime < 600) requestAnimationFrame(lock);
+            };
+            requestAnimationFrame(lock);
         });
     }
 
