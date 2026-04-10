@@ -4522,43 +4522,51 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Track user's actual scroll position via touch (not browser-induced scrolls)
-    if (window.visualViewport) {
-        var _userScrollTop = null;
-        var _userScrollView = null;
+    // Lock scroll position during keyboard close
+    (function() {
+        var _lockedView = null;
+        var _lockedTop = null;
+        var _lockUntil = 0;
 
-        // Update user position on every touch interaction
         function captureUserScroll() {
+            // Only capture if not currently locked (avoid capturing browser restoration)
+            if (Date.now() < _lockUntil) return;
             var view = document.querySelector('.view.active');
             if (view && getComputedStyle(view).position === 'fixed') {
-                _userScrollView = view;
-                _userScrollTop = view.scrollTop;
+                _lockedView = view;
+                _lockedTop = view.scrollTop;
             }
         }
-        document.addEventListener('touchstart', captureUserScroll, { passive: true });
-        document.addEventListener('touchmove', captureUserScroll, { passive: true });
-        document.addEventListener('touchend', captureUserScroll, { passive: true });
+        document.addEventListener('touchstart', captureUserScroll, { passive: true, capture: true });
+        document.addEventListener('touchmove', captureUserScroll, { passive: true, capture: true });
+        document.addEventListener('touchend', captureUserScroll, { passive: true, capture: true });
 
-        // When focus changes to a new input, also update (the input's location is "where user is")
-        document.addEventListener('focusin', function(e) {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-            captureUserScroll();
-        });
+        // Block scroll changes during lock period (capture scroll events and revert)
+        document.addEventListener('scroll', function(e) {
+            if (Date.now() >= _lockUntil) return;
+            if (!_lockedView || e.target !== _lockedView) return;
+            if (_lockedView.scrollTop !== _lockedTop) {
+                _lockedView.scrollTop = _lockedTop;
+            }
+        }, { capture: true, passive: true });
 
-        // On focusout (keyboard closing), lock to the last user-known position
+        // Activate lock when input loses focus (keyboard closing)
         document.addEventListener('focusout', function(e) {
             if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-            if (!_userScrollView || _userScrollTop === null) return;
-            var view = _userScrollView;
-            var top = _userScrollTop;
-            var startTime = Date.now();
-            var lock = function() {
-                if (view.scrollTop !== top) view.scrollTop = top;
-                if (Date.now() - startTime < 600) requestAnimationFrame(lock);
+            if (!_lockedView || _lockedTop === null) return;
+            _lockUntil = Date.now() + 800;
+            // Force scrollTop continuously
+            var startLock = function() {
+                if (Date.now() < _lockUntil && _lockedView) {
+                    if (_lockedView.scrollTop !== _lockedTop) {
+                        _lockedView.scrollTop = _lockedTop;
+                    }
+                    requestAnimationFrame(startLock);
+                }
             };
-            requestAnimationFrame(lock);
+            startLock();
         });
-    }
+    })();
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
