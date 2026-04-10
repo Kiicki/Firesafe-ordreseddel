@@ -54,6 +54,19 @@ Og innloggingsknappen:
 - Endringer i HTML/CSS/design er alltid trygt
 - Nye funksjoner kan legges til uten å røre Firebase-koden
 
+## VIKTIG: Cache-versjon ved hver endring
+
+Brukeren tester appen som PWA på mobil — service worker cacher filer aggressivt. **ALLTID** bump cache-versjoner ved hver kode-endring slik at brukeren får siste versjon:
+
+1. **`service-worker.js`** — øk `CACHE_NAME` (f.eks. `firesafe-v327` → `firesafe-v328`)
+2. **`index.html`** — øk versjons-query på alle relevante filer:
+   - `<link rel="stylesheet" href="styles.css?v=216">` → `?v=217`
+   - `<script src="lang.js?v=118">` → `?v=119`
+   - `<script src="script.js?v=148">` → `?v=149`
+   - `<script src="script-ui.js?v=183">` → `?v=184`
+
+Bump kun versjonen på filene som faktisk ble endret + service-worker.js.
+
 
 ## Filstruktur
 

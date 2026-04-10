@@ -4522,42 +4522,43 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Save scroll position on pointerdown (BEFORE browser does anything), restore after keyboard closes
+    // Save scroll position on pointerdown, restore after keyboard closes
     (function() {
         var _savedScrollTop = null;
-        var _savedView = null;
-        var _savedInput = null;
+        var _savedScrollEl = null;
+
+        // Find the actual scroll container (the one with overflow-y: auto/scroll)
+        function findScrollContainer(el) {
+            while (el && el !== document.body) {
+                var style = getComputedStyle(el);
+                var overflowY = style.overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll') {
+                    return el;
+                }
+                el = el.parentElement;
+            }
+            return document.scrollingElement || document.documentElement;
+        }
 
         // Capture scroll position when user taps an input — BEFORE browser auto-scrolls
         document.addEventListener('pointerdown', function(e) {
             var input = e.target.closest('input, textarea');
             if (!input) return;
-            var view = input.closest('.view.active');
-            if (!view || getComputedStyle(view).position !== 'fixed') return;
-            _savedView = view;
-            _savedScrollTop = view.scrollTop;
-            _savedInput = input;
+            var scrollEl = findScrollContainer(input);
+            if (!scrollEl) return;
+            _savedScrollEl = scrollEl;
+            _savedScrollTop = scrollEl.scrollTop;
         }, true);
 
         document.addEventListener('focusout', function(e) {
             if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-            if (!_savedView || _savedScrollTop === null) return;
-            var view = _savedView;
+            if (!_savedScrollEl || _savedScrollTop === null) return;
+            var scrollEl = _savedScrollEl;
             var top = _savedScrollTop;
-            var input = _savedInput;
             // Wait for keyboard close, then restore
             setTimeout(function() {
-                // Don't restore if user focused another input
                 if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
-                view.scrollTop = top;
-                // Also ensure the input is still visible (in case user scrolled less than the input position)
-                if (input) {
-                    var rect = input.getBoundingClientRect();
-                    var viewRect = view.getBoundingClientRect();
-                    if (rect.top < viewRect.top || rect.bottom > viewRect.bottom) {
-                        input.scrollIntoView({ block: 'center' });
-                    }
-                }
+                scrollEl.scrollTop = top;
             }, 350);
         });
     })();
