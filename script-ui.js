@@ -78,9 +78,9 @@ function showView(viewId) {
             v.classList.remove('active');
         });
         target.classList.add('active');
+        target.scrollTop = 0;
+        window.scrollTo(0, 0);
     }
-    target.scrollTop = 0;
-    window.scrollTo(0, 0);
 }
 
 function closeAllModals() {
