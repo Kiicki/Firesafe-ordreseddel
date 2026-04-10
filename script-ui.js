@@ -4522,17 +4522,45 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // After keyboard closes, scroll the previously focused input back into view
-    document.addEventListener('focusout', function(e) {
-        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-        var input = e.target;
-        // Wait for keyboard close animation, then ensure input is visible
-        setTimeout(function() {
-            // Don't scroll if user has focused something else
-            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
-            input.scrollIntoView({ block: 'nearest' });
-        }, 350);
-    });
+    // Save scroll position on pointerdown (BEFORE browser does anything), restore after keyboard closes
+    (function() {
+        var _savedScrollTop = null;
+        var _savedView = null;
+        var _savedInput = null;
+
+        // Capture scroll position when user taps an input — BEFORE browser auto-scrolls
+        document.addEventListener('pointerdown', function(e) {
+            var input = e.target.closest('input, textarea');
+            if (!input) return;
+            var view = input.closest('.view.active');
+            if (!view || getComputedStyle(view).position !== 'fixed') return;
+            _savedView = view;
+            _savedScrollTop = view.scrollTop;
+            _savedInput = input;
+        }, true);
+
+        document.addEventListener('focusout', function(e) {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+            if (!_savedView || _savedScrollTop === null) return;
+            var view = _savedView;
+            var top = _savedScrollTop;
+            var input = _savedInput;
+            // Wait for keyboard close, then restore
+            setTimeout(function() {
+                // Don't restore if user focused another input
+                if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+                view.scrollTop = top;
+                // Also ensure the input is still visible (in case user scrolled less than the input position)
+                if (input) {
+                    var rect = input.getBoundingClientRect();
+                    var viewRect = view.getBoundingClientRect();
+                    if (rect.top < viewRect.top || rect.bottom > viewRect.bottom) {
+                        input.scrollIntoView({ block: 'center' });
+                    }
+                }
+            }, 350);
+        });
+    })();
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
