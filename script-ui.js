@@ -4522,50 +4522,41 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
 
-    // Preserve scroll position when keyboard closes
+    // Lock scroll position during keyboard close to prevent browser jump-back
     if (window.visualViewport) {
-        var _userScroll = null;
-        var _userView = null;
-        var _trackingScroll = true;
+        var _scrollLockTop = null;
+        var _scrollLockView = null;
+        var _scrollLockTimer = null;
 
-        // Track user scrolling (wheel/touch)
-        document.addEventListener('scroll', function(e) {
-            if (!_trackingScroll) return;
-            var view = e.target;
-            if (view && view.classList && view.classList.contains('active') && view.classList.contains('view')) {
-                _userView = view;
-                _userScroll = view.scrollTop;
-            }
-        }, true);
-
-        // Track on touchend (user finished scrolling)
-        document.addEventListener('touchend', function() {
+        document.addEventListener('focusout', function(e) {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
             var view = document.querySelector('.view.active');
-            if (view && _trackingScroll) {
-                _userView = view;
-                _userScroll = view.scrollTop;
-            }
+            if (!view || getComputedStyle(view).position !== 'fixed') return;
+            // Capture current scroll position when input loses focus
+            _scrollLockView = view;
+            _scrollLockTop = view.scrollTop;
+            // Lock scroll to this position for the next 600ms (keyboard close animation)
+            clearTimeout(_scrollLockTimer);
+            var startTime = Date.now();
+            var lock = function() {
+                if (_scrollLockView && _scrollLockView.scrollTop !== _scrollLockTop) {
+                    _scrollLockView.scrollTop = _scrollLockTop;
+                }
+                if (Date.now() - startTime < 600) {
+                    requestAnimationFrame(lock);
+                } else {
+                    _scrollLockView = null;
+                    _scrollLockTop = null;
+                }
+            };
+            requestAnimationFrame(lock);
         });
 
-        var _lastVH = window.visualViewport.height;
-        window.visualViewport.addEventListener('resize', function() {
-            var newH = window.visualViewport.height;
-            var isExpanding = newH > _lastVH + 50;
-            _lastVH = newH;
-            if (isExpanding && _userView && _userScroll !== null) {
-                var view = _userView;
-                var scroll = _userScroll;
-                // Stop tracking so browser's auto-scroll doesn't overwrite saved position
-                _trackingScroll = false;
-                // Restore multiple times over the next few frames
-                var attempts = 0;
-                var restore = function() {
-                    view.scrollTop = scroll;
-                    attempts++;
-                    if (attempts < 10) requestAnimationFrame(restore);
-                    else _trackingScroll = true;
-                };
-                requestAnimationFrame(restore);
+        // If user focuses another input, cancel lock
+        document.addEventListener('focusin', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                _scrollLockView = null;
+                _scrollLockTop = null;
             }
         });
     }
