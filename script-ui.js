@@ -4556,34 +4556,29 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Single focusin handler — positions input just above keyboard via ABSOLUTE scrollTop
+        // Focusin: let the browser handle scrolling via `interactive-widget=resizes-visual`.
+        // Only fall back to scrollIntoView({ block: 'nearest' }) if the input ends up
+        // hidden by the keyboard (e.g. was near the very bottom before padding was added).
         document.addEventListener('focusin', function(e) {
             var input = e.target;
             if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
             if (!input.closest('#view-form') && !input.closest('#service-view')) return;
 
-            // Wait for keyboard to fully appear and browser's own auto-scroll to finish
+            // Wait until the keyboard has opened and padding-bottom has been applied
             setTimeout(function() {
                 if (document.activeElement !== input) return;
                 var visibleBottom = window.visualViewport.height;
-                // Only act if keyboard is actually open
+                // Do nothing if the keyboard isn't open
                 if (visibleBottom >= window.innerHeight - 50) return;
 
-                var scrollEl = input.closest('.container.form-view') ||
-                               input.closest('.container.service-view');
-                if (!scrollEl) return;
-
-                // Compute input position in CONTENT coordinates (invariant of current scrollTop)
                 var inputRect = input.getBoundingClientRect();
-                var scrollRect = scrollEl.getBoundingClientRect();
-                var inputBottomInContent = (inputRect.bottom - scrollRect.top) + scrollEl.scrollTop;
-
-                // ABSOLUTE target: place input bottom 20px above keyboard
-                var targetScrollTop = scrollRect.top + inputBottomInContent - (visibleBottom - 20);
-
-                // ALWAYS set absolute (no guard — overrides any browser scroll, including "to top")
-                scrollEl.scrollTop = Math.max(0, targetScrollTop);
-            }, 400);
+                // Only scroll if the input is actually hidden by the keyboard or off the top
+                var hiddenByKeyboard = inputRect.bottom > (visibleBottom - 10);
+                var aboveTop = inputRect.top < 10;
+                if (hiddenByKeyboard || aboveTop) {
+                    input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            }, 350);
         });
     }
 
