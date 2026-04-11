@@ -106,7 +106,7 @@ body {
     left: auto;
     right: auto;
     bottom: auto;
-    width: auto;
+    width: 100%;
     box-shadow: none;
     margin-top: 20px;
     z-index: auto;
@@ -1052,6 +1052,13 @@ body.settings-modal-open #view-form {
     right: 0;
     bottom: 60px;
     min-height: 0;
+}
+
+/* When keyboard is open, toolbar is reparented into the form scroll content.
+   Remove the 60px bottom reservation so the grey body background doesn't bleed through. */
+body.keyboard-open #view-form.view.active,
+body.keyboard-open #service-view.view.active {
+    bottom: 0;
 }
 
 #service-header {

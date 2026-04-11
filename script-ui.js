@@ -4558,6 +4558,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var activeView = document.querySelector('.view.active');
             var activeId = activeView ? activeView.id : null;
             if (keyboardOpen) {
+                document.body.classList.add('keyboard-open');
                 if (formEl) formEl.style.paddingBottom = keyboardHeight + 'px';
                 if (serviceFormEl) serviceFormEl.style.paddingBottom = keyboardHeight + 'px';
                 // Move toolbar into the active form/service scroll container
@@ -4571,6 +4572,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             } else {
+                document.body.classList.remove('keyboard-open');
                 if (formEl) formEl.style.paddingBottom = '';
                 if (serviceFormEl) serviceFormEl.style.paddingBottom = '';
                 // Restore toolbar to body (fixed bottom)
