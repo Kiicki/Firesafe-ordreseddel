@@ -4532,10 +4532,47 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // Keyboard scroll-handling: rely on browser native behavior via
-    // `interactive-widget=resizes-content` in viewport meta. Custom JS scroll
-    // restoration was removed because it caused jump-back bugs (saved position
-    // from earlier tap was restored instead of the current one).
+    // Keyboard scroll-restore: track scroll on user TOUCH events (which the
+    // browser auto-scroll-back doesn't fire), and aggressively restore on
+    // window resize (keyboard close) for ~600ms to override the browser's
+    // attempt to scroll back to the originally-focused input.
+    (function() {
+        var lastUserScrollTop = 0;
+        var scrollEl = null;
+
+        function getScrollEl() {
+            if (!scrollEl || !document.body.contains(scrollEl)) {
+                scrollEl = document.querySelector('.container.form-view');
+            }
+            return scrollEl;
+        }
+
+        function captureUserScroll() {
+            var el = getScrollEl();
+            if (el) lastUserScrollTop = el.scrollTop;
+        }
+
+        document.addEventListener('touchstart', captureUserScroll, { passive: true, capture: true });
+        document.addEventListener('touchmove', captureUserScroll, { passive: true, capture: true });
+        document.addEventListener('touchend', captureUserScroll, { passive: true, capture: true });
+
+        var resizeRestoreTimer = null;
+        window.addEventListener('resize', function() {
+            var el = getScrollEl();
+            if (!el) return;
+            clearTimeout(resizeRestoreTimer);
+            var endTime = Date.now() + 600;
+            function restore() {
+                if (Math.abs(el.scrollTop - lastUserScrollTop) > 1) {
+                    el.scrollTop = lastUserScrollTop;
+                }
+                if (Date.now() < endTime) {
+                    resizeRestoreTimer = setTimeout(restore, 16);
+                }
+            }
+            restore();
+        });
+    })();
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
