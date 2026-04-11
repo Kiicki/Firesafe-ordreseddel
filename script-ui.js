@@ -4532,25 +4532,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // ============================================
-    // DIAGNOSTIC TEST: Block focus/keyboard on input taps
-    // Tap inputs → no focus, no keyboard, no auto-scroll.
-    // Purpose: see if scroll-jump still happens without keyboard interaction.
-    // REMOVE AFTER TESTING.
-    // ============================================
-    document.addEventListener('touchstart', function(e) {
-        var input = e.target.closest('input, textarea');
-        if (input && input.closest('#view-form')) {
-            e.preventDefault();
-        }
-    }, { passive: false, capture: true });
-    document.addEventListener('mousedown', function(e) {
-        var input = e.target.closest('input, textarea');
-        if (input && input.closest('#view-form')) {
-            e.preventDefault();
-        }
-    }, true);
-
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
     loadPlanOptions();
