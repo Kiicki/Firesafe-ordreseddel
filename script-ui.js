@@ -4532,6 +4532,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
+    // Manual keyboard scroll-into-view: with `interactive-widget=overlays-content`
+    // the browser does NOT auto-scroll focused inputs above the keyboard. We do
+    // it ourselves on visualViewport.resize when the keyboard opens. We do
+    // NOTHING on keyboard close — that's intentional, it's how we avoid the
+    // browser's scroll-back-to-original-input bug.
+    if (window.visualViewport) {
+        var _vvLastHeight = window.visualViewport.height;
+        window.visualViewport.addEventListener('resize', function() {
+            var newHeight = window.visualViewport.height;
+            var keyboardOpened = newHeight < _vvLastHeight - 50;
+            _vvLastHeight = newHeight;
+            if (!keyboardOpened) return; // Only act on keyboard opening, not closing
+
+            var focused = document.activeElement;
+            if (!focused || (focused.tagName !== 'INPUT' && focused.tagName !== 'TEXTAREA')) return;
+            if (!focused.closest('#view-form')) return;
+
+            // Wait for layout to settle, then check if input is behind keyboard
+            requestAnimationFrame(function() {
+                var rect = focused.getBoundingClientRect();
+                var visibleBottom = window.visualViewport.height;
+                if (rect.bottom > visibleBottom - 10) {
+                    var scrollEl = focused.closest('.container.form-view');
+                    if (scrollEl) {
+                        var diff = rect.bottom - (visibleBottom - 20);
+                        scrollEl.scrollTop += diff;
+                    }
+                }
+            });
+        });
+    }
+
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
     loadPlanOptions();
