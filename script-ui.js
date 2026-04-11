@@ -81,6 +81,25 @@ function showView(viewId) {
         target.scrollTop = 0;
         window.scrollTo(0, 0);
     }
+    // Reparent .toolbar so it flows with scrollable content in form/service views
+    var toolbar = document.querySelector('.toolbar');
+    if (toolbar) {
+        var hostSelector = null;
+        if (viewId === 'view-form') hostSelector = '#mobile-form';
+        else if (viewId === 'service-view') hostSelector = '#service-form';
+        if (hostSelector) {
+            var host = document.querySelector(hostSelector);
+            if (host && toolbar.parentNode !== host) {
+                host.appendChild(toolbar);
+            }
+            toolbar.classList.add('toolbar--inflow');
+        } else {
+            if (toolbar.parentNode !== document.body) {
+                document.body.appendChild(toolbar);
+            }
+            toolbar.classList.remove('toolbar--inflow');
+        }
+    }
 }
 
 function closeAllModals() {
@@ -4556,45 +4575,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Focusin: scroll input above the fixed bottom toolbar via a DELTA scroll.
-        // Using a delta (not absolute scrollTop) avoids the old "jumps to top" bug.
-        document.addEventListener('focusin', function(e) {
-            var input = e.target;
-            if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
-            if (!input.closest('#view-form') && !input.closest('#service-view')) return;
-
-            // Wait for keyboard animation and padding-bottom to settle
-            setTimeout(function() {
-                if (document.activeElement !== input) return;
-                var visibleBottom = window.visualViewport.height;
-                // Only act if the keyboard is actually open
-                if (visibleBottom >= window.innerHeight - 50) return;
-
-                var scrollEl = input.closest('.container.form-view') ||
-                               input.closest('.container.service-view');
-                if (!scrollEl) return;
-
-                // The fixed bottom toolbar sits in the 60px gap reserved by #view-form
-                var TOOLBAR_H = 60;
-                var PADDING = 12;
-                // The visible area ends above keyboard; toolbar sits within that area
-                var targetBottom = visibleBottom - TOOLBAR_H - PADDING;
-
-                var inputRect = input.getBoundingClientRect();
-                var scrollRect = scrollEl.getBoundingClientRect();
-
-                // If input bottom is below target, scroll down by the exact overflow (delta)
-                var overflow = inputRect.bottom - targetBottom;
-                if (overflow > 0) {
-                    scrollEl.scrollTop += overflow;
-                    return;
-                }
-                // If input is hidden above the scroller's top edge, nudge it into view
-                if (inputRect.top < scrollRect.top + 10) {
-                    scrollEl.scrollTop -= (scrollRect.top + 10 - inputRect.top);
-                }
-            }, 350);
-        });
     }
 
     // Load dropdown options for materials/units and plans

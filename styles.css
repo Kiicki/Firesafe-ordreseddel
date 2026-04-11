@@ -100,6 +100,18 @@ body {
     z-index: 40;
 }
 
+/* When toolbar is reparented inside a form/service view, it flows with content */
+.toolbar.toolbar--inflow {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    box-shadow: none;
+    margin-top: 20px;
+    z-index: auto;
+}
+
 /* Dark overlay on toolbar when popup is active */
 .toolbar::before {
     content: '';
@@ -1038,7 +1050,7 @@ body.settings-modal-open #view-form {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 60px;
+    bottom: 0;
     min-height: 0;
 }
 
