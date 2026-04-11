@@ -4532,47 +4532,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // Keyboard scroll-restore: track scroll on user TOUCH events (which the
-    // browser auto-scroll-back doesn't fire), and aggressively restore on
-    // window resize (keyboard close) for ~600ms to override the browser's
-    // attempt to scroll back to the originally-focused input.
-    (function() {
-        var lastUserScrollTop = 0;
-        var scrollEl = null;
-
-        function getScrollEl() {
-            if (!scrollEl || !document.body.contains(scrollEl)) {
-                scrollEl = document.querySelector('.container.form-view');
-            }
-            return scrollEl;
+    // ============================================
+    // DIAGNOSTIC TEST: Block focus/keyboard on input taps
+    // Tap inputs → no focus, no keyboard, no auto-scroll.
+    // Purpose: see if scroll-jump still happens without keyboard interaction.
+    // REMOVE AFTER TESTING.
+    // ============================================
+    document.addEventListener('touchstart', function(e) {
+        var input = e.target.closest('input, textarea');
+        if (input && input.closest('#view-form')) {
+            e.preventDefault();
         }
-
-        function captureUserScroll() {
-            var el = getScrollEl();
-            if (el) lastUserScrollTop = el.scrollTop;
+    }, { passive: false, capture: true });
+    document.addEventListener('mousedown', function(e) {
+        var input = e.target.closest('input, textarea');
+        if (input && input.closest('#view-form')) {
+            e.preventDefault();
         }
-
-        document.addEventListener('touchstart', captureUserScroll, { passive: true, capture: true });
-        document.addEventListener('touchmove', captureUserScroll, { passive: true, capture: true });
-        document.addEventListener('touchend', captureUserScroll, { passive: true, capture: true });
-
-        var resizeRestoreTimer = null;
-        window.addEventListener('resize', function() {
-            var el = getScrollEl();
-            if (!el) return;
-            clearTimeout(resizeRestoreTimer);
-            var endTime = Date.now() + 600;
-            function restore() {
-                if (Math.abs(el.scrollTop - lastUserScrollTop) > 1) {
-                    el.scrollTop = lastUserScrollTop;
-                }
-                if (Date.now() < endTime) {
-                    resizeRestoreTimer = setTimeout(restore, 16);
-                }
-            }
-            restore();
-        });
-    })();
+    }, true);
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
