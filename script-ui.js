@@ -81,24 +81,12 @@ function showView(viewId) {
         target.scrollTop = 0;
         window.scrollTo(0, 0);
     }
-    // Reparent .toolbar so it flows with scrollable content in form/service views
-    var toolbar = document.querySelector('.toolbar');
-    if (toolbar) {
-        var hostSelector = null;
-        if (viewId === 'view-form') hostSelector = '#mobile-form';
-        else if (viewId === 'service-view') hostSelector = '#service-form';
-        if (hostSelector) {
-            var host = document.querySelector(hostSelector);
-            if (host && toolbar.parentNode !== host) {
-                host.appendChild(toolbar);
-            }
-            toolbar.classList.add('toolbar--inflow');
-        } else {
-            if (toolbar.parentNode !== document.body) {
-                document.body.appendChild(toolbar);
-            }
-            toolbar.classList.remove('toolbar--inflow');
-        }
+    // When switching views, ensure toolbar is back at body-level (fixed bottom).
+    // Keyboard-open reparenting is handled by visualViewport.resize.
+    var _tb = document.querySelector('.toolbar');
+    if (_tb && _tb.parentNode !== document.body) {
+        document.body.appendChild(_tb);
+        _tb.classList.remove('toolbar--inflow');
     }
 }
 
@@ -4558,19 +4546,38 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.visualViewport) {
         var _baselineHeight = window.visualViewport.height;
 
-        // Padding handler — only manages reachability of bottom inputs
+        // Padding handler + reparent toolbar into scroll content while keyboard is open.
+        // When keyboard is closed, toolbar returns to body (position:fixed at bottom).
         window.visualViewport.addEventListener('resize', function() {
             var currentHeight = window.visualViewport.height;
             var keyboardHeight = _baselineHeight - currentHeight;
             var keyboardOpen = keyboardHeight > 100;
-            var formEl = document.querySelector('.mobile-form');
+            var formEl = document.querySelector('#mobile-form');
             var serviceFormEl = document.getElementById('service-form');
+            var toolbar = document.querySelector('.toolbar');
+            var activeView = document.querySelector('.view.active');
+            var activeId = activeView ? activeView.id : null;
             if (keyboardOpen) {
                 if (formEl) formEl.style.paddingBottom = keyboardHeight + 'px';
                 if (serviceFormEl) serviceFormEl.style.paddingBottom = keyboardHeight + 'px';
+                // Move toolbar into the active form/service scroll container
+                if (toolbar) {
+                    var host = null;
+                    if (activeId === 'view-form') host = formEl;
+                    else if (activeId === 'service-view') host = serviceFormEl;
+                    if (host && toolbar.parentNode !== host) {
+                        host.appendChild(toolbar);
+                        toolbar.classList.add('toolbar--inflow');
+                    }
+                }
             } else {
                 if (formEl) formEl.style.paddingBottom = '';
                 if (serviceFormEl) serviceFormEl.style.paddingBottom = '';
+                // Restore toolbar to body (fixed bottom)
+                if (toolbar && toolbar.parentNode !== document.body) {
+                    document.body.appendChild(toolbar);
+                    toolbar.classList.remove('toolbar--inflow');
+                }
                 _baselineHeight = currentHeight;
             }
         });

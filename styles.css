@@ -1050,7 +1050,7 @@ body.settings-modal-open #view-form {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: 60px;
     min-height: 0;
 }
 
