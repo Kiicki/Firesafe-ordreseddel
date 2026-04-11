@@ -4532,47 +4532,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-
-    // Save scroll position on pointerdown, restore after keyboard closes
-    (function() {
-        var _savedScrollTop = null;
-        var _savedScrollEl = null;
-
-        // Find the actual scroll container (the one with overflow-y: auto/scroll)
-        function findScrollContainer(el) {
-            while (el && el !== document.body) {
-                var style = getComputedStyle(el);
-                var overflowY = style.overflowY;
-                if (overflowY === 'auto' || overflowY === 'scroll') {
-                    return el;
-                }
-                el = el.parentElement;
-            }
-            return document.scrollingElement || document.documentElement;
-        }
-
-        // Capture scroll position when user taps an input — BEFORE browser auto-scrolls
-        document.addEventListener('pointerdown', function(e) {
-            var input = e.target.closest('input, textarea');
-            if (!input) return;
-            var scrollEl = findScrollContainer(input);
-            if (!scrollEl) return;
-            _savedScrollEl = scrollEl;
-            _savedScrollTop = scrollEl.scrollTop;
-        }, true);
-
-        document.addEventListener('focusout', function(e) {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-            if (!_savedScrollEl || _savedScrollTop === null) return;
-            var scrollEl = _savedScrollEl;
-            var top = _savedScrollTop;
-            // Wait for keyboard close, then restore
-            setTimeout(function() {
-                if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
-                scrollEl.scrollTop = top;
-            }, 350);
-        });
-    })();
+    // Keyboard scroll-handling: rely on browser native behavior via
+    // `interactive-widget=resizes-content` in viewport meta. Custom JS scroll
+    // restoration was removed because it caused jump-back bugs (saved position
+    // from earlier tap was restored instead of the current one).
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
