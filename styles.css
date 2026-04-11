@@ -1061,6 +1061,19 @@ body.keyboard-open #service-view.view.active {
     bottom: 0;
 }
 
+/* When keyboard is open, make the form a flex column so the reparented
+   toolbar (last child) can be pushed to the bottom via margin-top:auto.
+   Prevents a big empty gap under the toolbar when form content is short. */
+body.keyboard-open #mobile-form,
+body.keyboard-open #service-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+body.keyboard-open .toolbar.toolbar--inflow {
+    margin-top: auto;
+}
+
 #service-header {
     position: sticky;
     top: 0;

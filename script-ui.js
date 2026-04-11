@@ -4559,9 +4559,9 @@ document.addEventListener('DOMContentLoaded', function() {
             var activeId = activeView ? activeView.id : null;
             if (keyboardOpen) {
                 document.body.classList.add('keyboard-open');
-                if (formEl) formEl.style.paddingBottom = keyboardHeight + 'px';
-                if (serviceFormEl) serviceFormEl.style.paddingBottom = keyboardHeight + 'px';
-                // Move toolbar into the active form/service scroll container
+                // Move toolbar into the active form/service scroll container so it
+                // flows with content above the keyboard (fixed-bottom doesn't work
+                // with interactive-widget=resizes-visual on Android).
                 if (toolbar) {
                     var host = null;
                     if (activeId === 'view-form') host = formEl;
@@ -4573,8 +4573,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 document.body.classList.remove('keyboard-open');
-                if (formEl) formEl.style.paddingBottom = '';
-                if (serviceFormEl) serviceFormEl.style.paddingBottom = '';
                 // Restore toolbar to body (fixed bottom)
                 if (toolbar && toolbar.parentNode !== document.body) {
                     document.body.appendChild(toolbar);
