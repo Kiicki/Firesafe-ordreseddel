@@ -4533,75 +4533,57 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
     // Keyboard handling with `interactive-widget=resizes-visual`:
-    // 1. Dynamically add padding-bottom = keyboard height to .mobile-form so
-    //    bottom inputs are reachable (otherwise stuck behind toolbar+keyboard)
-    // 2. After keyboard is open AND browser has done its own auto-scroll,
-    //    check if focused input is STILL hidden behind keyboard. Only then
-    //    do we scroll. This avoids double-scrolling.
-    // 3. On keyboard close: only remove padding. Never touch scroll.
+    // - visualViewport.resize ONLY adjusts padding-bottom (so bottom inputs are reachable)
+    // - focusin schedules an ABSOLUTE scroll after 400ms (overrides whatever browser did)
+    // - On keyboard close: only remove padding, never touch scroll
     if (window.visualViewport) {
         var _baselineHeight = window.visualViewport.height;
-        var _keyboardOpen = false;
 
-        function scrollInputIfHidden() {
-            var focused = document.activeElement;
-            if (!focused || (focused.tagName !== 'INPUT' && focused.tagName !== 'TEXTAREA')) return;
-            var scrollEl = focused.closest('.container.form-view') ||
-                           focused.closest('.container.service-view');
-            if (!scrollEl) return;
-
-            // Compute input's ABSOLUTE position in the scroll container's content
-            // (independent of current scrollTop, so browser's earlier scroll doesn't matter)
-            var inputRect = focused.getBoundingClientRect();
-            var scrollRect = scrollEl.getBoundingClientRect();
-            var inputBottomInContent = (inputRect.bottom - scrollRect.top) + scrollEl.scrollTop;
-
-            var visibleBottom = window.visualViewport.height;
-
-            // We want input bottom to be 20px above the keyboard (visualViewport bottom).
-            // Input bottom on screen = scrollRect.top + (inputBottomInContent - newScrollTop)
-            // Solve: scrollRect.top + inputBottomInContent - newScrollTop = visibleBottom - 20
-            //   →    newScrollTop = scrollRect.top + inputBottomInContent - (visibleBottom - 20)
-            var targetScrollTop = scrollRect.top + inputBottomInContent - (visibleBottom - 20);
-
-            // Only scroll if input is actually behind keyboard (avoid scrolling visible inputs)
-            if (inputRect.bottom <= visibleBottom - 10) return;
-
-            // Set ABSOLUTE scroll position. Overrides whatever browser did.
-            scrollEl.scrollTop = Math.max(0, targetScrollTop);
-        }
-
+        // Padding handler — only manages reachability of bottom inputs
         window.visualViewport.addEventListener('resize', function() {
             var currentHeight = window.visualViewport.height;
             var keyboardHeight = _baselineHeight - currentHeight;
-            var keyboardOpening = keyboardHeight > 100;
-
+            var keyboardOpen = keyboardHeight > 100;
             var formEl = document.querySelector('.mobile-form');
             var serviceFormEl = document.getElementById('service-form');
-
-            if (keyboardOpening) {
-                // Add padding so bottom inputs become reachable
+            if (keyboardOpen) {
                 if (formEl) formEl.style.paddingBottom = keyboardHeight + 'px';
                 if (serviceFormEl) serviceFormEl.style.paddingBottom = keyboardHeight + 'px';
-                _keyboardOpen = true;
-                // Wait for browser to do its own auto-scroll first, then check
-                setTimeout(scrollInputIfHidden, 200);
             } else {
-                // Keyboard closed — remove padding only, don't touch scroll
-                _keyboardOpen = false;
                 if (formEl) formEl.style.paddingBottom = '';
                 if (serviceFormEl) serviceFormEl.style.paddingBottom = '';
                 _baselineHeight = currentHeight;
             }
         });
 
-        // When user taps another input while keyboard is already open,
-        // visualViewport.resize doesn't fire — handle it via focusin.
+        // Single focusin handler — positions input just above keyboard via ABSOLUTE scrollTop
         document.addEventListener('focusin', function(e) {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-            if (!e.target.closest('#view-form') && !e.target.closest('#service-view')) return;
-            if (!_keyboardOpen) return;
-            setTimeout(scrollInputIfHidden, 200);
+            var input = e.target;
+            if (input.tagName !== 'INPUT' && input.tagName !== 'TEXTAREA') return;
+            if (!input.closest('#view-form') && !input.closest('#service-view')) return;
+
+            // Wait for keyboard to fully appear and browser's own auto-scroll to finish
+            setTimeout(function() {
+                if (document.activeElement !== input) return;
+                var visibleBottom = window.visualViewport.height;
+                // Only act if keyboard is actually open
+                if (visibleBottom >= window.innerHeight - 50) return;
+
+                var scrollEl = input.closest('.container.form-view') ||
+                               input.closest('.container.service-view');
+                if (!scrollEl) return;
+
+                // Compute input position in CONTENT coordinates (invariant of current scrollTop)
+                var inputRect = input.getBoundingClientRect();
+                var scrollRect = scrollEl.getBoundingClientRect();
+                var inputBottomInContent = (inputRect.bottom - scrollRect.top) + scrollEl.scrollTop;
+
+                // ABSOLUTE target: place input bottom 20px above keyboard
+                var targetScrollTop = scrollRect.top + inputBottomInContent - (visibleBottom - 20);
+
+                // ALWAYS set absolute (no guard — overrides any browser scroll, including "to top")
+                scrollEl.scrollTop = Math.max(0, targetScrollTop);
+            }, 400);
         });
     }
 
