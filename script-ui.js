@@ -4532,29 +4532,75 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // Manual keyboard scroll-into-view: with `interactive-widget=overlays-content`
-    // the browser does NOT auto-scroll focused inputs above the keyboard. We do
-    // it ourselves on visualViewport.resize when the keyboard opens. We do
-    // NOTHING on keyboard close — that's intentional, it's how we avoid the
-    // browser's scroll-back-to-original-input bug.
+    // Keyboard handling with `interactive-widget=resizes-visual`:
+    // - Dynamically add padding-bottom = keyboard height to .mobile-form so the
+    //   user can scroll bottom inputs above the keyboard (otherwise they're
+    //   stuck behind it because the scroll container ends at the toolbar).
+    // - On keyboard open, scroll focused input into view above keyboard.
+    // - On keyboard close, do nothing — content stays where it is, no jump-back.
     if (window.visualViewport) {
-        var _vvLastHeight = window.visualViewport.height;
-        window.visualViewport.addEventListener('resize', function() {
-            var newHeight = window.visualViewport.height;
-            var keyboardOpened = newHeight < _vvLastHeight - 50;
-            _vvLastHeight = newHeight;
-            if (!keyboardOpened) return; // Only act on keyboard opening, not closing
+        var _baselineHeight = window.visualViewport.height;
+        var _keyboardWasOpen = false;
 
-            var focused = document.activeElement;
-            if (!focused || (focused.tagName !== 'INPUT' && focused.tagName !== 'TEXTAREA')) return;
-            if (!focused.closest('#view-form')) return;
+        function updateForKeyboard() {
+            var currentHeight = window.visualViewport.height;
+            var keyboardHeight = _baselineHeight - currentHeight;
+            var keyboardOpen = keyboardHeight > 100;
 
-            // Wait for layout to settle, then check if input is behind keyboard
+            var formEl = document.querySelector('.mobile-form');
+            var serviceFormEl = document.getElementById('service-form');
+
+            if (keyboardOpen) {
+                // Add padding so user can scroll bottom inputs above keyboard
+                if (formEl) formEl.style.paddingBottom = keyboardHeight + 'px';
+                if (serviceFormEl) serviceFormEl.style.paddingBottom = keyboardHeight + 'px';
+
+                // On the FIRST detection of keyboard opening, scroll focused input into view
+                if (!_keyboardWasOpen) {
+                    _keyboardWasOpen = true;
+                    var focused = document.activeElement;
+                    if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
+                        // Wait for padding + layout to settle
+                        requestAnimationFrame(function() {
+                            requestAnimationFrame(function() {
+                                var rect = focused.getBoundingClientRect();
+                                var visibleBottom = window.visualViewport.height;
+                                if (rect.bottom > visibleBottom - 10 || rect.top < 10) {
+                                    var scrollEl = focused.closest('.container.form-view') ||
+                                                   focused.closest('.container.service-view');
+                                    if (scrollEl) {
+                                        var diff = rect.bottom - (visibleBottom - 20);
+                                        scrollEl.scrollTop += diff;
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
+            } else {
+                // Keyboard closed — remove padding, but DON'T touch scroll position
+                _keyboardWasOpen = false;
+                if (formEl) formEl.style.paddingBottom = '';
+                if (serviceFormEl) serviceFormEl.style.paddingBottom = '';
+                // Reset baseline for next time
+                _baselineHeight = currentHeight;
+            }
+        }
+
+        window.visualViewport.addEventListener('resize', updateForKeyboard);
+
+        // Also handle focus changes between inputs while keyboard is open
+        document.addEventListener('focusin', function(e) {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+            if (!e.target.closest('#view-form') && !e.target.closest('#service-view')) return;
+            if (!_keyboardWasOpen) return; // Only when keyboard is already open
+            // Wait a frame, then scroll new input into view if behind keyboard
             requestAnimationFrame(function() {
-                var rect = focused.getBoundingClientRect();
+                var rect = e.target.getBoundingClientRect();
                 var visibleBottom = window.visualViewport.height;
                 if (rect.bottom > visibleBottom - 10) {
-                    var scrollEl = focused.closest('.container.form-view');
+                    var scrollEl = e.target.closest('.container.form-view') ||
+                                   e.target.closest('.container.service-view');
                     if (scrollEl) {
                         var diff = rect.bottom - (visibleBottom - 20);
                         scrollEl.scrollTop += diff;
