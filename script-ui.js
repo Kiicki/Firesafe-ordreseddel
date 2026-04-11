@@ -4546,16 +4546,29 @@ document.addEventListener('DOMContentLoaded', function() {
         function scrollInputIfHidden() {
             var focused = document.activeElement;
             if (!focused || (focused.tagName !== 'INPUT' && focused.tagName !== 'TEXTAREA')) return;
-            var rect = focused.getBoundingClientRect();
-            var visibleBottom = window.visualViewport.height;
-            // ONLY scroll if input bottom is below the visible area (behind keyboard)
-            // Do NOT scroll if input is already visible — that would cause jumping
-            if (rect.bottom <= visibleBottom - 10) return;
             var scrollEl = focused.closest('.container.form-view') ||
                            focused.closest('.container.service-view');
             if (!scrollEl) return;
-            var diff = rect.bottom - (visibleBottom - 20);
-            scrollEl.scrollTop += diff;
+
+            // Compute input's ABSOLUTE position in the scroll container's content
+            // (independent of current scrollTop, so browser's earlier scroll doesn't matter)
+            var inputRect = focused.getBoundingClientRect();
+            var scrollRect = scrollEl.getBoundingClientRect();
+            var inputBottomInContent = (inputRect.bottom - scrollRect.top) + scrollEl.scrollTop;
+
+            var visibleBottom = window.visualViewport.height;
+
+            // We want input bottom to be 20px above the keyboard (visualViewport bottom).
+            // Input bottom on screen = scrollRect.top + (inputBottomInContent - newScrollTop)
+            // Solve: scrollRect.top + inputBottomInContent - newScrollTop = visibleBottom - 20
+            //   →    newScrollTop = scrollRect.top + inputBottomInContent - (visibleBottom - 20)
+            var targetScrollTop = scrollRect.top + inputBottomInContent - (visibleBottom - 20);
+
+            // Only scroll if input is actually behind keyboard (avoid scrolling visible inputs)
+            if (inputRect.bottom <= visibleBottom - 10) return;
+
+            // Set ABSOLUTE scroll position. Overrides whatever browser did.
+            scrollEl.scrollTop = Math.max(0, targetScrollTop);
         }
 
         window.visualViewport.addEventListener('resize', function() {
