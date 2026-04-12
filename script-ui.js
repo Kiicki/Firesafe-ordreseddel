@@ -4563,17 +4563,17 @@ document.addEventListener('DOMContentLoaded', function() {
             var activeId = activeView ? activeView.id : null;
 
             if (keyboardOpen) {
-                // Set form height to exact visual viewport (avoids URL-bar calculation errors)
+                // Height = offsetTop + height covers from layout-top to visual viewport bottom
+                // This eliminates the gap caused by URL bar hiding (which increases offsetTop)
+                var fullHeight = vv.offsetTop + vv.height;
                 if (activeId === 'view-form' && viewForm) {
                     viewForm.style.bottom = 'auto';
-                    viewForm.style.height = vv.height + 'px';
+                    viewForm.style.height = fullHeight + 'px';
                 }
                 if (activeId === 'service-view' && serviceView) {
                     serviceView.style.bottom = 'auto';
-                    serviceView.style.height = vv.height + 'px';
+                    serviceView.style.height = fullHeight + 'px';
                 }
-                // White body background to hide any sub-pixel gaps
-                document.body.style.background = '#fff';
                 // Reparent toolbar into scrollable content
                 if (toolbar) {
                     var host = null;
@@ -4588,7 +4588,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Restore: form back to CSS default, toolbar back to body
                 if (viewForm) { viewForm.style.bottom = ''; viewForm.style.height = ''; }
                 if (serviceView) { serviceView.style.bottom = ''; serviceView.style.height = ''; }
-                document.body.style.background = '';
                 if (toolbar && toolbar.parentNode !== document.body) {
                     toolbar.classList.remove('toolbar--inflow');
                     document.body.appendChild(toolbar);
