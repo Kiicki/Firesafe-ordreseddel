@@ -1919,13 +1919,6 @@ function openDagTimerModal(btn) {
         list.appendChild(row);
     });
     var modal = document.getElementById('dag-timer-modal');
-    // Lås body-scroll
-    dagTimerSavedScrollY = window.scrollY;
-    document.body.style.position = 'fixed';
-    document.body.style.top = '-' + dagTimerSavedScrollY + 'px';
-    document.body.style.left = '0';
-    document.body.style.right = '0';
-    document.body.style.overflow = 'hidden';
     modal.classList.add('active');
     // Blokkér touch-scroll på overlayet, tillat kun inni listen
     modal.addEventListener('touchmove', dagTimerBlockScroll, { passive: false });
@@ -1935,8 +1928,6 @@ function openDagTimerModal(btn) {
         window.visualViewport.addEventListener('scroll', adjustDagTimerModal);
     }
 }
-
-var dagTimerSavedScrollY = 0;
 
 function dagTimerBlockScroll(e) {
     var list = document.getElementById('dag-timer-modal-list');
@@ -1961,13 +1952,6 @@ function closeDagTimerModal(confirmed) {
     modal.style.height = '';
     modal.style.top = '';
     modal.removeEventListener('touchmove', dagTimerBlockScroll);
-    // Lås opp body-scroll
-    document.body.style.position = '';
-    document.body.style.top = '';
-    document.body.style.left = '';
-    document.body.style.right = '';
-    document.body.style.overflow = '';
-    window.scrollTo(0, dagTimerSavedScrollY);
     if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', adjustDagTimerModal);
         window.visualViewport.removeEventListener('scroll', adjustDagTimerModal);
