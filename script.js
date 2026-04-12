@@ -1915,23 +1915,39 @@ function openDagTimerModal(btn) {
         inp.dataset.dag = dag;
         inp.value = timer[dag] || '';
         inp.addEventListener('focus', function() {
-            // Scroll listen internt i stedet for å la nettleseren scrolle hele viewporten
-            setTimeout(function() {
-                row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                // Tilbakestill viewport-scroll som nettleseren kan ha gjort
-                window.scrollTo(0, parseInt(document.body.dataset.dagTimerScrollY || '0'));
-            }, 300);
+            setTimeout(function() { adjustDagTimerModalPosition(); }, 300);
         });
         row.appendChild(label);
         row.appendChild(inp);
         list.appendChild(row);
     });
-    document.body.dataset.dagTimerScrollY = window.scrollY;
-    document.getElementById('dag-timer-modal').classList.add('active');
+    var modal = document.getElementById('dag-timer-modal');
+    modal.classList.add('active');
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', adjustDagTimerModalPosition);
+    }
+}
+
+function adjustDagTimerModalPosition() {
+    var modal = document.getElementById('dag-timer-modal');
+    if (!modal.classList.contains('active')) return;
+    var content = modal.querySelector('.dag-timer-modal-content');
+    if (window.visualViewport) {
+        var vv = window.visualViewport;
+        // Posisjonér modalen innenfor synlig viewport
+        modal.style.height = vv.height + 'px';
+        modal.style.top = vv.offsetTop + 'px';
+    }
 }
 
 function closeDagTimerModal(confirmed) {
-    document.getElementById('dag-timer-modal').classList.remove('active');
+    var modal = document.getElementById('dag-timer-modal');
+    modal.classList.remove('active');
+    modal.style.height = '';
+    modal.style.top = '';
+    if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', adjustDagTimerModalPosition);
+    }
     if (!confirmed || !dagTimerActiveCard) { dagTimerActiveCard = null; return; }
     const list = document.getElementById('dag-timer-modal-list');
     const dager = [];
