@@ -2849,7 +2849,7 @@ function buildDesktopWorkLines() {
                     dagText = order.dager.map(d => dagMap[d] || d).join(', ');
                 }
                 const dagLabel = document.createElement('strong');
-                dagLabel.textContent = 'Dag(er): ';
+                dagLabel.textContent = t('order_days') + ': ';
                 descContent.appendChild(dagLabel);
                 descContent.appendChild(document.createTextNode(dagText));
             }
