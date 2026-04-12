@@ -1920,7 +1920,11 @@ label.settings-default-label.field-required > span::after {
     display: flex;
     flex-direction: column;
     overflow-y: hidden !important;
-    max-height: 80dvh !important;
+    max-height: calc(100% - 40px) !important;
+}
+
+.dag-timer-modal-content .confirm-modal-buttons {
+    flex-shrink: 0;
 }
 
 .dag-timer-modal-title {

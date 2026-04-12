@@ -1914,27 +1914,33 @@ function openDagTimerModal(btn) {
         inp.placeholder = 'Timer';
         inp.dataset.dag = dag;
         inp.value = timer[dag] || '';
-        inp.addEventListener('focus', function() {
-            setTimeout(function() { adjustDagTimerModalPosition(); }, 300);
-        });
         row.appendChild(label);
         row.appendChild(inp);
         list.appendChild(row);
     });
     var modal = document.getElementById('dag-timer-modal');
+    // Lås body-scroll
+    dagTimerSavedScrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = '-' + dagTimerSavedScrollY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.overflow = 'hidden';
     modal.classList.add('active');
+    // Lytt på visualViewport for tastatur
     if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', adjustDagTimerModalPosition);
+        window.visualViewport.addEventListener('resize', adjustDagTimerModal);
+        window.visualViewport.addEventListener('scroll', adjustDagTimerModal);
     }
 }
 
-function adjustDagTimerModalPosition() {
+var dagTimerSavedScrollY = 0;
+
+function adjustDagTimerModal() {
     var modal = document.getElementById('dag-timer-modal');
     if (!modal.classList.contains('active')) return;
-    var content = modal.querySelector('.dag-timer-modal-content');
     if (window.visualViewport) {
         var vv = window.visualViewport;
-        // Posisjonér modalen innenfor synlig viewport
         modal.style.height = vv.height + 'px';
         modal.style.top = vv.offsetTop + 'px';
     }
@@ -1945,8 +1951,16 @@ function closeDagTimerModal(confirmed) {
     modal.classList.remove('active');
     modal.style.height = '';
     modal.style.top = '';
+    // Lås opp body-scroll
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.overflow = '';
+    window.scrollTo(0, dagTimerSavedScrollY);
     if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', adjustDagTimerModalPosition);
+        window.visualViewport.removeEventListener('resize', adjustDagTimerModal);
+        window.visualViewport.removeEventListener('scroll', adjustDagTimerModal);
     }
     if (!confirmed || !dagTimerActiveCard) { dagTimerActiveCard = null; return; }
     const list = document.getElementById('dag-timer-modal-list');
