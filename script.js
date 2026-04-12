@@ -1948,7 +1948,8 @@ function addOrder() {
     renumberOrders();
     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();
     if (document.activeElement) document.activeElement.blur();
-    requestAnimationFrame(function() { scrollCardToTop(card, true); });
+    // Wait for collapse animation to finish before scrolling
+    setTimeout(function() { scrollCardToTop(card, true); }, 270);
 }
 
 function removeOrder(btn) {
