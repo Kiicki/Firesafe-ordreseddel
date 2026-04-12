@@ -3102,8 +3102,7 @@ function setFormData(data) {
     container.innerHTML = '';
     const ordersList = orders && orders.length > 0 ? orders : [{ description: '', materials: [], timer: '' }];
     ordersList.forEach((order, idx) => {
-        const expanded = ordersList.length === 1;
-        const card = createOrderCard(order, expanded);
+        const card = createOrderCard(order, false);
         container.appendChild(card);
     });
     container.querySelectorAll('.mobile-order-desc').forEach(ta => {
