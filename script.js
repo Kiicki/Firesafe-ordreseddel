@@ -851,15 +851,8 @@ function createOrderCard(orderData, expanded) {
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
                 <label data-i18n="order_days">${t('order_days')}</label>
-                <div class="mobile-order-dager">
-                    <button type="button" class="dag-chip" data-dag="ma">Ma</button>
-                    <button type="button" class="dag-chip" data-dag="ti">Ti</button>
-                    <button type="button" class="dag-chip" data-dag="on">On</button>
-                    <button type="button" class="dag-chip" data-dag="to">To</button>
-                    <button type="button" class="dag-chip" data-dag="fr">Fr</button>
-                    <button type="button" class="dag-chip" data-dag="lo">Lø</button>
-                    <button type="button" class="dag-chip" data-dag="so">Sø</button>
-                </div>
+                <button type="button" class="dag-timer-btn" onclick="openDagTimerModal(this)">+ Dager & tid</button>
+                <div class="dag-timer-summary"></div>
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.plan ? ' field-required' : ''}">
                 <label data-i18n="order_plan">${t('order_plan')}</label>
@@ -876,12 +869,6 @@ function createOrderCard(orderData, expanded) {
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' <span class="required-star" style="color:#e74c3c;font-weight:bold">*</span>' : ''}</label>
                 <div class="mobile-order-materials"></div>
                 <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
-            </div>
-            <div class="mobile-work-row">
-                <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.timer ? ' field-required' : ''}" style="flex:1">
-                    <label data-i18n="order_hours">${t('order_hours')}</label>
-                    <input type="text" class="mobile-order-timer" inputmode="decimal">
-                </div>
             </div>
         </div>
         </div>`;
@@ -926,16 +913,12 @@ function createOrderCard(orderData, expanded) {
     updateOrderTitle(card);
     descInput.addEventListener('input', function() { updateOrderTitle(card); });
 
-    // Set dager (toggle active chips)
+    // Set dager and timer data on card
     const dager = orderData.dager || [];
-    card.querySelectorAll('.dag-chip').forEach(chip => {
-        if (dager.indexOf(chip.getAttribute('data-dag')) !== -1) {
-            chip.classList.add('active');
-        }
-        chip.addEventListener('click', function() {
-            this.classList.toggle('active');
-        });
-    });
+    const timerData = orderData.timer || {};
+    card.setAttribute('data-dager', JSON.stringify(dager));
+    card.setAttribute('data-timer', JSON.stringify(typeof timerData === 'object' ? timerData : {}));
+    updateDagTimerSummary(card);
 
     // Set plan
     const planDisplay = card.querySelector('.plan-display');
@@ -946,9 +929,6 @@ function createOrderCard(orderData, expanded) {
 
     // Set merknad
     card.querySelector('.mobile-order-merknad').value = orderData.merknad || '';
-
-    // Set timer
-    card.querySelector('.mobile-order-timer').value = orderData.timer || '';
 
     // Add materials
     const matContainer = card.querySelector('.mobile-order-materials');
@@ -1900,6 +1880,65 @@ function updateOrderTitle(card) {
     titleEl.textContent = firstLine;
 }
 
+var dagTimerActiveCard = null;
+var dagNameMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
+var dagShortMap = { ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø' };
+
+function updateDagTimerSummary(card) {
+    const summary = card.querySelector('.dag-timer-summary');
+    if (!summary) return;
+    const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
+    const dagOrder = ['ma','ti','on','to','fr','lo','so'];
+    const parts = dagOrder.filter(d => timer[d]).map(d => (dagShortMap[d] || d) + ' ' + timer[d].replace('.', ',') + 't');
+    summary.textContent = parts.join(', ');
+}
+
+function openDagTimerModal(btn) {
+    const card = btn.closest('.mobile-order-card');
+    dagTimerActiveCard = card;
+    const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
+    const dagOrder = ['ma','ti','on','to','fr','lo','so'];
+    const list = document.getElementById('dag-timer-modal-list');
+    list.innerHTML = '';
+    dagOrder.forEach(dag => {
+        const row = document.createElement('div');
+        row.className = 'dag-timer-modal-row';
+        row.dataset.dag = dag;
+        const label = document.createElement('span');
+        label.className = 'dag-timer-modal-name';
+        label.textContent = dagNameMap[dag];
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'dag-timer-modal-input';
+        inp.inputMode = 'decimal';
+        inp.placeholder = 'Timer';
+        inp.dataset.dag = dag;
+        inp.value = timer[dag] || '';
+        row.appendChild(label);
+        row.appendChild(inp);
+        list.appendChild(row);
+    });
+    document.getElementById('dag-timer-modal').classList.add('active');
+}
+
+function closeDagTimerModal(confirmed) {
+    document.getElementById('dag-timer-modal').classList.remove('active');
+    if (!confirmed || !dagTimerActiveCard) { dagTimerActiveCard = null; return; }
+    const list = document.getElementById('dag-timer-modal-list');
+    const dager = [];
+    const timer = {};
+    list.querySelectorAll('.dag-timer-modal-input').forEach(inp => {
+        if (inp.value.trim()) {
+            dager.push(inp.dataset.dag);
+            timer[inp.dataset.dag] = inp.value.trim();
+        }
+    });
+    dagTimerActiveCard.setAttribute('data-dager', JSON.stringify(dager));
+    dagTimerActiveCard.setAttribute('data-timer', JSON.stringify(timer));
+    updateDagTimerSummary(dagTimerActiveCard);
+    dagTimerActiveCard = null;
+}
+
 function scrollCardToTop(card, smooth) {
     var scrollContainer = card.closest('.view') || document.documentElement;
     var containerRect = scrollContainer.getBoundingClientRect();
@@ -2175,11 +2214,11 @@ function getOrdersData() {
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(card => {
         const descInput = card.querySelector('.mobile-order-desc');
         const description = descInput.getAttribute('data-full-value') || descInput.value;
-        const dagerBtns = card.querySelectorAll('.dag-chip.active');
-        const dager = Array.from(dagerBtns).map(b => b.getAttribute('data-dag'));
+        const dager = JSON.parse(card.getAttribute('data-dager') || '[]');
         const plan = card.querySelector('.plan-display').getAttribute('data-plan') || '';
         const merknad = card.querySelector('.mobile-order-merknad').value;
-        const timer = card.querySelector('.mobile-order-timer').value;
+        const timerObj = JSON.parse(card.getAttribute('data-timer') || '{}');
+        const timer = Object.keys(timerObj).length > 0 ? timerObj : '';
         const matContainer = card.querySelector('.mobile-order-materials');
         const materials = getMaterialsFromContainer(matContainer);
         orders.push({ description, dager, plan, merknad, materials, timer });
@@ -2767,7 +2806,15 @@ function buildDesktopWorkLines() {
 
             if (order.dager && order.dager.length > 0) {
                 const dagMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
-                const dagText = order.dager.map(d => dagMap[d] || d).join(', ');
+                let dagText;
+                if (order.timer && typeof order.timer === 'object') {
+                    dagText = order.dager.map(d => {
+                        const t = order.timer[d];
+                        return (dagMap[d] || d) + (t ? ' (' + t.replace('.', ',') + 't)' : '');
+                    }).join(', ');
+                } else {
+                    dagText = order.dager.map(d => dagMap[d] || d).join(', ');
+                }
                 const dagLabel = document.createElement('strong');
                 dagLabel.textContent = 'Dag(er): ';
                 descContent.appendChild(dagLabel);
@@ -2866,9 +2913,20 @@ function buildDesktopWorkLines() {
         }
 
         // Timer
-        if (order.timer) {
-            addRow('Tid:', (order.timer || '').replace('.', ','), 'timer', { alignRight: true });
-            const val = parseFloat((order.timer || '').replace(',', '.'));
+        if (order.timer && typeof order.timer === 'object') {
+            let orderTotal = 0;
+            Object.values(order.timer).forEach(v => {
+                const val = parseFloat((v || '').replace(',', '.'));
+                if (!isNaN(val)) orderTotal += val;
+            });
+            if (orderTotal > 0) {
+                const formatted = orderTotal % 1 === 0 ? orderTotal.toString() : orderTotal.toFixed(1).replace('.', ',');
+                addRow('Tid:', formatted, 'timer', { alignRight: true });
+                totalTimer += orderTotal;
+            }
+        } else if (typeof order.timer === 'string' && order.timer) {
+            addRow('Tid:', order.timer.replace('.', ','), 'timer', { alignRight: true });
+            const val = parseFloat(order.timer.replace(',', '.'));
             if (!isNaN(val)) totalTimer += val;
         }
     });
@@ -3077,8 +3135,8 @@ function validateRequiredFields() {
     if (saveReqs.dager) {
         const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
         for (let i = 0; i < orderCards.length; i++) {
-            const activeChips = orderCards[i].querySelectorAll('.dag-chip.active');
-            if (activeChips.length === 0) {
+            const cardDager = JSON.parse(orderCards[i].getAttribute('data-dager') || '[]');
+            if (cardDager.length === 0) {
                 showNotificationModal(t('required_field', t('order_days')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
