@@ -854,11 +854,6 @@ body.template-modal-open > .top-bar {
     color: #333;
 }
 
-.service-entry-body {
-    overflow: hidden;
-    padding: 12px;
-}
-
 /* Service new form button in template modal */
 .btn-service-new {
     background: transparent !important;
@@ -2182,8 +2177,14 @@ label.settings-default-label.field-required > span::after {
     grid-template-rows: 1fr;
     border-top: 1px solid #eee;
 }
-.mobile-order-body {
+.mobile-order-body,
+.service-entry-body {
     overflow: hidden;
+    padding: 0 12px;
+    transition: padding 0.25s ease-out;
+}
+.mobile-order-body-wrap.expanded > .mobile-order-body,
+.mobile-order-body-wrap.expanded > .service-entry-body {
     padding: 12px;
 }
 

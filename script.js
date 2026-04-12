@@ -1923,7 +1923,6 @@ function toggleOrder(headerEl) {
     } else {
         wrap.classList.remove('expanded');
         arrow.innerHTML = '&#9660;';
-        scrollCardToTop(card, false);
     }
 }
 
@@ -2064,7 +2063,6 @@ function toggleServiceEntry(headerEl) {
     } else {
         wrap.classList.remove('expanded');
         arrow.innerHTML = '&#9660;';
-        scrollCardToTop(card, false);
     }
 }
 
