@@ -4563,11 +4563,17 @@ document.addEventListener('DOMContentLoaded', function() {
             var activeId = activeView ? activeView.id : null;
 
             if (keyboardOpen) {
-                // Form: stretch to keyboard edge (no toolbar reservation — toolbar is inside scroll)
-                if (activeId === 'view-form' && viewForm)
-                    viewForm.style.bottom = keyboardHeight + 'px';
-                if (activeId === 'service-view' && serviceView)
-                    serviceView.style.bottom = keyboardHeight + 'px';
+                // Set form height to exact visual viewport (avoids URL-bar calculation errors)
+                if (activeId === 'view-form' && viewForm) {
+                    viewForm.style.bottom = 'auto';
+                    viewForm.style.height = vv.height + 'px';
+                }
+                if (activeId === 'service-view' && serviceView) {
+                    serviceView.style.bottom = 'auto';
+                    serviceView.style.height = vv.height + 'px';
+                }
+                // White body background to hide any sub-pixel gaps
+                document.body.style.background = '#fff';
                 // Reparent toolbar into scrollable content
                 if (toolbar) {
                     var host = null;
@@ -4580,8 +4586,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 // Restore: form back to CSS default, toolbar back to body
-                if (viewForm) viewForm.style.bottom = '';
-                if (serviceView) serviceView.style.bottom = '';
+                if (viewForm) { viewForm.style.bottom = ''; viewForm.style.height = ''; }
+                if (serviceView) { serviceView.style.bottom = ''; serviceView.style.height = ''; }
+                document.body.style.background = '';
                 if (toolbar && toolbar.parentNode !== document.body) {
                     toolbar.classList.remove('toolbar--inflow');
                     document.body.appendChild(toolbar);
