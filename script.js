@@ -842,7 +842,8 @@ function createOrderCard(orderData, expanded) {
             <span class="mobile-order-title"></span>
             <button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeOrder(this)">${deleteIcon}</button>
         </div>
-        <div class="mobile-order-body" style="${expanded ? '' : 'display:none'}">
+        <div class="mobile-order-body-wrap${expanded ? ' expanded' : ''}">
+        <div class="mobile-order-body">
             <div class="mobile-field${((cachedRequiredSettings || getDefaultRequiredSettings()).save.beskrivelse !== false) ? ' field-required' : ''}">
                 <label data-i18n="order_description">${t('order_description')}</label>
                 <button type="button" class="mobile-desc-btn">+ ${t('order_description')}</button>
@@ -882,6 +883,7 @@ function createOrderCard(orderData, expanded) {
                     <input type="text" class="mobile-order-timer" inputmode="decimal">
                 </div>
             </div>
+        </div>
         </div>`;
 
     // Set description
@@ -1910,16 +1912,16 @@ function toggleOrder(headerEl) {
     if (event && event.target.closest('.mobile-order-header-delete')) return;
     if (document.activeElement) document.activeElement.blur();
     const card = headerEl.closest('.mobile-order-card');
-    const body = card.querySelector('.mobile-order-body');
+    const wrap = card.querySelector('.mobile-order-body-wrap');
     const arrow = card.querySelector('.mobile-order-arrow');
-    if (body.style.display === 'none') {
-        body.style.display = '';
+    if (!wrap.classList.contains('expanded')) {
+        wrap.classList.add('expanded');
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
         if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
         requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
-        body.style.display = 'none';
+        wrap.classList.remove('expanded');
         arrow.innerHTML = '&#9660;';
         scrollCardToTop(card, false);
     }
@@ -1935,9 +1937,9 @@ function addOrder() {
     const container = document.getElementById('mobile-orders');
     // Collapse existing open cards
     container.querySelectorAll('.mobile-order-card').forEach(card => {
-        const body = card.querySelector('.mobile-order-body');
-        if (body.style.display !== 'none') {
-            body.style.display = 'none';
+        const wrap = card.querySelector('.mobile-order-body-wrap');
+        if (wrap && wrap.classList.contains('expanded')) {
+            wrap.classList.remove('expanded');
             card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
         }
     });
@@ -1985,7 +1987,8 @@ function createServiceEntryCard(entryData, expanded) {
             '<span class="service-entry-title">' + t('service_entry_title') + '</span>' +
             '<button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeServiceEntry(this)">' + deleteIcon + '</button>' +
         '</div>' +
-        '<div class="service-entry-body" style="' + (expanded ? '' : 'display:none') + '">' +
+        '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
+        '<div class="service-entry-body">' +
             '<div class="mobile-field' + datoReq + '"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
                 '<input type="text" class="service-entry-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ" value="' + escapeHtml(data.dato || '') + '"></div>' +
             '<div class="mobile-field' + pnrReq + '"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +
@@ -1997,6 +2000,7 @@ function createServiceEntryCard(entryData, expanded) {
                 '<div class="mobile-order-materials"></div>' +
                 '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
             '</div>' +
+        '</div>' +
         '</div>';
 
     // Add materials
@@ -2016,9 +2020,9 @@ function createServiceEntryCard(entryData, expanded) {
 function addServiceEntry() {
     var container = document.getElementById('service-entries');
     container.querySelectorAll('.service-entry-card').forEach(function(card) {
-        var body = card.querySelector('.service-entry-body');
-        if (body.style.display !== 'none') {
-            body.style.display = 'none';
+        var wrap = card.querySelector('.mobile-order-body-wrap');
+        if (wrap && wrap.classList.contains('expanded')) {
+            wrap.classList.remove('expanded');
             card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
         }
     });
@@ -2050,15 +2054,15 @@ function removeServiceEntry(btn) {
 
 function toggleServiceEntry(headerEl) {
     if (document.activeElement) document.activeElement.blur();
-    var body = headerEl.nextElementSibling;
-    var arrow = headerEl.querySelector('.mobile-order-arrow');
     var card = headerEl.closest('.service-entry-card');
-    if (body.style.display === 'none') {
-        body.style.display = '';
+    var wrap = card.querySelector('.mobile-order-body-wrap');
+    var arrow = headerEl.querySelector('.mobile-order-arrow');
+    if (!wrap.classList.contains('expanded')) {
+        wrap.classList.add('expanded');
         arrow.innerHTML = '&#9650;';
         requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
-        body.style.display = 'none';
+        wrap.classList.remove('expanded');
         arrow.innerHTML = '&#9660;';
         scrollCardToTop(card, false);
     }

@@ -855,8 +855,8 @@ body.template-modal-open > .top-bar {
 }
 
 .service-entry-body {
+    overflow: hidden;
     padding: 12px;
-    border-top: 1px solid #eee;
 }
 
 /* Service new form button in template modal */
@@ -2173,9 +2173,18 @@ label.settings-default-label.field-required > span::after {
     white-space: nowrap;
 }
 
-.mobile-order-body {
-    padding: 12px;
+.mobile-order-body-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s ease-out;
+}
+.mobile-order-body-wrap.expanded {
+    grid-template-rows: 1fr;
     border-top: 1px solid #eee;
+}
+.mobile-order-body {
+    overflow: hidden;
+    padding: 12px;
 }
 
 .mobile-order-body .mobile-field {
