@@ -1927,6 +1927,8 @@ function openDagTimerModal(btn) {
     document.body.style.right = '0';
     document.body.style.overflow = 'hidden';
     modal.classList.add('active');
+    // Blokkér touch-scroll på overlayet, tillat kun inni listen
+    modal.addEventListener('touchmove', dagTimerBlockScroll, { passive: false });
     // Lytt på visualViewport for tastatur
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', adjustDagTimerModal);
@@ -1935,6 +1937,13 @@ function openDagTimerModal(btn) {
 }
 
 var dagTimerSavedScrollY = 0;
+
+function dagTimerBlockScroll(e) {
+    var list = document.getElementById('dag-timer-modal-list');
+    // Tillat scroll kun hvis touch er inni listen og listen faktisk kan scrolle
+    if (list && list.contains(e.target) && list.scrollHeight > list.clientHeight) return;
+    e.preventDefault();
+}
 
 function adjustDagTimerModal() {
     var modal = document.getElementById('dag-timer-modal');
@@ -1951,6 +1960,7 @@ function closeDagTimerModal(confirmed) {
     modal.classList.remove('active');
     modal.style.height = '';
     modal.style.top = '';
+    modal.removeEventListener('touchmove', dagTimerBlockScroll);
     // Lås opp body-scroll
     document.body.style.position = '';
     document.body.style.top = '';
