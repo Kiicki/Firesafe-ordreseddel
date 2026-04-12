@@ -851,8 +851,10 @@ function createOrderCard(orderData, expanded) {
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
                 <label data-i18n="order_days">${t('order_days')}</label>
-                <button type="button" class="dag-timer-btn" onclick="openDagTimerModal(this)">+ Dager & tid</button>
-                <div class="dag-timer-summary"></div>
+                <div class="dag-timer-display" onclick="openDagTimerModal(this)">
+                    <span class="dag-timer-display-text"></span>
+                    <span class="fakturaadresse-chevron">›</span>
+                </div>
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.plan ? ' field-required' : ''}">
                 <label data-i18n="order_plan">${t('order_plan')}</label>
@@ -1885,12 +1887,13 @@ var dagNameMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr:
 var dagShortMap = { ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø' };
 
 function updateDagTimerSummary(card) {
-    const summary = card.querySelector('.dag-timer-summary');
-    if (!summary) return;
+    const display = card.querySelector('.dag-timer-display');
+    if (!display) return;
+    const textEl = display.querySelector('.dag-timer-display-text');
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
-    const parts = dagOrder.filter(d => timer[d]).map(d => (dagShortMap[d] || d) + ' ' + timer[d].replace('.', ',') + 't');
-    summary.textContent = parts.join(', ');
+    const parts = dagOrder.filter(d => timer[d]).map(d => (dagShortMap[d] || d) + ' ' + String(timer[d]).replace('.', ',') + 't');
+    textEl.textContent = parts.join(', ');
 }
 
 function openDagTimerModal(btn) {
@@ -3207,18 +3210,6 @@ function validateRequiredFields() {
             const mats = matContainer ? matContainer.querySelectorAll('.mobile-material-row') : [];
             if (mats.length === 0) {
                 showNotificationModal(t('required_field', t('order_materials_label')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
-                return false;
-            }
-        }
-    }
-
-    // Validate timer
-    if (saveReqs.timer) {
-        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
-        for (let i = 0; i < orderCards.length; i++) {
-            const timerInput = orderCards[i].querySelector('.mobile-order-timer');
-            if (!timerInput || !timerInput.value.trim()) {
-                showNotificationModal(t('required_field', t('order_hours')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
         }

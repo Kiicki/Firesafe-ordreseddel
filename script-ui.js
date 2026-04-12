@@ -2251,7 +2251,6 @@ function getDefaultRequiredSettings() {
             dager: false,
             merknad: false,
             materialer: false,
-            timer: false,
             signatur: false
         },
         template: {
@@ -2290,7 +2289,6 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'plan',          labelKey: 'order_plan' },
         { key: 'merknad',       labelKey: 'order_merknad' },
         { key: 'materialer',    labelKey: 'order_materials_label' },
-        { key: 'timer',         labelKey: 'order_hours' },
         { key: 'signatur',       labelKey: 'label_kundens_underskrift' }
     ],
     template: [
@@ -2749,10 +2747,10 @@ function updateRequiredIndicators() {
                 if (star) star.remove();
             }
         }
-        // Dager field
-        var dagerContainer = card.querySelector('.mobile-order-dager');
-        if (dagerContainer) {
-            var dagerField = dagerContainer.closest('.mobile-field');
+        // Dager & tid (Arbeidstid) field
+        var dagTimerDisplay = card.querySelector('.dag-timer-display');
+        if (dagTimerDisplay) {
+            var dagerField = dagTimerDisplay.closest('.mobile-field');
             if (dagerField) {
                 if (saveReqs.dager) {
                     dagerField.classList.add('field-required');
@@ -2782,18 +2780,6 @@ function updateRequiredIndicators() {
                     merknadField.classList.add('field-required');
                 } else {
                     merknadField.classList.remove('field-required');
-                }
-            }
-        }
-        // Timer field
-        var timerInput = card.querySelector('.mobile-order-timer');
-        if (timerInput) {
-            var timerField = timerInput.closest('.mobile-field');
-            if (timerField) {
-                if (saveReqs.timer) {
-                    timerField.classList.add('field-required');
-                } else {
-                    timerField.classList.remove('field-required');
                 }
             }
         }

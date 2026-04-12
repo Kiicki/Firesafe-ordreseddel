@@ -56,7 +56,8 @@
       "Bash(npm install:*)",
       "Bash(npx browser-sync:*)",
       "Bash(npx localtunnel:*)",
-      "Bash(~/mkcert:*)"
+      "Bash(~/mkcert:*)",
+      "Bash(read hash:*)"
     ]
   }
 }

@@ -1892,34 +1892,30 @@ label.settings-default-label.field-required > span::after {
 }
 
 /* Dager og timer - knapp */
-.dag-timer-btn {
+.dag-timer-display {
     width: 100%;
     padding: 12px;
-    min-height: 44px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background: #f5f5f5;
-    font-size: 14px;
-    font-weight: 500;
-    color: #333;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
     cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
 }
 
-.dag-timer-btn:active {
-    background: #eee;
+.dag-timer-display:active {
+    background: #f8f8f8;
 }
 
-/* Dager og timer - oppsummering */
-.dag-timer-summary {
-    font-size: 13px;
-    color: #555;
-    margin-top: 6px;
+.dag-timer-display-text {
+    flex: 1;
+    color: #333;
     line-height: 1.4;
-}
-
-.dag-timer-summary:empty {
-    display: none;
+    word-break: break-word;
 }
 
 /* Dager og timer - modal */
@@ -2189,6 +2185,12 @@ label.settings-default-label.field-required > span::after {
     margin-bottom: 10px;
     overflow: hidden;
     background: #fff;
+    border-left: 4px solid #ddd;
+    transition: border-left-color 0.2s ease-out;
+}
+
+.mobile-order-card:has(.mobile-order-body-wrap.expanded) {
+    border-left-color: #E8501A;
 }
 
 .mobile-order-header {
@@ -2200,6 +2202,11 @@ label.settings-default-label.field-required > span::after {
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
+    transition: background 0.2s ease-out;
+}
+
+.mobile-order-card:has(.mobile-order-body-wrap.expanded) .mobile-order-header {
+    background: #fef0ea;
 }
 
 .mobile-order-header:active {
@@ -2229,11 +2236,16 @@ label.settings-default-label.field-required > span::after {
 }
 
 .mobile-order-arrow {
-    font-size: 10px;
+    font-size: 13px;
     color: #888;
     flex-shrink: 0;
     width: 16px;
     text-align: center;
+    transition: color 0.2s ease-out;
+}
+
+.mobile-order-card:has(.mobile-order-body-wrap.expanded) .mobile-order-arrow {
+    color: #E8501A;
 }
 
 .mobile-order-title {
