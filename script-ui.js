@@ -4563,20 +4563,23 @@ document.addEventListener('DOMContentLoaded', function() {
             var activeId = activeView ? activeView.id : null;
 
             if (keyboardOpen) {
-                // Use display:block to kill all flex stretching — content ends at toolbar
                 var fullHeight = vv.offsetTop + vv.height;
                 if (activeId === 'view-form' && viewForm) {
                     viewForm.style.display = 'block';
                     viewForm.style.bottom = 'auto';
                     viewForm.style.height = fullHeight + 'px';
                     viewForm.style.minHeight = '0';
+                    viewForm.style.overscrollBehavior = 'contain';
                 }
                 if (activeId === 'service-view' && serviceView) {
                     serviceView.style.display = 'block';
                     serviceView.style.bottom = 'auto';
                     serviceView.style.height = fullHeight + 'px';
                     serviceView.style.minHeight = '0';
+                    serviceView.style.overscrollBehavior = 'contain';
                 }
+                // Lock body so scroll can't chain to it
+                document.body.style.overflow = 'hidden';
                 // Reparent toolbar into scrollable content
                 if (toolbar) {
                     var host = null;
@@ -4588,9 +4591,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             } else {
-                // Restore: form back to CSS default, toolbar back to body
-                if (viewForm) { viewForm.style.display = ''; viewForm.style.bottom = ''; viewForm.style.height = ''; viewForm.style.minHeight = ''; }
-                if (serviceView) { serviceView.style.display = ''; serviceView.style.bottom = ''; serviceView.style.height = ''; serviceView.style.minHeight = ''; }
+                if (viewForm) { viewForm.style.display = ''; viewForm.style.bottom = ''; viewForm.style.height = ''; viewForm.style.minHeight = ''; viewForm.style.overscrollBehavior = ''; }
+                if (serviceView) { serviceView.style.display = ''; serviceView.style.bottom = ''; serviceView.style.height = ''; serviceView.style.minHeight = ''; serviceView.style.overscrollBehavior = ''; }
+                document.body.style.overflow = '';
                 if (toolbar && toolbar.parentNode !== document.body) {
                     toolbar.classList.remove('toolbar--inflow');
                     document.body.appendChild(toolbar);
