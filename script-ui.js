@@ -4563,16 +4563,16 @@ document.addEventListener('DOMContentLoaded', function() {
             var activeId = activeView ? activeView.id : null;
 
             if (keyboardOpen) {
-                // Height = offsetTop + height covers from layout-top to visual viewport bottom
-                // This eliminates the gap caused by URL bar hiding (which increases offsetTop)
                 var fullHeight = vv.offsetTop + vv.height;
                 if (activeId === 'view-form' && viewForm) {
                     viewForm.style.bottom = 'auto';
                     viewForm.style.height = fullHeight + 'px';
+                    viewForm.style.minHeight = '0';
                 }
                 if (activeId === 'service-view' && serviceView) {
                     serviceView.style.bottom = 'auto';
                     serviceView.style.height = fullHeight + 'px';
+                    serviceView.style.minHeight = '0';
                 }
                 // Reparent toolbar into scrollable content
                 if (toolbar) {
@@ -4582,12 +4582,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (host && toolbar.parentNode !== host) {
                         toolbar.classList.add('toolbar--inflow');
                         host.appendChild(toolbar);
+                        host.style.flex = 'none';
                     }
                 }
             } else {
                 // Restore: form back to CSS default, toolbar back to body
-                if (viewForm) { viewForm.style.bottom = ''; viewForm.style.height = ''; }
-                if (serviceView) { serviceView.style.bottom = ''; serviceView.style.height = ''; }
+                if (viewForm) { viewForm.style.bottom = ''; viewForm.style.height = ''; viewForm.style.minHeight = ''; }
+                if (serviceView) { serviceView.style.bottom = ''; serviceView.style.height = ''; serviceView.style.minHeight = ''; }
+                if (formEl) formEl.style.flex = '';
+                if (serviceFormEl) serviceFormEl.style.flex = '';
                 if (toolbar && toolbar.parentNode !== document.body) {
                     toolbar.classList.remove('toolbar--inflow');
                     document.body.appendChild(toolbar);
