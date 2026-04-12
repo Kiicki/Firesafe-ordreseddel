@@ -1914,10 +1914,19 @@ function openDagTimerModal(btn) {
         inp.placeholder = 'Timer';
         inp.dataset.dag = dag;
         inp.value = timer[dag] || '';
+        inp.addEventListener('focus', function() {
+            // Scroll listen internt i stedet for å la nettleseren scrolle hele viewporten
+            setTimeout(function() {
+                row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                // Tilbakestill viewport-scroll som nettleseren kan ha gjort
+                window.scrollTo(0, parseInt(document.body.dataset.dagTimerScrollY || '0'));
+            }, 300);
+        });
         row.appendChild(label);
         row.appendChild(inp);
         list.appendChild(row);
     });
+    document.body.dataset.dagTimerScrollY = window.scrollY;
     document.getElementById('dag-timer-modal').classList.add('active');
 }
 
