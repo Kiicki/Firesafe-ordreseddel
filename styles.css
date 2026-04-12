@@ -1054,12 +1054,11 @@ body.settings-modal-open #view-form {
     min-height: 0;
 }
 
-/* When keyboard is open, toolbar is reparented into the form scroll content.
-   Remove the 60px bottom reservation so the grey body background doesn't bleed through.
-   White background ensures any area below .mobile-form stays white (not grey). */
+/* When keyboard is open, white background prevents grey body showing through.
+   Height is set dynamically via JS to match visual viewport. */
 body.keyboard-open #view-form.view.active,
 body.keyboard-open #service-view.view.active {
-    bottom: 0;
+    bottom: auto;
     background: #fff;
 }
 

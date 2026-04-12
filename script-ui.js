@@ -4557,11 +4557,16 @@ document.addEventListener('DOMContentLoaded', function() {
             var toolbar = document.querySelector('.toolbar');
             var activeView = document.querySelector('.view.active');
             var activeId = activeView ? activeView.id : null;
+            var viewForm = document.getElementById('view-form');
+            var serviceView = document.getElementById('service-view');
             if (keyboardOpen) {
                 document.body.classList.add('keyboard-open');
-                // Move toolbar into the active form/service scroll container so it
-                // flows with content above the keyboard (fixed-bottom doesn't work
-                // with interactive-widget=resizes-visual on Android).
+                // Set form height to visual viewport (layout viewport doesn't
+                // resize with interactive-widget=resizes-visual, so fixed
+                // bottom:0 would extend behind the keyboard).
+                if (viewForm) viewForm.style.height = currentHeight + 'px';
+                if (serviceView) serviceView.style.height = currentHeight + 'px';
+                // Move toolbar into the active form/service scroll container
                 if (toolbar) {
                     var host = null;
                     if (activeId === 'view-form') host = formEl;
@@ -4573,7 +4578,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 document.body.classList.remove('keyboard-open');
-                // Restore toolbar to body (fixed bottom)
+                // Restore form height and toolbar
+                if (viewForm) viewForm.style.height = '';
+                if (serviceView) serviceView.style.height = '';
                 if (toolbar && toolbar.parentNode !== document.body) {
                     document.body.appendChild(toolbar);
                     toolbar.classList.remove('toolbar--inflow');
