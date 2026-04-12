@@ -719,8 +719,7 @@ body.template-modal-open > .top-bar {
 .text-editor-modal.active ~ .toolbar,
 .signature-overlay.active ~ .toolbar,
 .picker-overlay.active ~ .toolbar,
-.preview-overlay.active ~ .toolbar,
-body:has(#dag-timer-modal.active) .toolbar {
+.preview-overlay.active ~ .toolbar {
     display: none;
 }
 
