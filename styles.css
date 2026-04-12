@@ -732,6 +732,22 @@ body:has(#dag-timer-modal.active) .view.active {
     bottom: 0 !important;
 }
 
+/* Generell scroll-lås: hindre at innhold bak popups scroller.
+   Gjelder alle overlay-popups (confirm, picker, spec, plan, varianter,
+   fakturaadresse, unit-picker, signatur, preview, tekst-editor). */
+body:has(:is(
+    .confirm-modal,
+    .picker-overlay,
+    .spec-popup-backdrop,
+    .fakturaadresse-popup-backdrop,
+    .unit-picker-backdrop,
+    .signature-overlay,
+    .preview-overlay,
+    .text-editor-modal
+).active) {
+    overflow: hidden;
+}
+
 .modal-content {
     background: white;
     width: 100%;
@@ -843,6 +859,12 @@ body:has(#dag-timer-modal.active) .view.active {
     margin-bottom: 10px;
     overflow: hidden;
     background: #fff;
+    border-left: 4px solid #ddd;
+    transition: border-left-color 0.2s ease-out;
+}
+
+.service-entry-card:has(.mobile-order-body-wrap.expanded) {
+    border-left-color: #E8501A;
 }
 
 .service-entry-header {
@@ -854,6 +876,15 @@ body:has(#dag-timer-modal.active) .view.active {
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
+    transition: background 0.2s ease-out;
+}
+
+.service-entry-card:has(.mobile-order-body-wrap.expanded) .service-entry-header {
+    background: #fef0ea;
+}
+
+.service-entry-card:has(.mobile-order-body-wrap.expanded) .mobile-order-arrow {
+    color: #E8501A;
 }
 
 .service-entry-title {
@@ -1874,7 +1905,9 @@ label.settings-default-label.field-required > span::after {
     max-height: calc(1.4em * 4 + 26px);
 }
 
-.mobile-desc-btn {
+.mobile-desc-btn,
+.mobile-plan-btn,
+.mobile-arbeidstid-btn {
     padding: 12px;
     min-height: 44px;
     background: #f5f5f5;
@@ -1887,7 +1920,9 @@ label.settings-default-label.field-required > span::after {
     width: 100%;
 }
 
-.mobile-desc-btn:active {
+.mobile-desc-btn:active,
+.mobile-plan-btn:active,
+.mobile-arbeidstid-btn:active {
     background: #e8e8e8;
 }
 
@@ -2956,7 +2991,11 @@ label.settings-default-label.field-required > span::after {
     font-weight: 500;
     cursor: pointer;
     width: 100%;
-    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+.mobile-order-materials:empty {
+    display: none;
 }
 
 .mobile-add-mat-btn:active {
@@ -4726,15 +4765,20 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     /* Overlays with .overlay-content wrapper */
     .picker-overlay,
     .text-editor-modal {
-        background: #f0f0f0;
-        align-items: center; /* Center overlay-content horizontally */
+        background: rgba(0,0,0,0.5);
+        align-items: center;
+        justify-content: center;
     }
     .picker-overlay > .overlay-content,
     .text-editor-modal > .overlay-content {
-        max-width: 800px;
+        flex: 0 1 auto;
+        max-width: 440px;
         width: 100%;
+        max-height: calc(100vh - 80px);
         background: white;
-        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        box-shadow: 0 0 30px rgba(0,0,0,0.3);
+        border-radius: 10px;
+        overflow: hidden;
     }
 
     /* Signature overlay - constrain to same width as preview on desktop */

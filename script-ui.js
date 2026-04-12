@@ -663,10 +663,16 @@ function navigateBack() {
         }
         return;
     }
-    // From service view: go back to home
+    // From service view: honor previous view, then go back
     if (currentId === 'service-view') {
-        closeServiceView();
-        showTemplateModal();
+        var target = (prev === 'saved-modal')
+            ? function() { closeServiceView(); showSavedForms(); }
+            : function() { closeServiceView(); showTemplateModal(); };
+        if (isOnFormPage() && hasUnsavedChanges()) {
+            showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
+        } else {
+            target();
+        }
         return;
     }
     // From Skjemaer: close and go to form
@@ -2735,17 +2741,13 @@ function updateRequiredIndicators() {
 
     // Materials and Timer labels in order cards
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
-        // Materials label (mobile-order-sublabel with data-i18n="order_materials_label")
-        var matLabel = card.querySelector('label[data-i18n="order_materials_label"]');
-        if (matLabel) {
-            if (saveReqs.materialer) {
-                if (!matLabel.querySelector('.required-star')) {
-                    matLabel.innerHTML = matLabel.textContent.trim() + ' <span class="required-star" style="color:#e74c3c;font-weight:bold">*</span>';
-                }
-            } else {
-                var star = matLabel.querySelector('.required-star');
-                if (star) star.remove();
-            }
+        // Materials section — toggle field-required class (CSS adds star via ::after)
+        var matSection = card.querySelector('.mobile-order-materials-section');
+        if (matSection) {
+            matSection.classList.toggle('field-required', !!saveReqs.materialer);
+            // Fjern gammel inline span hvis eksisterer (backward compat ved live toggle)
+            var oldStar = matSection.querySelector('.required-star');
+            if (oldStar) oldStar.remove();
         }
         // Dager & tid (Arbeidstid) field
         var dagTimerDisplay = card.querySelector('.dag-timer-display');
@@ -3309,7 +3311,19 @@ function updateFormTypeChip() {
 }
 
 
+function hasUnsavedServiceChanges() {
+    if (!_serviceLastSavedData) return false;
+    try {
+        return getServiceFormDataSnapshot() !== _serviceLastSavedData;
+    } catch (e) {
+        return false;
+    }
+}
+
 function hasUnsavedChanges() {
+    if (document.getElementById('service-view').classList.contains('active')) {
+        return hasUnsavedServiceChanges();
+    }
     const currentData = getFormDataSnapshot();
     return lastSavedData !== null
         ? currentData !== lastSavedData
@@ -3317,10 +3331,13 @@ function hasUnsavedChanges() {
 }
 
 function isOnFormPage() {
-    return !document.getElementById('saved-modal').classList.contains('active')
-        && !document.getElementById('settings-modal').classList.contains('active')
-        && !document.getElementById('template-modal').classList.contains('active')
-        && !document.getElementById('service-view').classList.contains('active');
+    if (document.getElementById('saved-modal').classList.contains('active')
+        || document.getElementById('settings-modal').classList.contains('active')
+        || document.getElementById('template-modal').classList.contains('active')) {
+        return false;
+    }
+    return document.getElementById('view-form').classList.contains('active')
+        || document.getElementById('service-view').classList.contains('active');
 }
 
 function hasAnyFormData() {
@@ -3642,8 +3659,8 @@ function openNewServiceForm() {
     document.getElementById('btn-service-sent').style.display = '';
     document.getElementById('service-save-btn').disabled = false;
     sessionStorage.removeItem('firesafe_service_sent');
-    _serviceLastSavedData = null;
-    sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+    _serviceLastSavedData = getServiceFormDataSnapshot();
+    sessionStorage.setItem('firesafe_service_current', _serviceLastSavedData);
 
     // Show service view after content is ready
     showView('service-view');
@@ -3715,7 +3732,7 @@ async function saveServiceForm() {
         if (saved.length > 50) saved.pop();
         safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(saved));
         _serviceCurrentId = data.id;
-        _serviceLastSavedData = JSON.stringify(data);
+        _serviceLastSavedData = getServiceFormDataSnapshot();
         _lastLocalSaveTs = Date.now();
 
         // Clear sent state
@@ -3859,8 +3876,8 @@ function loadServiceFormDirect(formData) {
     document.getElementById('service-sent-banner').style.display = isSent ? 'block' : 'none';
     document.getElementById('btn-service-sent').style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_service_sent', isSent ? '1' : '');
-    _serviceLastSavedData = JSON.stringify(formData);
-    sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+    _serviceLastSavedData = getServiceFormDataSnapshot();
+    sessionStorage.setItem('firesafe_service_current', _serviceLastSavedData);
     window.scrollTo(0, 0);
 }
 
@@ -3897,8 +3914,8 @@ function duplicateServiceForm(formData) {
     document.getElementById('btn-service-sent').style.display = '';
     document.getElementById('service-save-btn').disabled = false;
     sessionStorage.removeItem('firesafe_service_sent');
-    _serviceLastSavedData = null;
-    sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+    _serviceLastSavedData = getServiceFormDataSnapshot();
+    sessionStorage.setItem('firesafe_service_current', _serviceLastSavedData);
     window.scrollTo(0, 0);
     showNotificationModal(t('duplicated_success'), true);
 }
@@ -3906,7 +3923,7 @@ function duplicateServiceForm(formData) {
 function deleteServiceForm(formData) {
     if (!formData) return;
     var isSent = formData._isSent;
-    showConfirmModal(t('delete_confirm'), function() {
+    showConfirmModal(t(isSent ? 'delete_sent_confirm' : 'delete_confirm'), function() {
         var lsKey = isSent ? SERVICE_ARCHIVE_KEY : SERVICE_STORAGE_KEY;
         var col = isSent ? 'serviceArchive' : 'serviceforms';
         var list = safeParseJSON(lsKey, []);
@@ -3956,7 +3973,7 @@ function markServiceAsSent() {
         // Update UI
         sessionStorage.setItem('firesafe_service_sent', '1');
         _serviceCurrentId = data.id;
-        _serviceLastSavedData = JSON.stringify(data);
+        _serviceLastSavedData = getServiceFormDataSnapshot();
         document.getElementById('service-sent-banner').style.display = 'block';
         document.getElementById('btn-service-sent').style.display = 'none';
         showNotificationModal(t('marked_as_sent'), true);
@@ -4678,10 +4695,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 var sData = JSON.parse(serviceCurrent);
                 _serviceCurrentId = sData.id || null;
                 setServiceFormData(sData);
-                _serviceLastSavedData = serviceCurrent;
                 var wasSent = sessionStorage.getItem('firesafe_service_sent') === '1';
                 document.getElementById('service-sent-banner').style.display = wasSent ? 'block' : 'none';
                 document.getElementById('btn-service-sent').style.display = wasSent ? 'none' : '';
+                // Safety: reset signatur og dato ved ny sesjon (matcher ordreseddel)
+                var serviceDefaultsRestore = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
+                if (serviceDefaultsRestore.autofill_dato !== false) {
+                    var todayStr = formatDate(new Date());
+                    document.querySelectorAll('#service-entries .service-entry-dato').forEach(function(inp) {
+                        inp.value = todayStr;
+                    });
+                }
+                document.getElementById('service-signatur').value = '';
+                window._serviceSignaturePaths = [];
+                var srvPreviewImg = document.getElementById('service-signature-preview-img');
+                if (srvPreviewImg) { srvPreviewImg.style.display = 'none'; srvPreviewImg.src = ''; }
+                var srvPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
+                if (srvPlaceholder) srvPlaceholder.style.display = '';
+                // Baseline ETTER reset, ikke rå sessionStorage-streng
+                _serviceLastSavedData = getServiceFormDataSnapshot();
             } catch(e) {}
         }
         // Ensure at least 1 entry card exists
@@ -4714,9 +4746,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Handle browser back/forward buttons
-window.addEventListener('hashchange', function() {
-    if (!currentUser) return; // Ikke naviger uten innlogging
-    const hash = window.location.hash.slice(1);
+var _suppressHashGuard = false;
+
+function _applyHashNavigation(hash) {
     // Don't close modals for hent/settings - those functions handle it themselves
     if (hash === 'hent') {
         if (!document.body.classList.contains('saved-modal-open')) showSavedForms();
@@ -4749,6 +4781,47 @@ window.addEventListener('hashchange', function() {
         // No hash = home = template modal
         showTemplateModal();
     }
+}
+
+window.addEventListener('hashchange', function() {
+    if (!currentUser) return; // Ikke naviger uten innlogging
+    var hash = window.location.hash.slice(1);
+
+    // If we just rolled back or confirmed, apply without re-guarding
+    if (_suppressHashGuard) {
+        _suppressHashGuard = false;
+        _applyHashNavigation(hash);
+        return;
+    }
+
+    // Detect if this hashchange leaves a form view with unsaved data
+    var currentView = document.querySelector('.view.active');
+    var currentId = currentView ? currentView.id : null;
+    var leavingFormView = (currentId === 'view-form' && hash !== 'skjema')
+        || (currentId === 'service-view' && hash !== 'service');
+
+    if (leavingFormView && hasUnsavedChanges()) {
+        var previousHash = currentId === 'view-form' ? 'skjema' : 'service';
+        var newHash = hash;
+        // Rollback URL silently (replaceState does NOT fire hashchange)
+        history.replaceState(null, '', '#' + previousHash);
+        showConfirmModal(t('unsaved_warning'), function() {
+            // User confirmed — re-apply the requested navigation.
+            // Setting window.location.hash fires hashchange; use the flag to bypass
+            // the guard on that re-entry.
+            if (newHash) {
+                _suppressHashGuard = true;
+                window.location.hash = newHash;
+            } else {
+                // Going home (no hash): replaceState doesn't fire hashchange, apply directly
+                history.replaceState(null, '', window.location.pathname);
+                _applyHashNavigation('');
+            }
+        }, t('btn_continue'), '#E8501A');
+        return;
+    }
+
+    _applyHashNavigation(hash);
 });
 
 // ===== Calculator =====

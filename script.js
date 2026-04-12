@@ -171,6 +171,7 @@ function applyTranslations() {
     if (checkEn) checkEn.textContent = currentLang === 'en' ? '\u2713' : '';
     // Re-number order cards
     renumberOrders();
+    if (typeof renumberServiceEntries === 'function') renumberServiceEntries();
 }
 
 // ============================================
@@ -538,6 +539,12 @@ function getFormDataSnapshot() {
     return JSON.stringify(data);
 }
 
+function getServiceFormDataSnapshot() {
+    const data = getServiceFormData();
+    delete data.savedAt;
+    return JSON.stringify(data);
+}
+
 // Confirmation modal
 let pendingConfirmAction = null;
 
@@ -849,28 +856,30 @@ function createOrderCard(orderData, expanded) {
                 <button type="button" class="mobile-desc-btn">+ ${t('order_description')}</button>
                 <textarea class="mobile-order-desc" rows="1" readonly autocapitalize="sentences"></textarea>
             </div>
-            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
-                <label data-i18n="order_days">${t('order_days')}</label>
-                <div class="dag-timer-display" onclick="openDagTimerModal(this)">
-                    <span class="dag-timer-display-text"></span>
-                    <span class="fakturaadresse-chevron">›</span>
-                </div>
+            <div class="mobile-order-materials-section${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' field-required' : ''}">
+                <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
+                <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
+                <div class="mobile-order-materials"></div>
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.plan ? ' field-required' : ''}">
                 <label data-i18n="order_plan">${t('order_plan')}</label>
+                <button type="button" class="mobile-plan-btn" onclick="openPlanPicker(this)">+ ${t('order_plan')}</button>
                 <div class="plan-display" onclick="openPlanPicker(this)">
                     <span class="plan-display-text"></span>
+                    <span class="fakturaadresse-chevron">›</span>
+                </div>
+            </div>
+            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
+                <label data-i18n="order_days">${t('order_days')}</label>
+                <button type="button" class="mobile-arbeidstid-btn" onclick="openDagTimerModal(this)">+ ${t('order_days')}</button>
+                <div class="dag-timer-display" onclick="openDagTimerModal(this)">
+                    <span class="dag-timer-display-text"></span>
                     <span class="fakturaadresse-chevron">›</span>
                 </div>
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
                 <label data-i18n="order_merknad">${t('order_merknad')}</label>
                 <textarea class="mobile-order-merknad" rows="2" autocapitalize="sentences"></textarea>
-            </div>
-            <div class="mobile-order-materials-section">
-                <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' <span class="required-star" style="color:#e74c3c;font-weight:bold">*</span>' : ''}</label>
-                <div class="mobile-order-materials"></div>
-                <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
             </div>
         </div>
         </div>`;
@@ -928,6 +937,12 @@ function createOrderCard(orderData, expanded) {
     const planVal = orderData.plan || '';
     planDisplay.setAttribute('data-plan', planVal);
     planText.textContent = planVal;
+    const planBtn = card.querySelector('.mobile-plan-btn');
+    if (planVal) {
+        planBtn.style.display = 'none';
+    } else {
+        planDisplay.style.display = 'none';
+    }
 
     // Set merknad
     card.querySelector('.mobile-order-merknad').value = orderData.merknad || '';
@@ -1785,6 +1800,11 @@ let _planPickerDisplay = null;
 let _planPickerState = {};
 
 function openPlanPicker(displayEl) {
+    // Normalize: if called from "+ Plan" button, find the sibling .plan-display
+    if (!displayEl.classList.contains('plan-display')) {
+        var field = displayEl.closest('.mobile-field');
+        if (field) displayEl = field.querySelector('.plan-display') || displayEl;
+    }
     _planPickerDisplay = displayEl;
     document.getElementById('plan-popup').classList.add('active');
 
@@ -1858,6 +1878,15 @@ function confirmPlanPicker() {
     var val = selected.join(', ');
     _planPickerDisplay.setAttribute('data-plan', val);
     _planPickerDisplay.querySelector('.plan-display-text').textContent = val;
+    var card = _planPickerDisplay.closest('.mobile-order-card') || _planPickerDisplay.closest('.service-entry-card');
+    var planBtn = card && card.querySelector('.mobile-plan-btn');
+    if (val) {
+        _planPickerDisplay.style.display = '';
+        if (planBtn) planBtn.style.display = 'none';
+    } else {
+        _planPickerDisplay.style.display = 'none';
+        if (planBtn) planBtn.style.display = '';
+    }
     closePlanPicker();
 }
 
@@ -1890,10 +1919,18 @@ function updateDagTimerSummary(card) {
     const display = card.querySelector('.dag-timer-display');
     if (!display) return;
     const textEl = display.querySelector('.dag-timer-display-text');
+    const btn = card.querySelector('.mobile-arbeidstid-btn');
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
     const parts = dagOrder.filter(d => timer[d]).map(d => (dagShortMap[d] || d) + ' ' + String(timer[d]).replace('.', ',') + 't');
     textEl.textContent = parts.join(', ');
+    if (parts.length > 0) {
+        display.style.display = '';
+        if (btn) btn.style.display = 'none';
+    } else {
+        display.style.display = 'none';
+        if (btn) btn.style.display = '';
+    }
 }
 
 function openDagTimerModal(btn) {
@@ -1925,6 +1962,7 @@ function openDagTimerModal(btn) {
     modal.classList.add('active');
     // Blokkér touch-scroll på overlayet, tillat kun inni listen
     modal.addEventListener('touchmove', dagTimerBlockScroll, { passive: false });
+    modal.addEventListener('wheel', dagTimerBlockScroll, { passive: false });
     // Lytt på visualViewport for tastatur
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', adjustDagTimerModal);
@@ -1934,7 +1972,7 @@ function openDagTimerModal(btn) {
 
 function dagTimerBlockScroll(e) {
     var list = document.getElementById('dag-timer-modal-list');
-    // Tillat scroll kun hvis touch er inni listen og listen faktisk kan scrolle
+    // Tillat scroll kun hvis event er inni listen og listen faktisk kan scrolle
     if (list && list.contains(e.target) && list.scrollHeight > list.clientHeight) return;
     e.preventDefault();
 }
@@ -1955,6 +1993,7 @@ function closeDagTimerModal(confirmed) {
     modal.style.height = '';
     modal.style.top = '';
     modal.removeEventListener('touchmove', dagTimerBlockScroll);
+    modal.removeEventListener('wheel', dagTimerBlockScroll);
     if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', adjustDagTimerModal);
         window.visualViewport.removeEventListener('scroll', adjustDagTimerModal);
@@ -2072,8 +2111,8 @@ function createServiceEntryCard(entryData, expanded) {
                 '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + escapeHtml(data.prosjektnavn || '') + '"></div>' +
             '<div class="mobile-order-materials-section' + matReq + '">' +
                 '<label class="mobile-order-sublabel" data-i18n="order_materials_label">' + t('order_materials_label') + '</label>' +
-                '<div class="mobile-order-materials"></div>' +
                 '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
+                '<div class="mobile-order-materials"></div>' +
             '</div>' +
         '</div>' +
         '</div>';
