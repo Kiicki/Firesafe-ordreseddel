@@ -108,7 +108,7 @@ body {
     bottom: auto;
     width: 100%;
     box-shadow: none;
-    margin-top: 20px;
+    margin-top: 0;
     z-index: auto;
 }
 
