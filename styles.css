@@ -1914,16 +1914,23 @@ label.settings-default-label.field-required > span::after {
 }
 
 /* Dager og timer - modal */
+#dag-timer-modal {
+    align-items: flex-start;
+}
+
 .dag-timer-modal-content {
+    position: fixed !important;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 340px;
+    max-width: calc(100% - 40px);
+    max-height: calc(100dvh - 40px);
     text-align: left;
     display: flex;
     flex-direction: column;
     overflow: hidden !important;
-}
-
-#dag-timer-modal.active {
-    overflow: hidden;
+    margin: 0 !important;
 }
 
 .dag-timer-modal-title {
@@ -1931,12 +1938,14 @@ label.settings-default-label.field-required > span::after {
     font-weight: 700;
     margin-bottom: 12px;
     text-align: center;
+    flex-shrink: 0;
 }
 
 .dag-timer-modal-list {
     margin-bottom: 16px;
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
 }
 
 .dag-timer-modal-row {
