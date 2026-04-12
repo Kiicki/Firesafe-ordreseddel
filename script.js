@@ -1919,21 +1919,10 @@ function openDagTimerModal(btn) {
         list.appendChild(row);
     });
     document.getElementById('dag-timer-modal').classList.add('active');
-    document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.width = '100%';
-    document.body.dataset.scrollY = window.scrollY;
-    document.body.style.top = '-' + window.scrollY + 'px';
 }
 
 function closeDagTimerModal(confirmed) {
     document.getElementById('dag-timer-modal').classList.remove('active');
-    var scrollY = parseInt(document.body.dataset.scrollY || '0');
-    document.body.style.overflow = '';
-    document.body.style.position = '';
-    document.body.style.width = '';
-    document.body.style.top = '';
-    window.scrollTo(0, scrollY);
     if (!confirmed || !dagTimerActiveCard) { dagTimerActiveCard = null; return; }
     const list = document.getElementById('dag-timer-modal-list');
     const dager = [];
