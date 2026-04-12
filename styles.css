@@ -100,17 +100,6 @@ body {
     z-index: 40;
 }
 
-/* When toolbar is reparented inside a form/service view, it flows with content */
-.toolbar.toolbar--inflow {
-    position: static;
-    left: auto;
-    right: auto;
-    bottom: auto;
-    width: 100%;
-    box-shadow: none;
-    margin-top: 0;
-    z-index: auto;
-}
 
 /* Dark overlay on toolbar when popup is active */
 .toolbar::before {
@@ -1054,17 +1043,6 @@ body.settings-modal-open #view-form {
     min-height: 0;
 }
 
-/* When keyboard is open, white background prevents grey body showing through.
-   Height is set dynamically via JS to match visual viewport. */
-body.keyboard-open #view-form.view.active,
-body.keyboard-open #service-view.view.active {
-    bottom: auto;
-    background: #fff;
-}
-body.keyboard-open #mobile-form,
-body.keyboard-open #service-form {
-    padding-bottom: 0;
-}
 
 #service-header {
     position: sticky;

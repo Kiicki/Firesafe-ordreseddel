@@ -4540,55 +4540,32 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
     // Keyboard handling with `interactive-widget=resizes-visual`:
-    // - visualViewport.resize ONLY adjusts padding-bottom (so bottom inputs are reachable)
-    // - focusin schedules an ABSOLUTE scroll after 400ms (overrides whatever browser did)
-    // - On keyboard close: only remove padding, never touch scroll
+    // Toolbar stays position:fixed — just adjust `bottom` to sit above keyboard.
+    // Form view adjusts `bottom` to avoid toolbar overlap.
+    // No DOM reparenting, no class toggles — same mechanism as keyboard-closed, shifted up.
     if (window.visualViewport) {
-        var _baselineHeight = window.visualViewport.height;
-
-        // Padding handler + reparent toolbar into scroll content while keyboard is open.
-        // When keyboard is closed, toolbar returns to body (position:fixed at bottom).
         window.visualViewport.addEventListener('resize', function() {
-            var currentHeight = window.visualViewport.height;
-            var keyboardHeight = _baselineHeight - currentHeight;
+            var vv = window.visualViewport;
+            var keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
             var keyboardOpen = keyboardHeight > 100;
-            var formEl = document.querySelector('#mobile-form');
-            var serviceFormEl = document.getElementById('service-form');
             var toolbar = document.querySelector('.toolbar');
-            var activeView = document.querySelector('.view.active');
-            var activeId = activeView ? activeView.id : null;
             var viewForm = document.getElementById('view-form');
             var serviceView = document.getElementById('service-view');
+            var activeView = document.querySelector('.view.active');
+            var activeId = activeView ? activeView.id : null;
+
             if (keyboardOpen) {
-                document.body.classList.add('keyboard-open');
-                // Set form height to visual viewport (layout viewport doesn't
-                // resize with interactive-widget=resizes-visual, so fixed
-                // bottom:0 would extend behind the keyboard).
-                if (viewForm) viewForm.style.height = currentHeight + 'px';
-                if (serviceView) serviceView.style.height = currentHeight + 'px';
-                // Move toolbar into the active form/service scroll container
-                if (toolbar) {
-                    var host = null;
-                    if (activeId === 'view-form') host = formEl;
-                    else if (activeId === 'service-view') host = serviceFormEl;
-                    if (host && toolbar.parentNode !== host) {
-                        host.appendChild(toolbar);
-                        toolbar.classList.add('toolbar--inflow');
-                    }
-                }
+                if (toolbar) toolbar.style.bottom = keyboardHeight + 'px';
+                if (activeId === 'view-form' && viewForm)
+                    viewForm.style.bottom = (keyboardHeight + 60) + 'px';
+                if (activeId === 'service-view' && serviceView)
+                    serviceView.style.bottom = (keyboardHeight + 60) + 'px';
             } else {
-                document.body.classList.remove('keyboard-open');
-                // Restore form height and toolbar
-                if (viewForm) viewForm.style.height = '';
-                if (serviceView) serviceView.style.height = '';
-                if (toolbar && toolbar.parentNode !== document.body) {
-                    document.body.appendChild(toolbar);
-                    toolbar.classList.remove('toolbar--inflow');
-                }
-                _baselineHeight = currentHeight;
+                if (toolbar) toolbar.style.bottom = '';
+                if (viewForm) viewForm.style.bottom = '';
+                if (serviceView) serviceView.style.bottom = '';
             }
         });
-
     }
 
     // Load dropdown options for materials/units and plans
