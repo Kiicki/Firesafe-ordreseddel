@@ -1919,6 +1919,10 @@ label.settings-default-label.field-required > span::after {
     text-align: left;
     display: flex;
     flex-direction: column;
+    overflow: hidden !important;
+}
+
+#dag-timer-modal.active {
     overflow: hidden;
 }
 
