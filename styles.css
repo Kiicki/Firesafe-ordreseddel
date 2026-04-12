@@ -1061,6 +1061,10 @@ body.keyboard-open #service-view.view.active {
     bottom: auto;
     background: #fff;
 }
+body.keyboard-open #mobile-form,
+body.keyboard-open #service-form {
+    padding-bottom: 0;
+}
 
 #service-header {
     position: sticky;
