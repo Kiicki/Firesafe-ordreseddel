@@ -4580,11 +4580,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 // Lock body so scroll can't chain to it
                 document.body.style.overflow = 'hidden';
-                // Constrain fixed popups to visual viewport so they don't hide behind keyboard
-                var popups = document.querySelectorAll('.fakturaadresse-popup-backdrop, .spec-popup-backdrop');
-                popups.forEach(function(p) {
-                    p.style.height = fullHeight + 'px';
-                    p.style.bottom = 'auto';
+                // Shift popup sheets up so they center in visible area (with smooth transition)
+                var popupOffset = (window.innerHeight - fullHeight) / 2;
+                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet');
+                sheets.forEach(function(s) {
+                    s.style.transform = 'translateY(-' + popupOffset + 'px)';
                 });
                 // Reparent toolbar into scrollable content
                 if (toolbar) {
@@ -4600,10 +4600,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (viewForm) { viewForm.style.display = ''; viewForm.style.bottom = ''; viewForm.style.height = ''; viewForm.style.minHeight = ''; viewForm.style.overscrollBehavior = ''; }
                 if (serviceView) { serviceView.style.display = ''; serviceView.style.bottom = ''; serviceView.style.height = ''; serviceView.style.minHeight = ''; serviceView.style.overscrollBehavior = ''; }
                 document.body.style.overflow = '';
-                var popups = document.querySelectorAll('.fakturaadresse-popup-backdrop, .spec-popup-backdrop');
-                popups.forEach(function(p) {
-                    p.style.height = '';
-                    p.style.bottom = '';
+                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet');
+                sheets.forEach(function(s) {
+                    s.style.transform = '';
                 });
                 if (toolbar && toolbar.parentNode !== document.body) {
                     toolbar.classList.remove('toolbar--inflow');
