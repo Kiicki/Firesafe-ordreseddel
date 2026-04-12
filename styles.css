@@ -719,7 +719,8 @@ body.template-modal-open > .top-bar {
 .text-editor-modal.active ~ .toolbar,
 .signature-overlay.active ~ .toolbar,
 .picker-overlay.active ~ .toolbar,
-.preview-overlay.active ~ .toolbar {
+.preview-overlay.active ~ .toolbar,
+body:has(#dag-timer-modal.active) .toolbar {
     display: none;
 }
 
@@ -1914,6 +1915,11 @@ label.settings-default-label.field-required > span::after {
 }
 
 /* Dager og timer - modal */
+#dag-timer-modal {
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
 .dag-timer-modal-content {
     width: 340px;
     text-align: left;
@@ -1921,6 +1927,7 @@ label.settings-default-label.field-required > span::after {
     flex-direction: column;
     overflow-y: hidden !important;
     max-height: calc(100% - 40px) !important;
+    overscroll-behavior: contain;
 }
 
 .dag-timer-modal-content .confirm-modal-buttons {
@@ -1941,6 +1948,8 @@ label.settings-default-label.field-required > span::after {
     flex: 1;
     min-height: 0;
     margin-bottom: 16px;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
 }
 
 .dag-timer-modal-row {
