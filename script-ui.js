@@ -4502,6 +4502,12 @@ document.getElementById('mobile-signature-preview').addEventListener('click', fu
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Set toolbar height CSS variable (replaces hardcoded 60px)
+    var toolbar = document.querySelector('.toolbar');
+    if (toolbar) {
+        document.documentElement.style.setProperty('--toolbar-h', toolbar.offsetHeight + 'px');
+    }
+
     // Init date inputs
     initDateInput(document.getElementById('mobile-signering-dato'));
 
@@ -4540,9 +4546,9 @@ document.addEventListener('DOMContentLoaded', function() {
     applyTranslations();
 
     // Keyboard handling with `interactive-widget=resizes-visual`:
-    // Toolbar stays position:fixed — just adjust `bottom` to sit above keyboard.
-    // Form view adjusts `bottom` to avoid toolbar overlap.
-    // No DOM reparenting, no class toggles — same mechanism as keyboard-closed, shifted up.
+    // When keyboard opens: reparent toolbar into scrollable form content,
+    // adjust form bottom to keyboard edge. Toolbar becomes scrollable.
+    // When keyboard closes: restore toolbar to body (fixed at bottom).
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', function() {
             var vv = window.visualViewport;
@@ -4551,19 +4557,35 @@ document.addEventListener('DOMContentLoaded', function() {
             var toolbar = document.querySelector('.toolbar');
             var viewForm = document.getElementById('view-form');
             var serviceView = document.getElementById('service-view');
+            var formEl = document.getElementById('mobile-form');
+            var serviceFormEl = document.getElementById('service-form');
             var activeView = document.querySelector('.view.active');
             var activeId = activeView ? activeView.id : null;
 
             if (keyboardOpen) {
-                if (toolbar) toolbar.style.bottom = keyboardHeight + 'px';
+                // Form: stretch to keyboard edge (no toolbar reservation — toolbar is inside scroll)
                 if (activeId === 'view-form' && viewForm)
-                    viewForm.style.bottom = (keyboardHeight + 60) + 'px';
+                    viewForm.style.bottom = keyboardHeight + 'px';
                 if (activeId === 'service-view' && serviceView)
-                    serviceView.style.bottom = (keyboardHeight + 60) + 'px';
+                    serviceView.style.bottom = keyboardHeight + 'px';
+                // Reparent toolbar into scrollable content
+                if (toolbar) {
+                    var host = null;
+                    if (activeId === 'view-form') host = formEl;
+                    else if (activeId === 'service-view') host = serviceFormEl;
+                    if (host && toolbar.parentNode !== host) {
+                        toolbar.classList.add('toolbar--inflow');
+                        host.appendChild(toolbar);
+                    }
+                }
             } else {
-                if (toolbar) toolbar.style.bottom = '';
+                // Restore: form back to CSS default, toolbar back to body
                 if (viewForm) viewForm.style.bottom = '';
                 if (serviceView) serviceView.style.bottom = '';
+                if (toolbar && toolbar.parentNode !== document.body) {
+                    toolbar.classList.remove('toolbar--inflow');
+                    document.body.appendChild(toolbar);
+                }
             }
         });
     }

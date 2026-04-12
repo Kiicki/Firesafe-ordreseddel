@@ -7,7 +7,7 @@ body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    padding-bottom: 60px; /* Space for fixed toolbar */
+    padding-bottom: var(--toolbar-h, 60px); /* Space for fixed toolbar */
     background: #f0f0f0;
     font-size: 12px;
     min-height: 100vh;
@@ -100,6 +100,17 @@ body {
     z-index: 40;
 }
 
+/* When toolbar is reparented inside form during keyboard-open, it flows with content */
+.toolbar.toolbar--inflow {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    box-shadow: none;
+    margin-top: 0;
+    z-index: auto;
+}
 
 /* Dark overlay on toolbar when popup is active */
 .toolbar::before {
@@ -1015,7 +1026,7 @@ body.settings-modal-open #view-form {
     display: none;
 }
 
-/* Removed padding-bottom: 0 — mobile views use position: fixed; bottom: 60px,
+/* Mobile views use position: fixed; bottom: var(--toolbar-h),
    desktop needs body padding for toolbar spacing */
 
 /* Modal views: fixed to viewport, internal scroll in modal-body */
@@ -1026,7 +1037,7 @@ body.settings-modal-open #view-form {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 60px;
+    bottom: var(--toolbar-h, 60px);
     height: auto;
     min-height: 0;
     overflow: clip;
@@ -1039,7 +1050,7 @@ body.settings-modal-open #view-form {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 60px;
+    bottom: var(--toolbar-h, 60px);
     min-height: 0;
 }
 
