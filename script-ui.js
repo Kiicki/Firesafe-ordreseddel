@@ -4583,8 +4583,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Reparent toolbar into scrollable content
                 if (toolbar) {
                     var host = null;
-                    if (activeId === 'view-form') host = formEl;
-                    else if (activeId === 'service-view') host = serviceFormEl;
+                    if (activeId === 'view-form') host = viewForm;
+                    else if (activeId === 'service-view') host = serviceView;
                     if (host && toolbar.parentNode !== host) {
                         toolbar.classList.add('toolbar--inflow');
                         host.appendChild(toolbar);
