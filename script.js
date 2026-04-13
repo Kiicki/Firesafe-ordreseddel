@@ -1269,11 +1269,14 @@ function openMaterialPicker(btn, onConfirm) {
             pickerGroupMap[baseName].items.push(e);
         });
 
-        // Sort: flat items first, spec groups last
+        // Sort: launcher-only (ikke ekspandert) og flate sorteres alfabetisk,
+        // ekspanderte spec-grupper havner nederst
         pickerGroups.sort(function(a, b) {
-            var aIsGroup = a.isSpecGroup && a.items.length >= 1 ? 1 : 0;
-            var bIsGroup = b.isSpecGroup && b.items.length >= 1 ? 1 : 0;
-            if (aIsGroup !== bIsGroup) return aIsGroup - bIsGroup;
+            var aLauncherOnly = a.isSpecGroup && a.items.length === 1 && a.items[0].name === a.baseName;
+            var bLauncherOnly = b.isSpecGroup && b.items.length === 1 && b.items[0].name === b.baseName;
+            var aIsExpandedGroup = a.isSpecGroup && !aLauncherOnly ? 1 : 0;
+            var bIsExpandedGroup = b.isSpecGroup && !bLauncherOnly ? 1 : 0;
+            if (aIsExpandedGroup !== bIsExpandedGroup) return aIsExpandedGroup - bIsExpandedGroup;
             return a.baseName.localeCompare(b.baseName, 'nb');
         });
 
