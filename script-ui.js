@@ -2178,10 +2178,14 @@ function renderPlanSettingsItems() {
 function sortPlans(plans) {
     return plans.sort(function(a, b) {
         var aUp = a.toUpperCase(), bUp = b.toUpperCase();
-        var aIsU = aUp.match(/^U(\d+)$/), bIsU = bUp.match(/^U(\d+)$/);
+        var aIsU = aUp.match(/^U(\d*)$/), bIsU = bUp.match(/^U(\d*)$/);
         var aIsNum = aUp.match(/^\d+$/), bIsNum = bUp.match(/^\d+$/);
-        // U-etasjer først, synkende (U3 før U1)
-        if (aIsU && bIsU) return parseInt(bIsU[1]) - parseInt(aIsU[1]);
+        // U-etasjer først, synkende (U3 før U1, bare "U" sist blant U-ene)
+        if (aIsU && bIsU) {
+            var aNum = aIsU[1] === '' ? 0 : parseInt(aIsU[1]);
+            var bNum = bIsU[1] === '' ? 0 : parseInt(bIsU[1]);
+            return bNum - aNum;
+        }
         if (aIsU) return -1;
         if (bIsU) return 1;
         // Tall i stigende rekkefølge
