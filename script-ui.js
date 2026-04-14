@@ -3697,12 +3697,21 @@ async function doSharePNG() {
 function _forceViewVisible(viewId) {
     var view = document.getElementById(viewId);
     if (!view) return function() {};
-    var prevInlineDisplay = view.style.display;
-    var hadActive = view.classList.contains('active');
-    view.style.display = 'flex';
+    var prevInlinePriority = view.style.getPropertyPriority('display');
+    var prevInlineValue = view.style.getPropertyValue('display');
+    // !important for å beseire 'body.saved-modal-open #view-form { display: none }' (styles.css:1060)
+    view.style.setProperty('display', 'flex', 'important');
+    // Sikre non-zero dimensions selv uten .active-klassen
+    var prevMinHeight = view.style.getPropertyValue('min-height');
+    view.style.setProperty('min-height', '100vh', 'important');
     return function() {
-        view.style.display = prevInlineDisplay;
-        if (!hadActive) view.classList.remove('active');
+        if (prevInlineValue) {
+            view.style.setProperty('display', prevInlineValue, prevInlinePriority);
+        } else {
+            view.style.removeProperty('display');
+        }
+        if (prevMinHeight) view.style.setProperty('min-height', prevMinHeight);
+        else view.style.removeProperty('min-height');
     };
 }
 
@@ -3719,10 +3728,14 @@ async function _bulkBuildOwnPDF() {
             setFormData(forms[i]);
             await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
             var canvas = await renderFormToCanvas();
+            if (!canvas || !canvas.width || !canvas.height) {
+                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
+            }
             var imgWidth = 210;
             var imgHeight = (canvas.height * imgWidth) / canvas.width;
             if (i > 0) pdf.addPage();
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+            // JPEG er mer robust enn PNG i jsPDF for multi-page bulk (PNG-parser feiler av og til)
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
         }
     } finally {
         restoreView();
@@ -3756,10 +3769,13 @@ async function _bulkBuildServicePDF() {
     try {
         for (var i = 0; i < forms.length; i++) {
             var canvas = await _renderServiceCanvasFromData(forms[i]);
+            if (!canvas || !canvas.width || !canvas.height) {
+                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
+            }
             var imgWidth = 297;
             var imgHeight = (canvas.height * imgWidth) / canvas.width;
             if (i > 0) pdf.addPage();
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
         }
     } finally {
         restoreView();
@@ -3796,10 +3812,13 @@ async function _bulkBuildOwnPDFsSeparate() {
             setFormData(forms[i]);
             await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
             var canvas = await renderFormToCanvas();
+            if (!canvas || !canvas.width || !canvas.height) {
+                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
+            }
             var pdf = new jsPDF('p', 'mm', 'a4');
             var imgWidth = 210;
             var imgHeight = (canvas.height * imgWidth) / canvas.width;
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
             var blob = pdf.output('blob');
             files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
         }
@@ -3821,10 +3840,13 @@ async function _bulkBuildServicePDFsSeparate() {
         var jsPDF = window.jspdf.jsPDF;
         for (var i = 0; i < forms.length; i++) {
             var canvas = await _renderServiceCanvasFromData(forms[i]);
+            if (!canvas || !canvas.width || !canvas.height) {
+                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
+            }
             var pdf = new jsPDF('l', 'mm', 'a4');
             var imgWidth = 297;
             var imgHeight = (canvas.height * imgWidth) / canvas.width;
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
             var blob = pdf.output('blob');
             files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
         }
