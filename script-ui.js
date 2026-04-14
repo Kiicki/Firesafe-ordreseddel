@@ -3694,34 +3694,35 @@ async function doSharePNG() {
 // ============================================
 // Tvinger #view-form synlig under rendering (nødvendig for html2canvas når vi er i saved-modal).
 // Returnerer en restore-funksjon.
+// Bytter midlertidig aktiv view til target-view og fjerner body-klasser som skjuler target,
+// slik at rendering fungerer identisk med enkelt-skjema-flyten. Loading-overlayet (z-index 10,
+// 90% opak) dekker visuell flashing. Returnerer en restore-funksjon.
 function _forceViewVisible(viewId) {
-    var view = document.getElementById(viewId);
-    if (!view) return function() {};
-    // Plasser view-form fullt rendret på viewport (0,0) MEN usynlig via opacity:0.
-    // html2canvas sliter med elementer plassert langt off-screen (left:-99999px),
-    // så vi holder det på skjermen men usynlig for bruker.
-    var hadActive = view.classList.contains('active');
-    var prevStyle = view.getAttribute('style') || '';
-    view.classList.add('active');
-    view.setAttribute('style',
-        'position:fixed !important;' +
-        'top:0 !important;' +
-        'left:0 !important;' +
-        'right:0 !important;' +
-        'bottom:0 !important;' +
-        'width:100% !important;' +
-        'height:100% !important;' +
-        'min-height:100vh !important;' +
-        'display:flex !important;' +
-        'visibility:visible !important;' +
-        'opacity:0 !important;' +
-        'z-index:-9999 !important;' +
-        'pointer-events:none !important;'
-    );
+    var target = document.getElementById(viewId);
+    if (!target) return function() {};
+
+    // Lagre gjeldende aktiv view
+    var currentActive = document.querySelector('.view.active');
+    var currentActiveId = currentActive ? currentActive.id : null;
+
+    // Lagre og fjern body-klasser som skjuler target via CSS
+    // (body.saved-modal-open #view-form { display: none }, osv.)
+    var bodyClassesToRestore = [];
+    ['saved-modal-open', 'template-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open'].forEach(function(cls) {
+        if (document.body.classList.contains(cls)) {
+            bodyClassesToRestore.push(cls);
+            document.body.classList.remove(cls);
+        }
+    });
+
+    // Switch view
+    if (currentActive && currentActive !== target) currentActive.classList.remove('active');
+    target.classList.add('active');
+
     return function() {
-        if (!hadActive) view.classList.remove('active');
-        if (prevStyle) view.setAttribute('style', prevStyle);
-        else view.removeAttribute('style');
+        target.classList.remove('active');
+        if (currentActive && currentActive !== target) currentActive.classList.add('active');
+        bodyClassesToRestore.forEach(function(cls) { document.body.classList.add(cls); });
     };
 }
 
@@ -3739,7 +3740,11 @@ async function _bulkBuildOwnPDF() {
             await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
             var canvas = await renderFormToCanvas();
             if (!canvas || !canvas.width || !canvas.height) {
-                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
+                var vf = document.getElementById('view-form');
+                var fc = document.getElementById('form-container');
+                var vfcs = vf ? getComputedStyle(vf) : {};
+                var fccs = fc ? getComputedStyle(fc) : {};
+                throw new Error('Tom canvas skjema ' + (i+1) + ' [vf.display=' + (vfcs.display||'?') + ' vf.active=' + (vf?vf.classList.contains('active'):'?') + ' fc.w=' + (fc?fc.offsetWidth:'?') + ' fc.h=' + (fc?fc.offsetHeight:'?') + ' body=' + document.body.className + ']');
             }
             var imgWidth = 210;
             var imgHeight = (canvas.height * imgWidth) / canvas.width;
