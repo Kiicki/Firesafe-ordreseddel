@@ -5401,6 +5401,159 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-color: #eee;
 }
 
+/* Stoppeklokke */
+.sw-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px dashed #E8501A;
+    border-radius: 10px;
+    background: #fff7f3;
+    color: #E8501A;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    margin-bottom: 16px;
+}
+.sw-add-btn:active { background: #ffeadd; }
+.sw-empty {
+    text-align: center;
+    color: #999;
+    font-size: 13px;
+    padding: 40px 20px;
+}
+.sw-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.sw-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.sw-card.sw-card-running {
+    border-color: #E8501A;
+    background: #fff7f3;
+}
+.sw-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.sw-label-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    background: #fafafa;
+    cursor: text;
+}
+.sw-label-wrap:hover { border-color: #ccc; }
+.sw-label-wrap:focus-within {
+    border-color: #E8501A;
+    background: #fff;
+}
+.sw-label {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 600;
+    color: #222;
+    padding: 0;
+    outline: none;
+}
+.sw-label::placeholder { color: #aaa; font-weight: 500; }
+.sw-edit-icon {
+    color: #999;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+.sw-label-wrap:focus-within .sw-edit-icon { color: #E8501A; }
+.sw-card-delete {
+    background: transparent;
+    border: none;
+    color: #c43;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 20px;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+.sw-card-delete:active { opacity: 0.6; }
+.sw-card-time {
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 44px;
+    font-weight: 700;
+    color: #222;
+    text-align: center;
+    padding: 8px 0 14px;
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+}
+.sw-card.sw-card-running .sw-card-time { color: #E8501A; }
+.sw-card-actions {
+    display: flex;
+    gap: 8px;
+}
+.sw-btn {
+    flex: 1;
+    padding: 12px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.sw-btn:active { background: #f8f8f8; }
+.sw-btn-primary {
+    background: #E8501A;
+    border-color: #E8501A;
+    color: #fff;
+}
+.sw-btn-primary:active { background: #d44815; }
+.sw-btn-primary.sw-running {
+    background: #fff;
+    color: #E8501A;
+}
+
+/* Løper-indikator på kalkulator-toolbar-knapp */
+.toolbar .btn-calc {
+    position: relative;
+}
+body.stopwatch-running .toolbar .btn-calc::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 18px);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #E8501A;
+    box-shadow: 0 0 0 2px #f8f9fa;
+    animation: sw-pulse 1.5s ease-in-out infinite;
+}
+@keyframes sw-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
 .bpl-set-default-btn {
     border: none;
     background: none;

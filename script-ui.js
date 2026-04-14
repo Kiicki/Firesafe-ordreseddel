@@ -5495,6 +5495,7 @@ function _showCalculatorDirectly() {
     // Show menu, hide calc pages
     document.querySelector('.calc-section').style.display = '';
     document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
+    if (typeof _swStopTicker === 'function') _swStopTicker();
     updateToolbarState();
 }
 
@@ -5524,8 +5525,294 @@ function showCalcPage(page) {
         document.getElementById('la-sections').innerHTML = '';
         _laSectionCount = 0;
         laAddSection();
+    } else if (page === 'stopwatch') {
+        header.textContent = t('calc_sw_title');
+        _swRenderList();
+        _swStartTicker();
+    }
+    if (page !== 'stopwatch') _swStopTicker();
+}
+
+// ===== Stoppeklokker (flere parallelle) =====
+var _SW_KEY = 'firesafe_stopwatches';
+var _SW_KEY_LEGACY = 'firesafe_stopwatch';
+var _swTickerId = null;
+
+function _swLoad() {
+    try {
+        var raw = localStorage.getItem(_SW_KEY);
+        if (raw) {
+            var arr = JSON.parse(raw);
+            if (Array.isArray(arr)) return arr.map(_swNormalize).filter(Boolean);
+        }
+        // Migrer fra gammel single-watch-key hvis den finnes
+        var legacyRaw = localStorage.getItem(_SW_KEY_LEGACY);
+        if (legacyRaw) {
+            var legacy = JSON.parse(legacyRaw);
+            var migrated = [{
+                id: _swNewId(),
+                label: 'Bestilling 1',
+                startedAt: typeof legacy.startedAt === 'number' ? legacy.startedAt : null,
+                accumulatedMs: typeof legacy.accumulatedMs === 'number' ? legacy.accumulatedMs : 0,
+                isRunning: !!legacy.isRunning
+            }];
+            _swSave(migrated);
+            try { localStorage.removeItem(_SW_KEY_LEGACY); } catch (e) {}
+            return migrated;
+        }
+    } catch (e) {}
+    return [];
+}
+
+function _swNormalize(w) {
+    if (!w || typeof w !== 'object') return null;
+    return {
+        id: w.id || _swNewId(),
+        label: typeof w.label === 'string' ? w.label : '',
+        startedAt: typeof w.startedAt === 'number' ? w.startedAt : null,
+        accumulatedMs: typeof w.accumulatedMs === 'number' ? w.accumulatedMs : 0,
+        isRunning: !!w.isRunning
+    };
+}
+
+function _swSave(list) {
+    try { localStorage.setItem(_SW_KEY, JSON.stringify(list)); } catch (e) {}
+}
+
+function _swNewId() {
+    return 'sw_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function _swElapsed(w) {
+    var ms = w.accumulatedMs || 0;
+    if (w.isRunning && w.startedAt) {
+        var delta = Date.now() - w.startedAt;
+        if (delta > 0) ms += delta;
+    }
+    return ms < 0 ? 0 : ms;
+}
+
+function _swFormat(ms) {
+    var total = Math.floor(ms / 1000);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    return pad(h) + ':' + pad(m) + ':' + pad(s);
+}
+
+// Faktureringsformat: minimum 1 time, rundet opp til nærmeste 30 min.
+// Returnerer norsk desimal: "1", "1,5", "2", "2,5" …
+function _swBilledHours(ms) {
+    var minutes = ms / 60000;
+    var billed = Math.ceil(minutes / 30) * 30;
+    if (billed < 60) billed = 60;
+    var hours = billed / 60;
+    if (hours === Math.floor(hours)) return String(hours);
+    return String(Math.floor(hours)) + '.5';
+}
+
+function _swEscape(str) {
+    return String(str).replace(/[&<>"']/g, function(c) {
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    });
+}
+
+function _swAnyRunning(list) {
+    list = list || _swLoad();
+    for (var i = 0; i < list.length; i++) if (list[i].isRunning) return true;
+    return false;
+}
+
+function _swUpdateIndicator(list) {
+    document.body.classList.toggle('stopwatch-running', _swAnyRunning(list));
+}
+
+function _swRenderList() {
+    var container = document.getElementById('sw-list');
+    var empty = document.getElementById('sw-empty');
+    if (!container) return;
+    var list = _swLoad();
+    if (!list.length) {
+        container.innerHTML = '';
+        if (empty) empty.style.display = '';
+        _swUpdateIndicator(list);
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    var html = '';
+    for (var i = 0; i < list.length; i++) {
+        var w = list[i];
+        var running = w.isRunning;
+        html += '<div class="sw-card' + (running ? ' sw-card-running' : '') + '" data-id="' + w.id + '">' +
+            '<div class="sw-card-header">' +
+                '<label class="sw-label-wrap">' +
+                    '<svg class="sw-edit-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+                    '<input class="sw-label" type="text" value="' + _swEscape(w.label) + '" ' +
+                           'placeholder="' + _swEscape(t('sw_label_placeholder')) + '" ' +
+                           'onfocus="this.select()" ' +
+                           'onchange="swRename(\'' + w.id + '\', this.value)">' +
+                '</label>' +
+                '<button type="button" class="sw-card-delete" onclick="swDelete(\'' + w.id + '\')" aria-label="' + _swEscape(t('sw_delete')) + '">&times;</button>' +
+            '</div>' +
+            '<div class="sw-card-time" data-sw-time>' + _swFormat(_swElapsed(w)) + '</div>' +
+            '<div class="sw-card-actions">' +
+                '<button type="button" class="sw-btn sw-btn-primary' + (running ? ' sw-running' : '') + '" onclick="swToggle(\'' + w.id + '\')">' +
+                    (running ? _swEscape(t('sw_pause')) : _swEscape(t('sw_start'))) +
+                '</button>' +
+                '<button type="button" class="sw-btn" onclick="swCopy(\'' + w.id + '\')">' + _swEscape(t('sw_copy')) + '</button>' +
+            '</div>' +
+        '</div>';
+    }
+    container.innerHTML = html;
+    _swUpdateIndicator(list);
+}
+
+function _swTick() {
+    var container = document.getElementById('sw-list');
+    if (!container) return;
+    var list = _swLoad();
+    var cards = container.querySelectorAll('.sw-card');
+    for (var i = 0; i < cards.length; i++) {
+        var id = cards[i].getAttribute('data-id');
+        var w = null;
+        for (var j = 0; j < list.length; j++) if (list[j].id === id) { w = list[j]; break; }
+        if (!w) continue;
+        var timeEl = cards[i].querySelector('[data-sw-time]');
+        if (timeEl) timeEl.textContent = _swFormat(_swElapsed(w));
     }
 }
+
+function _swStartTicker() {
+    if (_swTickerId) return;
+    _swTickerId = setInterval(_swTick, 1000);
+}
+
+function _swStopTicker() {
+    if (_swTickerId) { clearInterval(_swTickerId); _swTickerId = null; }
+}
+
+function swAdd() {
+    var list = _swLoad();
+    var nextNum = list.length + 1;
+    var newId = _swNewId();
+    list.push({
+        id: newId,
+        label: t('sw_default_label') + ' ' + nextNum,
+        startedAt: null,
+        accumulatedMs: 0,
+        isRunning: false
+    });
+    _swSave(list);
+    _swRenderList();
+    // Auto-fokus på den nye label-input slik at brukeren kan skrive ordrenummer direkte
+    setTimeout(function() {
+        var card = document.querySelector('.sw-card[data-id="' + newId + '"]');
+        if (card) {
+            var input = card.querySelector('.sw-label');
+            if (input) { input.focus(); input.select(); }
+            if (card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 50);
+}
+
+function swToggle(id) {
+    var list = _swLoad();
+    var target = null;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) { target = list[i]; break; }
+    if (!target) return;
+    if (target.isRunning) {
+        // Pause denne
+        var delta = Date.now() - (target.startedAt || Date.now());
+        if (delta < 0) delta = 0;
+        target.accumulatedMs = (target.accumulatedMs || 0) + delta;
+        target.isRunning = false;
+        target.startedAt = null;
+    } else {
+        // Auto-pause alle andre løpende
+        for (var j = 0; j < list.length; j++) {
+            if (list[j].isRunning && list[j].id !== id) {
+                var d2 = Date.now() - (list[j].startedAt || Date.now());
+                if (d2 < 0) d2 = 0;
+                list[j].accumulatedMs = (list[j].accumulatedMs || 0) + d2;
+                list[j].isRunning = false;
+                list[j].startedAt = null;
+            }
+        }
+        target.startedAt = Date.now();
+        target.isRunning = true;
+    }
+    _swSave(list);
+    _swRenderList();
+}
+
+function swRename(id, label) {
+    var list = _swLoad();
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].id === id) { list[i].label = String(label || '').slice(0, 60); break; }
+    }
+    _swSave(list);
+}
+
+function swDelete(id) {
+    var list = _swLoad();
+    var target = null;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) { target = list[i]; break; }
+    if (!target) return;
+    var doDelete = function() {
+        var cur = _swLoad().filter(function(w) { return w.id !== id; });
+        _swSave(cur);
+        _swRenderList();
+    };
+    var labelPart = target.label ? ' "' + target.label + '"' : '';
+    showConfirmModal(t('sw_delete_confirm') + labelPart + '?', doDelete, t('btn_remove'), '#c43');
+}
+
+function swCopy(id) {
+    var list = _swLoad();
+    var w = null;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) { w = list[i]; break; }
+    if (!w) return;
+    var text = _swBilledHours(_swElapsed(w));
+    function onDone() { showNotificationModal(t('sw_copied_toast') + ' ' + text + ' t'); }
+    function onFail() { showNotificationModal(t('sw_copy_failed')); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onDone, function() {
+            _swCopyFallback(text) ? onDone() : onFail();
+        });
+    } else {
+        _swCopyFallback(text) ? onDone() : onFail();
+    }
+}
+
+function _swCopyFallback(text) {
+    try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+    } catch (e) { return false; }
+}
+
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+        _swStopTicker();
+    } else {
+        _swUpdateIndicator();
+        var page = document.getElementById('calc-page-stopwatch');
+        if (page && page.style.display !== 'none') {
+            _swRenderList();
+            _swStartTicker();
+        }
+    }
+});
+window.addEventListener('pagehide', _swStopTicker);
+document.addEventListener('DOMContentLoaded', function() { _swUpdateIndicator(); });
 
 function calcMulticollar() {
     var input = document.getElementById('calc-mc-diameter');
