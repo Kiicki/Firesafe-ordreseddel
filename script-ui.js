@@ -4081,11 +4081,12 @@ function _updateBulkPngState() {
 }
 
 async function _bulkFinishAfterExport(markSent) {
+    var tabForRefresh = _selectTab;  // capture FØR toggleSelectMode nullstiller _selectTab
     if (markSent) _bulkMarkSelectedAsSent();
     toggleSelectMode();
     if (markSent) {
         // Refresh saved list slik at sendt-status vises korrekt
-        _showSavedFormsDirectly(_selectTab || 'own');
+        _showSavedFormsDirectly(tabForRefresh || 'own');
     }
 }
 

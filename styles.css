@@ -4803,6 +4803,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         margin: 0 auto;
     }
 
+    /* Bulk action bar - samme constraint som toolbar på desktop */
+    .bulk-action-bar {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
     /* Top bar (login button) - constrain on desktop */
     .top-bar {
         max-width: 800px;
@@ -5488,7 +5494,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     align-items: center;
     gap: 12px;
     min-height: 49px;
-    box-sizing: content-box;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
 }
 body.bulk-select-active .bulk-action-bar {
