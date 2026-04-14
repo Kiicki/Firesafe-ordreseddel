@@ -3697,21 +3697,32 @@ async function doSharePNG() {
 function _forceViewVisible(viewId) {
     var view = document.getElementById(viewId);
     if (!view) return function() {};
-    var prevInlinePriority = view.style.getPropertyPriority('display');
-    var prevInlineValue = view.style.getPropertyValue('display');
-    // !important for å beseire 'body.saved-modal-open #view-form { display: none }' (styles.css:1060)
-    view.style.setProperty('display', 'flex', 'important');
-    // Sikre non-zero dimensions selv uten .active-klassen
-    var prevMinHeight = view.style.getPropertyValue('min-height');
-    view.style.setProperty('min-height', '100vh', 'important');
+    // Approach: temporarily add .active class og gjem det off-screen via inline style.
+    // CSS-regelen '#view-form.view.active { display:flex }' har samme spesifisitet som
+    // 'body.saved-modal-open #view-form { display:none }' men er definert SENERE, så den vinner.
+    // Off-screen via position:fixed;left:-99999px unngår visuell flashing.
+    var hadActive = view.classList.contains('active');
+    var prevStyle = view.getAttribute('style') || '';
+    view.classList.add('active');
+    view.setAttribute('style',
+        'position:fixed !important;' +
+        'top:0 !important;' +
+        'left:-99999px !important;' +
+        'width:900px !important;' +
+        'height:auto !important;' +
+        'min-height:100vh !important;' +
+        'max-height:none !important;' +
+        'bottom:auto !important;' +
+        'right:auto !important;' +
+        'display:flex !important;' +
+        'visibility:visible !important;' +
+        'z-index:-1 !important;' +
+        'pointer-events:none !important;'
+    );
     return function() {
-        if (prevInlineValue) {
-            view.style.setProperty('display', prevInlineValue, prevInlinePriority);
-        } else {
-            view.style.removeProperty('display');
-        }
-        if (prevMinHeight) view.style.setProperty('min-height', prevMinHeight);
-        else view.style.removeProperty('min-height');
+        if (!hadActive) view.classList.remove('active');
+        if (prevStyle) view.setAttribute('style', prevStyle);
+        else view.removeAttribute('style');
     };
 }
 
