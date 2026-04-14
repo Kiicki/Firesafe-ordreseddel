@@ -3697,26 +3697,25 @@ async function doSharePNG() {
 function _forceViewVisible(viewId) {
     var view = document.getElementById(viewId);
     if (!view) return function() {};
-    // Approach: temporarily add .active class og gjem det off-screen via inline style.
-    // CSS-regelen '#view-form.view.active { display:flex }' har samme spesifisitet som
-    // 'body.saved-modal-open #view-form { display:none }' men er definert SENERE, så den vinner.
-    // Off-screen via position:fixed;left:-99999px unngår visuell flashing.
+    // Plasser view-form fullt rendret på viewport (0,0) MEN usynlig via opacity:0.
+    // html2canvas sliter med elementer plassert langt off-screen (left:-99999px),
+    // så vi holder det på skjermen men usynlig for bruker.
     var hadActive = view.classList.contains('active');
     var prevStyle = view.getAttribute('style') || '';
     view.classList.add('active');
     view.setAttribute('style',
         'position:fixed !important;' +
         'top:0 !important;' +
-        'left:-99999px !important;' +
-        'width:900px !important;' +
-        'height:auto !important;' +
+        'left:0 !important;' +
+        'right:0 !important;' +
+        'bottom:0 !important;' +
+        'width:100% !important;' +
+        'height:100% !important;' +
         'min-height:100vh !important;' +
-        'max-height:none !important;' +
-        'bottom:auto !important;' +
-        'right:auto !important;' +
         'display:flex !important;' +
         'visibility:visible !important;' +
-        'z-index:-1 !important;' +
+        'opacity:0 !important;' +
+        'z-index:-9999 !important;' +
         'pointer-events:none !important;'
     );
     return function() {
