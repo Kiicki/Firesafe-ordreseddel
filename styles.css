@@ -5493,7 +5493,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: none;
     align-items: center;
     gap: 12px;
-    min-height: 49px;
+    min-height: 67px;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
 }
 body.bulk-select-active .bulk-action-bar {
