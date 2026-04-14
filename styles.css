@@ -5436,4 +5436,99 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     letter-spacing: 0;
 }
 
+/* ============================================
+   Bulk select mode (saved-modal)
+   ============================================ */
+.header-select-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    background: #E8501A;
+    color: #fff;
+    border: none;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.header-select-btn:active {
+    opacity: 0.6;
+}
+.header-select-btn.active {
+    background: #fff;
+    color: #E8501A;
+}
+
+#saved-modal.select-mode .saved-item-action-btn {
+    opacity: 0.35;
+    pointer-events: none;
+}
+#saved-modal.select-mode #saved-list .saved-item.selected,
+#saved-modal.select-mode #service-list .saved-item.selected {
+    background: #fff3ed;
+}
+#saved-modal.select-mode #saved-list,
+#saved-modal.select-mode #service-list {
+    padding-bottom: 96px;
+}
+
+.bulk-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 200;
+    background: #f8f9fa;
+    border-top: 2px solid #E8501A;
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    display: none;
+    align-items: center;
+    gap: 12px;
+    min-height: 49px;
+    box-sizing: content-box;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
+}
+body.bulk-select-active .bulk-action-bar {
+    display: flex;
+}
+body.bulk-select-active .toolbar {
+    display: none;
+}
+.bulk-count {
+    font-weight: 600;
+    font-size: 15px;
+    color: #222;
+    flex-shrink: 0;
+}
+.bulk-buttons {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+}
+.bulk-buttons button {
+    min-height: 42px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    font-size: 14px;
+    background: #E8501A;
+    color: #fff;
+    cursor: pointer;
+}
+.bulk-buttons button:active {
+    opacity: 0.75;
+}
+.bulk-buttons .bulk-cancel {
+    background: #eee;
+    color: #333;
+}
+.bulk-buttons button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
 

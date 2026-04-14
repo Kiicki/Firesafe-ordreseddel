@@ -11,6 +11,11 @@ var _serviceLastDoc = null, _serviceSentLastDoc = null, _serviceHasMore = false,
 var _lastLocalSaveTs = 0;
 var _pendingFirestoreOps = Promise.resolve();
 
+// Bulk select mode state (saved-modal multi-select for bulk export)
+var _selectMode = false;
+var _selectedSet = new Set();  // indices into active tab's loaded array
+var _selectTab = null;         // 'own' | 'service'
+
 function resetPaginationState() {
     _savedLastDoc = null; _sentLastDoc = null;
     _savedHasMore = false; _sentHasMore = false;
@@ -461,6 +466,7 @@ function closeModal() {
 }
 
 function switchHentTab(tab) {
+    if (_selectMode) toggleSelectMode();
     sessionStorage.setItem('firesafe_hent_tab', tab);
     const tabs = document.querySelectorAll('#saved-modal .modal-tab');
     tabs.forEach(t => t.classList.remove('active'));
@@ -677,6 +683,7 @@ function navigateBack() {
     }
     // From Skjemaer: close and go to form
     if (currentId === 'saved-modal') {
+        if (_selectMode) toggleSelectMode();
         closeModal();
         return;
     }
@@ -3481,6 +3488,63 @@ function duplicateCurrentForm() {
     window.scrollTo(0, 0);
 }
 
+// ============================================
+// BULK SELECT MODE (saved-modal)
+// ============================================
+function toggleSelectMode() {
+    _selectMode = !_selectMode;
+    _selectedSet.clear();
+    var modal = document.getElementById('saved-modal');
+    var btn = document.getElementById('saved-select-btn');
+    var title = document.getElementById('saved-modal-title');
+    if (_selectMode) {
+        _selectTab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
+        modal.classList.add('select-mode');
+        document.body.classList.add('bulk-select-active');
+        if (btn) { btn.classList.add('active'); btn.textContent = t('btn_cancel'); }
+        if (title) title.textContent = t('select_mode_title');
+    } else {
+        _selectTab = null;
+        modal.classList.remove('select-mode');
+        document.body.classList.remove('bulk-select-active');
+        if (btn) { btn.classList.remove('active'); btn.textContent = t('btn_select'); }
+        if (title) title.textContent = t('modal_load_title');
+        // Clear visual selection from all rows
+        document.querySelectorAll('#saved-list .saved-item.selected, #service-list .saved-item.selected')
+            .forEach(function(el) { el.classList.remove('selected'); });
+    }
+    updateSelectionUI();
+}
+
+function toggleFormSelection(idx, rowEl) {
+    if (_selectedSet.has(idx)) {
+        _selectedSet.delete(idx);
+        if (rowEl) rowEl.classList.remove('selected');
+    } else {
+        _selectedSet.add(idx);
+        if (rowEl) rowEl.classList.add('selected');
+    }
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    var count = _selectedSet.size;
+    var countEl = document.getElementById('bulk-count');
+    if (countEl) countEl.textContent = count + ' ' + t('bulk_count_suffix');
+    var exportBtn = document.getElementById('bulk-export-btn');
+    if (exportBtn) exportBtn.disabled = count === 0;
+}
+
+function _getSelectedForms() {
+    var src = _selectTab === 'service' ? (window.loadedServiceForms || []) : (window.loadedForms || []);
+    var out = [];
+    // Preserve list order (not selection order)
+    for (var i = 0; i < src.length; i++) {
+        if (_selectedSet.has(i)) out.push(src[i]);
+    }
+    return out;
+}
+
 // Felles canvas-rendering for eksport/deling
 async function renderFormToCanvas() {
     syncMobileToOriginal();
@@ -3618,6 +3682,500 @@ async function doSharePNG() {
         var blob = await res.blob();
         var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
         await navigator.share({ files: [file] });
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+// ============================================
+// BULK EXPORT (multi-select PDF)
+// ============================================
+// Tvinger #view-form synlig under rendering (nødvendig for html2canvas når vi er i saved-modal).
+// Returnerer en restore-funksjon.
+function _forceViewVisible(viewId) {
+    var view = document.getElementById(viewId);
+    if (!view) return function() {};
+    var prevInlineDisplay = view.style.display;
+    var hadActive = view.classList.contains('active');
+    view.style.display = 'flex';
+    return function() {
+        view.style.display = prevInlineDisplay;
+        if (!hadActive) view.classList.remove('active');
+    };
+}
+
+async function _bulkBuildOwnPDF() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return null;
+    var prevSnapshot = null;
+    try { prevSnapshot = getFormDataSnapshot(); } catch (e) {}
+    var restoreView = _forceViewVisible('view-form');
+    var jsPDF = window.jspdf.jsPDF;
+    var pdf = new jsPDF('p', 'mm', 'a4');
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            setFormData(forms[i]);
+            await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+            var canvas = await renderFormToCanvas();
+            var imgWidth = 210;
+            var imgHeight = (canvas.height * imgWidth) / canvas.width;
+            if (i > 0) pdf.addPage();
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        }
+    } finally {
+        restoreView();
+        if (prevSnapshot) {
+            try { setFormData(JSON.parse(prevSnapshot)); } catch (e) {}
+        }
+    }
+    return pdf;
+}
+
+async function _renderServiceCanvasFromData(data) {
+    var prev = null;
+    try { prev = getServiceFormData(); } catch (e) {}
+    setServiceFormData(data);
+    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+    try {
+        return await renderServiceToCanvas();
+    } finally {
+        if (prev) {
+            try { setServiceFormData(prev); } catch (e) {}
+        }
+    }
+}
+
+async function _bulkBuildServicePDF() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return null;
+    var restoreView = _forceViewVisible('service-view');
+    var jsPDF = window.jspdf.jsPDF;
+    var pdf = new jsPDF('l', 'mm', 'a4');
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            var canvas = await _renderServiceCanvasFromData(forms[i]);
+            var imgWidth = 297;
+            var imgHeight = (canvas.height * imgWidth) / canvas.width;
+            if (i > 0) pdf.addPage();
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        }
+    } finally {
+        restoreView();
+    }
+    return pdf;
+}
+
+function _bulkFilename(ext) {
+    var d = formatDate(new Date()).replace(/\./g, '-');
+    return 'firesafe_bulk_' + d + '.' + (ext || 'pdf');
+}
+
+function _pngFilenameForForm(data, fallbackIdx) {
+    var nr = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
+    return 'ordreseddel_' + nr + '.png';
+}
+
+function _pdfFilenameForForm(data, fallbackIdx) {
+    var nr = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
+    return 'ordreseddel_' + nr + '.pdf';
+}
+
+// Render alle valgte til separate PDF-filer (én per skjema)
+async function _bulkBuildOwnPDFsSeparate() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return [];
+    var prevSnapshot = null;
+    try { prevSnapshot = getFormDataSnapshot(); } catch (e) {}
+    var restoreView = _forceViewVisible('view-form');
+    var files = [];
+    try {
+        var jsPDF = window.jspdf.jsPDF;
+        for (var i = 0; i < forms.length; i++) {
+            setFormData(forms[i]);
+            await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+            var canvas = await renderFormToCanvas();
+            var pdf = new jsPDF('p', 'mm', 'a4');
+            var imgWidth = 210;
+            var imgHeight = (canvas.height * imgWidth) / canvas.width;
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+            var blob = pdf.output('blob');
+            files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
+        }
+    } finally {
+        restoreView();
+        if (prevSnapshot) {
+            try { setFormData(JSON.parse(prevSnapshot)); } catch (e) {}
+        }
+    }
+    return files;
+}
+
+async function _bulkBuildServicePDFsSeparate() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return [];
+    var restoreView = _forceViewVisible('service-view');
+    var files = [];
+    try {
+        var jsPDF = window.jspdf.jsPDF;
+        for (var i = 0; i < forms.length; i++) {
+            var canvas = await _renderServiceCanvasFromData(forms[i]);
+            var pdf = new jsPDF('l', 'mm', 'a4');
+            var imgWidth = 297;
+            var imgHeight = (canvas.height * imgWidth) / canvas.width;
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+            var blob = pdf.output('blob');
+            files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
+        }
+    } finally {
+        restoreView();
+    }
+    return files;
+}
+
+// Render alle valgte til PNG-filer (returnerer array av File-objekter)
+async function _bulkBuildOwnPNGs() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return [];
+    var prevSnapshot = null;
+    try { prevSnapshot = getFormDataSnapshot(); } catch (e) {}
+    var restoreView = _forceViewVisible('view-form');
+    var files = [];
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            setFormData(forms[i]);
+            await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+            var canvas = await renderFormToCanvas();
+            var blob = await new Promise(function(res) { canvas.toBlob(res, 'image/png'); });
+            files.push(new File([blob], _pngFilenameForForm(forms[i], i), { type: 'image/png' }));
+        }
+    } finally {
+        restoreView();
+        if (prevSnapshot) {
+            try { setFormData(JSON.parse(prevSnapshot)); } catch (e) {}
+        }
+    }
+    return files;
+}
+
+async function _bulkBuildServicePNGs() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return [];
+    var restoreView = _forceViewVisible('service-view');
+    var files = [];
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            var canvas = await _renderServiceCanvasFromData(forms[i]);
+            var blob = await new Promise(function(res) { canvas.toBlob(res, 'image/png'); });
+            files.push(new File([blob], _pngFilenameForForm(forms[i], i), { type: 'image/png' }));
+        }
+    } finally {
+        restoreView();
+    }
+    return files;
+}
+
+// Mark-as-sent helpere (uten UI-støy, brukt i bulk).
+// VIKTIG: savedAt må bumpes slik at _mergeAndDedup velger arkiv-versjonen over saved-versjonen
+// (samme mekanisme som getFormData() i enkelt-skjema-flyten).
+function _markOwnFormDataAsSent(sourceData) {
+    try {
+        // Clone to avoid mutating window.loadedForms entry
+        var data = JSON.parse(JSON.stringify(sourceData));
+        // Strip internal flags som ikke skal lagres
+        delete data._isSent;
+        data.savedAt = new Date().toISOString();
+
+        var saved = safeParseJSON(STORAGE_KEY, []);
+        var idx = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+        if (idx !== -1 && !data.id) data.id = saved[idx].id;
+        if (!data.id) data.id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+        var archived = safeParseJSON(ARCHIVE_KEY, []);
+        var archIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
+        if (archIdx !== -1) archived[archIdx] = data;
+        else archived.unshift(data);
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+        addToOrderNumberIndex(data.ordreseddelNr);
+        if (currentUser && db) {
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('archive').doc(docId).set(data);
+            }).then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('forms').doc(docId).delete();
+            }).catch(function(e) { console.error('Bulk mark-sent (own) error:', e); });
+        }
+    } catch (e) { console.error('Bulk mark-sent (own) error:', e); }
+}
+
+function _markServiceFormDataAsSent(sourceData) {
+    try {
+        var data = JSON.parse(JSON.stringify(sourceData));
+        delete data._isSent;
+        data.savedAt = new Date().toISOString();
+
+        if (!data.id) data.id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+        var archived = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
+        var archIdx = archived.findIndex(function(item) { return item.id === data.id; });
+        if (archIdx !== -1) archived[archIdx] = data;
+        else archived.unshift(data);
+        safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(archived));
+        var saved = safeParseJSON(SERVICE_STORAGE_KEY, []);
+        var savedIdx = saved.findIndex(function(item) { return item.id === data.id; });
+        if (savedIdx !== -1) {
+            saved.splice(savedIdx, 1);
+            safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(saved));
+        }
+        if (currentUser && db) {
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('serviceArchive').doc(docId).set(data);
+            }).then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('serviceforms').doc(docId).delete();
+            }).catch(function(e) { console.error('Bulk mark-sent (service) error:', e); });
+        }
+    } catch (e) { console.error('Bulk mark-sent (service) error:', e); }
+}
+
+function _bulkMarkSelectedAsSent() {
+    var forms = _getSelectedForms();
+    var isService = _selectTab === 'service';
+    for (var i = 0; i < forms.length; i++) {
+        if (forms[i]._isSent) continue; // already sent
+        if (isService) _markServiceFormDataAsSent(forms[i]);
+        else _markOwnFormDataAsSent(forms[i]);
+    }
+    _lastLocalSaveTs = Date.now();
+}
+
+function _bulkHasUnsentSelected() {
+    var forms = _getSelectedForms();
+    for (var i = 0; i < forms.length; i++) {
+        if (!forms[i]._isSent) return true;
+    }
+    return false;
+}
+
+// Eksport-meny for bulk (identisk pattern som showExportMenu for enkeltskjema)
+function showBulkExportMenu() {
+    if (_selectedSet.size === 0) return;
+    var popup = document.getElementById('action-popup');
+    document.getElementById('action-popup-title').textContent = t('bulk_export_title') + ' (' + _selectedSet.size + ')';
+    var buttonsEl = document.getElementById('action-popup-buttons');
+    var showCheckbox = _bulkHasUnsentSelected();
+    var checkboxHtml = showCheckbox
+        ? '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;padding:4px 0">' +
+              '<input type="checkbox" id="bulk-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
+              t('bulk_mark_sent_label') +
+          '</label>'
+        : '';
+    var combinedCheckboxHtml =
+        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
+            '<input type="checkbox" id="bulk-export-combined" checked onchange="_updateBulkPngState()" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
+            t('bulk_combine_pdf_label') +
+        '</label>';
+    var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var dlIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
+    var canShare = !!(navigator.share && navigator.canShare);
+    var mr = "document.getElementById('bulk-export-mark-sent')?.checked";
+    // Runtime-dispatch: checkbox styrer om PDF-knappen bruker samlet eller separat
+    var pdfDl = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkExportPDF(' + mr + ') : doBulkExportPDFSeparate(' + mr + '))';
+    var pdfShare = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkSharePDF(' + mr + ') : doBulkSharePDFSeparate(' + mr + '))';
+    var pngDl = 'doBulkExportPNG(' + mr + ')';
+    var pngShare = 'doBulkSharePNG(' + mr + ')';
+
+    var shareBtnPDF = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="' + pdfShare + '; closeActionPopup()">' + shareIcon + ' PDF</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
+    var shareBtnPNG = canShare
+        ? '<button class="confirm-btn-ok bulk-png-btn" style="background:#E8501A" onclick="' + pngShare + '; closeActionPopup()">' + shareIcon + ' PNG</button>'
+        : '<button class="confirm-btn-ok bulk-png-btn" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
+
+    var html = checkboxHtml + combinedCheckboxHtml +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="' + pdfDl + '; closeActionPopup()">' + dlIcon + ' PDF</button>' +
+            '<button class="confirm-btn-ok bulk-png-btn" style="background:#333" onclick="' + pngDl + '; closeActionPopup()">' + dlIcon + ' PNG</button>' +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
+        '<div class="confirm-modal-buttons">' +
+            shareBtnPDF + shareBtnPNG +
+        '</div>';
+    buttonsEl.innerHTML = html;
+    popup.classList.add('active');
+    _updateBulkPngState();
+}
+
+function _updateBulkPngState() {
+    var combined = document.getElementById('bulk-export-combined');
+    if (!combined) return;
+    var disable = combined.checked;
+    var DISABLED_STYLE = 'background:#e5e5e5 !important;background-color:#e5e5e5 !important;color:#a0a0a0 !important;cursor:not-allowed !important;pointer-events:none !important;border:none !important;box-shadow:none !important;';
+    document.querySelectorAll('.bulk-png-btn').forEach(function(btn) {
+        if (disable) {
+            if (btn.dataset.origStyle === undefined) btn.dataset.origStyle = btn.getAttribute('style') || '';
+            btn.setAttribute('style', DISABLED_STYLE);
+            btn.disabled = true;
+            // Force SVG stroke color too (inherits from `color` which we already set, but be explicit)
+            btn.querySelectorAll('svg').forEach(function(svg) {
+                svg.style.setProperty('stroke', '#a0a0a0', 'important');
+                svg.style.setProperty('color', '#a0a0a0', 'important');
+            });
+        } else {
+            btn.setAttribute('style', btn.dataset.origStyle || '');
+            delete btn.dataset.origStyle;
+            btn.disabled = false;
+            btn.querySelectorAll('svg').forEach(function(svg) {
+                svg.style.removeProperty('stroke');
+                svg.style.removeProperty('color');
+            });
+        }
+    });
+}
+
+async function _bulkFinishAfterExport(markSent) {
+    if (markSent) _bulkMarkSelectedAsSent();
+    toggleSelectMode();
+    if (markSent) {
+        // Refresh saved list slik at sendt-status vises korrekt
+        _showSavedFormsDirectly(_selectTab || 'own');
+    }
+}
+
+async function doBulkExportPDF(markSent) {
+    if (_selectedSet.size === 0) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : await _bulkBuildOwnPDF();
+        if (pdf) pdf.save(_bulkFilename('pdf'));
+        await _bulkFinishAfterExport(markSent);
+    } catch (e) {
+        showNotificationModal(t('export_pdf_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doBulkExportPNG(markSent) {
+    if (_selectedSet.size === 0) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var files = _selectTab === 'service' ? await _bulkBuildServicePNGs() : await _bulkBuildOwnPNGs();
+        for (var i = 0; i < files.length; i++) {
+            var url = URL.createObjectURL(files[i]);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = files[i].name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function(u) { return function() { URL.revokeObjectURL(u); }; }(url), 2000);
+            // Small delay between downloads so browsers don't coalesce or block
+            await new Promise(function(r) { setTimeout(r, 150); });
+        }
+        await _bulkFinishAfterExport(markSent);
+    } catch (e) {
+        showNotificationModal(t('export_png_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doBulkSharePDF(markSent) {
+    if (_selectedSet.size === 0) return;
+    if (!(navigator.share && navigator.canShare)) {
+        showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
+        return;
+    }
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : await _bulkBuildOwnPDF();
+        if (!pdf) return;
+        var blob = pdf.output('blob');
+        var file = new File([blob], _bulkFilename('pdf'), { type: 'application/pdf' });
+        if (!navigator.canShare({ files: [file] })) {
+            showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
+            return;
+        }
+        await navigator.share({ files: [file] });
+        await _bulkFinishAfterExport(markSent);
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doBulkSharePNG(markSent) {
+    if (_selectedSet.size === 0) return;
+    if (!(navigator.share && navigator.canShare)) {
+        showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
+        return;
+    }
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var files = _selectTab === 'service' ? await _bulkBuildServicePNGs() : await _bulkBuildOwnPNGs();
+        if (!files.length) return;
+        if (!navigator.canShare({ files: files })) {
+            showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
+            return;
+        }
+        await navigator.share({ files: files });
+        await _bulkFinishAfterExport(markSent);
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+// Separate PDF-filer (én per skjema)
+async function doBulkExportPDFSeparate(markSent) {
+    if (_selectedSet.size === 0) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : await _bulkBuildOwnPDFsSeparate();
+        for (var i = 0; i < files.length; i++) {
+            var url = URL.createObjectURL(files[i]);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = files[i].name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function(u) { return function() { URL.revokeObjectURL(u); }; }(url), 2000);
+            await new Promise(function(r) { setTimeout(r, 150); });
+        }
+        await _bulkFinishAfterExport(markSent);
+    } catch (e) {
+        showNotificationModal(t('export_pdf_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doBulkSharePDFSeparate(markSent) {
+    if (_selectedSet.size === 0) return;
+    if (!(navigator.share && navigator.canShare)) {
+        showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
+        return;
+    }
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : await _bulkBuildOwnPDFsSeparate();
+        if (!files.length) return;
+        if (!navigator.canShare({ files: files })) {
+            showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
+            return;
+        }
+        await navigator.share({ files: files });
+        await _bulkFinishAfterExport(markSent);
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -4390,6 +4948,15 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
     const formData = savedItem._formData;
     if (!formData) return;
 
+    // Select mode: tap toggles selection, ignore buttons
+    if (_selectMode) {
+        e.preventDefault();
+        e.stopPropagation();
+        var idx = parseInt(savedItem.dataset.index, 10);
+        if (!isNaN(idx)) toggleFormSelection(idx, savedItem);
+        return;
+    }
+
     // Check if click was on a button
     const btn = e.target.closest('button');
     if (btn) {
@@ -4434,6 +5001,14 @@ document.getElementById('service-list').addEventListener('click', function(e) {
 
     var formData = savedItem._formData;
     if (!formData) return;
+
+    if (_selectMode) {
+        e.preventDefault();
+        e.stopPropagation();
+        var idx = parseInt(savedItem.dataset.index, 10);
+        if (!isNaN(idx)) toggleFormSelection(idx, savedItem);
+        return;
+    }
 
     var btn = e.target.closest('button');
     if (btn) {
