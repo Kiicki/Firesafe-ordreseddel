@@ -5601,15 +5601,15 @@ function _swFormat(ms) {
     return pad(h) + ':' + pad(m) + ':' + pad(s);
 }
 
-// Faktureringsformat: minimum 1 time, rundet opp til nærmeste 30 min.
-// Returnerer norsk desimal: "1", "1,5", "2", "2,5" …
+// Faktureringsformat: rundet opp til nærmeste halvtime.
+// Returnerer norsk desimal: "0,5", "1", "1,5", "2", "2,5" …
 function _swBilledHours(ms) {
+    if (ms <= 0) return '0';
     var minutes = ms / 60000;
     var billed = Math.ceil(minutes / 30) * 30;
-    if (billed < 60) billed = 60;
     var hours = billed / 60;
     if (hours === Math.floor(hours)) return String(hours);
-    return String(Math.floor(hours)) + '.5';
+    return String(Math.floor(hours)) + ',5';
 }
 
 function _swEscape(str) {
@@ -5631,8 +5631,10 @@ function _swUpdateIndicator(list) {
 function _swRenderList() {
     var container = document.getElementById('sw-list');
     var empty = document.getElementById('sw-empty');
+    var clearBtn = document.getElementById('sw-clear-all-btn');
     if (!container) return;
     var list = _swLoad();
+    if (clearBtn) clearBtn.hidden = list.length < 2;
     if (!list.length) {
         container.innerHTML = '';
         if (empty) empty.style.display = '';
@@ -5644,23 +5646,32 @@ function _swRenderList() {
     for (var i = 0; i < list.length; i++) {
         var w = list[i];
         var running = w.isRunning;
+        var elapsedMs = _swElapsed(w);
+        var idleClass = (!running && elapsedMs === 0) ? ' sw-idle' : '';
         html += '<div class="sw-card' + (running ? ' sw-card-running' : '') + '" data-id="' + w.id + '">' +
-            '<div class="sw-card-header">' +
+            '<div class="sw-card-row sw-card-row-label">' +
                 '<label class="sw-label-wrap">' +
-                    '<svg class="sw-edit-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
                     '<input class="sw-label" type="text" value="' + _swEscape(w.label) + '" ' +
                            'placeholder="' + _swEscape(t('sw_label_placeholder')) + '" ' +
                            'onfocus="this.select()" ' +
                            'onchange="swRename(\'' + w.id + '\', this.value)">' +
+                    '<svg class="sw-edit-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
                 '</label>' +
-                '<button type="button" class="sw-card-delete" onclick="swDelete(\'' + w.id + '\')" aria-label="' + _swEscape(t('sw_delete')) + '">&times;</button>' +
+                '<button type="button" class="sw-card-delete" onclick="swDelete(\'' + w.id + '\')" aria-label="' + _swEscape(t('sw_delete')) + '">' +
+                    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>' +
+                '</button>' +
             '</div>' +
-            '<div class="sw-card-time" data-sw-time>' + _swFormat(_swElapsed(w)) + '</div>' +
+            '<div class="sw-card-row sw-card-row-time">' +
+                '<div class="sw-card-time' + idleClass + '" data-sw-time>' + _swFormat(elapsedMs) + '</div>' +
+                '<button type="button" class="sw-card-copy" onclick="swCopy(\'' + w.id + '\')" aria-label="' + _swEscape(t('sw_copy')) + '">' +
+                    '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>' +
+                '</button>' +
+            '</div>' +
             '<div class="sw-card-actions">' +
                 '<button type="button" class="sw-btn sw-btn-primary' + (running ? ' sw-running' : '') + '" onclick="swToggle(\'' + w.id + '\')">' +
                     (running ? _swEscape(t('sw_pause')) : _swEscape(t('sw_start'))) +
                 '</button>' +
-                '<button type="button" class="sw-btn" onclick="swCopy(\'' + w.id + '\')">' + _swEscape(t('sw_copy')) + '</button>' +
+                '<button type="button" class="sw-btn" onclick="swReset(\'' + w.id + '\')">' + _swEscape(t('sw_reset')) + '</button>' +
             '</div>' +
         '</div>';
     }
@@ -5692,13 +5703,18 @@ function _swStopTicker() {
     if (_swTickerId) { clearInterval(_swTickerId); _swTickerId = null; }
 }
 
+var _swAddLastCall = 0;
 function swAdd() {
+    // Debounce: blokker gjentatte kall innen 500ms (touch + synthetic click, dobbel-tap osv.)
+    var now = Date.now();
+    if (now - _swAddLastCall < 500) return;
+    _swAddLastCall = now;
+
     var list = _swLoad();
-    var nextNum = list.length + 1;
     var newId = _swNewId();
     list.push({
         id: newId,
-        label: t('sw_default_label') + ' ' + nextNum,
+        label: '',
         startedAt: null,
         accumulatedMs: 0,
         isRunning: false
@@ -5710,7 +5726,7 @@ function swAdd() {
         var card = document.querySelector('.sw-card[data-id="' + newId + '"]');
         if (card) {
             var input = card.querySelector('.sw-label');
-            if (input) { input.focus(); input.select(); }
+            if (input) input.focus();
             if (card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }, 50);
@@ -5746,12 +5762,62 @@ function swToggle(id) {
     _swRenderList();
 }
 
+function swReset(id) {
+    var list = _swLoad();
+    var target = null;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) { target = list[i]; break; }
+    if (!target) return;
+    var doReset = function() {
+        var cur = _swLoad();
+        for (var j = 0; j < cur.length; j++) {
+            if (cur[j].id === id) {
+                cur[j].startedAt = null;
+                cur[j].accumulatedMs = 0;
+                cur[j].isRunning = false;
+                cur[j].label = '';
+                break;
+            }
+        }
+        _swSave(cur);
+        _swRenderList();
+        // Fokus på navnefeltet så bruker kan skrive ny bestilling direkte
+        setTimeout(function() {
+            var card = document.querySelector('.sw-card[data-id="' + id + '"]');
+            if (card) {
+                var input = card.querySelector('.sw-label');
+                if (input) input.focus();
+            }
+        }, 50);
+    };
+    // Bekreft kun hvis klokka faktisk har tid på seg eller har navn
+    if (_swElapsed(target) > 0 || target.label) {
+        var labelPart = target.label ? ' "' + target.label + '"' : '';
+        showConfirmModal(t('sw_reset_confirm') + labelPart + '?', doReset, t('sw_reset'), '#E8501A');
+    } else {
+        doReset();
+    }
+}
+
 function swRename(id, label) {
     var list = _swLoad();
     for (var i = 0; i < list.length; i++) {
         if (list[i].id === id) { list[i].label = String(label || '').slice(0, 60); break; }
     }
     _swSave(list);
+}
+
+function swClearAll() {
+    var list = _swLoad();
+    if (!list.length) return;
+    showConfirmModal(
+        t('sw_clear_all_confirm').replace('{n}', list.length),
+        function() {
+            _swSave([]);
+            _swRenderList();
+        },
+        t('btn_remove'),
+        '#c43'
+    );
 }
 
 function swDelete(id) {
@@ -5774,7 +5840,7 @@ function swCopy(id) {
     for (var i = 0; i < list.length; i++) if (list[i].id === id) { w = list[i]; break; }
     if (!w) return;
     var text = _swBilledHours(_swElapsed(w));
-    function onDone() { showNotificationModal(t('sw_copied_toast') + ' ' + text + ' t'); }
+    function onDone() { showNotificationModal(t('sw_copied_toast') + ' ' + text); }
     function onFail() { showNotificationModal(t('sw_copy_failed')); }
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(onDone, function() {
