@@ -3538,10 +3538,15 @@ function updateSelectionUI() {
 function _getSelectedForms() {
     var src = _selectTab === 'service' ? (window.loadedServiceForms || []) : (window.loadedForms || []);
     var out = [];
-    // Preserve list order (not selection order)
     for (var i = 0; i < src.length; i++) {
         if (_selectedSet.has(i)) out.push(src[i]);
     }
+    // Sorter etter ordreseddelNr (numerisk stigende) for konsistent rekkefølge i PDF
+    out.sort(function(a, b) {
+        var na = parseInt(a.ordreseddelNr, 10) || 0;
+        var nb = parseInt(b.ordreseddelNr, 10) || 0;
+        return na - nb;
+    });
     return out;
 }
 
