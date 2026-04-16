@@ -5500,6 +5500,8 @@ function _showCalculatorDirectly() {
     // Show menu, hide calc pages
     document.querySelector('.calc-section').style.display = '';
     document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
+    var mb = document.querySelector('#calculator-modal .modal-body');
+    if (mb) mb.style.overflow = '';
     if (typeof _swStopTicker === 'function') _swStopTicker();
     updateToolbarState();
 }
@@ -5509,6 +5511,8 @@ function showCalcPage(page) {
     document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
     var pageEl = document.getElementById('calc-page-' + page);
     if (pageEl) pageEl.style.display = '';
+    var _calcMb = document.querySelector('#calculator-modal .modal-body');
+    if (_calcMb) _calcMb.style.overflow = '';
     // Update header
     var header = document.querySelector('#calculator-modal .modal-header span');
     if (page === 'multicollar') {
@@ -5530,6 +5534,11 @@ function showCalcPage(page) {
         document.getElementById('la-sections').innerHTML = '';
         _laSectionCount = 0;
         laAddSection();
+    } else if (page === 'isostift') {
+        header.textContent = t('calc_iso_title');
+        var mb = document.querySelector('#calculator-modal .modal-body');
+        if (mb) mb.style.overflow = 'hidden';
+        calcIsoStift();
     } else if (page === 'stopwatch') {
         header.textContent = t('calc_sw_title');
         _swRenderList();
@@ -5537,6 +5546,369 @@ function showCalcPage(page) {
     }
     if (page !== 'stopwatch') _swStopTicker();
 }
+
+// ===== Isolering stift-kalkulator =====
+
+function calcIsoStift() {
+    var w = parseInt(document.getElementById('iso-width').value, 10) || 0;
+    var h = parseInt(document.getElementById('iso-height').value, 10) || 0;
+    var profile = document.getElementById('iso-profile').value;
+    var method = document.getElementById('iso-method').value;
+    var canvas = document.getElementById('iso-stift-canvas');
+    var resultEl = document.getElementById('iso-stift-result');
+
+    var thickness = parseInt(document.getElementById('iso-thickness').value, 10) || 0;
+
+    if (w < 50 || h < 50) {
+        var ctx = canvas.getContext('2d');
+        canvas.width = canvas.offsetWidth * 2;
+        canvas.height = 200;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        resultEl.innerHTML = '<div class="iso-result-empty">' + t('iso_enter_dims') + '</div>';
+        return;
+    }
+
+    var data = _calcPinPositions(w, h, profile, method, thickness);
+    _drawIsoCanvas(canvas, data, w, h, profile, thickness, method);
+
+    var ruleCC = (method === 'pins') ? 300 : 150;
+    var isHollowResult = (profile === 'rhs');
+
+    var line2 = '<b>' + data.pins.length + '</b> ' + (method === 'pins' ? t('iso_pins_label') : t('iso_screws_label')) +
+        ' &nbsp;|&nbsp; c/c: <b>' + Math.round(data.spacingX) + ' × ' + Math.round(data.spacingY) + ' mm</b>';
+    var showEdge = isHollowResult ? Math.round(data.edgeDistX || data.edgeDist) : Math.round(data.edgeDistX || data.edgeDist);
+    line2 += ' &nbsp;|&nbsp; ' + t('iso_edge') + ': <b>' + showEdge + ' mm</b>';
+
+    // Rad 3: regler
+    var line3;
+    if (method === 'pins') {
+        line3 = 'c/c ≤ 300 mm &nbsp;|&nbsp; ' + t('iso_edge') + ' ≤ 75 mm';
+    } else {
+        line3 = 'c/c ≤ 150 × 200 mm &nbsp;|&nbsp; ' + t('iso_screw_edge_note');
+    }
+
+    resultEl.innerHTML = line2 + '<div class="iso-result-spec">' + line3 + '</div>';
+}
+
+function _calcPinPositions(width, height, profile, method, thickness) {
+    thickness = thickness || 0;
+    // Profilgrupper: RHS/HSQ = solid overflate, resten = I/U/L-profiler (stifter ved flens)
+    var isHollow = (profile === 'rhs');
+
+    var maxEdge, maxCC, maxRowCC;
+    if (method === 'screws') {
+        maxEdge = (thickness > 0) ? Math.floor(thickness / 2) : 25;
+        maxCC = 150;
+        maxRowCC = 200;
+    } else if (isHollow) {
+        maxEdge = 75;
+        maxCC = 300;
+        maxRowCC = 300;
+    } else {
+        // I-profiler (HEA/HEB/IPE/INP), U-profil (UPE), L-profil, TRP
+        maxEdge = 10;
+        maxCC = 300;
+        maxRowCC = 300;
+    }
+
+    // Stålsone: flush på venstre/topp, overlapp (tykkelse) på høyre/bunn
+    // Stifter kan kun plasseres der det er stål bak: x=0 til x=(width-thickness)
+    var steelW = (method === 'pins' && thickness > 0) ? width - thickness : width;
+    var steelH = (method === 'pins' && thickness > 0) ? height - thickness : height;
+    if (steelW < 20) steelW = width;
+    if (steelH < 20) steelH = height;
+
+    // Bredde: fordel symmetrisk innenfor stålsonen
+    var cols, edgeDistX, spacingX;
+    var steelEdgeX = Math.min(maxEdge, Math.floor(steelW / 4));
+    var innerW = steelW - 2 * steelEdgeX;
+
+    if (innerW <= 0 || steelW <= maxEdge * 2) {
+        cols = 1;
+        edgeDistX = steelW / 2;
+        spacingX = 0;
+    } else {
+        cols = Math.max(2, Math.ceil(innerW / maxCC) + 1);
+        edgeDistX = steelEdgeX;
+        spacingX = innerW / (cols - 1);
+    }
+
+    // Høyde: fordel symmetrisk innenfor stålsonen
+    var rows, edgeDistY, spacingY;
+    var steelEdgeY = Math.min(maxEdge, Math.floor(steelH / 4));
+    var innerH = steelH - 2 * steelEdgeY;
+
+    if (innerH <= 0 || steelH <= maxEdge * 2) {
+        rows = 1;
+        edgeDistY = steelH / 2;
+        spacingY = 0;
+    } else {
+        rows = Math.max(2, Math.ceil(innerH / maxRowCC) + 1);
+        edgeDistY = steelEdgeY;
+        spacingY = innerH / (rows - 1);
+    }
+
+    var edgeDist = maxEdge;
+
+    var pins = [];
+
+    if (!isHollow && method === 'pins') {
+        var rightPinX = steelW - edgeDistX;
+        if (rightPinX < edgeDistX) rightPinX = edgeDistX;
+        for (var r = 0; r < rows; r++) {
+            pins.push({ x: edgeDistX, y: edgeDistY + r * spacingY });
+            if (rightPinX > edgeDistX) pins.push({ x: rightPinX, y: edgeDistY + r * spacingY });
+        }
+        spacingX = (rightPinX > edgeDistX) ? rightPinX - edgeDistX : 0;
+    } else {
+        for (var r = 0; r < rows; r++) {
+            var y = edgeDistY + r * spacingY;
+            for (var c = 0; c < cols; c++) {
+                pins.push({ x: edgeDistX + c * spacingX, y: y });
+            }
+        }
+    }
+
+    return { pins: pins, spacingX: spacingX, spacingY: spacingY, edgeDist: edgeDist, edgeDistX: edgeDistX, edgeDistY: edgeDistY, cols: cols, rows: rows };
+}
+
+
+function _drawIsoCanvas(canvas, data, plateW, plateH, profile, thickness, method) {
+    thickness = thickness || 0;
+    var dpr = window.devicePixelRatio || 1;
+    var container = canvas.parentElement;
+    var cw = container ? container.clientWidth : canvas.offsetWidth;
+    if (cw < 100) cw = 320;
+    var paddingLeft = 55;
+    var paddingRight = 50;
+    var paddingTop = 55;
+    var paddingBottom = (thickness > 0) ? 38 : 24;
+    var padding = paddingTop;
+    var maxDrawW = cw - paddingLeft - paddingRight;
+    // Dynamisk maks-høyde: viewport minus header(44) + kontroller(~80) + resultat(~30) + toolbar(67) + margins(60)
+    // canvas-padding (2*padding) trekkes fra separat i maxDrawH-formelen
+    var usedH = 44 + 80 + 30 + 67 + 60;
+    var maxDrawH = Math.max(150, window.innerHeight - usedH - paddingTop - paddingBottom);
+    var scaleX = maxDrawW / plateW;
+    var scaleY = maxDrawH / plateH;
+    var scale = Math.min(scaleX, scaleY);
+    var drawW = plateW * scale;
+    var drawH = plateH * scale;
+    var ch = drawH + paddingTop + paddingBottom;
+
+    canvas.width = cw * dpr;
+    canvas.height = ch * dpr;
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, cw, ch);
+
+    var ox = paddingLeft + (maxDrawW - drawW) / 2;
+    var oy = paddingTop;
+
+    // Steg/passbit-sone for I/U-profiler
+    var isHollowDraw = (profile === 'rhs');
+    if (!isHollowDraw && data.pins.length > 0 && method === 'screws') {
+        // Skruer: vis passbit-sone (der skruene festes)
+        var steelWp = (thickness > 0) ? plateW - thickness : plateW;
+        var pzLeft = data.edgeDist + 1;
+        var pzRight = steelWp - data.edgeDist - 1;
+        if (pzRight > pzLeft) {
+            ctx.fillStyle = 'rgba(180,210,160,0.35)';
+            ctx.fillRect(ox + pzLeft * scale, oy, (pzRight - pzLeft) * scale, drawH);
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#8aad70';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(ox + pzLeft * scale, oy, (pzRight - pzLeft) * scale, drawH);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#7a9a60';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.save();
+            ctx.translate(ox + (pzLeft + pzRight) / 2 * scale, oy + drawH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Passbit', 0, 4);
+            ctx.restore();
+        }
+    }
+    if (!isHollowDraw && data.pins.length > 0 && method !== 'screws') {
+        var steelW = (thickness > 0) ? plateW - thickness : plateW;
+        var zoneLeft = data.edgeDist + 1;
+        var zoneRight = steelW - data.edgeDist - 1;
+        if (zoneRight > zoneLeft) {
+            ctx.fillStyle = '#f5f0f0';
+            ctx.fillRect(ox + zoneLeft * scale, oy, (zoneRight - zoneLeft) * scale, drawH);
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#d0c0c0';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(ox + zoneLeft * scale, oy, (zoneRight - zoneLeft) * scale, drawH);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#baa';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.save();
+            ctx.translate(ox + (zoneLeft + zoneRight) / 2 * scale, oy + drawH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText(t('iso_steg_zone'), 0, 4);
+            ctx.restore();
+        }
+    }
+
+    // Overlapp-soner (tykkelse) — markert med skravering
+    if (thickness > 0) {
+        var tW = thickness * scale;
+        var tH = thickness * scale;
+        ctx.fillStyle = 'rgba(255,200,150,0.3)';
+        // Høyre side overlapp
+        if (tW > 0 && tW < drawW) {
+            ctx.fillRect(ox + drawW - tW, oy, tW, drawH);
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = '#E8501A';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(ox + drawW - tW, oy);
+            ctx.lineTo(ox + drawW - tW, oy + drawH);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        // Bunn overlapp
+        if (tH > 0 && tH < drawH) {
+            ctx.fillStyle = 'rgba(255,200,150,0.3)';
+            ctx.fillRect(ox, oy + drawH - tH, drawW, tH);
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = '#E8501A';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy + drawH - tH);
+            ctx.lineTo(ox + drawW, oy + drawH - tH);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    }
+
+    // Plate-rektangel
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ox, oy, drawW, drawH);
+
+    // Stifter — skalér radius med antall
+    var pinR = Math.max(2, Math.min(5, Math.min(drawW, drawH) / (Math.max(data.cols, data.rows) * 6)));
+    ctx.fillStyle = '#E8501A';
+    for (var i = 0; i < data.pins.length; i++) {
+        var px = ox + data.pins[i].x * scale;
+        var py = oy + data.pins[i].y * scale;
+        ctx.beginPath();
+        ctx.arc(px, py, pinR, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = Math.max(0.5, pinR * 0.3);
+        ctx.stroke();
+    }
+
+    // Mål-annotasjoner
+    var aFont = Math.max(7, Math.min(10, Math.min(paddingLeft, paddingTop) * 0.22));
+    ctx.font = aFont + 'px Arial';
+    ctx.fillStyle = '#888';
+    ctx.textAlign = 'center';
+
+    if (data.pins.length > 0) {
+        var edX = data.edgeDistX || data.edgeDist;
+        var edY = data.edgeDistY || data.edgeDist;
+        var firstPinX = ox + edX * scale;
+        var firstPinY = oy + edY * scale;
+
+        // Venstre: kantavstand
+        _isoDrawDim(ctx, ox - 16, oy, ox - 16, firstPinY, Math.round(edY));
+        // Venstre: c/c vertikal
+        if (data.rows > 1 && data.spacingY > 0) {
+            var y2v = oy + (edY + data.spacingY) * scale;
+            _isoDrawDim(ctx, ox - 36, firstPinY, ox - 36, y2v, Math.round(data.spacingY));
+        }
+        // Topp: kantavstand
+        _isoDrawDim(ctx, ox, oy - 14, firstPinX, oy - 14, Math.round(edX));
+        // Topp: c/c horisontal
+        if (data.cols > 1 && data.spacingX > 0) {
+            var x2v = ox + (edX + data.spacingX) * scale;
+            _isoDrawDim(ctx, firstPinX, oy - 34, x2v, oy - 34, Math.round(data.spacingX));
+        }
+    }
+
+    // Dimensjoner — bunn og høyre
+    var dFont = Math.max(8, Math.min(11, paddingBottom * 0.4));
+    ctx.font = 'bold ' + dFont + 'px Arial';
+    ctx.textAlign = 'center';
+
+    if (thickness > 0) {
+        var steelWd = plateW - thickness;
+        var steelHd = plateH - thickness;
+        ctx.fillStyle = '#555';
+        ctx.fillText(plateW + ' mm', ox + drawW / 2, oy + drawH + dFont + 4);
+        ctx.fillStyle = '#E8501A';
+        ctx.fillText(steelWd + ' mm', ox + drawW / 2, oy + drawH + dFont * 2 + 6);
+        ctx.fillStyle = '#555';
+        ctx.save();
+        ctx.translate(ox + drawW + dFont * 2 + 6, oy + drawH / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillText(plateH + ' mm', 0, 0);
+        ctx.restore();
+        ctx.fillStyle = '#E8501A';
+        ctx.save();
+        ctx.translate(ox + drawW + dFont + 4, oy + drawH / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillText(steelHd + ' mm', 0, 0);
+        ctx.restore();
+        // Legend øverst til høyre i canvas
+        ctx.textAlign = 'right';
+        ctx.font = '9px Arial';
+        var lx = cw - 8;
+        var ly = 6;
+        ctx.fillStyle = '#555';
+        ctx.fillRect(lx - 36, ly, 6, 6);
+        ctx.fillText('Plate', lx, ly + 6);
+        ctx.fillStyle = '#E8501A';
+        ctx.fillRect(lx - 36, ly + 12, 6, 6);
+        ctx.fillText('Stål', lx, ly + 18);
+    } else {
+        ctx.fillStyle = '#555';
+        ctx.fillText(plateW + ' mm', ox + drawW / 2, oy + drawH + dFont + 4);
+        ctx.save();
+        ctx.translate(ox + drawW + dFont + 4, oy + drawH / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillText(plateH + ' mm', 0, 0);
+        ctx.restore();
+    }
+}
+
+function _isoDrawDim(ctx, x1, y1, x2, y2, val) {
+    ctx.beginPath();
+    ctx.strokeStyle = '#aaa';
+    ctx.lineWidth = 0.7;
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.stroke();
+    var isH = Math.abs(y1 - y2) < 2;
+    ctx.beginPath();
+    if (isH) {
+        ctx.moveTo(x1, y1 - 3); ctx.lineTo(x1, y1 + 3);
+        ctx.moveTo(x2, y2 - 3); ctx.lineTo(x2, y2 + 3);
+    } else {
+        ctx.moveTo(x1 - 3, y1); ctx.lineTo(x1 + 3, y1);
+        ctx.moveTo(x2 - 3, y2); ctx.lineTo(x2 + 3, y2);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#666';
+    var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    if (isH) {
+        ctx.fillText(val, mx, my - 3);
+    } else {
+        ctx.save();
+        ctx.translate(mx - 4, my);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(val, 0, 0);
+        ctx.restore();
+    }
+}
+
 
 // ===== Stoppeklokker (flere parallelle) =====
 var _SW_KEY = 'firesafe_stopwatches';

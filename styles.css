@@ -1068,7 +1068,8 @@ body.settings-modal-open #view-form {
 /* Modal views: fixed to viewport, internal scroll in modal-body */
 #template-modal.view.active,
 #saved-modal.view.active,
-#settings-modal.view.active {
+#settings-modal.view.active,
+#calculator-modal.view.active {
     position: fixed;
     top: 0;
     left: 0;
@@ -5399,6 +5400,89 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .calc-reset-btn {
     color: #999;
     border-color: #eee;
+}
+
+/* Isolering stift */
+.iso-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.iso-control-row {
+    display: flex;
+    gap: 8px;
+}
+.iso-select-group, .iso-input-group {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.iso-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.iso-controls select, .iso-controls input {
+    padding: 7px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #222;
+    background: #fff;
+    -webkit-appearance: none;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+.iso-controls select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+}
+.iso-controls input:focus, .iso-controls select:focus {
+    border-color: #E8501A;
+    outline: none;
+}
+#iso-stift-canvas {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    background: #fff;
+    box-sizing: border-box;
+}
+#calc-page-isostift {
+    overflow: hidden;
+}
+.iso-result {
+    margin-top: 4px;
+    padding: 6px 10px;
+    background: #f8f8f8;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #333;
+    line-height: 1.4;
+    text-align: center;
+}
+.iso-result b { color: #E8501A; }
+.iso-result-spec {
+    margin-top: 3px;
+    font-size: 10px;
+    color: #888;
+}
+.iso-result-empty {
+    text-align: center;
+    color: #999;
+    padding: 20px;
 }
 
 /* Stoppeklokke */

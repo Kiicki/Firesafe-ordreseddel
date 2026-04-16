@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=291">
+    <link rel="stylesheet" href="styles.css?v=302">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -914,6 +914,14 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
+                    <div class="calc-card" onclick="showCalcPage('isostift')">
+                        <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="1"/><circle cx="6" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="6" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg></div>
+                        <div class="calc-card-text">
+                            <div class="calc-card-title" data-i18n="calc_iso_title">Isolering stift</div>
+                            <div class="calc-card-desc" data-i18n="calc_iso_desc">Stift/skrue-plassering på plate</div>
+                        </div>
+                        <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
                     <div class="calc-card" onclick="showCalcPage('brannplate')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="1"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></div>
                         <div class="calc-card-text">
@@ -1024,6 +1032,54 @@
                     <div class="sw-empty" id="sw-empty" data-i18n="sw_empty">Ingen stoppeklokker. Trykk + for å starte en.</div>
                     <div class="sw-list" id="sw-list"></div>
                 </div>
+                <!-- Isolering stift page -->
+                <div class="calc-page" id="calc-page-isostift" style="display:none">
+                    <div class="iso-controls">
+                        <div class="iso-control-row">
+                            <div class="iso-select-group">
+                                <label class="iso-label" data-i18n="iso_profile">Profil</label>
+                                <select id="iso-profile" onchange="calcIsoStift()">
+                                    <option value="rhs">HUP (solid)</option>
+                                    <option value="iprofile">I/U-profil (åpen)</option>
+                                </select>
+                            </div>
+                            <div class="iso-select-group">
+                                <label class="iso-label" data-i18n="iso_method">Feste</label>
+                                <select id="iso-method" onchange="calcIsoStift()">
+                                    <option value="pins" data-i18n="iso_pins">Sveisepinner</option>
+                                    <option value="screws" data-i18n="iso_screws">Skruer</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="iso-control-row">
+                            <div class="iso-input-group">
+                                <label class="iso-label" data-i18n="iso_width">Bredde (mm)</label>
+                                <input type="number" id="iso-width" inputmode="numeric" placeholder="600" oninput="calcIsoStift()">
+                            </div>
+                            <div class="iso-input-group">
+                                <label class="iso-label" data-i18n="iso_height">Høyde (mm)</label>
+                                <input type="number" id="iso-height" inputmode="numeric" value="1200" oninput="calcIsoStift()">
+                            </div>
+                            <div class="iso-select-group">
+                                <label class="iso-label" data-i18n="iso_thickness">Tykkelse</label>
+                                <select id="iso-thickness" onchange="calcIsoStift()">
+                                    <option value="0">0 mm</option>
+                                    <option value="20" selected>20 mm</option>
+                                    <option value="25">25 mm</option>
+                                    <option value="30">30 mm</option>
+                                    <option value="35">35 mm</option>
+                                    <option value="40">40 mm</option>
+                                    <option value="50">50 mm</option>
+                                    <option value="60">60 mm</option>
+                                    <option value="70">70 mm</option>
+                                    <option value="80">80 mm</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="iso-stift-canvas" width="600" height="400"></canvas>
+                    <div class="iso-result" id="iso-stift-result"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1044,9 +1100,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=133"></script>
+    <script src="lang.js?v=140"></script>
     <script src="script.js?v=185"></script>
-    <script src="script-ui.js?v=255"></script>
+    <script src="script-ui.js?v=312"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
