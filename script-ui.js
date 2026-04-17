@@ -3802,7 +3802,7 @@ function _addCanvasFullWidth(pdf, canvas, pageWidth, pageHeight, imageType, qual
 }
 
 // Splitter høy canvas ved arbeidslinje-grenser og bygger én side om gangen.
-// Hver side: [topp-seksjon (logo + kundeinfo + tabell-header)] + [arbeidslinjer]
+// Hver side: [topp-seksjon] + ["Side X av Y"-banner] + [arbeidslinjer]
 // + [footer kun på siste side, trukket til bunn]. Alle sider har full A4-bredde
 // og identisk font-størrelse (samme skalering overalt).
 function _addPaginatedToPdf(pdf, canvas, pageWidth, pageHeight, type, mime, quality) {
@@ -3814,17 +3814,21 @@ function _addPaginatedToPdf(pdf, canvas, pageWidth, pageHeight, type, mime, qual
     var footerStart = layout.footerTopPx * scale;
     var footerHeight = Math.max(0, canvas.height - footerStart);
 
-    // Break-points: topp av hver arbeidslinje + sentinel (footer-start) som "slutt på siste linje"
+    // Side-indikator banner mellom topp-seksjon og arbeidslinjer
+    var bannerHeightHTML = 26;
+    var bannerHeight = bannerHeightHTML * scale;
+
+    // Break-points: topp av hver arbeidslinje + sentinel (footer-start)
     var breaks = layout.workLineTopsPx.map(function(y) { return y * scale; });
     breaks.push(footerStart);
 
     // Hvor mange canvas-piksler tilsvarer én PDF-sidehøyde?
     var pxPerMm = canvas.width / pageWidth;
     var pageHeightPx = pageHeight * pxPerMm;
-    var availableForLines = pageHeightPx - topSectionHeight;
+    var availableForLines = pageHeightPx - topSectionHeight - bannerHeight;
 
     if (availableForLines < 10 || breaks.length < 2) {
-        // Edge case — ikke nok plass eller ingen linjer. Fallback til uniform shrink.
+        // Edge case — fallback til uniform shrink
         var ih = pageHeight;
         var iw = canvas.width * ih / canvas.height;
         var x = (pageWidth - iw) / 2;
@@ -3840,13 +3844,11 @@ function _addPaginatedToPdf(pdf, canvas, pageWidth, pageHeight, type, mime, qual
         var pageStartY = breaks[cursor];
         var totalRemaining = breaks[breaks.length - 1] - pageStartY;
 
-        // Passer alle gjenværende linjer + footer på denne siden?
         if (totalRemaining + footerHeight <= availableForLines + 0.5) {
             pages.push({ startY: pageStartY, endY: breaks[breaks.length - 1], isLast: true });
             break;
         }
 
-        // Finn hvor mange linjer som får plass uten footer
         var bestIdx = cursor;
         for (var i = cursor + 1; i < breaks.length; i++) {
             if (breaks[i] - pageStartY <= availableForLines + 0.5) {
@@ -3855,13 +3857,16 @@ function _addPaginatedToPdf(pdf, canvas, pageWidth, pageHeight, type, mime, qual
                 break;
             }
         }
-        if (bestIdx === cursor) bestIdx = cursor + 1; // tving minst én linje hvis edge case
+        if (bestIdx === cursor) bestIdx = cursor + 1;
 
         pages.push({ startY: pageStartY, endY: breaks[bestIdx], isLast: false });
         cursor = bestIdx;
     }
 
-    // Tegn hver side
+    // Hent ordreseddel-nr for banner-teksten
+    var ordrenrEl = document.getElementById('ordreseddel-nr') || document.getElementById('mobile-ordreseddel-nr');
+    var ordrenr = ordrenrEl ? (ordrenrEl.value || '') : '';
+
     for (var p = 0; p < pages.length; p++) {
         var page = pages[p];
         if (p > 0) pdf.addPage();
@@ -3873,21 +3878,43 @@ function _addPaginatedToPdf(pdf, canvas, pageWidth, pageHeight, type, mime, qual
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
 
-        // 1. Topp-seksjon (repeteres på alle sider)
+        // 1. Topp-seksjon
         ctx.drawImage(canvas,
             0, 0, canvas.width, topSectionHeight,
             0, 0, canvas.width, topSectionHeight);
 
-        // 2. Arbeidslinjer-slice
+        // 2. "Side X av Y"-banner (alltid ved multi-side)
+        var bannerY = topSectionHeight;
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(0, bannerY, pageCanvas.width, bannerHeight);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = Math.max(1, scale);
+        ctx.beginPath();
+        ctx.moveTo(0, bannerY);
+        ctx.lineTo(pageCanvas.width, bannerY);
+        ctx.moveTo(0, bannerY + bannerHeight);
+        ctx.lineTo(pageCanvas.width, bannerY + bannerHeight);
+        ctx.stroke();
+        ctx.fillStyle = '#222';
+        ctx.font = 'bold ' + Math.round(13 * scale) + 'px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        var bannerText = 'Side ' + (p + 1) + ' av ' + pages.length;
+        if (ordrenr) bannerText += ' — Ordreseddel nr. ' + ordrenr;
+        if (!page.isLast) bannerText += ' (fortsetter)';
+        ctx.fillText(bannerText, pageCanvas.width / 2, bannerY + bannerHeight / 2);
+
+        // 3. Arbeidslinjer-slice (under banner)
+        var linesY = topSectionHeight + bannerHeight;
         var linesHeight = page.endY - page.startY;
         ctx.drawImage(canvas,
             0, page.startY, canvas.width, linesHeight,
-            0, topSectionHeight, canvas.width, linesHeight);
+            0, linesY, canvas.width, linesHeight);
 
-        // 3. Footer: kun siste side, trukket til bunnen av siden
+        // 4. Footer: kun siste side, trukket til bunn
         if (page.isLast && footerHeight > 0) {
             var footerYOnPage = pageCanvas.height - footerHeight;
-            var linesEnd = topSectionHeight + linesHeight;
+            var linesEnd = linesY + linesHeight;
             if (footerYOnPage < linesEnd) footerYOnPage = linesEnd;
             ctx.drawImage(canvas,
                 0, footerStart, canvas.width, footerHeight,
