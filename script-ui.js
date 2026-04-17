@@ -5557,6 +5557,16 @@ function showCalcPage(page) {
 
 // ===== Isolering stift-kalkulator =====
 
+function showProfileInfo() {
+    var m = document.getElementById('profile-info-modal');
+    if (m) m.classList.add('active');
+}
+function closeProfileInfo(e) {
+    if (e && e.target !== document.getElementById('profile-info-modal')) return;
+    var m = document.getElementById('profile-info-modal');
+    if (m) m.classList.remove('active');
+}
+
 function calcIsoStift() {
     var w = parseInt(document.getElementById('iso-width').value, 10) || 0;
     var h = parseInt(document.getElementById('iso-height').value, 10) || 0;
