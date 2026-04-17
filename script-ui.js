@@ -961,18 +961,26 @@ function filterList(listId, searchId) {
             if (!_savedFormsAll) _savedFormsAll = window.loadedForms ? window.loadedForms.slice() : [];
             if (!term) { var all = _savedFormsAll; _savedFormsAll = null; renderSavedFormsList(all, false, _savedHasMore || _sentHasMore); return; }
             var filtered = _savedFormsAll.filter(function(f) {
-                return (f.ordreseddelNr || '').toLowerCase().startsWith(term);
+                return (f.ordreseddelNr || '').toLowerCase().startsWith(term) ||
+                       (f.prosjektnr || '').toLowerCase().startsWith(term) ||
+                       (f.prosjektnavn || '').toLowerCase().startsWith(term);
             });
             renderSavedFormsList(filtered);
-            // Søk i Firestore etter ulastede skjemaer
+            // Søk i Firestore etter ulastede skjemaer (på alle tre felter)
             if ((_savedHasMore || _sentHasMore) && currentUser && db) {
                 var ver = ++_searchVersion;
-                firestoreSearchForms(rawTerm, [
+                var cols = [
                     { name: 'forms', isSent: false },
                     { name: 'archive', isSent: true }
-                ]).then(function(fsResults) {
+                ];
+                Promise.all([
+                    firestoreSearchForms(rawTerm, cols, 'ordreseddelNr'),
+                    firestoreSearchForms(rawTerm, cols, 'prosjektnr'),
+                    firestoreSearchForms(rawTerm, cols, 'prosjektnavn')
+                ]).then(function(all) {
                     if (ver !== _searchVersion) return;
-                    var merged = mergeSearchResults(filtered, fsResults);
+                    var combined = all[0].concat(all[1], all[2]);
+                    var merged = mergeSearchResults(filtered, combined);
                     if (merged.length > filtered.length) {
                         renderSavedFormsList(merged);
                     }

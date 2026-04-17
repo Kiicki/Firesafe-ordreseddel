@@ -131,7 +131,7 @@ const TRANSLATIONS = {
         // Hent modal
         modal_load_title: 'Skjemaer',
         tab_own: 'Ordreseddel',
-        search_placeholder: 'Søk ordrenummer...',
+        search_placeholder: 'Søk ordre-/prosjektnr eller prosjektnavn...',
         search_template_placeholder: 'Søk ordreseddel-mal...',
         loading: 'Laster...',
         no_saved_forms: 'Ingen lagrede skjemaer',
@@ -545,7 +545,7 @@ const TRANSLATIONS = {
         // Hent modal
         modal_load_title: 'Forms',
         tab_own: 'Order form',
-        search_placeholder: 'Search order number...',
+        search_placeholder: 'Search order/project no. or project name...',
         search_template_placeholder: 'Search order form template...',
         loading: 'Loading...',
         no_saved_forms: 'No saved forms',
