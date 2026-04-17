@@ -3675,9 +3675,7 @@ async function doExportPDF(markSent) {
     loading.classList.add('active');
     try {
         const canvas = await renderFormToCanvas();
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        _addCanvasFullWidth(pdf, canvas, 210, 297, 'PNG');
+        const pdf = _createPdfFromCanvas(canvas, 210, 297, 'PNG');
         pdf.save(getExportFilename('pdf'));
         if (markSent) markCurrentFormAsSent();
     } catch (error) {
@@ -3711,9 +3709,7 @@ async function doSharePDF() {
     loading.classList.add('active');
     try {
         var canvas = await renderFormToCanvas();
-        var jsPDF = window.jspdf.jsPDF;
-        var pdf = new jsPDF('p', 'mm', 'a4');
-        _addCanvasFullWidth(pdf, canvas, 210, 297, 'PNG');
+        var pdf = _createPdfFromCanvas(canvas, 210, 297, 'PNG');
         var blob = pdf.output('blob');
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         await navigator.share({ files: [file] });
@@ -3747,26 +3743,35 @@ async function doSharePNG() {
 // ============================================
 // Tvinger #view-form synlig under rendering (nødvendig for html2canvas når vi er i saved-modal).
 // Returnerer en restore-funksjon.
-// Tegner canvas inn i PDF på én side med full sidebredde. Skjemaet er allerede
-// auto-shrinket i renderFormToCanvas hvis det var for høyt, så i 99% av tilfellene
-// passer bildet naturlig på én A4-side med full bredde. Safety-fallback uniformt
-// krymp hvis noe uventet gir oversized canvas.
-function _addCanvasFullWidth(pdf, canvas, pageWidth, pageHeight, imageType, quality) {
+// Beregner custom PDF-sidehøyde basert på canvas-aspect og fast sidebredde.
+// Minimum-høyde = standard A4-proporsjon for gitt bredde, slik at korte skjemaer
+// beholder vanlig A4-utseende. Lange skjemaer får lengre side (vertikalt), slik
+// at bredden alltid forblir konsistent (210mm portrait / 297mm landscape).
+function _customPageHeight(canvas, pageWidth, minHeight) {
+    var natural = canvas.height * pageWidth / canvas.width;
+    return Math.max(minHeight, natural);
+}
+
+// Lager en ny PDF med custom sidestørrelse som matcher canvas-aspect.
+function _createPdfFromCanvas(canvas, pageWidth, minHeight, imageType, quality) {
+    var jsPDF = window.jspdf.jsPDF;
     var type = imageType || 'PNG';
     var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
+    var customHeight = _customPageHeight(canvas, pageWidth, minHeight);
+    var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageWidth, customHeight] });
     var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
+    pdf.addImage(dataUrl, type, 0, 0, pageWidth, customHeight);
+    return pdf;
+}
 
-    var imgWidth = pageWidth;
-    var imgHeight = canvas.height * imgWidth / canvas.width;
-
-    // Safety: hvis auto-shrink ikke tok effekt (edge case) → uniform krymp til én side
-    if (imgHeight > pageHeight + 0.5) {
-        imgHeight = pageHeight;
-        imgWidth = canvas.width * imgHeight / canvas.height;
-    }
-
-    var x = (pageWidth - imgWidth) / 2;
-    pdf.addImage(dataUrl, type, x, 0, imgWidth, imgHeight);
+// Legger til en ny side med custom størrelse på eksisterende PDF, og tegner canvas.
+function _addPageFromCanvas(pdf, canvas, pageWidth, minHeight, imageType, quality) {
+    var type = imageType || 'PNG';
+    var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
+    var customHeight = _customPageHeight(canvas, pageWidth, minHeight);
+    pdf.addPage([pageWidth, customHeight], 'p');
+    var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
+    pdf.addImage(dataUrl, type, 0, 0, pageWidth, customHeight);
 }
 
 // Bytter midlertidig aktiv view til target-view og fjerner body-klasser som skjuler target,
@@ -3807,8 +3812,7 @@ async function _bulkBuildOwnPDF() {
     var prevSnapshot = null;
     try { prevSnapshot = getFormDataSnapshot(); } catch (e) {}
     var restoreView = _forceViewVisible('view-form');
-    var jsPDF = window.jspdf.jsPDF;
-    var pdf = new jsPDF('p', 'mm', 'a4');
+    var pdf = null;
     try {
         for (var i = 0; i < forms.length; i++) {
             setFormData(forms[i]);
@@ -3821,9 +3825,12 @@ async function _bulkBuildOwnPDF() {
                 var fccs = fc ? getComputedStyle(fc) : {};
                 throw new Error('Tom canvas skjema ' + (i+1) + ' [vf.display=' + (vfcs.display||'?') + ' vf.active=' + (vf?vf.classList.contains('active'):'?') + ' fc.w=' + (fc?fc.offsetWidth:'?') + ' fc.h=' + (fc?fc.offsetHeight:'?') + ' body=' + document.body.className + ']');
             }
-            if (i > 0) pdf.addPage();
-            // JPEG er mer robust enn PNG i jsPDF for multi-page bulk (PNG-parser feiler av og til)
-            _addCanvasFullWidth(pdf, canvas, 210, 297, 'JPEG', 0.95);
+            // JPEG er mer robust enn PNG i jsPDF for multi-page bulk
+            if (i === 0) {
+                pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
+            } else {
+                _addPageFromCanvas(pdf, canvas, 210, 297, 'JPEG', 0.95);
+            }
         }
     } finally {
         restoreView();
@@ -3852,16 +3859,18 @@ async function _bulkBuildServicePDF() {
     var forms = _getSelectedForms();
     if (!forms.length) return null;
     var restoreView = _forceViewVisible('service-view');
-    var jsPDF = window.jspdf.jsPDF;
-    var pdf = new jsPDF('l', 'mm', 'a4');
+    var pdf = null;
     try {
         for (var i = 0; i < forms.length; i++) {
             var canvas = await _renderServiceCanvasFromData(forms[i]);
             if (!canvas || !canvas.width || !canvas.height) {
                 throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
             }
-            if (i > 0) pdf.addPage();
-            _addCanvasFullWidth(pdf, canvas, 297, 210, 'JPEG', 0.95);
+            if (i === 0) {
+                pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+            } else {
+                _addPageFromCanvas(pdf, canvas, 297, 210, 'JPEG', 0.95);
+            }
         }
     } finally {
         restoreView();
@@ -3893,7 +3902,6 @@ async function _bulkBuildOwnPDFsSeparate() {
     var restoreView = _forceViewVisible('view-form');
     var files = [];
     try {
-        var jsPDF = window.jspdf.jsPDF;
         for (var i = 0; i < forms.length; i++) {
             setFormData(forms[i]);
             await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
@@ -3901,8 +3909,7 @@ async function _bulkBuildOwnPDFsSeparate() {
             if (!canvas || !canvas.width || !canvas.height) {
                 throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
             }
-            var pdf = new jsPDF('p', 'mm', 'a4');
-            _addCanvasFullWidth(pdf, canvas, 210, 297, 'JPEG', 0.95);
+            var pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
             var blob = pdf.output('blob');
             files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
         }
@@ -3921,14 +3928,12 @@ async function _bulkBuildServicePDFsSeparate() {
     var restoreView = _forceViewVisible('service-view');
     var files = [];
     try {
-        var jsPDF = window.jspdf.jsPDF;
         for (var i = 0; i < forms.length; i++) {
             var canvas = await _renderServiceCanvasFromData(forms[i]);
             if (!canvas || !canvas.width || !canvas.height) {
                 throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
             }
-            var pdf = new jsPDF('l', 'mm', 'a4');
-            _addCanvasFullWidth(pdf, canvas, 297, 210, 'JPEG', 0.95);
+            var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
             var blob = pdf.output('blob');
             files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
         }
@@ -4979,9 +4984,7 @@ async function doServiceExportPDF(markSent) {
     loading.classList.add('active');
     try {
         var canvas = await renderServiceToCanvas();
-        var jsPDF = window.jspdf.jsPDF;
-        var pdf = new jsPDF('l', 'mm', 'a4'); // landscape
-        _addCanvasFullWidth(pdf, canvas, 297, 210, 'PNG');
+        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'PNG');
         pdf.save(getServiceExportFilename('pdf'));
         if (markSent) markServiceAsSent();
     } catch(error) {
@@ -5015,9 +5018,7 @@ async function doServiceSharePDF() {
     loading.classList.add('active');
     try {
         var canvas = await renderServiceToCanvas();
-        var jsPDF = window.jspdf.jsPDF;
-        var pdf = new jsPDF('l', 'mm', 'a4');
-        _addCanvasFullWidth(pdf, canvas, 297, 210, 'PNG');
+        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'PNG');
         var blob = pdf.output('blob');
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
         await navigator.share({ files: [file] });
