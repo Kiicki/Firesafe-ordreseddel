@@ -3747,33 +3747,24 @@ async function doSharePNG() {
 // ============================================
 // Tvinger #view-form synlig under rendering (nødvendig for html2canvas når vi er i saved-modal).
 // Returnerer en restore-funksjon.
-// Tegner canvas inn i PDF med full sidebredde. Splitter automatisk over flere sider
-// hvis innholdet er høyere enn sidehøyden — slik at bredden forblir konsistent
-// mellom skjemaer uavhengig av innholds-mengde.
+// Tegner canvas inn i PDF på én side. Bruker full sidebredde så sant innholdet
+// passer; hvis skjemaet er for høyt, skaleres det uniformt ned (bredden krymper
+// proporsjonalt) slik at alt passer én side uten splitt eller distorsjon.
 function _addCanvasFullWidth(pdf, canvas, pageWidth, pageHeight, imageType, quality) {
     var type = imageType || 'PNG';
     var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
     var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
+
     var imgWidth = pageWidth;
     var imgHeight = canvas.height * imgWidth / canvas.width;
 
-    if (imgHeight <= pageHeight + 0.5) {
-        pdf.addImage(dataUrl, type, 0, 0, imgWidth, imgHeight);
-        return;
+    if (imgHeight > pageHeight) {
+        imgHeight = pageHeight;
+        imgWidth = canvas.width * imgHeight / canvas.height;
     }
 
-    // Multi-side: tegn samme bilde med negativ Y-offset på hver side.
-    // Deler av bildet utenfor side-området klippes av PDF-rendereren.
-    var y = 0;
-    var remaining = imgHeight;
-    var first = true;
-    while (remaining > 0.5) {
-        if (!first) pdf.addPage();
-        pdf.addImage(dataUrl, type, 0, y, imgWidth, imgHeight);
-        remaining -= pageHeight;
-        y -= pageHeight;
-        first = false;
-    }
+    var x = (pageWidth - imgWidth) / 2;
+    pdf.addImage(dataUrl, type, x, 0, imgWidth, imgHeight);
 }
 
 // Bytter midlertidig aktiv view til target-view og fjerner body-klasser som skjuler target,
