@@ -3611,11 +3611,9 @@ async function renderFormToCanvas() {
     const originalPosition = element.style.position;
     const originalLeft = element.style.left;
     const originalWidth = element.style.width;
-    const originalZoom = element.style.zoom;
 
     element.style.display = 'block';
     element.style.width = '800px';
-    element.style.zoom = '';
     element.style.visibility = 'hidden';
     element.style.position = 'fixed';
     element.style.top = '0';
@@ -3640,19 +3638,6 @@ async function renderFormToCanvas() {
     element.style.left = '-9999px';
     element.style.top = '';
 
-    // Auto-shrink: hvis skjemaet er høyere enn A4-proporsjon ved 800px bredde,
-    // zoom ned slik at alt passer én side med full bredde. Gir konsistent bredde
-    // og proporsjon på tvers av skjemaer i samlet PDF.
-    const TARGET_HEIGHT = Math.round(800 * 297 / 210); // 1131px = A4-proporsjon
-    const naturalHeight = element.offsetHeight;
-    if (naturalHeight > TARGET_HEIGHT) {
-        const zoom = TARGET_HEIGHT / naturalHeight;
-        element.style.zoom = zoom.toString();
-        await new Promise(resolve => requestAnimationFrame(() => {
-            requestAnimationFrame(resolve);
-        }));
-    }
-
     const canvas = await html2canvas(element, {
         scale: 3,
         useCORS: true,
@@ -3664,7 +3649,6 @@ async function renderFormToCanvas() {
     disabledFields.forEach(el => el.disabled = true);
     restoreTextareas(convertedElements);
 
-    element.style.zoom = originalZoom;
     element.style.display = originalDisplay;
     element.style.position = originalPosition;
     element.style.left = originalLeft;
