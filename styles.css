@@ -5931,6 +5931,12 @@ body.bulk-select-active .toolbar {
     background: #eee;
     color: #333;
 }
+.bulk-buttons .bulk-select-all {
+    background: #fff;
+    color: #E8501A;
+    border: 1.5px solid #E8501A;
+    padding: 6.5px 14px;
+}
 .bulk-buttons button:disabled {
     opacity: 0.4;
     cursor: default;

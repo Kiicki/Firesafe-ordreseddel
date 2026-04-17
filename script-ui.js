@@ -178,6 +178,15 @@ function renderSavedFormsList(forms, append, hasMore) {
     if (hasMore) {
         listEl.insertAdjacentHTML('beforeend', '<button class="load-more-btn" onclick="loadMoreSavedForms()">' + t('load_more') + '</button>');
     }
+
+    // Hold markerte rader og "Velg alle"-knapp i synk etter re-rendering
+    if (_selectMode) {
+        listEl.querySelectorAll('.saved-item').forEach(function(el) {
+            var idx = parseInt(el.getAttribute('data-index'), 10);
+            if (!isNaN(idx) && _selectedSet.has(idx)) el.classList.add('selected');
+        });
+        updateSelectionUI();
+    }
 }
 
 async function loadMoreSavedForms() {
@@ -3541,6 +3550,41 @@ function updateSelectionUI() {
     if (countEl) countEl.textContent = count + ' ' + t('bulk_count_suffix');
     var exportBtn = document.getElementById('bulk-export-btn');
     if (exportBtn) exportBtn.disabled = count === 0;
+
+    var selectAllBtn = document.getElementById('bulk-select-all-btn');
+    if (selectAllBtn) {
+        var listId = _selectTab === 'service' ? 'service-list' : 'saved-list';
+        var items = document.querySelectorAll('#' + listId + ' .saved-item');
+        var allSelected = items.length > 0 && Array.prototype.every.call(items, function(el) {
+            var idx = parseInt(el.getAttribute('data-index'), 10);
+            return !isNaN(idx) && _selectedSet.has(idx);
+        });
+        selectAllBtn.textContent = allSelected ? t('btn_deselect_all') : t('btn_select_all');
+        selectAllBtn.disabled = items.length === 0;
+    }
+}
+
+function toggleSelectAllVisible() {
+    if (!_selectMode) return;
+    var listId = _selectTab === 'service' ? 'service-list' : 'saved-list';
+    var items = document.querySelectorAll('#' + listId + ' .saved-item');
+    if (items.length === 0) return;
+    var allSelected = Array.prototype.every.call(items, function(el) {
+        var idx = parseInt(el.getAttribute('data-index'), 10);
+        return !isNaN(idx) && _selectedSet.has(idx);
+    });
+    items.forEach(function(el) {
+        var idx = parseInt(el.getAttribute('data-index'), 10);
+        if (isNaN(idx)) return;
+        if (allSelected) {
+            _selectedSet.delete(idx);
+            el.classList.remove('selected');
+        } else {
+            _selectedSet.add(idx);
+            el.classList.add('selected');
+        }
+    });
+    updateSelectionUI();
 }
 
 function _getSelectedForms() {
@@ -4477,6 +4521,14 @@ function renderServiceFormsList(forms) {
     listEl.querySelectorAll('.saved-item').forEach(function(el, i) {
         el._formData = window.loadedServiceForms[i];
     });
+
+    if (_selectMode) {
+        listEl.querySelectorAll('.saved-item').forEach(function(el) {
+            var idx = parseInt(el.getAttribute('data-index'), 10);
+            if (!isNaN(idx) && _selectedSet.has(idx)) el.classList.add('selected');
+        });
+        updateSelectionUI();
+    }
 }
 
 function loadServiceFormDirect(formData) {
