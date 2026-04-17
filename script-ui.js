@@ -3638,12 +3638,33 @@ async function renderFormToCanvas() {
     element.style.left = '-9999px';
     element.style.top = '';
 
+    // Mål DOM-posisjoner for profesjonell multi-side paginering.
+    // topSectionEndPx = hvor work-lines starter (header + kundeinfo + tabell-header stopper)
+    // footerTopPx = hvor signatur-seksjon starter
+    // workLineTopsPx = topp-offset for hver arbeidslinje (break-points)
+    var formRect = element.getBoundingClientRect();
+    var formTop = formRect.top;
+    var workLinesEl = document.getElementById('work-lines');
+    var footerRowEl = element.querySelector('.footer-row');
+    var topSectionEndPx = workLinesEl ? (workLinesEl.getBoundingClientRect().top - formTop) : 0;
+    var footerTopPx = footerRowEl ? (footerRowEl.getBoundingClientRect().top - formTop) : formRect.height;
+    var workLineEls = workLinesEl ? Array.prototype.slice.call(workLinesEl.querySelectorAll('.work-line')) : [];
+    var workLineTopsPx = workLineEls.map(function(el) { return el.getBoundingClientRect().top - formTop; });
+
     const canvas = await html2canvas(element, {
         scale: 3,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff'
     });
+
+    // Fest layout-info til canvas så PDF-pagineringen kan bruke den
+    canvas._layout = {
+        scale: 3,
+        topSectionEndPx: topSectionEndPx,
+        footerTopPx: footerTopPx,
+        workLineTopsPx: workLineTopsPx
+    };
 
     // Gjenopprett disabled-tilstand
     disabledFields.forEach(el => el.disabled = true);
@@ -3747,24 +3768,135 @@ async function doSharePNG() {
 // ============================================
 // Tvinger #view-form synlig under rendering (nødvendig for html2canvas når vi er i saved-modal).
 // Returnerer en restore-funksjon.
-// Tegner canvas inn i PDF på én side. Bruker full sidebredde så sant innholdet
-// passer; hvis skjemaet er for høyt, skaleres det uniformt ned (bredden krymper
-// proporsjonalt) slik at alt passer én side uten splitt eller distorsjon.
+// Tegner canvas inn i PDF med konsistent full bredde og font-størrelse på tvers av
+// skjemaer. Hvis skjemaet passer én side: tegn full bredde. Hvis det er for høyt:
+// splitt ved arbeidslinje-grenser og tegn flere sider — header/kundeinfo repeteres
+// øverst på hver side, footer (signatur) vises kun på siste side. Dette gir
+// profesjonell paginering uten forvrengning eller inkonsistent bredde.
 function _addCanvasFullWidth(pdf, canvas, pageWidth, pageHeight, imageType, quality) {
     var type = imageType || 'PNG';
     var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
-    var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
 
     var imgWidth = pageWidth;
     var imgHeight = canvas.height * imgWidth / canvas.width;
 
-    if (imgHeight > pageHeight) {
-        imgHeight = pageHeight;
-        imgWidth = canvas.width * imgHeight / canvas.height;
+    if (imgHeight <= pageHeight + 0.5) {
+        // Passer én side — full bredde, naturlig høyde
+        var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
+        pdf.addImage(dataUrl, type, 0, 0, imgWidth, imgHeight);
+        return;
     }
 
+    if (canvas._layout) {
+        // Profesjonell paginering — krever DOM-målinger fra renderFormToCanvas
+        _addPaginatedToPdf(pdf, canvas, pageWidth, pageHeight, type, mime, quality);
+        return;
+    }
+
+    // Fallback (f.eks. service-view uten _layout): uniform shrink til én side
+    imgHeight = pageHeight;
+    imgWidth = canvas.width * imgHeight / canvas.height;
     var x = (pageWidth - imgWidth) / 2;
-    pdf.addImage(dataUrl, type, x, 0, imgWidth, imgHeight);
+    var dataUrl2 = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
+    pdf.addImage(dataUrl2, type, x, 0, imgWidth, imgHeight);
+}
+
+// Splitter høy canvas ved arbeidslinje-grenser og bygger én side om gangen.
+// Hver side: [topp-seksjon (logo + kundeinfo + tabell-header)] + [arbeidslinjer]
+// + [footer kun på siste side, trukket til bunn]. Alle sider har full A4-bredde
+// og identisk font-størrelse (samme skalering overalt).
+function _addPaginatedToPdf(pdf, canvas, pageWidth, pageHeight, type, mime, quality) {
+    var layout = canvas._layout;
+    var scale = layout.scale || 3;
+
+    // Konverter HTML-px til canvas-px
+    var topSectionHeight = layout.topSectionEndPx * scale;
+    var footerStart = layout.footerTopPx * scale;
+    var footerHeight = Math.max(0, canvas.height - footerStart);
+
+    // Break-points: topp av hver arbeidslinje + sentinel (footer-start) som "slutt på siste linje"
+    var breaks = layout.workLineTopsPx.map(function(y) { return y * scale; });
+    breaks.push(footerStart);
+
+    // Hvor mange canvas-piksler tilsvarer én PDF-sidehøyde?
+    var pxPerMm = canvas.width / pageWidth;
+    var pageHeightPx = pageHeight * pxPerMm;
+    var availableForLines = pageHeightPx - topSectionHeight;
+
+    if (availableForLines < 10 || breaks.length < 2) {
+        // Edge case — ikke nok plass eller ingen linjer. Fallback til uniform shrink.
+        var ih = pageHeight;
+        var iw = canvas.width * ih / canvas.height;
+        var x = (pageWidth - iw) / 2;
+        var durl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
+        pdf.addImage(durl, type, x, 0, iw, ih);
+        return;
+    }
+
+    // Bestem side-inndeling
+    var pages = [];
+    var cursor = 0;
+    while (cursor < breaks.length - 1) {
+        var pageStartY = breaks[cursor];
+        var totalRemaining = breaks[breaks.length - 1] - pageStartY;
+
+        // Passer alle gjenværende linjer + footer på denne siden?
+        if (totalRemaining + footerHeight <= availableForLines + 0.5) {
+            pages.push({ startY: pageStartY, endY: breaks[breaks.length - 1], isLast: true });
+            break;
+        }
+
+        // Finn hvor mange linjer som får plass uten footer
+        var bestIdx = cursor;
+        for (var i = cursor + 1; i < breaks.length; i++) {
+            if (breaks[i] - pageStartY <= availableForLines + 0.5) {
+                bestIdx = i;
+            } else {
+                break;
+            }
+        }
+        if (bestIdx === cursor) bestIdx = cursor + 1; // tving minst én linje hvis edge case
+
+        pages.push({ startY: pageStartY, endY: breaks[bestIdx], isLast: false });
+        cursor = bestIdx;
+    }
+
+    // Tegn hver side
+    for (var p = 0; p < pages.length; p++) {
+        var page = pages[p];
+        if (p > 0) pdf.addPage();
+
+        var pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = Math.ceil(pageHeightPx);
+        var ctx = pageCanvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+
+        // 1. Topp-seksjon (repeteres på alle sider)
+        ctx.drawImage(canvas,
+            0, 0, canvas.width, topSectionHeight,
+            0, 0, canvas.width, topSectionHeight);
+
+        // 2. Arbeidslinjer-slice
+        var linesHeight = page.endY - page.startY;
+        ctx.drawImage(canvas,
+            0, page.startY, canvas.width, linesHeight,
+            0, topSectionHeight, canvas.width, linesHeight);
+
+        // 3. Footer: kun siste side, trukket til bunnen av siden
+        if (page.isLast && footerHeight > 0) {
+            var footerYOnPage = pageCanvas.height - footerHeight;
+            var linesEnd = topSectionHeight + linesHeight;
+            if (footerYOnPage < linesEnd) footerYOnPage = linesEnd;
+            ctx.drawImage(canvas,
+                0, footerStart, canvas.width, footerHeight,
+                0, footerYOnPage, canvas.width, footerHeight);
+        }
+
+        var pageDataUrl = (quality != null) ? pageCanvas.toDataURL(mime, quality) : pageCanvas.toDataURL(mime);
+        pdf.addImage(pageDataUrl, type, 0, 0, pageWidth, pageHeight);
+    }
 }
 
 // Bytter midlertidig aktiv view til target-view og fjerner body-klasser som skjuler target,
