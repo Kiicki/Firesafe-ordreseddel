@@ -241,6 +241,14 @@ function _showSavedFormsDirectly(tab) {
         window.location.hash = 'hent';
     }
 
+    // Nullstill søkefelt hver gang Skjemaer åpnes
+    var savedSearch = document.getElementById('saved-search');
+    if (savedSearch) savedSearch.value = '';
+    var serviceSearch = document.getElementById('service-search');
+    if (serviceSearch) serviceSearch.value = '';
+    updateSearchClearBtn('saved-search');
+    updateSearchClearBtn('service-search');
+
     // Show cached data immediately
     const cachedSaved = safeParseJSON(STORAGE_KEY, []);
     const cachedSent = safeParseJSON(ARCHIVE_KEY, []);
@@ -344,6 +352,20 @@ function loadForm(index) {
 function loadFormDirect(formData) {
     if (!formData) return;
     setFormData(formData);
+
+    // Overskriv signering-dato til dagens dato kun for LAGREDE utkast (ikke sendte).
+    // Sendte skjemaer beholder sin historiske dato — det er datoen kunden mottok
+    // skjemaet, og bør ikke endres ved gjenåpning. Ved ny eksport oppdateres den
+    // uansett til dagens dato i renderFormToCanvas.
+    var flags = getAutofillFlags();
+    if (flags && flags.dato && !formData._isSent) {
+        var today = formatDate(new Date());
+        var sd = document.getElementById('signering-dato');
+        var msd = document.getElementById('mobile-signering-dato');
+        if (sd) sd.value = today;
+        if (msd) msd.value = today;
+    }
+
     updateFormTypeChip();
     lastSavedData = getFormDataSnapshot();
     const isSent = !!formData._isSent;
@@ -467,6 +489,10 @@ function closeModal() {
     document.body.classList.remove('saved-modal-open');
     updateToolbarState();
     document.getElementById('saved-search').value = '';
+    var serviceSearch = document.getElementById('service-search');
+    if (serviceSearch) serviceSearch.value = '';
+    updateSearchClearBtn('saved-search');
+    updateSearchClearBtn('service-search');
     // Reset to own tab
     switchHentTab('own');
     sessionStorage.removeItem('firesafe_hent_tab');
@@ -1036,6 +1062,22 @@ function filterList(listId, searchId) {
             renderServiceFormsList(filtered4);
         }
     }, 150);
+}
+
+function updateSearchClearBtn(inputId) {
+    var input = document.getElementById(inputId);
+    var btn = document.getElementById(inputId + '-clear');
+    if (!input || !btn) return;
+    btn.classList.toggle('visible', !!input.value);
+}
+
+function clearSearchInput(inputId, listId) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    input.value = '';
+    updateSearchClearBtn(inputId);
+    filterList(listId, inputId);
+    input.focus();
 }
 
 function moveCurrentToSaved() {
@@ -3604,6 +3646,17 @@ function _getSelectedForms() {
 
 // Felles canvas-rendering for eksport/deling
 async function renderFormToCanvas() {
+    // Sikre at signering-dato alltid er dagens dato ved eksport.
+    // Respekterer autofyll-flagget — hvis bruker har skrudd av, beholdes verdien.
+    var _flags = getAutofillFlags();
+    if (_flags && _flags.dato) {
+        var _today = formatDate(new Date());
+        var _sd = document.getElementById('signering-dato');
+        var _msd = document.getElementById('mobile-signering-dato');
+        if (_sd) _sd.value = _today;
+        if (_msd) _msd.value = _today;
+    }
+
     syncMobileToOriginal();
 
     const element = document.getElementById('form-container');
@@ -3665,8 +3718,17 @@ async function renderFormToCanvas() {
 
 function getExportFilename(ext) {
     const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value || 'ukjent';
-    const dato = document.getElementById('dato').value.replace(/\./g, '-') || formatDate(new Date()).replace(/\./g, '-');
-    return `ordreseddel_${ordrenr}_${dato}.${ext}`;
+    // Bruk uke fra #dato-feltet (inneholder "Uke 16") eller fallback til dagens uke
+    const datoVal = document.getElementById('dato').value || '';
+    const year = new Date().getFullYear();
+    let uke;
+    const match = datoVal.match(/(\d+)/);
+    if (match) {
+        const n = parseInt(match[1], 10);
+        if (n >= 1 && n <= 53) uke = n;
+    }
+    if (!uke) uke = getWeekNumber(new Date());
+    return `ordreseddel_${ordrenr}_Uke-${uke}-${year}.${ext}`;
 }
 
 async function doExportPDF(markSent) {
@@ -3878,19 +3940,58 @@ async function _bulkBuildServicePDF() {
     return pdf;
 }
 
-function _bulkFilename(ext) {
-    var d = formatDate(new Date()).replace(/\./g, '-');
-    return 'firesafe_bulk_' + d + '.' + (ext || 'pdf');
+// Dagens uke + år, f.eks. "Uke-16-2026"
+function _currentUkeYear() {
+    var now = new Date();
+    return 'Uke-' + getWeekNumber(now) + '-' + now.getFullYear();
 }
 
-function _pngFilenameForForm(data, fallbackIdx) {
-    var nr = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
-    return 'ordreseddel_' + nr + '.png';
+// Uke + år fra lagret skjema-data. Service-skjema bruker data.uke,
+// ordreseddel bruker data.dato (som er tekstfelt f.eks. "Uke 16").
+// Bruker savedAt for å bestemme år hvis tilgjengelig.
+function _ukeYearForForm(data) {
+    var year;
+    if (data && data.savedAt) {
+        var d = new Date(data.savedAt);
+        if (!isNaN(d.getTime())) year = d.getFullYear();
+    }
+    if (!year) year = new Date().getFullYear();
+
+    var uke;
+    var source = (data && data.uke) || (data && data.dato) || '';
+    var match = String(source).match(/(\d+)/);
+    if (match) {
+        var n = parseInt(match[1], 10);
+        if (n >= 1 && n <= 53) uke = n;
+    }
+    if (!uke) uke = getWeekNumber(new Date());
+
+    return 'Uke-' + uke + '-' + year;
 }
 
-function _pdfFilenameForForm(data, fallbackIdx) {
+function _bulkFilename(ext, type) {
+    var prefix = (type === 'service') ? 'lageruttak_samlet' : 'ordreseddel_samlet';
+    return prefix + '_' + _currentUkeYear() + '.' + (ext || 'pdf');
+}
+
+function _pngFilenameForForm(data, fallbackIdx, isService) {
+    var uke = _ukeYearForForm(data);
+    if (isService) {
+        var suffix = fallbackIdx > 0 ? '_' + (fallbackIdx + 1) : '';
+        return 'lageruttak_' + uke + suffix + '.png';
+    }
     var nr = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
-    return 'ordreseddel_' + nr + '.pdf';
+    return 'ordreseddel_' + nr + '_' + uke + '.png';
+}
+
+function _pdfFilenameForForm(data, fallbackIdx, isService) {
+    var uke = _ukeYearForForm(data);
+    if (isService) {
+        var suffix = fallbackIdx > 0 ? '_' + (fallbackIdx + 1) : '';
+        return 'lageruttak_' + uke + suffix + '.pdf';
+    }
+    var nr = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
+    return 'ordreseddel_' + nr + '_' + uke + '.pdf';
 }
 
 // Render alle valgte til separate PDF-filer (én per skjema)
@@ -3935,7 +4036,7 @@ async function _bulkBuildServicePDFsSeparate() {
             }
             var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
             var blob = pdf.output('blob');
-            files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
+            files.push(new File([blob], _pdfFilenameForForm(forms[i], i, true), { type: 'application/pdf' }));
         }
     } finally {
         restoreView();
@@ -3977,7 +4078,7 @@ async function _bulkBuildServicePNGs() {
         for (var i = 0; i < forms.length; i++) {
             var canvas = await _renderServiceCanvasFromData(forms[i]);
             var blob = await new Promise(function(res) { canvas.toBlob(res, 'image/png'); });
-            files.push(new File([blob], _pngFilenameForForm(forms[i], i), { type: 'image/png' }));
+            files.push(new File([blob], _pngFilenameForForm(forms[i], i, true), { type: 'image/png' }));
         }
     } finally {
         restoreView();
@@ -4158,7 +4259,7 @@ async function doBulkExportPDF(markSent) {
     loading.classList.add('active');
     try {
         var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : await _bulkBuildOwnPDF();
-        if (pdf) pdf.save(_bulkFilename('pdf'));
+        if (pdf) pdf.save(_bulkFilename('pdf', _selectTab));
         await _bulkFinishAfterExport(markSent);
     } catch (e) {
         showNotificationModal(t('export_pdf_error') + e.message);
@@ -4205,7 +4306,7 @@ async function doBulkSharePDF(markSent) {
         var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : await _bulkBuildOwnPDF();
         if (!pdf) return;
         var blob = pdf.output('blob');
-        var file = new File([blob], _bulkFilename('pdf'), { type: 'application/pdf' });
+        var file = new File([blob], _bulkFilename('pdf', _selectTab), { type: 'application/pdf' });
         if (!navigator.canShare({ files: [file] })) {
             showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
             return;
@@ -4307,6 +4408,10 @@ function openNewServiceForm() {
     // Reset service form and autofill from service defaults
     var serviceDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
     document.getElementById('service-montor').value = serviceDefaults.montor || '';
+    var ukeField = document.getElementById('service-uke');
+    if (ukeField) {
+        ukeField.value = (serviceDefaults.autofill_uke !== false) ? String(getWeekNumber(new Date())) : '';
+    }
     document.getElementById('service-signatur').value = '';
     window._serviceSignaturePaths = [];
     _serviceCurrentId = null;
@@ -4471,21 +4576,22 @@ function loadServiceTab() {
 }
 
 function _buildServiceItemHtml(item, index) {
-    // Build title from first entry: "Uke X • prosjektnr | prosjektnavn" or fallback to dato
-    var entry = item.entries && item.entries[0] ? item.entries[0] : {};
-    var entryDato = entry.dato || '';
+    // Build title: prefer top-level uke-felt (new), fallback til å utlede fra første entry-dato (gamle skjema)
     var title = '';
-    if (entryDato) {
-        var d = parseDateDMY(entryDato);
-        if (d) {
-            title = 'Uke ' + getWeekNumber(d);
-        } else {
-            title = entryDato;
+    if (item.uke) {
+        var ukeMatch = String(item.uke).match(/(\d+)/);
+        title = ukeMatch ? 'Uke ' + ukeMatch[1] : String(item.uke);
+    } else {
+        var entry = item.entries && item.entries[0] ? item.entries[0] : {};
+        var entryDato = entry.dato || '';
+        if (entryDato) {
+            var d = parseDateDMY(entryDato);
+            if (d) {
+                title = 'Uke ' + getWeekNumber(d);
+            } else {
+                title = entryDato;
+            }
         }
-    }
-    // Add dato fallback to title if no week number
-    if (entryDato && title !== entryDato && !title) {
-        title = entryDato;
     }
     // Subtitle: prosjektnr + prosjektnavn
     var serviceSubtitle = '';
@@ -4973,9 +5079,16 @@ async function renderServiceToCanvas() {
 }
 
 function getServiceExportFilename(ext) {
-    var montor = (document.getElementById('service-montor').value || 'service').replace(/\s+/g, '_');
-    var dato = formatDate(new Date()).replace(/\./g, '-');
-    return 'lageruttak_' + montor + '_' + dato + '.' + ext;
+    var ukeVal = (document.getElementById('service-uke') || {}).value || '';
+    var year = new Date().getFullYear();
+    var uke;
+    var match = ukeVal.match(/(\d+)/);
+    if (match) {
+        var n = parseInt(match[1], 10);
+        if (n >= 1 && n <= 53) uke = n;
+    }
+    if (!uke) uke = getWeekNumber(new Date());
+    return 'lageruttak_Uke-' + uke + '-' + year + '.' + ext;
 }
 
 async function doServiceExportPDF(markSent) {
@@ -5387,14 +5500,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 var wasSent = sessionStorage.getItem('firesafe_service_sent') === '1';
                 document.getElementById('service-sent-banner').style.display = wasSent ? 'block' : 'none';
                 document.getElementById('btn-service-sent').style.display = wasSent ? 'none' : '';
-                // Safety: reset signatur og dato ved ny sesjon (matcher ordreseddel)
-                var serviceDefaultsRestore = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
-                if (serviceDefaultsRestore.autofill_dato !== false) {
-                    var todayStr = formatDate(new Date());
-                    document.querySelectorAll('#service-entries .service-entry-dato').forEach(function(inp) {
-                        inp.value = todayStr;
-                    });
-                }
+                // Reset kun signatur ved ny sesjon — entry-datoer representerer når
+                // jobben ble utført (historisk) og skal IKKE overskrives.
                 document.getElementById('service-signatur').value = '';
                 window._serviceSignaturePaths = [];
                 var srvPreviewImg = document.getElementById('service-signature-preview-img');

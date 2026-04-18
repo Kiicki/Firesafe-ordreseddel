@@ -2212,6 +2212,7 @@ function getServiceFormData() {
     return {
         type: 'service',
         montor: document.getElementById('service-montor').value,
+        uke: (document.getElementById('service-uke') || {}).value || '',
         signaturePaths: window._serviceSignaturePaths || [],
         canvasAspectRatio: canvasAspectRatio,
         signatureImage: document.getElementById('service-signatur').value,
@@ -2224,6 +2225,8 @@ function setServiceFormData(data) {
     if (!data) return;
     var montorEl = document.getElementById('service-montor');
     if (montorEl) montorEl.value = data.montor || '';
+    var ukeEl = document.getElementById('service-uke');
+    if (ukeEl) ukeEl.value = data.uke || '';
 
     // Restore signature
     window._serviceSignaturePaths = data.signaturePaths || [];

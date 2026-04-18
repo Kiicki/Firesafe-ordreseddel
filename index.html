@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=304">
+    <link rel="stylesheet" href="styles.css?v=305">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -336,10 +336,20 @@
                     <button class="modal-tab" onclick="switchHentTab('service')" data-i18n="tab_service">Service</button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
-                    <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordre-/prosjektnr eller prosjektnavn..." oninput="filterList('saved-list', 'saved-search')">
+                    <div class="search-input-wrap">
+                        <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk ordre-/prosjektnr eller prosjektnavn..." oninput="filterList('saved-list', 'saved-search'); updateSearchClearBtn('saved-search')">
+                        <button type="button" class="search-clear-btn" id="saved-search-clear" onclick="clearSearchInput('saved-search', 'saved-list')" aria-label="Tøm søk">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="modal-search" id="service-search-wrap" style="display:none;">
-                    <input type="text" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('service-list', 'service-search')">
+                    <div class="search-input-wrap">
+                        <input type="text" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('service-list', 'service-search'); updateSearchClearBtn('service-search')">
+                        <button type="button" class="search-clear-btn" id="service-search-clear" onclick="clearSearchInput('service-search', 'service-list')" aria-label="Tøm søk">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
@@ -600,6 +610,7 @@
                                 </div>
                                 <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-service-montor" checked onchange="saveAutofillToggle('montor', this.checked, 'service')"><span class="settings-toggle-slider"></span></label>
                             </div>
+                            <div class="settings-toggle-item"><span data-i18n="label_uke">Uke</span><label class="settings-toggle"><input type="checkbox" id="autofill-service-uke" checked onchange="saveAutofillToggle('uke', this.checked, 'service')"><span class="settings-toggle-slider"></span></label></div>
                             <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-service-dato" checked onchange="saveAutofillToggle('dato', this.checked, 'service')"><span class="settings-toggle-slider"></span></label></div>
                         </div>
                     </div>
@@ -708,6 +719,10 @@
                     <div class="mobile-field field-required">
                         <label data-i18n="label_montor">Montør</label>
                         <input type="text" id="service-montor" autocapitalize="words">
+                    </div>
+                    <div class="mobile-field">
+                        <label data-i18n="label_uke">Uke</label>
+                        <input type="text" id="service-uke" inputmode="numeric" placeholder="16">
                     </div>
                     <input type="hidden" id="service-signatur">
                 </div>
@@ -1178,8 +1193,8 @@
     </div>
 
     <script src="lang.js?v=143"></script>
-    <script src="script.js?v=185"></script>
-    <script src="script-ui.js?v=322"></script>
+    <script src="script.js?v=186"></script>
+    <script src="script-ui.js?v=330"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
