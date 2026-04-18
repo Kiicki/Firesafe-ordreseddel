@@ -3355,6 +3355,19 @@ async function saveForm() {
     if (saveBtn && saveBtn.disabled) return;
     if (saveBtn) saveBtn.disabled = true;
 
+    // Helper: oppdater signering-dato til dagens dato ved sendt → utkast-konvertering.
+    // Brukes inne i confirm-callback så datoen KUN endres hvis brukeren bekrefter.
+    function _applySentToSavedDate(dataObj) {
+        var flags = (typeof getAutofillFlags === 'function') ? getAutofillFlags() : null;
+        if (flags && !flags.dato) return;
+        var today = formatDate(new Date());
+        var sd = document.getElementById('signering-dato');
+        var msd = document.getElementById('mobile-signering-dato');
+        if (sd) sd.value = today;
+        if (msd) msd.value = today;
+        if (dataObj) dataObj.signeringDato = today;
+    }
+
     try {
         const data = getFormData();
 
@@ -3385,6 +3398,8 @@ async function saveForm() {
         if (existingIndex !== -1) {
             var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
             showConfirmModal(t(isSent ? 'confirm_move_to_saved' : 'confirm_update'), function() {
+                // Ved sendt → utkast-konvertering: oppdater dato til dagens (kun etter bekreft)
+                if (isSent) _applySentToSavedDate(data);
                 // Fjern fra arkiv først (hvis sendt skjema)
                 if (archivedIdx !== -1) {
                     var freshArchived = safeParseJSON(ARCHIVE_KEY, []);
@@ -3420,6 +3435,10 @@ async function saveForm() {
             }, t('btn_update'), '#E8501A');
         } else {
             // Save new form directly (no confirmation needed)
+            // Ved sendt → utkast-konvertering: oppdater dato til dagens
+            if (sessionStorage.getItem('firesafe_current_sent') === '1') {
+                _applySentToSavedDate(data);
+            }
             // Fjern fra arkiv først (hvis sendt skjema)
             if (archivedIdx !== -1) {
                 var freshArchived2 = safeParseJSON(ARCHIVE_KEY, []);
