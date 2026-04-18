@@ -685,6 +685,17 @@ function getWeekNumber(date) {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
+// Signering-dato: alltid dagens dato, unntatt når man åpner et sendt skjema.
+// Regelen er enkel — denne helperen kapsler den inn slik at alle kall-steder
+// (ny, last, startup, konvertering, eksport) ser lik ut.
+function _setSigneringDatoToday() {
+    var today = formatDate(new Date());
+    var sd = document.getElementById('signering-dato');
+    var msd = document.getElementById('mobile-signering-dato');
+    if (sd) sd.value = today;
+    if (msd) msd.value = today;
+}
+
 // Check if mobile/tablet (≤1024px) or PC (>1024px)
 function isMobile() {
     return window.innerWidth <= 1024;
@@ -3355,17 +3366,11 @@ async function saveForm() {
     if (saveBtn && saveBtn.disabled) return;
     if (saveBtn) saveBtn.disabled = true;
 
-    // Helper: oppdater signering-dato til dagens dato ved sendt → utkast-konvertering.
+    // Helper: oppdater signering-dato til dagens ved sendt → utkast-konvertering.
     // Brukes inne i confirm-callback så datoen KUN endres hvis brukeren bekrefter.
     function _applySentToSavedDate(dataObj) {
-        var flags = (typeof getAutofillFlags === 'function') ? getAutofillFlags() : null;
-        if (flags && !flags.dato) return;
-        var today = formatDate(new Date());
-        var sd = document.getElementById('signering-dato');
-        var msd = document.getElementById('mobile-signering-dato');
-        if (sd) sd.value = today;
-        if (msd) msd.value = today;
-        if (dataObj) dataObj.signeringDato = today;
+        _setSigneringDatoToday();
+        if (dataObj) dataObj.signeringDato = formatDate(new Date());
     }
 
     try {

@@ -294,6 +294,12 @@ function setFormReadOnly(readOnly) {
     const fields = document.querySelectorAll('#mobile-form input, #mobile-form textarea, #mobile-form select, #form-container input, #form-container textarea, #form-container select');
     fields.forEach(el => el.disabled = readOnly);
 
+    // Signering-dato er alltid disabled (system-styrt, uavhengig av read-only-status)
+    var sd = document.getElementById('signering-dato');
+    var msd = document.getElementById('mobile-signering-dato');
+    if (sd) sd.disabled = true;
+    if (msd) msd.disabled = true;
+
     // Disable save button in header
     var headerSaveBtn = document.getElementById('header-save-btn');
     if (headerSaveBtn) headerSaveBtn.disabled = readOnly;
@@ -353,17 +359,8 @@ function loadFormDirect(formData) {
     if (!formData) return;
     setFormData(formData);
 
-    // Signering-dato er system-styrt (disabled i UI). Settes til dagens dato kun
-    // for utkast — sendte skjema beholder sin historiske dato (det er datoen
-    // kunden faktisk mottok). Ved re-eksport overstyres den til dagens i
-    // renderFormToCanvas slik at ny PDF reflekterer "sendt nå".
-    if (!formData._isSent) {
-        var today = formatDate(new Date());
-        var sd = document.getElementById('signering-dato');
-        var msd = document.getElementById('mobile-signering-dato');
-        if (sd) sd.value = today;
-        if (msd) msd.value = today;
-    }
+    // Regel: alltid dagens dato, unntatt for sendte skjema (bevar historisk).
+    if (!formData._isSent) _setSigneringDatoToday();
 
     updateFormTypeChip();
     lastSavedData = getFormDataSnapshot();
@@ -401,7 +398,7 @@ async function duplicateFormDirect(form) {
     document.getElementById('mobile-ordreseddel-nr').value = '';
     autoFillOrderNumber();
 
-    // Sett uke og dato basert på autofyll-innstillinger
+    // Sett uke basert på autofyll-innstillinger; signering-dato alltid dagens
     const now = new Date();
     const flags = getAutofillFlags();
     if (flags.uke) {
@@ -409,11 +406,7 @@ async function duplicateFormDirect(form) {
         document.getElementById('dato').value = week;
         document.getElementById('mobile-dato').value = week;
     }
-    if (flags.dato) {
-        const today = formatDate(now);
-        document.getElementById('signering-dato').value = today;
-        document.getElementById('mobile-signering-dato').value = today;
-    }
+    _setSigneringDatoToday();
 
     // Tøm kundens underskrift
     document.getElementById('kundens-underskrift').value = '';
@@ -3455,11 +3448,7 @@ function clearForm() {
 
     const now = new Date();
     const flags = getAutofillFlags();
-    if (flags.dato) {
-        const today = formatDate(now);
-        document.getElementById('signering-dato').value = today;
-        document.getElementById('mobile-signering-dato').value = today;
-    }
+    _setSigneringDatoToday();
     if (flags.uke) {
         const week = 'Uke ' + getWeekNumber(now);
         document.getElementById('dato').value = week;
@@ -3513,7 +3502,7 @@ function duplicateCurrentForm() {
     document.getElementById('mobile-kundens-underskrift').value = '';
     clearSignaturePreview();
 
-    // Sett uke og dato basert på autofyll-innstillinger
+    // Sett uke basert på autofyll-innstillinger; signering-dato alltid dagens
     var now = new Date();
     var flags = getAutofillFlags();
     if (flags.uke) {
@@ -3521,11 +3510,7 @@ function duplicateCurrentForm() {
         document.getElementById('dato').value = week;
         document.getElementById('mobile-dato').value = week;
     }
-    if (flags.dato) {
-        var today = formatDate(now);
-        document.getElementById('signering-dato').value = today;
-        document.getElementById('mobile-signering-dato').value = today;
-    }
+    _setSigneringDatoToday();
 
     // Reset bestillinger til 1 tomt ordrekort
     var container = document.getElementById('mobile-orders');
@@ -3646,15 +3631,13 @@ function _getSelectedForms() {
 // Felles canvas-rendering for eksport/deling
 async function renderFormToCanvas() {
     // Sikre at PDF alltid viser dagens dato (også ved re-eksport av sendt skjema).
-    // Vi lagrer opprinnelig verdi og restaurer etter rendering, slik at UI-et ikke
-    // endres hvis skjemaet er et sendt arkiv (som skal beholde historisk dato i UI).
+    // Lagrer opprinnelig verdi og restaurer etter rendering slik at UI-et for
+    // sendte skjemaer ikke mister sin historiske dato.
     var _sd = document.getElementById('signering-dato');
     var _msd = document.getElementById('mobile-signering-dato');
     var _origSd = _sd ? _sd.value : null;
     var _origMsd = _msd ? _msd.value : null;
-    var _today = formatDate(new Date());
-    if (_sd) _sd.value = _today;
-    if (_msd) _msd.value = _today;
+    _setSigneringDatoToday();
 
     syncMobileToOriginal();
 
@@ -5333,16 +5316,11 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {}
     }
     // Tøm kundens underskrift ved oppstart (session-spesifikk — må signeres på nytt).
-    // Signering-dato settes til dagens dato KUN hvis forrige sesjon var et utkast —
-    // sendte skjemaer beholder sin historiske dato ved app-restart.
+    // Regel: alltid dagens dato, unntatt for sendte skjemaer (bevar historisk).
     document.getElementById('kundens-underskrift').value = '';
     document.getElementById('mobile-kundens-underskrift').value = '';
     const _wasSentOnStartup = sessionStorage.getItem('firesafe_current_sent') === '1';
-    if (!_wasSentOnStartup) {
-        const today = formatDate(new Date());
-        document.getElementById('signering-dato').value = today;
-        document.getElementById('mobile-signering-dato').value = today;
-    }
+    if (!_wasSentOnStartup) _setSigneringDatoToday();
 
     // Sett lastSavedData ETTER alle init-endringer (signering-dato, underskrift)
     if (current) {
