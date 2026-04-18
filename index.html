@@ -119,7 +119,7 @@
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_dato">Dato</label>
-                    <input type="text" id="mobile-signering-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ">
+                    <input type="text" id="mobile-signering-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ" disabled>
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_kundens_underskrift">Kundens underskrift</label>
@@ -259,7 +259,7 @@
                 </div>
                 <div class="footer-cell signature-cell">
                     <div class="signature-input">
-                        <input type="text" id="signering-dato">
+                        <input type="text" id="signering-dato" disabled>
                     </div>
                     <div class="signature-label">Dato</div>
                 </div>
@@ -1194,7 +1194,7 @@
 
     <script src="lang.js?v=143"></script>
     <script src="script.js?v=188"></script>
-    <script src="script-ui.js?v=330"></script>
+    <script src="script-ui.js?v=332"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
