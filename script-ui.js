@@ -829,7 +829,12 @@ function closePreview() {
     // Remove resize listener
     if (window._previewResizeHandler) {
         window.removeEventListener('resize', window._previewResizeHandler);
+        window.removeEventListener('orientationchange', window._previewResizeHandler);
         window._previewResizeHandler = null;
+    }
+    if (window._svcPreviewOrientTimer) {
+        clearTimeout(window._svcPreviewOrientTimer);
+        window._svcPreviewOrientTimer = null;
     }
 
     cleanupPreviewPinchZoom();
@@ -3807,7 +3812,8 @@ function _createPdfFromCanvas(canvas, pageWidth, minHeight, imageType, quality) 
     var type = imageType || 'PNG';
     var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
     var customHeight = _customPageHeight(canvas, pageWidth, minHeight);
-    var pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageWidth, customHeight] });
+    var orientation = pageWidth > customHeight ? 'l' : 'p';
+    var pdf = new jsPDF({ orientation: orientation, unit: 'mm', format: [pageWidth, customHeight] });
     var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
     pdf.addImage(dataUrl, type, 0, 0, pageWidth, customHeight);
     return pdf;
@@ -3818,9 +3824,87 @@ function _addPageFromCanvas(pdf, canvas, pageWidth, minHeight, imageType, qualit
     var type = imageType || 'PNG';
     var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
     var customHeight = _customPageHeight(canvas, pageWidth, minHeight);
-    pdf.addPage([pageWidth, customHeight], 'p');
+    var orientation = pageWidth > customHeight ? 'l' : 'p';
+    pdf.addPage([pageWidth, customHeight], orientation);
     var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
     pdf.addImage(dataUrl, type, 0, 0, pageWidth, customHeight);
+}
+
+// Lager A4-PDF (297×210mm landscape eller 210×297mm portrait) og legger canvas inn
+// ved naturlig skala (canvas.width → pageW). Hvis canvas er høyere enn én A4-side
+// tillater, deles canvas i skiver og hver skive får sin egen A4-side (multi-page).
+// Dette bevarer tekststørrelsen uansett hvor mye innhold det er.
+function _createA4PdfFromCanvas(canvas, orientation, imageType, quality) {
+    var jsPDF = window.jspdf.jsPDF;
+    var type = imageType || 'PNG';
+    var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
+    var isLand = orientation === 'l' || orientation === 'landscape';
+    var pageW = isLand ? 297 : 210;
+    var pageH = isLand ? 210 : 297;
+    var pdf = new jsPDF({ orientation: isLand ? 'l' : 'p', unit: 'mm', format: 'a4' });
+    var scale = pageW / canvas.width;
+    var canvasHmm = canvas.height * scale;
+
+    if (canvasHmm <= pageH) {
+        var offsetY = (pageH - canvasHmm) / 2;
+        var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
+        pdf.addImage(dataUrl, type, 0, offsetY, pageW, canvasHmm);
+        return pdf;
+    }
+
+    var pagePixH = Math.floor(pageH / scale);
+    var numPages = Math.ceil(canvas.height / pagePixH);
+    for (var i = 0; i < numPages; i++) {
+        if (i > 0) pdf.addPage('a4', isLand ? 'l' : 'p');
+        var sliceY = i * pagePixH;
+        var sliceH = Math.min(pagePixH, canvas.height - sliceY);
+        var slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = sliceH;
+        var ctx = slice.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, slice.width, slice.height);
+        ctx.drawImage(canvas, 0, -sliceY);
+        var sliceHmm = sliceH * scale;
+        var dUrl = (quality != null) ? slice.toDataURL(mime, quality) : slice.toDataURL(mime);
+        pdf.addImage(dUrl, type, 0, 0, pageW, sliceHmm);
+    }
+    return pdf;
+}
+
+// Lager et nytt canvas med fast A4-aspect (297:210 landscape eller 210:297 portrait)
+// og tegner original-canvas proporsjonalt sentrert med hvit bakgrunn. Brukes for
+// PNG-eksport slik at filen har samme print-kompatible aspekt som PDF.
+function _createA4CanvasFromCanvas(canvas, orientation) {
+    var isLand = orientation === 'l' || orientation === 'landscape';
+    var aspect = isLand ? (297 / 210) : (210 / 297);
+    var srcAspect = canvas.width / canvas.height;
+    var outW, outH;
+    if (srcAspect > aspect) {
+        outW = canvas.width;
+        outH = Math.round(canvas.width / aspect);
+    } else {
+        outH = canvas.height;
+        outW = Math.round(canvas.height * aspect);
+    }
+    var out = document.createElement('canvas');
+    out.width = outW;
+    out.height = outH;
+    var ctx = out.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, outW, outH);
+    var drawW, drawH;
+    if (srcAspect > aspect) {
+        drawW = outW;
+        drawH = Math.round(outW / srcAspect);
+    } else {
+        drawH = outH;
+        drawW = Math.round(outH * srcAspect);
+    }
+    var offsetX = Math.round((outW - drawW) / 2);
+    var offsetY = Math.round((outH - drawH) / 2);
+    ctx.drawImage(canvas, offsetX, offsetY, drawW, drawH);
+    return out;
 }
 
 // Bytter midlertidig aktiv view til target-view og fjerner body-klasser som skjuler target,
@@ -4912,8 +4996,8 @@ function buildServiceExportTable(cols) {
 
     // Colgroup for consistent column widths
     var colgroup = '<colgroup>';
-    colgroup += '<col style="width:7%">'; // Dato
-    colgroup += '<col style="width:7%">'; // Prosjekt nr
+    colgroup += '<col style="width:8%">'; // Dato
+    colgroup += '<col style="width:9%">'; // Prosjekt nr
     colgroup += '<col style="width:10%">'; // Prosjektnavn
     for (var c = 0; c < matCols; c++) {
         colgroup += '<col>';
@@ -4996,9 +5080,9 @@ function buildServiceExportTable(cols) {
 }
 
 function openServicePreview() {
-    var container = buildServiceExportTable();
+    var container = buildServiceExportTable(7);
     container.style.display = 'block';
-    container.style.width = '800px';
+    container.style.width = '1250px';
     container.style.overflow = 'hidden';
 
     var scroll = document.getElementById('preview-scroll');
@@ -5015,14 +5099,32 @@ function openServicePreview() {
     requestAnimationFrame(function() {
         updateServicePreviewScale();
         // Init pinch-zoom on mobile (same as ordreseddel preview)
-        var baseScale = Math.min(scroll.clientWidth / 800, 1);
+        var baseScale = Math.min(scroll.clientWidth / 1250, 1);
         if (baseScale < 1) {
             initPreviewPinchZoom(scroll, container, baseScale);
         }
     });
 
-    window._previewResizeHandler = updateServicePreviewScale;
+    window._previewResizeHandler = _onServicePreviewViewportChange;
     window.addEventListener('resize', window._previewResizeHandler);
+    window.addEventListener('orientationchange', window._previewResizeHandler);
+}
+
+// Re-skalerer og re-binder pinch-zoom ved viewport-endring (resize/orientationchange).
+// 200ms delay lar browser-layout stabilisere etter rotasjon.
+function _onServicePreviewViewportChange() {
+    clearTimeout(window._svcPreviewOrientTimer);
+    window._svcPreviewOrientTimer = setTimeout(function() {
+        updateServicePreviewScale();
+        cleanupPreviewPinchZoom();
+        var scroll = document.getElementById('preview-scroll');
+        var container = document.getElementById('service-export-container');
+        if (!scroll || !container) return;
+        var baseScale = Math.min(scroll.clientWidth / 1250, 1);
+        if (baseScale < 1) {
+            initPreviewPinchZoom(scroll, container, baseScale);
+        }
+    }, 200);
 }
 
 function updateServicePreviewScale() {
@@ -5037,7 +5139,7 @@ function updateServicePreviewScale() {
     var cs = getComputedStyle(scroll);
     var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     var availWidth = scroll.clientWidth - padLR;
-    var scale = Math.min(availWidth / 800, 1);
+    var scale = Math.min(availWidth / 1250, 1);
 
     if (scale < 1) {
         container.style.transformOrigin = 'top left';
@@ -5056,19 +5158,22 @@ function updateServicePreviewScale() {
         container.style.marginRight = 'auto';
         container.style.marginBottom = '';
         if (header) {
-            header.style.maxWidth = '800px';
+            header.style.maxWidth = '1250px';
             header.style.margin = '0 auto';
         }
     }
+
+    window._previewBaseScale = scale;
+    window._previewCurrentScale = scale;
 }
 
 async function renderServiceToCanvas() {
-    var container = buildServiceExportTable(6);
+    var container = buildServiceExportTable(7);
     container.style.display = 'block';
     container.style.position = 'fixed';
     container.style.left = '0';
     container.style.top = '0';
-    container.style.width = '800px';
+    container.style.width = '1250px';
     container.style.visibility = 'hidden';
     container.style.zIndex = '-1';
 

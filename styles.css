@@ -938,6 +938,7 @@ body:has(:is(
 
 .service-export-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     border-right: 2px solid #000;
@@ -960,12 +961,12 @@ body:has(:is(
     padding: 3px 5px;
     text-align: center;
     font-size: 10px;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
     vertical-align: middle;
     height: 24px;
 }
 .service-export-table td {
-    white-space: normal;
     font-size: 9px;
 }
 
