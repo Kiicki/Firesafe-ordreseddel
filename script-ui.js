@@ -3956,9 +3956,39 @@ function _ukeYearForForm(data) {
     return 'Uke-' + uke + '-' + year;
 }
 
+// Uke-beskrivelse for valgte skjemaer i bulk-samlet:
+//  - Alle samme uke:   "Uke-14-2026"
+//  - Flere uker, samme år: "Uke-11-15-2026" (min–max)
+//  - Flere år:         fallback til dagens uke
+function _sharedUkeYearOrRange() {
+    var forms = _getSelectedForms();
+    if (!forms || forms.length === 0) return _currentUkeYear();
+
+    var ukes = [];
+    var years = {};
+    for (var i = 0; i < forms.length; i++) {
+        var uy = _ukeYearForForm(forms[i]); // "Uke-14-2026"
+        var m = uy.match(/Uke-(\d+)-(\d+)/);
+        if (!m) continue;
+        ukes.push(parseInt(m[1], 10));
+        years[m[2]] = true;
+    }
+
+    if (ukes.length === 0) return _currentUkeYear();
+    var yearKeys = Object.keys(years);
+    if (yearKeys.length > 1) return _currentUkeYear();
+
+    var min = Math.min.apply(null, ukes);
+    var max = Math.max.apply(null, ukes);
+    var year = yearKeys[0];
+    return (min === max)
+        ? 'Uke-' + min + '-' + year
+        : 'Uker-' + min + '-' + max + '-' + year;
+}
+
 function _bulkFilename(ext, type) {
     var prefix = (type === 'service') ? 'lageruttak_samlet' : 'ordreseddel_samlet';
-    return prefix + '_' + _currentUkeYear() + '.' + (ext || 'pdf');
+    return prefix + '_' + _sharedUkeYearOrRange() + '.' + (ext || 'pdf');
 }
 
 function _pngFilenameForForm(data, fallbackIdx, isService) {
