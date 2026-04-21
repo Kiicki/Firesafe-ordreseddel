@@ -5219,7 +5219,7 @@ async function doServiceExportPDF(markSent) {
     loading.classList.add('active');
     try {
         var canvas = await renderServiceToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'PNG');
+        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
         pdf.save(getServiceExportFilename('pdf'));
         if (markSent) markServiceAsSent();
     } catch(error) {
@@ -5253,7 +5253,7 @@ async function doServiceSharePDF() {
     loading.classList.add('active');
     try {
         var canvas = await renderServiceToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'PNG');
+        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
         var blob = pdf.output('blob');
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
         await navigator.share({ files: [file] });
