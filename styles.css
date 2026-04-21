@@ -2011,6 +2011,13 @@ label.settings-default-label.field-required > span::after {
     flex-shrink: 0;
 }
 
+.dag-timer-modal-row.dag-timer-total-row {
+    border-top: 2px solid #e0e0e0;
+    margin-top: 4px;
+    padding-top: 12px;
+    font-weight: 600;
+}
+
 .dag-timer-modal-list {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;

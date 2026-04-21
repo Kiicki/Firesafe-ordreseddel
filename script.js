@@ -1987,8 +1987,11 @@ function updateDagTimerSummary(card) {
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
     const parts = dagOrder.filter(d => timer[d]).map(d => (dagShortMap[d] || d) + ' ' + String(timer[d]).replace('.', ',') + 't');
-    textEl.textContent = parts.join(', ');
-    if (parts.length > 0) {
+    var genVal = timer._generelt || timer._total;
+    if (genVal) parts.push('Gen ' + String(genVal).replace('.', ',') + 't');
+    var summary = parts.join(', ');
+    textEl.textContent = summary;
+    if (summary) {
         display.style.display = '';
         if (btn) btn.style.display = 'none';
     } else {
@@ -2022,6 +2025,22 @@ function openDagTimerModal(btn) {
         row.appendChild(inp);
         list.appendChild(row);
     });
+    // Generelt-rad nederst — ekstra timer som ikke er dag-spesifikke (additivt)
+    var genRow = document.createElement('div');
+    genRow.className = 'dag-timer-modal-row dag-timer-total-row';
+    var genLabel = document.createElement('span');
+    genLabel.className = 'dag-timer-modal-name';
+    genLabel.textContent = 'Generelt';
+    var genInp = document.createElement('input');
+    genInp.type = 'text';
+    genInp.className = 'dag-timer-modal-input';
+    genInp.inputMode = 'decimal';
+    genInp.placeholder = 'Timer';
+    genInp.id = 'dag-timer-generelt-input';
+    genInp.value = timer._generelt || timer._total || '';
+    genRow.appendChild(genLabel);
+    genRow.appendChild(genInp);
+    list.appendChild(genRow);
     var modal = document.getElementById('dag-timer-modal');
     modal.classList.add('active');
     // Blokkér touch-scroll på overlayet, tillat kun inni listen
@@ -2066,12 +2085,15 @@ function closeDagTimerModal(confirmed) {
     const list = document.getElementById('dag-timer-modal-list');
     const dager = [];
     const timer = {};
-    list.querySelectorAll('.dag-timer-modal-input').forEach(inp => {
+    list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row) .dag-timer-modal-input').forEach(inp => {
         if (inp.value.trim()) {
             dager.push(inp.dataset.dag);
             timer[inp.dataset.dag] = inp.value.trim();
         }
     });
+    var genInput = document.getElementById('dag-timer-generelt-input');
+    var genVal = genInput ? genInput.value.trim() : '';
+    if (genVal) timer._generelt = genVal;
     dagTimerActiveCard.setAttribute('data-dager', JSON.stringify(dager));
     dagTimerActiveCard.setAttribute('data-timer', JSON.stringify(timer));
     updateDagTimerSummary(dagTimerActiveCard);
@@ -2939,32 +2961,35 @@ function buildDesktopWorkLines() {
                 });
             }
 
-            const hasMeta = (order.dager && order.dager.length > 0) || order.plan || order.merknad;
+            var genVal = order.timer && typeof order.timer === 'object' ? (order.timer._generelt || order.timer._total) : null;
+            const hasMeta = (order.dager && order.dager.length > 0) || genVal || order.plan || order.merknad;
             if (order.description && hasMeta) {
                 const spacer = document.createElement('div');
                 spacer.style.height = '6px';
                 descContent.appendChild(spacer);
             }
 
-            if (order.dager && order.dager.length > 0) {
+            if ((order.dager && order.dager.length > 0) || genVal) {
                 const dagMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
-                let dagText;
-                if (order.timer && typeof order.timer === 'object') {
-                    dagText = order.dager.map(d => {
-                        const t = order.timer[d];
-                        return (dagMap[d] || d) + (t ? ' (' + t.replace('.', ',') + 't)' : '');
-                    }).join(', ');
-                } else {
-                    dagText = order.dager.map(d => dagMap[d] || d).join(', ');
+                var dagParts = [];
+                if (order.dager && order.dager.length > 0) {
+                    dagParts = order.dager.map(d => {
+                        const t = order.timer && order.timer[d];
+                        return (dagMap[d] || d) + (t ? ' (' + String(t).replace('.', ',') + 't)' : '');
+                    });
+                }
+                if (genVal) {
+                    dagParts.push('Generelt (' + String(genVal).replace('.', ',') + 't)');
                 }
                 const dagLabel = document.createElement('strong');
                 dagLabel.textContent = t('order_days') + ': ';
                 descContent.appendChild(dagLabel);
-                descContent.appendChild(document.createTextNode(dagText));
+                descContent.appendChild(document.createTextNode(dagParts.join(', ')));
             }
 
+            var hasDagerLine = (order.dager && order.dager.length > 0) || genVal;
             if (order.plan) {
-                if (order.dager && order.dager.length > 0) {
+                if (hasDagerLine) {
                     descContent.appendChild(document.createTextNode('\n'));
                 }
                 const planLabel = document.createElement('strong');
@@ -2974,7 +2999,7 @@ function buildDesktopWorkLines() {
             }
 
             if (order.merknad) {
-                if ((order.dager && order.dager.length > 0) || order.plan) {
+                if (hasDagerLine || order.plan) {
                     descContent.appendChild(document.createTextNode('\n'));
                 }
                 const merknadLabel = document.createElement('strong');
@@ -3060,11 +3085,11 @@ function buildDesktopWorkLines() {
             });
         }
 
-        // Timer
+        // Timer — sum all values (days + _generelt/_total)
         if (order.timer && typeof order.timer === 'object') {
             let orderTotal = 0;
             Object.values(order.timer).forEach(v => {
-                const val = parseFloat((v || '').replace(',', '.'));
+                const val = parseFloat(String(v || '').replace(',', '.'));
                 if (!isNaN(val)) orderTotal += val;
             });
             if (orderTotal > 0) {
