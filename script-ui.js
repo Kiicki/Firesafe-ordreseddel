@@ -3729,7 +3729,7 @@ async function doExportPDF(markSent) {
     loading.classList.add('active');
     try {
         const canvas = await renderFormToCanvas();
-        const pdf = _createPdfFromCanvas(canvas, 210, 297, 'PNG');
+        const pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
         pdf.save(getExportFilename('pdf'));
         if (markSent) markCurrentFormAsSent();
     } catch (error) {
@@ -3763,7 +3763,7 @@ async function doSharePDF() {
     loading.classList.add('active');
     try {
         var canvas = await renderFormToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 210, 297, 'PNG');
+        var pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
         var blob = pdf.output('blob');
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         await navigator.share({ files: [file] });
