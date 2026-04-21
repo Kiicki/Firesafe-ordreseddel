@@ -35,23 +35,36 @@ function formatKabelhylseSpec(name) {
         .replace(/(\d+)x(\d+)/, '$1×$2');
 }
 
-function getBaseMaterialName(name) {
+function getBaseMaterialName(name, enhet) {
     if (cachedMaterialOptions) {
         var specBase = cachedMaterialOptions.find(function(m) {
-            return (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse') &&
-                name.toLowerCase().startsWith(m.name.toLowerCase() + ' ');
+            if (m.type !== 'mansjett' && m.type !== 'brannpakning' && m.type !== 'kabelhylse') return false;
+            if (name.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) return true;
+            if (enhet === 'meter' && name.toLowerCase() === m.name.toLowerCase()) return true;
+            return false;
         });
         if (specBase) return specBase.name;
     }
     return name;
 }
 
+function isSpecGroupedMaterial(name, enhet) {
+    if (!cachedMaterialOptions) return false;
+    return cachedMaterialOptions.some(function(m) {
+        if (m.type !== 'mansjett' && m.type !== 'brannpakning' && m.type !== 'kabelhylse') return false;
+        if (name.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) return true;
+        if (enhet === 'meter' && name.toLowerCase() === m.name.toLowerCase()) return true;
+        return false;
+    });
+}
+
 function groupMaterialsByBase(materials) {
     var groups = [];
     var groupMap = {};
     materials.forEach(function(m) {
-        var baseName = getBaseMaterialName(m.name || '');
-        var isSpec = baseName !== (m.name || ''); // true if name was shortened (spec-derived)
+        var mName = m.name || '';
+        var baseName = getBaseMaterialName(mName, m.enhet);
+        var isSpec = isSpecGroupedMaterial(mName, m.enhet);
         if (isSpec && groupMap[baseName]) {
             // Add to existing spec group
             groupMap[baseName].items.push(m);
@@ -77,6 +90,10 @@ function groupMaterialsByBase(materials) {
 // Get display name for a sub-item within a group (strip base name for spec materials, show variant for standard)
 function getGroupedDisplayName(m, baseName) {
     var name = m.name || '';
+    // Direct meter entry under spec-base → label as "Løpende"
+    if (m.enhet === 'meter' && name.toLowerCase() === baseName.toLowerCase()) {
+        return 'l\u00f8pende';
+    }
     // For spec-derived materials, strip the base name prefix to show just the spec
     if (name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
         return name.substring(baseName.length + 1);
@@ -974,6 +991,8 @@ function getRunningMeterInfo(matName) {
         var m = allMats[i];
         if ((m.type === 'mansjett' || m.type === 'brannpakning') && matName.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) {
             var rest = matName.substring(m.name.length + 1);
+            // Normalize "Ø100mm 2 lag" / "90x90mm 3 lag" → "Ø100mmr2" / "90x90mmr3"
+            rest = rest.replace(/mm (\d+) lag$/, 'mmr$1');
             // Strip "mm" suffix before parsing
             rest = rest.replace(/mm(?=r\d+$|$)/, '');
             // Parse round "ø50" / "Ø50" / "ø50r2" or square "90x90" / "90x90r2"
@@ -1007,8 +1026,10 @@ function calculateRunningMeters(info, quantity) {
 }
 
 function formatRunningMeters(value) {
-    if (!value || value === 0) return '0';
-    return value.toFixed(2).replace('.', ',');
+    var num = parseFloat(String(value).replace(',', '.'));
+    if (!num || isNaN(num)) return '0,0';
+    var rounded = Math.ceil(num * 10) / 10;
+    return rounded.toFixed(1).replace('.', ',');
 }
 
 function createMaterialSummaryRow(m, groupBaseName) {
@@ -1021,8 +1042,12 @@ function createMaterialSummaryRow(m, groupBaseName) {
     if (groupBaseName) {
         // Grouped sub-row: show just the spec/variant part
         var subName = getGroupedDisplayName(m, groupBaseName);
-        subName = subName.charAt(0).toUpperCase() + subName.slice(1);
-        nameFormatted = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
+        if (subName) {
+            subName = subName.charAt(0).toUpperCase() + subName.slice(1);
+            nameFormatted = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
+        } else {
+            nameFormatted = '';
+        }
     } else {
         var rawName = (m.name || '');
         rawName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
@@ -1033,20 +1058,33 @@ function createMaterialSummaryRow(m, groupBaseName) {
             nameFormatted += ' ' + enhetVal;
         }
     }
-    const nameText = escapeHtml(nameFormatted) || t('placeholder_material');
-    const detailParts = [];
     const pipeInfo = getRunningMeterInfo(m.name);
-    if (pipeInfo && m.antall) {
-        var pipes = parseFloat((m.antall || '').replace(',', '.'));
-        if (!isNaN(pipes) && pipes > 0) {
-            var lm = calculateRunningMeters(pipeInfo, pipes);
-            detailParts.push(escapeHtml(m.antall) + ' stk');
-            detailParts.push(formatRunningMeters(lm) + ' meter');
+    const pipesNum = m.antall ? parseFloat(m.antall.replace(',', '.')) : NaN;
+    const hasPipeMeter = pipeInfo && !isNaN(pipesNum) && pipesNum > 0;
+    if (hasPipeMeter) {
+        var lagMatch = nameFormatted.match(/^(.+?) \((\d+) lag\)$/);
+        var baseSpec = lagMatch ? lagMatch[1] : nameFormatted;
+        var rounds = lagMatch ? parseInt(lagMatch[2], 10) : 1;
+        if (rounds > 1) {
+            nameFormatted = baseSpec + ' (' + m.antall + ' stk \u00d7 ' + rounds + ' lag)';
         } else {
-            if (m.antall) detailParts.push(escapeHtml(m.antall) + ' stk');
+            nameFormatted = baseSpec + ' (' + m.antall + ' stk)';
         }
+    }
+    const nameText = nameFormatted ? escapeHtml(nameFormatted) : (groupBaseName ? '' : t('placeholder_material'));
+    const detailParts = [];
+    if (hasPipeMeter) {
+        var lm = calculateRunningMeters(pipeInfo, pipesNum);
+        detailParts.push(formatRunningMeters(lm) + ' meter');
+    } else if (pipeInfo && m.antall) {
+        detailParts.push(escapeHtml(m.antall) + ' stk');
     } else {
-        if (m.antall) detailParts.push(escapeHtml(m.antall) + ' stk');
+        if (m.antall) {
+            var isMeter = (m.enhet || '').toLowerCase() === 'meter';
+            var displayVal = isMeter ? formatRunningMeters(m.antall) : escapeHtml(m.antall);
+            var unitLabel = isMeter ? ' meter' : ' stk';
+            detailParts.push(displayVal + unitLabel);
+        }
     }
     const detail = detailParts.length > 0 ? detailParts.join(' ') : '';
     div.innerHTML = `
@@ -1140,20 +1178,20 @@ function openMaterialPicker(btn, onConfirm) {
     var dupCounters = {};
     existing.forEach(m => {
         if (m.name) {
+            var isSpecBaseMat = allMaterials.some(function(o) {
+                return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
+            });
             // Skip spec-base materials (e.g. "FSC" when type is mansjett/brannpakning/kabelhylse), but not direct meter entries
-            if (m.enhet !== 'meter') {
-                var isSpecBase = allMaterials.some(function(o) {
-                    return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
-                });
-                if (isSpecBase) return;
-            }
+            if (m.enhet !== 'meter' && isSpecBaseMat) return;
+            // Direct meter entry on a spec-base → use __meter suffix so it's treated as a meter entry in the picker
+            var storageKey = (m.enhet === 'meter' && isSpecBaseMat) ? m.name + '__meter' : m.name;
             // If this name already exists in pickerState, use __N suffix for duplicates
-            if (pickerState[m.name]) {
+            if (pickerState[storageKey]) {
                 if (!dupCounters[m.name]) dupCounters[m.name] = 1;
                 dupCounters[m.name]++;
                 pickerState[m.name + '__' + dupCounters[m.name]] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
             } else {
-                pickerState[m.name] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+                pickerState[storageKey] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
             }
         }
     });
@@ -1207,8 +1245,12 @@ function openMaterialPicker(btn, onConfirm) {
         allMaterials.forEach(matObj => {
             var matType = matObj.type || 'standard';
             if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
-                // Spec material: show as launcher only if no checked derived entries exist
-                const hasDerived = Object.keys(pickerState).some(k => k.toLowerCase().startsWith(matObj.name.toLowerCase() + ' ') && pickerState[k].checked);
+                // Spec material: show as launcher only if no derived entries exist (checked or unchecked)
+                const baseLower = matObj.name.toLowerCase();
+                const hasDerived = Object.keys(pickerState).some(k => {
+                    const kLower = k.toLowerCase();
+                    return kLower.startsWith(baseLower + ' ') || kLower === baseLower + '__meter';
+                });
                 if (!hasDerived) {
                     entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: matObj.defaultUnit || '', matType: matType, isSpecDerived: false });
                 }
@@ -1312,6 +1354,8 @@ function openMaterialPicker(btn, onConfirm) {
                     var subDisplay = e.displayName || e.name;
                     if (isSpec && e.name.toLowerCase().startsWith(group.baseName.toLowerCase() + ' ')) {
                         subDisplay = e.name.substring(group.baseName.length + 1);
+                    } else if (e.name.match(/^(.+)__meter$/)) {
+                        subDisplay = 'L\u00f8pende';
                     } else if (e.name.match(/^(.+)__(\d+)$/)) {
                         // Duplicate: show variant from enhet if available
                         var dupEnhet = normalizeVariant(group.baseName, e.enhet || '').toLowerCase();
@@ -1326,10 +1370,6 @@ function openMaterialPicker(btn, onConfirm) {
                         if (origEnhet && origEnhet !== 'stk' && origEnhet !== 'meter') {
                             subDisplay = origEnhet.charAt(0).toUpperCase() + origEnhet.slice(1);
                         }
-                    }
-                    // For meter entries, show base name + "meter"
-                    if (e.name.match(/^(.+)__meter$/)) {
-                        subDisplay = e.displayName || group.baseName;
                     }
                     var rowHtml = buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, subDisplay, e.hasVariants);
                     // Add grouped class to the row
@@ -1531,11 +1571,13 @@ function openSpecPopup(baseName, callback, matType) {
     const label1 = document.getElementById('spec-popup-label1');
     const label2 = document.getElementById('spec-popup-label2');
     const label3 = document.getElementById('spec-popup-label3');
+    const field1 = document.getElementById('spec-popup-input').parentElement;
     const field2 = document.getElementById('spec-popup-field2');
     const field3 = document.getElementById('spec-popup-field3');
 
     input.placeholder = '';
     label1.innerHTML = t('dim_popup_width_placeholder') + ' <span class="spec-required-star">*</span>';
+    field1.style.display = '';
     input2.placeholder = '';
     label2.textContent = t('dim_popup_height_placeholder');
     field2.style.display = '';
@@ -2977,10 +3019,17 @@ function buildDesktopWorkLines() {
                 const pipeInfo = getRunningMeterInfo(m.name);
                 if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
                     var lm = calculateRunningMeters(pipeInfo, antallNum);
-                    var displayName = capName + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
-                    addRow(displayName, formatRunningMeters(lm), 'meter', { alignRight: true });
+                    var lagMatchExp = capName.match(/^(.+?) \((\d+) lag\)$/);
+                    var baseSpecExp = lagMatchExp ? lagMatchExp[1] : capName;
+                    var roundsExp = lagMatchExp ? parseInt(lagMatchExp[2], 10) : 1;
+                    var nameWithStk = roundsExp > 1
+                        ? baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk \u00d7 ' + roundsExp + ' lag)'
+                        : baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
+                    addRow(nameWithStk, formatRunningMeters(lm), 'meter', { alignRight: true });
                 } else {
-                    addRow(capName, (m.antall || '').replace('.', ','), 'stk', { alignRight: true });
+                    var exportUnit = (m.enhet || '').toLowerCase() === 'meter' ? 'meter' : 'stk';
+                    var exportVal = exportUnit === 'meter' ? formatRunningMeters(m.antall) : (m.antall || '').replace('.', ',');
+                    addRow(capName, exportVal, exportUnit, { alignRight: true });
                 }
             }
             // Group materials for export

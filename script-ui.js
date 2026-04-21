@@ -4950,14 +4950,25 @@ function buildServiceExportTable(cols) {
             var lines = [];
             mats.forEach(function(m) {
                 if (!m.name) return;
+                // Direct meter entry on spec-base (Løpende) — render "Løpende · X meter"
+                if (m.enhet === 'meter' && m.name.toLowerCase() === baseName.toLowerCase() && m.antall) {
+                    lines.push('L\u00f8pende \u00b7 ' + formatRunningMeters(m.antall) + ' meter');
+                    return;
+                }
                 if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
                     var pipeInfo = getRunningMeterInfo(m.name);
                     var pipes = parseFloat((m.antall || '').replace(',', '.'));
                     var spec = formatKabelhylseSpec(m.name.substring(baseName.length + 1).replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
                     if (hasLM && pipeInfo && !isNaN(pipes) && pipes > 0) {
-                        // Mansjett/Brannpakning: show only running meters
+                        // Mansjett/Brannpakning: show spec(N stk × M lag) · total meter
                         var lm = calculateRunningMeters(pipeInfo, pipes);
-                        lines.push(formatRunningMeters(lm) + ' meter');
+                        var lagMatchSv = spec.match(/^(.+?) \((\d+) lag\)$/);
+                        var baseSpecSv = lagMatchSv ? lagMatchSv[1] : spec;
+                        var roundsSv = lagMatchSv ? parseInt(lagMatchSv[2], 10) : 1;
+                        var specWithStk = roundsSv > 1
+                            ? baseSpecSv + ' (' + (m.antall || '').replace('.', ',') + ' stk \u00d7 ' + roundsSv + ' lag)'
+                            : baseSpecSv + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
+                        lines.push(escapeHtml(specWithStk) + ' \u00b7 ' + formatRunningMeters(lm) + ' meter');
                     } else {
                         // Kabelhylse: show spec + antall + enhet on one line
                         var text = '';
@@ -4978,7 +4989,10 @@ function buildServiceExportTable(cols) {
                     if (mEnhet && mEnhet !== 'stk' && mEnhet !== 'meter') {
                         variantSuffix = ' ' + mEnhet;
                     }
-                    matched.push(escapeHtml((m.antall || '').replace('.', ',')) + ' stk' + escapeHtml(variantSuffix));
+                    var stdIsMeter = (m.enhet || '').toLowerCase() === 'meter';
+                    var stdVal = stdIsMeter ? formatRunningMeters(m.antall) : escapeHtml((m.antall || '').replace('.', ','));
+                    var stdUnitLabel = stdIsMeter ? ' meter' : ' stk';
+                    matched.push(stdVal + stdUnitLabel + escapeHtml(variantSuffix));
                 }
             });
             return matched.join('<br>');
@@ -6977,12 +6991,27 @@ function renderBilHistory() {
             var pipes = parseFloat((m.antall || '').replace(',', '.'));
             if (pipeInfo && !isNaN(pipes) && pipes > 0) {
                 var lm = calculateRunningMeters(pipeInfo, pipes);
-                detailParts.push(escapeHtml(m.antall || '0') + ' stk');
                 detailParts.push(formatRunningMeters(lm) + ' meter');
             } else {
-                detailParts.push(escapeHtml(m.antall || '0') + ' stk');
+                var bilIsMeter = (m.enhet || '').toLowerCase() === 'meter';
+                var bilVal = bilIsMeter ? formatRunningMeters(m.antall) : escapeHtml(m.antall || '0');
+                var bilUnit = bilIsMeter ? ' meter' : ' stk';
+                detailParts.push(bilVal + bilUnit);
             }
             return detailParts.join(' ');
+        }
+        // Helper to inject "(N stk × M lag)" into a formatted name for pipe-spec entries
+        function injectBilStkLag(formattedName, m) {
+            var pipeInfo = getRunningMeterInfo(m.name);
+            var pipes = parseFloat((m.antall || '').replace(',', '.'));
+            if (!pipeInfo || isNaN(pipes) || pipes <= 0) return formattedName;
+            var lagMatch = formattedName.match(/^(.+?) \((\d+) lag\)$/);
+            var baseSpec = lagMatch ? lagMatch[1] : formattedName;
+            var rounds = lagMatch ? parseInt(lagMatch[2], 10) : 1;
+            if (rounds > 1) {
+                return baseSpec + ' (' + (m.antall || '0') + ' stk \u00d7 ' + rounds + ' lag)';
+            }
+            return baseSpec + ' (' + (m.antall || '0') + ' stk)';
         }
         // Helper to format a full material name (with variant appended)
         function formatBilName(m) {
@@ -6993,7 +7022,7 @@ function renderBilHistory() {
             if (bilEnhet && bilEnhet !== 'stk' && bilEnhet !== 'meter') {
                 bilName += ' ' + bilEnhet;
             }
-            return bilName;
+            return injectBilStkLag(bilName, m);
         }
         var bilGroups = groupMaterialsByBase(item.materials);
         for (var g = 0; g < bilGroups.length; g++) {
@@ -7015,6 +7044,7 @@ function renderBilHistory() {
                     var subName = getGroupedDisplayName(gm, bilGroup.baseName);
                     subName = subName.charAt(0).toUpperCase() + subName.slice(1);
                     subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
+                    subName = injectBilStkLag(subName, gm);
                     matsHtml += '<div class="bil-history-grouped"><div class="mat-summary-row">'
                         + '<span class="mat-summary-name">' + escapeHtml(subName) + '</span>'
                         + '<span class="mat-summary-detail">' + buildBilDetail(gm) + '</span>'
