@@ -1093,9 +1093,8 @@ function createMaterialSummaryRow(m, groupBaseName) {
     } else {
         if (m.antall) {
             var isMeter = (m.enhet || '').toLowerCase() === 'meter';
-            var displayVal = isMeter ? formatRunningMeters(m.antall) : escapeHtml(m.antall);
             var unitLabel = isMeter ? ' meter' : ' stk';
-            detailParts.push(displayVal + unitLabel);
+            detailParts.push(formatRunningMeters(m.antall) + unitLabel);
         }
     }
     const detail = detailParts.length > 0 ? detailParts.join(' ') : '';
@@ -3040,8 +3039,7 @@ function buildDesktopWorkLines() {
                     addRow(formatDisplayForBreak(nameWithStk), formatRunningMeters(lm), 'meter', { alignRight: true });
                 } else {
                     var exportUnit = (m.enhet || '').toLowerCase() === 'meter' ? 'meter' : 'stk';
-                    var exportVal = exportUnit === 'meter' ? formatRunningMeters(m.antall) : (m.antall || '').replace('.', ',');
-                    addRow(capName, exportVal, exportUnit, { alignRight: true });
+                    addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
                 }
             }
             // Group materials for export

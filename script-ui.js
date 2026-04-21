@@ -4973,7 +4973,7 @@ function buildServiceExportTable(cols) {
                         // Kabelhylse: show spec + antall + enhet on one line
                         var text = '';
                         if (spec) text += escapeHtml(formatDisplayForBreak(spec));
-                        if (m.antall) text += ' ' + escapeHtml((m.antall || '').replace('.', ',')) + ' stk';
+                        if (m.antall) text += ' ' + formatRunningMeters(m.antall) + ' stk';
                         lines.push(text.trim());
                     }
                 }
@@ -4990,9 +4990,8 @@ function buildServiceExportTable(cols) {
                         variantSuffix = ' ' + mEnhet;
                     }
                     var stdIsMeter = (m.enhet || '').toLowerCase() === 'meter';
-                    var stdVal = stdIsMeter ? formatRunningMeters(m.antall) : escapeHtml((m.antall || '').replace('.', ','));
                     var stdUnitLabel = stdIsMeter ? ' meter' : ' stk';
-                    matched.push(stdVal + stdUnitLabel + escapeHtml(variantSuffix));
+                    matched.push(formatRunningMeters(m.antall) + stdUnitLabel + escapeHtml(variantSuffix));
                 }
             });
             return matched.join('<br>');
@@ -6994,9 +6993,8 @@ function renderBilHistory() {
                 detailParts.push(formatRunningMeters(lm) + ' meter');
             } else {
                 var bilIsMeter = (m.enhet || '').toLowerCase() === 'meter';
-                var bilVal = bilIsMeter ? formatRunningMeters(m.antall) : escapeHtml(m.antall || '0');
                 var bilUnit = bilIsMeter ? ' meter' : ' stk';
-                detailParts.push(bilVal + bilUnit);
+                detailParts.push(formatRunningMeters(m.antall) + bilUnit);
             }
             return detailParts.join(' ');
         }
