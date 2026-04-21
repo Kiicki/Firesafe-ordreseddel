@@ -4968,11 +4968,11 @@ function buildServiceExportTable(cols) {
                         var specWithStk = roundsSv > 1
                             ? baseSpecSv + ' (' + (m.antall || '').replace('.', ',') + ' stk \u00d7 ' + roundsSv + ' lag)'
                             : baseSpecSv + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
-                        lines.push(escapeHtml(specWithStk) + ' \u00b7 ' + formatRunningMeters(lm) + ' meter');
+                        lines.push(escapeHtml(formatDisplayForBreak(specWithStk)) + ' \u00b7 ' + formatRunningMeters(lm) + ' meter');
                     } else {
                         // Kabelhylse: show spec + antall + enhet on one line
                         var text = '';
-                        if (spec) text += escapeHtml(spec);
+                        if (spec) text += escapeHtml(formatDisplayForBreak(spec));
                         if (m.antall) text += ' ' + escapeHtml((m.antall || '').replace('.', ',')) + ' stk';
                         lines.push(text.trim());
                     }
@@ -7004,14 +7004,14 @@ function renderBilHistory() {
         function injectBilStkLag(formattedName, m) {
             var pipeInfo = getRunningMeterInfo(m.name);
             var pipes = parseFloat((m.antall || '').replace(',', '.'));
-            if (!pipeInfo || isNaN(pipes) || pipes <= 0) return formattedName;
+            if (!pipeInfo || isNaN(pipes) || pipes <= 0) return formatDisplayForBreak(formattedName);
             var lagMatch = formattedName.match(/^(.+?) \((\d+) lag\)$/);
             var baseSpec = lagMatch ? lagMatch[1] : formattedName;
             var rounds = lagMatch ? parseInt(lagMatch[2], 10) : 1;
-            if (rounds > 1) {
-                return baseSpec + ' (' + (m.antall || '0') + ' stk \u00d7 ' + rounds + ' lag)';
-            }
-            return baseSpec + ' (' + (m.antall || '0') + ' stk)';
+            var result = rounds > 1
+                ? baseSpec + ' (' + (m.antall || '0') + ' stk \u00d7 ' + rounds + ' lag)'
+                : baseSpec + ' (' + (m.antall || '0') + ' stk)';
+            return formatDisplayForBreak(result);
         }
         // Helper to format a full material name (with variant appended)
         function formatBilName(m) {

@@ -18,6 +18,17 @@ let cachedRequiredSettings = null;
 function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
 function sortUnits(arr) { arr.sort((a, b) => (a.plural || '').localeCompare(b.plural || '', 'no')); }
 
+// Apply non-breaking spaces inside (…) and zero-width spaces after × for cleaner line-wrapping.
+// Display-only — never call on data that will be stored or compared.
+function formatDisplayForBreak(text) {
+    if (!text) return text;
+    text = text.replace(/\u00d7/g, '\u00d7\u200b');
+    text = text.replace(/\(([^)]*)\)/g, function(_, inner) {
+        return '(' + inner.replace(/ /g, '\u00a0') + ')';
+    });
+    return text;
+}
+
 // Normalize kabelhylse formats and ensure consistent × usage
 function formatKabelhylseSpec(name) {
     return name
@@ -1071,6 +1082,7 @@ function createMaterialSummaryRow(m, groupBaseName) {
             nameFormatted = baseSpec + ' (' + m.antall + ' stk)';
         }
     }
+    nameFormatted = formatDisplayForBreak(nameFormatted);
     const nameText = nameFormatted ? escapeHtml(nameFormatted) : (groupBaseName ? '' : t('placeholder_material'));
     const detailParts = [];
     if (hasPipeMeter) {
@@ -1202,7 +1214,7 @@ function openMaterialPicker(btn, onConfirm) {
         normalized = normalized.replace(/ø(?=\d)/g, 'Ø');
         normalized = formatKabelhylseSpec(normalized);
         normalized = normalized.replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
-        return normalized;
+        return formatDisplayForBreak(normalized);
     }
 
     function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride, hasVariants) {
@@ -3025,7 +3037,7 @@ function buildDesktopWorkLines() {
                     var nameWithStk = roundsExp > 1
                         ? baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk \u00d7 ' + roundsExp + ' lag)'
                         : baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
-                    addRow(nameWithStk, formatRunningMeters(lm), 'meter', { alignRight: true });
+                    addRow(formatDisplayForBreak(nameWithStk), formatRunningMeters(lm), 'meter', { alignRight: true });
                 } else {
                     var exportUnit = (m.enhet || '').toLowerCase() === 'meter' ? 'meter' : 'stk';
                     var exportVal = exportUnit === 'meter' ? formatRunningMeters(m.antall) : (m.antall || '').replace('.', ',');
