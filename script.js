@@ -1988,7 +1988,7 @@ function updateDagTimerSummary(card) {
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
     const parts = dagOrder.filter(d => timer[d]).map(d => (dagShortMap[d] || d) + ' ' + String(timer[d]).replace('.', ',') + 't');
     var genVal = timer._generelt || timer._total;
-    if (genVal) parts.push('Gen ' + String(genVal).replace('.', ',') + 't');
+    if (genVal) parts.push('Uspes. ' + String(genVal).replace('.', ',') + 't');
     var summary = parts.join(', ');
     textEl.textContent = summary;
     if (summary) {
@@ -2025,12 +2025,12 @@ function openDagTimerModal(btn) {
         row.appendChild(inp);
         list.appendChild(row);
     });
-    // Generelt-rad nederst — ekstra timer som ikke er dag-spesifikke (additivt)
+    // Generelt-rad nederst — additiv ekstra timer
     var genRow = document.createElement('div');
     genRow.className = 'dag-timer-modal-row dag-timer-total-row';
     var genLabel = document.createElement('span');
     genLabel.className = 'dag-timer-modal-name';
-    genLabel.textContent = 'Generelt';
+    genLabel.textContent = 'Uspesifisert dag';
     var genInp = document.createElement('input');
     genInp.type = 'text';
     genInp.className = 'dag-timer-modal-input';
@@ -2974,12 +2974,12 @@ function buildDesktopWorkLines() {
                 var dagParts = [];
                 if (order.dager && order.dager.length > 0) {
                     dagParts = order.dager.map(d => {
-                        const t = order.timer && order.timer[d];
-                        return (dagMap[d] || d) + (t ? ' (' + String(t).replace('.', ',') + 't)' : '');
+                        const tv = order.timer && order.timer[d];
+                        return (dagMap[d] || d) + (tv ? ' (' + String(tv).replace('.', ',') + 't)' : '');
                     });
                 }
                 if (genVal) {
-                    dagParts.push('Generelt (' + String(genVal).replace('.', ',') + 't)');
+                    dagParts.push('Uspesifisert dag (' + String(genVal).replace('.', ',') + 't)');
                 }
                 const dagLabel = document.createElement('strong');
                 dagLabel.textContent = t('order_days') + ': ';
