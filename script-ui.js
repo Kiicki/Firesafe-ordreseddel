@@ -765,10 +765,19 @@ function updatePreviewScale() {
     } else {
         fc.style.transform = '';
         fc.style.transformOrigin = '';
-        fc.style.marginLeft = 'auto';
-        fc.style.marginRight = 'auto';
         fc.style.marginTop = '';
         fc.style.marginBottom = '';
+        // Explicitly compute horizontal offset for reliable centering
+        // (margin: auto has edge cases in scroll containers across browsers)
+        var containerWidth = scroll.clientWidth;
+        if (containerWidth > 800) {
+            var offset = Math.floor((containerWidth - 800) / 2);
+            fc.style.marginLeft = offset + 'px';
+            fc.style.marginRight = '0';
+        } else {
+            fc.style.marginLeft = '';
+            fc.style.marginRight = '';
+        }
         if (header) {
             header.style.maxWidth = '800px';
             header.style.margin = '0 auto';
