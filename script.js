@@ -2457,10 +2457,8 @@ const signatureRatio = 3;
 
 let signatureOrientationLocked = false;
 
-// Lock to portrait on app start (PWA standalone)
-if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('portrait-primary').catch(function() {});
-}
+// Orientation is NOT locked at app start — user can rotate freely.
+// Only signature overlay locks to landscape temporarily (see openSignatureOverlay).
 
 function handleSignatureOrientationChange() {
     setTimeout(updateSignatureLayout, 200);
@@ -2565,9 +2563,9 @@ function cleanupSignatureOverlay() {
 
     if (signatureOrientationLocked) {
         signatureOrientationLocked = false;
-        // Lock back to portrait instead of just unlocking
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('portrait-primary').catch(function() {});
+        // Unlock so user can rotate freely again
+        if (screen.orientation && screen.orientation.unlock) {
+            try { screen.orientation.unlock(); } catch(e) {}
         }
     }
 }

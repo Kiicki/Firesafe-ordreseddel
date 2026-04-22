@@ -779,10 +779,6 @@ function updatePreviewScale() {
 }
 
 function openPreview() {
-    // Unlock orientation so preview can be rotated to landscape on mobile/tablet
-    if (screen.orientation && screen.orientation.unlock) {
-        try { screen.orientation.unlock(); } catch(e) {}
-    }
     // Sync mobile form data to desktop layout
     syncMobileToOriginal();
     buildDesktopWorkLines();
@@ -831,10 +827,6 @@ function openPreview() {
 }
 
 function closePreview() {
-    // Re-lock to portrait when leaving preview (default app orientation)
-    if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('portrait-primary').catch(function() {});
-    }
     // Remove resize listener
     if (window._previewResizeHandler) {
         window.removeEventListener('resize', window._previewResizeHandler);
