@@ -745,6 +745,15 @@ function updatePreviewScale() {
     var scroll = document.getElementById('preview-scroll');
     if (!fc || !scroll) return;
 
+    // Wipe any lingering inline styles from previous versions/sessions that could skew layout
+    fc.style.marginLeft = '';
+    fc.style.marginRight = '';
+    fc.style.marginTop = '';
+    fc.style.marginBottom = '';
+    fc.style.transform = '';
+    fc.style.transformOrigin = '';
+    scroll.classList.remove('centered');
+
     var cs = getComputedStyle(scroll);
     var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     var availWidth = scroll.clientWidth - padLR;
@@ -759,8 +768,6 @@ function updatePreviewScale() {
         fc.style.transformOrigin = 'top center';
         fc.style.transform = 'scale(' + scale + ')';
         fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
-        fc.style.marginLeft = '';
-        fc.style.marginRight = '';
         if (header) {
             header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
         }
