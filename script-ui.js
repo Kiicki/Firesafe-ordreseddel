@@ -5445,9 +5445,15 @@ document.getElementById('mobile-signature-preview').addEventListener('click', fu
 document.addEventListener('DOMContentLoaded', function() {
     // Set toolbar height CSS variable (replaces hardcoded 60px)
     var toolbar = document.querySelector('.toolbar');
-    if (toolbar) {
-        document.documentElement.style.setProperty('--toolbar-h', toolbar.offsetHeight + 'px');
+    function syncToolbarHeight() {
+        if (toolbar) {
+            document.documentElement.style.setProperty('--toolbar-h', toolbar.offsetHeight + 'px');
+        }
     }
+    syncToolbarHeight();
+    // Recalculate on rotation / resize so form content doesn't end up behind toolbar
+    window.addEventListener('resize', syncToolbarHeight);
+    window.addEventListener('orientationchange', function() { setTimeout(syncToolbarHeight, 200); });
 
     // Init date inputs
     initDateInput(document.getElementById('mobile-signering-dato'));
