@@ -2457,8 +2457,12 @@ const signatureRatio = 3;
 
 let signatureOrientationLocked = false;
 
-// Orientation is NOT locked at app start — user can rotate freely.
-// Only signature overlay locks to landscape temporarily (see openSignatureOverlay).
+// Failsafe: actively unlock orientation at app start so a previous session's lock
+// (e.g., from a crashed signature flow) can't persist. Only signature overlay
+// re-locks to landscape temporarily (see openSignatureOverlay).
+if (screen.orientation && screen.orientation.unlock) {
+    try { screen.orientation.unlock(); } catch(e) {}
+}
 
 function handleSignatureOrientationChange() {
     setTimeout(updateSignatureLayout, 200);
