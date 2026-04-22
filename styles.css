@@ -3028,7 +3028,7 @@ label.settings-default-label.field-required > span::after {
     font-weight: 500;
     cursor: pointer;
     width: 100%;
-    margin-bottom: 8px;
+    margin-top: 8px;
 }
 
 .mobile-order-materials:empty {

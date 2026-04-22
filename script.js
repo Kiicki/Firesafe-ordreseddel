@@ -897,8 +897,8 @@ function createOrderCard(orderData, expanded) {
             </div>
             <div class="mobile-order-materials-section${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' field-required' : ''}">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
-                <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
                 <div class="mobile-order-materials"></div>
+                <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.plan ? ' field-required' : ''}">
                 <label data-i18n="order_plan">${t('order_plan')}</label>
@@ -1970,7 +1970,11 @@ function updateOrderTitle(card) {
     var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
     var idx = Array.prototype.indexOf.call(cards, card);
     var num = idx >= 0 ? idx + 1 : cards.length + 1;
-    if (firstLine) {
+    var wrap = card.querySelector('.mobile-order-body-wrap');
+    var isExpanded = wrap && wrap.classList.contains('expanded');
+    if (isExpanded) {
+        titleEl.textContent = t('order_title') + ' ' + num;
+    } else if (firstLine) {
         titleEl.textContent = num + '. ' + firstLine;
     } else {
         titleEl.textContent = t('order_title') + ' ' + num;
@@ -2126,6 +2130,7 @@ function toggleOrder(headerEl) {
         wrap.classList.remove('expanded');
         arrow.innerHTML = '&#9660;';
     }
+    updateOrderTitle(card);
 }
 
 function renumberOrders() {
@@ -2199,8 +2204,8 @@ function createServiceEntryCard(entryData, expanded) {
                 '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + escapeHtml(data.prosjektnavn || '') + '"></div>' +
             '<div class="mobile-order-materials-section' + matReq + '">' +
                 '<label class="mobile-order-sublabel" data-i18n="order_materials_label">' + t('order_materials_label') + '</label>' +
-                '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
                 '<div class="mobile-order-materials"></div>' +
+                '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
             '</div>' +
         '</div>' +
         '</div>';
