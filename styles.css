@@ -4676,6 +4676,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     justify-content: space-between;
     align-items: center;
     height: 44px;
+    width: 100%;
+    max-width: 800px;
     padding: 0 12px;
     padding-top: env(safe-area-inset-top);
     background: #333;
@@ -4686,6 +4688,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     left: 0;
     z-index: 1;
     margin: 0 auto;
+    flex-shrink: 0;
 }
 .preview-close-btn {
     background: none;
@@ -4734,9 +4737,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     min-height: 0;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
-}
-/* In landscape / wide viewport when form fits at scale 1, use flex to center horizontally */
-.preview-scroll.centered {
     display: flex;
     flex-direction: column;
     align-items: center;

@@ -752,19 +752,19 @@ function updatePreviewScale() {
 
     var header = document.querySelector('.preview-overlay-header');
 
+    // preview-scroll is always flex column with align-items: center (CSS)
+    // so form-container (flex child) is always horizontally centered.
+    // We only apply transform for scaling when form is wider than viewport.
     if (scale < 1) {
-        scroll.classList.remove('centered');
-        fc.style.transformOrigin = 'top left';
+        fc.style.transformOrigin = 'top center';
         fc.style.transform = 'scale(' + scale + ')';
         fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
-        fc.style.marginRight = (-(fc.offsetWidth * (1 - scale))) + 'px';
         fc.style.marginLeft = '';
+        fc.style.marginRight = '';
         if (header) {
             header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
-            header.style.margin = '0';
         }
     } else {
-        scroll.classList.add('centered');
         fc.style.transform = '';
         fc.style.transformOrigin = '';
         fc.style.marginTop = '';
@@ -772,8 +772,7 @@ function updatePreviewScale() {
         fc.style.marginLeft = '';
         fc.style.marginRight = '';
         if (header) {
-            header.style.maxWidth = '800px';
-            header.style.margin = '0 auto';
+            header.style.maxWidth = '';
         }
     }
 
@@ -847,9 +846,6 @@ function closePreview() {
     }
 
     cleanupPreviewPinchZoom();
-    // Reset preview-scroll flex class so it doesn't leak to next session
-    var scroll = document.getElementById('preview-scroll');
-    if (scroll) scroll.classList.remove('centered');
     document.getElementById('preview-overlay').classList.remove('active');
 
     // Restore body scroll
