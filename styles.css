@@ -4733,9 +4733,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     min-height: 0;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
 }
 
 /* Preview button in form */

@@ -745,7 +745,7 @@ function updatePreviewScale() {
     var scroll = document.getElementById('preview-scroll');
     if (!fc || !scroll) return;
 
-    // Wipe any lingering inline styles from previous versions/sessions that could skew layout
+    // Wipe any lingering inline styles from previous sessions
     fc.style.marginLeft = '';
     fc.style.marginRight = '';
     fc.style.marginTop = '';
@@ -761,9 +761,11 @@ function updatePreviewScale() {
 
     var header = document.querySelector('.preview-overlay-header');
 
-    // preview-scroll is always flex column with align-items: center (CSS)
-    // so form-container (flex child) is always horizontally centered.
-    // We only apply transform for scaling when form is wider than viewport.
+    // Center via block-level margin auto. Requires explicit width (800px set elsewhere)
+    // and preview-scroll as a block container (not flex).
+    fc.style.marginLeft = 'auto';
+    fc.style.marginRight = 'auto';
+
     if (scale < 1) {
         fc.style.transformOrigin = 'top center';
         fc.style.transform = 'scale(' + scale + ')';
@@ -774,10 +776,6 @@ function updatePreviewScale() {
     } else {
         fc.style.transform = '';
         fc.style.transformOrigin = '';
-        fc.style.marginTop = '';
-        fc.style.marginBottom = '';
-        fc.style.marginLeft = '';
-        fc.style.marginRight = '';
         if (header) {
             header.style.maxWidth = '';
         }
