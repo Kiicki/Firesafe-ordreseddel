@@ -767,6 +767,7 @@ function updatePreviewScale() {
         fc.style.transformOrigin = '';
         fc.style.marginLeft = 'auto';
         fc.style.marginRight = 'auto';
+        fc.style.marginTop = '';
         fc.style.marginBottom = '';
         if (header) {
             header.style.maxWidth = '800px';
@@ -823,15 +824,20 @@ function openPreview() {
     // Recalculate on browser zoom / window resize / device rotation
     window._previewResizeHandler = updatePreviewScale;
     window.addEventListener('resize', window._previewResizeHandler);
-    window.addEventListener('orientationchange', window._previewResizeHandler);
+    // On orientationchange, wait for viewport to settle before recalculating
+    window._previewOrientHandler = function() { setTimeout(updatePreviewScale, 200); };
+    window.addEventListener('orientationchange', window._previewOrientHandler);
 }
 
 function closePreview() {
     // Remove resize listener
     if (window._previewResizeHandler) {
         window.removeEventListener('resize', window._previewResizeHandler);
-        window.removeEventListener('orientationchange', window._previewResizeHandler);
         window._previewResizeHandler = null;
+    }
+    if (window._previewOrientHandler) {
+        window.removeEventListener('orientationchange', window._previewOrientHandler);
+        window._previewOrientHandler = null;
     }
     if (window._svcPreviewOrientTimer) {
         clearTimeout(window._svcPreviewOrientTimer);
