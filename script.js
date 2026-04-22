@@ -1967,12 +1967,14 @@ function updateOrderTitle(card) {
     var descInput = card.querySelector('.mobile-order-desc');
     var fullText = descInput ? (descInput.getAttribute('data-full-value') || descInput.value) : '';
     var firstLine = fullText.split('\n').find(function(l) { return l.trim(); }) || '';
-    if (!firstLine) {
-        var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
-        var idx = Array.prototype.indexOf.call(cards, card);
-        firstLine = t('order_title') + ' ' + (idx >= 0 ? idx + 1 : cards.length + 1);
+    var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+    var idx = Array.prototype.indexOf.call(cards, card);
+    var num = idx >= 0 ? idx + 1 : cards.length + 1;
+    if (firstLine) {
+        titleEl.textContent = num + '. ' + firstLine;
+    } else {
+        titleEl.textContent = t('order_title') + ' ' + num;
     }
-    titleEl.textContent = firstLine;
 }
 
 var dagTimerActiveCard = null;
