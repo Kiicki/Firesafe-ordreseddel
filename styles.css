@@ -4735,6 +4735,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     overflow: auto;
     -webkit-overflow-scrolling: touch;
 }
+/* In landscape / wide viewport when form fits at scale 1, use flex to center horizontally */
+.preview-scroll.centered {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
 /* Preview button in form */
 .preview-btn {

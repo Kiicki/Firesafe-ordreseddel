@@ -753,6 +753,7 @@ function updatePreviewScale() {
     var header = document.querySelector('.preview-overlay-header');
 
     if (scale < 1) {
+        scroll.classList.remove('centered');
         fc.style.transformOrigin = 'top left';
         fc.style.transform = 'scale(' + scale + ')';
         fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
@@ -763,21 +764,13 @@ function updatePreviewScale() {
             header.style.margin = '0';
         }
     } else {
+        scroll.classList.add('centered');
         fc.style.transform = '';
         fc.style.transformOrigin = '';
         fc.style.marginTop = '';
         fc.style.marginBottom = '';
-        // Explicitly compute horizontal offset for reliable centering
-        // (margin: auto has edge cases in scroll containers across browsers)
-        var containerWidth = scroll.clientWidth;
-        if (containerWidth > 800) {
-            var offset = Math.floor((containerWidth - 800) / 2);
-            fc.style.marginLeft = offset + 'px';
-            fc.style.marginRight = '0';
-        } else {
-            fc.style.marginLeft = '';
-            fc.style.marginRight = '';
-        }
+        fc.style.marginLeft = '';
+        fc.style.marginRight = '';
         if (header) {
             header.style.maxWidth = '800px';
             header.style.margin = '0 auto';
@@ -854,6 +847,9 @@ function closePreview() {
     }
 
     cleanupPreviewPinchZoom();
+    // Reset preview-scroll flex class so it doesn't leak to next session
+    var scroll = document.getElementById('preview-scroll');
+    if (scroll) scroll.classList.remove('centered');
     document.getElementById('preview-overlay').classList.remove('active');
 
     // Restore body scroll
