@@ -6050,6 +6050,63 @@ body.kappe-view-open { background: #fff; }
 .kappe-line-body .mobile-field {
     margin-bottom: 10px;
 }
+.kappe-kapp-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.kappe-kapp-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+}
+.kappe-kapp-row .kappe-triple-row {
+    flex: 1;
+    min-width: 0;
+}
+.kappe-triple-row {
+    display: flex;
+    gap: 8px;
+}
+.kappe-triple-row .mobile-field {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+}
+.kappe-triple-row .mobile-field input {
+    padding: 10px 8px;
+    font-size: 15px;
+}
+.kappe-kapp-remove-btn {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    padding: 0 2px 8px 0;
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-end;
+}
+.kappe-kapp-remove-btn svg {
+    width: 20px;
+    height: 20px;
+}
+.kappe-kapp-remove-btn:disabled {
+    color: #ccc;
+    cursor: default;
+}
+.kappe-add-kapp-btn {
+    background: none;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    color: #E8501A;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px;
+    width: 100%;
+    cursor: pointer;
+    margin-top: 6px;
+}
 .kappe-line-body select.kappe-line-product {
     width: 100%;
     padding: 10px;
@@ -6299,7 +6356,8 @@ body.kappe-view-open { background: #fff; }
 }
 .ke-products-table thead th,
 .ke-stift-table thead th {
-    background: #f0f0f0;
+    background: #E8501A;
+    color: #fff;
     font-weight: bold;
     font-size: 11px;
 }
@@ -6312,10 +6370,20 @@ body.kappe-view-open { background: #fff; }
     padding-left: 8px !important;
 }
 .ke-td-office {
+    background: #f0f0f0;
+}
+.ke-products-table tbody tr:nth-child(even) {
     background: #fafafa;
 }
+.ke-td-nr {
+    vertical-align: top;
+    text-align: left;
+}
+.ke-merknad {
+    font-style: italic;
+}
 .ke-stift-table {
-    max-width: 50%;
+    max-width: 25%;
     margin-top: 4px;
 }
 .ke-stift-size {

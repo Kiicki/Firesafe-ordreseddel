@@ -6821,7 +6821,7 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 window.addEventListener('pagehide', _swStopTicker);
-document.addEventListener('DOMContentLoaded', function() { _swUpdateIndicator(); });
+document.addEventListener('DOMContentLoaded', function() { _swUpdateIndicator(); _kappeInitDatePicker(); });
 
 function calcMulticollar() {
     var input = document.getElementById('calc-mc-diameter');
@@ -7562,8 +7562,26 @@ function _kappeFormatDateNO(isoOrDMY) {
     if (!isoOrDMY) return '';
     var s = String(isoOrDMY);
     var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    if (m) return m[3] + '.' + m[2] + '.' + m[1];
     return s;
+}
+
+function _kappeParseDateNO(dmyStr) {
+    if (!dmyStr) return '';
+    var m = String(dmyStr).match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/);
+    if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    return '';
+}
+
+function _kappeInitDatePicker() {
+    var textEl = document.getElementById('kappe-onsket-leveringsdato');
+    if (!textEl) return;
+    textEl.addEventListener('blur', function() {
+        var iso = _kappeParseDateNO(textEl.value);
+        if (iso) {
+            textEl.value = _kappeFormatDateNO(iso);
+        }
+    });
 }
 
 function toggleKappeDeliverySection(headerEl) {
@@ -7663,8 +7681,79 @@ function _kappeProductOptionsHtml(selectedName) {
     return html;
 }
 
+function _createKappeKappRow(kappData) {
+    var d = kappData || {};
+    var row = document.createElement('div');
+    row.className = 'kappe-kapp-row';
+    row.innerHTML =
+        '<div class="kappe-triple-row">' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_bredde">Bredde (mm)</label>' +
+                '<input type="text" class="kappe-line-bredde" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.bredde || '') + '">' +
+            '</div>' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_lopemeter">Løpemeter</label>' +
+                '<input type="text" class="kappe-line-lopemeter" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.lopemeter || d['løpemeter'] || '') + '">' +
+            '</div>' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_antall_sider">Antall sider</label>' +
+                '<input type="text" class="kappe-line-antall-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antallSider || '') + '">' +
+            '</div>' +
+        '</div>' +
+        '<button type="button" class="kappe-kapp-remove-btn" onclick="removeKappeKappRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
+    row.querySelector('.kappe-line-bredde').addEventListener('input', renumberKappeLines);
+    return row;
+}
+
+function addKappeKappRow(btn) {
+    var card = btn.closest('.kappe-line-card');
+    var container = card.querySelector('.kappe-kapp-rows');
+    var row = _createKappeKappRow({});
+    container.appendChild(row);
+    _updateKappeKappRemoveStates(card);
+    renumberKappeLines();
+}
+
+function removeKappeKappRow(btn) {
+    var row = btn.closest('.kappe-kapp-row');
+    var card = row.closest('.kappe-line-card');
+    var container = card.querySelector('.kappe-kapp-rows');
+    if (container.querySelectorAll('.kappe-kapp-row').length <= 1) return;
+    row.remove();
+    _updateKappeKappRemoveStates(card);
+    renumberKappeLines();
+}
+
+function _updateKappeKappRemoveStates(card) {
+    var rows = card.querySelectorAll('.kappe-kapp-row');
+    var btns = card.querySelectorAll('.kappe-kapp-remove-btn');
+    btns.forEach(function(b) { b.disabled = rows.length <= 1; });
+}
+
+function _getKappeLineKappData(card) {
+    var kapp = [];
+    card.querySelectorAll('.kappe-kapp-row').forEach(function(row) {
+        kapp.push({
+            bredde: (row.querySelector('.kappe-line-bredde') || {}).value || '',
+            lopemeter: (row.querySelector('.kappe-line-lopemeter') || {}).value || '',
+            antallSider: (row.querySelector('.kappe-line-antall-sider') || {}).value || ''
+        });
+    });
+    return kapp;
+}
+
 function createKappeLineCard(lineData, expanded) {
     var data = lineData || {};
+    // Backward compat: old format had bredde/lopemeter/antallSider directly
+    var kappList = data.kapp || [];
+    if (!kappList.length) {
+        if (data.bredde || data.lopemeter || data.antallSider) {
+            kappList = [{ bredde: data.bredde || '', lopemeter: data.lopemeter || data['løpemeter'] || '', antallSider: data.antallSider || '' }];
+        } else {
+            kappList = [{}];
+        }
+    }
+
     var card = document.createElement('div');
     card.className = 'kappe-line-card mobile-order-card';
 
@@ -7672,7 +7761,6 @@ function createKappeLineCard(lineData, expanded) {
         '<div class="mobile-order-header kappe-line-header" onclick="toggleKappeLine(this)">' +
             '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
             '<span class="kappe-line-title"></span>' +
-            '<button type="button" class="mobile-order-header-duplicate kappe-line-duplicate" onclick="event.stopPropagation(); duplicateKappeLine(this)" title="' + t('kappe_duplicate_line') + '">' + duplicateIcon + '</button>' +
             '<button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeKappeLine(this)">' + deleteIcon + '</button>' +
         '</div>' +
         '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
@@ -7681,58 +7769,24 @@ function createKappeLineCard(lineData, expanded) {
                 '<label data-i18n="kappe_col_produkt">Produkt</label>' +
                 '<select class="kappe-line-product">' + _kappeProductOptionsHtml(data.produkt || '') + '</select>' +
             '</div>' +
-            '<div class="mobile-field field-required">' +
-                '<label data-i18n="kappe_col_bredde">Bredde (mm)</label>' +
-                '<input type="text" class="kappe-line-bredde" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(data.bredde || '') + '">' +
-            '</div>' +
-            '<div class="mobile-field field-required">' +
-                '<label data-i18n="kappe_col_lopemeter">Løpemeter</label>' +
-                '<input type="text" class="kappe-line-lopemeter" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(data.lopemeter || data['løpemeter'] || '') + '">' +
-            '</div>' +
-            '<div class="mobile-field field-required">' +
-                '<label data-i18n="kappe_col_antall_sider">Antall sider</label>' +
-                '<input type="text" class="kappe-line-antall-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.antallSider || '') + '">' +
+            '<div class="kappe-kapp-rows"></div>' +
+            '<button type="button" class="kappe-add-kapp-btn" onclick="addKappeKappRow(this)">+ ' + t('kappe_add_kapp') + '</button>' +
+            '<div class="mobile-field">' +
+                '<label data-i18n="kappe_col_merknad">' + t('kappe_col_merknad') + '</label>' +
+                '<textarea class="kappe-line-merknad" rows="2">' + escapeHtml(data.merknad || '') + '</textarea>' +
             '</div>' +
         '</div>' +
         '</div>';
 
-    card.querySelector('.kappe-line-product').addEventListener('change', renumberKappeLines);
-    card.querySelector('.kappe-line-bredde').addEventListener('input', renumberKappeLines);
-
-    return card;
-}
-
-function duplicateKappeLine(btn) {
-    var sourceCard = btn.closest('.kappe-line-card');
-    var container = document.getElementById('kappe-lines');
-    if (!sourceCard || !container) return;
-
-    var lineData = {
-        produkt: (sourceCard.querySelector('.kappe-line-product') || {}).value || '',
-        bredde: (sourceCard.querySelector('.kappe-line-bredde') || {}).value || '',
-        lopemeter: (sourceCard.querySelector('.kappe-line-lopemeter') || {}).value || '',
-        antallSider: (sourceCard.querySelector('.kappe-line-antall-sider') || {}).value || ''
-    };
-
-    // Collapse all cards before inserting new one
-    container.querySelectorAll('.kappe-line-card').forEach(function(card) {
-        var wrap = card.querySelector('.mobile-order-body-wrap');
-        if (wrap && wrap.classList.contains('expanded')) {
-            wrap.classList.remove('expanded');
-            card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
-        }
+    var kappContainer = card.querySelector('.kappe-kapp-rows');
+    kappList.forEach(function(k) {
+        kappContainer.appendChild(_createKappeKappRow(k));
     });
 
-    var newCard = createKappeLineCard(lineData, true);
-    if (sourceCard.nextSibling) {
-        container.insertBefore(newCard, sourceCard.nextSibling);
-    } else {
-        container.appendChild(newCard);
-    }
-    updateKappeDeleteStates();
-    renumberKappeLines();
-    sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
-    newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.querySelector('.kappe-line-product').addEventListener('change', renumberKappeLines);
+    _updateKappeKappRemoveStates(card);
+
+    return card;
 }
 
 function addKappeLine() {
@@ -7782,10 +7836,10 @@ function toggleKappeLine(headerEl) {
 function renumberKappeLines() {
     document.querySelectorAll('#kappe-lines .kappe-line-card').forEach(function(card, idx) {
         var prod = card.querySelector('.kappe-line-product');
-        var bredde = card.querySelector('.kappe-line-bredde');
+        var kappCount = card.querySelectorAll('.kappe-kapp-row').length;
         var bits = ['#' + (idx + 1)];
         if (prod && prod.value) bits.push(prod.value);
-        if (bredde && bredde.value) bits.push(bredde.value + ' mm');
+        if (kappCount > 1) bits.push(kappCount + ' kapp');
         card.querySelector('.kappe-line-title').textContent = bits.join(' · ');
     });
 }
@@ -7900,9 +7954,8 @@ function getKappeFormData() {
     document.querySelectorAll('#kappe-lines .kappe-line-card').forEach(function(card) {
         lines.push({
             produkt: (card.querySelector('.kappe-line-product') || {}).value || '',
-            bredde: (card.querySelector('.kappe-line-bredde') || {}).value || '',
-            lopemeter: (card.querySelector('.kappe-line-lopemeter') || {}).value || '',
-            antallSider: (card.querySelector('.kappe-line-antall-sider') || {}).value || ''
+            kapp: _getKappeLineKappData(card),
+            merknad: (card.querySelector('.kappe-line-merknad') || {}).value || ''
         });
     });
     var stift = [];
@@ -7942,7 +7995,7 @@ function getKappeFormDataSnapshot() {
 function setKappeFormData(data) {
     if (!data) return;
     document.getElementById('kappe-dato').value = data.dato || _kappeFormatDateNO(_kappeTodayISO());
-    document.getElementById('kappe-onsket-leveringsdato').value = data.onsketLeveringsdato || '';
+    document.getElementById('kappe-onsket-leveringsdato').value = _kappeFormatDateNO(data.onsketLeveringsdato) || '';
     document.getElementById('kappe-avdeling').value = data.avdeling || '';
     document.getElementById('kappe-bestiller').value = data.bestiller || '';
     document.getElementById('kappe-prosjektnr').value = data.prosjektnr || '';
@@ -8067,10 +8120,15 @@ function validateKappeRequiredFields() {
         for (var j = 0; j < lines.length; j++) {
             var card = lines[j];
             var prod = card.querySelector('.kappe-line-product').value;
-            var bredde = card.querySelector('.kappe-line-bredde').value;
-            var lm = card.querySelector('.kappe-line-lopemeter').value;
-            var sider = card.querySelector('.kappe-line-antall-sider').value;
-            if (prod || bredde || lm || sider) { anyLine = true; break; }
+            if (prod) { anyLine = true; break; }
+            var kappRows = card.querySelectorAll('.kappe-kapp-row');
+            for (var kr = 0; kr < kappRows.length; kr++) {
+                var bredde = kappRows[kr].querySelector('.kappe-line-bredde').value;
+                var lm = kappRows[kr].querySelector('.kappe-line-lopemeter').value;
+                var sider = kappRows[kr].querySelector('.kappe-line-antall-sider').value;
+                if (bredde || lm || sider) { anyLine = true; break; }
+            }
+            if (anyLine) break;
         }
         if (!anyLine) {
             showNotificationModal(t('kappe_validation_no_lines'));
@@ -8317,8 +8375,6 @@ function buildKappeExportTable() {
     var container = document.getElementById('kappe-export-container');
 
     var lines = (data.lines || []).slice();
-    var minRows = Math.max(lines.length, 12);
-    while (lines.length < minRows) lines.push({});
 
     var lev = data.leveringsadresse || {};
 
@@ -8358,16 +8414,39 @@ function buildKappeExportTable() {
             '</div>' +
         '</div>';
 
-    var productRows = '';
+    // Flatten lines with multiple kapp rows into export rows
+    var flatRows = [];
     for (var i = 0; i < lines.length; i++) {
         var l = lines[i] || {};
+        // Backward compat: old format had bredde/lopemeter/antallSider directly
+        var kappArr = l.kapp || [];
+        if (!kappArr.length) {
+            kappArr = [{ bredde: l.bredde || '', lopemeter: l.lopemeter || '', antallSider: l.antallSider || '' }];
+        }
+        for (var ki = 0; ki < kappArr.length; ki++) {
+            flatRows.push({
+                nr: ki === 0 ? (i + 1) : '',
+                produkt: ki === 0 ? (l.produkt || '') : '',
+                bredde: kappArr[ki].bredde || '',
+                lopemeter: kappArr[ki].lopemeter || '',
+                antallSider: kappArr[ki].antallSider || '',
+                merknad: (ki === 0) ? (l.merknad || '') : ''
+            });
+        }
+    }
+
+    var productRows = '';
+    for (var ri = 0; ri < flatRows.length; ri++) {
+        var r = flatRows[ri];
+        var nrContent = r.nr;
+        if (r.merknad) nrContent += (r.nr ? '. ' : '') + '<span class="ke-merknad">' + escapeHtml(r.merknad) + '</span>';
         productRows +=
             '<tr>' +
-                '<td class="ke-td-nr">' + (i + 1) + '</td>' +
-                '<td class="ke-td-produkt">' + escapeHtml(l.produkt || '') + '</td>' +
-                '<td class="ke-td-bredde">' + escapeHtml(fmtNum(l.bredde)) + '</td>' +
-                '<td class="ke-td-lm">' + escapeHtml(fmtNum(l.lopemeter)) + '</td>' +
-                '<td class="ke-td-antall-sider">' + escapeHtml(fmtNum(l.antallSider)) + '</td>' +
+                '<td class="ke-td-nr">' + nrContent + '</td>' +
+                '<td class="ke-td-produkt">' + escapeHtml(r.produkt) + '</td>' +
+                '<td class="ke-td-bredde">' + escapeHtml(fmtNum(r.bredde)) + '</td>' +
+                '<td class="ke-td-lm">' + escapeHtml(fmtNum(r.lopemeter)) + '</td>' +
+                '<td class="ke-td-antall-sider">' + escapeHtml(fmtNum(r.antallSider)) + '</td>' +
                 '<td class="ke-td-office"></td>' +
                 '<td class="ke-td-office"></td>' +
                 '<td class="ke-td-office"></td>' +
@@ -8375,17 +8454,17 @@ function buildKappeExportTable() {
     }
 
     var productsTable =
-        '<div class="ke-section-title">Produkter</div>' +
+        '<div class="ke-section-title">Kappeliste</div>' +
         '<table class="ke-products-table">' +
             '<colgroup>' +
-                '<col style="width:4%">' +
-                '<col style="width:22%">' +
-                '<col style="width:10%">' +
-                '<col style="width:11%">' +
-                '<col style="width:11%">' +
-                '<col style="width:13%">' +
-                '<col style="width:13%">' +
                 '<col style="width:16%">' +
+                '<col style="width:16%">' +
+                '<col style="width:8%">' +
+                '<col style="width:8%">' +
+                '<col style="width:8%">' +
+                '<col style="width:12%">' +
+                '<col style="width:12%">' +
+                '<col style="width:20%">' +
             '</colgroup>' +
             '<thead>' +
                 '<tr>' +
@@ -8416,7 +8495,7 @@ function buildKappeExportTable() {
     var stiftTable =
         '<div class="ke-section-title">Stift</div>' +
         '<table class="ke-stift-table">' +
-            '<colgroup><col style="width:30%"><col style="width:70%"></colgroup>' +
+            '<colgroup><col style="width:55%"><col style="width:45%"></colgroup>' +
             '<thead><tr><th>Størrelse</th><th>Antall krt</th></tr></thead>' +
             '<tbody>' + stiftRows + '</tbody>' +
         '</table>';
