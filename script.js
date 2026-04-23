@@ -10,6 +10,41 @@ const SERVICE_DEFAULTS_KEY = 'firesafe_defaults_service';
 const SERVICE_STORAGE_KEY = 'firesafe_service';
 const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
 const BIL_STORAGE_KEY = 'firesafe_bil_pafylling';
+const KAPPE_STORAGE_KEY = 'firesafe_kappe';
+const KAPPE_ARCHIVE_KEY = 'firesafe_kappe_arkiv';
+const KAPPE_DEFAULTS_KEY = 'firesafe_defaults_kappe';
+const KAPPE_PRODUCTS_KEY = 'firesafe_kappe_products';
+const KAPPE_STIFT_SIZES_KEY = 'firesafe_kappe_stift_sizes';
+const KAPPE_DEFAULT_PRODUCTS = [
+    { name: 'Fireprotect 25mm' },
+    { name: 'Fireprotect 40mm' },
+    { name: 'Fireprotect 60mm' }
+];
+const KAPPE_DEFAULT_STIFT_SIZES = ['22mm', '27mm', '32mm', '42mm', '52mm'];
+
+function getKappeProducts() {
+    try {
+        var raw = localStorage.getItem(KAPPE_PRODUCTS_KEY);
+        if (!raw) return KAPPE_DEFAULT_PRODUCTS.slice();
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.products) && parsed.products.length) return parsed.products;
+        return KAPPE_DEFAULT_PRODUCTS.slice();
+    } catch (e) {
+        return KAPPE_DEFAULT_PRODUCTS.slice();
+    }
+}
+
+function getKappeStiftSizes() {
+    try {
+        var raw = localStorage.getItem(KAPPE_STIFT_SIZES_KEY);
+        if (!raw) return KAPPE_DEFAULT_STIFT_SIZES.slice();
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.sizes) && parsed.sizes.length) return parsed.sizes;
+        return KAPPE_DEFAULT_STIFT_SIZES.slice();
+    } catch (e) {
+        return KAPPE_DEFAULT_STIFT_SIZES.slice();
+    }
+}
 
 const DEV_MODE = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 

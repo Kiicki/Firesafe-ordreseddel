@@ -1897,7 +1897,8 @@ input.date-invalid {
 }
 
 .mobile-field.field-required > label::after,
-.mobile-order-materials-section.field-required > label::after {
+.mobile-order-materials-section.field-required > label::after,
+.mobile-section-title.field-required::after {
     content: ' *';
     color: #e74c3c;
     font-weight: bold;
@@ -5977,4 +5978,348 @@ body.bulk-select-active .toolbar {
     cursor: default;
 }
 
+/* ============================================================================
+ * KAPPESKJEMA
+ * ============================================================================ */
+
+/* Home-actions med 4 knapper — wrap på mobil */
+.home-actions {
+    flex-wrap: wrap;
+}
+.home-actions .btn-skip-template {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    font-size: 13px;
+    padding: 10px 8px;
+    white-space: nowrap;
+}
+@media (min-width: 1025px) {
+    .home-actions .btn-skip-template {
+        flex: 1;
+        font-size: inherit;
+        padding: 10px 14px;
+    }
+}
+
+/* Kappe-view shell (samme mønster som service-view) */
+body.kappe-view-open #view-form { display: none; }
+body.kappe-view-open { background: #fff; }
+.container.kappe-view {
+    flex: 1;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.kappe-view > .modal-content {
+    overflow: visible;
+    flex: none;
+}
+
+/* Kappe-linjekort (bruker mobile-order-card-mønster) */
+.kappe-line-header .kappe-line-title {
+    flex: 1;
+    font-weight: 600;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Duplicate-knapp i linjekort-header */
+.mobile-order-header-duplicate {
+    background: transparent;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    color: #888;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 2px;
+}
+.mobile-order-header-duplicate:hover {
+    color: #E8501A;
+}
+.mobile-order-header-duplicate svg {
+    width: 20px;
+    height: 20px;
+}
+.kappe-line-body .mobile-field {
+    margin-bottom: 10px;
+}
+.kappe-line-body select.kappe-line-product {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+}
+
+/* Stift-seksjon — dynamiske rader med legg-til-knapp */
+#kappe-stift { display: flex; flex-direction: column; gap: 6px; }
+.kappe-stift-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+}
+.kappe-stift-label {
+    flex: 0 0 56px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+}
+.kappe-stift-input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    min-width: 0;
+}
+.kappe-stift-remove {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 6px;
+}
+.kappe-stift-remove svg {
+    width: 22px;
+    height: 22px;
+}
+.kappe-stift-remove:hover { background: #fde8e8; }
+#kappe-stift-add {
+    margin-top: 10px;
+}
+#kappe-stift-add:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* Stift-picker (multi-select med antall-input per rad) */
+.kappe-stift-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.kappe-stift-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+}
+.kappe-stift-picker-label {
+    flex: 0 0 56px;
+    font-weight: 600;
+    font-size: 15px;
+    color: #333;
+}
+.kappe-stift-picker-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    min-width: 0;
+    background: #fff;
+}
+.kappe-stift-picker-input:focus {
+    border-color: #E8501A;
+    outline: none;
+}
+
+/* Kappe-settings produktliste */
+.kappe-product-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: #fff;
+}
+.kappe-product-item .settings-list-item-main {
+    flex: 1;
+    min-width: 0;
+}
+.kappe-product-item .settings-list-item-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #222;
+}
+.kappe-product-item .settings-list-item-sub {
+    font-size: 12px;
+    color: #777;
+    margin-top: 2px;
+}
+.kappe-product-item .settings-list-item-actions {
+    display: flex;
+    gap: 4px;
+}
+.kappe-product-item .settings-item-edit,
+.kappe-product-item .settings-item-remove {
+    background: transparent;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.kappe-product-item .settings-item-remove {
+    color: #e74c3c;
+}
+.kappe-product-item .settings-item-remove svg,
+.kappe-product-item .settings-item-edit svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Kappe export (ryddig, profesjonell A4-landskap-layout) */
+.kappe-export-page {
+    background: #fff;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    color: #000;
+    padding: 24px 28px;
+    width: 1250px;
+}
+.ke-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #000;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+}
+.ke-logo {
+    font-family: 'Arial Black', Arial, sans-serif;
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    color: #000;
+}
+.ke-logo-slash {
+    display: inline-block;
+    width: 10px;
+    height: 18px;
+    background: #E8501A;
+    transform: skew(-20deg);
+    margin-left: 3px;
+    vertical-align: -2px;
+}
+.ke-title {
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.ke-meta {
+    font-size: 13px;
+    text-align: right;
+    line-height: 1.5;
+}
+.ke-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.ke-info-col {
+    border: 1.5px solid #000;
+    padding: 10px 12px;
+}
+.ke-info-col-title {
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #000;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.ke-info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 3px 0;
+    font-size: 12px;
+    border-bottom: 1px dotted #ccc;
+}
+.ke-info-row:last-child { border-bottom: none; }
+.ke-info-row > span:first-child {
+    color: #555;
+    flex: 0 0 45%;
+}
+.ke-info-row > span:last-child {
+    flex: 1;
+    text-align: right;
+    font-weight: 600;
+}
+.ke-section-title {
+    font-weight: bold;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 14px 0 6px;
+    border-bottom: 1.5px solid #000;
+    padding-bottom: 3px;
+}
+.ke-products-table,
+.ke-stift-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+.ke-products-table th,
+.ke-products-table td,
+.ke-stift-table th,
+.ke-stift-table td {
+    border: 1px solid #000;
+    padding: 6px 6px;
+    text-align: center;
+    vertical-align: middle;
+    word-break: break-word;
+}
+.ke-products-table thead th,
+.ke-stift-table thead th {
+    background: #f0f0f0;
+    font-weight: bold;
+    font-size: 11px;
+}
+.ke-products-table tbody tr {
+    height: 28px;
+}
+.ke-td-frietekst,
+.ke-td-produkt {
+    text-align: left !important;
+    padding-left: 8px !important;
+}
+.ke-td-office {
+    background: #fafafa;
+}
+.ke-stift-table {
+    max-width: 50%;
+    margin-top: 4px;
+}
+.ke-stift-size {
+    font-weight: 600;
+    background: #fafafa;
+}
 

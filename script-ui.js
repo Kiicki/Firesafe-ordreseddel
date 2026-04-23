@@ -99,12 +99,13 @@ function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     _bilHistoryRendered = false;
-    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open', 'calculator-modal-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open', 'kappe-view-open', 'calculator-modal-open');
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_form_type');
     sessionStorage.removeItem('firesafe_hent_tab');
     sessionStorage.removeItem('firesafe_defaults_tab');
     sessionStorage.removeItem('firesafe_service_current');
+    sessionStorage.removeItem('firesafe_kappe_current');
     showView('view-form');
 }
 
@@ -113,6 +114,7 @@ function isModalOpen() {
         || document.body.classList.contains('saved-modal-open')
         || document.body.classList.contains('settings-modal-open')
         || document.body.classList.contains('service-view-open')
+        || document.body.classList.contains('kappe-view-open')
         || document.body.classList.contains('calculator-modal-open');
 }
 
@@ -500,13 +502,17 @@ function switchHentTab(tab) {
 
     const savedList = document.getElementById('saved-list');
     const serviceList = document.getElementById('service-list');
+    const kappeList = document.getElementById('kappe-list');
     const ownSearch = document.getElementById('own-search-wrap');
     const serviceSearch = document.getElementById('service-search-wrap');
+    const kappeSearch = document.getElementById('kappe-search-wrap');
 
     savedList.style.display = 'none';
     serviceList.style.display = 'none';
+    if (kappeList) kappeList.style.display = 'none';
     ownSearch.style.display = 'none';
     serviceSearch.style.display = 'none';
+    if (kappeSearch) kappeSearch.style.display = 'none';
 
     if (tab === 'own') {
         tabs[0].classList.add('active');
@@ -519,6 +525,11 @@ function switchHentTab(tab) {
         serviceSearch.style.display = '';
         serviceList.scrollTop = 0;
         loadServiceTab();
+    } else if (tab === 'kappe') {
+        if (tabs[2]) tabs[2].classList.add('active');
+        if (kappeList) { kappeList.style.display = ''; kappeList.scrollTop = 0; }
+        if (kappeSearch) kappeSearch.style.display = '';
+        loadKappeTab();
     }
 }
 
@@ -870,6 +881,22 @@ function closePreview() {
         sc.style.marginLeft = '';
         sc.style.marginRight = '';
         window._servicePreviewActive = false;
+    } else if (window._kappePreviewActive) {
+        var kc = document.getElementById('kappe-export-container');
+        document.getElementById('kappe-view').appendChild(kc);
+        kc.style.display = 'none';
+        kc.style.width = '';
+        kc.style.overflow = '';
+        kc.style.transform = '';
+        kc.style.transformOrigin = '';
+        kc.style.margin = '';
+        kc.style.marginBottom = '';
+        kc.style.marginLeft = '';
+        kc.style.marginRight = '';
+        window._kappePreviewActive = false;
+        // Restore sign button visibility
+        var signBtn = document.querySelector('.preview-sign-btn');
+        if (signBtn) signBtn.style.display = '';
     } else {
         var fc = document.getElementById('form-container');
         // Move back to original location inside #view-form
@@ -1541,7 +1568,8 @@ function getSettingsPageTitle(page) {
         required: t('settings_required'),
         language: t('settings_language'),
         materials: t('settings_materials'),
-        plans: t('settings_plans')
+        plans: t('settings_plans'),
+        'kappe-products': t('settings_kappe_products')
     };
     return titles[page] || '';
 }
@@ -1639,12 +1667,14 @@ function showSettingsPage(page) {
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('save');
         renderRequiredSettingsItems('service');
+        renderRequiredSettingsItems('kappe');
         // Background refresh
         getRequiredSettings().then(function(settings) {
             if (document.body.classList.contains('settings-modal-open')) {
                 cachedRequiredSettings = settings;
                 renderRequiredSettingsItems('save');
                 renderRequiredSettingsItems('service');
+                renderRequiredSettingsItems('kappe');
             }
         });
     } else if (page === 'language') {
@@ -1685,6 +1715,13 @@ function showSettingsPage(page) {
             settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
             renderMaterialSettingsItems();
         });
+    } else if (page === 'kappe-products') {
+        var newNameEl = document.getElementById('settings-new-kappe-product');
+        var newStiftEl = document.getElementById('settings-new-kappe-stift');
+        if (newNameEl) newNameEl.value = '';
+        if (newStiftEl) newStiftEl.value = '';
+        renderKappeProductSettings();
+        renderKappeStiftSizeSettings();
     } else if (page === 'plans') {
         var storedPlans = localStorage.getItem(PLANS_KEY);
         settingsPlans = storedPlans ? sortPlans(JSON.parse(storedPlans)) : [];
@@ -1731,7 +1768,8 @@ function _getCachedRequiredSettings() {
             return {
                 save: Object.assign({}, defaults.save, data.save || {}),
                 template: Object.assign({}, defaults.template, data.template || {}),
-                service: Object.assign({}, defaults.service, data.service || {})
+                service: Object.assign({}, defaults.service, data.service || {}),
+                kappe: Object.assign({}, defaults.kappe, data.kappe || {})
             };
         } catch (e) {}
     }
@@ -2353,6 +2391,22 @@ function getDefaultRequiredSettings() {
             prosjektnavn: true,
             materialer: true,
             signatur: false
+        },
+        kappe: {
+            onsketLeveringsdato: false,
+            avdeling: false,
+            bestiller: false,
+            prosjektnr: true,
+            prosjektnavn: true,
+            pallemerking: false,
+            mottaker: false,
+            veiadresse: false,
+            postnr: false,
+            poststed: false,
+            kontakt: false,
+            tlf: false,
+            produkter: true,
+            stift: false
         }
     };
 }
@@ -2391,6 +2445,22 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'prosjektnavn', labelKey: 'label_prosjektnavn' },
         { key: 'materialer',   labelKey: 'order_materials_label' },
         { key: 'signatur',     labelKey: 'label_kundens_underskrift' }
+    ],
+    kappe: [
+        { key: 'onsketLeveringsdato', labelKey: 'kappe_label_onsket_leveringsdato' },
+        { key: 'avdeling',            labelKey: 'label_avdeling' },
+        { key: 'bestiller',           labelKey: 'kappe_label_bestiller' },
+        { key: 'prosjektnr',          labelKey: 'label_prosjektnr' },
+        { key: 'prosjektnavn',        labelKey: 'label_prosjektnavn' },
+        { key: 'pallemerking',        labelKey: 'kappe_label_pallemerking' },
+        { key: 'mottaker',            labelKey: 'kappe_label_mottaker' },
+        { key: 'veiadresse',          labelKey: 'kappe_label_veiadresse' },
+        { key: 'postnr',              labelKey: 'placeholder_postnr' },
+        { key: 'poststed',            labelKey: 'placeholder_poststed' },
+        { key: 'kontakt',             labelKey: 'kappe_label_kontakt' },
+        { key: 'tlf',                 labelKey: 'kappe_label_tlf' },
+        { key: 'produkter',           labelKey: 'kappe_section_products' },
+        { key: 'stift',               labelKey: 'kappe_section_staples' }
     ]
 };
 
@@ -2418,7 +2488,8 @@ async function getRequiredSettings() {
                 return {
                     save: { ...defaults.save, ...(data.save || {}) },
                     template: { ...defaults.template, ...(data.template || {}) },
-                    service: { ...defaults.service, ...(data.service || {}) }
+                    service: { ...defaults.service, ...(data.service || {}) },
+                    kappe: { ...defaults.kappe, ...(data.kappe || {}) }
                 };
             }
         } catch (e) {
@@ -2433,7 +2504,8 @@ async function getRequiredSettings() {
             return {
                 save: { ...defaults.save, ...(data.save || {}) },
                 template: { ...defaults.template, ...(data.template || {}) },
-                service: { ...defaults.service, ...(data.service || {}) }
+                service: { ...defaults.service, ...(data.service || {}) },
+                kappe: { ...defaults.kappe, ...(data.kappe || {}) }
             };
         } catch (e) {}
     }
@@ -2460,6 +2532,7 @@ async function loadRequiredSettingsToModal() {
     renderRequiredSettingsItems('save');
     renderRequiredSettingsItems('template');
     renderRequiredSettingsItems('service');
+    renderRequiredSettingsItems('kappe');
 }
 
 function renderRequiredSettingsItems(section) {
@@ -2498,18 +2571,22 @@ function switchRequiredTab(tab) {
     // Toggle tab active state
     var tabs = document.querySelectorAll('#settings-page-required .settings-tab');
     tabs.forEach(function(t, i) {
-        t.classList.toggle('active', (tab === 'own' && i === 0) || (tab === 'service' && i === 1));
+        t.classList.toggle('active',
+            (tab === 'own' && i === 0)
+            || (tab === 'service' && i === 1)
+            || (tab === 'kappe' && i === 2));
     });
 
     // Toggle content
     var ownContent = document.getElementById('required-own-content');
     var serviceContent = document.getElementById('required-service-content');
+    var kappeContent = document.getElementById('required-kappe-content');
     if (ownContent) ownContent.style.display = tab === 'own' ? '' : 'none';
     if (serviceContent) serviceContent.style.display = tab === 'service' ? '' : 'none';
+    if (kappeContent) kappeContent.style.display = tab === 'kappe' ? '' : 'none';
 
-    if (tab === 'service') {
-        renderRequiredSettingsItems('service');
-    }
+    if (tab === 'service') renderRequiredSettingsItems('service');
+    if (tab === 'kappe') renderRequiredSettingsItems('kappe');
 }
 
 // ============================================
@@ -2571,6 +2648,25 @@ async function renderSettingsTemplateList() {
     _renderSettingsTemplateListFromData(templates);
 }
 
+var TPL_DELIVERY_FIELDS = ['mottaker', 'veiadresse', 'postnr', 'poststed', 'kontakt', 'tlf'];
+
+function toggleTplDeliverySection(headerEl) {
+    var body = document.getElementById('tpl-delivery-body');
+    var arrow = document.getElementById('tpl-delivery-arrow');
+    if (!body) return;
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : '';
+    if (arrow) arrow.classList.toggle('open', !open);
+}
+
+function _tplHasDeliveryData(tpl) {
+    if (!tpl) return false;
+    for (var i = 0; i < TPL_DELIVERY_FIELDS.length; i++) {
+        if (tpl[TPL_DELIVERY_FIELDS[i]]) return true;
+    }
+    return false;
+}
+
 function showTemplateEditor(templateId) {
     _editingTemplateId = templateId || null;
     var overlay = document.getElementById('template-editor-overlay');
@@ -2583,6 +2679,15 @@ function showTemplateEditor(templateId) {
     document.getElementById('tpl-edit-kundensRef').value = '';
     document.getElementById('tpl-edit-fakturaadresse').value = '';
     updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', '');
+    TPL_DELIVERY_FIELDS.forEach(function(f) {
+        var el = document.getElementById('tpl-edit-' + f);
+        if (el) el.value = '';
+    });
+    // Default: leveringsadresse-seksjonen kollapset
+    var deliveryBody = document.getElementById('tpl-delivery-body');
+    var deliveryArrow = document.getElementById('tpl-delivery-arrow');
+    if (deliveryBody) deliveryBody.style.display = 'none';
+    if (deliveryArrow) deliveryArrow.classList.remove('open');
 
     // Mark required fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
@@ -2615,6 +2720,17 @@ function showTemplateEditor(templateId) {
                 document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
                 document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
                 updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
+                TPL_DELIVERY_FIELDS.forEach(function(f) {
+                    var el = document.getElementById('tpl-edit-' + f);
+                    if (el) el.value = tpl[f] || '';
+                });
+                // Åpne leveringsadresse-seksjon hvis malen har data
+                if (_tplHasDeliveryData(tpl)) {
+                    var b = document.getElementById('tpl-delivery-body');
+                    var a = document.getElementById('tpl-delivery-arrow');
+                    if (b) b.style.display = '';
+                    if (a) a.classList.add('open');
+                }
                 if (deactBtn) {
                     deactBtn.textContent = tpl.active === false ? t('settings_template_activate') : t('settings_template_deactivate');
                 }
@@ -2642,6 +2758,16 @@ async function duplicateTemplateFromSettings(templateId) {
     document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
     document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
     updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
+    TPL_DELIVERY_FIELDS.forEach(function(f) {
+        var el = document.getElementById('tpl-edit-' + f);
+        if (el) el.value = tpl[f] || '';
+    });
+    if (_tplHasDeliveryData(tpl)) {
+        var b = document.getElementById('tpl-delivery-body');
+        var a = document.getElementById('tpl-delivery-arrow');
+        if (b) b.style.display = '';
+        if (a) a.classList.add('open');
+    }
 }
 
 async function toggleActiveFromEditor() {
@@ -2679,6 +2805,10 @@ async function saveTemplateFromEditor() {
         kundensRef: document.getElementById('tpl-edit-kundensRef').value.trim(),
         fakturaadresse: document.getElementById('tpl-edit-fakturaadresse').value.trim()
     };
+    TPL_DELIVERY_FIELDS.forEach(function(f) {
+        var el = document.getElementById('tpl-edit-' + f);
+        data[f] = el ? el.value.trim() : '';
+    });
 
     // Validate required template fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
@@ -2932,6 +3062,11 @@ function updateRequiredIndicators() {
             matSection.classList.toggle('field-required', serviceReqs.materialer !== false);
         }
     });
+
+    // Kappe form required indicators
+    if (document.getElementById('kappe-view')) {
+        updateKappeRequiredIndicators();
+    }
 }
 
 // ============================================
@@ -2943,9 +3078,8 @@ const DEFAULT_FIELDS = ['montor', 'avdeling', 'sted'];
 var _defaultsTab = 'own';
 
 async function getDefaultSettings(tab) {
-    var isService = tab === 'service';
-    var fbDoc = isService ? 'defaults_service' : 'defaults';
-    var storageKey = isService ? SERVICE_DEFAULTS_KEY : DEFAULTS_KEY;
+    var fbDoc = tab === 'service' ? 'defaults_service' : tab === 'kappe' ? 'defaults_kappe' : 'defaults';
+    var storageKey = tab === 'service' ? SERVICE_DEFAULTS_KEY : tab === 'kappe' ? KAPPE_DEFAULTS_KEY : DEFAULTS_KEY;
     if (currentUser && db) {
         try {
             var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).get();
@@ -2965,6 +3099,8 @@ async function syncDefaultsToLocal() {
         if (doc.exists) safeSetItem(DEFAULTS_KEY, JSON.stringify(doc.data()));
         var sDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_service').get();
         if (sDoc.exists) safeSetItem(SERVICE_DEFAULTS_KEY, JSON.stringify(sDoc.data()));
+        var kDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_kappe').get();
+        if (kDoc.exists) safeSetItem(KAPPE_DEFAULTS_KEY, JSON.stringify(kDoc.data()));
         var plateDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('plateSize').get();
         if (plateDoc.exists) localStorage.setItem('firesafe_plate_size', JSON.stringify(plateDoc.data()));
     } catch (e) { /* localStorage-cache brukes som fallback */ }
@@ -2982,6 +3118,26 @@ function saveDefaultSettings() {
         if (currentUser && db) {
             db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_service').set(sDefaults)
                 .catch(function(e) { console.error('Save service defaults error:', e); });
+        }
+        return;
+    }
+
+    if (_defaultsTab === 'kappe') {
+        var kDefaults = {};
+        KAPPE_DEFAULT_FIELDS.forEach(function(field) {
+            var el = document.getElementById('default-kappe-' + field);
+            if (el && el.value.trim()) kDefaults[field] = el.value.trim();
+        });
+        // Bevar autofill-flagg
+        var kExisting = safeParseJSON(KAPPE_DEFAULTS_KEY, {});
+        KAPPE_DEFAULT_FIELDS.forEach(function(field) {
+            var k = 'autofill_' + field;
+            if (kExisting[k] !== undefined) kDefaults[k] = kExisting[k];
+        });
+        safeSetItem(KAPPE_DEFAULTS_KEY, JSON.stringify(kDefaults));
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_kappe').set(kDefaults)
+                .catch(function(e) { console.error('Save kappe defaults error:', e); });
         }
         return;
     }
@@ -3039,6 +3195,24 @@ function initDefaultsAutoSave() {
             showNotificationModal(t('settings_defaults_saved'), true);
         });
     }
+
+    // Kappe defaults auto-save
+    KAPPE_DEFAULT_FIELDS.forEach(function(field) {
+        var input = document.getElementById('default-kappe-' + field);
+        if (!input) return;
+        input.addEventListener('blur', function() {
+            var newVal = this.value.trim();
+            var cacheKey = 'kappe_' + field;
+            if (newVal !== defaultsInitialValues[cacheKey]) {
+                defaultsInitialValues[cacheKey] = newVal;
+                var prev = _defaultsTab;
+                _defaultsTab = 'kappe';
+                saveDefaultSettings();
+                _defaultsTab = prev;
+                showNotificationModal(t('settings_defaults_saved'), true);
+            }
+        });
+    });
 }
 
 function switchDefaultsTab(tab) {
@@ -3048,17 +3222,24 @@ function switchDefaultsTab(tab) {
     // Toggle tab active state
     var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
     tabs.forEach(function(t, i) {
-        t.classList.toggle('active', (tab === 'own' && i === 0) || (tab === 'service' && i === 1));
+        t.classList.toggle('active',
+            (tab === 'own' && i === 0)
+            || (tab === 'service' && i === 1)
+            || (tab === 'kappe' && i === 2));
     });
 
     // Toggle content
     var ownContent = document.getElementById('defaults-own-content');
     var serviceContent = document.getElementById('defaults-service-content');
+    var kappeContent = document.getElementById('defaults-kappe-content');
     if (ownContent) ownContent.style.display = tab === 'own' ? '' : 'none';
     if (serviceContent) serviceContent.style.display = tab === 'service' ? '' : 'none';
+    if (kappeContent) kappeContent.style.display = tab === 'kappe' ? '' : 'none';
 
     loadDefaultsForTab(tab);
 }
+
+var KAPPE_DEFAULT_FIELDS = ['avdeling', 'bestiller', 'mottaker', 'veiadresse', 'postnr', 'poststed', 'kontakt', 'tlf'];
 
 function _applyDefaultsToUI(defaults, tab) {
     if (!tab || tab === 'own') {
@@ -3086,12 +3267,29 @@ function _applyDefaultsToUI(defaults, tab) {
         }
         var datoEl = document.getElementById('autofill-service-dato');
         if (datoEl) datoEl.checked = defaults.autofill_dato !== false;
+    } else if (tab === 'kappe') {
+        KAPPE_DEFAULT_FIELDS.forEach(function(field) {
+            var input = document.getElementById('default-kappe-' + field);
+            if (input) {
+                input.value = defaults[field] || '';
+                defaultsInitialValues['kappe_' + field] = input.value;
+            }
+            var cb = document.getElementById('autofill-kappe-' + field);
+            if (cb) {
+                cb.checked = defaults['autofill_' + field] !== false;
+                _updateAutofillInputState(field, 'kappe');
+            }
+        });
     }
 }
 
 function _updateAutofillInputState(key, type) {
-    var prefix = type === 'service' ? 'default-service-' : 'default-';
-    var cbId = type === 'service' ? 'autofill-service-' + key : 'autofill-' + key;
+    var prefix = type === 'service' ? 'default-service-'
+              : type === 'kappe' ? 'default-kappe-'
+              : 'default-';
+    var cbId = type === 'service' ? 'autofill-service-' + key
+             : type === 'kappe' ? 'autofill-kappe-' + key
+             : 'autofill-' + key;
     var input = document.getElementById(prefix + key);
     var cb = document.getElementById(cbId);
     if (input && cb) {
@@ -3100,7 +3298,7 @@ function _updateAutofillInputState(key, type) {
 }
 
 function loadDefaultsForTab(tab) {
-    var storageKey = tab === 'service' ? SERVICE_DEFAULTS_KEY : DEFAULTS_KEY;
+    var storageKey = tab === 'service' ? SERVICE_DEFAULTS_KEY : tab === 'kappe' ? KAPPE_DEFAULTS_KEY : DEFAULTS_KEY;
     // Show cached immediately
     var stored = localStorage.getItem(storageKey);
     _applyDefaultsToUI(stored ? JSON.parse(stored) : {}, tab);
@@ -3138,16 +3336,20 @@ function getAutofillFlags(type) {
 }
 
 function saveAutofillToggle(key, value, type) {
-    var isService = type === 'service' || _defaultsTab === 'service';
-    var storageKey = isService ? SERVICE_DEFAULTS_KEY : DEFAULTS_KEY;
-    var fbDoc = isService ? 'defaults_service' : 'defaults';
+    var scope = type || _defaultsTab;
+    var storageKey = scope === 'service' ? SERVICE_DEFAULTS_KEY
+                   : scope === 'kappe' ? KAPPE_DEFAULTS_KEY
+                   : DEFAULTS_KEY;
+    var fbDoc = scope === 'service' ? 'defaults_service'
+              : scope === 'kappe' ? 'defaults_kappe'
+              : 'defaults';
     var stored = localStorage.getItem(storageKey);
     var defaults = stored ? JSON.parse(stored) : {};
     defaults['autofill_' + key] = value;
     safeSetItem(storageKey, JSON.stringify(defaults));
 
     // Update input disabled state
-    _updateAutofillInputState(key, isService ? 'service' : undefined);
+    _updateAutofillInputState(key, scope === 'service' ? 'service' : scope === 'kappe' ? 'kappe' : undefined);
 
     // Firebase in background
     if (currentUser && db) {
@@ -3404,6 +3606,9 @@ function hasUnsavedChanges() {
     if (document.getElementById('service-view').classList.contains('active')) {
         return hasUnsavedServiceChanges();
     }
+    if (document.getElementById('kappe-view').classList.contains('active')) {
+        return hasUnsavedKappeChanges();
+    }
     const currentData = getFormDataSnapshot();
     return lastSavedData !== null
         ? currentData !== lastSavedData
@@ -3417,7 +3622,8 @@ function isOnFormPage() {
         return false;
     }
     return document.getElementById('view-form').classList.contains('active')
-        || document.getElementById('service-view').classList.contains('active');
+        || document.getElementById('service-view').classList.contains('active')
+        || document.getElementById('kappe-view').classList.contains('active');
 }
 
 function hasAnyFormData() {
@@ -5639,6 +5845,29 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('.calc-section').style.display = '';
         document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
         updateToolbarState();
+    } else if (hash === 'kappe') {
+        showView('kappe-view');
+        document.body.classList.add('kappe-view-open');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open');
+        var kappeCurrent = sessionStorage.getItem('firesafe_kappe_current');
+        if (kappeCurrent) {
+            try {
+                var kData = JSON.parse(kappeCurrent);
+                _kappeCurrentId = kData.id || null;
+                setKappeFormData(kData);
+                var wasSentK = sessionStorage.getItem('firesafe_kappe_sent') === '1';
+                document.getElementById('kappe-sent-banner').style.display = wasSentK ? 'block' : 'none';
+                document.getElementById('btn-kappe-sent').style.display = wasSentK ? 'none' : '';
+                _kappeLastSavedData = getKappeFormDataSnapshot();
+            } catch(e) {}
+        }
+        var linesContainer = document.getElementById('kappe-lines');
+        if (linesContainer && linesContainer.children.length === 0) {
+            linesContainer.appendChild(createKappeLineCard({}, true));
+            renumberKappeLines();
+            updateKappeDeleteStates();
+        }
+        renderKappeStiftRows();
     } else if (hash === 'service') {
         // Show service view
         showView('service-view');
@@ -5723,6 +5952,12 @@ function _applyHashNavigation(hash) {
             document.body.classList.add('service-view-open');
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
         }
+    } else if (hash === 'kappe') {
+        if (!document.body.classList.contains('kappe-view-open')) {
+            showView('kappe-view');
+            document.body.classList.add('kappe-view-open');
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open');
+        }
     } else if (hash === 'calc') {
         if (!document.body.classList.contains('calculator-modal-open')) {
             _showCalculatorDirectly();
@@ -5748,10 +5983,11 @@ window.addEventListener('hashchange', function() {
     var currentView = document.querySelector('.view.active');
     var currentId = currentView ? currentView.id : null;
     var leavingFormView = (currentId === 'view-form' && hash !== 'skjema')
-        || (currentId === 'service-view' && hash !== 'service');
+        || (currentId === 'service-view' && hash !== 'service')
+        || (currentId === 'kappe-view' && hash !== 'kappe');
 
     if (leavingFormView && hasUnsavedChanges()) {
-        var previousHash = currentId === 'view-form' ? 'skjema' : 'service';
+        var previousHash = currentId === 'view-form' ? 'skjema' : (currentId === 'kappe-view' ? 'kappe' : 'service');
         var newHash = hash;
         // Rollback URL silently (replaceState does NOT fire hashchange)
         history.replaceState(null, '', '#' + previousHash);
@@ -7190,6 +7426,7 @@ function closeTemplatePicker() {
     var overlay = document.getElementById('template-picker-overlay');
     overlay.classList.remove('visible');
     setTimeout(function() { overlay.classList.remove('active'); }, 150);
+    _kappeTemplateActive = false;
 }
 
 function _renderTemplatePickerList(templates, listEl) {
@@ -7212,7 +7449,16 @@ function _renderTemplatePickerList(templates, listEl) {
 
 var _serviceTemplateTargetCard = null;
 
+var _kappeTemplateActive = false;
+
+function openKappeTemplatePicker() {
+    _kappeTemplateActive = true;
+    _serviceTemplateTargetCard = null;
+    openTemplatePicker();
+}
+
 function openServiceTemplatePicker(btn) {
+    _kappeTemplateActive = false;
     // Find the first expanded entry card, or the first one
     var cards = document.querySelectorAll('#service-entries .service-entry-card');
     _serviceTemplateTargetCard = null;
@@ -7232,7 +7478,40 @@ function openServiceTemplatePicker(btn) {
 function _applyTemplateToForm(template) {
     if (!template) return;
 
-    if (_serviceTemplateTargetCard) {
+    if (_kappeTemplateActive) {
+        // Apply to kappe form — prosjekt + valgfri leveringsadresse
+        if (template.prosjektnr) document.getElementById('kappe-prosjektnr').value = template.prosjektnr;
+        if (template.prosjektnavn) document.getElementById('kappe-prosjektnavn').value = template.prosjektnavn;
+        var kappeMap = {
+            mottaker:   'kappe-mottaker',
+            veiadresse: 'kappe-veiadresse',
+            postnr:     'kappe-postnr',
+            poststed:   'kappe-poststed',
+            kontakt:    'kappe-kontakt',
+            tlf:        'kappe-tlf'
+        };
+        var anyDelivery = false;
+        for (var k in kappeMap) {
+            if (template[k]) {
+                var kel = document.getElementById(kappeMap[k]);
+                if (kel) kel.value = template[k];
+                anyDelivery = true;
+            }
+        }
+        // Ekspander leveringsadresse-kortet hvis noen felter ble fylt ut
+        if (anyDelivery) {
+            var card = document.getElementById('kappe-delivery-card');
+            if (card) {
+                var wrap = card.querySelector('.mobile-order-body-wrap');
+                if (wrap && !wrap.classList.contains('expanded')) {
+                    var header = card.querySelector('.mobile-order-header');
+                    if (header) toggleKappeDeliverySection(header);
+                }
+            }
+        }
+        renumberKappeLines();
+        _kappeTemplateActive = false;
+    } else if (_serviceTemplateTargetCard) {
         // Apply to service entry card
         var card = _serviceTemplateTargetCard;
         var pnr = card.querySelector('.service-entry-prosjektnr');
@@ -7262,4 +7541,1247 @@ function _applyTemplateToForm(template) {
         updateFakturaadresseDisplay('fakturaadresse-display-text', template.fakturaadresse || '');
     }
     closeTemplatePicker();
+}
+
+// ============================================================================
+// KAPPESKJEMA
+// ============================================================================
+
+var _kappeCurrentId = null;
+var _kappeLastSavedData = null;
+
+function _kappeTodayISO() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var da = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + da;
+}
+
+function _kappeFormatDateNO(isoOrDMY) {
+    if (!isoOrDMY) return '';
+    var s = String(isoOrDMY);
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    return s;
+}
+
+function toggleKappeDeliverySection(headerEl) {
+    if (document.activeElement) document.activeElement.blur();
+    var card = headerEl.closest('.mobile-order-card');
+    if (!card) return;
+    var wrap = card.querySelector('.mobile-order-body-wrap');
+    var arrow = headerEl.querySelector('.mobile-order-arrow');
+    if (!wrap.classList.contains('expanded')) {
+        wrap.classList.add('expanded');
+        if (arrow) arrow.innerHTML = '&#9650;';
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+    } else {
+        wrap.classList.remove('expanded');
+        if (arrow) arrow.innerHTML = '&#9660;';
+    }
+}
+
+function _kappeApplyDeliveryCollapsedState(forceCollapse) {
+    var card = document.getElementById('kappe-delivery-card');
+    if (!card) return;
+    var wrap = card.querySelector('.mobile-order-body-wrap');
+    var arrow = card.querySelector('.mobile-order-arrow');
+    if (forceCollapse) {
+        if (wrap) wrap.classList.remove('expanded');
+        if (arrow) arrow.innerHTML = '&#9660;';
+    }
+}
+
+function openNewKappeForm() {
+    document.body.classList.remove('template-modal-open');
+
+    var defaults = safeParseJSON(KAPPE_DEFAULTS_KEY, {});
+    _kappeCurrentId = null;
+
+    function _kappeAutofill(field) {
+        return (defaults['autofill_' + field] !== false) ? (defaults[field] || '') : '';
+    }
+
+    document.getElementById('kappe-dato').value = _kappeFormatDateNO(_kappeTodayISO());
+    document.getElementById('kappe-onsket-leveringsdato').value = '';
+    document.getElementById('kappe-avdeling').value = _kappeAutofill('avdeling');
+    document.getElementById('kappe-bestiller').value = _kappeAutofill('bestiller');
+    document.getElementById('kappe-prosjektnr').value = '';
+    document.getElementById('kappe-prosjektnavn').value = '';
+    document.getElementById('kappe-mottaker').value = _kappeAutofill('mottaker');
+    document.getElementById('kappe-veiadresse').value = _kappeAutofill('veiadresse');
+    document.getElementById('kappe-postnr').value = _kappeAutofill('postnr');
+    document.getElementById('kappe-poststed').value = _kappeAutofill('poststed');
+    document.getElementById('kappe-kontakt').value = _kappeAutofill('kontakt');
+    document.getElementById('kappe-tlf').value = _kappeAutofill('tlf');
+    document.getElementById('kappe-pallemerking').value = '';
+    _kappeApplyDeliveryCollapsedState(true);
+
+    var linesContainer = document.getElementById('kappe-lines');
+    linesContainer.innerHTML = '';
+    linesContainer.appendChild(createKappeLineCard({}, true));
+    renumberKappeLines();
+    updateKappeDeleteStates();
+    renderKappeStiftRows();
+    updateKappeRequiredIndicators();
+
+    document.getElementById('kappe-sent-banner').style.display = 'none';
+    document.getElementById('btn-kappe-sent').style.display = '';
+    document.getElementById('kappe-save-btn').disabled = false;
+    sessionStorage.removeItem('firesafe_kappe_sent');
+    _kappeLastSavedData = getKappeFormDataSnapshot();
+    sessionStorage.setItem('firesafe_kappe_current', _kappeLastSavedData);
+
+    showView('kappe-view');
+    document.body.classList.add('kappe-view-open');
+    window.location.hash = 'kappe';
+
+    requestAnimationFrame(function() {
+        document.getElementById('kappe-view').scrollTop = 0;
+        window.scrollTo(0, 0);
+    });
+}
+
+function closeKappeView() {
+    document.body.classList.remove('kappe-view-open');
+    _kappeCurrentId = null;
+    _kappeLastSavedData = null;
+    sessionStorage.removeItem('firesafe_kappe_current');
+    sessionStorage.removeItem('firesafe_kappe_sent');
+}
+
+function _kappeProductOptionsHtml(selectedName) {
+    var products = getKappeProducts();
+    var hasSelection = !!selectedName && products.some(function(p) { return p.name === selectedName; });
+    var html = '<option value="" disabled hidden' + (hasSelection ? '' : ' selected') + '>' + escapeHtml(t('kappe_product_placeholder')) + '</option>';
+    for (var i = 0; i < products.length; i++) {
+        var p = products[i];
+        var sel = (p.name === selectedName) ? ' selected' : '';
+        html += '<option value="' + escapeHtml(p.name) + '"' + sel + '>' + escapeHtml(p.name) + '</option>';
+    }
+    return html;
+}
+
+function createKappeLineCard(lineData, expanded) {
+    var data = lineData || {};
+    var card = document.createElement('div');
+    card.className = 'kappe-line-card mobile-order-card';
+
+    card.innerHTML =
+        '<div class="mobile-order-header kappe-line-header" onclick="toggleKappeLine(this)">' +
+            '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
+            '<span class="kappe-line-title"></span>' +
+            '<button type="button" class="mobile-order-header-duplicate kappe-line-duplicate" onclick="event.stopPropagation(); duplicateKappeLine(this)" title="' + t('kappe_duplicate_line') + '">' + duplicateIcon + '</button>' +
+            '<button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeKappeLine(this)">' + deleteIcon + '</button>' +
+        '</div>' +
+        '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
+        '<div class="mobile-order-body kappe-line-body">' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_produkt">Produkt</label>' +
+                '<select class="kappe-line-product">' + _kappeProductOptionsHtml(data.produkt || '') + '</select>' +
+            '</div>' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_bredde">Bredde (mm)</label>' +
+                '<input type="text" class="kappe-line-bredde" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(data.bredde || '') + '">' +
+            '</div>' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_lopemeter">Løpemeter</label>' +
+                '<input type="text" class="kappe-line-lopemeter" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(data.lopemeter || data['løpemeter'] || '') + '">' +
+            '</div>' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_antall_sider">Antall sider</label>' +
+                '<input type="text" class="kappe-line-antall-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.antallSider || '') + '">' +
+            '</div>' +
+        '</div>' +
+        '</div>';
+
+    card.querySelector('.kappe-line-product').addEventListener('change', renumberKappeLines);
+    card.querySelector('.kappe-line-bredde').addEventListener('input', renumberKappeLines);
+
+    return card;
+}
+
+function duplicateKappeLine(btn) {
+    var sourceCard = btn.closest('.kappe-line-card');
+    var container = document.getElementById('kappe-lines');
+    if (!sourceCard || !container) return;
+
+    var lineData = {
+        produkt: (sourceCard.querySelector('.kappe-line-product') || {}).value || '',
+        bredde: (sourceCard.querySelector('.kappe-line-bredde') || {}).value || '',
+        lopemeter: (sourceCard.querySelector('.kappe-line-lopemeter') || {}).value || '',
+        antallSider: (sourceCard.querySelector('.kappe-line-antall-sider') || {}).value || ''
+    };
+
+    // Collapse all cards before inserting new one
+    container.querySelectorAll('.kappe-line-card').forEach(function(card) {
+        var wrap = card.querySelector('.mobile-order-body-wrap');
+        if (wrap && wrap.classList.contains('expanded')) {
+            wrap.classList.remove('expanded');
+            card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
+        }
+    });
+
+    var newCard = createKappeLineCard(lineData, true);
+    if (sourceCard.nextSibling) {
+        container.insertBefore(newCard, sourceCard.nextSibling);
+    } else {
+        container.appendChild(newCard);
+    }
+    updateKappeDeleteStates();
+    renumberKappeLines();
+    sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
+    newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function addKappeLine() {
+    var container = document.getElementById('kappe-lines');
+    container.querySelectorAll('.kappe-line-card').forEach(function(card) {
+        var wrap = card.querySelector('.mobile-order-body-wrap');
+        if (wrap && wrap.classList.contains('expanded')) {
+            wrap.classList.remove('expanded');
+            card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
+        }
+    });
+    var card = createKappeLineCard({}, true);
+    container.appendChild(card);
+    updateKappeDeleteStates();
+    renumberKappeLines();
+    sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function removeKappeLine(btn) {
+    var card = btn.closest('.kappe-line-card');
+    var container = document.getElementById('kappe-lines');
+    if (container.querySelectorAll('.kappe-line-card').length <= 1) return;
+    showConfirmModal(t('kappe_line_delete_confirm'), function() {
+        card.remove();
+        updateKappeDeleteStates();
+        renumberKappeLines();
+        sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
+    }, t('btn_remove'), '#e74c3c');
+}
+
+function toggleKappeLine(headerEl) {
+    if (document.activeElement) document.activeElement.blur();
+    var card = headerEl.closest('.kappe-line-card');
+    var wrap = card.querySelector('.mobile-order-body-wrap');
+    var arrow = headerEl.querySelector('.mobile-order-arrow');
+    if (!wrap.classList.contains('expanded')) {
+        wrap.classList.add('expanded');
+        arrow.innerHTML = '&#9650;';
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+    } else {
+        wrap.classList.remove('expanded');
+        arrow.innerHTML = '&#9660;';
+    }
+}
+
+function renumberKappeLines() {
+    document.querySelectorAll('#kappe-lines .kappe-line-card').forEach(function(card, idx) {
+        var prod = card.querySelector('.kappe-line-product');
+        var bredde = card.querySelector('.kappe-line-bredde');
+        var bits = ['#' + (idx + 1)];
+        if (prod && prod.value) bits.push(prod.value);
+        if (bredde && bredde.value) bits.push(bredde.value + ' mm');
+        card.querySelector('.kappe-line-title').textContent = bits.join(' · ');
+    });
+}
+
+function updateKappeDeleteStates() {
+    var cards = document.querySelectorAll('#kappe-lines .kappe-line-card');
+    var delBtns = document.querySelectorAll('#kappe-lines .mobile-order-header-delete');
+    delBtns.forEach(function(btn) { btn.disabled = cards.length <= 1; });
+}
+
+function _kappeStiftRowHtml(size, value) {
+    return '<div class="kappe-stift-row" data-row-size="' + escapeHtml(size) + '">' +
+        '<label class="kappe-stift-label">' + escapeHtml(size) + '</label>' +
+        '<input type="text" class="kappe-stift-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Antall krt" value="' + escapeHtml(value || '') + '">' +
+        '<button type="button" class="kappe-stift-remove" onclick="removeKappeStiftRow(this)" aria-label="Fjern">' + deleteIcon + '</button>' +
+    '</div>';
+}
+
+function renderKappeStiftRows(existing) {
+    var container = document.getElementById('kappe-stift');
+    if (!container) return;
+    var html = '';
+    (existing || []).forEach(function(s) {
+        var size = s.storrelse || s['størrelse'];
+        if (!size) return;
+        html += _kappeStiftRowHtml(size, s.antall);
+    });
+    container.innerHTML = html;
+    _updateKappeStiftAddBtnState();
+}
+
+function _updateKappeStiftAddBtnState() {
+    var btn = document.getElementById('kappe-stift-add');
+    if (!btn) return;
+    var used = Array.prototype.map.call(
+        document.querySelectorAll('#kappe-stift .kappe-stift-row'),
+        function(r) { return r.getAttribute('data-row-size'); }
+    );
+    btn.disabled = used.length >= getKappeStiftSizes().length;
+}
+
+function openKappeStiftPicker() {
+    // Samle eksisterende verdier så picker kan pre-fylle
+    var currentValues = {};
+    document.querySelectorAll('#kappe-stift .kappe-stift-row').forEach(function(row) {
+        var size = row.getAttribute('data-row-size');
+        var input = row.querySelector('.kappe-stift-input');
+        currentValues[size] = input ? input.value : '';
+    });
+
+    var popup = document.getElementById('action-popup');
+    var titleEl = document.getElementById('action-popup-title');
+    titleEl.textContent = t('kappe_stift_pick');
+    titleEl.style.display = '';
+    var buttonsEl = document.getElementById('action-popup-buttons');
+    var listHtml = '<div class="kappe-stift-picker-list">';
+    getKappeStiftSizes().forEach(function(size) {
+        var val = currentValues[size] || '';
+        listHtml += '<div class="kappe-stift-picker-row">' +
+            '<label class="kappe-stift-picker-label">' + escapeHtml(size) + '</label>' +
+            '<input type="text" class="kappe-stift-picker-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Antall krt" value="' + escapeHtml(val) + '">' +
+        '</div>';
+    });
+    listHtml += '</div>';
+    buttonsEl.innerHTML = listHtml +
+        '<div class="confirm-modal-buttons" style="margin-top:12px">' +
+            '<button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button>' +
+            '<button class="confirm-btn-ok" style="flex:1;background:#E8501A" onclick="applyKappeStiftPicker()">OK</button>' +
+        '</div>';
+    popup.classList.add('active');
+    // Auto-focus første tomme felt
+    requestAnimationFrame(function() {
+        var firstEmpty = buttonsEl.querySelector('.kappe-stift-picker-input:placeholder-shown') || buttonsEl.querySelector('.kappe-stift-picker-input');
+        if (firstEmpty) firstEmpty.focus();
+    });
+}
+
+function applyKappeStiftPicker() {
+    var container = document.getElementById('kappe-stift');
+    if (!container) return;
+    var picker = document.querySelectorAll('#action-popup .kappe-stift-picker-input');
+    var newRows = '';
+    picker.forEach(function(inp) {
+        var size = inp.getAttribute('data-size');
+        var v = (inp.value || '').trim();
+        if (!size || !v) return;
+        newRows += _kappeStiftRowHtml(size, v);
+    });
+    container.innerHTML = newRows;
+    _updateKappeStiftAddBtnState();
+    closeActionPopup();
+}
+
+function addKappeStiftRow(size) {
+    var container = document.getElementById('kappe-stift');
+    if (!container) return;
+    if (container.querySelector('[data-row-size="' + size + '"]')) return;
+    container.insertAdjacentHTML('beforeend', _kappeStiftRowHtml(size, ''));
+    _updateKappeStiftAddBtnState();
+    var input = container.querySelector('[data-row-size="' + size + '"] .kappe-stift-input');
+    if (input) input.focus();
+}
+
+function removeKappeStiftRow(btn) {
+    var row = btn.closest('.kappe-stift-row');
+    if (row) row.remove();
+    _updateKappeStiftAddBtnState();
+}
+
+function getKappeFormData() {
+    var lines = [];
+    document.querySelectorAll('#kappe-lines .kappe-line-card').forEach(function(card) {
+        lines.push({
+            produkt: (card.querySelector('.kappe-line-product') || {}).value || '',
+            bredde: (card.querySelector('.kappe-line-bredde') || {}).value || '',
+            lopemeter: (card.querySelector('.kappe-line-lopemeter') || {}).value || '',
+            antallSider: (card.querySelector('.kappe-line-antall-sider') || {}).value || ''
+        });
+    });
+    var stift = [];
+    document.querySelectorAll('#kappe-stift .kappe-stift-input').forEach(function(inp) {
+        var v = inp.value || '';
+        if (v) stift.push({ storrelse: inp.getAttribute('data-size'), antall: v });
+    });
+    return {
+        type: 'kappe',
+        dato: document.getElementById('kappe-dato').value,
+        onsketLeveringsdato: document.getElementById('kappe-onsket-leveringsdato').value,
+        avdeling: document.getElementById('kappe-avdeling').value,
+        bestiller: document.getElementById('kappe-bestiller').value,
+        prosjektnr: document.getElementById('kappe-prosjektnr').value,
+        prosjektnavn: document.getElementById('kappe-prosjektnavn').value,
+        leveringsadresse: {
+            mottaker: document.getElementById('kappe-mottaker').value,
+            veiadresse: document.getElementById('kappe-veiadresse').value,
+            postnr: document.getElementById('kappe-postnr').value,
+            poststed: document.getElementById('kappe-poststed').value,
+            kontakt: document.getElementById('kappe-kontakt').value,
+            tlf: document.getElementById('kappe-tlf').value
+        },
+        pallemerking: document.getElementById('kappe-pallemerking').value,
+        lines: lines,
+        stift: stift,
+        savedAt: new Date().toISOString()
+    };
+}
+
+function getKappeFormDataSnapshot() {
+    var d = getKappeFormData();
+    delete d.savedAt;
+    return JSON.stringify(d);
+}
+
+function setKappeFormData(data) {
+    if (!data) return;
+    document.getElementById('kappe-dato').value = data.dato || _kappeFormatDateNO(_kappeTodayISO());
+    document.getElementById('kappe-onsket-leveringsdato').value = data.onsketLeveringsdato || '';
+    document.getElementById('kappe-avdeling').value = data.avdeling || '';
+    document.getElementById('kappe-bestiller').value = data.bestiller || '';
+    document.getElementById('kappe-prosjektnr').value = data.prosjektnr || '';
+    document.getElementById('kappe-prosjektnavn').value = data.prosjektnavn || '';
+    var lev = data.leveringsadresse || {};
+    document.getElementById('kappe-mottaker').value = lev.mottaker || '';
+    document.getElementById('kappe-veiadresse').value = lev.veiadresse || '';
+    document.getElementById('kappe-postnr').value = lev.postnr || '';
+    document.getElementById('kappe-poststed').value = lev.poststed || '';
+    document.getElementById('kappe-kontakt').value = lev.kontakt || '';
+    document.getElementById('kappe-tlf').value = lev.tlf || '';
+    document.getElementById('kappe-pallemerking').value = data.pallemerking || '';
+
+    var container = document.getElementById('kappe-lines');
+    container.innerHTML = '';
+    var list = (data.lines && data.lines.length) ? data.lines : [{}];
+    list.forEach(function(line) { container.appendChild(createKappeLineCard(line, list.length === 1)); });
+    renumberKappeLines();
+    updateKappeDeleteStates();
+    renderKappeStiftRows(data.stift || []);
+}
+
+function hasUnsavedKappeChanges() {
+    var current = getKappeFormDataSnapshot();
+    if (_kappeLastSavedData === null) {
+        // Check if any meaningful data was entered
+        try {
+            var d = JSON.parse(current);
+            if (d.prosjektnr || d.prosjektnavn || d.avdeling || d.bestiller) return true;
+            if ((d.lines || []).some(function(l) { return l.produkt || l.bredde || l.lopemeter || l.antallSider; })) return true;
+            if ((d.stift || []).some(function(s) { return s.antall; })) return true;
+        } catch (e) {}
+        return false;
+    }
+    return current !== _kappeLastSavedData;
+}
+
+var KAPPE_FIELD_IDS = {
+    onsketLeveringsdato: 'kappe-onsket-leveringsdato',
+    avdeling:            'kappe-avdeling',
+    bestiller:           'kappe-bestiller',
+    prosjektnr:          'kappe-prosjektnr',
+    prosjektnavn:        'kappe-prosjektnavn',
+    pallemerking:        'kappe-pallemerking',
+    mottaker:            'kappe-mottaker',
+    veiadresse:          'kappe-veiadresse',
+    postnr:              'kappe-postnr',
+    poststed:            'kappe-poststed',
+    kontakt:             'kappe-kontakt',
+    tlf:                 'kappe-tlf'
+};
+var KAPPE_FIELD_LABELS = {
+    onsketLeveringsdato: 'kappe_label_onsket_leveringsdato',
+    avdeling:            'label_avdeling',
+    bestiller:           'kappe_label_bestiller',
+    prosjektnr:          'label_prosjektnr',
+    prosjektnavn:        'label_prosjektnavn',
+    pallemerking:        'kappe_label_pallemerking',
+    mottaker:            'kappe_label_mottaker',
+    veiadresse:          'kappe_label_veiadresse',
+    postnr:              'placeholder_postnr',
+    poststed:            'placeholder_poststed',
+    kontakt:             'kappe_label_kontakt',
+    tlf:                 'kappe_label_tlf'
+};
+
+function _getKappeRequired() {
+    var settings = cachedRequiredSettings || getDefaultRequiredSettings();
+    return settings.kappe || getDefaultRequiredSettings().kappe;
+}
+
+function updateKappeRequiredIndicators() {
+    var req = _getKappeRequired();
+    // Tekst-felter
+    Object.keys(KAPPE_FIELD_IDS).forEach(function(key) {
+        var el = document.getElementById(KAPPE_FIELD_IDS[key]);
+        if (!el) return;
+        var field = el.closest('.mobile-field');
+        if (!field) return;
+        if (req[key] === true) field.classList.add('field-required');
+        else field.classList.remove('field-required');
+    });
+    // Produkt-seksjon
+    var prodSection = document.querySelector('.mobile-section-title[data-i18n="kappe_section_products"]');
+    if (prodSection) {
+        if (req.produkter === true) prodSection.classList.add('field-required');
+        else prodSection.classList.remove('field-required');
+    }
+    // Stift-seksjon
+    var stiftSection = document.querySelector('.mobile-section-title[data-i18n="kappe_section_staples"]');
+    if (stiftSection) {
+        if (req.stift === true) stiftSection.classList.add('field-required');
+        else stiftSection.classList.remove('field-required');
+    }
+}
+
+function validateKappeRequiredFields() {
+    var req = _getKappeRequired();
+    for (var key in KAPPE_FIELD_IDS) {
+        if (req[key] !== true) continue;
+        var el = document.getElementById(KAPPE_FIELD_IDS[key]);
+        if (!el || !(el.value || '').trim()) {
+            showNotificationModal(t('validation_required_field') + ' ' + t(KAPPE_FIELD_LABELS[key]));
+            if (el) {
+                // Expand leveringsadresse-kortet om feltet er skjult der
+                var card = el.closest('.kappe-delivery-card');
+                if (card) {
+                    var wrap = card.querySelector('.mobile-order-body-wrap');
+                    if (wrap && !wrap.classList.contains('expanded')) {
+                        var header = card.querySelector('.mobile-order-header');
+                        if (header) toggleKappeDeliverySection(header);
+                    }
+                }
+                el.focus();
+            }
+            return false;
+        }
+    }
+    if (req.produkter === true) {
+        var lines = document.querySelectorAll('#kappe-lines .kappe-line-card');
+        var anyLine = false;
+        for (var j = 0; j < lines.length; j++) {
+            var card = lines[j];
+            var prod = card.querySelector('.kappe-line-product').value;
+            var bredde = card.querySelector('.kappe-line-bredde').value;
+            var lm = card.querySelector('.kappe-line-lopemeter').value;
+            var sider = card.querySelector('.kappe-line-antall-sider').value;
+            if (prod || bredde || lm || sider) { anyLine = true; break; }
+        }
+        if (!anyLine) {
+            showNotificationModal(t('kappe_validation_no_lines'));
+            return false;
+        }
+    }
+    if (req.stift === true) {
+        var stiftRows = document.querySelectorAll('#kappe-stift .kappe-stift-row');
+        if (!stiftRows.length) {
+            showNotificationModal(t('kappe_validation_no_stift'));
+            return false;
+        }
+    }
+    return true;
+}
+
+async function saveKappeForm() {
+    if (!validateKappeRequiredFields()) return;
+    var saveBtn = document.getElementById('kappe-save-btn');
+    if (saveBtn && saveBtn.disabled) return;
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+        var data = getKappeFormData();
+        var saved = safeParseJSON(KAPPE_STORAGE_KEY, []);
+        var archived = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+
+        var wasSent = sessionStorage.getItem('firesafe_kappe_sent') === '1';
+        if (wasSent && _kappeCurrentId) {
+            var archivedIdx = archived.findIndex(function(item) { return item.id === _kappeCurrentId; });
+            if (archivedIdx !== -1) {
+                data.id = _kappeCurrentId;
+                archived.splice(archivedIdx, 1);
+                safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify(archived));
+            }
+        }
+
+        if (_kappeCurrentId) {
+            data.id = _kappeCurrentId;
+            var existingIndex = saved.findIndex(function(item) { return item.id === _kappeCurrentId; });
+            if (existingIndex !== -1) saved[existingIndex] = data;
+            else saved.unshift(data);
+        } else {
+            data.id = Date.now().toString();
+            saved.unshift(data);
+        }
+        if (saved.length > 50) saved.pop();
+        safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(saved));
+        _kappeCurrentId = data.id;
+        _kappeLastSavedData = getKappeFormDataSnapshot();
+        _lastLocalSaveTs = Date.now();
+
+        sessionStorage.removeItem('firesafe_kappe_sent');
+        document.getElementById('kappe-sent-banner').style.display = 'none';
+        document.getElementById('btn-kappe-sent').style.display = '';
+
+        showNotificationModal(t('kappe_save_success'), true);
+        sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(data));
+        if (!wasSent) {
+            closeKappeView();
+            _showSavedFormsDirectly('kappe');
+        }
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+
+function markKappeAsSent() {
+    try {
+        if (!validateKappeRequiredFields()) return;
+        var data = getKappeFormData();
+        var saved = safeParseJSON(KAPPE_STORAGE_KEY, []);
+        if (_kappeCurrentId) data.id = _kappeCurrentId;
+        else { data.id = Date.now().toString(); }
+
+        var archived = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+        var archExisting = archived.findIndex(function(item) { return item.id === data.id; });
+        if (archExisting !== -1) archived[archExisting] = data;
+        else archived.unshift(data);
+        safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify(archived));
+
+        var savedIdx = saved.findIndex(function(item) { return item.id === data.id; });
+        if (savedIdx !== -1) {
+            saved.splice(savedIdx, 1);
+            safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(saved));
+        }
+
+        sessionStorage.setItem('firesafe_kappe_sent', '1');
+        _kappeCurrentId = data.id;
+        _kappeLastSavedData = getKappeFormDataSnapshot();
+        document.getElementById('kappe-sent-banner').style.display = 'block';
+        document.getElementById('btn-kappe-sent').style.display = 'none';
+        showNotificationModal(t('marked_as_sent'), true);
+        _lastLocalSaveTs = Date.now();
+        closeKappeView();
+        _showSavedFormsDirectly('kappe');
+    } catch(e) {
+        console.error('Mark kappe as sent error:', e);
+    }
+}
+
+function loadKappeTab() {
+    var cachedSaved = safeParseJSON(KAPPE_STORAGE_KEY, []);
+    var cachedSent = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+    var cachedForms = cachedSaved.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
+        .concat(cachedSent.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
+        .sort(function(a, b) {
+            if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
+            return (b.savedAt || '').localeCompare(a.savedAt || '');
+        });
+    renderKappeFormsList(cachedForms);
+}
+
+function _buildKappeItemHtml(item, index) {
+    var title = item.prosjektnavn || item.prosjektnr || '';
+    var subtitle = '';
+    var parts = [];
+    if (item.prosjektnr && item.prosjektnavn) parts.push(escapeHtml(item.prosjektnr));
+    var lineCount = (item.lines || []).filter(function(l) { return l && (l.produkt || l.bredde || l.lopemeter || l.antallSider); }).length;
+    if (lineCount) parts.push(lineCount + ' ' + (lineCount === 1 ? 'produkt' : 'produkter'));
+    if (parts.length) subtitle = '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>';
+    var savedAtStr = formatDateWithTime(item.savedAt);
+    var isSent = item._isSent;
+    var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+    var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
+    var deleteBtn = isSent
+        ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
+        : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
+    return '<div class="saved-item" data-index="' + index + '">' +
+        '<div class="saved-item-info">' +
+            '<div class="saved-item-header">' +
+                '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + (savedAtStr ? '<span class="saved-item-date-inline">' + escapeHtml(savedAtStr) + '</span>' : '') + '</div>' +
+            '</div>' +
+            subtitle +
+        '</div>' +
+        '<div class="saved-item-buttons">' + dupBtn + deleteBtn + '</div>' +
+    '</div>';
+}
+
+function renderKappeFormsList(forms) {
+    var listEl = document.getElementById('kappe-list');
+    if (!listEl) return;
+    if (!forms || forms.length === 0) {
+        listEl.innerHTML = '<div class="no-saved">' + t('kappe_no_saved') + '</div>';
+        window.loadedKappeForms = [];
+        return;
+    }
+    window.loadedKappeForms = forms;
+    listEl.innerHTML = forms.map(function(item, i) { return _buildKappeItemHtml(item, i); }).join('');
+    listEl.querySelectorAll('.saved-item').forEach(function(el, i) { el._formData = window.loadedKappeForms[i]; });
+}
+
+function loadKappeFormDirect(formData) {
+    if (!formData) return;
+    document.body.classList.remove('saved-modal-open');
+    sessionStorage.removeItem('firesafe_hent_tab');
+
+    _kappeCurrentId = formData.id || null;
+    setKappeFormData(formData);
+
+    showView('kappe-view');
+    document.body.classList.add('kappe-view-open');
+    window.location.hash = 'kappe';
+
+    var isSent = !!formData._isSent;
+    document.getElementById('kappe-sent-banner').style.display = isSent ? 'block' : 'none';
+    document.getElementById('btn-kappe-sent').style.display = isSent ? 'none' : '';
+    sessionStorage.setItem('firesafe_kappe_sent', isSent ? '1' : '');
+    _kappeLastSavedData = getKappeFormDataSnapshot();
+    sessionStorage.setItem('firesafe_kappe_current', _kappeLastSavedData);
+    window.scrollTo(0, 0);
+}
+
+function duplicateKappeForm(formData) {
+    if (!formData) return;
+    var copy = JSON.parse(JSON.stringify(formData));
+    delete copy.id;
+    delete copy._isSent;
+    copy.savedAt = new Date().toISOString();
+
+    _kappeCurrentId = null;
+    setKappeFormData(copy);
+
+    document.body.classList.remove('saved-modal-open');
+    sessionStorage.removeItem('firesafe_hent_tab');
+    showView('kappe-view');
+    document.body.classList.add('kappe-view-open');
+    window.location.hash = 'kappe';
+    document.getElementById('kappe-sent-banner').style.display = 'none';
+    document.getElementById('btn-kappe-sent').style.display = '';
+    document.getElementById('kappe-save-btn').disabled = false;
+    sessionStorage.removeItem('firesafe_kappe_sent');
+    _kappeLastSavedData = getKappeFormDataSnapshot();
+    sessionStorage.setItem('firesafe_kappe_current', _kappeLastSavedData);
+    window.scrollTo(0, 0);
+    showNotificationModal(t('duplicated_success'), true);
+}
+
+function deleteKappeForm(formData) {
+    if (!formData) return;
+    var isSent = formData._isSent;
+    showConfirmModal(t(isSent ? 'delete_sent_confirm' : 'delete_confirm'), function() {
+        var lsKey = isSent ? KAPPE_ARCHIVE_KEY : KAPPE_STORAGE_KEY;
+        var list = safeParseJSON(lsKey, []);
+        var idx = list.findIndex(function(f) { return f.id === formData.id; });
+        if (idx !== -1) { list.splice(idx, 1); safeSetItem(lsKey, JSON.stringify(list)); }
+        var loadedIdx = (window.loadedKappeForms || []).findIndex(function(f) { return f.id === formData.id; });
+        if (loadedIdx !== -1) window.loadedKappeForms.splice(loadedIdx, 1);
+        renderKappeFormsList(window.loadedKappeForms);
+        _lastLocalSaveTs = Date.now();
+    });
+}
+
+// Event delegation for kappe-list items
+(function() {
+    var kappeListEl = document.getElementById('kappe-list');
+    if (!kappeListEl) return;
+    kappeListEl.addEventListener('click', function(e) {
+        var item = e.target.closest('.saved-item');
+        if (!item) return;
+        var formData = item._formData;
+        if (!formData) return;
+        var btn = e.target.closest('button');
+        if (btn) {
+            e.stopPropagation();
+            if (btn.classList.contains('disabled')) return;
+            if (btn.classList.contains('copy')) {
+                showConfirmModal(t('duplicate_confirm'), function() {
+                    duplicateKappeForm(formData);
+                }, t('duplicate_btn'));
+            } else if (btn.classList.contains('delete')) {
+                deleteKappeForm(formData);
+            }
+            return;
+        }
+        loadKappeFormDirect(formData);
+    });
+})();
+
+// ─── Kappe export ───────────────────────────────────────────────────────────
+
+function buildKappeExportTable() {
+    var data = getKappeFormData();
+    var container = document.getElementById('kappe-export-container');
+
+    var lines = (data.lines || []).slice();
+    var minRows = Math.max(lines.length, 12);
+    while (lines.length < minRows) lines.push({});
+
+    var lev = data.leveringsadresse || {};
+
+    function fmtNum(v) {
+        if (!v) return '';
+        return String(v).replace('.', ',');
+    }
+
+    var headerHtml =
+        '<div class="ke-header">' +
+            '<div class="ke-logo">FIRESAFE<span class="ke-logo-slash"></span></div>' +
+            '<div class="ke-title">KAPPESKJEMA</div>' +
+            '<div class="ke-meta">' +
+                '<div><strong>Dato:</strong> ' + escapeHtml(data.dato || '') + '</div>' +
+                '<div><strong>Ønsket lev.:</strong> ' + escapeHtml(_kappeFormatDateNO(data.onsketLeveringsdato) || '') + '</div>' +
+            '</div>' +
+        '</div>';
+
+    var infoHtml =
+        '<div class="ke-info-grid">' +
+            '<div class="ke-info-col">' +
+                '<div class="ke-info-col-title">Prosjekt</div>' +
+                '<div class="ke-info-row"><span>Avdeling:</span><span>' + escapeHtml(data.avdeling || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Bestiller:</span><span>' + escapeHtml(data.bestiller || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Prosjektnavn:</span><span>' + escapeHtml(data.prosjektnavn || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Prosjektnr.:</span><span>' + escapeHtml(data.prosjektnr || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Pallemerking:</span><span>' + escapeHtml(data.pallemerking || '') + '</span></div>' +
+            '</div>' +
+            '<div class="ke-info-col">' +
+                '<div class="ke-info-col-title">Leveringsadresse</div>' +
+                '<div class="ke-info-row"><span>Mottaker:</span><span>' + escapeHtml(lev.mottaker || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Veiadresse:</span><span>' + escapeHtml(lev.veiadresse || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Postnr.:</span><span>' + escapeHtml(lev.postnr || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Poststed:</span><span>' + escapeHtml(lev.poststed || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Kontakt:</span><span>' + escapeHtml(lev.kontakt || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Tlf.:</span><span>' + escapeHtml(lev.tlf || '') + '</span></div>' +
+            '</div>' +
+        '</div>';
+
+    var productRows = '';
+    for (var i = 0; i < lines.length; i++) {
+        var l = lines[i] || {};
+        productRows +=
+            '<tr>' +
+                '<td class="ke-td-nr">' + (i + 1) + '</td>' +
+                '<td class="ke-td-produkt">' + escapeHtml(l.produkt || '') + '</td>' +
+                '<td class="ke-td-bredde">' + escapeHtml(fmtNum(l.bredde)) + '</td>' +
+                '<td class="ke-td-lm">' + escapeHtml(fmtNum(l.lopemeter)) + '</td>' +
+                '<td class="ke-td-antall-sider">' + escapeHtml(fmtNum(l.antallSider)) + '</td>' +
+                '<td class="ke-td-office"></td>' +
+                '<td class="ke-td-office"></td>' +
+                '<td class="ke-td-office"></td>' +
+            '</tr>';
+    }
+
+    var productsTable =
+        '<div class="ke-section-title">Produkter</div>' +
+        '<table class="ke-products-table">' +
+            '<colgroup>' +
+                '<col style="width:4%">' +
+                '<col style="width:22%">' +
+                '<col style="width:10%">' +
+                '<col style="width:11%">' +
+                '<col style="width:11%">' +
+                '<col style="width:13%">' +
+                '<col style="width:13%">' +
+                '<col style="width:16%">' +
+            '</colgroup>' +
+            '<thead>' +
+                '<tr>' +
+                    '<th>#</th>' +
+                    '<th>Produkt</th>' +
+                    '<th>Bredde (mm)</th>' +
+                    '<th>Løpemeter</th>' +
+                    '<th>Antall sider</th>' +
+                    '<th>Antall stk WN630</th>' +
+                    '<th>Totalt m²</th>' +
+                    '<th>Veiledende m² (inkl. svinn)</th>' +
+                '</tr>' +
+            '</thead>' +
+            '<tbody>' + productRows + '</tbody>' +
+        '</table>';
+
+    var stiftMap = {};
+    (data.stift || []).forEach(function(s) { stiftMap[s.storrelse || s['størrelse']] = s.antall; });
+    var stiftRows = '';
+    getKappeStiftSizes().forEach(function(size) {
+        stiftRows +=
+            '<tr>' +
+                '<td class="ke-stift-size">' + escapeHtml(size) + '</td>' +
+                '<td class="ke-stift-antall">' + escapeHtml(stiftMap[size] || '') + '</td>' +
+            '</tr>';
+    });
+
+    var stiftTable =
+        '<div class="ke-section-title">Stift</div>' +
+        '<table class="ke-stift-table">' +
+            '<colgroup><col style="width:30%"><col style="width:70%"></colgroup>' +
+            '<thead><tr><th>Størrelse</th><th>Antall krt</th></tr></thead>' +
+            '<tbody>' + stiftRows + '</tbody>' +
+        '</table>';
+
+    container.innerHTML =
+        '<div class="kappe-export-page">' +
+            headerHtml + infoHtml + productsTable + stiftTable +
+        '</div>';
+
+    return container;
+}
+
+async function renderKappeToCanvas() {
+    var container = buildKappeExportTable();
+    container.style.display = 'block';
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '1250px';
+    container.style.visibility = 'hidden';
+    container.style.zIndex = '-1';
+
+    await new Promise(function(resolve) { requestAnimationFrame(function() { requestAnimationFrame(resolve); }); });
+    container.style.visibility = 'visible';
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '';
+
+    var canvas = await html2canvas(container, {
+        scale: 3,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+    });
+
+    container.style.display = 'none';
+    container.style.position = '';
+    container.style.left = '';
+    container.style.width = '';
+    container.style.visibility = '';
+    container.style.zIndex = '';
+
+    return canvas;
+}
+
+function getKappeExportFilename(ext) {
+    var data = getKappeFormData();
+    var base = 'kappeskjema';
+    if (data.prosjektnr) base += '_' + data.prosjektnr;
+    else if (data.prosjektnavn) base += '_' + data.prosjektnavn.replace(/[^A-Za-z0-9æøåÆØÅ_-]/g, '_');
+    return base + '.' + ext;
+}
+
+async function doKappeExportPDF(markSent) {
+    if (!validateKappeRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderKappeToCanvas();
+        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+        pdf.save(getKappeExportFilename('pdf'));
+        if (markSent) markKappeAsSent();
+    } catch(error) {
+        showNotificationModal(t('export_pdf_error') + error.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doKappeExportPNG(markSent) {
+    if (!validateKappeRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderKappeToCanvas();
+        var link = document.createElement('a');
+        link.download = getKappeExportFilename('png');
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        if (markSent) markKappeAsSent();
+    } catch(error) {
+        showNotificationModal(t('export_png_error') + error.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doKappeSharePDF() {
+    if (!validateKappeRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderKappeToCanvas();
+        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+        var blob = pdf.output('blob');
+        var file = new File([blob], getKappeExportFilename('pdf'), { type: 'application/pdf' });
+        await navigator.share({ files: [file] });
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+async function doKappeSharePNG() {
+    if (!validateKappeRequiredFields()) return;
+    var loading = document.getElementById('loading');
+    loading.classList.add('active');
+    try {
+        var canvas = await renderKappeToCanvas();
+        var dataUrl = canvas.toDataURL('image/png');
+        var res = await fetch(dataUrl);
+        var blob = await res.blob();
+        var file = new File([blob], getKappeExportFilename('png'), { type: 'image/png' });
+        await navigator.share({ files: [file] });
+    } catch (e) {
+        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+function showKappeExportMenu() {
+    var popup = document.getElementById('action-popup');
+    document.getElementById('action-popup-title').textContent = t('export_title');
+    var buttonsEl = document.getElementById('action-popup-buttons');
+    var isSent = sessionStorage.getItem('firesafe_kappe_sent') === '1';
+    var checkboxHtml = isSent ? '' :
+        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:8px 0">' +
+            '<input type="checkbox" id="kappe-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
+            t('export_and_mark_label') +
+        '</label>';
+    var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var canShare = !!(navigator.share && navigator.canShare);
+    var shareBtnPDF = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
+    var shareBtnPNG = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
+    buttonsEl.innerHTML = checkboxHtml +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doKappeExportPDF(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doKappeExportPNG(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
+        '<div class="confirm-modal-buttons">' +
+            shareBtnPDF + shareBtnPNG +
+        '</div>';
+    popup.classList.add('active');
+}
+
+function openKappePreview() {
+    var container = buildKappeExportTable();
+    container.style.display = 'block';
+    container.style.width = '1250px';
+    container.style.overflow = 'hidden';
+
+    var scroll = document.getElementById('preview-scroll');
+    scroll.appendChild(container);
+
+    window._kappePreviewActive = true;
+    document.getElementById('preview-overlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Hide sign button — kappeskjema has no signature
+    var signBtn = document.querySelector('.preview-sign-btn');
+    if (signBtn) signBtn.style.display = 'none';
+    var closeBtn = document.querySelector('.preview-close-btn');
+    if (closeBtn) closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> ' + t('btn_close');
+
+    requestAnimationFrame(function() {
+        updateKappePreviewScale();
+        var baseScale = Math.min(scroll.clientWidth / 1250, 1);
+        if (baseScale < 1) initPreviewPinchZoom(scroll, container, baseScale);
+    });
+
+    window._previewResizeHandler = _onKappePreviewViewportChange;
+    window.addEventListener('resize', window._previewResizeHandler);
+    window.addEventListener('orientationchange', window._previewResizeHandler);
+}
+
+function _onKappePreviewViewportChange() {
+    clearTimeout(window._kappePreviewOrientTimer);
+    window._kappePreviewOrientTimer = setTimeout(function() {
+        updateKappePreviewScale();
+        cleanupPreviewPinchZoom();
+        var scroll = document.getElementById('preview-scroll');
+        var container = document.getElementById('kappe-export-container');
+        if (!scroll || !container) return;
+        var baseScale = Math.min(scroll.clientWidth / 1250, 1);
+        if (baseScale < 1) initPreviewPinchZoom(scroll, container, baseScale);
+    }, 200);
+}
+
+function updateKappePreviewScale() {
+    var overlay = document.getElementById('preview-overlay');
+    if (!overlay || !overlay.classList.contains('active')) return;
+    var container = document.getElementById('kappe-export-container');
+    var scroll = document.getElementById('preview-scroll');
+    if (!container || !scroll) return;
+
+    var header = document.querySelector('.preview-overlay-header');
+    var cs = getComputedStyle(scroll);
+    var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    var availWidth = scroll.clientWidth - padLR;
+    var scale = Math.min(availWidth / 1250, 1);
+
+    if (scale < 1) {
+        container.style.transformOrigin = 'top left';
+        container.style.transform = 'scale(' + scale + ')';
+        container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
+        container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
+        container.style.marginLeft = '';
+        if (header) { header.style.maxWidth = (container.offsetWidth * scale) + 'px'; header.style.margin = '0'; }
+    } else {
+        container.style.transform = '';
+        container.style.transformOrigin = '';
+        container.style.marginLeft = 'auto';
+        container.style.marginRight = 'auto';
+        container.style.marginBottom = '';
+        if (header) { header.style.maxWidth = '1250px'; header.style.margin = '0 auto'; }
+    }
+    window._previewBaseScale = scale;
+    window._previewCurrentScale = scale;
+}
+
+// ─── Kappe product settings CRUD ───────────────────────────────────────────
+
+function _kappeSettingsItemHtml(name, idx, editFn, removeFn) {
+    return '<div class="settings-list-item kappe-product-item" data-idx="' + idx + '">' +
+        '<div class="settings-list-item-main">' +
+            '<div class="settings-list-item-name">' + escapeHtml(name) + '</div>' +
+        '</div>' +
+        '<div class="settings-list-item-actions">' +
+            '<button type="button" class="settings-item-edit" onclick="' + editFn + '(' + idx + ')" title="' + t('edit_btn') + '">' + (typeof editIcon !== 'undefined' ? editIcon : '✏️') + '</button>' +
+            '<button type="button" class="settings-item-remove" onclick="' + removeFn + '(' + idx + ')" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
+        '</div>' +
+    '</div>';
+}
+
+function renderKappeProductSettings() {
+    var container = document.getElementById('settings-kappe-product-items');
+    if (!container) return;
+    var products = getKappeProducts();
+    var countEl = document.getElementById('settings-count-kappe-products');
+    if (countEl) countEl.textContent = products.length ? '(' + products.length + ')' : '';
+    if (!products.length) {
+        container.innerHTML = '<div class="no-saved">' + t('kappe_settings_no_products') + '</div>';
+        return;
+    }
+    container.innerHTML = products.map(function(p, i) {
+        return _kappeSettingsItemHtml(p.name, i, 'editKappeProduct', 'removeKappeProduct');
+    }).join('');
+}
+
+function addKappeProduct() {
+    var nameEl = document.getElementById('settings-new-kappe-product');
+    if (!nameEl) return;
+    var name = (nameEl.value || '').trim();
+    if (!name) { showNotificationModal(t('kappe_settings_name_required')); nameEl.focus(); return; }
+
+    var products = getKappeProducts();
+    if (products.some(function(p) { return p.name.toLowerCase() === name.toLowerCase(); })) {
+        showNotificationModal(t('kappe_settings_duplicate'));
+        return;
+    }
+    products.push({ name: name });
+    products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+    safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+    nameEl.value = '';
+    renderKappeProductSettings();
+}
+
+function editKappeProduct(idx) {
+    var products = getKappeProducts();
+    var p = products[idx];
+    if (!p) return;
+    var newName = prompt(t('kappe_settings_edit_name'), p.name);
+    if (newName === null) return;
+    newName = newName.trim();
+    if (!newName) return;
+    if (products.some(function(other, i) { return i !== idx && other.name.toLowerCase() === newName.toLowerCase(); })) {
+        showNotificationModal(t('kappe_settings_duplicate'));
+        return;
+    }
+    products[idx] = { name: newName };
+    products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+    safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+    renderKappeProductSettings();
+}
+
+function removeKappeProduct(idx) {
+    var products = getKappeProducts();
+    var p = products[idx];
+    if (!p) return;
+    showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + p.name + '"?', function() {
+        products.splice(idx, 1);
+        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        renderKappeProductSettings();
+    }, t('btn_remove'), '#e74c3c');
+}
+
+// --- Stift-størrelser CRUD ---
+
+function _saveKappeStiftSizes(sizes) {
+    safeSetItem(KAPPE_STIFT_SIZES_KEY, JSON.stringify({ sizes: sizes }));
+}
+
+function renderKappeStiftSizeSettings() {
+    var container = document.getElementById('settings-kappe-stift-items');
+    if (!container) return;
+    var sizes = getKappeStiftSizes();
+    var countEl = document.getElementById('settings-count-kappe-stift');
+    if (countEl) countEl.textContent = sizes.length ? '(' + sizes.length + ')' : '';
+    if (!sizes.length) {
+        container.innerHTML = '<div class="no-saved">' + t('kappe_settings_no_stift') + '</div>';
+        return;
+    }
+    container.innerHTML = sizes.map(function(size, i) {
+        return _kappeSettingsItemHtml(size, i, 'editKappeStiftSize', 'removeKappeStiftSize');
+    }).join('');
+}
+
+function addKappeStiftSize() {
+    var el = document.getElementById('settings-new-kappe-stift');
+    if (!el) return;
+    var value = (el.value || '').trim();
+    if (!value) { showNotificationModal(t('kappe_settings_stift_required')); el.focus(); return; }
+    var sizes = getKappeStiftSizes();
+    if (sizes.some(function(s) { return s.toLowerCase() === value.toLowerCase(); })) {
+        showNotificationModal(t('kappe_settings_duplicate'));
+        return;
+    }
+    sizes.push(value);
+    _saveKappeStiftSizes(sizes);
+    el.value = '';
+    renderKappeStiftSizeSettings();
+}
+
+function editKappeStiftSize(idx) {
+    var sizes = getKappeStiftSizes();
+    var cur = sizes[idx];
+    if (cur === undefined) return;
+    var newVal = prompt(t('kappe_settings_edit_stift'), cur);
+    if (newVal === null) return;
+    newVal = newVal.trim();
+    if (!newVal) return;
+    if (sizes.some(function(s, i) { return i !== idx && s.toLowerCase() === newVal.toLowerCase(); })) {
+        showNotificationModal(t('kappe_settings_duplicate'));
+        return;
+    }
+    sizes[idx] = newVal;
+    _saveKappeStiftSizes(sizes);
+    renderKappeStiftSizeSettings();
+}
+
+function removeKappeStiftSize(idx) {
+    var sizes = getKappeStiftSizes();
+    var cur = sizes[idx];
+    if (cur === undefined) return;
+    showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + cur + '"?', function() {
+        sizes.splice(idx, 1);
+        _saveKappeStiftSizes(sizes);
+        renderKappeStiftSizeSettings();
+    }, t('btn_remove'), '#e74c3c');
 }
