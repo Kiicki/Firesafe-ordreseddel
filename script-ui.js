@@ -1722,6 +1722,7 @@ function showSettingsPage(page) {
         if (newStiftEl) newStiftEl.value = '';
         renderKappeProductSettings();
         renderKappeStiftSizeSettings();
+        _loadKappeKerfSetting();
     } else if (page === 'plans') {
         var storedPlans = localStorage.getItem(PLANS_KEY);
         settingsPlans = storedPlans ? sortPlans(JSON.parse(storedPlans)) : [];
@@ -7769,6 +7770,20 @@ function createKappeLineCard(lineData, expanded) {
                 '<label data-i18n="kappe_col_produkt">Produkt</label>' +
                 '<select class="kappe-line-product">' + _kappeProductOptionsHtml(data.produkt || '') + '</select>' +
             '</div>' +
+            '<div class="kappe-plate-row">' +
+                '<div class="mobile-field">' +
+                    '<label>' + t('kappe_plate_length') + '</label>' +
+                    '<input type="text" class="kappe-line-plate-length" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateLengde || '1200') + '">' +
+                '</div>' +
+                '<div class="mobile-field">' +
+                    '<label>' + t('kappe_plate_width') + '</label>' +
+                    '<input type="text" class="kappe-line-plate-width" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateBredde || '1000') + '">' +
+                '</div>' +
+                '<div class="mobile-field">' +
+                    '<label>' + t('kappe_plate_stack') + '</label>' +
+                    '<input type="text" class="kappe-line-plate-stack" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateStabel || '1') + '">' +
+                '</div>' +
+            '</div>' +
             '<div class="kappe-kapp-rows"></div>' +
             '<button type="button" class="kappe-add-kapp-btn" onclick="addKappeKappRow(this)">+ ' + t('kappe_add_kapp') + '</button>' +
             '<div class="mobile-field">' +
@@ -7954,6 +7969,9 @@ function getKappeFormData() {
     document.querySelectorAll('#kappe-lines .kappe-line-card').forEach(function(card) {
         lines.push({
             produkt: (card.querySelector('.kappe-line-product') || {}).value || '',
+            plateLengde: (card.querySelector('.kappe-line-plate-length') || {}).value || '1200',
+            plateBredde: (card.querySelector('.kappe-line-plate-width') || {}).value || '1000',
+            plateStabel: (card.querySelector('.kappe-line-plate-stack') || {}).value || '1',
             kapp: _getKappeLineKappData(card),
             merknad: (card.querySelector('.kappe-line-merknad') || {}).value || ''
         });
@@ -8368,6 +8386,54 @@ function deleteKappeForm(formData) {
     });
 })();
 
+// ─── Kappe WN630 beregning ──────────────────────────────────────────────────
+
+function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredde, kerf, stabel) {
+    var w = parseFloat(bredde) || 0;
+    var lm = parseFloat(lopemeter) || 0;
+    var sider = parseFloat(antallSider) || 0;
+    var pL = parseFloat(plateLengde) || 1200;
+    var pB = parseFloat(plateBredde) || 1000;
+    var k = parseFloat(kerf) || 2;
+
+    if (w <= 0 || lm <= 0 || sider <= 0) return { antall: 0, orientering: '' };
+
+    var totalLm = lm * sider;
+
+    // Orientering A: kutter langs plateBredde, strimler blir w × plateLengde
+    var stripesA = Math.floor((pB + k) / (w + k));
+    var stripLengdeA = pL / 1000; // lengde per strimmel i meter
+
+    // Orientering B: kutter langs plateLengde, strimler blir w × plateBredde
+    var stripesB = Math.floor((pL + k) / (w + k));
+    var stripLengdeB = pB / 1000;
+
+    // Velg orientering som gir flest lm per plate (minst svinn)
+    var lmPerPlateA = stripesA * stripLengdeA;
+    var lmPerPlateB = stripesB * stripLengdeB;
+    var bestIsA = lmPerPlateA >= lmPerPlateB;
+
+    var stripLengde = bestIsA ? stripLengdeA : stripLengdeB;
+    var kuttSide = bestIsA ? pB : pL;
+
+    if (stripLengde <= 0) return { antall: 0, orientering: '' };
+
+    // Antall stk = totalt antall kappestykker
+    var antallStk = Math.ceil(totalLm / stripLengde);
+
+    // Antall kapp = stk delt på plater i stabel
+    var stabelAntall = Math.max(1, parseInt(stabel) || 1);
+    var antallKapp = Math.ceil(antallStk / stabelAntall);
+
+    return {
+        antall: antallStk,
+        kapp: antallKapp,
+        stabel: stabelAntall,
+        stripLengde: stripLengde,
+        orientering: 'Kapp langs ' + kuttSide + 'mm'
+    };
+}
+
 // ─── Kappe export ───────────────────────────────────────────────────────────
 
 function buildKappeExportTable() {
@@ -8415,22 +8481,34 @@ function buildKappeExportTable() {
         '</div>';
 
     // Flatten lines with multiple kapp rows into export rows
+    var kerf = getKappeKerf();
     var flatRows = [];
     for (var i = 0; i < lines.length; i++) {
         var l = lines[i] || {};
+        var pL = l.plateLengde || '1200';
+        var pB = l.plateBredde || '1000';
+        var pS = l.plateStabel || '1';
         // Backward compat: old format had bredde/lopemeter/antallSider directly
         var kappArr = l.kapp || [];
         if (!kappArr.length) {
             kappArr = [{ bredde: l.bredde || '', lopemeter: l.lopemeter || '', antallSider: l.antallSider || '' }];
         }
         for (var ki = 0; ki < kappArr.length; ki++) {
+            var ka = kappArr[ki];
+            var wn630 = _calcKappeWN630(ka.bredde, ka.lopemeter, ka.antallSider, pL, pB, kerf, pS);
             flatRows.push({
                 nr: ki === 0 ? (i + 1) : '',
                 produkt: ki === 0 ? (l.produkt || '') : '',
-                bredde: kappArr[ki].bredde || '',
-                lopemeter: kappArr[ki].lopemeter || '',
-                antallSider: kappArr[ki].antallSider || '',
-                merknad: (ki === 0) ? (l.merknad || '') : ''
+                bredde: ka.bredde || '',
+                lopemeter: ka.lopemeter || '',
+                antallSider: ka.antallSider || '',
+                merknad: (ki === 0) ? (l.merknad || '') : '',
+                wn630antall: wn630.antall || '',
+                wn630kapp: wn630.kapp || '',
+                wn630stabel: wn630.stabel || 1,
+                wn630orientering: wn630.orientering || '',
+                totaltM2: (wn630.antall && wn630.stripLengde)
+                    ? (wn630.antall * wn630.stripLengde * (parseFloat(ka.bredde) / 1000)) : ''
             });
         }
     }
@@ -8447,9 +8525,9 @@ function buildKappeExportTable() {
                 '<td class="ke-td-bredde">' + escapeHtml(fmtNum(r.bredde)) + '</td>' +
                 '<td class="ke-td-lm">' + escapeHtml(fmtNum(r.lopemeter)) + '</td>' +
                 '<td class="ke-td-antall-sider">' + escapeHtml(fmtNum(r.antallSider)) + '</td>' +
-                '<td class="ke-td-office"></td>' +
-                '<td class="ke-td-office"></td>' +
-                '<td class="ke-td-office"></td>' +
+                '<td class="ke-td-wn630">' + (r.wn630antall ? r.wn630antall + (r.wn630stabel > 1 ? ' (' + r.wn630kapp + ' kapp)' : '') + '<div class="ke-wn630-orient">' + escapeHtml(r.wn630orientering) + '</div>' : '') + '</td>' +
+                '<td>' + (r.totaltM2 ? fmtNum(r.totaltM2.toFixed(2)) : '') + '</td>' +
+                '<td>' + (r.totaltM2 ? fmtNum((r.totaltM2 * 1.10).toFixed(2)) : '') + '</td>' +
             '</tr>';
     }
 
@@ -8863,4 +8941,16 @@ function removeKappeStiftSize(idx) {
         _saveKappeStiftSizes(sizes);
         renderKappeStiftSizeSettings();
     }, t('btn_remove'), '#e74c3c');
+}
+
+function _loadKappeKerfSetting() {
+    var el = document.getElementById('settings-kappe-kerf');
+    if (!el) return;
+    el.value = getKappeKerf();
+    el.addEventListener('change', function() {
+        var v = parseFloat(el.value.replace(',', '.'));
+        if (isNaN(v) || v < 0) v = KAPPE_DEFAULT_KERF;
+        el.value = v;
+        safeSetItem(KAPPE_KERF_KEY, JSON.stringify({ kerf: v }));
+    });
 }

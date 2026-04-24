@@ -21,6 +21,8 @@ const KAPPE_DEFAULT_PRODUCTS = [
     { name: 'Fireprotect 60mm' }
 ];
 const KAPPE_DEFAULT_STIFT_SIZES = ['22mm', '27mm', '32mm', '42mm', '52mm'];
+const KAPPE_KERF_KEY = 'firesafe_kappe_kerf';
+const KAPPE_DEFAULT_KERF = 2;
 
 function getKappeProducts() {
     try {
@@ -31,6 +33,18 @@ function getKappeProducts() {
         return KAPPE_DEFAULT_PRODUCTS.slice();
     } catch (e) {
         return KAPPE_DEFAULT_PRODUCTS.slice();
+    }
+}
+
+function getKappeKerf() {
+    try {
+        var raw = localStorage.getItem(KAPPE_KERF_KEY);
+        if (!raw) return KAPPE_DEFAULT_KERF;
+        var parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.kerf === 'number') return parsed.kerf;
+        return KAPPE_DEFAULT_KERF;
+    } catch (e) {
+        return KAPPE_DEFAULT_KERF;
     }
 }
 
