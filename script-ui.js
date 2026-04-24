@@ -7868,7 +7868,7 @@ function updateKappeDeleteStates() {
 function _kappeStiftRowHtml(size, value) {
     return '<div class="kappe-stift-row" data-row-size="' + escapeHtml(size) + '">' +
         '<label class="kappe-stift-label">' + escapeHtml(size) + '</label>' +
-        '<input type="text" class="kappe-stift-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Antall krt" value="' + escapeHtml(value || '') + '">' +
+        '<input type="text" class="kappe-stift-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Kartonger" value="' + escapeHtml(value || '') + '">' +
         '<button type="button" class="kappe-stift-remove" onclick="removeKappeStiftRow(this)" aria-label="Fjern">' + deleteIcon + '</button>' +
     '</div>';
 }
@@ -7915,7 +7915,7 @@ function openKappeStiftPicker() {
         var val = currentValues[size] || '';
         listHtml += '<div class="kappe-stift-picker-row">' +
             '<label class="kappe-stift-picker-label">' + escapeHtml(size) + '</label>' +
-            '<input type="text" class="kappe-stift-picker-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Antall krt" value="' + escapeHtml(val) + '">' +
+            '<input type="text" class="kappe-stift-picker-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Kartonger" value="' + escapeHtml(val) + '">' +
         '</div>';
     });
     listHtml += '</div>';
@@ -8547,25 +8547,25 @@ function buildKappeExportTable() {
         '<div class="ke-section-title">Kappeliste</div>' +
         '<table class="ke-products-table">' +
             '<colgroup>' +
-                '<col style="width:22%">' +
-                '<col style="width:12%">' +
+                '<col style="width:25%">' +
+                '<col style="width:20%">' +
                 '<col style="width:5%">' +
                 '<col style="width:5%">' +
-                '<col style="width:4%">' +
-                '<col style="width:34%">' +
                 '<col style="width:5%">' +
-                '<col style="width:13%">' +
+                '<col style="width:25%">' +
+                '<col style="width:5%">' +
+                '<col style="width:10%">' +
             '</colgroup>' +
             '<thead>' +
                 '<tr>' +
-                    '<th>#</th>' +
+                    '<th>Merknad</th>' +
                     '<th>Produkt</th>' +
                     '<th>Bredde<br>(mm)</th>' +
-                    '<th>Løpe&shy;meter</th>' +
-                    '<th>Ant.<br>sider</th>' +
+                    '<th>Lm</th>' +
+                    '<th>Sider</th>' +
                     '<th>Antall stk WN630</th>' +
                     '<th>Totalt<br>m²</th>' +
-                    '<th>Veiledende m²<br>(inkl. svinn)</th>' +
+                    '<th>Veil. m²<br>(svinn)</th>' +
                 '</tr>' +
             '</thead>' +
             '<tbody>' + productRows + '</tbody>' +
@@ -8587,7 +8587,7 @@ function buildKappeExportTable() {
         '<div class="ke-section-title">Stift</div>' +
         '<table class="ke-stift-table">' +
             '<colgroup><col style="width:55%"><col style="width:45%"></colgroup>' +
-            '<thead><tr><th>Størrelse</th><th>Antall krt</th></tr></thead>' +
+            '<thead><tr><th>Størrelse</th><th>Kartonger</th></tr></thead>' +
             '<tbody>' + stiftRows + '</tbody>' +
         '</table>';
 
