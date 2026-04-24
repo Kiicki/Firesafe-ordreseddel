@@ -6370,14 +6370,14 @@ body.kappe-view-open { background: #fff; }
     width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 12px;
 }
 .ke-products-table th,
 .ke-products-table td,
 .ke-stift-table th,
 .ke-stift-table td {
     border: 1px solid #000;
-    padding: 6px 6px;
+    padding: 5px 4px;
     text-align: center;
     vertical-align: middle;
     word-break: break-word;
@@ -6411,12 +6411,24 @@ body.kappe-view-open { background: #fff; }
     font-style: italic;
 }
 .ke-td-wn630 {
-    vertical-align: middle;
+    vertical-align: top;
+    text-align: left !important;
+    padding-left: 6px !important;
+    font-size: 11px;
+    line-height: 1.4;
 }
-.ke-wn630-orient {
-    font-size: 8px;
-    color: #555;
-    margin-top: 1px;
+.ke-wn630-row {
+    margin-bottom: 2px;
+}
+.ke-wn630-sep {
+    border-top: 1px dotted #ccc;
+    margin: 3px 0;
+}
+.ke-kerf-note {
+    font-size: 9px;
+    color: #888;
+    margin-top: 4px;
+    font-style: italic;
 }
 .ke-stift-table {
     max-width: 25%;
