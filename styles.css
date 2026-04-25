@@ -615,7 +615,7 @@ body:has(#login-view.active) {
     color: #fff;
 }
 .login-logo .firesafe-logo {
-    margin: 0 auto 6px;
+    margin: 0 auto -8px;
 }
 .login-logo p {
     font-size: 13px;
