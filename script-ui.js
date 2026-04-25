@@ -1723,6 +1723,7 @@ function showSettingsPage(page) {
         renderKappeProductSettings();
         renderKappeStiftSizeSettings();
         _loadKappeKerfSetting();
+        _loadKappePlateSetting();
     } else if (page === 'plans') {
         var storedPlans = localStorage.getItem(PLANS_KEY);
         settingsPlans = storedPlans ? sortPlans(JSON.parse(storedPlans)) : [];
@@ -7670,14 +7671,103 @@ function closeKappeView() {
     sessionStorage.removeItem('firesafe_kappe_sent');
 }
 
+function _formatDimMm(d) {
+    if (!d) return '';
+    return /mm$/i.test(d) ? d : d + 'mm';
+}
+
+function _kappeProductPickerHtml(selectedName) {
+    var displayText = selectedName || t('kappe_product_placeholder');
+    var placeholderClass = selectedName ? '' : ' kappe-line-product-text-placeholder';
+    return '<button type="button" class="kappe-line-product-btn" onclick="openKappeProductPicker(this)">' +
+        '<span class="kappe-line-product-text' + placeholderClass + '">' + escapeHtml(displayText) + '</span>' +
+        '<span class="kappe-line-product-arrow">▾</span>' +
+    '</button>' +
+    '<input type="hidden" class="kappe-line-product" value="' + escapeHtml(selectedName || '') + '">';
+}
+
+var _currentKappeProductBtn = null;
+
+function openKappeProductPicker(btn) {
+    _currentKappeProductBtn = btn;
+    var overlay = document.getElementById('kappe-product-picker-overlay');
+    var list = document.getElementById('kappe-product-picker-list');
+    var hiddenInput = btn.parentElement.querySelector('.kappe-line-product');
+    var currentValue = hiddenInput ? hiddenInput.value : '';
+
+    var products = getKappeProducts();
+    var allOptions = [];
+    products.forEach(function(p) {
+        if (p.dimensions && p.dimensions.length) {
+            p.dimensions.forEach(function(dim) {
+                allOptions.push(p.name + ' ' + _formatDimMm(dim));
+            });
+        } else {
+            allOptions.push(p.name);
+        }
+    });
+    allOptions.sort(function(a, b) { return a.localeCompare(b, 'no'); });
+
+    var html = '';
+    allOptions.forEach(function(opt) {
+        var sel = (opt === currentValue) ? ' kappe-product-picker-row-selected' : '';
+        var safeOpt = opt.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        html += '<div class="kappe-product-picker-row' + sel + '" onclick="selectKappeProduct(\'' + safeOpt + '\')">' +
+            '<span class="kappe-product-picker-name">' + escapeHtml(opt) + '</span>' +
+        '</div>';
+    });
+    if (!allOptions.length) {
+        html = '<div class="kappe-product-picker-empty">' + t('kappe_settings_no_products') + '</div>';
+    }
+    list.innerHTML = html;
+    overlay.classList.add('active');
+}
+
+function closeKappeProductPicker() {
+    var overlay = document.getElementById('kappe-product-picker-overlay');
+    overlay.classList.remove('active');
+    _currentKappeProductBtn = null;
+}
+
+function selectKappeProduct(value) {
+    if (!_currentKappeProductBtn) return;
+    var wrap = _currentKappeProductBtn.parentElement;
+    var hiddenInput = wrap.querySelector('.kappe-line-product');
+    var textSpan = _currentKappeProductBtn.querySelector('.kappe-line-product-text');
+    if (hiddenInput) {
+        hiddenInput.value = value;
+        hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (textSpan) {
+        textSpan.textContent = value;
+        textSpan.classList.remove('kappe-line-product-text-placeholder');
+    }
+    closeKappeProductPicker();
+}
+
 function _kappeProductOptionsHtml(selectedName) {
     var products = getKappeProducts();
-    var hasSelection = !!selectedName && products.some(function(p) { return p.name === selectedName; });
-    var html = '<option value="" disabled hidden' + (hasSelection ? '' : ' selected') + '>' + escapeHtml(t('kappe_product_placeholder')) + '</option>';
-    for (var i = 0; i < products.length; i++) {
-        var p = products[i];
-        var sel = (p.name === selectedName) ? ' selected' : '';
-        html += '<option value="' + escapeHtml(p.name) + '"' + sel + '>' + escapeHtml(p.name) + '</option>';
+    var html = '<option value="" disabled hidden' + (selectedName ? '' : ' selected') + '>' + escapeHtml(t('kappe_product_placeholder')) + '</option>';
+    // Bygg flat liste av alle merke+dim kombinasjoner
+    var allOptions = [];
+    products.forEach(function(p) {
+        if (p.dimensions && p.dimensions.length) {
+            p.dimensions.forEach(function(dim) {
+                allOptions.push(p.name + ' ' + _formatDimMm(dim));
+            });
+        } else {
+            allOptions.push(p.name);
+        }
+    });
+    // Sorter alfabetisk så samme merke kommer etter hverandre
+    allOptions.sort(function(a, b) { return a.localeCompare(b, 'no'); });
+    allOptions.forEach(function(fullName) {
+        var sel = (fullName === selectedName) ? ' selected' : '';
+        html += '<option value="' + escapeHtml(fullName) + '"' + sel + '>' + escapeHtml(fullName) + '</option>';
+    });
+    // Bakoverkompat: hvis selectedName ikke matcher noen option, legg den til som ekstra option
+    if (selectedName && html.indexOf('value="' + escapeHtml(selectedName) + '"') === -1) {
+        html += '<option value="' + escapeHtml(selectedName) + '" selected>' + escapeHtml(selectedName) + ' (uregistrert)</option>';
     }
     return html;
 }
@@ -7755,6 +7845,8 @@ function createKappeLineCard(lineData, expanded) {
         }
     }
 
+    var defaultPlate = (typeof getKappePlate === 'function') ? getKappePlate() : { lengde: 1200, bredde: 1000 };
+
     var card = document.createElement('div');
     card.className = 'kappe-line-card mobile-order-card';
 
@@ -7768,14 +7860,14 @@ function createKappeLineCard(lineData, expanded) {
         '<div class="mobile-order-body kappe-line-body">' +
             '<div class="mobile-field field-required">' +
                 '<label data-i18n="kappe_col_produkt">Produkt</label>' +
-                '<select class="kappe-line-product">' + _kappeProductOptionsHtml(data.produkt || '') + '</select>' +
+                _kappeProductPickerHtml(data.produkt || '') +
             '</div>' +
             '<div class="mobile-field kappe-plate-field">' +
                 '<label>' + t('kappe_plate_dim') + '</label>' +
                 '<div class="kappe-plate-row">' +
-                    '<input type="text" class="kappe-line-plate-length" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateLengde || '1200') + '">' +
+                    '<input type="text" class="kappe-line-plate-length" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateLengde || String(defaultPlate.lengde)) + '">' +
                     '<span class="kappe-plate-x">×</span>' +
-                    '<input type="text" class="kappe-line-plate-width" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateBredde || '1000') + '">' +
+                    '<input type="text" class="kappe-line-plate-width" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateBredde || String(defaultPlate.bredde)) + '">' +
                 '</div>' +
             '</div>' +
             '<div class="kappe-kapp-rows"></div>' +
@@ -7875,7 +7967,7 @@ function updateKappeDeleteStates() {
 
 function _kappeStiftRowHtml(size, value) {
     return '<div class="kappe-stift-row" data-row-size="' + escapeHtml(size) + '">' +
-        '<label class="kappe-stift-label">' + escapeHtml(size) + '</label>' +
+        '<label class="kappe-stift-label">' + escapeHtml(_formatDimMm(size)) + '</label>' +
         '<input type="text" class="kappe-stift-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Kartonger" value="' + escapeHtml(value || '') + '">' +
         '<button type="button" class="kappe-stift-remove" onclick="removeKappeStiftRow(this)" aria-label="Fjern">' + deleteIcon + '</button>' +
     '</div>';
@@ -8632,7 +8724,7 @@ function buildKappeExportTable() {
         '<div class="ke-section-title">Stift</div>' +
         '<table class="ke-stift-table">' +
             '<colgroup><col style="width:55%"><col style="width:45%"></colgroup>' +
-            '<thead><tr><th>Størrelse</th><th>Kartonger</th></tr></thead>' +
+            '<thead><tr><th>Størrelse (mm)</th><th>Kartonger</th></tr></thead>' +
             '<tbody>' + stiftRows + '</tbody>' +
         '</table>';
 
@@ -8885,7 +8977,32 @@ function renderKappeProductSettings() {
         return;
     }
     container.innerHTML = products.map(function(p, i) {
-        return _kappeSettingsItemHtml(p.name, i, 'editKappeProduct', 'removeKappeProduct');
+        var dims = p.dimensions || [];
+        var dimsHtml = dims.length
+            ? dims.map(function(d, di) {
+                return '<div class="kappe-dim-item">' +
+                    '<span class="kappe-dim-name">' + escapeHtml(d) + '</span>' +
+                    '<div class="settings-list-item-actions">' +
+                        '<button type="button" class="settings-item-edit" onclick="editKappeProductDimension(' + i + ',' + di + ')" title="' + t('edit_btn') + '">' + (typeof editIcon !== 'undefined' ? editIcon : '✏️') + '</button>' +
+                        '<button type="button" class="settings-item-remove" onclick="removeKappeProductDimension(' + i + ',' + di + ')" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('')
+            : '<div class="kappe-dim-empty">' + t('kappe_settings_no_dimensions') + '</div>';
+        return '<div class="kappe-brand-block">' +
+            '<div class="kappe-brand-header">' +
+                '<span class="kappe-brand-name">' + escapeHtml(p.name) + (dims.length ? ' <span class="kappe-brand-count">(' + dims.length + ')</span>' : '') + '</span>' +
+                '<div class="settings-list-item-actions">' +
+                    '<button type="button" class="settings-item-edit" onclick="editKappeProduct(' + i + ')" title="' + t('edit_btn') + '">' + (typeof editIcon !== 'undefined' ? editIcon : '✏️') + '</button>' +
+                    '<button type="button" class="settings-item-remove" onclick="removeKappeProduct(' + i + ')" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="kappe-dim-list">' + dimsHtml + '</div>' +
+            '<div class="kappe-dim-add">' +
+                '<input type="text" class="kappe-dim-input" placeholder="' + escapeHtml(t('kappe_settings_new_dimension_placeholder')) + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addKappeProductDimension(' + i + ',this);}">' +
+                '<button type="button" class="kappe-dim-add-btn" onclick="addKappeProductDimension(' + i + ',this.previousElementSibling)">+ ' + t('kappe_settings_new_dimension') + '</button>' +
+            '</div>' +
+        '</div>';
     }).join('');
 }
 
@@ -8900,7 +9017,7 @@ function addKappeProduct() {
         showNotificationModal(t('kappe_settings_duplicate'));
         return;
     }
-    products.push({ name: name });
+    products.push({ name: name, dimensions: [] });
     products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
     safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
     nameEl.value = '';
@@ -8911,18 +9028,18 @@ function editKappeProduct(idx) {
     var products = getKappeProducts();
     var p = products[idx];
     if (!p) return;
-    var newName = prompt(t('kappe_settings_edit_name'), p.name);
-    if (newName === null) return;
-    newName = newName.trim();
-    if (!newName) return;
-    if (products.some(function(other, i) { return i !== idx && other.name.toLowerCase() === newName.toLowerCase(); })) {
-        showNotificationModal(t('kappe_settings_duplicate'));
-        return;
-    }
-    products[idx] = { name: newName };
-    products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-    safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
-    renderKappeProductSettings();
+    showInputModal(t('kappe_settings_edit_name'), p.name, function(newName) {
+        newName = (newName || '').trim();
+        if (!newName) return;
+        if (products.some(function(other, i) { return i !== idx && other.name.toLowerCase() === newName.toLowerCase(); })) {
+            showNotificationModal(t('kappe_settings_duplicate'));
+            return;
+        }
+        products[idx] = { name: newName, dimensions: p.dimensions || [] };
+        products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        renderKappeProductSettings();
+    });
 }
 
 function removeKappeProduct(idx) {
@@ -8931,6 +9048,54 @@ function removeKappeProduct(idx) {
     if (!p) return;
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + p.name + '"?', function() {
         products.splice(idx, 1);
+        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        renderKappeProductSettings();
+    }, t('btn_remove'), '#e74c3c');
+}
+
+function addKappeProductDimension(brandIdx, inputEl) {
+    var dim = (inputEl.value || '').trim();
+    if (!dim) { showNotificationModal(t('kappe_settings_dimension_required')); inputEl.focus(); return; }
+    var products = getKappeProducts();
+    var p = products[brandIdx];
+    if (!p) return;
+    if (!p.dimensions) p.dimensions = [];
+    if (p.dimensions.some(function(d) { return d.toLowerCase() === dim.toLowerCase(); })) {
+        showNotificationModal(t('kappe_settings_dimension_duplicate'));
+        return;
+    }
+    p.dimensions.push(dim);
+    safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+    inputEl.value = '';
+    renderKappeProductSettings();
+}
+
+function editKappeProductDimension(brandIdx, dimIdx) {
+    var products = getKappeProducts();
+    var p = products[brandIdx];
+    if (!p || !p.dimensions) return;
+    var cur = p.dimensions[dimIdx];
+    if (cur === undefined) return;
+    showInputModal(t('kappe_settings_edit_name'), cur, function(newDim) {
+        newDim = (newDim || '').trim();
+        if (!newDim) return;
+        if (p.dimensions.some(function(d, i) { return i !== dimIdx && d.toLowerCase() === newDim.toLowerCase(); })) {
+            showNotificationModal(t('kappe_settings_dimension_duplicate'));
+            return;
+        }
+        p.dimensions[dimIdx] = newDim;
+        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        renderKappeProductSettings();
+    });
+}
+
+function removeKappeProductDimension(brandIdx, dimIdx) {
+    var products = getKappeProducts();
+    var p = products[brandIdx];
+    if (!p || !p.dimensions) return;
+    var dim = p.dimensions[dimIdx];
+    showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + p.name + ' ' + dim + '"?', function() {
+        p.dimensions.splice(dimIdx, 1);
         safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
         renderKappeProductSettings();
     }, t('btn_remove'), '#e74c3c');
@@ -8977,17 +9142,17 @@ function editKappeStiftSize(idx) {
     var sizes = getKappeStiftSizes();
     var cur = sizes[idx];
     if (cur === undefined) return;
-    var newVal = prompt(t('kappe_settings_edit_stift'), cur);
-    if (newVal === null) return;
-    newVal = newVal.trim();
-    if (!newVal) return;
-    if (sizes.some(function(s, i) { return i !== idx && s.toLowerCase() === newVal.toLowerCase(); })) {
-        showNotificationModal(t('kappe_settings_duplicate'));
-        return;
-    }
-    sizes[idx] = newVal;
-    _saveKappeStiftSizes(sizes);
-    renderKappeStiftSizeSettings();
+    showInputModal(t('kappe_settings_edit_stift'), cur, function(newVal) {
+        newVal = (newVal || '').trim();
+        if (!newVal) return;
+        if (sizes.some(function(s, i) { return i !== idx && s.toLowerCase() === newVal.toLowerCase(); })) {
+            showNotificationModal(t('kappe_settings_duplicate'));
+            return;
+        }
+        sizes[idx] = newVal;
+        _saveKappeStiftSizes(sizes);
+        renderKappeStiftSizeSettings();
+    });
 }
 
 function removeKappeStiftSize(idx) {
@@ -9011,4 +9176,24 @@ function _loadKappeKerfSetting() {
         el.value = v;
         safeSetItem(KAPPE_KERF_KEY, JSON.stringify({ kerf: v }));
     });
+}
+
+function _loadKappePlateSetting() {
+    var elL = document.getElementById('settings-kappe-plate-lengde');
+    var elB = document.getElementById('settings-kappe-plate-bredde');
+    if (!elL || !elB) return;
+    var plate = getKappePlate();
+    elL.value = plate.lengde;
+    elB.value = plate.bredde;
+    function save() {
+        var l = parseInt(elL.value, 10);
+        var b = parseInt(elB.value, 10);
+        if (isNaN(l) || l <= 0) l = KAPPE_DEFAULT_PLATE.lengde;
+        if (isNaN(b) || b <= 0) b = KAPPE_DEFAULT_PLATE.bredde;
+        elL.value = l;
+        elB.value = b;
+        safeSetItem(KAPPE_PLATE_KEY, JSON.stringify({ lengde: l, bredde: b }));
+    }
+    elL.addEventListener('change', save);
+    elB.addEventListener('change', save);
 }

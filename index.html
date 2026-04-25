@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=368">
+    <link rel="stylesheet" href="styles.css?v=382">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -286,6 +286,18 @@
             <div class="confirm-modal-buttons">
                 <button class="confirm-btn-cancel" onclick="closeConfirmModal(false)" data-i18n="btn_cancel">Avbryt</button>
                 <button class="confirm-btn-ok" id="confirm-btn-ok" onclick="closeConfirmModal(true)">Fjern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input Modal (styled prompt) -->
+    <div class="confirm-modal" id="input-modal" onclick="closeInputModal(false)">
+        <div class="confirm-modal-content" onclick="event.stopPropagation()">
+            <div class="confirm-modal-text" id="input-modal-title">Rediger</div>
+            <input type="text" id="input-modal-input" class="confirm-modal-input" onkeydown="if(event.key==='Enter'){event.preventDefault();closeInputModal(true);}else if(event.key==='Escape'){closeInputModal(false);}">
+            <div class="confirm-modal-buttons">
+                <button class="confirm-btn-cancel" onclick="closeInputModal(false)" data-i18n="btn_cancel">Avbryt</button>
+                <button class="confirm-btn-ok" style="background:#E8501A" onclick="closeInputModal(true)" data-i18n="btn_save">Lagre</button>
             </div>
         </div>
     </div>
@@ -753,7 +765,7 @@
                 <!-- Kappeskjema (produkter + stift-størrelser) -->
                 <div id="settings-page-kappe-products" class="settings-page" style="display:none;">
                     <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-products')">
-                        <span><span data-i18n="kappe_section_products">Produkter</span> <span class="settings-collapsible-count" id="settings-count-kappe-products"></span></span>
+                        <span><span data-i18n="kappe_settings_section_products">Produkt</span> <span class="settings-collapsible-count" id="settings-count-kappe-products"></span></span>
                         <span class="settings-collapsible-arrow open" id="settings-arrow-kappe-products">&rsaquo;</span>
                     </div>
                     <div class="settings-collapsible-body open" id="settings-body-kappe-products">
@@ -776,15 +788,21 @@
                         </div>
                     </div>
 
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-kerf')" style="margin-top: 16px;">
-                        <span><span data-i18n="kappe_settings_kerf">Bladbredde/kerf (mm)</span></span>
-                        <span class="settings-collapsible-arrow open" id="settings-arrow-kappe-kerf">&rsaquo;</span>
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="kappe_settings_kerf">Bladbredde (mm)</span>
                     </div>
-                    <div class="settings-collapsible-body open" id="settings-body-kappe-kerf">
-                        <div class="settings-kerf-row">
-                            <input type="text" id="settings-kappe-kerf" inputmode="decimal" pattern="[0-9,.]*" placeholder="2">
-                            <span>mm</span>
-                        </div>
+                    <div class="settings-kerf-row">
+                        <input type="text" id="settings-kappe-kerf" inputmode="decimal" pattern="[0-9,.]*" placeholder="2">
+                        <span>mm</span>
+                    </div>
+
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="kappe_settings_plate">Standard plate (mm)</span>
+                    </div>
+                    <div class="settings-plate-row">
+                        <input type="text" id="settings-kappe-plate-lengde" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                        <span class="settings-plate-x">×</span>
+                        <input type="text" id="settings-kappe-plate-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
                     </div>
                 </div>
 
@@ -1001,6 +1019,19 @@
                 <button class="picker-overlay-done" onclick="pickerOverlayConfirm()" data-i18n="picker_ok">Ok</button>
             </div>
             <div class="picker-overlay-list" id="picker-overlay-list"></div>
+        </div>
+    </div>
+
+    <!-- Kappeskjema product picker popup -->
+    <div class="spec-popup-backdrop" id="kappe-product-picker-overlay" onclick="if(event.target===this)closeKappeProductPicker()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span data-i18n="kappe_col_produkt">Produkt</span>
+            </div>
+            <div class="spec-popup-body" id="kappe-product-picker-list"></div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeKappeProductPicker()" data-i18n="btn_cancel">Avbryt</button>
+            </div>
         </div>
     </div>
 
@@ -1424,9 +1455,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=160"></script>
-    <script src="script.js?v=226"></script>
-    <script src="script-ui.js?v=438"></script>
+    <script src="lang.js?v=165"></script>
+    <script src="script.js?v=230"></script>
+    <script src="script-ui.js?v=447"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

@@ -16,24 +16,58 @@ const KAPPE_DEFAULTS_KEY = 'firesafe_defaults_kappe';
 const KAPPE_PRODUCTS_KEY = 'firesafe_kappe_products';
 const KAPPE_STIFT_SIZES_KEY = 'firesafe_kappe_stift_sizes';
 const KAPPE_DEFAULT_PRODUCTS = [
-    { name: 'Fireprotect 25mm' },
-    { name: 'Fireprotect 40mm' },
-    { name: 'Fireprotect 60mm' }
+    { name: 'Fireprotect', dimensions: ['25mm', '40mm', '60mm'] }
 ];
 const KAPPE_DEFAULT_STIFT_SIZES = ['22mm', '27mm', '32mm', '42mm', '52mm'];
 const KAPPE_KERF_KEY = 'firesafe_kappe_kerf';
 const KAPPE_DEFAULT_KERF = 2;
+const KAPPE_PLATE_KEY = 'firesafe_kappe_plate';
+const KAPPE_DEFAULT_PLATE = { lengde: 1200, bredde: 1000 };
 
 function getKappeProducts() {
     try {
         var raw = localStorage.getItem(KAPPE_PRODUCTS_KEY);
         if (!raw) return KAPPE_DEFAULT_PRODUCTS.slice();
         var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.products) && parsed.products.length) return parsed.products;
+        if (parsed && Array.isArray(parsed.products) && parsed.products.length) {
+            var products = parsed.products;
+            // Migrer hvis gammelt format (ingen dimensions-felt på første produkt)
+            if (!products[0].hasOwnProperty('dimensions')) {
+                products = _migrateOldKappeProducts(products);
+                try { localStorage.setItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products })); } catch (e) {}
+            }
+            return products;
+        }
         return KAPPE_DEFAULT_PRODUCTS.slice();
     } catch (e) {
         return KAPPE_DEFAULT_PRODUCTS.slice();
     }
+}
+
+function _migrateOldKappeProducts(oldProducts) {
+    var brandMap = {};
+    var brandOrder = [];
+    oldProducts.forEach(function(p) {
+        var match = p.name.match(/^(.+?)\s+(\d+(?:\.\d+)?mm)$/i);
+        if (match) {
+            var brand = match[1].trim();
+            var dim = match[2];
+            if (!brandMap[brand]) {
+                brandMap[brand] = { name: brand, dimensions: [] };
+                brandOrder.push(brand);
+            }
+            if (brandMap[brand].dimensions.indexOf(dim) === -1) {
+                brandMap[brand].dimensions.push(dim);
+            }
+        } else {
+            // Fallback: behold som merke uten dimensjoner
+            if (!brandMap[p.name]) {
+                brandMap[p.name] = { name: p.name, dimensions: [] };
+                brandOrder.push(p.name);
+            }
+        }
+    });
+    return brandOrder.map(function(name) { return brandMap[name]; });
 }
 
 function getKappeKerf() {
@@ -45,6 +79,19 @@ function getKappeKerf() {
         return KAPPE_DEFAULT_KERF;
     } catch (e) {
         return KAPPE_DEFAULT_KERF;
+    }
+}
+
+function getKappePlate() {
+    try {
+        var raw = localStorage.getItem(KAPPE_PLATE_KEY);
+        if (!raw) return { lengde: KAPPE_DEFAULT_PLATE.lengde, bredde: KAPPE_DEFAULT_PLATE.bredde };
+        var parsed = JSON.parse(raw);
+        var l = parsed && typeof parsed.lengde === 'number' && parsed.lengde > 0 ? parsed.lengde : KAPPE_DEFAULT_PLATE.lengde;
+        var b = parsed && typeof parsed.bredde === 'number' && parsed.bredde > 0 ? parsed.bredde : KAPPE_DEFAULT_PLATE.bredde;
+        return { lengde: l, bredde: b };
+    } catch (e) {
+        return { lengde: KAPPE_DEFAULT_PLATE.lengde, bredde: KAPPE_DEFAULT_PLATE.bredde };
     }
 }
 
@@ -644,6 +691,29 @@ function closeConfirmModal(confirmed) {
 
 }
 
+let pendingInputAction = null;
+function showInputModal(title, currentValue, onConfirm) {
+    document.getElementById('input-modal-title').textContent = title;
+    var input = document.getElementById('input-modal-input');
+    input.value = currentValue || '';
+    pendingInputAction = onConfirm;
+    document.getElementById('input-modal').classList.add('active');
+    setTimeout(function() {
+        input.focus();
+        input.select();
+    }, 50);
+}
+
+function closeInputModal(confirmed) {
+    var modal = document.getElementById('input-modal');
+    var value = document.getElementById('input-modal-input').value;
+    modal.classList.remove('active');
+    if (confirmed && pendingInputAction) {
+        pendingInputAction(value);
+    }
+    pendingInputAction = null;
+}
+
 // Toast notification
 let toastTimeout = null;
 function showNotificationModal(message, isSuccess) {
@@ -941,6 +1011,7 @@ function copyOrderNumber() {
 
 // --- Order card functions ---
 const deleteIcon = '<svg viewBox="4 2 16 20" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+const editIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
 const copyIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
 const duplicateIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/><path d="M12 10h2v3h3v2h-3v3h-2v-3h-2v-2h2v-3z"/></svg>';
 

@@ -2533,6 +2533,69 @@ label.settings-default-label.field-required > span::after {
     padding: 4px 0;
 }
 
+/* Kappe-produkt-picker (knapp + popup) */
+.kappe-line-product-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: #000;
+}
+.kappe-line-product-btn:focus {
+    outline: none;
+    border-color: #E8501A;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2);
+}
+.kappe-line-product-text-placeholder {
+    color: #888;
+}
+.kappe-line-product-arrow {
+    color: #888;
+    font-size: 12px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+.kappe-product-picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 8px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    text-align: center;
+    transition: all 0.15s ease;
+    color: #333;
+}
+.kappe-product-picker-row:active {
+    background: #fff5f0;
+}
+.kappe-product-picker-row-selected {
+    background: #E8501A;
+    color: #fff;
+    border-color: #E8501A;
+}
+.kappe-product-picker-name {
+    font-size: 15px;
+    font-weight: 600;
+}
+.kappe-product-picker-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+}
+
 .picker-mat-row {
     display: flex;
     align-items: center;
@@ -3040,6 +3103,22 @@ label.settings-default-label.field-required > span::after {
     gap: 10px;
 }
 
+.confirm-modal-input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 15px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.confirm-modal-input:focus {
+    outline: none;
+    border-color: #E8501A;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2);
+}
+
 /* Action popup header style */
 #action-popup .confirm-modal-content {
     padding: 0;
@@ -3426,6 +3505,24 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 .settings-collapsible-header:active {
     background: #eee;
+}
+
+.settings-static-header {
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px 8px 0 0;
+    border-bottom-color: #eee;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+}
+.settings-static-header + * {
+    border: 1px solid #e0e0e0;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
 }
 
 .settings-collapsible-arrow {
@@ -6021,6 +6118,24 @@ body.kappe-view-open { background: #fff; }
     border-radius: 6px;
     text-align: center;
 }
+.settings-plate-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+}
+.settings-plate-row input {
+    width: 100px;
+    padding: 10px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    text-align: center;
+}
+.settings-plate-x {
+    font-size: 16px;
+    color: #666;
+}
 .kappe-plate-field > label {
     text-align: center;
     display: block;
@@ -6212,37 +6327,134 @@ body.kappe-view-open { background: #fff; }
     min-width: 0;
 }
 .kappe-product-item .settings-list-item-name {
-    font-weight: 600;
-    font-size: 15px;
-    color: #222;
+    font-weight: 500;
+    font-size: 14px;
+    color: #333;
 }
 .kappe-product-item .settings-list-item-sub {
     font-size: 12px;
     color: #777;
     margin-top: 2px;
 }
-.kappe-product-item .settings-list-item-actions {
+
+/* Felles styling for ALLE settings-action-knapper (Stift + brand + dimensjon) */
+.kappe-product-item .settings-list-item-actions,
+.kappe-brand-header .settings-list-item-actions,
+.kappe-dim-item .settings-list-item-actions {
     display: flex;
     gap: 4px;
+    align-items: center;
 }
 .kappe-product-item .settings-item-edit,
-.kappe-product-item .settings-item-remove {
+.kappe-product-item .settings-item-remove,
+.kappe-brand-header .settings-item-edit,
+.kappe-brand-header .settings-item-remove,
+.kappe-dim-item .settings-item-edit,
+.kappe-dim-item .settings-item-remove {
     background: transparent;
     border: none;
     padding: 6px;
     cursor: pointer;
-    color: #666;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.kappe-product-item .settings-item-remove {
+.kappe-product-item .settings-item-edit,
+.kappe-brand-header .settings-item-edit,
+.kappe-dim-item .settings-item-edit {
+    color: #E8501A;
+}
+.kappe-product-item .settings-item-remove,
+.kappe-brand-header .settings-item-remove,
+.kappe-dim-item .settings-item-remove {
     color: #e74c3c;
 }
+.kappe-product-item .settings-item-edit svg,
 .kappe-product-item .settings-item-remove svg,
-.kappe-product-item .settings-item-edit svg {
+.kappe-brand-header .settings-item-edit svg,
+.kappe-brand-header .settings-item-remove svg,
+.kappe-dim-item .settings-item-edit svg,
+.kappe-dim-item .settings-item-remove svg {
     width: 18px;
     height: 18px;
+}
+
+/* Brand+dimension nested struktur i settings */
+.kappe-brand-block {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+.kappe-brand-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f0f0f0;
+}
+/* (Brand+dim action button styling konsolidert i .kappe-product-item-blokk over) */
+.kappe-brand-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+}
+.kappe-brand-count {
+    color: #888;
+    font-weight: normal;
+    font-size: 12px;
+}
+.kappe-dim-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.kappe-dim-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0 6px 12px;
+    background: #fafafa;
+    border-radius: 4px;
+}
+.kappe-dim-name {
+    color: #333;
+    font-weight: 500;
+    font-size: 14px;
+}
+.kappe-dim-empty {
+    color: #888;
+    font-style: italic;
+    font-size: 12px;
+    padding: 4px 0;
+}
+.kappe-dim-add {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.kappe-dim-input {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.kappe-dim-add-btn {
+    background: none;
+    border: 1px dashed #E8501A;
+    color: #E8501A;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+.kappe-dim-add-btn:hover {
+    background: #fff5f0;
 }
 
 /* Kappe export (ryddig, profesjonell A4-landskap-layout) */
@@ -6269,10 +6481,9 @@ body.kappe-view-open { background: #fff; }
 .ke-title {
     font-family: 'Helvetica Neue', Helvetica, 'Arial Black', Arial, sans-serif;
     font-size: 21px;
-    font-weight: 900;
+    font-weight: 700;
     letter-spacing: 0;
     text-transform: uppercase;
-    -webkit-text-stroke: 0.7px currentColor;
 }
 .ke-meta {
     font-size: 13px;
@@ -6397,7 +6608,6 @@ body.kappe-view-open { background: #fff; }
     margin-top: 4px;
 }
 .ke-stift-size {
-    font-weight: 600;
     background: #fafafa;
 }
 
