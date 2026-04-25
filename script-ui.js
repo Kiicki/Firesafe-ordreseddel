@@ -7779,10 +7779,6 @@ function createKappeLineCard(lineData, expanded) {
                     '<label>' + t('kappe_plate_width') + '</label>' +
                     '<input type="text" class="kappe-line-plate-width" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateBredde || '1000') + '">' +
                 '</div>' +
-                '<div class="mobile-field">' +
-                    '<label>' + t('kappe_plate_stack') + '</label>' +
-                    '<input type="text" class="kappe-line-plate-stack" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateStabel || '1') + '">' +
-                '</div>' +
             '</div>' +
             '<div class="kappe-kapp-rows"></div>' +
             '<button type="button" class="kappe-add-kapp-btn" onclick="addKappeKappRow(this)">+ ' + t('kappe_add_kapp') + '</button>' +
@@ -7971,7 +7967,6 @@ function getKappeFormData() {
             produkt: (card.querySelector('.kappe-line-product') || {}).value || '',
             plateLengde: (card.querySelector('.kappe-line-plate-length') || {}).value || '1200',
             plateBredde: (card.querySelector('.kappe-line-plate-width') || {}).value || '1000',
-            plateStabel: (card.querySelector('.kappe-line-plate-stack') || {}).value || '1',
             kapp: _getKappeLineKappData(card),
             merknad: (card.querySelector('.kappe-line-merknad') || {}).value || ''
         });
@@ -8394,7 +8389,8 @@ function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredd
     var sider = parseFloat(antallSider) || 0;
     var pL = parseFloat(plateLengde) || 1200;
     var pB = parseFloat(plateBredde) || 1000;
-    var k = parseFloat(kerf) || 2;
+    var k = parseFloat(kerf);
+    if (isNaN(k)) k = 2;
     var stabelAntall = Math.max(1, parseInt(stabel) || 1);
 
     var empty = { langs: [], kerf: k, stabel: stabelAntall };
@@ -8413,7 +8409,7 @@ function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredd
             antallStk: antallStk,
             antallKapp: antallKapp,
             stripLengdeMm: stripDimMm,
-            kuttLangsMm: kuttDim,
+            kuttLangsMm: stripDimMm,
             stripes: stripes,
             svinnPerPlate: Math.round(svinnPerPlate),
             stripLengde: stripLengde
@@ -8426,8 +8422,8 @@ function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredd
     if (orientA) langs.push(orientA);
     if (orientB && pL !== pB) langs.push(orientB);
 
-    // Sorter: minst svinn per plate først
-    langs.sort(function(a, b) { return a.svinnPerPlate - b.svinnPerPlate; });
+    // Sorter: høyeste langs (kuttLangsMm) først
+    langs.sort(function(a, b) { return b.kuttLangsMm - a.kuttLangsMm; });
 
     return { langs: langs, kerf: k, stabel: stabelAntall };
 }
@@ -8485,7 +8481,6 @@ function buildKappeExportTable() {
         var l = lines[i] || {};
         var pL = l.plateLengde || '1200';
         var pB = l.plateBredde || '1000';
-        var pS = l.plateStabel || '1';
         // Backward compat: old format had bredde/lopemeter/antallSider directly
         var kappArr = l.kapp || [];
         if (!kappArr.length) {
@@ -8493,7 +8488,7 @@ function buildKappeExportTable() {
         }
         for (var ki = 0; ki < kappArr.length; ki++) {
             var ka = kappArr[ki];
-            var wn630 = _calcKappeWN630(ka.bredde, ka.lopemeter, ka.antallSider, pL, pB, kerf, pS);
+            var wn630 = _calcKappeWN630(ka.bredde, ka.lopemeter, ka.antallSider, pL, pB, kerf, '1');
             var best = wn630.langs.length ? wn630.langs[0] : null;
             flatRows.push({
                 nr: ki === 0 ? (i + 1) : '',
@@ -8509,25 +8504,49 @@ function buildKappeExportTable() {
     }
 
     var productRows = '';
+    var sumsByLangs = {};
     for (var ri = 0; ri < flatRows.length; ri++) {
         var r = flatRows[ri];
         var nrContent = r.nr;
         if (r.merknad) nrContent += (r.nr ? '. ' : '') + '<span class="ke-merknad">' + escapeHtml(r.merknad) + '</span>';
 
-        // WN630 celle: vis begge orienteringer
+        // WN630, Totalt m² og Veil. m²: én linje per orientering, justert
         var wn630Html = '';
+        var totaltHtml = '';
+        var veilHtml = '';
         if (r.wn630 && r.wn630.langs.length) {
-            var stab = r.wn630.stabel;
+            var breddeM = parseFloat(r.bredde) / 1000;
             for (var oi = 0; oi < r.wn630.langs.length; oi++) {
                 var o = r.wn630.langs[oi];
-                if (oi > 0) wn630Html += '<div class="ke-wn630-sep"></div>';
+                if (oi > 0) {
+                    wn630Html += '<div class="ke-wn630-sep"></div>';
+                    totaltHtml += '<div class="ke-wn630-sep"></div>';
+                    veilHtml += '<div class="ke-wn630-sep"></div>';
+                }
+                var sagkutt2 = Math.ceil(o.antallStk / 2);
                 wn630Html += '<div class="ke-wn630-row">' +
                     '<strong>' + o.antallStk + ' stk</strong>' +
-                    (stab > 1 ? ' (' + o.antallKapp + ' kapp)' : '') +
-                    ' · ' + o.kuttLangsMm + 'mm · ' +
-                    o.stripes + '/plate · rest ' + o.svinnPerPlate + 'mm' +
+                    ' (' + sagkutt2 + ' stk i 2-stabel)' +
+                    ' · langs ' + o.kuttLangsMm + 'mm · ' +
+                    o.stripes + ' pr. plate · rest ' + o.svinnPerPlate + 'mm' +
                 '</div>';
+                var pieces2Stabel = 2 * Math.ceil(o.antallStk / 2);
+                var orientM2 = pieces2Stabel * o.stripLengde * breddeM;
+                totaltHtml += '<div class="ke-wn630-row">' + fmtNum(orientM2.toFixed(2)) + '</div>';
+                veilHtml += '<div class="ke-wn630-row">' + fmtNum((orientM2 * 1.10).toFixed(2)) + '</div>';
+                var langsKey = o.kuttLangsMm;
+                if (!sumsByLangs[langsKey]) sumsByLangs[langsKey] = { m2: 0, veil: 0, langs: langsKey };
+                sumsByLangs[langsKey].m2 += orientM2;
+                sumsByLangs[langsKey].veil += orientM2 * 1.10;
             }
+        }
+
+        var lmNum = parseFloat(r.lopemeter);
+        var sdNum = parseFloat(r.antallSider);
+        var totalLm = '';
+        if (!isNaN(lmNum) && !isNaN(sdNum) && lmNum > 0 && sdNum > 0) {
+            var totLm = lmNum * sdNum;
+            totalLm = fmtNum(totLm % 1 === 0 ? String(totLm) : totLm.toFixed(2));
         }
 
         productRows +=
@@ -8535,42 +8554,50 @@ function buildKappeExportTable() {
                 '<td class="ke-td-nr">' + nrContent + '</td>' +
                 '<td class="ke-td-produkt">' + escapeHtml(r.produkt) + '</td>' +
                 '<td class="ke-td-bredde">' + escapeHtml(fmtNum(r.bredde)) + '</td>' +
-                '<td class="ke-td-lm">' + escapeHtml(fmtNum(r.lopemeter)) + '</td>' +
-                '<td class="ke-td-antall-sider">' + escapeHtml(fmtNum(r.antallSider)) + '</td>' +
+                '<td class="ke-td-lm">' + escapeHtml(totalLm) + '</td>' +
                 '<td class="ke-td-wn630">' + wn630Html + '</td>' +
-                '<td>' + (r.totaltM2 ? fmtNum(r.totaltM2.toFixed(2)) : '') + '</td>' +
-                '<td>' + (r.totaltM2 ? fmtNum((r.totaltM2 * 1.10).toFixed(2)) : '') + '</td>' +
+                '<td>' + totaltHtml + '</td>' +
+                '<td>' + veilHtml + '</td>' +
             '</tr>';
     }
+
+    var sumKeys = Object.keys(sumsByLangs).map(Number).sort(function(a, b) { return b - a; });
+    sumKeys.forEach(function(langs) {
+        var s = sumsByLangs[langs];
+        productRows +=
+            '<tr class="ke-sum-row">' +
+                '<td colspan="5" class="ke-sum-label">SUM langs ' + langs + 'mm</td>' +
+                '<td class="ke-sum-value">' + fmtNum(s.m2.toFixed(2)) + '</td>' +
+                '<td class="ke-sum-value">' + fmtNum(s.veil.toFixed(2)) + '</td>' +
+            '</tr>';
+    });
 
     var productsTable =
         '<div class="ke-section-title">Kappeliste</div>' +
         '<table class="ke-products-table">' +
             '<colgroup>' +
                 '<col style="width:25%">' +
-                '<col style="width:20%">' +
-                '<col style="width:5%">' +
-                '<col style="width:5%">' +
-                '<col style="width:5%">' +
-                '<col style="width:25%">' +
-                '<col style="width:5%">' +
-                '<col style="width:10%">' +
+                '<col style="width:13%">' +
+                '<col style="width:7%">' +
+                '<col style="width:7%">' +
+                '<col style="width:32%">' +
+                '<col style="width:8%">' +
+                '<col style="width:8%">' +
             '</colgroup>' +
             '<thead>' +
                 '<tr>' +
                     '<th>Merknad</th>' +
                     '<th>Produkt</th>' +
-                    '<th>Bredde<br>(mm)</th>' +
-                    '<th>Lm</th>' +
-                    '<th>Sider</th>' +
-                    '<th>Antall stk WN630</th>' +
-                    '<th>Totalt<br>m²</th>' +
-                    '<th>Veil. m²<br>(svinn)</th>' +
+                    '<th>Bredde (mm)</th>' +
+                    '<th>Løpemeter</th>' +
+                    '<th>WN630</th>' +
+                    '<th>Totalt m²</th>' +
+                    '<th>Veil. m²<br>(+10% svinn)</th>' +
                 '</tr>' +
             '</thead>' +
             '<tbody>' + productRows + '</tbody>' +
         '</table>' +
-        '<div class="ke-kerf-note">Beregnet med bladbredde ' + kerf + 'mm</div>';
+        '<div class="ke-kerf-note">Bladbredde brukt i beregning: <strong>' + kerf + 'mm</strong></div>';
 
     var stiftMap = {};
     (data.stift || []).forEach(function(s) { stiftMap[s.storrelse || s['størrelse']] = s.antall; });

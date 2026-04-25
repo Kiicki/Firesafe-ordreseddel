@@ -6392,20 +6392,13 @@ body.kappe-view-open { background: #fff; }
 .ke-products-table tbody tr {
     height: 28px;
 }
-.ke-td-frietekst,
-.ke-td-produkt {
-    text-align: left !important;
-    padding-left: 8px !important;
-}
-.ke-td-office {
-    background: #f0f0f0;
-}
 .ke-products-table tbody tr:nth-child(even) {
     background: #fafafa;
 }
 .ke-td-nr {
     vertical-align: top;
-    text-align: left;
+    text-align: left !important;
+    padding-left: 8px !important;
 }
 .ke-merknad {
     font-style: italic;
@@ -6417,6 +6410,17 @@ body.kappe-view-open { background: #fff; }
     font-size: 11px;
     line-height: 1.4;
 }
+.ke-products-table .ke-sum-row td {
+    background: #f0f0f0;
+    border-top: 2px solid #000;
+    font-weight: bold;
+    padding: 8px 4px;
+}
+.ke-products-table .ke-sum-row .ke-sum-label {
+    text-align: right;
+    padding-right: 10px;
+    letter-spacing: 0.5px;
+}
 .ke-wn630-row {
     margin-bottom: 2px;
 }
@@ -6425,10 +6429,9 @@ body.kappe-view-open { background: #fff; }
     margin: 3px 0;
 }
 .ke-kerf-note {
-    font-size: 9px;
-    color: #888;
-    margin-top: 4px;
-    font-style: italic;
+    font-size: 11px;
+    color: #333;
+    margin-top: 6px;
 }
 .ke-stift-table {
     max-width: 25%;
