@@ -251,27 +251,17 @@ body:has(#template-editor-overlay.active) .toolbar button {
     padding: 26px 15px 10px 25px;
 }
 
-.logo {
-    font-size: 26px;
-    font-weight: 900;
-    color: #000;
-    font-family: Arial Black, Arial, sans-serif;
-    position: relative;
-    display: inline-block;
-    letter-spacing: 1px;
-    padding-right: 25px;
-    padding-bottom: 15px;
+/* Firesafe SVG-logo brukt over hele appen */
+.firesafe-logo {
+    display: block;
+    width: auto;
+    flex-shrink: 0;
 }
-
-.logo-slash {
-    position: absolute;
-    right: 14px;
-    top: 50%;
-    transform: translateY(-32%) skewX(-30deg);
-    height: 46px;
-    width: 4px;
-    background: #000;
-}
+.firesafe-logo--xs { height: 38px; }
+.firesafe-logo--sm { height: 50px; }
+.firesafe-logo--md { height: 56px; }
+.firesafe-logo--lg { height: 60px; }
+.firesafe-logo--xl { height: 80px; }
 
 .header-right {
     flex: 1;
@@ -622,29 +612,15 @@ body:has(#login-view.active) {
 .login-logo {
     text-align: center;
     margin-bottom: 56px;
-}
-.login-logo h1 {
-    font-size: 34px;
-    font-weight: 900;
-    margin: 0 0 6px 0;
     color: #fff;
-    position: relative;
-    display: inline-block;
-    padding-right: 24px;
-    letter-spacing: 1px;
 }
-.login-logo .mobile-logo-slash {
-    height: 60px;
-    top: 50%;
-    transform: translateY(-19%) skewX(-30deg);
-    width: 5px;
-    right: 10px;
-    background: #fff;
+.login-logo .firesafe-logo {
+    margin: 0 auto 6px;
 }
 .login-logo p {
     font-size: 13px;
     color: rgba(255,255,255,0.6);
-    margin: 6px 0 0;
+    margin: -28px 0 0;
     letter-spacing: 2px;
     text-transform: uppercase;
 }
@@ -1331,22 +1307,18 @@ body.service-view-open {
 #template-modal .mobile-form-header {
     margin-bottom: 2px;
     padding-top: 2px;
-    padding-bottom: 8px;
+    padding-bottom: 0;
     position: relative;
 }
 
-#template-modal .mobile-form-header h1 {
-    font-size: 16px;
-    margin-bottom: 0;
-}
-
-#template-modal .mobile-form-header .mobile-logo-slash {
-    height: 26px;
+#template-modal .mobile-form-header .firesafe-logo {
+    height: 38px;
+    margin: 0 auto 0;
 }
 
 #template-modal .mobile-form-header p {
     font-size: 9px;
-    margin-top: 1px;
+    margin-top: -16px;
     margin-bottom: 0;
 }
 
@@ -1813,34 +1785,19 @@ body.service-view-open {
     text-align: center;
     margin-bottom: 10px;
     padding-top: 2px;
-    padding-bottom: 3px;
+    padding-bottom: 0;
     border-bottom: 2px solid #E8501A;
 }
 
-.mobile-form-header h1 {
-    font-size: 24px;
-    font-weight: 900;
-    margin: 0 0 5px 0;
+.mobile-form-header .firesafe-logo {
+    margin: 0 auto -6px;
     color: #000;
-    position: relative;
-    display: inline-block;
-    padding-right: 18px;
-}
-
-.mobile-logo-slash {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-19%) skewX(-28deg);
-    width: 4px;
-    height: 38px;
-    background: #000;
 }
 
 .mobile-form-header p {
     font-size: 12px;
     color: #666;
-    margin: 0;
+    margin: -22px 0 0;
 }
 
 .beta-label {
@@ -6064,19 +6021,27 @@ body.kappe-view-open { background: #fff; }
     border-radius: 6px;
     text-align: center;
 }
+.kappe-plate-field > label {
+    text-align: center;
+    display: block;
+}
 .kappe-plate-row {
     display: flex;
     gap: 8px;
+    align-items: center;
     margin-bottom: 10px;
 }
-.kappe-plate-row .mobile-field {
+.kappe-plate-row input {
     flex: 1;
     min-width: 0;
-    margin-bottom: 0;
-}
-.kappe-plate-row .mobile-field input {
     padding: 10px 8px;
     font-size: 15px;
+    text-align: center;
+}
+.kappe-plate-x {
+    font-size: 18px;
+    color: #666;
+    flex-shrink: 0;
 }
 .kappe-kapp-rows {
     display: flex;
@@ -6086,6 +6051,7 @@ body.kappe-view-open { background: #fff; }
 .kappe-kapp-row {
     display: flex;
     align-items: flex-end;
+    flex-wrap: wrap;
     gap: 4px;
 }
 .kappe-kapp-row .kappe-triple-row {
@@ -6101,9 +6067,14 @@ body.kappe-view-open { background: #fff; }
     min-width: 0;
     margin-bottom: 0;
 }
+.kappe-triple-row .mobile-field label {
+    text-align: center;
+    display: block;
+}
 .kappe-triple-row .mobile-field input {
     padding: 10px 8px;
     font-size: 15px;
+    text-align: center;
 }
 .kappe-kapp-remove-btn {
     background: none;
@@ -6292,27 +6263,16 @@ body.kappe-view-open { background: #fff; }
     padding-bottom: 10px;
     margin-bottom: 14px;
 }
-.ke-logo {
-    font-family: 'Arial Black', Arial, sans-serif;
-    font-size: 24px;
-    font-weight: 900;
-    letter-spacing: 0.5px;
+.ke-header .firesafe-logo {
     color: #000;
 }
-.ke-logo-slash {
-    display: inline-block;
-    width: 10px;
-    height: 18px;
-    background: #E8501A;
-    transform: skew(-20deg);
-    margin-left: 3px;
-    vertical-align: -2px;
-}
 .ke-title {
-    font-size: 22px;
-    font-weight: bold;
-    letter-spacing: 1px;
+    font-family: 'Helvetica Neue', Helvetica, 'Arial Black', Arial, sans-serif;
+    font-size: 21px;
+    font-weight: 900;
+    letter-spacing: 0;
     text-transform: uppercase;
+    -webkit-text-stroke: 0.7px currentColor;
 }
 .ke-meta {
     font-size: 13px;
@@ -6392,13 +6352,13 @@ body.kappe-view-open { background: #fff; }
 .ke-products-table tbody tr {
     height: 28px;
 }
-.ke-products-table tbody tr:nth-child(even) {
-    background: #fafafa;
-}
 .ke-td-nr {
-    vertical-align: top;
+    vertical-align: middle !important;
     text-align: left !important;
     padding-left: 8px !important;
+}
+.ke-td-produkt {
+    vertical-align: middle !important;
 }
 .ke-merknad {
     font-style: italic;
@@ -6412,7 +6372,6 @@ body.kappe-view-open { background: #fff; }
 }
 .ke-products-table .ke-sum-row td {
     background: #f0f0f0;
-    border-top: 2px solid #000;
     font-weight: bold;
     padding: 8px 4px;
 }

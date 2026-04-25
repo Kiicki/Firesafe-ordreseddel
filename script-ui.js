@@ -7770,13 +7770,11 @@ function createKappeLineCard(lineData, expanded) {
                 '<label data-i18n="kappe_col_produkt">Produkt</label>' +
                 '<select class="kappe-line-product">' + _kappeProductOptionsHtml(data.produkt || '') + '</select>' +
             '</div>' +
-            '<div class="kappe-plate-row">' +
-                '<div class="mobile-field">' +
-                    '<label>' + t('kappe_plate_length') + '</label>' +
+            '<div class="mobile-field kappe-plate-field">' +
+                '<label>' + t('kappe_plate_dim') + '</label>' +
+                '<div class="kappe-plate-row">' +
                     '<input type="text" class="kappe-line-plate-length" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateLengde || '1200') + '">' +
-                '</div>' +
-                '<div class="mobile-field">' +
-                    '<label>' + t('kappe_plate_width') + '</label>' +
+                    '<span class="kappe-plate-x">×</span>' +
                     '<input type="text" class="kappe-line-plate-width" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(data.plateBredde || '1000') + '">' +
                 '</div>' +
             '</div>' +
@@ -7796,6 +7794,20 @@ function createKappeLineCard(lineData, expanded) {
 
     card.querySelector('.kappe-line-product').addEventListener('change', renumberKappeLines);
     _updateKappeKappRemoveStates(card);
+
+    var merknadEl = card.querySelector('.kappe-line-merknad');
+    if (merknadEl) {
+        merknadEl.addEventListener('click', function() {
+            openTextEditor(this, t('kappe_col_merknad'));
+        });
+        if (merknadEl.value) {
+            var initLines = (merknadEl.value.match(/\n/g) || []).length + 1;
+            merknadEl.rows = Math.max(2, Math.min(initLines, 8));
+            requestAnimationFrame(function() {
+                merknadEl.scrollTop = 0;
+            });
+        }
+    }
 
     return card;
 }
@@ -8445,7 +8457,10 @@ function buildKappeExportTable() {
 
     var headerHtml =
         '<div class="ke-header">' +
-            '<div class="ke-logo">FIRESAFE<span class="ke-logo-slash"></span></div>' +
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 85" class="firesafe-logo firesafe-logo--sm" preserveAspectRatio="xMidYMid meet">' +
+                '<text x="0" y="37" font-family="\'Helvetica Neue\', Helvetica, \'Arial Black\', Arial, sans-serif" font-weight="900" font-size="36" fill="currentColor" stroke="currentColor" stroke-width="0.7" letter-spacing="0">FIRESAFE</text>' +
+                '<polygon points="187,76 194,76 230,11 223,11" fill="currentColor"/>' +
+            '</svg>' +
             '<div class="ke-title">KAPPESKJEMA</div>' +
             '<div class="ke-meta">' +
                 '<div><strong>Dato:</strong> ' + escapeHtml(data.dato || '') + '</div>' +
@@ -8498,7 +8513,9 @@ function buildKappeExportTable() {
                 antallSider: ka.antallSider || '',
                 merknad: (ki === 0) ? (l.merknad || '') : '',
                 wn630: wn630,
-                totaltM2: best ? (best.antallStk * best.stripLengde * (parseFloat(ka.bredde) / 1000)) : ''
+                totaltM2: best ? (best.antallStk * best.stripLengde * (parseFloat(ka.bredde) / 1000)) : '',
+                lineFirst: ki === 0,
+                lineSpan: kappArr.length
             });
         }
     }
@@ -8549,10 +8566,11 @@ function buildKappeExportTable() {
             totalLm = fmtNum(totLm % 1 === 0 ? String(totLm) : totLm.toFixed(2));
         }
 
+        var spanAttr = r.lineSpan > 1 ? ' rowspan="' + r.lineSpan + '"' : '';
         productRows +=
             '<tr>' +
-                '<td class="ke-td-nr">' + nrContent + '</td>' +
-                '<td class="ke-td-produkt">' + escapeHtml(r.produkt) + '</td>' +
+                (r.lineFirst ? '<td class="ke-td-nr"' + spanAttr + '>' + nrContent + '</td>' : '') +
+                (r.lineFirst ? '<td class="ke-td-produkt"' + spanAttr + '>' + escapeHtml(r.produkt) + '</td>' : '') +
                 '<td class="ke-td-bredde">' + escapeHtml(fmtNum(r.bredde)) + '</td>' +
                 '<td class="ke-td-lm">' + escapeHtml(totalLm) + '</td>' +
                 '<td class="ke-td-wn630">' + wn630Html + '</td>' +

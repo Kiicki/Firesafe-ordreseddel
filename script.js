@@ -679,25 +679,44 @@ function openTextEditor(inputElement, label) {
 function closeTextEditor() {
     if (currentEditingField) {
         const fullText = document.getElementById('text-editor-textarea').value;
-        currentEditingField.setAttribute('data-full-value', fullText);
-        const lines = fullText.split('\n').filter(l => l.trim() !== '');
-        const descBtn = currentEditingField.parentElement.querySelector('.mobile-desc-btn');
 
-        if (lines.length === 0) {
-            // Empty: show button, hide textarea
-            currentEditingField.value = '';
-            currentEditingField.style.display = 'none';
-            if (descBtn) descBtn.style.display = '';
+        // Simple mode for merknad-felt (kappe + ordreseddel): full tekst direkte tilbake, ingen truncation
+        if (currentEditingField.classList.contains('kappe-line-merknad') ||
+            currentEditingField.classList.contains('mobile-order-merknad')) {
+            currentEditingField.value = fullText;
+            var kmLines = (fullText.match(/\n/g) || []).length + 1;
+            var kmRows = Math.max(2, Math.min(kmLines, 8));
+            currentEditingField.rows = kmRows;
+            currentEditingField.style.height = '';
+            currentEditingField.style.minHeight = '';
+            currentEditingField.style.maxHeight = '';
+            currentEditingField.style.overflow = '';
+            var fieldRef = currentEditingField;
+            requestAnimationFrame(function() {
+                fieldRef.scrollTop = 0;
+            });
+            currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
         } else {
-            // Has content: show textarea, hide button
-            const previewLines = lines.slice(0, 8);
-            const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
-            currentEditingField.value = preview;
-            currentEditingField.style.display = '';
-            if (descBtn) descBtn.style.display = 'none';
+            currentEditingField.setAttribute('data-full-value', fullText);
+            const lines = fullText.split('\n').filter(l => l.trim() !== '');
+            const descBtn = currentEditingField.parentElement.querySelector('.mobile-desc-btn');
+
+            if (lines.length === 0) {
+                // Empty: show button, hide textarea
+                currentEditingField.value = '';
+                currentEditingField.style.display = 'none';
+                if (descBtn) descBtn.style.display = '';
+            } else {
+                // Has content: show textarea, hide button
+                const previewLines = lines.slice(0, 8);
+                const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
+                currentEditingField.value = preview;
+                currentEditingField.style.display = '';
+                if (descBtn) descBtn.style.display = 'none';
+            }
+            autoResizeTextarea(currentEditingField, 4);
+            currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        autoResizeTextarea(currentEditingField, 4);
-        currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
     }
     document.getElementById('text-editor-modal').classList.remove('active');
     currentEditingField = null;
@@ -1033,7 +1052,18 @@ function createOrderCard(orderData, expanded) {
     }
 
     // Set merknad
-    card.querySelector('.mobile-order-merknad').value = orderData.merknad || '';
+    const merknadEl = card.querySelector('.mobile-order-merknad');
+    merknadEl.value = orderData.merknad || '';
+    merknadEl.addEventListener('click', function() {
+        openTextEditor(this, t('order_merknad'));
+    });
+    if (merknadEl.value) {
+        const merknadLines = (merknadEl.value.match(/\n/g) || []).length + 1;
+        merknadEl.rows = Math.max(2, Math.min(merknadLines, 8));
+        requestAnimationFrame(function() {
+            merknadEl.scrollTop = 0;
+        });
+    }
 
     // Add materials
     const matContainer = card.querySelector('.mobile-order-materials');
