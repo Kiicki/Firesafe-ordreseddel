@@ -300,7 +300,7 @@ body:has(#template-editor-overlay.active) .toolbar button {
     font-weight: normal;
     letter-spacing: 3px;
     padding: 0;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: Arial, sans-serif;
     direction: ltr;
     line-height: 1;
 }
@@ -310,7 +310,7 @@ body:has(#template-editor-overlay.active) .toolbar button {
     font-size: 28px;
     font-weight: normal;
     letter-spacing: 3px;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: Arial, sans-serif;
     line-height: 1;
 }
 
@@ -5925,7 +5925,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .sw-label-wrap:focus-within .sw-edit-icon { color: #E8501A; }
 .sw-card-time {
     flex: 0 0 auto;
-    font-family: 'Courier New', Consolas, monospace;
+    font-family: 'Courier New', monospace;
     font-size: 26px;
     font-weight: 700;
     color: #222;
@@ -6597,7 +6597,7 @@ body.kappe-view-open { background: #fff; }
     color: #000;
 }
 .ke-title {
-    font-family: 'Helvetica Neue', Helvetica, 'Arial Black', Arial, sans-serif;
+    font-family: 'Arial Black', sans-serif;
     font-size: 21px;
     font-weight: 700;
     letter-spacing: 0;
