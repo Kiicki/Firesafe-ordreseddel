@@ -69,6 +69,33 @@ function saveLager(obj) {
     try { localStorage.setItem(LEVERINGSADRESSE_KEY, JSON.stringify(obj || null)); } catch (e) {}
 }
 
+// ─── Locale-aware number helpers ────────────────────────────────────────────
+// Brukerinputs kan ha både komma og punktum som desimalskilletegn —
+// JavaScripts parseFloat krever punktum. Disse hjelperne normaliserer.
+function parseLocaleNum(v) {
+    if (v == null || v === '') return NaN;
+    return parseFloat(String(v).replace(/\s/g, '').replace(',', '.'));
+}
+
+// Formatter et tall til norsk visning (komma som desimalskilletegn).
+// decimals=null gir ingen avkorting, decimals=N gir maks N desimaler men trimmer trailing nuller.
+function formatLocaleNum(n, decimals) {
+    if (n == null || (typeof n === 'number' && isNaN(n))) return '';
+    var num = (typeof n === 'number') ? n : parseFloat(n);
+    if (isNaN(num)) return '';
+    var s;
+    if (decimals == null) {
+        s = String(num);
+    } else {
+        s = num.toFixed(decimals);
+        // Trim trailing nuller etter desimaltegn (7.40 → 7.4, 7.00 → 7)
+        if (s.indexOf('.') >= 0) {
+            s = s.replace(/0+$/, '').replace(/\.$/, '');
+        }
+    }
+    return s.replace('.', ',');
+}
+
 function getMinInfo() {
     try {
         var raw = localStorage.getItem(MIN_INFO_KEY);

@@ -6963,10 +6963,10 @@ function bpAddRow(focus) {
     var tr = document.createElement('tr');
     tr.id = 'bp-row-' + _bpRowCount;
     tr.innerHTML =
-        '<td><input type="number" inputmode="numeric" class="bp-dim-w" placeholder="—" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" class="bp-dim-h" placeholder="—" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" placeholder="—" oninput="bpCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" placeholder="—" oninput="bpCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="bp-dim-w" placeholder="—" oninput="bpCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="bp-dim-h" placeholder="—" oninput="bpCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" placeholder="—" oninput="bpCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" placeholder="—" oninput="bpCalc()"></td>' +
         '<td class="bp-result-cell"><span class="bp-result-val">—</span></td>';
     tbody.appendChild(tr);
     tr.querySelector('.bp-result-cell').addEventListener('click', function() {
@@ -6992,10 +6992,10 @@ function bpCalc() {
     for (var i = 0; i < rows.length; i++) {
         var isDisabled = rows[i].classList.contains('bp-row-disabled');
         var allInputs = rows[i].querySelectorAll('input');
-        var w = parseFloat(allInputs[0].value) || 0;
-        var h = parseFloat(allInputs[1].value) || 0;
-        var pipes = parseFloat(allInputs[2].value) || 0;
-        var rounds = parseFloat(allInputs[3].value) || 0;
+        var w = parseLocaleNum(allInputs[0].value) || 0;
+        var h = parseLocaleNum(allInputs[1].value) || 0;
+        var pipes = parseLocaleNum(allInputs[2].value) || 0;
+        var rounds = parseLocaleNum(allInputs[3].value) || 0;
 
         // Round: π × d, Rectangular: 2 × (B + H)
         var perimeter = h > 0 ? 2 * (w + h) : Math.PI * w;
@@ -7003,7 +7003,7 @@ function bpCalc() {
 
         var valSpan = rows[i].querySelector('.bp-result-val');
         if (w > 0 && pipes > 0 && rounds > 0) {
-            valSpan.textContent = length.toFixed(2);
+            valSpan.textContent = formatLocaleNum(length, 2);
             valSpan.style.color = '';
             if (!isDisabled) total += length;
         } else {
@@ -7011,7 +7011,7 @@ function bpCalc() {
             valSpan.style.color = (w === 0 && h === 0 && pipes === 0 && rounds === 0) ? '#ddd' : '';
         }
     }
-    document.getElementById('bp-total-value').textContent = total.toFixed(2) + ' m';
+    document.getElementById('bp-total-value').textContent = formatLocaleNum(total, 2) + ' m';
 }
 
 // ===== Lysåpning Calculator =====
@@ -7032,7 +7032,7 @@ function laAddSection() {
                 '<colgroup><col style="width:15%"><col style="width:35%"><col style="width:35%"><col style="width:15%"></colgroup>' +
                 '<thead><tr><th></th><th>Bredde / Ø</th><th>Høyde</th><th></th></tr></thead>' +
                 '<tbody>' +
-                    '<tr class="la-hole-row"><td class="la-label">Utsp.</td><td><input type="number" inputmode="numeric" class="la-hole-w" placeholder="—" oninput="laCalc()"></td><td><input type="number" inputmode="numeric" class="la-hole-h" placeholder="—" oninput="laCalc()"></td><td class="la-result-cell"><span class="la-result-value">—</span></td></tr>' +
+                    '<tr class="la-hole-row"><td class="la-label">Utsp.</td><td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="la-hole-w" placeholder="—" oninput="laCalc()"></td><td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="la-hole-h" placeholder="—" oninput="laCalc()"></td><td class="la-result-cell"><span class="la-result-value">—</span></td></tr>' +
                 '</tbody>' +
                 '<tbody class="la-pipe-rows"></tbody>' +
             '</table>' +
@@ -7054,8 +7054,8 @@ function laAddPipe(sectionEl, focus) {
     var tr = document.createElement('tr');
     tr.innerHTML =
         '<td class="la-label">Rør ' + pipeCount + '</td>' +
-        '<td><input type="number" inputmode="numeric" class="la-pipe-w" placeholder="—" oninput="laCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" class="la-pipe-h" placeholder="—" oninput="laCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="la-pipe-w" placeholder="—" oninput="laCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="la-pipe-h" placeholder="—" oninput="laCalc()"></td>' +
         '<td class="la-pipe-remove-cell"><button type="button" class="la-pipe-remove" onclick="laRemovePipe(this)">✕</button></td>';
     tbody.appendChild(tr);
     if (focus) {
@@ -7110,8 +7110,8 @@ function laReset() {
 function laCalc() {
     var sections = document.querySelectorAll('.la-section');
     for (var s = 0; s < sections.length; s++) {
-        var holeW = parseFloat(sections[s].querySelector('.la-hole-w').value) || 0;
-        var holeH = parseFloat(sections[s].querySelector('.la-hole-h').value) || 0;
+        var holeW = parseLocaleNum(sections[s].querySelector('.la-hole-w').value) || 0;
+        var holeH = parseLocaleNum(sections[s].querySelector('.la-hole-h').value) || 0;
         var holeSize = holeH > 0 ? Math.min(holeW, holeH) : holeW;
 
         var rows = sections[s].querySelectorAll('.la-pipe-rows tr');
@@ -7119,8 +7119,8 @@ function laCalc() {
         var hasPipes = false;
 
         for (var i = 0; i < rows.length; i++) {
-            var pipeW = parseFloat(rows[i].querySelector('.la-pipe-w').value) || 0;
-            var pipeH = parseFloat(rows[i].querySelector('.la-pipe-h').value) || 0;
+            var pipeW = parseLocaleNum(rows[i].querySelector('.la-pipe-w').value) || 0;
+            var pipeH = parseLocaleNum(rows[i].querySelector('.la-pipe-h').value) || 0;
             if (pipeW > 0) {
                 totalPipeSize += pipeH > 0 ? Math.max(pipeW, pipeH) : pipeW;
                 hasPipes = true;
@@ -7130,7 +7130,7 @@ function laCalc() {
         var resultEl = sections[s].querySelector('.la-result-value');
         if (holeSize > 0 && hasPipes) {
             var la = (holeSize - totalPipeSize) / 2;
-            resultEl.textContent = la.toFixed(1);
+            resultEl.textContent = formatLocaleNum(la, 1);
             resultEl.style.color = la < 0 ? '#d32f2f' : '';
         } else {
             resultEl.textContent = '—';
@@ -7149,9 +7149,9 @@ function bplAddRow(focus) {
     var tr = document.createElement('tr');
     tr.id = 'bpl-row-' + _bplRowCount;
     tr.innerHTML =
-        '<td><input type="number" inputmode="numeric" class="bpl-w" placeholder="—" oninput="bplCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" class="bpl-h" placeholder="—" oninput="bplCalc()"></td>' +
-        '<td><input type="number" inputmode="numeric" class="bpl-qty" placeholder="—" oninput="bplCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="bpl-w" placeholder="—" oninput="bplCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="bpl-h" placeholder="—" oninput="bplCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="bpl-qty" placeholder="—" oninput="bplCalc()"></td>' +
         '<td class="bp-result-cell"><span class="bp-result-val">—</span></td>';
     tbody.appendChild(tr);
     tr.querySelector('.bp-result-cell').addEventListener('click', function() {
@@ -7175,15 +7175,15 @@ function bplReset() {
 }
 
 function bplSetDefault() {
-    var w = parseFloat(document.getElementById('bpl-plate-w').value) || 1200;
-    var h = parseFloat(document.getElementById('bpl-plate-h').value) || 600;
+    var w = parseLocaleNum(document.getElementById('bpl-plate-w').value) || 1200;
+    var h = parseLocaleNum(document.getElementById('bpl-plate-h').value) || 600;
     var data = { w: w, h: h };
     localStorage.setItem('firesafe_plate_size', JSON.stringify(data));
     if (currentUser && db) {
         db.collection('users').doc(currentUser.uid).collection('settings').doc('plateSize').set(data)
             .catch(function(e) { console.error('Save plate size error:', e); });
     }
-    showNotificationModal('Standard platestørrelse lagret: ' + w + ' × ' + h + ' mm', true);
+    showNotificationModal('Standard platestørrelse lagret: ' + formatLocaleNum(w) + ' × ' + formatLocaleNum(h) + ' mm', true);
 }
 
 function bplCalc() {
@@ -7192,19 +7192,19 @@ function bplCalc() {
 
     for (var i = 0; i < rows.length; i++) {
         var isDisabled = rows[i].classList.contains('bp-row-disabled');
-        var w = parseFloat(rows[i].querySelector('.bpl-w').value) || 0;
-        var h = parseFloat(rows[i].querySelector('.bpl-h').value) || 0;
-        var qty = parseFloat(rows[i].querySelector('.bpl-qty').value) || 0;
+        var w = parseLocaleNum(rows[i].querySelector('.bpl-w').value) || 0;
+        var h = parseLocaleNum(rows[i].querySelector('.bpl-h').value) || 0;
+        var qty = parseLocaleNum(rows[i].querySelector('.bpl-qty').value) || 0;
 
-        var plateW = parseFloat(document.getElementById('bpl-plate-w').value) || 0;
-        var plateH = parseFloat(document.getElementById('bpl-plate-h').value) || 0;
+        var plateW = parseLocaleNum(document.getElementById('bpl-plate-w').value) || 0;
+        var plateH = parseLocaleNum(document.getElementById('bpl-plate-h').value) || 0;
         var plateArea = plateW * plateH;
 
         var area = w * h * qty;
         var valSpan = rows[i].querySelector('.bp-result-val');
         if (w > 0 && h > 0 && qty > 0 && plateArea > 0) {
             var plates = area / plateArea;
-            valSpan.textContent = plates.toFixed(2);
+            valSpan.textContent = formatLocaleNum(plates, 2);
             valSpan.style.color = '';
             if (!isDisabled) totalPlates += plates;
         } else {
@@ -7213,7 +7213,7 @@ function bplCalc() {
         }
     }
 
-    document.getElementById('bpl-plate-count').textContent = totalPlates > 0 ? totalPlates.toFixed(2) : '0';
+    document.getElementById('bpl-plate-count').textContent = totalPlates > 0 ? formatLocaleNum(totalPlates, 2) : '0';
 }
 
 // ===== Bil (Vehicle Inventory) =====
@@ -8570,14 +8570,14 @@ function deleteKappeForm(formData) {
 // ─── Kappe WN630 beregning ──────────────────────────────────────────────────
 
 function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredde, kerf, stabel, antall) {
-    var w = parseFloat(bredde) || 0;
-    var lm = parseFloat(lopemeter) || 0;
-    var sider = parseFloat(antallSider) || 0;
-    var ant = parseFloat(antall);
+    var w = parseLocaleNum(bredde) || 0;
+    var lm = parseLocaleNum(lopemeter) || 0;
+    var sider = parseLocaleNum(antallSider) || 0;
+    var ant = parseLocaleNum(antall);
     if (isNaN(ant) || ant <= 0) ant = 1;
-    var pL = parseFloat(plateLengde) || 1200;
-    var pB = parseFloat(plateBredde) || 1000;
-    var k = parseFloat(kerf);
+    var pL = parseLocaleNum(plateLengde) || 1200;
+    var pB = parseLocaleNum(plateBredde) || 1000;
+    var k = parseLocaleNum(kerf);
     if (isNaN(k)) k = 2;
     var stabelAntall = Math.max(1, parseInt(stabel) || 1);
 
@@ -8692,7 +8692,7 @@ function buildKappeExportTable() {
                 antallSider: ka.antallSider || '',
                 merknad: (ki === 0) ? (l.merknad || '') : '',
                 wn630: wn630,
-                totaltM2: best ? (best.antallStk * best.stripLengde * (parseFloat(ka.bredde) / 1000)) : '',
+                totaltM2: best ? (best.antallStk * best.stripLengde * ((parseLocaleNum(ka.bredde) || 0) / 1000)) : '',
                 lineFirst: ki === 0,
                 lineSpan: kappArr.length
             });
@@ -8711,7 +8711,7 @@ function buildKappeExportTable() {
         var totaltHtml = '';
         var veilHtml = '';
         if (r.wn630 && r.wn630.langs.length) {
-            var breddeM = parseFloat(r.bredde) / 1000;
+            var breddeM = (parseLocaleNum(r.bredde) || 0) / 1000;
             for (var oi = 0; oi < r.wn630.langs.length; oi++) {
                 var o = r.wn630.langs[oi];
                 if (oi > 0) {
@@ -8737,9 +8737,9 @@ function buildKappeExportTable() {
             }
         }
 
-        var lmNum = parseFloat(r.lopemeter);
-        var sdNum = parseFloat(r.antallSider);
-        var antNum = parseFloat(r.antall);
+        var lmNum = parseLocaleNum(r.lopemeter);
+        var sdNum = parseLocaleNum(r.antallSider);
+        var antNum = parseLocaleNum(r.antall);
         if (isNaN(antNum) || antNum <= 0) antNum = 1;
         var totalLm = '';
         if (!isNaN(lmNum) && !isNaN(sdNum) && lmNum > 0 && sdNum > 0) {
@@ -8752,13 +8752,13 @@ function buildKappeExportTable() {
         if (r.lineFirst) {
             produktCell = '<div class="ke-produkt-name">' + escapeHtml(r.produkt) + '</div>';
             if (r.plateLengde && r.plateBredde) {
-                var pLn = parseFloat(r.plateLengde);
-                var pBn = parseFloat(r.plateBredde);
+                var pLn = parseLocaleNum(r.plateLengde);
+                var pBn = parseLocaleNum(r.plateBredde);
                 var plateDisplay;
                 if (!isNaN(pLn) && !isNaN(pBn)) {
                     var hi = Math.max(pLn, pBn);
                     var lo = Math.min(pLn, pBn);
-                    plateDisplay = hi + '×' + lo + 'mm';
+                    plateDisplay = formatLocaleNum(hi) + '×' + formatLocaleNum(lo) + 'mm';
                 } else {
                     plateDisplay = escapeHtml(r.plateLengde) + '×' + escapeHtml(r.plateBredde) + 'mm';
                 }

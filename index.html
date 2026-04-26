@@ -1362,7 +1362,7 @@
                         <table>
                             <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
                             <thead><tr><th data-i18n="calc_plate_size">Platestørrelse (mm)</th><th><button type="button" class="bpl-set-default-btn" onclick="bplSetDefault()">Sett standard</button></th></tr></thead>
-                            <tbody><tr><td><input type="number" id="bpl-plate-w" inputmode="numeric" oninput="bplCalc()"></td><td><input type="number" id="bpl-plate-h" inputmode="numeric" oninput="bplCalc()"></td></tr></tbody>
+                            <tbody><tr><td><input type="text" id="bpl-plate-w" inputmode="decimal" pattern="[0-9,.]*" oninput="bplCalc()"></td><td><input type="text" id="bpl-plate-h" inputmode="decimal" pattern="[0-9,.]*" oninput="bplCalc()"></td></tr></tbody>
                         </table>
                     </div>
                     <div class="bp-table" style="margin-top:8px">
@@ -1468,8 +1468,8 @@
     </div>
 
     <script src="lang.js?v=193"></script>
-    <script src="script.js?v=239"></script>
-    <script src="script-ui.js?v=494"></script>
+    <script src="script.js?v=240"></script>
+    <script src="script-ui.js?v=496"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
