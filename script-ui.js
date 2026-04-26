@@ -7824,17 +7824,21 @@ function _createKappeKappRow(kappData) {
     var row = document.createElement('div');
     row.className = 'kappe-kapp-row';
     row.innerHTML =
-        '<div class="kappe-triple-row">' +
+        '<div class="kappe-quad-row">' +
             '<div class="mobile-field field-required">' +
-                '<label data-i18n="kappe_col_bredde">Bredde (mm)</label>' +
-                '<input type="text" class="kappe-line-bredde" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.bredde || '') + '">' +
+                '<label data-i18n="kappe_col_bredde">Bredde</label>' +
+                '<input type="text" class="kappe-line-bredde" inputmode="decimal" pattern="[0-9,.]*" placeholder="mm" value="' + escapeHtml(d.bredde || '') + '">' +
             '</div>' +
             '<div class="mobile-field field-required">' +
-                '<label data-i18n="kappe_col_lopemeter">Løpemeter</label>' +
+                '<label data-i18n="kappe_col_lopemeter">LM</label>' +
                 '<input type="text" class="kappe-line-lopemeter" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.lopemeter || d['løpemeter'] || '') + '">' +
             '</div>' +
             '<div class="mobile-field field-required">' +
-                '<label data-i18n="kappe_col_antall_sider">Antall sider</label>' +
+                '<label data-i18n="kappe_col_antall">Antall</label>' +
+                '<input type="text" class="kappe-line-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '1') + '">' +
+            '</div>' +
+            '<div class="mobile-field field-required">' +
+                '<label data-i18n="kappe_col_antall_sider">Sider</label>' +
                 '<input type="text" class="kappe-line-antall-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antallSider || '') + '">' +
             '</div>' +
         '</div>' +
@@ -7874,6 +7878,7 @@ function _getKappeLineKappData(card) {
         kapp.push({
             bredde: (row.querySelector('.kappe-line-bredde') || {}).value || '',
             lopemeter: (row.querySelector('.kappe-line-lopemeter') || {}).value || '',
+            antall: (row.querySelector('.kappe-line-antall') || {}).value || '1',
             antallSider: (row.querySelector('.kappe-line-antall-sider') || {}).value || ''
         });
     });
@@ -8564,10 +8569,12 @@ function deleteKappeForm(formData) {
 
 // ─── Kappe WN630 beregning ──────────────────────────────────────────────────
 
-function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredde, kerf, stabel) {
+function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredde, kerf, stabel, antall) {
     var w = parseFloat(bredde) || 0;
     var lm = parseFloat(lopemeter) || 0;
     var sider = parseFloat(antallSider) || 0;
+    var ant = parseFloat(antall);
+    if (isNaN(ant) || ant <= 0) ant = 1;
     var pL = parseFloat(plateLengde) || 1200;
     var pB = parseFloat(plateBredde) || 1000;
     var k = parseFloat(kerf);
@@ -8577,7 +8584,7 @@ function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredd
     var empty = { langs: [], kerf: k, stabel: stabelAntall };
     if (w <= 0 || lm <= 0 || sider <= 0) return empty;
 
-    var totalLm = lm * sider;
+    var totalLm = lm * sider * ant;
 
     function calcOrient(kuttDim, stripDimMm) {
         var stripes = Math.floor((kuttDim + k) / (w + k));
@@ -8672,7 +8679,7 @@ function buildKappeExportTable() {
         }
         for (var ki = 0; ki < kappArr.length; ki++) {
             var ka = kappArr[ki];
-            var wn630 = _calcKappeWN630(ka.bredde, ka.lopemeter, ka.antallSider, pL, pB, kerf, '1');
+            var wn630 = _calcKappeWN630(ka.bredde, ka.lopemeter, ka.antallSider, pL, pB, kerf, '1', ka.antall);
             var best = wn630.langs.length ? wn630.langs[0] : null;
             flatRows.push({
                 nr: ki === 0 ? (i + 1) : '',
@@ -8681,6 +8688,7 @@ function buildKappeExportTable() {
                 plateBredde: ki === 0 ? pB : '',
                 bredde: ka.bredde || '',
                 lopemeter: ka.lopemeter || '',
+                antall: ka.antall || '1',
                 antallSider: ka.antallSider || '',
                 merknad: (ki === 0) ? (l.merknad || '') : '',
                 wn630: wn630,
@@ -8731,9 +8739,11 @@ function buildKappeExportTable() {
 
         var lmNum = parseFloat(r.lopemeter);
         var sdNum = parseFloat(r.antallSider);
+        var antNum = parseFloat(r.antall);
+        if (isNaN(antNum) || antNum <= 0) antNum = 1;
         var totalLm = '';
         if (!isNaN(lmNum) && !isNaN(sdNum) && lmNum > 0 && sdNum > 0) {
-            var totLm = lmNum * sdNum;
+            var totLm = lmNum * sdNum * antNum;
             totalLm = fmtNum(totLm % 1 === 0 ? String(totLm) : totLm.toFixed(2));
         }
 

@@ -6385,25 +6385,25 @@ body.kappe-view-open { background: #fff; }
     flex-wrap: wrap;
     gap: 4px;
 }
-.kappe-kapp-row .kappe-triple-row {
+.kappe-kapp-row .kappe-quad-row {
     flex: 1;
     min-width: 0;
 }
-.kappe-triple-row {
+.kappe-quad-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
-.kappe-triple-row .mobile-field {
+.kappe-quad-row .mobile-field {
     flex: 1;
     min-width: 0;
     margin-bottom: 0;
 }
-.kappe-triple-row .mobile-field label {
+.kappe-quad-row .mobile-field label {
     text-align: center;
     display: block;
 }
-.kappe-triple-row .mobile-field input {
-    padding: 10px 8px;
+.kappe-quad-row .mobile-field input {
+    padding: 10px 4px;
     font-size: 15px;
     text-align: center;
 }
