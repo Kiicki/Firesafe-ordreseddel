@@ -1855,7 +1855,8 @@ input.date-invalid {
 
 .mobile-field.field-required > label::after,
 .mobile-order-materials-section.field-required > label::after,
-.mobile-section-title.field-required::after {
+.mobile-section-title.field-required::after,
+.mobile-order-title.field-required::after {
     content: ' *';
     color: #e74c3c;
     font-weight: bold;
@@ -4396,6 +4397,47 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-radius: 0;
     margin-bottom: 0;
 }
+/* Grouped required-fields layout (kappe) */
+.required-fields-grouped {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 12px;
+}
+.required-fields-subsection {
+    display: flex;
+    flex-direction: column;
+}
+.required-fields-subtitle {
+    font-size: 12px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 4px 6px;
+}
+.required-fields-subgroup {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+.required-fields-subgroup .settings-toggle-item {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    padding: 14px 12px;
+}
+.required-fields-subgroup .settings-toggle-item:not(:last-child) {
+    border-bottom: 1px solid #f0f0f0;
+}
+.settings-collapsible-body .required-fields-subgroup .settings-toggle-item {
+    border-bottom: none;
+}
+.settings-collapsible-body .required-fields-subgroup .settings-toggle-item:not(:last-child) {
+    border-bottom: 1px solid #f0f0f0;
+}
+
 .settings-tabs {
     display: flex;
     border-bottom: 2px solid #eee;
@@ -5059,6 +5101,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .kappe-lev-button-row {
     display: flex;
     gap: 8px;
+    margin-bottom: 16px;
 }
 .kappe-lev-button-row > button {
     flex: 1;

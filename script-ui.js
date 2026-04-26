@@ -2428,7 +2428,8 @@ function getDefaultRequiredSettings() {
             kontakt: false,
             tlf: false,
             produkter: true,
-            stift: false
+            stift: false,
+            merknad: false
         }
     };
 }
@@ -2483,7 +2484,16 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'kontakt',             labelKey: 'kappe_label_kontakt' },
         { key: 'tlf',                 labelKey: 'kappe_label_tlf' },
         { key: 'produkter',           labelKey: 'kappe_section_products' },
-        { key: 'stift',               labelKey: 'kappe_section_staples' }
+        { key: 'stift',               labelKey: 'kappe_section_staples' },
+        { key: 'merknad',             labelKey: 'kappe_col_merknad' }
+    ]
+};
+
+const REQUIRED_FIELD_GROUPS = {
+    kappe: [
+        { titleKey: 'kappe_section_project',     keys: ['onsketLeveringsdato', 'avdeling', 'bestiller', 'prosjektnr', 'prosjektnavn', 'pallemerking'] },
+        { titleKey: 'kappe_section_delivery',    keys: ['mottaker', 'veiadresse', 'postnr', 'poststed', 'kontakt', 'tlf'] },
+        { titleKey: 'settings_kappe_req_content', keys: ['produkter', 'stift', 'merknad'] }
     ]
 };
 
@@ -2565,10 +2575,10 @@ function renderRequiredSettingsItems(section) {
     const fields = REQUIRED_FIELD_LABELS[section];
     const settings = cachedRequiredSettings || getDefaultRequiredSettings();
     const sectionSettings = settings[section] || {};
+    const groups = REQUIRED_FIELD_GROUPS[section];
 
-    container.innerHTML = fields.map(function(field) {
+    function renderToggle(field) {
         const isOn = sectionSettings[field.key] !== false;
-
         return '<div class="settings-toggle-item">' +
             '<span>' + escapeHtml(t(field.labelKey)) + '</span>' +
             '<label class="settings-toggle">' +
@@ -2578,7 +2588,24 @@ function renderRequiredSettingsItems(section) {
             '<span class="settings-toggle-slider"></span>' +
             '</label>' +
             '</div>';
-    }).join('');
+    }
+
+    if (groups) {
+        const fieldByKey = {};
+        fields.forEach(function(f) { fieldByKey[f.key] = f; });
+        container.innerHTML = groups.map(function(group) {
+            const items = group.keys.map(function(k) {
+                const f = fieldByKey[k];
+                return f ? renderToggle(f) : '';
+            }).join('');
+            return '<div class="required-fields-subsection">' +
+                '<div class="required-fields-subtitle">' + escapeHtml(t(group.titleKey)) + '</div>' +
+                '<div class="required-fields-subgroup">' + items + '</div>' +
+                '</div>';
+        }).join('');
+    } else {
+        container.innerHTML = fields.map(renderToggle).join('');
+    }
 }
 
 async function toggleRequiredField(section, key, value) {
@@ -7928,6 +7955,7 @@ function addKappeLine() {
     container.appendChild(card);
     updateKappeDeleteStates();
     renumberKappeLines();
+    updateKappeRequiredIndicators();
     sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -8218,6 +8246,19 @@ function updateKappeRequiredIndicators() {
         if (req.stift === true) stiftSection.classList.add('field-required');
         else stiftSection.classList.remove('field-required');
     }
+    // Merknad per kappe-line
+    document.querySelectorAll('#kappe-lines .kappe-line-merknad').forEach(function(merknadEl) {
+        var f = merknadEl.closest('.mobile-field');
+        if (f) f.classList.toggle('field-required', req.merknad === true);
+    });
+    // Leveringsadresse-kort: stjerne på kort-tittel om noen av adressefeltene er obligatoriske
+    var deliveryTitle = document.querySelector('#kappe-delivery-card .mobile-order-title');
+    if (deliveryTitle) {
+        var anyDeliveryReq = ['mottaker','veiadresse','postnr','poststed','kontakt','tlf'].some(function(k) {
+            return req[k] === true;
+        });
+        deliveryTitle.classList.toggle('field-required', anyDeliveryReq);
+    }
 }
 
 function validateKappeRequiredFields() {
@@ -8268,6 +8309,22 @@ function validateKappeRequiredFields() {
         if (!stiftRows.length) {
             showNotificationModal(t('kappe_validation_no_stift'));
             return false;
+        }
+    }
+    if (req.merknad === true) {
+        var lineCards = document.querySelectorAll('#kappe-lines .kappe-line-card');
+        for (var lc = 0; lc < lineCards.length; lc++) {
+            var mEl = lineCards[lc].querySelector('.kappe-line-merknad');
+            if (!mEl || !(mEl.value || '').trim()) {
+                showNotificationModal(t('validation_required_field') + ' ' + t('kappe_col_merknad') + ' (' + (lc + 1) + ')');
+                var wrap2 = lineCards[lc].querySelector('.mobile-order-body-wrap');
+                if (wrap2 && !wrap2.classList.contains('expanded')) {
+                    var hdr = lineCards[lc].querySelector('.mobile-order-header');
+                    if (hdr) hdr.click();
+                }
+                if (mEl) mEl.focus();
+                return false;
+            }
         }
     }
     return true;
@@ -8584,7 +8641,7 @@ function buildKappeExportTable() {
             '<div class="ke-info-col">' +
                 '<div class="ke-info-col-title">Leveringsadresse</div>' +
                 '<div class="ke-info-row"><span>Mottaker:</span><span>' + escapeHtml(lev.mottaker || '') + '</span></div>' +
-                '<div class="ke-info-row"><span>Veiadresse:</span><span>' + escapeHtml(lev.veiadresse || '') + '</span></div>' +
+                '<div class="ke-info-row"><span>Gateadresse:</span><span>' + escapeHtml(lev.veiadresse || '') + '</span></div>' +
                 '<div class="ke-info-row"><span>Postnr.:</span><span>' + escapeHtml(lev.postnr || '') + '</span></div>' +
                 '<div class="ke-info-row"><span>Poststed:</span><span>' + escapeHtml(lev.poststed || '') + '</span></div>' +
                 '<div class="ke-info-row"><span>Kontakt:</span><span>' + escapeHtml(lev.kontakt || '') + '</span></div>' +
