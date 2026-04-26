@@ -54,6 +54,60 @@ Og innloggingsknappen:
 - Endringer i HTML/CSS/design er alltid trygt
 - Nye funksjoner kan legges til uten å røre Firebase-koden
 
+## **KRITISK: All ny brukerdata MÅ synces til Firebase**
+
+Appen brukes på flere enheter (PC, mobil, nettbrett) av samme bruker. **Alt som lagres lokalt MÅ også lagres til Firebase** — ellers ser brukeren forskjellige data på forskjellige enheter, noe som er en kritisk bug.
+
+### Krav for ALLE nye lagringsoperasjoner
+
+Når du implementerer en ny funksjon som lagrer data (skjemaer, innstillinger, lister, preferanser), må du **alltid**:
+
+1. **Skrive til localStorage** (cache for offline-bruk)
+2. **Skrive til Firestore** (`db.collection('users').doc(currentUser.uid).collection(...)`)
+3. **Hente fra Firestore ved innlogging** — legg til i `auth.onAuthStateChanged`-flyten i `script.js`
+4. **Refreshe fra Firestore når brukeren åpner listen** (cache-first, deretter background refresh — se `loadServiceTab()` som mønster)
+5. **Slette fra localStorage ved bruker-bytte** — legg nøkkelen til opprydningslisten i `auth.onAuthStateChanged`
+6. **Slette fra Firestore ved sletting** — ikke bare lokalt
+
+### Mønster å følge (se `saveServiceForm`/`loadServiceTab` som referanse)
+
+**Save (script-ui.js):**
+```javascript
+safeSetItem(STORAGE_KEY, JSON.stringify(data));  // 1. Lokalt
+if (currentUser && db) {                           // 2. Firebase
+    _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+        return db.collection('users').doc(currentUser.uid).collection('myCollection').doc(id).set(data);
+    }).catch(function(e) { console.error('Save error:', e); });
+}
+```
+
+**Fetch-funksjon (script.js):**
+```javascript
+async function getMyData(lastDoc) {
+    if (currentUser && db) {
+        try {
+            var snapshot = await db.collection('users').doc(currentUser.uid).collection('myCollection')
+                .orderBy('savedAt', 'desc').limit(50).get();
+            return { items: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }) };
+        } catch(e) { console.error('getMyData error:', e); }
+    }
+    return { items: safeParseJSON(STORAGE_KEY, []) };
+}
+```
+
+**Innstillinger (settings-dokumenter):** bruk hjelperen `_syncKappeSetting` (eller lignende mønster) som skriver til både localStorage og Firebase i én operasjon.
+
+### Sjekkliste før du committer en ny lagringsfunksjon
+
+- [ ] Lagrer til Firebase i save-funksjonen
+- [ ] Sletter fra Firebase i delete-funksjonen
+- [ ] Henter fra Firebase ved innlogging (`auth.onAuthStateChanged`)
+- [ ] Refresher fra Firebase når listen åpnes
+- [ ] Inkludert i opprydning ved bruker-bytte
+- [ ] Testet ved å lagre på én enhet og åpne på en annen
+
+**Det er ikke akseptabelt å implementere ny brukerdata uten Firebase-sync.** Hvis du er i tvil om data tilhører "brukerdata" (synces) eller "midlertidig state" (kun lokal): synces det.
+
 ## VIKTIG: Cache-versjon ved hver endring
 
 Brukeren tester appen som PWA på mobil — service worker cacher filer aggressivt. **ALLTID** bump cache-versjoner ved hver kode-endring slik at brukeren får siste versjon:

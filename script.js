@@ -568,13 +568,39 @@ if (auth) {
                         renderTemplateList(active, false, _templateHasMore);
                     }
                 }).catch(function() {}) : Promise.resolve(),
-                // Sync Kappeskjema-data fra Firebase ved innlogging
+                // Sync Kappeskjema-data fra Firebase ved innlogging.
+                // Migreringsmønster: hvis Firebase er tomt men lokal har data, push lokal til Firebase
+                // (eldre lokal-only data). Aldri overskriv lokal data med tom Firebase-svar.
                 typeof getKappeForms === 'function' ? Promise.all([
                     getKappeForms().catch(function() { return { forms: [] }; }),
                     typeof getKappeSentForms === 'function' ? getKappeSentForms().catch(function() { return { forms: [] }; }) : Promise.resolve({ forms: [] })
                 ]).then(function(kappeResults) {
-                    safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify((kappeResults[0].forms || []).slice(0, 50)));
-                    safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify((kappeResults[1].forms || []).slice(0, 50)));
+                    var fbSaved = kappeResults[0].forms || [];
+                    var fbSent = kappeResults[1].forms || [];
+                    var localSaved = safeParseJSON(KAPPE_STORAGE_KEY, []);
+                    var localSent = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+
+                    if (fbSaved.length > 0) {
+                        safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(fbSaved.slice(0, 50)));
+                    } else if (localSaved.length > 0) {
+                        // Migrer lokal data til Firebase
+                        localSaved.forEach(function(form) {
+                            if (form && form.id) {
+                                db.collection('users').doc(user.uid).collection('kappeforms').doc(form.id).set(form)
+                                    .catch(function(e) { console.error('Migrate kappe save error:', e); });
+                            }
+                        });
+                    }
+                    if (fbSent.length > 0) {
+                        safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify(fbSent.slice(0, 50)));
+                    } else if (localSent.length > 0) {
+                        localSent.forEach(function(form) {
+                            if (form && form.id) {
+                                db.collection('users').doc(user.uid).collection('kappeArchive').doc(form.id).set(form)
+                                    .catch(function(e) { console.error('Migrate kappe sent error:', e); });
+                            }
+                        });
+                    }
                 }).catch(function() {}) : Promise.resolve(),
                 // Sync Kappe-metadata (produkter, stift-størrelser, kerf, plate)
                 Promise.all([

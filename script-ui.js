@@ -8463,15 +8463,43 @@ function loadKappeTab() {
         });
     renderKappeFormsList(cachedForms);
 
-    // Refresh fra Firestore — sikrer at skjemaer lagret på en annen enhet vises
+    // Refresh fra Firestore — sikrer at skjemaer lagret på en annen enhet vises.
+    // Migreringssikker: hvis Firebase er tomt men lokal har data, push lokal i stedet
+    // for å overskrive lokal med tomt resultat.
     if (currentUser && db) {
         Promise.all([getKappeForms(), getKappeSentForms()]).then(function(results) {
             if (Date.now() - _lastLocalSaveTs < 5000) return;
             var savedResult = results[0], sentResult = results[1];
-            safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
-            safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-            var allForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
-                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
+            var fbSaved = savedResult.forms || [];
+            var fbSent = sentResult.forms || [];
+            var localSaved = safeParseJSON(KAPPE_STORAGE_KEY, []);
+            var localSent = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+
+            if (fbSaved.length > 0) {
+                safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(fbSaved.slice(0, 50)));
+            } else if (localSaved.length > 0) {
+                localSaved.forEach(function(form) {
+                    if (form && form.id) {
+                        db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(form.id).set(form)
+                            .catch(function(e) { console.error('Migrate kappe save error:', e); });
+                    }
+                });
+                fbSaved = localSaved;
+            }
+            if (fbSent.length > 0) {
+                safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify(fbSent.slice(0, 50)));
+            } else if (localSent.length > 0) {
+                localSent.forEach(function(form) {
+                    if (form && form.id) {
+                        db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(form.id).set(form)
+                            .catch(function(e) { console.error('Migrate kappe sent error:', e); });
+                    }
+                });
+                fbSent = localSent;
+            }
+
+            var allForms = fbSaved.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
+                .concat(fbSent.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
                 .sort(function(a, b) {
                     if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
                     return (b.savedAt || '').localeCompare(a.savedAt || '');
