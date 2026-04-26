@@ -6787,6 +6787,15 @@ body.kappe-view-open { background: #fff; }
 .ke-td-produkt {
     vertical-align: middle !important;
 }
+.ke-produkt-name {
+    font-weight: 600;
+}
+.ke-produkt-plate {
+    font-size: 10px;
+    color: #666;
+    margin-top: 2px;
+    font-weight: 400;
+}
 .ke-merknad {
     font-style: italic;
 }

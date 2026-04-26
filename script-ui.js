@@ -8677,6 +8677,8 @@ function buildKappeExportTable() {
             flatRows.push({
                 nr: ki === 0 ? (i + 1) : '',
                 produkt: ki === 0 ? (l.produkt || '') : '',
+                plateLengde: ki === 0 ? pL : '',
+                plateBredde: ki === 0 ? pB : '',
                 bredde: ka.bredde || '',
                 lopemeter: ka.lopemeter || '',
                 antallSider: ka.antallSider || '',
@@ -8736,10 +8738,27 @@ function buildKappeExportTable() {
         }
 
         var spanAttr = r.lineSpan > 1 ? ' rowspan="' + r.lineSpan + '"' : '';
+        var produktCell = '';
+        if (r.lineFirst) {
+            produktCell = '<div class="ke-produkt-name">' + escapeHtml(r.produkt) + '</div>';
+            if (r.plateLengde && r.plateBredde) {
+                var pLn = parseFloat(r.plateLengde);
+                var pBn = parseFloat(r.plateBredde);
+                var plateDisplay;
+                if (!isNaN(pLn) && !isNaN(pBn)) {
+                    var hi = Math.max(pLn, pBn);
+                    var lo = Math.min(pLn, pBn);
+                    plateDisplay = hi + '×' + lo + 'mm';
+                } else {
+                    plateDisplay = escapeHtml(r.plateLengde) + '×' + escapeHtml(r.plateBredde) + 'mm';
+                }
+                produktCell += '<div class="ke-produkt-plate">' + plateDisplay + '</div>';
+            }
+        }
         productRows +=
             '<tr>' +
                 (r.lineFirst ? '<td class="ke-td-nr"' + spanAttr + '>' + nrContent + '</td>' : '') +
-                (r.lineFirst ? '<td class="ke-td-produkt"' + spanAttr + '>' + escapeHtml(r.produkt) + '</td>' : '') +
+                (r.lineFirst ? '<td class="ke-td-produkt"' + spanAttr + '>' + produktCell + '</td>' : '') +
                 '<td class="ke-td-bredde">' + escapeHtml(fmtNum(r.bredde)) + '</td>' +
                 '<td class="ke-td-lm">' + escapeHtml(totalLm) + '</td>' +
                 '<td class="ke-td-wn630">' + wn630Html + '</td>' +
@@ -9044,6 +9063,17 @@ function _kappeSettingsItemHtml(name, idx, editFn, removeFn) {
     '</div>';
 }
 
+// Sorterer dimensjoner/stift-størrelser numerisk når mulig, ellers alfabetisk.
+// Mutates the array in place.
+function _sortKappeNumeric(arr) {
+    arr.sort(function(a, b) {
+        var na = parseFloat(String(a).replace(',', '.'));
+        var nb = parseFloat(String(b).replace(',', '.'));
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return String(a).localeCompare(String(b), 'no');
+    });
+}
+
 function renderKappeProductSettings() {
     var container = document.getElementById('settings-kappe-product-items');
     if (!container) return;
@@ -9055,7 +9085,8 @@ function renderKappeProductSettings() {
         return;
     }
     container.innerHTML = products.map(function(p, i) {
-        var dims = p.dimensions || [];
+        var dims = (p.dimensions || []).slice();
+        _sortKappeNumeric(dims);
         var dimsHtml = dims.length
             ? dims.map(function(d, di) {
                 return '<div class="kappe-dim-item">' +
@@ -9143,6 +9174,7 @@ function addKappeProductDimension(brandIdx, inputEl) {
         return;
     }
     p.dimensions.push(dim);
+    _sortKappeNumeric(p.dimensions);
     safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
     inputEl.value = '';
     renderKappeProductSettings();
@@ -9152,16 +9184,21 @@ function editKappeProductDimension(brandIdx, dimIdx) {
     var products = getKappeProducts();
     var p = products[brandIdx];
     if (!p || !p.dimensions) return;
-    var cur = p.dimensions[dimIdx];
+    // Render bruker sortert kopi — finn aktuell verdi i samme rekkefølge
+    var sortedDims = p.dimensions.slice();
+    _sortKappeNumeric(sortedDims);
+    var cur = sortedDims[dimIdx];
     if (cur === undefined) return;
     showInputModal(t('kappe_settings_edit_name'), cur, function(newDim) {
         newDim = (newDim || '').trim();
         if (!newDim) return;
-        if (p.dimensions.some(function(d, i) { return i !== dimIdx && d.toLowerCase() === newDim.toLowerCase(); })) {
+        if (p.dimensions.some(function(d) { return d !== cur && d.toLowerCase() === newDim.toLowerCase(); })) {
             showNotificationModal(t('kappe_settings_dimension_duplicate'));
             return;
         }
-        p.dimensions[dimIdx] = newDim;
+        var origIdx = p.dimensions.indexOf(cur);
+        if (origIdx >= 0) p.dimensions[origIdx] = newDim;
+        _sortKappeNumeric(p.dimensions);
         safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
         renderKappeProductSettings();
     });
@@ -9171,9 +9208,13 @@ function removeKappeProductDimension(brandIdx, dimIdx) {
     var products = getKappeProducts();
     var p = products[brandIdx];
     if (!p || !p.dimensions) return;
-    var dim = p.dimensions[dimIdx];
+    var sortedDims = p.dimensions.slice();
+    _sortKappeNumeric(sortedDims);
+    var dim = sortedDims[dimIdx];
+    if (dim === undefined) return;
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + p.name + ' ' + dim + '"?', function() {
-        p.dimensions.splice(dimIdx, 1);
+        var origIdx = p.dimensions.indexOf(dim);
+        if (origIdx >= 0) p.dimensions.splice(origIdx, 1);
         safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
         renderKappeProductSettings();
     }, t('btn_remove'), '#e74c3c');
@@ -9188,7 +9229,8 @@ function _saveKappeStiftSizes(sizes) {
 function renderKappeStiftSizeSettings() {
     var container = document.getElementById('settings-kappe-stift-items');
     if (!container) return;
-    var sizes = getKappeStiftSizes();
+    var sizes = getKappeStiftSizes().slice();
+    _sortKappeNumeric(sizes);
     var countEl = document.getElementById('settings-count-kappe-stift');
     if (countEl) countEl.textContent = sizes.length ? '(' + sizes.length + ')' : '';
     if (!sizes.length) {
@@ -9211,6 +9253,7 @@ function addKappeStiftSize() {
         return;
     }
     sizes.push(value);
+    _sortKappeNumeric(sizes);
     _saveKappeStiftSizes(sizes);
     el.value = '';
     renderKappeStiftSizeSettings();
@@ -9218,16 +9261,20 @@ function addKappeStiftSize() {
 
 function editKappeStiftSize(idx) {
     var sizes = getKappeStiftSizes();
-    var cur = sizes[idx];
+    var sortedSizes = sizes.slice();
+    _sortKappeNumeric(sortedSizes);
+    var cur = sortedSizes[idx];
     if (cur === undefined) return;
     showInputModal(t('kappe_settings_edit_stift'), cur, function(newVal) {
         newVal = (newVal || '').trim();
         if (!newVal) return;
-        if (sizes.some(function(s, i) { return i !== idx && s.toLowerCase() === newVal.toLowerCase(); })) {
+        if (sizes.some(function(s) { return s !== cur && s.toLowerCase() === newVal.toLowerCase(); })) {
             showNotificationModal(t('kappe_settings_duplicate'));
             return;
         }
-        sizes[idx] = newVal;
+        var origIdx = sizes.indexOf(cur);
+        if (origIdx >= 0) sizes[origIdx] = newVal;
+        _sortKappeNumeric(sizes);
         _saveKappeStiftSizes(sizes);
         renderKappeStiftSizeSettings();
     });
@@ -9235,10 +9282,13 @@ function editKappeStiftSize(idx) {
 
 function removeKappeStiftSize(idx) {
     var sizes = getKappeStiftSizes();
-    var cur = sizes[idx];
+    var sortedSizes = sizes.slice();
+    _sortKappeNumeric(sortedSizes);
+    var cur = sortedSizes[idx];
     if (cur === undefined) return;
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + cur + '"?', function() {
-        sizes.splice(idx, 1);
+        var origIdx = sizes.indexOf(cur);
+        if (origIdx >= 0) sizes.splice(origIdx, 1);
         _saveKappeStiftSizes(sizes);
         renderKappeStiftSizeSettings();
     }, t('btn_remove'), '#e74c3c');
