@@ -23,6 +23,86 @@ const KAPPE_KERF_KEY = 'firesafe_kappe_kerf';
 const KAPPE_DEFAULT_KERF = 2;
 const KAPPE_PLATE_KEY = 'firesafe_kappe_plate';
 const KAPPE_DEFAULT_PLATE = { lengde: 1200, bredde: 1000 };
+const LEVERINGSADRESSE_KEY = 'firesafe_leveringsadresser';
+const MIN_INFO_KEY = 'firesafe_min_info';
+const MIN_INFO_FIELDS = ['montor', 'avdeling', 'mobil', 'epost', 'sted'];
+const MIN_INFO_TOGGLES = ['montor', 'avdeling', 'mobil', 'epost', 'sted', 'uke', 'dato'];
+
+function getLeveringsadresser() {
+    try {
+        var raw = localStorage.getItem(LEVERINGSADRESSE_KEY);
+        if (!raw) return [];
+        var arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+}
+
+function saveLeveringsadresseLocal(arr) {
+    try { localStorage.setItem(LEVERINGSADRESSE_KEY, JSON.stringify(arr)); } catch (e) {}
+}
+
+function findLeveringsadresseById(id) {
+    var arr = getLeveringsadresser();
+    for (var i = 0; i < arr.length; i++) {
+        if (arr[i].id === id) return arr[i];
+    }
+    return null;
+}
+
+// Single lager-objekt (én lager-adresse)
+function getLager() {
+    try {
+        var raw = localStorage.getItem(LEVERINGSADRESSE_KEY);
+        if (!raw) return null;
+        var data = JSON.parse(raw);
+        // Migrer fra gammelt array-format hvis aktuelt
+        if (Array.isArray(data)) {
+            if (!data.length) return null;
+            var first = data[0];
+            return { veiadresse: first.veiadresse || '', postnr: first.postnr || '', poststed: first.poststed || '' };
+        }
+        return data;
+    } catch (e) { return null; }
+}
+
+function saveLager(obj) {
+    try { localStorage.setItem(LEVERINGSADRESSE_KEY, JSON.stringify(obj || null)); } catch (e) {}
+}
+
+function getMinInfo() {
+    try {
+        var raw = localStorage.getItem(MIN_INFO_KEY);
+        if (raw) return JSON.parse(raw) || {};
+    } catch (e) {}
+    return {};
+}
+
+function _migrateMinInfo() {
+    if (localStorage.getItem(MIN_INFO_KEY)) return;
+    var own = {};
+    var svc = {};
+    var kappe = {};
+    try { own = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}'); } catch (e) {}
+    try { svc = JSON.parse(localStorage.getItem(SERVICE_DEFAULTS_KEY) || '{}'); } catch (e) {}
+    try { kappe = JSON.parse(localStorage.getItem(KAPPE_DEFAULTS_KEY) || '{}'); } catch (e) {}
+    var merged = {
+        montor: own.montor || svc.montor || kappe.bestiller || '',
+        avdeling: own.avdeling || kappe.avdeling || '',
+        mobil: '',
+        epost: '',
+        sted: own.sted || ''
+    };
+    MIN_INFO_TOGGLES.forEach(function(k) {
+        var key = 'autofill_' + k;
+        var val = own[key];
+        if (val === undefined) val = svc[key];
+        if (val === undefined) val = kappe[key];
+        if (val !== undefined) merged[key] = val;
+    });
+    try { localStorage.setItem(MIN_INFO_KEY, JSON.stringify(merged)); } catch (e) {}
+}
+
+_migrateMinInfo();
 
 function getKappeProducts() {
     try {
@@ -918,12 +998,29 @@ function openFakturaadressePopup(target) {
 
     _fakturaadresseTarget = target;
     var currentVal = '';
+    var titleKey = 'label_fakturaadresse';
+    var copyBtn = document.getElementById('fak-popup-copy-other');
     if (target === 'form') {
         currentVal = document.getElementById('mobile-fakturaadresse').value;
+        if (copyBtn) copyBtn.style.display = 'none';
+    } else if (target === 'template-levering') {
+        currentVal = document.getElementById('tpl-edit-leveringsadresse').value;
+        titleKey = 'kappe_section_delivery';
+        if (copyBtn) {
+            copyBtn.style.display = '';
+            copyBtn.textContent = (typeof t === 'function') ? t('fak_use_fakturaadresse') : 'Bruk fakturaadresse';
+        }
+        document.getElementById('template-editor-overlay').classList.remove('active');
     } else {
         currentVal = document.getElementById('tpl-edit-fakturaadresse').value;
+        if (copyBtn) {
+            copyBtn.style.display = '';
+            copyBtn.textContent = (typeof t === 'function') ? t('fak_use_leveringsadresse') : 'Bruk leveringsadresse';
+        }
         document.getElementById('template-editor-overlay').classList.remove('active');
     }
+    var titleEl = document.getElementById('fak-popup-title');
+    if (titleEl) titleEl.textContent = (typeof t === 'function') ? t(titleKey) : (titleKey === 'kappe_section_delivery' ? 'Leveringsadresse' : 'Fakturaadresse');
     var parsed = parseFakturaadresse(currentVal);
     document.getElementById('fak-popup-gate').value = parsed.gate;
     document.getElementById('fak-popup-postnr').value = parsed.postnr;
@@ -932,9 +1029,27 @@ function openFakturaadressePopup(target) {
     setTimeout(function() { document.getElementById('fak-popup-gate').focus(); }, 100);
 }
 
+function _fakCopyFromOther() {
+    var sourceId;
+    if (_fakturaadresseTarget === 'template-levering') {
+        sourceId = 'tpl-edit-fakturaadresse';
+    } else if (_fakturaadresseTarget === 'template') {
+        sourceId = 'tpl-edit-leveringsadresse';
+    } else {
+        return;
+    }
+    var sourceEl = document.getElementById(sourceId);
+    var val = sourceEl ? sourceEl.value : '';
+    if (!val) return;
+    var parsed = parseFakturaadresse(val);
+    document.getElementById('fak-popup-gate').value = parsed.gate || '';
+    document.getElementById('fak-popup-postnr').value = parsed.postnr || '';
+    document.getElementById('fak-popup-poststed').value = parsed.poststed || '';
+}
+
 function closeFakturaadressePopup() {
     document.getElementById('fakturaadresse-popup').classList.remove('active');
-    if (_fakturaadresseTarget === 'template') {
+    if (_fakturaadresseTarget === 'template' || _fakturaadresseTarget === 'template-levering') {
         document.getElementById('template-editor-overlay').classList.add('active');
     }
     _fakturaadresseTarget = null;
@@ -953,6 +1068,9 @@ function confirmFakturaadressePopup() {
     } else if (_fakturaadresseTarget === 'template') {
         document.getElementById('tpl-edit-fakturaadresse').value = combined;
         updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', combined);
+    } else if (_fakturaadresseTarget === 'template-levering') {
+        document.getElementById('tpl-edit-leveringsadresse').value = combined;
+        updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', combined);
     }
     closeFakturaadressePopup();
 }
@@ -2384,7 +2502,7 @@ function addServiceEntry() {
         }
     });
     var entryData = {};
-    var svcDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
+    var svcDefaults = getMinInfo();
     if (svcDefaults.autofill_dato !== false) {
         var now = new Date();
         entryData.dato = formatDate(now);

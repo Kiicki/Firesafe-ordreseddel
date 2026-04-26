@@ -1562,14 +1562,15 @@ function buildOrderNrSettings() {
 
 function getSettingsPageTitle(page) {
     const titles = {
+        'min-info': t('settings_min_info'),
         ordrenr: t('settings_ordrenr'),
-        defaults: t('settings_defaults'),
+        'form-ordreseddel': t('form_title'),
+        'form-service': t('tab_service'),
+        'form-kappe': t('kappe_title'),
         templates: t('settings_templates'),
-        required: t('settings_required'),
         language: t('settings_language'),
         materials: t('settings_materials'),
-        plans: t('settings_plans'),
-        'kappe-products': t('settings_kappe_products')
+        plans: t('settings_plans')
     };
     return titles[page] || '';
 }
@@ -1616,8 +1617,12 @@ function showSettingsMenu() {
 }
 
 function showSettingsPage(page) {
-    document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     var pageEl2 = document.getElementById('settings-page-' + page);
+    if (!pageEl2) {
+        showSettingsMenu();
+        return;
+    }
+    document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     pageEl2.style.display = pageEl2.classList.contains('settings-page-flex') ? 'flex' : 'block';
     document.getElementById('settings-header-title').textContent = getSettingsPageTitle(page);
     document.body.classList.add('settings-subpage-open');
@@ -1657,35 +1662,50 @@ function showSettingsPage(page) {
             if (document.body.classList.contains('settings-modal-open'))
                 _applyOrderNrSettings(settings);
         });
-    } else if (page === 'defaults') {
-        _defaultsTab = 'own';
-        // Show cached immediately, then background refresh
-        loadDefaultsForTab('own');
-        initDefaultsAutoSave();
-    } else if (page === 'required') {
-        // Show cached immediately
+    } else if (page === 'min-info') {
+        _loadMinInfoSettings();
+    } else if (page === 'form-ordreseddel') {
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('save');
-        renderRequiredSettingsItems('service');
-        renderRequiredSettingsItems('kappe');
-        // Background refresh
         getRequiredSettings().then(function(settings) {
             if (document.body.classList.contains('settings-modal-open')) {
                 cachedRequiredSettings = settings;
                 renderRequiredSettingsItems('save');
+            }
+        });
+    } else if (page === 'form-service') {
+        cachedRequiredSettings = _getCachedRequiredSettings();
+        renderRequiredSettingsItems('service');
+        getRequiredSettings().then(function(settings) {
+            if (document.body.classList.contains('settings-modal-open')) {
+                cachedRequiredSettings = settings;
                 renderRequiredSettingsItems('service');
+            }
+        });
+    } else if (page === 'form-kappe') {
+        cachedRequiredSettings = _getCachedRequiredSettings();
+        renderRequiredSettingsItems('kappe');
+        getRequiredSettings().then(function(settings) {
+            if (document.body.classList.contains('settings-modal-open')) {
+                cachedRequiredSettings = settings;
                 renderRequiredSettingsItems('kappe');
             }
         });
+        var newNameEl = document.getElementById('settings-new-kappe-product');
+        var newStiftEl = document.getElementById('settings-new-kappe-stift');
+        if (newNameEl) newNameEl.value = '';
+        if (newStiftEl) newStiftEl.value = '';
+        renderKappeProductSettings();
+        renderKappeStiftSizeSettings();
+        _loadKappeKerfSetting();
+        _loadKappePlateSetting();
     } else if (page === 'language') {
         document.getElementById('lang-check-no').textContent = currentLang === 'no' ? '\u2713' : '';
         document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
     } else if (page === 'templates') {
-        // Show cached templates immediately
         _renderSettingsTemplateListFromData(safeParseJSON(TEMPLATE_KEY, []));
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('template');
-        // Background refresh
         renderSettingsTemplateList().then(function() {
             if (!document.body.classList.contains('settings-modal-open')) return;
             getRequiredSettings().then(function(settings) {
@@ -1693,6 +1713,14 @@ function showSettingsPage(page) {
                 renderRequiredSettingsItems('template');
             });
         });
+        _loadLagerInline();
+        if (currentUser && db) {
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('lager').get().then(function(doc) {
+                if (!doc.exists) return;
+                saveLager(doc.data());
+                if (document.body.classList.contains('settings-modal-open')) _loadLagerInline();
+            }).catch(function() {});
+        }
     } else if (page === 'materials') {
         var cachedMat = localStorage.getItem(MATERIALS_KEY);
         var cachedData = normalizeMaterialData(cachedMat ? JSON.parse(cachedMat) : null);
@@ -1715,15 +1743,6 @@ function showSettingsPage(page) {
             settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
             renderMaterialSettingsItems();
         });
-    } else if (page === 'kappe-products') {
-        var newNameEl = document.getElementById('settings-new-kappe-product');
-        var newStiftEl = document.getElementById('settings-new-kappe-stift');
-        if (newNameEl) newNameEl.value = '';
-        if (newStiftEl) newStiftEl.value = '';
-        renderKappeProductSettings();
-        renderKappeStiftSizeSettings();
-        _loadKappeKerfSetting();
-        _loadKappePlateSetting();
     } else if (page === 'plans') {
         var storedPlans = localStorage.getItem(PLANS_KEY);
         settingsPlans = storedPlans ? sortPlans(JSON.parse(storedPlans)) : [];
@@ -2384,7 +2403,8 @@ function getDefaultRequiredSettings() {
             prosjektnr: false,
             oppdragsgiver: false,
             kundensRef: false,
-            fakturaadresse: false
+            fakturaadresse: false,
+            leveringsadresse: false
         },
         service: {
             montor: true,
@@ -2434,11 +2454,12 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'signatur',       labelKey: 'label_kundens_underskrift' }
     ],
     template: [
-        { key: 'prosjektnavn',   labelKey: 'label_prosjektnavn' },
-        { key: 'prosjektnr',     labelKey: 'label_prosjektnr' },
-        { key: 'oppdragsgiver',  labelKey: 'label_oppdragsgiver' },
-        { key: 'kundensRef',     labelKey: 'label_kundens_ref' },
-        { key: 'fakturaadresse', labelKey: 'label_fakturaadresse' }
+        { key: 'prosjektnavn',     labelKey: 'label_prosjektnavn' },
+        { key: 'prosjektnr',       labelKey: 'label_prosjektnr' },
+        { key: 'oppdragsgiver',    labelKey: 'label_oppdragsgiver' },
+        { key: 'kundensRef',       labelKey: 'label_kundens_ref' },
+        { key: 'fakturaadresse',   labelKey: 'label_fakturaadresse' },
+        { key: 'leveringsadresse', labelKey: 'kappe_section_delivery' }
     ],
     service: [
         { key: 'montor',       labelKey: 'label_montor' },
@@ -2569,27 +2590,6 @@ async function toggleRequiredField(section, key, value) {
     updateRequiredIndicators();
 }
 
-function switchRequiredTab(tab) {
-    // Toggle tab active state
-    var tabs = document.querySelectorAll('#settings-page-required .settings-tab');
-    tabs.forEach(function(t, i) {
-        t.classList.toggle('active',
-            (tab === 'own' && i === 0)
-            || (tab === 'service' && i === 1)
-            || (tab === 'kappe' && i === 2));
-    });
-
-    // Toggle content
-    var ownContent = document.getElementById('required-own-content');
-    var serviceContent = document.getElementById('required-service-content');
-    var kappeContent = document.getElementById('required-kappe-content');
-    if (ownContent) ownContent.style.display = tab === 'own' ? '' : 'none';
-    if (serviceContent) serviceContent.style.display = tab === 'service' ? '' : 'none';
-    if (kappeContent) kappeContent.style.display = tab === 'kappe' ? '' : 'none';
-
-    if (tab === 'service') renderRequiredSettingsItems('service');
-    if (tab === 'kappe') renderRequiredSettingsItems('kappe');
-}
 
 // ============================================
 // MAL-ADMINISTRASJON I INNSTILLINGER
@@ -2650,23 +2650,105 @@ async function renderSettingsTemplateList() {
     _renderSettingsTemplateListFromData(templates);
 }
 
-var TPL_DELIVERY_FIELDS = ['mottaker', 'veiadresse', 'postnr', 'poststed', 'kontakt', 'tlf'];
+var LAGER_FIELDS = ['veiadresse', 'postnr', 'poststed'];
+var _lagerInlineInited = false;
 
-function toggleTplDeliverySection(headerEl) {
-    var body = document.getElementById('tpl-delivery-body');
-    var arrow = document.getElementById('tpl-delivery-arrow');
-    if (!body) return;
-    var open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : '';
-    if (arrow) arrow.classList.toggle('open', !open);
+function _loadLagerInline() {
+    var lager = (typeof getLager === 'function') ? getLager() : null;
+    LAGER_FIELDS.forEach(function(f) {
+        var el = document.getElementById('lager-inline-' + f);
+        if (el) el.value = (lager && lager[f]) || '';
+    });
+    if (_lagerInlineInited) return;
+    _lagerInlineInited = true;
+    LAGER_FIELDS.forEach(function(f) {
+        var el = document.getElementById('lager-inline-' + f);
+        if (!el) return;
+        el.addEventListener('blur', _saveLagerInline);
+    });
 }
 
-function _tplHasDeliveryData(tpl) {
-    if (!tpl) return false;
-    for (var i = 0; i < TPL_DELIVERY_FIELDS.length; i++) {
-        if (tpl[TPL_DELIVERY_FIELDS[i]]) return true;
+function _saveLagerInline() {
+    var data = {};
+    LAGER_FIELDS.forEach(function(f) {
+        var el = document.getElementById('lager-inline-' + f);
+        data[f] = el ? el.value.trim() : '';
+    });
+    saveLager(data);
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('lager').set(data)
+            .catch(function(e) { console.error('Save lager error:', e); });
     }
-    return false;
+}
+
+function openProsjektLeveringsadressePicker() {
+    var listEl = document.getElementById('prosjekt-lev-picker-list');
+    var templates = (window.loadedTemplates || []).filter(function(t) { return t.active !== false && t.leveringsadresse; }).slice();
+    if (!templates.length) {
+        var local = (safeParseJSON(TEMPLATE_KEY, []) || []).filter(function(t) { return t.active !== false && t.leveringsadresse; });
+        templates = local;
+    }
+    if (!templates.length) {
+        listEl.innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('no_prosjekt_leveringsadresser') + '</div>';
+    } else {
+        templates.sort(function(a, b) { return (a.prosjektnavn || '').localeCompare(b.prosjektnavn || '', 'no'); });
+        listEl.innerHTML = templates.map(function(item) {
+            var id = escapeHtml(item.id);
+            var name = escapeHtml(item.prosjektnavn || t('no_name'));
+            var addr = escapeHtml(item.leveringsadresse);
+            return '<div class="plan-popup-row" onclick="_selectProsjektLeveringsadresse(\'' + id + '\')" style="flex-direction:column;align-items:stretch">' +
+                '<span class="plan-popup-name">' + name + '</span>' +
+                '<span style="font-size:12px;color:#666;margin-top:2px">' + addr + '</span>' +
+            '</div>';
+        }).join('');
+    }
+    document.getElementById('prosjekt-lev-picker-popup').classList.add('active');
+}
+
+function closeProsjektLeveringsadressePicker() {
+    document.getElementById('prosjekt-lev-picker-popup').classList.remove('active');
+}
+
+function _selectProsjektLeveringsadresse(id) {
+    closeProsjektLeveringsadressePicker();
+    _findTemplateById(id).then(function(tpl) {
+        if (!tpl || !tpl.leveringsadresse || typeof parseFakturaadresse !== 'function') return;
+        var parsed = parseFakturaadresse(tpl.leveringsadresse);
+        var v = document.getElementById('kappe-veiadresse');
+        var p = document.getElementById('kappe-postnr');
+        var s = document.getElementById('kappe-poststed');
+        if (v) v.value = parsed.gate || '';
+        if (p) p.value = parsed.postnr || '';
+        if (s) s.value = parsed.poststed || '';
+        var card = document.getElementById('kappe-delivery-card');
+        if (card) {
+            var wrap = card.querySelector('.mobile-order-body-wrap');
+            if (wrap && !wrap.classList.contains('expanded')) {
+                var header = card.querySelector('.mobile-order-header');
+                if (header) toggleKappeDeliverySection(header);
+            }
+        }
+    });
+}
+
+function useLagerInKappe() {
+    var lager = (typeof getLager === 'function') ? getLager() : null;
+    if (!lager || !lager.veiadresse) {
+        showNotificationModal(t('lager_not_set'));
+        return;
+    }
+    LAGER_FIELDS.forEach(function(f) {
+        var el = document.getElementById('kappe-' + f);
+        if (el) el.value = lager[f] || '';
+    });
+    var card = document.getElementById('kappe-delivery-card');
+    if (card) {
+        var wrap = card.querySelector('.mobile-order-body-wrap');
+        if (wrap && !wrap.classList.contains('expanded')) {
+            var header = card.querySelector('.mobile-order-header');
+            if (header) toggleKappeDeliverySection(header);
+        }
+    }
 }
 
 function showTemplateEditor(templateId) {
@@ -2681,15 +2763,8 @@ function showTemplateEditor(templateId) {
     document.getElementById('tpl-edit-kundensRef').value = '';
     document.getElementById('tpl-edit-fakturaadresse').value = '';
     updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', '');
-    TPL_DELIVERY_FIELDS.forEach(function(f) {
-        var el = document.getElementById('tpl-edit-' + f);
-        if (el) el.value = '';
-    });
-    // Default: leveringsadresse-seksjonen kollapset
-    var deliveryBody = document.getElementById('tpl-delivery-body');
-    var deliveryArrow = document.getElementById('tpl-delivery-arrow');
-    if (deliveryBody) deliveryBody.style.display = 'none';
-    if (deliveryArrow) deliveryArrow.classList.remove('open');
+    document.getElementById('tpl-edit-leveringsadresse').value = '';
+    updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', '');
 
     // Mark required fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
@@ -2699,7 +2774,8 @@ function showTemplateEditor(templateId) {
         prosjektnr: 'tpl-edit-prosjektnr',
         oppdragsgiver: 'tpl-edit-oppdragsgiver',
         kundensRef: 'tpl-edit-kundensRef',
-        fakturaadresse: 'tpl-edit-fakturaadresse'
+        fakturaadresse: 'tpl-edit-fakturaadresse',
+        leveringsadresse: 'tpl-edit-leveringsadresse'
     };
     for (var key in tplFieldMap) {
         var label = document.getElementById(tplFieldMap[key]).closest('label');
@@ -2722,17 +2798,8 @@ function showTemplateEditor(templateId) {
                 document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
                 document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
                 updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
-                TPL_DELIVERY_FIELDS.forEach(function(f) {
-                    var el = document.getElementById('tpl-edit-' + f);
-                    if (el) el.value = tpl[f] || '';
-                });
-                // Åpne leveringsadresse-seksjon hvis malen har data
-                if (_tplHasDeliveryData(tpl)) {
-                    var b = document.getElementById('tpl-delivery-body');
-                    var a = document.getElementById('tpl-delivery-arrow');
-                    if (b) b.style.display = '';
-                    if (a) a.classList.add('open');
-                }
+                document.getElementById('tpl-edit-leveringsadresse').value = tpl.leveringsadresse || '';
+                updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', tpl.leveringsadresse || '');
                 if (deactBtn) {
                     deactBtn.textContent = tpl.active === false ? t('settings_template_activate') : t('settings_template_deactivate');
                 }
@@ -2760,16 +2827,8 @@ async function duplicateTemplateFromSettings(templateId) {
     document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
     document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
     updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
-    TPL_DELIVERY_FIELDS.forEach(function(f) {
-        var el = document.getElementById('tpl-edit-' + f);
-        if (el) el.value = tpl[f] || '';
-    });
-    if (_tplHasDeliveryData(tpl)) {
-        var b = document.getElementById('tpl-delivery-body');
-        var a = document.getElementById('tpl-delivery-arrow');
-        if (b) b.style.display = '';
-        if (a) a.classList.add('open');
-    }
+    document.getElementById('tpl-edit-leveringsadresse').value = tpl.leveringsadresse || '';
+    updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', tpl.leveringsadresse || '');
 }
 
 async function toggleActiveFromEditor() {
@@ -2805,13 +2864,9 @@ async function saveTemplateFromEditor() {
         prosjektnr: document.getElementById('tpl-edit-prosjektnr').value.trim(),
         oppdragsgiver: document.getElementById('tpl-edit-oppdragsgiver').value.trim(),
         kundensRef: document.getElementById('tpl-edit-kundensRef').value.trim(),
-        fakturaadresse: document.getElementById('tpl-edit-fakturaadresse').value.trim()
+        fakturaadresse: document.getElementById('tpl-edit-fakturaadresse').value.trim(),
+        leveringsadresse: document.getElementById('tpl-edit-leveringsadresse').value.trim()
     };
-    TPL_DELIVERY_FIELDS.forEach(function(f) {
-        var el = document.getElementById('tpl-edit-' + f);
-        data[f] = el ? el.value.trim() : '';
-    });
-
     // Validate required template fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
     var templateReqs = reqSettings.template || {};
@@ -2820,7 +2875,8 @@ async function saveTemplateFromEditor() {
         prosjektnr: 'validation_prosjektnr',
         oppdragsgiver: 'validation_oppdragsgiver',
         kundensRef: 'validation_kundens_ref',
-        fakturaadresse: 'validation_fakturaadresse'
+        fakturaadresse: 'validation_fakturaadresse',
+        leveringsadresse: 'kappe_section_delivery'
     };
     for (var key in validationKeys) {
         if (templateReqs[key] && !data[key]) {
@@ -3105,6 +3161,14 @@ async function syncDefaultsToLocal() {
         if (kDoc.exists) safeSetItem(KAPPE_DEFAULTS_KEY, JSON.stringify(kDoc.data()));
         var plateDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('plateSize').get();
         if (plateDoc.exists) localStorage.setItem('firesafe_plate_size', JSON.stringify(plateDoc.data()));
+        var miDoc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').get();
+        if (miDoc.exists) {
+            safeSetItem(MIN_INFO_KEY, JSON.stringify(miDoc.data()));
+        } else if (typeof _migrateMinInfo === 'function') {
+            // Firebase has no min_info yet — seed from legacy defaults that just synced
+            localStorage.removeItem(MIN_INFO_KEY);
+            _migrateMinInfo();
+        }
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
@@ -3217,30 +3281,6 @@ function initDefaultsAutoSave() {
     });
 }
 
-function switchDefaultsTab(tab) {
-    _defaultsTab = tab;
-    sessionStorage.setItem('firesafe_defaults_tab', tab);
-
-    // Toggle tab active state
-    var tabs = document.querySelectorAll('#settings-page-defaults .settings-tab');
-    tabs.forEach(function(t, i) {
-        t.classList.toggle('active',
-            (tab === 'own' && i === 0)
-            || (tab === 'service' && i === 1)
-            || (tab === 'kappe' && i === 2));
-    });
-
-    // Toggle content
-    var ownContent = document.getElementById('defaults-own-content');
-    var serviceContent = document.getElementById('defaults-service-content');
-    var kappeContent = document.getElementById('defaults-kappe-content');
-    if (ownContent) ownContent.style.display = tab === 'own' ? '' : 'none';
-    if (serviceContent) serviceContent.style.display = tab === 'service' ? '' : 'none';
-    if (kappeContent) kappeContent.style.display = tab === 'kappe' ? '' : 'none';
-
-    loadDefaultsForTab(tab);
-}
-
 var KAPPE_DEFAULT_FIELDS = ['avdeling', 'bestiller', 'mottaker', 'veiadresse', 'postnr', 'poststed', 'kontakt', 'tlf'];
 
 function _applyDefaultsToUI(defaults, tab) {
@@ -3312,8 +3352,7 @@ function loadDefaultsForTab(tab) {
 }
 
 function autoFillDefaults(type) {
-    var stored = localStorage.getItem(DEFAULTS_KEY);
-    var defaults = stored ? JSON.parse(stored) : {};
+    var defaults = getMinInfo();
     DEFAULT_FIELDS.forEach(field => {
         if (defaults[field]) {
             if (defaults['autofill_' + field] === false) return;
@@ -3326,8 +3365,7 @@ function autoFillDefaults(type) {
 }
 
 function getAutofillFlags(type) {
-    var stored = localStorage.getItem(DEFAULTS_KEY);
-    var defaults = stored ? JSON.parse(stored) : {};
+    var defaults = getMinInfo();
     return {
         montor: defaults.autofill_montor !== false,
         avdeling: defaults.autofill_avdeling !== false,
@@ -4728,8 +4766,8 @@ function openNewServiceForm() {
     document.body.classList.remove('template-modal-open');
 
     // Reset service form and autofill from service defaults
-    var serviceDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
-    document.getElementById('service-montor').value = serviceDefaults.montor || '';
+    var serviceDefaults = getMinInfo();
+    document.getElementById('service-montor').value = (serviceDefaults.autofill_montor !== false) ? (serviceDefaults.montor || '') : '';
     var ukeField = document.getElementById('service-uke');
     if (ukeField) {
         ukeField.value = (serviceDefaults.autofill_uke !== false) ? String(getWeekNumber(new Date())) : '';
@@ -5002,7 +5040,7 @@ function duplicateServiceForm(formData) {
     copy.signaturePaths = [];
 
     // Autofill dato in entries if enabled
-    var serviceDefaults = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
+    var serviceDefaults = getMinInfo();
     if (serviceDefaults.autofill_dato !== false && copy.entries) {
         var today = formatDate(new Date());
         copy.entries.forEach(function(entry) { entry.dato = today; });
@@ -7481,36 +7519,9 @@ function _applyTemplateToForm(template) {
     if (!template) return;
 
     if (_kappeTemplateActive) {
-        // Apply to kappe form — prosjekt + valgfri leveringsadresse
+        // Apply to kappe form — kun prosjekt-info (leveringsadresse fylles manuelt)
         if (template.prosjektnr) document.getElementById('kappe-prosjektnr').value = template.prosjektnr;
         if (template.prosjektnavn) document.getElementById('kappe-prosjektnavn').value = template.prosjektnavn;
-        var kappeMap = {
-            mottaker:   'kappe-mottaker',
-            veiadresse: 'kappe-veiadresse',
-            postnr:     'kappe-postnr',
-            poststed:   'kappe-poststed',
-            kontakt:    'kappe-kontakt',
-            tlf:        'kappe-tlf'
-        };
-        var anyDelivery = false;
-        for (var k in kappeMap) {
-            if (template[k]) {
-                var kel = document.getElementById(kappeMap[k]);
-                if (kel) kel.value = template[k];
-                anyDelivery = true;
-            }
-        }
-        // Ekspander leveringsadresse-kortet hvis noen felter ble fylt ut
-        if (anyDelivery) {
-            var card = document.getElementById('kappe-delivery-card');
-            if (card) {
-                var wrap = card.querySelector('.mobile-order-body-wrap');
-                if (wrap && !wrap.classList.contains('expanded')) {
-                    var header = card.querySelector('.mobile-order-header');
-                    if (header) toggleKappeDeliverySection(header);
-                }
-            }
-        }
         renumberKappeLines();
         _kappeTemplateActive = false;
     } else if (_serviceTemplateTargetCard) {
@@ -7616,7 +7627,7 @@ function _kappeApplyDeliveryCollapsedState(forceCollapse) {
 function openNewKappeForm() {
     document.body.classList.remove('template-modal-open');
 
-    var defaults = safeParseJSON(KAPPE_DEFAULTS_KEY, {});
+    var defaults = getMinInfo();
     _kappeCurrentId = null;
 
     function _kappeAutofill(field) {
@@ -7626,15 +7637,15 @@ function openNewKappeForm() {
     document.getElementById('kappe-dato').value = _kappeFormatDateNO(_kappeTodayISO());
     document.getElementById('kappe-onsket-leveringsdato').value = '';
     document.getElementById('kappe-avdeling').value = _kappeAutofill('avdeling');
-    document.getElementById('kappe-bestiller').value = _kappeAutofill('bestiller');
+    document.getElementById('kappe-bestiller').value = _kappeAutofill('montor');
     document.getElementById('kappe-prosjektnr').value = '';
     document.getElementById('kappe-prosjektnavn').value = '';
-    document.getElementById('kappe-mottaker').value = _kappeAutofill('mottaker');
-    document.getElementById('kappe-veiadresse').value = _kappeAutofill('veiadresse');
-    document.getElementById('kappe-postnr').value = _kappeAutofill('postnr');
-    document.getElementById('kappe-poststed').value = _kappeAutofill('poststed');
-    document.getElementById('kappe-kontakt').value = _kappeAutofill('kontakt');
-    document.getElementById('kappe-tlf').value = _kappeAutofill('tlf');
+    document.getElementById('kappe-mottaker').value = '';
+    document.getElementById('kappe-veiadresse').value = '';
+    document.getElementById('kappe-postnr').value = '';
+    document.getElementById('kappe-poststed').value = '';
+    document.getElementById('kappe-kontakt').value = '';
+    document.getElementById('kappe-tlf').value = '';
     document.getElementById('kappe-pallemerking').value = '';
     _kappeApplyDeliveryCollapsedState(true);
 
@@ -8557,6 +8568,7 @@ function buildKappeExportTable() {
             '<div class="ke-meta">' +
                 '<div><strong>Dato:</strong> ' + escapeHtml(data.dato || '') + '</div>' +
                 '<div><strong>Ønsket lev.:</strong> ' + escapeHtml(_kappeFormatDateNO(data.onsketLeveringsdato) || '') + '</div>' +
+                '<div><strong>Pallemerking:</strong> ' + escapeHtml(data.pallemerking || '') + '</div>' +
             '</div>' +
         '</div>';
 
@@ -8568,7 +8580,6 @@ function buildKappeExportTable() {
                 '<div class="ke-info-row"><span>Bestiller:</span><span>' + escapeHtml(data.bestiller || '') + '</span></div>' +
                 '<div class="ke-info-row"><span>Prosjektnavn:</span><span>' + escapeHtml(data.prosjektnavn || '') + '</span></div>' +
                 '<div class="ke-info-row"><span>Prosjektnr.:</span><span>' + escapeHtml(data.prosjektnr || '') + '</span></div>' +
-                '<div class="ke-info-row"><span>Pallemerking:</span><span>' + escapeHtml(data.pallemerking || '') + '</span></div>' +
             '</div>' +
             '<div class="ke-info-col">' +
                 '<div class="ke-info-col-title">Leveringsadresse</div>' +
@@ -9196,4 +9207,89 @@ function _loadKappePlateSetting() {
     }
     elL.addEventListener('change', save);
     elB.addEventListener('change', save);
+}
+
+var _minInfoInitialized = false;
+
+function _saveMinInfo() {
+    var data = {};
+    MIN_INFO_FIELDS.forEach(function(f) {
+        var el = document.getElementById('mininfo-' + f);
+        if (el) data[f] = el.value.trim();
+    });
+    MIN_INFO_TOGGLES.forEach(function(k) {
+        var cb = document.getElementById('mininfo-autofill-' + k);
+        if (cb) data['autofill_' + k] = cb.checked;
+    });
+    safeSetItem(MIN_INFO_KEY, JSON.stringify(data));
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').set(data)
+            .catch(function(e) { console.error('Save min_info error:', e); });
+    }
+}
+
+function _loadMinInfoSettings() {
+    var info = getMinInfo();
+    // One-time cleanup: merge legacy bestiller into montor if montor is empty
+    if (info.bestiller && !info.montor) {
+        info.montor = info.bestiller;
+        delete info.bestiller;
+        delete info.autofill_bestiller;
+        safeSetItem(MIN_INFO_KEY, JSON.stringify(info));
+    } else if (info.bestiller !== undefined) {
+        delete info.bestiller;
+        delete info.autofill_bestiller;
+        safeSetItem(MIN_INFO_KEY, JSON.stringify(info));
+    }
+    MIN_INFO_FIELDS.forEach(function(f) {
+        var el = document.getElementById('mininfo-' + f);
+        if (el) el.value = info[f] || '';
+    });
+    MIN_INFO_TOGGLES.forEach(function(k) {
+        var cb = document.getElementById('mininfo-autofill-' + k);
+        if (cb) cb.checked = info['autofill_' + k] !== false;
+        _updateMinInfoInputState(k);
+    });
+    if (_minInfoInitialized) return;
+    _minInfoInitialized = true;
+    MIN_INFO_FIELDS.forEach(function(f) {
+        var el = document.getElementById('mininfo-' + f);
+        if (el) el.addEventListener('blur', function() {
+            _saveMinInfo();
+            showNotificationModal(t('settings_defaults_saved'), true);
+        });
+    });
+    MIN_INFO_TOGGLES.forEach(function(k) {
+        var cb = document.getElementById('mininfo-autofill-' + k);
+        if (cb) cb.addEventListener('change', function() {
+            _updateMinInfoInputState(k);
+            _saveMinInfo();
+        });
+    });
+    // Background: refresh from Firebase if available
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').get().then(function(doc) {
+            if (!doc.exists) return;
+            var fresh = doc.data() || {};
+            safeSetItem(MIN_INFO_KEY, JSON.stringify(fresh));
+            if (document.body.classList.contains('settings-modal-open')
+                && document.getElementById('settings-page-min-info').style.display !== 'none') {
+                MIN_INFO_FIELDS.forEach(function(f) {
+                    var el = document.getElementById('mininfo-' + f);
+                    if (el) el.value = fresh[f] || '';
+                });
+                MIN_INFO_TOGGLES.forEach(function(k) {
+                    var cb = document.getElementById('mininfo-autofill-' + k);
+                    if (cb) cb.checked = fresh['autofill_' + k] !== false;
+                    _updateMinInfoInputState(k);
+                });
+            }
+        }).catch(function(){});
+    }
+}
+
+function _updateMinInfoInputState(key) {
+    var input = document.getElementById('mininfo-' + key);
+    var cb = document.getElementById('mininfo-autofill-' + key);
+    if (input && cb) input.disabled = !cb.checked;
 }

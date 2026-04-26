@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=382">
+    <link rel="stylesheet" href="styles.css?v=395">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -492,29 +492,31 @@
                 <button class="template-editor-close" onclick="closeTemplateEditor()">&times;</button>
             </div>
             <div class="template-editor-body">
-                <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="tpl-edit-prosjektnavn"></label>
-                <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="tpl-edit-prosjektnr"></label>
-                <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="tpl-edit-oppdragsgiver"></label>
-                <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
-                <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span>
-                    <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template')">
-                        <span id="tpl-fakturaadresse-display-text" class="fakturaadresse-display-placeholder"></span>
-                        <span class="fakturaadresse-chevron">›</span>
-                    </div>
-                    <input type="hidden" id="tpl-edit-fakturaadresse">
-                </label>
-                <div class="settings-collapsible-header tpl-delivery-toggle" onclick="toggleTplDeliverySection(this)">
-                    <span data-i18n="kappe_section_delivery">Leveringsadresse</span>
-                    <span class="settings-collapsible-arrow" id="tpl-delivery-arrow">&rsaquo;</span>
+                <div class="settings-collapsible-header" onclick="toggleSettingsSection('tpl-project')">
+                    <span data-i18n="kappe_section_project">Prosjekt</span>
+                    <span class="settings-collapsible-arrow open" id="settings-arrow-tpl-project">&rsaquo;</span>
                 </div>
-                <div class="settings-collapsible-body" id="tpl-delivery-body" style="display:none">
-                    <label class="settings-default-label"><span data-i18n="kappe_label_mottaker">Mottaker</span><input type="text" id="tpl-edit-mottaker"></label>
-                    <label class="settings-default-label"><span data-i18n="kappe_label_veiadresse">Veiadresse</span><input type="text" id="tpl-edit-veiadresse"></label>
-                    <label class="settings-default-label"><span data-i18n="placeholder_postnr">Postnr.</span><input type="text" id="tpl-edit-postnr" inputmode="numeric"></label>
-                    <label class="settings-default-label"><span data-i18n="placeholder_poststed">Poststed</span><input type="text" id="tpl-edit-poststed"></label>
-                    <label class="settings-default-label"><span data-i18n="kappe_label_kontakt">Kontakt</span><input type="text" id="tpl-edit-kontakt"></label>
-                    <label class="settings-default-label"><span data-i18n="kappe_label_tlf">Tlf.</span><input type="text" id="tpl-edit-tlf" inputmode="tel"></label>
+                <div class="settings-collapsible-body open" id="settings-body-tpl-project">
+                    <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="tpl-edit-prosjektnavn"></label>
+                    <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="tpl-edit-prosjektnr"></label>
+                    <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="tpl-edit-oppdragsgiver"></label>
+                    <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
+                    <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span>
+                        <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template')">
+                            <span id="tpl-fakturaadresse-display-text" class="fakturaadresse-display-placeholder"></span>
+                            <span class="fakturaadresse-chevron">›</span>
+                        </div>
+                        <input type="hidden" id="tpl-edit-fakturaadresse">
+                    </label>
+                    <label class="settings-default-label"><span data-i18n="kappe_section_delivery">Leveringsadresse</span>
+                        <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template-levering')">
+                            <span id="tpl-leveringsadresse-display-text" class="fakturaadresse-display-placeholder"></span>
+                            <span class="fakturaadresse-chevron">›</span>
+                        </div>
+                        <input type="hidden" id="tpl-edit-leveringsadresse">
+                    </label>
                 </div>
+
             </div>
             <div class="template-editor-buttons">
                 <button class="template-editor-save-btn" onclick="saveTemplateFromEditor()" data-i18n="toolbar_save">Lagre</button>
@@ -536,20 +538,28 @@
                                 <!-- Hovedmeny -->
                 <div id="settings-page-menu" class="settings-page">
                     <div class="settings-group">
-                        <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">
-                            <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
+                        <div class="settings-menu-item" onclick="showSettingsPage('min-info')">
+                            <span data-i18n="settings_min_info">Min info</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('defaults')">
-                            <span data-i18n="settings_defaults">Autofyll</span>
+                        <div class="settings-menu-item" onclick="showSettingsPage('form-ordreseddel')">
+                            <span data-i18n="form_title">Ordreseddel</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('form-service')">
+                            <span data-i18n="tab_service">Lageruttak</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('form-kappe')">
+                            <span data-i18n="kappe_title">Kappeskjema</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('templates')">
-                            <span data-i18n="settings_templates">Maler</span>
+                            <span data-i18n="settings_templates_and_addresses">Maler</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('required')">
-                            <span data-i18n="settings_required">Krav ved lagring og eksport</span>
+                        <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">
+                            <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('plans')">
@@ -558,10 +568,6 @@
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('materials')">
                             <span data-i18n="settings_materials">Materialer</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
-                        </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('kappe-products')">
-                            <span data-i18n="settings_kappe_products">Kappeskjema</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('language')">
@@ -603,124 +609,129 @@
                     </div>
                 </div>
 
-                <!-- Standardverdier-side -->
-                <div id="settings-page-defaults" class="settings-page" style="display:none;">
-                    <div class="settings-tabs">
-                        <button class="settings-tab active" onclick="switchDefaultsTab('own')" data-i18n="form_title">Ordreseddel</button>
-                        <button class="settings-tab" onclick="switchDefaultsTab('service')" data-i18n="tab_service">Service</button>
-                        <button class="settings-tab" onclick="switchDefaultsTab('kappe')" data-i18n="kappe_title">Kappeskjema</button>
+                <!-- Min info-side (felles autofyll for alle skjematyper) -->
+                <div id="settings-page-min-info" class="settings-page" style="display:none;">
+                    <div class="settings-static-header">
+                        <span data-i18n="settings_min_info_section_personalia">Personalia</span>
                     </div>
-
-                    <!-- Ordreseddel defaults -->
-                    <div id="defaults-own-content">
-                        <div class="settings-group">
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-montor"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-montor" checked onchange="saveAutofillToggle('montor', this.checked)"><span class="settings-toggle-slider"></span></label>
+                    <div class="settings-group">
+                        <div class="settings-autofill-row">
+                            <div class="settings-autofill-field">
+                                <label class="settings-default-label"><span data-i18n="settings_min_info_navn">Navn</span><input type="text" id="mininfo-montor"></label>
                             </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-avdeling"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-avdeling" checked onchange="saveAutofillToggle('avdeling', this.checked)"><span class="settings-toggle-slider"></span></label>
+                            <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-montor" checked><span class="settings-toggle-slider"></span></label>
+                        </div>
+                        <div class="settings-autofill-row">
+                            <div class="settings-autofill-field">
+                                <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="mininfo-avdeling"></label>
                             </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="default-sted"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-sted" checked onchange="saveAutofillToggle('sted', this.checked)"><span class="settings-toggle-slider"></span></label>
+                            <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-avdeling" checked><span class="settings-toggle-slider"></span></label>
+                        </div>
+                        <div class="settings-autofill-row">
+                            <div class="settings-autofill-field">
+                                <label class="settings-default-label"><span data-i18n="settings_min_info_mobil">Mobil</span><input type="tel" id="mininfo-mobil" inputmode="tel"></label>
                             </div>
-                            <div class="settings-toggle-item"><span data-i18n="label_uke">Uke</span><label class="settings-toggle"><input type="checkbox" id="autofill-uke" checked onchange="saveAutofillToggle('uke', this.checked)"><span class="settings-toggle-slider"></span></label></div>
-                            <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-dato" checked onchange="saveAutofillToggle('dato', this.checked)"><span class="settings-toggle-slider"></span></label></div>
+                            <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-mobil" checked><span class="settings-toggle-slider"></span></label>
+                        </div>
+                        <div class="settings-autofill-row">
+                            <div class="settings-autofill-field">
+                                <label class="settings-default-label"><span data-i18n="settings_min_info_epost">E-post</span><input type="email" id="mininfo-epost" inputmode="email" autocapitalize="off"></label>
+                            </div>
+                            <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-epost" checked><span class="settings-toggle-slider"></span></label>
+                        </div>
+                        <div class="settings-autofill-row">
+                            <div class="settings-autofill-field">
+                                <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="mininfo-sted"></label>
+                            </div>
+                            <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-sted" checked><span class="settings-toggle-slider"></span></label>
                         </div>
                     </div>
 
-                    <!-- Service defaults -->
-                    <div id="defaults-service-content" style="display:none">
-                        <div class="settings-group">
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="label_montor">Montør</span><input type="text" id="default-service-montor"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-service-montor" checked onchange="saveAutofillToggle('montor', this.checked, 'service')"><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-toggle-item"><span data-i18n="label_uke">Uke</span><label class="settings-toggle"><input type="checkbox" id="autofill-service-uke" checked onchange="saveAutofillToggle('uke', this.checked, 'service')"><span class="settings-toggle-slider"></span></label></div>
-                            <div class="settings-toggle-item"><span data-i18n="label_dato">Dato</span><label class="settings-toggle"><input type="checkbox" id="autofill-service-dato" checked onchange="saveAutofillToggle('dato', this.checked, 'service')"><span class="settings-toggle-slider"></span></label></div>
-                        </div>
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="settings_min_info_section_defaults">Standardverdier</span>
                     </div>
-
-                    <!-- Kappeskjema defaults -->
-                    <div id="defaults-kappe-content" style="display:none">
-                        <div class="settings-group">
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="label_avdeling">Avdeling</span><input type="text" id="default-kappe-avdeling"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-avdeling" checked onchange="saveAutofillToggle('avdeling', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
+                    <div class="settings-group">
+                        <div class="settings-toggle-item">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
+                                <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
                             </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="kappe_label_bestiller">Bestiller</span><input type="text" id="default-kappe-bestiller"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-bestiller" checked onchange="saveAutofillToggle('bestiller', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
+                            <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
+                        </div>
+                        <div class="settings-toggle-item">
+                            <div class="settings-toggle-info">
+                                <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
+                                <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
                             </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="kappe_label_mottaker">Mottaker</span><input type="text" id="default-kappe-mottaker"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-mottaker" checked onchange="saveAutofillToggle('mottaker', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="kappe_label_veiadresse">Veiadresse</span><input type="text" id="default-kappe-veiadresse"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-veiadresse" checked onchange="saveAutofillToggle('veiadresse', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="placeholder_postnr">Postnr.</span><input type="text" id="default-kappe-postnr" inputmode="numeric"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-postnr" checked onchange="saveAutofillToggle('postnr', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="placeholder_poststed">Poststed</span><input type="text" id="default-kappe-poststed"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-poststed" checked onchange="saveAutofillToggle('poststed', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="kappe_label_kontakt">Kontakt</span><input type="text" id="default-kappe-kontakt"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-kontakt" checked onchange="saveAutofillToggle('kontakt', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-autofill-row">
-                                <div class="settings-autofill-field">
-                                    <label class="settings-default-label"><span data-i18n="kappe_label_tlf">Tlf.</span><input type="text" id="default-kappe-tlf" inputmode="tel"></label>
-                                </div>
-                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="autofill-kappe-tlf" checked onchange="saveAutofillToggle('tlf', this.checked, 'kappe')"><span class="settings-toggle-slider"></span></label>
-                            </div>
+                            <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
                         </div>
                     </div>
                 </div>
 
-                <!-- Obligatoriske felt-side (lagre/eksport) -->
-                <div id="settings-page-required" class="settings-page" style="display:none;">
-                    <div class="settings-tabs">
-                        <button class="settings-tab active" onclick="switchRequiredTab('own')">Ordreseddel</button>
-                        <button class="settings-tab" onclick="switchRequiredTab('service')">Lageruttak</button>
-                        <button class="settings-tab" onclick="switchRequiredTab('kappe')" data-i18n="kappe_title">Kappeskjema</button>
-                    </div>
+                <!-- Ordreseddel-skjema (kun obligatoriske felt) -->
+                <div id="settings-page-form-ordreseddel" class="settings-page" style="display:none;">
                     <div id="required-own-content">
                         <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
                     </div>
-                    <div id="required-service-content" style="display:none">
+                </div>
+
+                <!-- Lageruttak/Service-skjema (kun obligatoriske felt) -->
+                <div id="settings-page-form-service" class="settings-page" style="display:none;">
+                    <div id="required-service-content">
                         <div id="settings-fields-service-items" class="settings-list-container settings-group"></div>
                     </div>
-                    <div id="required-kappe-content" style="display:none">
-                        <div id="settings-fields-kappe-items" class="settings-list-container settings-group"></div>
+                </div>
+
+                <!-- Kappeskjema (obligatoriske felt + produkt + stift + bladbredde + plate) -->
+                <div id="settings-page-form-kappe" class="settings-page" style="display:none;">
+                    <div class="settings-collapsible-header open" onclick="toggleSettingsSection('form-kappe-required')">
+                        <span data-i18n="settings_section_required">Obligatoriske felt</span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-form-kappe-required">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body open" id="settings-body-form-kappe-required">
+                        <div id="required-kappe-content">
+                            <div id="settings-fields-kappe-items" class="settings-list-container settings-group"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-products')" style="margin-top: 16px;">
+                        <span><span data-i18n="kappe_settings_section_products">Produkt</span> <span class="settings-collapsible-count" id="settings-count-kappe-products"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-products">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-kappe-products">
+                        <div id="settings-kappe-product-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-kappe-product" autocapitalize="sentences" data-i18n-placeholder="kappe_settings_new_product_placeholder" placeholder="f.eks. Fireprotect 40mm" onkeydown="if(event.key==='Enter'){event.preventDefault();addKappeProduct()}">
+                            <button type="button" class="settings-add-btn" onclick="addKappeProduct()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-stift')" style="margin-top: 16px;">
+                        <span><span data-i18n="kappe_section_staples">Stift</span> <span class="settings-collapsible-count" id="settings-count-kappe-stift"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-stift">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-kappe-stift">
+                        <div id="settings-kappe-stift-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-kappe-stift" autocapitalize="off" data-i18n-placeholder="kappe_settings_new_stift_placeholder" placeholder="f.eks. 22mm" onkeydown="if(event.key==='Enter'){event.preventDefault();addKappeStiftSize()}">
+                            <button type="button" class="settings-add-btn" onclick="addKappeStiftSize()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="kappe_settings_kerf">Bladbredde (mm)</span>
+                    </div>
+                    <div class="settings-kerf-row">
+                        <input type="text" id="settings-kappe-kerf" inputmode="decimal" pattern="[0-9,.]*" placeholder="2">
+                    </div>
+
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="kappe_settings_plate">Standard plate (mm)</span>
+                    </div>
+                    <div class="settings-plate-row">
+                        <input type="text" id="settings-kappe-plate-lengde" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                        <span class="settings-plate-x">×</span>
+                        <input type="text" id="settings-kappe-plate-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
                     </div>
                 </div>
 
@@ -762,63 +773,35 @@
                 </div>
 
 
-                <!-- Kappeskjema (produkter + stift-størrelser) -->
-                <div id="settings-page-kappe-products" class="settings-page" style="display:none;">
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-products')">
-                        <span><span data-i18n="kappe_settings_section_products">Produkt</span> <span class="settings-collapsible-count" id="settings-count-kappe-products"></span></span>
-                        <span class="settings-collapsible-arrow open" id="settings-arrow-kappe-products">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body open" id="settings-body-kappe-products">
-                        <div id="settings-kappe-product-items" class="settings-list-container"></div>
-                        <div class="settings-add-row">
-                            <input type="text" id="settings-new-kappe-product" autocapitalize="sentences" data-i18n-placeholder="kappe_settings_new_product_placeholder" placeholder="f.eks. Fireprotect 40mm" onkeydown="if(event.key==='Enter'){event.preventDefault();addKappeProduct()}">
-                            <button type="button" class="settings-add-btn" onclick="addKappeProduct()" data-i18n="btn_add">Legg til</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-stift')" style="margin-top: 16px;">
-                        <span><span data-i18n="kappe_section_staples">Stift</span> <span class="settings-collapsible-count" id="settings-count-kappe-stift"></span></span>
-                        <span class="settings-collapsible-arrow open" id="settings-arrow-kappe-stift">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body open" id="settings-body-kappe-stift">
-                        <div id="settings-kappe-stift-items" class="settings-list-container"></div>
-                        <div class="settings-add-row">
-                            <input type="text" id="settings-new-kappe-stift" autocapitalize="off" data-i18n-placeholder="kappe_settings_new_stift_placeholder" placeholder="f.eks. 22mm" onkeydown="if(event.key==='Enter'){event.preventDefault();addKappeStiftSize()}">
-                            <button type="button" class="settings-add-btn" onclick="addKappeStiftSize()" data-i18n="btn_add">Legg til</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-static-header" style="margin-top: 16px;">
-                        <span data-i18n="kappe_settings_kerf">Bladbredde (mm)</span>
-                    </div>
-                    <div class="settings-kerf-row">
-                        <input type="text" id="settings-kappe-kerf" inputmode="decimal" pattern="[0-9,.]*" placeholder="2">
-                        <span>mm</span>
-                    </div>
-
-                    <div class="settings-static-header" style="margin-top: 16px;">
-                        <span data-i18n="kappe_settings_plate">Standard plate (mm)</span>
-                    </div>
-                    <div class="settings-plate-row">
-                        <input type="text" id="settings-kappe-plate-lengde" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
-                        <span class="settings-plate-x">×</span>
-                        <input type="text" id="settings-kappe-plate-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
-                    </div>
-                </div>
-
                 <!-- Maler-side -->
                 <div id="settings-page-templates" class="settings-page" style="display:none;">
-                    <button class="settings-add-template-btn" onclick="showTemplateEditor()" data-i18n="settings_new_template">+ Ny mal</button>
-                    <div id="settings-template-list" class="settings-group"></div>
-                    <!-- Obligatoriske felt for maler -->
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('tpl-required')" style="margin-top: 16px;">
-                        <span data-i18n="settings_tpl_required">Obligatoriske felt</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-tpl-required">&rsaquo;</span>
+                    <div class="settings-static-header">
+                        <span data-i18n="settings_prosjekter_section">Prosjekter</span>
                     </div>
-                    <div class="settings-collapsible-body" id="settings-body-tpl-required">
-                        <div id="settings-fields-template-items" class="settings-list-container"></div>
+                    <div class="settings-group settings-prosjekter-section">
+                        <button class="settings-add-template-btn" onclick="showTemplateEditor()" data-i18n="settings_new_template">+ Nytt prosjekt</button>
+                        <div id="settings-template-list"></div>
+                        <div class="settings-collapsible-header" onclick="toggleSettingsSection('tpl-required')">
+                            <span data-i18n="settings_tpl_required">Obligatoriske felt</span>
+                            <span class="settings-collapsible-arrow" id="settings-arrow-tpl-required">&rsaquo;</span>
+                        </div>
+                        <div class="settings-collapsible-body" id="settings-body-tpl-required">
+                            <div id="settings-fields-template-items" class="settings-list-container"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="settings_lager_section">Lager</span>
+                    </div>
+                    <div class="settings-group settings-lager-inline" id="settings-lager-inline">
+                        <input type="text" id="lager-inline-veiadresse" placeholder="Gateadresse" data-i18n-placeholder="placeholder_gate" autocapitalize="sentences">
+                        <div class="settings-lager-row">
+                            <input type="text" id="lager-inline-postnr" placeholder="Postnr." data-i18n-placeholder="placeholder_postnr" inputmode="numeric" class="lager-postnr">
+                            <input type="text" id="lager-inline-poststed" placeholder="Poststed" data-i18n-placeholder="placeholder_poststed" autocapitalize="sentences" class="lager-poststed">
+                        </div>
                     </div>
                 </div>
+
 
                 <!-- Språk-side -->
                 <div id="settings-page-language" class="settings-page" style="display:none;">
@@ -952,6 +935,10 @@
                         </div>
                         <div class="mobile-order-body-wrap">
                             <div class="mobile-order-body">
+                                <div class="kappe-lev-button-row">
+                                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="useLagerInKappe()" data-i18n="lager_use">Bruk lager</button>
+                                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openProsjektLeveringsadressePicker()" data-i18n="prosjekt_leveringsadresse_pick">Bruk prosjekt-adresse</button>
+                                </div>
                                 <div class="mobile-field">
                                     <label data-i18n="kappe_label_mottaker">Mottaker</label>
                                     <input type="text" id="kappe-mottaker" autocapitalize="sentences">
@@ -1108,6 +1095,19 @@
     </div>
 
 
+    <!-- Prosjekt leveringsadresse picker (kappe-form) -->
+    <div class="spec-popup-backdrop" id="prosjekt-lev-picker-popup" onclick="if(event.target===this)closeProsjektLeveringsadressePicker()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span data-i18n="prosjekt_leveringsadresse_pick_title">Velg prosjekt-adresse</span>
+            </div>
+            <div class="spec-popup-body" id="prosjekt-lev-picker-list"></div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeProsjektLeveringsadressePicker()" data-i18n="btn_cancel">Avbryt</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Plan picker popup -->
     <div class="spec-popup-backdrop" id="plan-popup" onclick="if(event.target===this)closePlanPicker()">
         <div class="spec-popup-sheet">
@@ -1125,8 +1125,9 @@
     <!-- Fakturaadresse popup -->
     <div class="fakturaadresse-popup-backdrop" id="fakturaadresse-popup" onclick="if(event.target===this)closeFakturaadressePopup()">
         <div class="fakturaadresse-popup-sheet">
-            <div class="fakturaadresse-popup-header" data-i18n="label_fakturaadresse">Fakturaadresse</div>
+            <div class="fakturaadresse-popup-header" id="fak-popup-title" data-i18n="label_fakturaadresse">Fakturaadresse</div>
             <div class="fakturaadresse-popup-body">
+                <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" id="fak-popup-copy-other" style="display:none" onclick="_fakCopyFromOther()"></button>
                 <input type="text" id="fak-popup-gate" placeholder="Gateadresse" data-i18n-placeholder="placeholder_gate" autocapitalize="sentences">
                 <div class="fakturaadresse-row">
                     <input type="text" id="fak-popup-postnr" placeholder="Postnr." data-i18n-placeholder="placeholder_postnr" inputmode="numeric" class="postnr-input">
@@ -1455,9 +1456,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=165"></script>
-    <script src="script.js?v=230"></script>
-    <script src="script-ui.js?v=447"></script>
+    <script src="lang.js?v=186"></script>
+    <script src="script.js?v=237"></script>
+    <script src="script-ui.js?v=475"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
