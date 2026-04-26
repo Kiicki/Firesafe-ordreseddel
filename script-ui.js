@@ -4097,11 +4097,14 @@ function _createPdfFromCanvas(canvas, pageWidth, minHeight, imageType, quality) 
     var jsPDF = window.jspdf.jsPDF;
     var type = imageType || 'PNG';
     var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
-    var customHeight = _customPageHeight(canvas, pageWidth, minHeight);
+    var natural = canvas.height * pageWidth / canvas.width;
+    var customHeight = Math.max(minHeight, natural);
     var orientation = pageWidth > customHeight ? 'l' : 'p';
     var pdf = new jsPDF({ orientation: orientation, unit: 'mm', format: [pageWidth, customHeight] });
     var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
-    pdf.addImage(dataUrl, type, 0, 0, pageWidth, customHeight);
+    // Tegn med naturlig aspect for å unngå stretching ved kort innhold;
+    // resten av siden blir whitespace nederst.
+    pdf.addImage(dataUrl, type, 0, 0, pageWidth, Math.min(natural, customHeight));
     return pdf;
 }
 
@@ -4109,11 +4112,12 @@ function _createPdfFromCanvas(canvas, pageWidth, minHeight, imageType, quality) 
 function _addPageFromCanvas(pdf, canvas, pageWidth, minHeight, imageType, quality) {
     var type = imageType || 'PNG';
     var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
-    var customHeight = _customPageHeight(canvas, pageWidth, minHeight);
+    var natural = canvas.height * pageWidth / canvas.width;
+    var customHeight = Math.max(minHeight, natural);
     var orientation = pageWidth > customHeight ? 'l' : 'p';
     pdf.addPage([pageWidth, customHeight], orientation);
     var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
-    pdf.addImage(dataUrl, type, 0, 0, pageWidth, customHeight);
+    pdf.addImage(dataUrl, type, 0, 0, pageWidth, Math.min(natural, customHeight));
 }
 
 // Lager A4-PDF (297×210mm landscape eller 210×297mm portrait) og legger canvas inn
