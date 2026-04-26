@@ -513,6 +513,8 @@ if (auth) {
             [SETTINGS_KEY, DEFAULTS_KEY, MATERIALS_KEY, REQUIRED_KEY, USED_NUMBERS_KEY,
              STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, PLANS_KEY, BIL_STORAGE_KEY,
              SERVICE_STORAGE_KEY, SERVICE_ARCHIVE_KEY, SERVICE_DEFAULTS_KEY,
+             KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
+             KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              'firesafe_lang', 'firesafe_plate_size']
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
@@ -565,7 +567,26 @@ if (auth) {
                         var active = result.forms.filter(function(t) { return t.active !== false; });
                         renderTemplateList(active, false, _templateHasMore);
                     }
-                }).catch(function() {}) : Promise.resolve()
+                }).catch(function() {}) : Promise.resolve(),
+                // Sync Kappeskjema-data fra Firebase ved innlogging
+                typeof getKappeForms === 'function' ? Promise.all([
+                    getKappeForms().catch(function() { return { forms: [] }; }),
+                    typeof getKappeSentForms === 'function' ? getKappeSentForms().catch(function() { return { forms: [] }; }) : Promise.resolve({ forms: [] })
+                ]).then(function(kappeResults) {
+                    safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify((kappeResults[0].forms || []).slice(0, 50)));
+                    safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify((kappeResults[1].forms || []).slice(0, 50)));
+                }).catch(function() {}) : Promise.resolve(),
+                // Sync Kappe-metadata (produkter, stift-størrelser, kerf, plate)
+                Promise.all([
+                    db.collection('users').doc(user.uid).collection('settings').doc('kappe_products').get()
+                        .then(function(d) { if (d.exists) safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                    db.collection('users').doc(user.uid).collection('settings').doc('kappe_stift_sizes').get()
+                        .then(function(d) { if (d.exists) safeSetItem(KAPPE_STIFT_SIZES_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                    db.collection('users').doc(user.uid).collection('settings').doc('kappe_kerf').get()
+                        .then(function(d) { if (d.exists) safeSetItem(KAPPE_KERF_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                    db.collection('users').doc(user.uid).collection('settings').doc('kappe_plate').get()
+                        .then(function(d) { if (d.exists) safeSetItem(KAPPE_PLATE_KEY, JSON.stringify(d.data())); }).catch(function() {})
+                ]).catch(function() {})
             ]).then(function() {
                 if (typeof refreshActiveView === 'function') refreshActiveView();
             });
@@ -2678,6 +2699,38 @@ async function getServiceSentForms(lastDoc) {
         } catch(e) { console.error('getServiceSentForms error:', e); }
     }
     return { forms: safeParseJSON(SERVICE_ARCHIVE_KEY, []), lastDoc: null };
+}
+
+async function getKappeForms(lastDoc) {
+    if (currentUser && db) {
+        try {
+            var q = db.collection('users').doc(currentUser.uid).collection('kappeforms')
+                .orderBy('savedAt', 'desc').limit(50);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return {
+                forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }),
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
+            };
+        } catch(e) { console.error('getKappeForms error:', e); }
+    }
+    return { forms: safeParseJSON(KAPPE_STORAGE_KEY, []), lastDoc: null };
+}
+
+async function getKappeSentForms(lastDoc) {
+    if (currentUser && db) {
+        try {
+            var q = db.collection('users').doc(currentUser.uid).collection('kappeArchive')
+                .orderBy('savedAt', 'desc').limit(50);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return {
+                forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }),
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
+            };
+        } catch(e) { console.error('getKappeSentForms error:', e); }
+    }
+    return { forms: safeParseJSON(KAPPE_ARCHIVE_KEY, []), lastDoc: null };
 }
 
 // Get all orders data from mobile form

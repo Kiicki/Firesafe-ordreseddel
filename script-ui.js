@@ -8390,6 +8390,18 @@ async function saveKappeForm() {
             closeKappeView();
             _showSavedFormsDirectly('kappe');
         }
+
+        // Firebase i bakgrunnen — synkroniser til kappeforms-collection
+        if (currentUser && db) {
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(docId).set(data);
+            }).then(function() {
+                if (wasSent) {
+                    return db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(docId).delete();
+                }
+            }).catch(function(e) { console.error('Kappe save Firebase error:', e); });
+        }
     } finally {
         if (saveBtn) saveBtn.disabled = false;
     }
@@ -8424,12 +8436,23 @@ function markKappeAsSent() {
         _lastLocalSaveTs = Date.now();
         closeKappeView();
         _showSavedFormsDirectly('kappe');
+
+        // Firebase i bakgrunnen — flytt fra kappeforms til kappeArchive
+        if (currentUser && db) {
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(docId).set(data);
+            }).then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(docId).delete();
+            }).catch(function(e) { console.error('Kappe markAsSent Firebase error:', e); });
+        }
     } catch(e) {
         console.error('Mark kappe as sent error:', e);
     }
 }
 
 function loadKappeTab() {
+    // Vis cache umiddelbart
     var cachedSaved = safeParseJSON(KAPPE_STORAGE_KEY, []);
     var cachedSent = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
     var cachedForms = cachedSaved.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
@@ -8439,6 +8462,25 @@ function loadKappeTab() {
             return (b.savedAt || '').localeCompare(a.savedAt || '');
         });
     renderKappeFormsList(cachedForms);
+
+    // Refresh fra Firestore — sikrer at skjemaer lagret på en annen enhet vises
+    if (currentUser && db) {
+        Promise.all([getKappeForms(), getKappeSentForms()]).then(function(results) {
+            if (Date.now() - _lastLocalSaveTs < 5000) return;
+            var savedResult = results[0], sentResult = results[1];
+            safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+            safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+            var allForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
+                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
+                .sort(function(a, b) {
+                    if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
+                    return (b.savedAt || '').localeCompare(a.savedAt || '');
+                });
+            if (document.body.classList.contains('saved-modal-open')) {
+                renderKappeFormsList(allForms);
+            }
+        }).catch(function(e) { console.error('Refresh kappe forms:', e); });
+    }
 }
 
 function _buildKappeItemHtml(item, index) {
@@ -8531,6 +8573,7 @@ function deleteKappeForm(formData) {
     var isSent = formData._isSent;
     showConfirmModal(t(isSent ? 'delete_sent_confirm' : 'delete_confirm'), function() {
         var lsKey = isSent ? KAPPE_ARCHIVE_KEY : KAPPE_STORAGE_KEY;
+        var collection = isSent ? 'kappeArchive' : 'kappeforms';
         var list = safeParseJSON(lsKey, []);
         var idx = list.findIndex(function(f) { return f.id === formData.id; });
         if (idx !== -1) { list.splice(idx, 1); safeSetItem(lsKey, JSON.stringify(list)); }
@@ -8538,6 +8581,13 @@ function deleteKappeForm(formData) {
         if (loadedIdx !== -1) window.loadedKappeForms.splice(loadedIdx, 1);
         renderKappeFormsList(window.loadedKappeForms);
         _lastLocalSaveTs = Date.now();
+
+        // Firebase delete i bakgrunnen
+        if (currentUser && db && formData.id) {
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection(collection).doc(formData.id).delete();
+            }).catch(function(e) { console.error('Kappe delete Firebase error:', e); });
+        }
     });
 }
 
@@ -9147,7 +9197,7 @@ function addKappeProduct() {
     }
     products.push({ name: name, dimensions: [] });
     products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-    safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+    _syncKappeSetting(KAPPE_PRODUCTS_KEY, 'kappe_products', { products: products });
     nameEl.value = '';
     renderKappeProductSettings();
 }
@@ -9165,7 +9215,7 @@ function editKappeProduct(idx) {
         }
         products[idx] = { name: newName, dimensions: p.dimensions || [] };
         products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
-        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        _syncKappeSetting(KAPPE_PRODUCTS_KEY, 'kappe_products', { products: products });
         renderKappeProductSettings();
     });
 }
@@ -9176,7 +9226,7 @@ function removeKappeProduct(idx) {
     if (!p) return;
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + p.name + '"?', function() {
         products.splice(idx, 1);
-        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        _syncKappeSetting(KAPPE_PRODUCTS_KEY, 'kappe_products', { products: products });
         renderKappeProductSettings();
     }, t('btn_remove'), '#e74c3c');
 }
@@ -9194,7 +9244,7 @@ function addKappeProductDimension(brandIdx, inputEl) {
     }
     p.dimensions.push(dim);
     _sortKappeNumeric(p.dimensions);
-    safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+    _syncKappeSetting(KAPPE_PRODUCTS_KEY, 'kappe_products', { products: products });
     inputEl.value = '';
     renderKappeProductSettings();
 }
@@ -9218,7 +9268,7 @@ function editKappeProductDimension(brandIdx, dimIdx) {
         var origIdx = p.dimensions.indexOf(cur);
         if (origIdx >= 0) p.dimensions[origIdx] = newDim;
         _sortKappeNumeric(p.dimensions);
-        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        _syncKappeSetting(KAPPE_PRODUCTS_KEY, 'kappe_products', { products: products });
         renderKappeProductSettings();
     });
 }
@@ -9234,15 +9284,24 @@ function removeKappeProductDimension(brandIdx, dimIdx) {
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + p.name + ' ' + dim + '"?', function() {
         var origIdx = p.dimensions.indexOf(dim);
         if (origIdx >= 0) p.dimensions.splice(origIdx, 1);
-        safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products }));
+        _syncKappeSetting(KAPPE_PRODUCTS_KEY, 'kappe_products', { products: products });
         renderKappeProductSettings();
     }, t('btn_remove'), '#e74c3c');
+}
+
+// Felles hjelper: lagre kappe-innstilling både lokalt og til Firebase
+function _syncKappeSetting(localKey, fbDoc, data) {
+    safeSetItem(localKey, JSON.stringify(data));
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(data)
+            .catch(function(e) { console.error('Sync ' + fbDoc + ' error:', e); });
+    }
 }
 
 // --- Stift-størrelser CRUD ---
 
 function _saveKappeStiftSizes(sizes) {
-    safeSetItem(KAPPE_STIFT_SIZES_KEY, JSON.stringify({ sizes: sizes }));
+    _syncKappeSetting(KAPPE_STIFT_SIZES_KEY, 'kappe_stift_sizes', { sizes: sizes });
 }
 
 function renderKappeStiftSizeSettings() {
@@ -9321,7 +9380,7 @@ function _loadKappeKerfSetting() {
         var v = parseFloat(el.value.replace(',', '.'));
         if (isNaN(v) || v < 0) v = KAPPE_DEFAULT_KERF;
         el.value = v;
-        safeSetItem(KAPPE_KERF_KEY, JSON.stringify({ kerf: v }));
+        _syncKappeSetting(KAPPE_KERF_KEY, 'kappe_kerf', { kerf: v });
     });
 }
 
@@ -9339,7 +9398,7 @@ function _loadKappePlateSetting() {
         if (isNaN(b) || b <= 0) b = KAPPE_DEFAULT_PLATE.bredde;
         elL.value = l;
         elB.value = b;
-        safeSetItem(KAPPE_PLATE_KEY, JSON.stringify({ lengde: l, bredde: b }));
+        _syncKappeSetting(KAPPE_PLATE_KEY, 'kappe_plate', { lengde: l, bredde: b });
     }
     elL.addEventListener('change', save);
     elB.addEventListener('change', save);
