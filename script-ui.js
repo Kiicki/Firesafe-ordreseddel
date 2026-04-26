@@ -8570,7 +8570,11 @@ function deleteKappeForm(formData) {
 // ─── Kappe WN630 beregning ──────────────────────────────────────────────────
 
 function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredde, kerf, stabel, antall) {
+    // Bredde må være eksakt brukerinput — strip-bredden bestemmer om
+    // isolasjonen passer fysisk. Avrunding her ville gitt feil mål.
     var w = parseLocaleNum(bredde) || 0;
+    // Løpemeter rundes opp til nærmeste tiendedel slik at kalkulasjonen
+    // bruker SAMME verdi som vises i Løpemeter-kolonnen.
     var lm = parseLocaleNum(lopemeter) || 0;
     var sider = parseLocaleNum(antallSider) || 0;
     var ant = parseLocaleNum(antall);
@@ -8584,7 +8588,7 @@ function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredd
     var empty = { langs: [], kerf: k, stabel: stabelAntall };
     if (w <= 0 || lm <= 0 || sider <= 0) return empty;
 
-    var totalLm = lm * sider * ant;
+    var totalLm = Math.ceil(lm * sider * ant * 10) / 10;
 
     function calcOrient(kuttDim, stripDimMm) {
         var stripes = Math.floor((kuttDim + k) / (w + k));
@@ -8744,8 +8748,13 @@ function buildKappeExportTable() {
         var totalLm = '';
         if (!isNaN(lmNum) && !isNaN(sdNum) && lmNum > 0 && sdNum > 0) {
             var totLm = lmNum * sdNum * antNum;
-            totalLm = fmtNum(totLm % 1 === 0 ? String(totLm) : totLm.toFixed(2));
+            // Rund opp til nærmeste tiendedel slik at vi aldri mangler materialer
+            totalLm = (Math.ceil(totLm * 10) / 10).toFixed(1).replace('.', ',');
         }
+        var breddeNum = parseLocaleNum(r.bredde);
+        var breddeDisplay = isNaN(breddeNum)
+            ? escapeHtml(r.bredde || '')
+            : formatLocaleNum(breddeNum);
 
         var spanAttr = r.lineSpan > 1 ? ' rowspan="' + r.lineSpan + '"' : '';
         var produktCell = '';
@@ -8769,7 +8778,7 @@ function buildKappeExportTable() {
             '<tr>' +
                 (r.lineFirst ? '<td class="ke-td-nr"' + spanAttr + '>' + nrContent + '</td>' : '') +
                 (r.lineFirst ? '<td class="ke-td-produkt"' + spanAttr + '>' + produktCell + '</td>' : '') +
-                '<td class="ke-td-bredde">' + escapeHtml(fmtNum(r.bredde)) + '</td>' +
+                '<td class="ke-td-bredde">' + breddeDisplay + '</td>' +
                 '<td class="ke-td-lm">' + escapeHtml(totalLm) + '</td>' +
                 '<td class="ke-td-wn630">' + wn630Html + '</td>' +
                 '<td>' + totaltHtml + '</td>' +
