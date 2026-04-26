@@ -503,6 +503,7 @@ function switchHentTab(tab) {
     const savedList = document.getElementById('saved-list');
     const serviceList = document.getElementById('service-list');
     const kappeList = document.getElementById('kappe-list');
+    const bilList = document.getElementById('bil-history-list');
     const ownSearch = document.getElementById('own-search-wrap');
     const serviceSearch = document.getElementById('service-search-wrap');
     const kappeSearch = document.getElementById('kappe-search-wrap');
@@ -510,6 +511,7 @@ function switchHentTab(tab) {
     savedList.style.display = 'none';
     serviceList.style.display = 'none';
     if (kappeList) kappeList.style.display = 'none';
+    if (bilList) bilList.style.display = 'none';
     ownSearch.style.display = 'none';
     serviceSearch.style.display = 'none';
     if (kappeSearch) kappeSearch.style.display = 'none';
@@ -525,8 +527,13 @@ function switchHentTab(tab) {
         serviceSearch.style.display = '';
         serviceList.scrollTop = 0;
         loadServiceTab();
-    } else if (tab === 'kappe') {
+    } else if (tab === 'servicebil') {
         if (tabs[2]) tabs[2].classList.add('active');
+        if (bilList) { bilList.style.display = ''; bilList.scrollTop = 0; }
+        renderBilHistory();
+        _bilHistoryRendered = true;
+    } else if (tab === 'kappe') {
+        if (tabs[3]) tabs[3].classList.add('active');
         if (kappeList) { kappeList.style.display = ''; kappeList.scrollTop = 0; }
         if (kappeSearch) kappeSearch.style.display = '';
         loadKappeTab();
@@ -824,6 +831,7 @@ function openPreview() {
 
     // Hide body scroll so form page scrollbar doesn't show behind overlay
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('preview-active');
 
     // Set header state based on whether signature exists
     var hasSig = !!document.getElementById('mobile-kundens-underskrift').value;
@@ -866,6 +874,7 @@ function closePreview() {
 
     // Restore body scroll
     document.body.style.overflow = '';
+    document.body.classList.remove('preview-active');
 
     if (window._servicePreviewActive) {
         // Service preview cleanup
@@ -1373,10 +1382,6 @@ function showTemplateModal() {
     showView('template-modal');
     document.body.classList.add('template-modal-open');
     updateToolbarState();
-    if (!_bilHistoryRendered) {
-        renderBilHistory();
-        _bilHistoryRendered = true;
-    }
 }
 
 function autoFillOrderNumber() {
@@ -5394,6 +5399,7 @@ function openServicePreview() {
     window._servicePreviewActive = true;
     document.getElementById('preview-overlay').classList.add('active');
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('preview-active');
 
     // Set header state based on whether service signature exists
     var hasSig = !!document.getElementById('service-signatur').value;
@@ -5977,8 +5983,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Home page - render cached templates (filter out deactivated)
         var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
         renderTemplateList(cached);
-        renderBilHistory();
-        _bilHistoryRendered = true;
         updateToolbarState();
         // Background refresh
         if (currentUser && db) {
@@ -7302,9 +7306,7 @@ function renderBilHistory() {
         var typeLabel = isPafylling ? t('bil_history_pafylling') : t('bil_history_uttak');
         var titleHtml = escapeHtml(item.dato);
         var subtitleHtml = '';
-        if (isPafylling) {
-            subtitleHtml = t('bil_add_pafylling').replace(/^\+\s*/, '');
-        } else if (item.prosjektnr) {
+        if (!isPafylling && item.prosjektnr) {
             subtitleHtml = escapeHtml(item.prosjektnr) + (item.prosjektnavn ? '<span class="bil-history-sep"></span>' + escapeHtml(item.prosjektnavn) : '');
         }
 
@@ -7385,7 +7387,6 @@ function renderBilHistory() {
         var hiddenClass = i3 >= 10 ? ' bil-history-hidden' : '';
         html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + '">' +
             '<div class="bil-history-header">' +
-                '<span class="bil-history-type">' + typeLabel + '</span>' +
                 '<span class="bil-history-title">' + titleHtml + '</span>' +
                 deleteBtn +
             '</div>' +
@@ -7477,6 +7478,7 @@ function openTemplatePicker() {
     _renderTemplatePickerList(cached, listEl);
 
     overlay.classList.add('active');
+    document.body.classList.add('picker-active');
     requestAnimationFrame(function() { overlay.classList.add('visible'); });
 
     // Refresh from Firestore
@@ -7496,7 +7498,10 @@ function openTemplatePicker() {
 function closeTemplatePicker() {
     var overlay = document.getElementById('template-picker-overlay');
     overlay.classList.remove('visible');
-    setTimeout(function() { overlay.classList.remove('active'); }, 150);
+    setTimeout(function() {
+        overlay.classList.remove('active');
+        document.body.classList.remove('picker-active');
+    }, 150);
     _kappeTemplateActive = false;
 }
 
@@ -8961,6 +8966,7 @@ function openKappePreview() {
     window._kappePreviewActive = true;
     document.getElementById('preview-overlay').classList.add('active');
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('preview-active');
 
     // Hide sign button — kappeskjema has no signature
     var signBtn = document.querySelector('.preview-sign-btn');

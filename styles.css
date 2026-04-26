@@ -1039,6 +1039,23 @@ body.settings-modal-open #view-form {
     display: none;
 }
 
+/* Skjul views og top-bar når fullskjerm-overlay er åpen.
+   Sikrer at kun overlay-innholdet er i DOM-renderingen — løser blant annet
+   Firefox "Save Full Page"-screenshot som ellers fanger underliggende form.
+   Gjelder kun fullskjerm-opake overlays (preview, signatur, text-editor, picker),
+   ikke gjennomsiktige dialogbokser (confirm, spec-popup, unit-picker) der
+   form-en bevisst skal synes bak. */
+body.preview-active .view,
+body.preview-active .top-bar,
+body.signature-active .view,
+body.signature-active .top-bar,
+body.text-editor-active .view,
+body.text-editor-active .top-bar,
+body.picker-active .view,
+body.picker-active .top-bar {
+    display: none;
+}
+
 /* Mobile views use position: fixed; bottom: var(--toolbar-h),
    desktop needs body padding for toolbar spacing */
 
@@ -1120,23 +1137,38 @@ body.service-view-open {
 }
 .bil-history-card {
     position: relative;
-    border-left: 4px solid #ccc;
-    margin-bottom: 10px;
-    padding: 10px 12px;
-    border-radius: 6px;
-    background: #fafafa;
+    margin-bottom: 0;
+    padding: 8px 12px;
+    background: #fff;
+    border: none;
+    border-left: 1px solid #e0e0e0;
+    border-right: 1px solid #e0e0e0;
+    border-bottom: 1px solid #eee;
+    border-radius: 0;
 }
-.bil-card-pafylling {
-    border-left-color: #4caf50;
-}
+.bil-card-pafylling,
 .bil-card-uttak {
-    border-left-color: #E8501A;
+    border-left-color: #e0e0e0;
+}
+
+/* Gruppert utseende — første/siste/eneste kort matcher .saved-item-mønsteret */
+#bil-history-list .bil-history-card:first-child {
+    border-top: 1px solid #e0e0e0;
+    border-radius: 8px 8px 0 0;
+}
+#bil-history-list .bil-history-card:last-child {
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 0 0 8px 8px;
+}
+#bil-history-list .bil-history-card:only-child {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
 }
 .bil-history-header {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    margin-bottom: 2px;
+    margin-bottom: 12px;
 }
 .bil-history-type {
     font-size: 11px;
@@ -1159,8 +1191,9 @@ body.service-view-open {
     flex: 1;
     min-width: 0;
     overflow-wrap: break-word;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 14px;
+    color: #222;
 }
 .bil-history-subtitle {
     font-size: 13px;
@@ -1815,6 +1848,71 @@ body.service-view-open {
 
 .mobile-section:last-child {
     margin-bottom: 0;
+}
+
+/* Nyttige linker (hjemmesiden) */
+.useful-links-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.useful-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-bottom: none;
+    color: #222;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.useful-link:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.useful-link:last-child {
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 0 0 8px 8px;
+}
+
+.useful-link:only-child {
+    border-radius: 8px;
+}
+
+.useful-link:hover,
+.useful-link:focus-visible {
+    background: #f8f9fa;
+    color: #E8501A;
+    outline: none;
+}
+
+.useful-link:active {
+    background: #f0f0f0;
+}
+
+.useful-link-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.useful-link-icon {
+    flex-shrink: 0;
+    color: #888;
+    transition: color 0.15s ease;
+}
+
+.useful-link:hover .useful-link-icon,
+.useful-link:focus-visible .useful-link-icon {
+    color: #E8501A;
 }
 
 .mobile-section-title {

@@ -823,6 +823,7 @@ function openTextEditor(inputElement, label) {
     document.getElementById('text-editor-textarea').value = fullValue !== null ? fullValue : inputElement.value;
     document.getElementById('text-editor-title').textContent = label;
     document.getElementById('text-editor-modal').classList.add('active');
+    document.body.classList.add('text-editor-active');
     document.getElementById('text-editor-textarea').focus();
 }
 
@@ -869,6 +870,7 @@ function closeTextEditor() {
         }
     }
     document.getElementById('text-editor-modal').classList.remove('active');
+    document.body.classList.remove('text-editor-active');
     currentEditingField = null;
 }
 
@@ -1435,8 +1437,10 @@ function openMaterialPicker(btn, onConfirm) {
         const list = document.getElementById('picker-overlay-list');
         list.innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('loading') + '</div>';
         modal.classList.add('active');
+        document.body.classList.add('picker-active');
         getDropdownOptions().then(function() {
             modal.classList.remove('active');
+            document.body.classList.remove('picker-active');
             openMaterialPicker(btn, onConfirm);
         });
         return;
@@ -1823,10 +1827,12 @@ function openMaterialPicker(btn, onConfirm) {
     renderPickerList();
 
     modal.classList.add('active');
+    document.body.classList.add('picker-active');
 }
 
 function closePickerOverlay() {
     document.getElementById('picker-overlay').classList.remove('active');
+    document.body.classList.remove('picker-active');
     pickerOrderCard = null;
 
 }
@@ -2775,6 +2781,7 @@ async function openSignatureOverlay() {
     }
 
     overlay.classList.add('active');
+    document.body.classList.add('signature-active');
 
     if (!signatureOrientationLocked) {
         updateSignatureLayout();
@@ -2826,6 +2833,7 @@ function cleanupSignatureOverlay() {
 
     var overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
+    document.body.classList.remove('signature-active');
     overlay.style.width = '';
     overlay.style.height = '';
     overlay.style.right = '';
