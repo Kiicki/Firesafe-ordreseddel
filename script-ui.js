@@ -8880,10 +8880,10 @@ function buildKappeExportTable() {
         '<table class="ke-products-table">' +
             '<colgroup>' +
                 '<col style="width:23%">' +
-                '<col style="width:13%">' +
+                '<col style="width:15%">' +
                 '<col style="width:9%">' +
                 '<col style="width:9%">' +
-                '<col style="width:28%">' +
+                '<col style="width:26%">' +
                 '<col style="width:9%">' +
                 '<col style="width:9%">' +
             '</colgroup>' +
