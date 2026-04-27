@@ -827,6 +827,7 @@ function openPreview() {
     fc.style.width = '800px';
 
     // Activate overlay first so scroll has dimensions
+    window._previewSavedScroll = _saveScrollPositions();
     document.getElementById('preview-overlay').classList.add('active');
 
     // Hide body scroll so form page scrollbar doesn't show behind overlay
@@ -875,6 +876,8 @@ function closePreview() {
     // Restore body scroll
     document.body.style.overflow = '';
     document.body.classList.remove('preview-active');
+    _restoreScrollPositions(window._previewSavedScroll);
+    window._previewSavedScroll = null;
 
     if (window._servicePreviewActive) {
         // Service preview cleanup
@@ -5397,6 +5400,7 @@ function openServicePreview() {
     scroll.appendChild(container);
 
     window._servicePreviewActive = true;
+    window._previewSavedScroll = _saveScrollPositions();
     document.getElementById('preview-overlay').classList.add('active');
     document.body.style.overflow = 'hidden';
     document.body.classList.add('preview-active');
@@ -7477,6 +7481,7 @@ function openTemplatePicker() {
     var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
     _renderTemplatePickerList(cached, listEl);
 
+    if (!window._pickerSavedScroll) window._pickerSavedScroll = _saveScrollPositions();
     overlay.classList.add('active');
     document.body.classList.add('picker-active');
     requestAnimationFrame(function() { overlay.classList.add('visible'); });
@@ -7501,6 +7506,8 @@ function closeTemplatePicker() {
     setTimeout(function() {
         overlay.classList.remove('active');
         document.body.classList.remove('picker-active');
+        _restoreScrollPositions(window._pickerSavedScroll);
+        window._pickerSavedScroll = null;
     }, 150);
     _kappeTemplateActive = false;
 }
@@ -9117,6 +9124,7 @@ function openKappePreview() {
     scroll.appendChild(container);
 
     window._kappePreviewActive = true;
+    window._previewSavedScroll = _saveScrollPositions();
     document.getElementById('preview-overlay').classList.add('active');
     document.body.style.overflow = 'hidden';
     document.body.classList.add('preview-active');

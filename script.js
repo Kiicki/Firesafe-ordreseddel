@@ -890,12 +890,36 @@ function closeNotificationModal() {
 // Fullskjerm tekst-editor
 let currentEditingField = null;
 
+// Lagrer scroll-posisjoner for det underliggende viewet før vi skjuler det
+// (display: none → flex resetter scrollTop til 0).
+var _savedScrollPositions = null;
+function _saveScrollPositions() {
+    var positions = { window: window.scrollY || window.pageYOffset || 0 };
+    var activeView = document.querySelector('.view.active');
+    if (activeView) positions.view = { el: activeView, top: activeView.scrollTop };
+    document.querySelectorAll('.view.active .modal-body, .view.active .mobile-form-content').forEach(function(el, idx) {
+        positions['child' + idx] = { el: el, top: el.scrollTop };
+    });
+    return positions;
+}
+function _restoreScrollPositions(positions) {
+    if (!positions) return;
+    requestAnimationFrame(function() {
+        if (positions.view && positions.view.el) positions.view.el.scrollTop = positions.view.top;
+        Object.keys(positions).forEach(function(k) {
+            if (k.indexOf('child') === 0 && positions[k].el) positions[k].el.scrollTop = positions[k].top;
+        });
+        window.scrollTo(0, positions.window);
+    });
+}
+
 function openTextEditor(inputElement, label) {
     currentEditingField = inputElement;
     // Use data-full-value if available (contains multiline text), otherwise fall back to .value
     const fullValue = inputElement.getAttribute('data-full-value');
     document.getElementById('text-editor-textarea').value = fullValue !== null ? fullValue : inputElement.value;
     document.getElementById('text-editor-title').textContent = label;
+    _savedScrollPositions = _saveScrollPositions();
     document.getElementById('text-editor-modal').classList.add('active');
     document.body.classList.add('text-editor-active');
     document.getElementById('text-editor-textarea').focus();
@@ -945,6 +969,8 @@ function closeTextEditor() {
     }
     document.getElementById('text-editor-modal').classList.remove('active');
     document.body.classList.remove('text-editor-active');
+    _restoreScrollPositions(_savedScrollPositions);
+    _savedScrollPositions = null;
     currentEditingField = null;
 }
 
@@ -1510,11 +1536,13 @@ function openMaterialPicker(btn, onConfirm) {
         const modal = document.getElementById('picker-overlay');
         const list = document.getElementById('picker-overlay-list');
         list.innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('loading') + '</div>';
+        if (!window._pickerSavedScroll) window._pickerSavedScroll = _saveScrollPositions();
         modal.classList.add('active');
         document.body.classList.add('picker-active');
         getDropdownOptions().then(function() {
             modal.classList.remove('active');
             document.body.classList.remove('picker-active');
+            // Behold _pickerSavedScroll — re-åpning gjenbruker scroll-posisjonen
             openMaterialPicker(btn, onConfirm);
         });
         return;
@@ -1900,6 +1928,7 @@ function openMaterialPicker(btn, onConfirm) {
 
     renderPickerList();
 
+    if (!window._pickerSavedScroll) window._pickerSavedScroll = _saveScrollPositions();
     modal.classList.add('active');
     document.body.classList.add('picker-active');
 }
@@ -1907,6 +1936,8 @@ function openMaterialPicker(btn, onConfirm) {
 function closePickerOverlay() {
     document.getElementById('picker-overlay').classList.remove('active');
     document.body.classList.remove('picker-active');
+    _restoreScrollPositions(window._pickerSavedScroll);
+    window._pickerSavedScroll = null;
     pickerOrderCard = null;
 
 }
@@ -2886,6 +2917,7 @@ async function openSignatureOverlay() {
         } catch(e) {}
     }
 
+    window._signatureSavedScroll = _saveScrollPositions();
     overlay.classList.add('active');
     document.body.classList.add('signature-active');
 
@@ -2940,6 +2972,8 @@ function cleanupSignatureOverlay() {
     var overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');
     document.body.classList.remove('signature-active');
+    _restoreScrollPositions(window._signatureSavedScroll);
+    window._signatureSavedScroll = null;
     overlay.style.width = '';
     overlay.style.height = '';
     overlay.style.right = '';
