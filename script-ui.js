@@ -8853,9 +8853,16 @@ function buildKappeExportTable() {
             totalLm = (Math.ceil(totLm * 10) / 10).toFixed(1).replace('.', ',');
         }
         var breddeNum = parseLocaleNum(r.bredde);
-        var breddeDisplay = isNaN(breddeNum)
-            ? escapeHtml(r.bredde || '')
-            : formatLocaleNum(breddeNum);
+        var breddeDisplay;
+        if (isNaN(breddeNum)) {
+            breddeDisplay = escapeHtml(r.bredde || '');
+        } else {
+            // Vis minst 1 desimal for tabellkonsistens (260 → "260,0"),
+            // men bevar flere desimaler hvis bruker har skrevet det (260,55 → "260,55").
+            var bs = String(breddeNum);
+            if (bs.indexOf('.') === -1) bs += '.0';
+            breddeDisplay = bs.replace('.', ',');
+        }
 
         var spanAttr = r.lineSpan > 1 ? ' rowspan="' + r.lineSpan + '"' : '';
         var produktCell = '';
@@ -8888,11 +8895,19 @@ function buildKappeExportTable() {
     }
 
     var sumKeys = Object.keys(sumsByLangs).map(Number).sort(function(a, b) { return b - a; });
-    sumKeys.forEach(function(langs) {
+    sumKeys.forEach(function(langs, idx) {
         var s = sumsByLangs[langs];
+        // Siste SUM-rad: vis bladbredde-info til venstre på samme linje som SUM-tittel
+        // (naturlig "footer"-posisjon nederst i tabellen)
+        var labelHtml = idx === sumKeys.length - 1
+            ? '<div class="ke-sum-label-flex">' +
+                  '<span class="ke-kerf-inline">Bladbredde brukt i beregning: <strong>' + kerf + 'mm</strong></span>' +
+                  '<span>SUM langs ' + langs + 'mm</span>' +
+              '</div>'
+            : 'SUM langs ' + langs + 'mm';
         productRows +=
             '<tr class="ke-sum-row">' +
-                '<td colspan="5" class="ke-sum-label">SUM langs ' + langs + 'mm</td>' +
+                '<td colspan="5" class="ke-sum-label">' + labelHtml + '</td>' +
                 '<td class="ke-sum-value">' + fmtNum(s.m2.toFixed(2)) + '</td>' +
                 '<td class="ke-sum-value">' + fmtNum(s.veil.toFixed(2)) + '</td>' +
             '</tr>';
@@ -8922,8 +8937,7 @@ function buildKappeExportTable() {
                 '</tr>' +
             '</thead>' +
             '<tbody>' + productRows + '</tbody>' +
-        '</table>' +
-        '<div class="ke-kerf-note">Bladbredde brukt i beregning: <strong>' + kerf + 'mm</strong></div>';
+        '</table>';
 
     var stiftMap = {};
     (data.stift || []).forEach(function(s) { stiftMap[s.storrelse || s['størrelse']] = s.antall; });

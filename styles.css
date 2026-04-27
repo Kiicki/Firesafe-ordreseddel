@@ -6828,6 +6828,18 @@ body.kappe-view-open { background: #fff; }
     color: #333;
     margin-top: 6px;
 }
+.ke-sum-label-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.ke-kerf-inline {
+    font-weight: normal;
+    font-size: 11px;
+    color: #333;
+    letter-spacing: 0;
+}
 .ke-stift-table {
     max-width: 25%;
     margin-top: 4px;
