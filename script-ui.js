@@ -8879,13 +8879,13 @@ function buildKappeExportTable() {
         '<div class="ke-section-title">Kappeliste</div>' +
         '<table class="ke-products-table">' +
             '<colgroup>' +
-                '<col style="width:25%">' +
+                '<col style="width:23%">' +
                 '<col style="width:13%">' +
-                '<col style="width:7%">' +
-                '<col style="width:7%">' +
-                '<col style="width:32%">' +
-                '<col style="width:8%">' +
-                '<col style="width:8%">' +
+                '<col style="width:9%">' +
+                '<col style="width:9%">' +
+                '<col style="width:28%">' +
+                '<col style="width:9%">' +
+                '<col style="width:9%">' +
             '</colgroup>' +
             '<thead>' +
                 '<tr>' +
