@@ -8759,24 +8759,47 @@ function buildKappeExportTable() {
         if (!kappArr.length) {
             kappArr = [{ bredde: l.bredde || '', lopemeter: l.lopemeter || '', antallSider: l.antallSider || '' }];
         }
+        // Grupper kapp-rader med samme Bredde — summer LM × Antall × Sider.
+        // Gjør eksporten oversiktlig når brukeren har splittet samme dimensjon
+        // på flere rader (typisk for organisering av søyler med ulike lengder).
+        var widthGroups = {};
+        var widthOrder = [];
         for (var ki = 0; ki < kappArr.length; ki++) {
             var ka = kappArr[ki];
-            var wn630 = _calcKappeWN630(ka.bredde, ka.lopemeter, ka.antallSider, pL, pB, kerf, '1', ka.antall);
+            var widthKey = String(parseLocaleNum(ka.bredde));
+            if (!widthGroups[widthKey]) {
+                widthGroups[widthKey] = { bredde: ka.bredde, totalLm: 0 };
+                widthOrder.push(widthKey);
+            }
+            var lmK = parseLocaleNum(ka.lopemeter) || 0;
+            var sidK = parseLocaleNum(ka.antallSider) || 0;
+            var antK = parseLocaleNum(ka.antall);
+            if (isNaN(antK) || antK <= 0) antK = 1;
+            widthGroups[widthKey].totalLm += lmK * sidK * antK;
+        }
+
+        var groupCount = widthOrder.length;
+        for (var gi = 0; gi < groupCount; gi++) {
+            var grp = widthGroups[widthOrder[gi]];
+            // Send kombinert totalLm som lopemeter, sider=1 og antall=1 så
+            // _calcKappeWN630 bruker totalLm direkte uten å multiplisere.
+            var wn630 = _calcKappeWN630(grp.bredde, grp.totalLm, '1', pL, pB, kerf, '1', '1');
             var best = wn630.langs.length ? wn630.langs[0] : null;
             flatRows.push({
-                nr: ki === 0 ? (i + 1) : '',
-                produkt: ki === 0 ? (l.produkt || '') : '',
-                plateLengde: ki === 0 ? pL : '',
-                plateBredde: ki === 0 ? pB : '',
-                bredde: ka.bredde || '',
-                lopemeter: ka.lopemeter || '',
-                antall: ka.antall || '1',
-                antallSider: ka.antallSider || '',
-                merknad: (ki === 0) ? (l.merknad || '') : '',
+                nr: gi === 0 ? (i + 1) : '',
+                produkt: gi === 0 ? (l.produkt || '') : '',
+                plateLengde: gi === 0 ? pL : '',
+                plateBredde: gi === 0 ? pB : '',
+                bredde: grp.bredde || '',
+                // Kombinert LM (allerede × Sider × Antall)
+                lopemeter: grp.totalLm,
+                antall: '1',
+                antallSider: '1',
+                merknad: (gi === 0) ? (l.merknad || '') : '',
                 wn630: wn630,
-                totaltM2: best ? (best.antallStk * best.stripLengde * ((parseLocaleNum(ka.bredde) || 0) / 1000)) : '',
-                lineFirst: ki === 0,
-                lineSpan: kappArr.length
+                totaltM2: best ? (best.antallStk * best.stripLengde * ((parseLocaleNum(grp.bredde) || 0) / 1000)) : '',
+                lineFirst: gi === 0,
+                lineSpan: groupCount
             });
         }
     }
