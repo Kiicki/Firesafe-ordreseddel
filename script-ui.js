@@ -8805,8 +8805,8 @@ function buildKappeExportTable() {
                 wn630Html += '<div class="ke-wn630-row">' +
                     '<strong>' + o.antallStk + ' stk</strong>' +
                     ' (' + sagkutt2 + ' stk i 2-stabel)' +
-                    ' · langs ' + o.kuttLangsMm + 'mm · ' +
-                    o.stripes + ' pr. plate · rest ' + o.svinnPerPlate + 'mm' +
+                    ' · langs ' + o.kuttLangsMm + 'mm' +
+                    ' · rest ' + o.svinnPerPlate + 'mm' +
                 '</div>';
                 var pieces2Stabel = 2 * Math.ceil(o.antallStk / 2);
                 var orientM2 = pieces2Stabel * o.stripLengde * breddeM;
