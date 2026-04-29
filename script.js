@@ -1076,11 +1076,17 @@ function _autoResizeMerknadAndScroll(textarea) {
     var prevHeight = textarea.offsetHeight;
     autoResizeTextarea(textarea);  // ingen maxLines = ubegrenset vekst
     var newHeight = textarea.offsetHeight;
-    // Reposisjoner ved høyde-endring (både vekst OG krymping).
-    // Krymping: bringer kontekst tilbake i synsfeltet etter at brukeren har slettet rader.
-    // Vekst: holder bunnen synlig over tastaturet.
+    // Scroll kun når feltet faktisk er (eller blir) utenfor synsfeltet:
+    //  - bunn under tastatur-toppen (vekst trenger scroll)
+    //  - topp over viewport (etter krymping av tidligere veldig stort felt)
+    // Hvis hele feltet allerede er synlig, ikke scroll — feltet vokser/krympes
+    // naturlig på plass uten å rote til scroll-posisjonen.
     if (newHeight !== prevHeight && document.activeElement === textarea) {
-        textarea.scrollIntoView({ block: 'end', behavior: 'auto' });
+        var rect = textarea.getBoundingClientRect();
+        var viewportH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        if (rect.bottom > viewportH || rect.top < 0) {
+            textarea.scrollIntoView({ block: 'end', behavior: 'auto' });
+        }
     }
 }
 
