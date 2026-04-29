@@ -1070,13 +1070,19 @@ function autoResizeTextarea(textarea, maxLines) {
 
 // Inline auto-ekspandering for merknad-feltet i ordreseddel.
 // Vokser uten øvre grense og holder bunnen synlig over tastaturet.
+// Scroller kun når høyden faktisk endret seg (ny linje), og bruker instant
+// scroll for å unngå konflikt med browserens egen cursor-following.
 function _autoResizeMerknadAndScroll(textarea) {
+    var prevHeight = textarea.offsetHeight;
     autoResizeTextarea(textarea);  // ingen maxLines = ubegrenset vekst
-    if (document.activeElement === textarea) {
+    var newHeight = textarea.offsetHeight;
+    if (newHeight !== prevHeight && document.activeElement === textarea) {
         var rect = textarea.getBoundingClientRect();
         var viewportH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-        if (rect.bottom > viewportH - 8) {
-            textarea.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        // Scroll kun hvis bunnen havner under tastatur-toppen (med 60px buffer
+        // som matcher scroll-margin-bottom — browseren scroller ellers selv).
+        if (rect.bottom > viewportH - 60) {
+            textarea.scrollIntoView({ block: 'end', behavior: 'auto' });
         }
     }
 }
