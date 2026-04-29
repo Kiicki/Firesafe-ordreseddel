@@ -930,8 +930,7 @@ function closeTextEditor() {
         const fullText = document.getElementById('text-editor-textarea').value;
 
         // Simple mode for merknad-felt (kappe + ordreseddel): full tekst direkte tilbake, ingen truncation
-        if (currentEditingField.classList.contains('kappe-line-merknad') ||
-            currentEditingField.classList.contains('mobile-order-merknad')) {
+        if (currentEditingField.classList.contains('kappe-line-merknad')) {
             currentEditingField.value = fullText;
             var kmLines = (fullText.match(/\n/g) || []).length + 1;
             var kmRows = Math.max(2, Math.min(kmLines, 8));
@@ -1067,6 +1066,19 @@ function autoResizeTextarea(textarea, maxLines) {
     }
     var minH = textarea.classList.contains('work-material') ? 18 : 24;
     textarea.style.height = Math.max(height, minH) + 'px';
+}
+
+// Inline auto-ekspandering for merknad-feltet i ordreseddel.
+// Vokser uten øvre grense og holder bunnen synlig over tastaturet.
+function _autoResizeMerknadAndScroll(textarea) {
+    autoResizeTextarea(textarea);  // ingen maxLines = ubegrenset vekst
+    if (document.activeElement === textarea) {
+        var rect = textarea.getBoundingClientRect();
+        var viewportH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        if (rect.bottom > viewportH - 8) {
+            textarea.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        }
+    }
 }
 
 
@@ -1277,7 +1289,7 @@ function createOrderCard(orderData, expanded) {
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
                 <label data-i18n="order_merknad">${t('order_merknad')}</label>
-                <textarea class="mobile-order-merknad" rows="2" autocapitalize="sentences"></textarea>
+                <textarea class="mobile-order-merknad" rows="1" autocapitalize="sentences"></textarea>
             </div>
         </div>
         </div>`;
@@ -1342,19 +1354,15 @@ function createOrderCard(orderData, expanded) {
         planDisplay.style.display = 'none';
     }
 
-    // Set merknad
+    // Set merknad — inline auto-resize uten øvre grense
     const merknadEl = card.querySelector('.mobile-order-merknad');
     merknadEl.value = orderData.merknad || '';
-    merknadEl.addEventListener('click', function() {
-        openTextEditor(this, t('order_merknad'));
+    merknadEl.addEventListener('input', function() {
+        _autoResizeMerknadAndScroll(this);
     });
-    if (merknadEl.value) {
-        const merknadLines = (merknadEl.value.match(/\n/g) || []).length + 1;
-        merknadEl.rows = Math.max(2, Math.min(merknadLines, 8));
-        requestAnimationFrame(function() {
-            merknadEl.scrollTop = 0;
-        });
-    }
+    requestAnimationFrame(function() {
+        _autoResizeMerknadAndScroll(merknadEl);
+    });
 
     // Add materials
     const matContainer = card.querySelector('.mobile-order-materials');
