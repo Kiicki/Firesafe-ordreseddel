@@ -929,42 +929,27 @@ function closeTextEditor() {
     if (currentEditingField) {
         const fullText = document.getElementById('text-editor-textarea').value;
 
-        // Simple mode for merknad-felt (kappe + ordreseddel): full tekst direkte tilbake, ingen truncation
-        if (currentEditingField.classList.contains('kappe-line-merknad')) {
-            currentEditingField.value = fullText;
-            var kmLines = (fullText.match(/\n/g) || []).length + 1;
-            var kmRows = Math.max(2, Math.min(kmLines, 8));
-            currentEditingField.rows = kmRows;
-            currentEditingField.style.height = '';
-            currentEditingField.style.minHeight = '';
-            currentEditingField.style.maxHeight = '';
-            currentEditingField.style.overflow = '';
-            var fieldRef = currentEditingField;
-            requestAnimationFrame(function() {
-                fieldRef.scrollTop = 0;
-            });
-            currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-            currentEditingField.setAttribute('data-full-value', fullText);
-            const lines = fullText.split('\n').filter(l => l.trim() !== '');
-            const descBtn = currentEditingField.parentElement.querySelector('.mobile-desc-btn');
+        // Description-felt: bruker preview/data-full-value-mønster (ingen merknad
+        // bruker text-editor lenger — alle merknader er nå inline auto-expanderende).
+        currentEditingField.setAttribute('data-full-value', fullText);
+        const lines = fullText.split('\n').filter(l => l.trim() !== '');
+        const descBtn = currentEditingField.parentElement.querySelector('.mobile-desc-btn');
 
-            if (lines.length === 0) {
-                // Empty: show button, hide textarea
-                currentEditingField.value = '';
-                currentEditingField.style.display = 'none';
-                if (descBtn) descBtn.style.display = '';
-            } else {
-                // Has content: show textarea, hide button
-                const previewLines = lines.slice(0, 8);
-                const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
-                currentEditingField.value = preview;
-                currentEditingField.style.display = '';
-                if (descBtn) descBtn.style.display = 'none';
-            }
-            autoResizeTextarea(currentEditingField, 4);
-            currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
+        if (lines.length === 0) {
+            // Empty: show button, hide textarea
+            currentEditingField.value = '';
+            currentEditingField.style.display = 'none';
+            if (descBtn) descBtn.style.display = '';
+        } else {
+            // Has content: show textarea, hide button
+            const previewLines = lines.slice(0, 8);
+            const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
+            currentEditingField.value = preview;
+            currentEditingField.style.display = '';
+            if (descBtn) descBtn.style.display = 'none';
         }
+        autoResizeTextarea(currentEditingField, 4);
+        currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
     }
     document.getElementById('text-editor-modal').classList.remove('active');
     document.body.classList.remove('text-editor-active');

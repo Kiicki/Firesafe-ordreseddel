@@ -7933,7 +7933,7 @@ function createKappeLineCard(lineData, expanded) {
             '<button type="button" class="kappe-add-kapp-btn" onclick="addKappeKappRow(this)">+ ' + t('kappe_add_kapp') + '</button>' +
             '<div class="mobile-field">' +
                 '<label data-i18n="kappe_col_merknad">' + t('kappe_col_merknad') + '</label>' +
-                '<textarea class="kappe-line-merknad" rows="2">' + escapeHtml(data.merknad || '') + '</textarea>' +
+                '<textarea class="kappe-line-merknad" rows="1" autocapitalize="sentences">' + escapeHtml(data.merknad || '') + '</textarea>' +
             '</div>' +
         '</div>' +
         '</div>';
@@ -7948,16 +7948,16 @@ function createKappeLineCard(lineData, expanded) {
 
     var merknadEl = card.querySelector('.kappe-line-merknad');
     if (merknadEl) {
-        merknadEl.addEventListener('click', function() {
-            openTextEditor(this, t('kappe_col_merknad'));
+        merknadEl.addEventListener('focus', function() {
+            var scroller = _findScrollableAncestor(this);
+            this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
         });
-        if (merknadEl.value) {
-            var initLines = (merknadEl.value.match(/\n/g) || []).length + 1;
-            merknadEl.rows = Math.max(2, Math.min(initLines, 8));
-            requestAnimationFrame(function() {
-                merknadEl.scrollTop = 0;
-            });
-        }
+        merknadEl.addEventListener('input', function() {
+            _autoResizeMerknadAndScroll(this);
+        });
+        requestAnimationFrame(function() {
+            _autoResizeMerknadAndScroll(merknadEl);
+        });
     }
 
     return card;
