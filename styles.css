@@ -1083,6 +1083,7 @@ body.picker-active .top-bar {
     right: 0;
     bottom: var(--toolbar-h, 60px);
     min-height: 0;
+    background: #fff;
 }
 
 
