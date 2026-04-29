@@ -1072,20 +1072,35 @@ function autoResizeTextarea(textarea, maxLines) {
 // Vokser uten øvre grense og holder bunnen synlig over tastaturet.
 // Scroller kun når høyden faktisk endret seg (ny linje), og bruker instant
 // scroll for å unngå konflikt med browserens egen cursor-following.
+// Finn nærmeste scrollable forelder (overflow: auto/scroll). Faller tilbake
+// til document.scrollingElement hvis ingen finnes.
+function _findScrollableAncestor(el) {
+    var p = el.parentElement;
+    while (p && p !== document.body) {
+        var cs = getComputedStyle(p);
+        var oy = cs.overflowY;
+        if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') return p;
+        p = p.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+}
+
 function _autoResizeMerknadAndScroll(textarea) {
     var prevHeight = textarea.offsetHeight;
     autoResizeTextarea(textarea);  // ingen maxLines = ubegrenset vekst
     var newHeight = textarea.offsetHeight;
-    // Scroll kun når feltet faktisk er (eller blir) utenfor synsfeltet:
-    //  - bunn under tastatur-toppen (vekst trenger scroll)
-    //  - topp over viewport (etter krymping av tidligere veldig stort felt)
-    // Hvis hele feltet allerede er synlig, ikke scroll — feltet vokser/krympes
-    // naturlig på plass uten å rote til scroll-posisjonen.
     if (newHeight !== prevHeight && document.activeElement === textarea) {
         var rect = textarea.getBoundingClientRect();
-        var viewportH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-        if (rect.bottom > viewportH || rect.top < 0) {
-            textarea.scrollIntoView({ block: 'end', behavior: 'auto' });
+        // visualViewport gir korrekt synlig høyde med tastaturet åpent;
+        // scrollIntoView bruker desverre layout-viewport (bak tastatur).
+        var visualH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        var targetBottom = visualH - 24;  // buffer for markørklaring
+
+        if (rect.bottom > visualH || rect.top < 0) {
+            var scroller = _findScrollableAncestor(textarea);
+            // Scroll med eksakt delta så bunnen havner på targetBottom.
+            // Positiv delta scroller ned (innhold opp).
+            scroller.scrollBy(0, rect.bottom - targetBottom);
         }
     }
 }
