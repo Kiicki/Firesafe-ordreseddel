@@ -1089,18 +1089,25 @@ function _autoResizeMerknadAndScroll(textarea) {
     var prevHeight = textarea.offsetHeight;
     autoResizeTextarea(textarea);  // ingen maxLines = ubegrenset vekst
     var newHeight = textarea.offsetHeight;
-    if (newHeight !== prevHeight && document.activeElement === textarea) {
-        var rect = textarea.getBoundingClientRect();
-        // visualViewport gir korrekt synlig høyde med tastaturet åpent;
-        // scrollIntoView bruker desverre layout-viewport (bak tastatur).
-        var visualH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-        var targetBottom = visualH - 24;  // buffer for markørklaring
+    if (newHeight === prevHeight || document.activeElement !== textarea) return;
 
-        if (rect.bottom > visualH || rect.top < 0) {
-            var scroller = _findScrollableAncestor(textarea);
-            // Scroll med eksakt delta så bunnen havner på targetBottom.
-            // Positiv delta scroller ned (innhold opp).
-            scroller.scrollBy(0, rect.bottom - targetBottom);
+    var rect = textarea.getBoundingClientRect();
+    var visualH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    var targetBottom = visualH - 24;  // buffer for markørklaring
+    var scroller = _findScrollableAncestor(textarea);
+
+    if (newHeight > prevHeight) {
+        // VEKST: scroll opp hvis bunnen havner under tastatur-toppen.
+        if (rect.bottom > targetBottom) {
+            scroller.scrollTop += rect.bottom - targetBottom;
+        }
+    } else {
+        // KRYMPING: gi tilbake scroll proporsjonalt med ledig plass under
+        // feltet, slik at brukeren kommer tilbake mot opprinnelig posisjon.
+        // Eksempel: 30 backspace etter 30 nye linjer → totalt 720px gis tilbake.
+        if (rect.bottom < targetBottom && scroller.scrollTop > 0) {
+            var giveback = Math.min(targetBottom - rect.bottom, scroller.scrollTop);
+            scroller.scrollTop -= giveback;
         }
     }
 }
