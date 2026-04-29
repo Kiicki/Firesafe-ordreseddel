@@ -1097,16 +1097,17 @@ function _autoResizeMerknadAndScroll(textarea) {
     var scroller = _findScrollableAncestor(textarea);
 
     if (newHeight > prevHeight) {
-        // VEKST: scroll opp hvis bunnen havner under tastatur-toppen.
+        // VEKST: scroll opp kun hvis bunnen havner under tastatur-toppen.
         if (rect.bottom > targetBottom) {
             scroller.scrollTop += rect.bottom - targetBottom;
         }
     } else {
-        // KRYMPING: gi tilbake scroll proporsjonalt med ledig plass under
-        // feltet, slik at brukeren kommer tilbake mot opprinnelig posisjon.
-        // Eksempel: 30 backspace etter 30 nye linjer → totalt 720px gis tilbake.
-        if (rect.bottom < targetBottom && scroller.scrollTop > 0) {
-            var giveback = Math.min(targetBottom - rect.bottom, scroller.scrollTop);
+        // KRYMPING: gi tilbake scroll mot opprinnelig posisjon (lagret ved focus).
+        // Aldri scroll forbi der vi var da feltet ble fokusert — så hvis brukeren
+        // ikke har akkumulert scroll under skriving, skjer ingen scroll.
+        var initial = textarea._initialScrollOnFocus;
+        if (typeof initial === 'number' && scroller.scrollTop > initial) {
+            var giveback = Math.min(prevHeight - newHeight, scroller.scrollTop - initial);
             scroller.scrollTop -= giveback;
         }
     }
@@ -1388,6 +1389,10 @@ function createOrderCard(orderData, expanded) {
     // Set merknad — inline auto-resize uten øvre grense
     const merknadEl = card.querySelector('.mobile-order-merknad');
     merknadEl.value = orderData.merknad || '';
+    merknadEl.addEventListener('focus', function() {
+        var scroller = _findScrollableAncestor(this);
+        this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
+    });
     merknadEl.addEventListener('input', function() {
         _autoResizeMerknadAndScroll(this);
     });
