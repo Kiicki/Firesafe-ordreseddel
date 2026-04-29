@@ -1076,14 +1076,11 @@ function _autoResizeMerknadAndScroll(textarea) {
     var prevHeight = textarea.offsetHeight;
     autoResizeTextarea(textarea);  // ingen maxLines = ubegrenset vekst
     var newHeight = textarea.offsetHeight;
+    // Reposisjoner ved høyde-endring (både vekst OG krymping).
+    // Krymping: bringer kontekst tilbake i synsfeltet etter at brukeren har slettet rader.
+    // Vekst: holder bunnen synlig over tastaturet.
     if (newHeight !== prevHeight && document.activeElement === textarea) {
-        var rect = textarea.getBoundingClientRect();
-        var viewportH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-        // Scroll kun hvis bunnen havner under tastatur-toppen (med 60px buffer
-        // som matcher scroll-margin-bottom — browseren scroller ellers selv).
-        if (rect.bottom > viewportH - 60) {
-            textarea.scrollIntoView({ block: 'end', behavior: 'auto' });
-        }
+        textarea.scrollIntoView({ block: 'end', behavior: 'auto' });
     }
 }
 

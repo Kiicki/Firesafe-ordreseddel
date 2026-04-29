@@ -2240,9 +2240,9 @@ label.settings-default-label.field-required > span::after {
     min-height: 44px;
     overflow: hidden;
     box-sizing: border-box;
-    /* Sikrer at scrollIntoView etterlater margin under feltet,
-       så browseren ikke trigger ekstra scroll for å gi markøren klaring. */
-    scroll-margin-bottom: 60px;
+    /* Lite buffer under feltet ved scrollIntoView — nok for markørklaring
+       uten å posisjonere feltet unødvendig høyt på skjermen. */
+    scroll-margin-bottom: 24px;
 }
 
 .mobile-work-row {
