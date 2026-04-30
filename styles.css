@@ -1051,8 +1051,8 @@ body.signature-active .view,
 body.signature-active .top-bar,
 body.text-editor-active .view,
 body.text-editor-active .top-bar,
-body.picker-active .view,
-body.picker-active .top-bar {
+body.picker-active:not(.servicebil-inntak-mode) .view,
+body.picker-active:not(.servicebil-inntak-mode) .top-bar {
     display: none;
 }
 
@@ -1145,6 +1145,20 @@ body.service-view-open {
 /* Skjul mode-spesifikke seksjoner basert på body-klasse */
 body.servicebil-inntak-mode .servicebil-uttak-only { display: none !important; }
 body.servicebil-uttak-mode .servicebil-inntak-only { display: none !important; }
+
+/* Når picker auto-åpnes inni Servicebil Inntak-modus, la header + toggle peeke
+   over. Picker dekker området under toggle, slik at bruker kan klikke Uttak. */
+body.servicebil-inntak-mode .picker-overlay.active {
+    top: 96px;          /* ~44px header + ~52px toggle */
+    height: calc(100dvh - 96px);
+}
+/* I servicebil-inntak-modus brukes header-Lagre som primær-handling.
+   Picker-headerens egne knapper (Avbryt/Materialer/Ok) er overflødige siden
+   picker ER hele inntak-skjemaet og Lagre i servicebil-headeren bekrefter +
+   lagrer. Skjul picker-header for å unngå visuell duplisering. */
+body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
+    display: none;
+}
 
 /* Bil (Vehicle Inventory) view */
 .home-actions {
