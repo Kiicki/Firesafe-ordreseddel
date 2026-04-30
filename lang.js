@@ -322,10 +322,15 @@ const TRANSLATIONS = {
         export_hours_unit: 'timer',
         export_total: 'Totalt:',
 
-        // Service (Lageruttak)
+        // Service (Lageruttak — uttak-modus i Servicebil)
         tab_service: 'Lageruttak',
         service_title: 'Lageruttak Servicebiler',
         service_new_form: '+ Lageruttak',
+        servicebil_title: 'Servicebil',
+        servicebil_inntak: 'Inntak',
+        servicebil_uttak: 'Uttak',
+        servicebil_inntak_title: 'Materialer inn i bil',
+        servicebil_inntak_no_materials: 'Du må legge til minst ett materiale',
         service_entries_title: 'Prosjekter',
         service_add_entry: '+ Legg til prosjekt',
         service_entry_title: 'Prosjekt',
@@ -844,10 +849,15 @@ const TRANSLATIONS = {
         export_hours_unit: 'hours',
         export_total: 'Total:',
 
-        // Service (Warehouse withdrawal)
+        // Service (Warehouse withdrawal — uttak mode in Servicebil)
         tab_service: 'Withdrawal',
         service_title: 'Warehouse Withdrawal Service Vehicles',
         service_new_form: '+ Withdrawal',
+        servicebil_title: 'Service vehicle',
+        servicebil_inntak: 'Intake',
+        servicebil_uttak: 'Withdrawal',
+        servicebil_inntak_title: 'Materials into vehicle',
+        servicebil_inntak_no_materials: 'Add at least one material',
         service_entries_title: 'Projects',
         service_add_entry: '+ Add project',
         service_entry_title: 'Project',

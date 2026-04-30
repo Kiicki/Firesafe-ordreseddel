@@ -1115,6 +1115,37 @@ body.service-view-open {
     flex: none;
 }
 
+/* Servicebil mode toggle — matcher .modal-tab-stilen */
+.servicebil-mode-toggle {
+    display: flex;
+    border-bottom: 2px solid #eee;
+    background: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+.servicebil-mode-toggle .mode-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+}
+.servicebil-mode-toggle .mode-btn.active {
+    color: #333;
+    border-bottom-color: #333;
+}
+
+/* Skjul mode-spesifikke seksjoner basert på body-klasse */
+body.servicebil-inntak-mode .servicebil-uttak-only { display: none !important; }
+body.servicebil-uttak-mode .servicebil-inntak-only { display: none !important; }
+
 /* Bil (Vehicle Inventory) view */
 .home-actions {
     display: flex;
@@ -6259,16 +6290,18 @@ body.bulk-select-active .toolbar {
  * KAPPESKJEMA
  * ============================================================================ */
 
-/* Home-actions med 4 knapper — wrap på mobil */
+/* Home-actions med 3 knapper — alle på samme rad */
 .home-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 .home-actions .btn-skip-template {
-    flex: 1 1 calc(50% - 5px);
+    flex: 1 1 0;
     min-width: 0;
-    font-size: 13px;
-    padding: 10px 8px;
+    font-size: 12px;
+    padding: 10px 6px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 @media (min-width: 1025px) {
     .home-actions .btn-skip-template {

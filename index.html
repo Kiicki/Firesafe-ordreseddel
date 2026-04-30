@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=415">
+    <link rel="stylesheet" href="styles.css?v=418">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -342,7 +342,6 @@
                 </div>
                 <div class="modal-tabs">
                     <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
-                    <button class="modal-tab" onclick="switchHentTab('service')" data-i18n="tab_service">Service</button>
                     <button class="modal-tab" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
                     <button class="modal-tab" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappe</button>
                 </div>
@@ -393,8 +392,7 @@
                 </div>
                 <div class="modal-footer-skip home-actions" onclick="event.stopPropagation()">
                     <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_blank_form">+ Ordreseddel</button>
-                    <button class="btn-skip-template" onclick="openNewServiceForm()" data-i18n="service_new_form">+ Lageruttak</button>
-                    <button class="btn-skip-template bil-btn-pafylling" onclick="openBilPafylling()" data-i18n="bil_add_pafylling">+ Servicebil</button>
+                    <button class="btn-skip-template bil-btn-pafylling" onclick="openServicebilView()" data-i18n="bil_add_pafylling">+ Servicebil</button>
                     <button class="btn-skip-template" onclick="openNewKappeForm()" data-i18n="kappe_new_form">+ Kappeskjema</button>
                 </div>
             </div>
@@ -836,22 +834,32 @@
 
     </div>
 
-    <!-- Service View (Lageruttak Servicebiler) -->
+    <!-- Servicebil View (Inntak / Uttak) -->
     <div class="container service-view view" id="service-view">
         <div class="modal-content">
             <div class="modal-header" id="service-header">
                 <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
-                <span data-i18n="service_title">Lageruttak Servicebiler</span>
-                <button class="header-save-btn" id="service-save-btn" onclick="saveServiceForm()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
+                <span data-i18n="servicebil_title">Servicebil</span>
+                <button class="header-save-btn" id="service-save-btn" onclick="saveServicebilForm()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
             </div>
-            <div id="service-sent-banner" class="sent-banner" style="display:none;">
+            <div class="servicebil-mode-toggle" id="servicebil-mode-toggle">
+                <button type="button" class="mode-btn active" data-mode="inntak" onclick="_setServicebilMode('inntak')" data-i18n="servicebil_inntak">Inntak</button>
+                <button type="button" class="mode-btn" data-mode="uttak" onclick="_setServicebilMode('uttak')" data-i18n="servicebil_uttak">Uttak</button>
+            </div>
+            <div id="service-sent-banner" class="sent-banner servicebil-uttak-only" style="display:none;">
                 <span data-i18n="sent_banner_text">Dette skjemaet er sendt</span>
             </div>
             <div class="mobile-form" id="service-form">
-                <div class="mobile-section">
+                <!-- Inntak-modus seksjon: material-picker auto-åpnes ved Inntak-modus -->
+                <div class="mobile-section servicebil-inntak-only">
+                    <div class="mobile-order-materials" id="servicebil-inntak-materials"></div>
+                </div>
+
+                <!-- Uttak-modus seksjoner: full lageruttak-skjema -->
+                <div class="mobile-section servicebil-uttak-only">
                     <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openServiceTemplatePicker(this)" data-i18n="template_pick">Velg prosjektmal</button>
                 </div>
-                <div class="mobile-section">
+                <div class="mobile-section servicebil-uttak-only">
                     <div class="mobile-field field-required">
                         <label data-i18n="label_montor">Montør</label>
                         <input type="text" id="service-montor" autocapitalize="words">
@@ -862,12 +870,12 @@
                     </div>
                     <input type="hidden" id="service-signatur">
                 </div>
-                <div class="mobile-section">
+                <div class="mobile-section servicebil-uttak-only">
                     <div class="mobile-section-title" data-i18n="service_entries_title">Prosjekter</div>
                     <div id="service-entries"></div>
                     <button type="button" class="mobile-add-line-btn" onclick="addServiceEntry()" data-i18n="service_add_entry">+ Legg til prosjekt</button>
                 </div>
-                <div class="mobile-section">
+                <div class="mobile-section servicebil-uttak-only">
                     <div class="mobile-section-title" data-i18n="section_signing">Signering</div>
                     <div class="mobile-field">
                         <label data-i18n="service_label_signatur">Min signatur</label>
@@ -877,7 +885,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="form-actions">
+                <div class="form-actions servicebil-uttak-only">
                     <button type="button" class="form-action-btn" onclick="openServicePreview()">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         <span data-i18n="btn_preview">Vis</span>
@@ -1471,9 +1479,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=193"></script>
+    <script src="lang.js?v=194"></script>
     <script src="script.js?v=253"></script>
-    <script src="script-ui.js?v=513"></script>
+    <script src="script-ui.js?v=515"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

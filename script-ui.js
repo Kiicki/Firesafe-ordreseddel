@@ -496,6 +496,8 @@ function closeModal() {
 
 function switchHentTab(tab) {
     if (_selectMode) toggleSelectMode();
+    // Migrer 'service' (gammel fane som er fjernet) til 'servicebil'
+    if (tab === 'service') tab = 'servicebil';
     sessionStorage.setItem('firesafe_hent_tab', tab);
     const tabs = document.querySelectorAll('#saved-modal .modal-tab');
     tabs.forEach(t => t.classList.remove('active'));
@@ -509,11 +511,11 @@ function switchHentTab(tab) {
     const kappeSearch = document.getElementById('kappe-search-wrap');
 
     savedList.style.display = 'none';
-    serviceList.style.display = 'none';
+    if (serviceList) serviceList.style.display = 'none';
     if (kappeList) kappeList.style.display = 'none';
     if (bilList) bilList.style.display = 'none';
     ownSearch.style.display = 'none';
-    serviceSearch.style.display = 'none';
+    if (serviceSearch) serviceSearch.style.display = 'none';
     if (kappeSearch) kappeSearch.style.display = 'none';
 
     if (tab === 'own') {
@@ -521,19 +523,23 @@ function switchHentTab(tab) {
         savedList.style.display = '';
         ownSearch.style.display = '';
         savedList.scrollTop = 0;
-    } else if (tab === 'service') {
-        tabs[1].classList.add('active');
-        serviceList.style.display = '';
-        serviceSearch.style.display = '';
-        serviceList.scrollTop = 0;
-        loadServiceTab();
     } else if (tab === 'servicebil') {
-        if (tabs[2]) tabs[2].classList.add('active');
+        // Kombinert visning: pafylling (INNTAK) + sendte service-skjemaer (UTTAK)
+        if (tabs[1]) tabs[1].classList.add('active');
         if (bilList) { bilList.style.display = ''; bilList.scrollTop = 0; }
         renderBilHistory();
         _bilHistoryRendered = true;
+        // Refresh uttak-data fra Firebase i bakgrunnen og re-render
+        if (currentUser && db && typeof getServiceForms === 'function' && typeof getServiceSentForms === 'function') {
+            Promise.all([getServiceForms(), getServiceSentForms()]).then(function(results) {
+                if (Date.now() - _lastLocalSaveTs < 5000) return;
+                safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify((results[0].forms || []).slice(0, 50)));
+                safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify((results[1].forms || []).slice(0, 50)));
+                if (document.body.classList.contains('saved-modal-open')) renderBilHistory();
+            }).catch(function() {});
+        }
     } else if (tab === 'kappe') {
-        if (tabs[3]) tabs[3].classList.add('active');
+        if (tabs[2]) tabs[2].classList.add('active');
         if (kappeList) { kappeList.style.display = ''; kappeList.scrollTop = 0; }
         if (kappeSearch) kappeSearch.style.display = '';
         loadKappeTab();
@@ -4799,6 +4805,94 @@ async function doBulkSharePDFSeparate(markSent) {
 
 var _serviceCurrentId = null; // Track current loaded service form id
 var _serviceLastSavedData = null; // For unsaved changes detection
+var _servicebilMode = 'inntak';
+
+// Sett aktiv modus i Servicebil-view (inntak/uttak). Skjuler/viser seksjoner
+// via body-klasse og oppdaterer toggle-knappenes aktive tilstand.
+function _setServicebilMode(mode) {
+    if (mode !== 'inntak' && mode !== 'uttak') return;
+    var prevMode = _servicebilMode;
+    _servicebilMode = mode;
+    document.body.classList.toggle('servicebil-inntak-mode', mode === 'inntak');
+    document.body.classList.toggle('servicebil-uttak-mode', mode === 'uttak');
+    document.querySelectorAll('#servicebil-mode-toggle .mode-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+    });
+    // Hvis brukeren bytter TIL Inntak (fra Uttak) og det ikke er materialer der,
+    // auto-åpne picker. Inntak ER en material-picker.
+    if (mode === 'inntak' && prevMode === 'uttak') {
+        var container = document.getElementById('servicebil-inntak-materials');
+        var hasMaterials = container && container.querySelectorAll('.mobile-material-row').length > 0;
+        if (!hasMaterials) {
+            requestAnimationFrame(function() {
+                openMaterialPicker(null, function(materials) {
+                    if (materials && materials.length > 0) {
+                        saveBilPafylling(materials);
+                        closeServiceView();
+                        _showSavedFormsDirectly('servicebil');
+                    }
+                });
+            });
+        }
+    }
+}
+
+// Callback fra material-picker når brukeren bekrefter materialer i Inntak-modus.
+function _onServicebilInntakMaterialsConfirm(materials) {
+    var container = document.getElementById('servicebil-inntak-materials');
+    if (container && typeof renderMaterialSummary === 'function') {
+        renderMaterialSummary(container, materials);
+    }
+}
+
+// Hovedinngang: åpner Servicebil-view i valgt modus (default Inntak).
+// I Inntak-modus auto-åpnes material-picker siden Inntak ER bare en picker.
+function openServicebilView(defaultMode) {
+    defaultMode = defaultMode || 'inntak';
+    var inntakContainer = document.getElementById('servicebil-inntak-materials');
+    if (inntakContainer) inntakContainer.innerHTML = '';
+    openNewServiceForm();
+    _setServicebilMode(defaultMode);
+
+    if (defaultMode === 'inntak') {
+        // Auto-åpne material-picker — bruker har "valgt" Inntak ved å trykke + Servicebil
+        requestAnimationFrame(function() {
+            openMaterialPicker(null, function(materials) {
+                if (materials && materials.length > 0) {
+                    saveBilPafylling(materials);
+                    closeServiceView();
+                    _showSavedFormsDirectly('servicebil');
+                }
+                // Hvis bruker avbryter: view forblir åpen — kan toggle til Uttak
+                // eller bruke "+ Materialer"-knappen som fallback
+            });
+        });
+    }
+}
+
+// Bakoverkompatibel alias — gammel onclick="openBilPafylling()" rute hit nå.
+function openBilPafylling() {
+    openServicebilView('inntak');
+}
+
+// Lagre-dispatcher som velger riktig flyt basert på modus.
+async function saveServicebilForm() {
+    if (_servicebilMode === 'inntak') {
+        var container = document.getElementById('servicebil-inntak-materials');
+        var materials = container && typeof getMaterialsFromContainer === 'function'
+            ? getMaterialsFromContainer(container)
+            : [];
+        if (!materials || materials.length === 0) {
+            showNotificationModal(t('servicebil_inntak_no_materials'));
+            return;
+        }
+        saveBilPafylling(materials);
+        if (typeof closeServiceView === 'function') closeServiceView();
+        _showSavedFormsDirectly('servicebil');
+    } else {
+        await saveServiceForm();
+    }
+}
 
 function openNewServiceForm() {
     // Close template modal
@@ -7391,6 +7485,7 @@ function renderBilHistory() {
         var hiddenClass = i3 >= 10 ? ' bil-history-hidden' : '';
         html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + '">' +
             '<div class="bil-history-header">' +
+                '<span class="bil-history-type">' + escapeHtml(typeLabel) + '</span>' +
                 '<span class="bil-history-title">' + titleHtml + '</span>' +
                 deleteBtn +
             '</div>' +
