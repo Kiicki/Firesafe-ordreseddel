@@ -346,7 +346,7 @@ const TRANSLATIONS = {
         // Kappeskjema
         kappe_new_form: '+ Kappeskjema',
         kappe_title: 'Kappeskjema',
-        tab_kappe: 'Kappe',
+        tab_kappe: 'Kappeskjema',
         tab_servicebil: 'Servicebil',
         kappe_section_project: 'Prosjekt',
         kappe_section_delivery: 'Leveringsadresse',

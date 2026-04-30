@@ -1146,10 +1146,11 @@ body.service-view-open {
 body.servicebil-inntak-mode .servicebil-uttak-only { display: none !important; }
 body.servicebil-uttak-mode .servicebil-inntak-only { display: none !important; }
 
-/* Når picker auto-åpnes inni Servicebil Inntak-modus, la header + toggle peeke
-   over. Picker dekker området under toggle, slik at bruker kan klikke Uttak. */
-body.servicebil-inntak-mode .picker-overlay.active {
-    top: 96px;          /* ~44px header + ~52px toggle */
+/* Servicebil Inntak: picker er IKKE fullskjerm — header (44px) + toggle (52px)
+   peeker over så bruker kan klikke Uttak. Lagre i view-headeren ER bekreft-
+   handlingen for picker-utvalget (picker-headeren skjules nedenfor). */
+body.servicebil-inntak-mode #picker-overlay.active {
+    top: 96px;
     height: calc(100dvh - 96px);
 }
 /* I servicebil-inntak-modus brukes header-Lagre som primær-handling.
@@ -2035,7 +2036,10 @@ label.settings-default-label.field-required > span::after {
     overflow: hidden;
     font-family: inherit;
     line-height: 1.4;
-    max-height: calc(1.4em * 4 + 26px);
+    min-height: 44px;
+    box-sizing: border-box;
+    /* Lite buffer under feltet ved scrollIntoView — matcher merknad-mønster. */
+    scroll-margin-bottom: 24px;
 }
 
 .mobile-desc-btn,
@@ -2754,11 +2758,16 @@ label.settings-default-label.field-required > span::after {
     padding: 6px 12px;
     border-bottom: 1px solid #f0f0f0;
     border-left: 4px solid transparent;
+}
+
+/* Spec-launchere uten valgt størrelse er ikke direkte redigerbare og skal se nedtonet ut */
+.picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected),
+.picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected),
+.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) {
     opacity: 0.5;
 }
 
 .picker-mat-row.picker-mat-selected {
-    opacity: 1;
     background: #f8fff8;
     border-left: 4px solid #E8501A;
 }
@@ -2796,9 +2805,18 @@ label.settings-default-label.field-required > span::after {
     outline: none;
     border-color: #E8501A;
 }
-.picker-mat-row:not(.picker-mat-selected) .picker-mat-antall,
-.picker-mat-row:not(.picker-mat-selected) .picker-mat-enhet-btn,
-.picker-mat-row:not(.picker-mat-selected) .picker-mat-enhet-static {
+/* Greyout for Antall/enhet kun på spec-launchere (mansjett/brannpakning/kabelhylse
+   uten valgt størrelse) — disse krever klikk på navn for å åpne spec-popup. Vanlige
+   produkter skal se klikkbare ut slik at bruker kan skrive direkte i Antall. */
+.picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected) .picker-mat-antall,
+.picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected) .picker-mat-enhet-btn,
+.picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected) .picker-mat-enhet-static,
+.picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected) .picker-mat-antall,
+.picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected) .picker-mat-enhet-btn,
+.picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected) .picker-mat-enhet-static,
+.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-antall,
+.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-enhet-btn,
+.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-enhet-static {
     opacity: 0.3;
 }
 
@@ -5299,15 +5317,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-lager-row input:focus { outline: none; border-color: #E8501A; }
 .settings-lager-row .lager-postnr { width: 80px; flex-shrink: 0; }
 .settings-lager-row .lager-poststed { flex: 1; min-width: 0; }
-
-/* PC: Inline editable description textarea */
-@media screen and (min-width: 1025px) {
-    .mobile-order-desc {
-        resize: vertical;
-        min-height: 80px;
-        cursor: text;
-    }
-}
 
 /* ===== Calculator ===== */
 .calc-section {

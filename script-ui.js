@@ -981,10 +981,10 @@ function showExportMenu() {
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
     let html = checkboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
@@ -4057,7 +4057,7 @@ async function doExportPNG(markSent) {
     }
 }
 
-async function doSharePDF() {
+async function doSharePDF(markSent) {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -4067,6 +4067,7 @@ async function doSharePDF() {
         var blob = pdf.output('blob');
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         await navigator.share({ files: [file] });
+        if (markSent) markCurrentFormAsSent();
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -4074,7 +4075,7 @@ async function doSharePDF() {
     }
 }
 
-async function doSharePNG() {
+async function doSharePNG(markSent) {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -4085,6 +4086,7 @@ async function doSharePNG() {
         var blob = await res.blob();
         var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
         await navigator.share({ files: [file] });
+        if (markSent) markCurrentFormAsSent();
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -5305,10 +5307,10 @@ function showServiceExportMenu() {
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePDF(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePNG(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
     buttonsEl.innerHTML = checkboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
@@ -5670,7 +5672,7 @@ async function doServiceExportPNG(markSent) {
     }
 }
 
-async function doServiceSharePDF() {
+async function doServiceSharePDF(markSent) {
     if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -5680,6 +5682,7 @@ async function doServiceSharePDF() {
         var blob = pdf.output('blob');
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
         await navigator.share({ files: [file] });
+        if (markSent) markServiceAsSent();
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -5687,7 +5690,7 @@ async function doServiceSharePDF() {
     }
 }
 
-async function doServiceSharePNG() {
+async function doServiceSharePNG(markSent) {
     if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -5698,6 +5701,7 @@ async function doServiceSharePNG() {
         var blob = await res.blob();
         var file = new File([blob], getServiceExportFilename('png'), { type: 'image/png' });
         await navigator.share({ files: [file] });
+        if (markSent) markServiceAsSent();
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -9159,7 +9163,7 @@ async function doKappeExportPNG(markSent) {
     }
 }
 
-async function doKappeSharePDF() {
+async function doKappeSharePDF(markSent) {
     if (!validateKappeRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -9169,6 +9173,7 @@ async function doKappeSharePDF() {
         var blob = pdf.output('blob');
         var file = new File([blob], getKappeExportFilename('pdf'), { type: 'application/pdf' });
         await navigator.share({ files: [file] });
+        if (markSent) markKappeAsSent();
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -9176,7 +9181,7 @@ async function doKappeSharePDF() {
     }
 }
 
-async function doKappeSharePNG() {
+async function doKappeSharePNG(markSent) {
     if (!validateKappeRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -9187,6 +9192,7 @@ async function doKappeSharePNG() {
         var blob = await res.blob();
         var file = new File([blob], getKappeExportFilename('png'), { type: 'image/png' });
         await navigator.share({ files: [file] });
+        if (markSent) markKappeAsSent();
     } catch (e) {
         if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -9207,10 +9213,10 @@ function showKappeExportMenu() {
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePDF(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePNG(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
     buttonsEl.innerHTML = checkboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +

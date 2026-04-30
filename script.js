@@ -1280,8 +1280,7 @@ function createOrderCard(orderData, expanded) {
         <div class="mobile-order-body">
             <div class="mobile-field${((cachedRequiredSettings || getDefaultRequiredSettings()).save.beskrivelse !== false) ? ' field-required' : ''}">
                 <label data-i18n="order_description">${t('order_description')}</label>
-                <button type="button" class="mobile-desc-btn">+ ${t('order_description')}</button>
-                <textarea class="mobile-order-desc" rows="1" readonly autocapitalize="sentences"></textarea>
+                <textarea class="mobile-order-desc" rows="1" autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-order-materials-section${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' field-required' : ''}">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
@@ -1311,45 +1310,23 @@ function createOrderCard(orderData, expanded) {
         </div>
         </div>`;
 
-    // Set description
+    // Set description — inline auto-resize uten øvre grense (samme mønster som merknad)
     const descInput = card.querySelector('.mobile-order-desc');
-    const descBtn = card.querySelector('.mobile-desc-btn');
-
-    if (isMobile()) {
-        // Mobile/tablet: use preview + fullscreen modal
-        descInput.setAttribute('data-full-value', desc);
-        const descLines = desc.split('\n').filter(l => l.trim());
-
-        // Always set up click handlers for both
-        descBtn.addEventListener('click', function() {
-            openTextEditor(descInput, t('order_description'));
-        });
-        descInput.addEventListener('click', function() {
-            openTextEditor(this, t('order_description'));
-        });
-
-        if (descLines.length === 0) {
-            // Empty: show button, hide textarea
-            descInput.style.display = 'none';
-        } else {
-            // Has content: show textarea, hide button
-            descBtn.style.display = 'none';
-            const previewLines = descLines.slice(0, 8);
-            const preview = descLines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
-            descInput.value = preview;
-        }
-    } else {
-        descBtn.style.display = 'none';
-        // PC: inline editable, no modal
-        descInput.value = desc;
-        descInput.removeAttribute('readonly');
-        descInput.style.resize = 'vertical';
-        descInput.style.minHeight = '80px';
-    }
+    descInput.value = desc;
+    descInput.addEventListener('focus', function() {
+        var scroller = _findScrollableAncestor(this);
+        this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
+    });
+    descInput.addEventListener('input', function() {
+        _autoResizeMerknadAndScroll(this);
+        updateOrderTitle(card);
+    });
+    requestAnimationFrame(function() {
+        _autoResizeMerknadAndScroll(descInput);
+    });
 
     // Update order title from description
     updateOrderTitle(card);
-    descInput.addEventListener('input', function() { updateOrderTitle(card); });
 
     // Set dager and timer data on card
     const dager = orderData.dager || [];
@@ -1633,7 +1610,11 @@ function openMaterialPicker(btn, onConfirm) {
         const specBadge = typeDot;
         const lmBadge = '';
         const antallPlaceholder = t('placeholder_quantity');
-        const disabledAttr = isChecked ? '' : ' disabled';
+        // Spec-launchere (mansjett/brannpakning/kabelhylse uten valgt størrelse) krever
+        // at bruker klikker navnet for å åpne spec-popup. For alle andre produkter
+        // skal Antall/enhet være direkte redigerbare — typing auto-aktiverer produktet.
+        const isSpecLauncher = isLauncher && !isChecked;
+        const disabledAttr = isSpecLauncher ? ' disabled' : '';
         const isClickableEnhet = hasVariants || (enhetLower && enhetLower !== 'stk');
         const enhetHtml = isClickableEnhet
             ? `<button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhetLower)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>`
@@ -1671,11 +1652,13 @@ function openMaterialPicker(btn, onConfirm) {
             } else {
                 // Standard material — use default variant as enhet if available
                 const state = pickerState[matObj.name] || pickerState[Object.keys(pickerState).find(k => k.toLowerCase() === matObj.name.toLowerCase())];
-                const isChecked = state && state.checked;
+                // Highlight kun når Antall har verdi (ikke ved klikk på navn).
+                const stateAntall = state ? (state.antall || '') : '';
+                const isChecked = !!(stateAntall && stateAntall.toString().trim());
                 var hasVariants = matObj.allowedUnits && matObj.allowedUnits.length > 0;
                 var defaultVariant = matObj.defaultUnit || (hasVariants ? (typeof matObj.allowedUnits[0] === 'string' ? matObj.allowedUnits[0] : (matObj.allowedUnits[0].plural || matObj.allowedUnits[0])) : '');
                 const enhet = state ? (state.enhet || defaultVariant || 'stk') : (defaultVariant || 'stk');
-                entries.push({ name: matObj.name, isChecked, antall: state ? (state.antall || '') : '', enhet: enhet, matType: 'standard', isSpecDerived: false, hasVariants: hasVariants });
+                entries.push({ name: matObj.name, isChecked, antall: stateAntall, enhet: enhet, matType: 'standard', isSpecDerived: false, hasVariants: hasVariants });
             }
         });
 
@@ -1694,7 +1677,12 @@ function openMaterialPicker(btn, onConfirm) {
             if (dupMatch) {
                 const baseName = dupMatch[1];
                 const baseMatObj = allMaterials.find(m => m.name === baseName);
-                entries.push({ name, displayName: baseName, isChecked: state.checked, antall: state.antall || '', enhet: state.enhet || '', matType: 'standard', isSpecDerived: true });
+                // For duplicates av vanlige produkter: highlight kun når Antall har verdi.
+                // For duplicates av spec-typer (sjelden): alltid highlighted (entry eksisterer).
+                const baseIsSpec = baseMatObj && (baseMatObj.type === 'mansjett' || baseMatObj.type === 'brannpakning' || baseMatObj.type === 'kabelhylse');
+                const dupAntall = state.antall || '';
+                const dupChecked = baseIsSpec ? state.checked : !!(dupAntall && dupAntall.toString().trim());
+                entries.push({ name, displayName: baseName, isChecked: dupChecked, antall: dupAntall, enhet: state.enhet || '', matType: 'standard', isSpecDerived: true });
             } else if (baseMat) {
                 // Spec-derived entry (e.g. "Kabelhylse ø50x250mm")
                 const enhet = state.enhet || 'stk';
@@ -1845,6 +1833,8 @@ function openMaterialPicker(btn, onConfirm) {
 
             nameDiv.addEventListener('click', function() {
                 if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
+                    // Spec-launcher: åpne spec-popup. Highlighting er knyttet til om
+                    // popup blir fylt (spec-derived entry opprettes), ikke selve klikket.
                     const baseMat = allMaterials.find(m => m.name === name);
                     openSpecPopup(name, function(spec, meterValue) {
                         if (meterValue !== undefined) {
@@ -1857,26 +1847,74 @@ function openMaterialPicker(btn, onConfirm) {
                     }, matType);
                     return;
                 }
-                // Standard material: toggle with default variant as enhet
-                var stdMatObj = allMaterials.find(m => m.name === name);
-                var stdVariants = stdMatObj && stdMatObj.allowedUnits && stdMatObj.allowedUnits.length > 0 ? stdMatObj.allowedUnits : null;
-                var defaultEnhet = stdVariants ? (typeof stdVariants[0] === 'string' ? stdVariants[0] : (stdVariants[0].plural || stdVariants[0])) : 'stk';
-                const isChecked = pickerState[name] && pickerState[name].checked;
-                if (isChecked) {
-                    pickerState[name].checked = false;
+                // Spec-derived sub-rad (f.eks. "Kabelhylse Ø50x250mm" eller "FSW__meter"):
+                // klikk på navn åpner spec-popup forhåndsutfylt med eksisterende verdier
+                // slik at bruker kan justere dimensjoner.
+                var meterMatch = name.match(/^(.+)__meter$/);
+                var derivedBase = null;
+                if (meterMatch) {
+                    derivedBase = allMaterials.find(function(m) { return m.name === meterMatch[1] && (m.type === 'mansjett' || m.type === 'brannpakning'); });
                 } else {
-                    pickerState[name] = pickerState[name] || { checked: false, antall: '', enhet: defaultEnhet };
-                    pickerState[name].checked = true;
-                    pickerState[name].antall = antallInput.value;
-                    if (!pickerState[name].enhet) pickerState[name].enhet = defaultEnhet;
+                    derivedBase = findBaseMaterial(name);
                 }
-                renderPickerList();
+                if (derivedBase) {
+                    var oldName = name;
+                    var oldState = pickerState[oldName] ? Object.assign({}, pickerState[oldName]) : {};
+                    var prefill = _parseSpecFromName(oldName, derivedBase.name);
+                    if (prefill && prefill.isMeter) prefill.meter = oldState.antall || '';
+                    openSpecPopup(derivedBase.name, function(spec, meterValue) {
+                        delete pickerState[oldName];
+                        if (meterValue !== undefined) {
+                            pickerState[derivedBase.name + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                        } else {
+                            var newName = derivedBase.name + ' ' + spec;
+                            // Bevar Antall fra gammel entry (men bare hvis dimensjons-modus,
+                            // siden meter-modus erstatter Antall med meter-verdi)
+                            pickerState[newName] = { checked: true, antall: oldState.antall || '', enhet: oldState.enhet || 'stk' };
+                        }
+                        renderPickerList();
+                    }, derivedBase.type, prefill);
+                    return;
+                }
+                // Vanlige produkter: klikk på navn har ingen effekt. Bruker må klikke
+                // direkte i Antall-feltet for å skrive en verdi. Highlighting styres
+                // utelukkende av Antall-verdien.
             });
 
+            // Highlighting-regler:
+            // - Spec-launcher: aldri highlighted (representerer kun en knapp for å åpne popup)
+            // - Spec-derived (entry opprettet via spec-popup): alltid highlighted
+            // - Vanlig produkt: highlighted iff Antall har verdi
+            var isSpecType = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
+            var isSpecDerived = name.endsWith('__meter') || !!findBaseMaterial(name);
+
+            function _ensureState() {
+                if (pickerState[name]) return;
+                var lookupName = name.replace(/__\d+$/, '');
+                var stdMatObj = allMaterials.find(function(m) { return m.name === lookupName; });
+                var stdVariants = stdMatObj && stdMatObj.allowedUnits && stdMatObj.allowedUnits.length > 0 ? stdMatObj.allowedUnits : null;
+                var defaultEnhet = stdVariants ? (typeof stdVariants[0] === 'string' ? stdVariants[0] : (stdVariants[0].plural || stdVariants[0])) : 'stk';
+                if (enhetBtn) {
+                    var btnEnhet = enhetBtn.getAttribute('data-enhet') || '';
+                    if (btnEnhet) defaultEnhet = btnEnhet;
+                }
+                pickerState[name] = { checked: false, antall: '', enhet: defaultEnhet };
+            }
+
             antallInput.addEventListener('input', function() {
-                // Only allow input if material is checked
-                if (!pickerState[name] || !pickerState[name].checked) return;
-                pickerState[name].antall = this.value;
+                if (isSpecType) return;  // spec-launcher: input disabled (krever popup)
+                _ensureState();
+                var val = this.value;
+                var hasValue = !!(val && val.toString().trim());
+                pickerState[name].antall = val;
+                if (isSpecDerived) {
+                    // Spec-derived: alltid valgt (entry eksisterer fordi spec ble fylt)
+                    pickerState[name].checked = true;
+                } else {
+                    // Vanlig produkt: valgt iff Antall har verdi
+                    pickerState[name].checked = hasValue;
+                    row.classList.toggle('picker-mat-selected', hasValue);
+                }
                 // Capture default enhet from button if not already set in state
                 if (!pickerState[name].enhet && enhetBtn) {
                     var btnEnhet = enhetBtn.getAttribute('data-enhet') || '';
@@ -1886,10 +1924,9 @@ function openMaterialPicker(btn, onConfirm) {
 
             if (enhetBtn) enhetBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                // Only allow unit picker if material is checked
-                if (!pickerState[name] || !pickerState[name].checked) return;
+                if (isSpecType) return;  // spec-launcher: enhet-knapp disabled
+                _ensureState();
                 // Find material object (handle __N keys)
-                if (!pickerState[name] || !pickerState[name].checked) return;
                 var lookupName = name.replace(/__\d+$/, '');
                 var matObj = allMaterials.find(m => m.name === lookupName) || findBaseMaterial(name);
                 var variants = matObj && matObj.allowedUnits && matObj.allowedUnits.length > 0 ? matObj.allowedUnits : null;
@@ -1976,14 +2013,50 @@ let specPopupCallback = null;
 let specPopupMatType = 'kabelhylse'; // 'mansjett' | 'brannpakning' | 'kabelhylse'
 let specMeterMode = false;
 
-function openSpecPopup(baseName, callback, matType) {
+// Parse en spec-streng tilbake til numeriske felt for pre-fyll i popup.
+// name = full entry-navn (f.eks. "Kabelhylse Ø50x250mm" eller "FSW__meter")
+// baseName = base-materialets navn (f.eks. "Kabelhylse", "FSW")
+// Returnerer { width, height, depth, rounds } eller { isMeter: true } eller null.
+function _parseSpecFromName(name, baseName) {
+    if (name.endsWith('__meter')) return { isMeter: true };
+    var specStr = name.substring(baseName.length + 1); // strip "BaseName "
+    // Format: "<dims>mm" optionally followed by " <N> lag" (brannpakning lag-suffix)
+    var lagMatch = specStr.match(/^(.+?)mm(?:\s+(\d+)\s+lag)?$/);
+    if (!lagMatch) return null;
+    var dims = lagMatch[1];
+    var rounds = lagMatch[2] ? parseInt(lagMatch[2], 10) : 1;
+    var result = { rounds: rounds };
+    var m;
+    if ((m = dims.match(/^(\d+)x(\d+)x(\d+)$/))) {
+        result.width = parseInt(m[1], 10);
+        result.height = parseInt(m[2], 10);
+        result.depth = parseInt(m[3], 10);
+    } else if ((m = dims.match(/^Ø(\d+)x(\d+)$/))) {
+        result.width = parseInt(m[1], 10);
+        result.depth = parseInt(m[2], 10);
+    } else if ((m = dims.match(/^(\d+)x(\d+)$/))) {
+        result.width = parseInt(m[1], 10);
+        result.height = parseInt(m[2], 10);
+    } else if ((m = dims.match(/^Ø(\d+)$/))) {
+        result.width = parseInt(m[1], 10);
+    } else {
+        return null;
+    }
+    return result;
+}
+
+function openSpecPopup(baseName, callback, matType, prefill) {
     specPopupMatType = matType || 'kabelhylse';
     const input = document.getElementById('spec-popup-input');
     const input2 = document.getElementById('spec-popup-input2');
     const input3 = document.getElementById('spec-popup-input3');
-    input.value = '';
-    input2.value = '';
+    input.value = (prefill && prefill.width != null) ? String(prefill.width) : '';
+    input2.value = (prefill && prefill.height != null) ? String(prefill.height) : '';
     input3.value = '';
+    if (prefill && !prefill.isMeter) {
+        if (specPopupMatType === 'brannpakning' && prefill.rounds != null) input3.value = String(prefill.rounds);
+        else if (specPopupMatType !== 'mansjett' && prefill.depth != null) input3.value = String(prefill.depth);
+    }
 
     document.getElementById('spec-popup-title').textContent = baseName;
 
@@ -2044,7 +2117,13 @@ function openSpecPopup(baseName, callback, matType) {
     input3.onkeydown = keyHandler;
     meterInput.onkeydown = keyHandler;
     document.getElementById('spec-popup').classList.add('active');
-    setTimeout(function() { input.focus(); }, 100);
+    if (prefill && prefill.isMeter) {
+        // Prefill i meter-modus: tving meter-modus og fyll inn meter-verdi
+        meterInput.value = prefill.meter || '';
+        toggleSpecMeterMode();
+    } else {
+        setTimeout(function() { input.focus(); }, 100);
+    }
 }
 
 function closeSpecPopup() {
@@ -2084,7 +2163,10 @@ function confirmSpecPopup() {
     if (specMeterMode) {
         var meterVal = document.getElementById('spec-popup-meter-input').value.trim().replace(',', '.');
         var meterNum = parseFloat(meterVal);
-        if (!meterVal || isNaN(meterNum) || meterNum <= 0) return;
+        if (!meterVal || isNaN(meterNum) || meterNum <= 0) {
+            showNotificationModal(t('dim_invalid_diameter'));
+            return;
+        }
         var displayVal = meterVal.replace('.', ',');
         if (specPopupCallback) specPopupCallback(null, displayVal);
         closeSpecPopup();
@@ -2094,7 +2176,10 @@ function confirmSpecPopup() {
     const val1 = document.getElementById('spec-popup-input').value.trim();
     const val2 = document.getElementById('spec-popup-input2').value.trim();
     const val3 = document.getElementById('spec-popup-input3').value.trim();
-    if (!val1) return;
+    if (!val1) {
+        showNotificationModal(t('dim_invalid_diameter'));
+        return;
+    }
 
     const num1 = parseInt(val1, 10);
     if (isNaN(num1) || num1 <= 0) {
@@ -2115,7 +2200,10 @@ function confirmSpecPopup() {
         }
     } else if (specPopupMatType === 'brannpakning') {
         // Brannpakning: bredde/Ø + høyde(valgfri) + runder(obligatorisk)
-        if (!num3 || num3 <= 0) return; // Runder er obligatorisk
+        if (!num3 || num3 <= 0) {
+            showNotificationModal(t('dim_invalid_diameter'));
+            return;
+        }
         var isSquare = num2 > 0;
         if (isSquare) {
             spec = num1 + 'x' + num2;
@@ -2128,7 +2216,10 @@ function confirmSpecPopup() {
         }
     } else {
         // Kabelhylse: bredde/Ø + høyde(valgfri) + dybde(obligatorisk)
-        if (!num3 || num3 <= 0) return; // Dybde er obligatorisk
+        if (!num3 || num3 <= 0) {
+            showNotificationModal(t('dim_invalid_diameter'));
+            return;
+        }
         if (num2 > 0) {
             spec = num1 + 'x' + num2 + 'x' + num3 + 'mm';
         } else {
@@ -3700,12 +3791,12 @@ function setFormData(data) {
         container.appendChild(card);
     });
     container.querySelectorAll('.mobile-order-desc').forEach(ta => {
-        if (ta.offsetHeight > 0) autoResizeTextarea(ta, 4);
+        if (ta.offsetHeight > 0) autoResizeTextarea(ta);
     });
     // Re-measure after browser has completed first paint (fixes initial load timing)
     requestAnimationFrame(function() {
         container.querySelectorAll('.mobile-order-desc').forEach(ta => {
-            if (ta.offsetHeight > 0) autoResizeTextarea(ta, 4);
+            if (ta.offsetHeight > 0) autoResizeTextarea(ta);
         });
     });
     renumberOrders();
