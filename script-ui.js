@@ -1945,9 +1945,14 @@ function renderMaterialSettingsItems() {
         const isExpanded = expandedSet.has(item.name);
         const matType = item.type || 'standard';
         const bodyContent = unitLocked ? '' : `${variantsHtml}${addRow}`;
+        const variantCount = (!unitLocked && item.allowedUnits) ? item.allowedUnits.length : 0;
+        const countBadge = variantCount > 0 ? `<span class="settings-material-variant-count" title="${variantCount} ${variantCount === 1 ? 'variant' : 'varianter'}">${variantCount}</span>` : '';
         return `<div class="settings-material-group${isExpanded ? ' expanded' : ''}">
             <div class="settings-material-header" onclick="toggleMaterialExpand(this)">
-                <span class="settings-material-name-display">${escapeHtml(item.name)}</span>
+                <div class="settings-material-name-wrap">
+                    <span class="settings-material-name-display">${escapeHtml(item.name)}</span>
+                    ${countBadge}
+                </div>
                 <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}">${t('material_type_' + matType)}</button>
                 <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
                 <button class="settings-material-edit-btn" onclick="event.stopPropagation();editSettingsMaterial(${idx})" title="Rediger navn">✏️</button>
