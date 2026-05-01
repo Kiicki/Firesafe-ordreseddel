@@ -515,6 +515,7 @@ if (auth) {
              SERVICE_STORAGE_KEY, SERVICE_ARCHIVE_KEY, SERVICE_DEFAULTS_KEY,
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
              KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
+             LEVERINGSADRESSE_KEY, MIN_INFO_KEY,
              'firesafe_lang', 'firesafe_plate_size']
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
@@ -887,12 +888,8 @@ function closeNotificationModal() {
     setTimeout(() => toast.classList.remove('success'), 300);
 }
 
-// Fullskjerm tekst-editor
-let currentEditingField = null;
-
 // Lagrer scroll-posisjoner for det underliggende viewet før vi skjuler det
 // (display: none → flex resetter scrollTop til 0).
-var _savedScrollPositions = null;
 function _saveScrollPositions() {
     var positions = { window: window.scrollY || window.pageYOffset || 0 };
     var activeView = document.querySelector('.view.active');
@@ -911,51 +908,6 @@ function _restoreScrollPositions(positions) {
         });
         window.scrollTo(0, positions.window);
     });
-}
-
-function openTextEditor(inputElement, label) {
-    currentEditingField = inputElement;
-    // Use data-full-value if available (contains multiline text), otherwise fall back to .value
-    const fullValue = inputElement.getAttribute('data-full-value');
-    document.getElementById('text-editor-textarea').value = fullValue !== null ? fullValue : inputElement.value;
-    document.getElementById('text-editor-title').textContent = label;
-    _savedScrollPositions = _saveScrollPositions();
-    document.getElementById('text-editor-modal').classList.add('active');
-    document.body.classList.add('text-editor-active');
-    document.getElementById('text-editor-textarea').focus();
-}
-
-function closeTextEditor() {
-    if (currentEditingField) {
-        const fullText = document.getElementById('text-editor-textarea').value;
-
-        // Description-felt: bruker preview/data-full-value-mønster (ingen merknad
-        // bruker text-editor lenger — alle merknader er nå inline auto-expanderende).
-        currentEditingField.setAttribute('data-full-value', fullText);
-        const lines = fullText.split('\n').filter(l => l.trim() !== '');
-        const descBtn = currentEditingField.parentElement.querySelector('.mobile-desc-btn');
-
-        if (lines.length === 0) {
-            // Empty: show button, hide textarea
-            currentEditingField.value = '';
-            currentEditingField.style.display = 'none';
-            if (descBtn) descBtn.style.display = '';
-        } else {
-            // Has content: show textarea, hide button
-            const previewLines = lines.slice(0, 8);
-            const preview = lines.length > 8 ? previewLines.join('\n') + '...' : previewLines.join('\n');
-            currentEditingField.value = preview;
-            currentEditingField.style.display = '';
-            if (descBtn) descBtn.style.display = 'none';
-        }
-        autoResizeTextarea(currentEditingField, 4);
-        currentEditingField.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    document.getElementById('text-editor-modal').classList.remove('active');
-    document.body.classList.remove('text-editor-active');
-    _restoreScrollPositions(_savedScrollPositions);
-    _savedScrollPositions = null;
-    currentEditingField = null;
 }
 
 // Validate DD.MM.YYYY format and return Date object or null
@@ -1076,9 +1028,24 @@ function _autoResizeMerknadAndScroll(textarea) {
     var newHeight = textarea.offsetHeight;
     if (newHeight === prevHeight || document.activeElement !== textarea) return;
 
+    // Scroll-target: alltid textareas egen bunn, med smal buffer over toolbar.
+    // Slik blir textareas bunn-border synlig rett over toolbar — neste felt
+    // (Materialer-label etc.) eller kortets border-bottom havner under toolbar
+    // og er ikke synlig. Dette er konsistent for både beskrivelse (første felt)
+    // og merknad (siste felt).
     var rect = textarea.getBoundingClientRect();
     var visualH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-    var targetBottom = visualH - 24;  // buffer for markørklaring
+    // Trekk fra fixed toolbar-høyde hvis den dekker bunnen av viewport (typisk når
+    // tastatur er lukket — toolbar er position:fixed bottom:0).
+    var toolbarEl = document.querySelector('.toolbar');
+    var toolbarH = 0;
+    if (toolbarEl) {
+        var tbStyle = getComputedStyle(toolbarEl);
+        if (tbStyle.position === 'fixed' && tbStyle.display !== 'none') {
+            toolbarH = toolbarEl.offsetHeight;
+        }
+    }
+    var targetBottom = visualH - toolbarH - 8;  // smal buffer — kun textareas egen bunn synlig
     var scroller = _findScrollableAncestor(textarea);
 
     if (newHeight > prevHeight) {
@@ -2464,7 +2431,7 @@ function updateOrderTitle(card) {
     var titleEl = card.querySelector('.mobile-order-title');
     if (!titleEl) return;
     var descInput = card.querySelector('.mobile-order-desc');
-    var fullText = descInput ? (descInput.getAttribute('data-full-value') || descInput.value) : '';
+    var fullText = descInput ? descInput.value : '';
     var firstLine = fullText.split('\n').find(function(l) { return l.trim(); }) || '';
     var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
     var idx = Array.prototype.indexOf.call(cards, card);
@@ -2623,7 +2590,7 @@ function toggleOrder(headerEl) {
         wrap.classList.add('expanded');
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
-        if (desc && desc.style.display !== 'none') autoResizeTextarea(desc, 4);
+        if (desc && desc.style.display !== 'none') autoResizeTextarea(desc);
         requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         wrap.classList.remove('expanded');
@@ -2915,7 +2882,7 @@ function getOrdersData() {
     const orders = [];
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(card => {
         const descInput = card.querySelector('.mobile-order-desc');
-        const description = descInput.getAttribute('data-full-value') || descInput.value;
+        const description = descInput.value;
         const dager = JSON.parse(card.getAttribute('data-dager') || '[]');
         const plan = card.querySelector('.plan-display').getAttribute('data-plan') || '';
         const merknad = card.querySelector('.mobile-order-merknad').value;
@@ -3840,7 +3807,7 @@ function validateRequiredFields() {
         }
         for (let i = 0; i < orderCards.length; i++) {
             const descInput = orderCards[i].querySelector('.mobile-order-desc');
-            const descVal = descInput.getAttribute('data-full-value') || descInput.value;
+            const descVal = descInput.value;
             if (!descVal.trim()) {
                 showNotificationModal(t('required_description', i + 1));
                 return false;

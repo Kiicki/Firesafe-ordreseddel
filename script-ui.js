@@ -732,6 +732,18 @@ function navigateBack() {
         }
         return;
     }
+    // From kappe view: honor previous view, then go back (samme mønster som service)
+    if (currentId === 'kappe-view') {
+        var target = (prev === 'saved-modal')
+            ? function() { closeKappeView(); showSavedForms(); }
+            : function() { closeKappeView(); showTemplateModal(); };
+        if (isOnFormPage() && hasUnsavedChanges()) {
+            showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
+        } else {
+            target();
+        }
+        return;
+    }
     // From Skjemaer: close and go to form
     if (currentId === 'saved-modal') {
         if (_selectMode) toggleSelectMode();
@@ -1581,7 +1593,7 @@ function getSettingsPageTitle(page) {
         'form-ordreseddel': t('form_title'),
         'form-service': t('tab_service'),
         'form-kappe': t('kappe_title'),
-        templates: t('settings_templates'),
+        templates: t('settings_templates_and_addresses'),
         language: t('settings_language'),
         materials: t('settings_materials'),
         plans: t('settings_plans')
@@ -2643,7 +2655,7 @@ function _renderSettingsTemplateListFromData(templates) {
     if (!listEl) return;
 
     if (!templates || templates.length === 0) {
-        listEl.innerHTML = '<div class="no-saved">' + t('no_templates_settings') + '</div>';
+        listEl.innerHTML = '<div class="settings-empty-msg">' + t('no_templates_settings') + '</div>';
         return;
     }
 
@@ -3728,8 +3740,7 @@ function hasAnyFormData() {
     const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
     for (const card of orderCards) {
         const descInput = card.querySelector('.mobile-order-desc');
-        const descVal = descInput.getAttribute('data-full-value') || descInput.value;
-        if (descVal.trim()) return true;
+        if (descInput.value.trim()) return true;
     }
 
     // Sjekk om det er en signatur
@@ -3743,7 +3754,6 @@ function clearForm() {
     document.querySelectorAll('#form-container input, #form-container textarea').forEach(el => el.value = '');
     document.querySelectorAll('#mobile-form input, #mobile-form textarea').forEach(el => {
         el.value = '';
-        el.removeAttribute('data-full-value');
     });
 
     // Clear signature
@@ -7596,9 +7606,7 @@ function openTemplatePicker() {
     var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
     _renderTemplatePickerList(cached, listEl);
 
-    if (!window._pickerSavedScroll) window._pickerSavedScroll = _saveScrollPositions();
     overlay.classList.add('active');
-    document.body.classList.add('picker-active');
     requestAnimationFrame(function() { overlay.classList.add('visible'); });
 
     // Refresh from Firestore
@@ -7620,9 +7628,6 @@ function closeTemplatePicker() {
     overlay.classList.remove('visible');
     setTimeout(function() {
         overlay.classList.remove('active');
-        document.body.classList.remove('picker-active');
-        _restoreScrollPositions(window._pickerSavedScroll);
-        window._pickerSavedScroll = null;
     }, 150);
     _kappeTemplateActive = false;
 }

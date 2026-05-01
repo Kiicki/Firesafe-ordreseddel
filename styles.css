@@ -692,7 +692,6 @@ body.template-modal-open > .top-bar {
 }
 
 /* Hide toolbar when fullscreen overlay is active */
-.text-editor-modal.active ~ .toolbar,
 .signature-overlay.active ~ .toolbar,
 .picker-overlay.active ~ .toolbar,
 .preview-overlay.active ~ .toolbar,
@@ -718,8 +717,7 @@ body:has(:is(
     .fakturaadresse-popup-backdrop,
     .unit-picker-backdrop,
     .signature-overlay,
-    .preview-overlay,
-    .text-editor-modal
+    .preview-overlay
 ).active) {
     overflow: hidden;
 }
@@ -1042,15 +1040,13 @@ body.settings-modal-open #view-form {
 /* Skjul views og top-bar når fullskjerm-overlay er åpen.
    Sikrer at kun overlay-innholdet er i DOM-renderingen — løser blant annet
    Firefox "Save Full Page"-screenshot som ellers fanger underliggende form.
-   Gjelder kun fullskjerm-opake overlays (preview, signatur, text-editor, picker),
-   ikke gjennomsiktige dialogbokser (confirm, spec-popup, unit-picker) der
-   form-en bevisst skal synes bak. */
+   Gjelder kun fullskjerm-opake overlays (preview, signatur, picker), ikke
+   gjennomsiktige dialogbokser (confirm, spec-popup, unit-picker) der form-en
+   bevisst skal synes bak. */
 body.preview-active .view,
 body.preview-active .top-bar,
 body.signature-active .view,
 body.signature-active .top-bar,
-body.text-editor-active .view,
-body.text-editor-active .top-bar,
 body.picker-active:not(.servicebil-inntak-mode) .view,
 body.picker-active:not(.servicebil-inntak-mode) .top-bar {
     display: none;
@@ -2031,18 +2027,9 @@ label.settings-default-label.field-required > span::after {
     box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2);
 }
 
-.mobile-order-desc {
-    resize: none;
-    overflow: hidden;
-    font-family: inherit;
-    line-height: 1.4;
-    min-height: 44px;
-    box-sizing: border-box;
-    /* Lite buffer under feltet ved scrollIntoView — matcher merknad-mønster. */
-    scroll-margin-bottom: 24px;
-}
+/* .mobile-order-desc deler styling med merknad-feltene — felles regel lengre nede.
+   Begge bruker inline auto-expand uten øvre grense via _autoResizeMerknadAndScroll. */
 
-.mobile-desc-btn,
 .mobile-plan-btn,
 .mobile-arbeidstid-btn {
     padding: 12px;
@@ -2057,7 +2044,6 @@ label.settings-default-label.field-required > span::after {
     width: 100%;
 }
 
-.mobile-desc-btn:active,
 .mobile-plan-btn:active,
 .mobile-arbeidstid-btn:active {
     background: #e8e8e8;
@@ -2282,6 +2268,9 @@ label.settings-default-label.field-required > span::after {
     padding: 4px 8px;
 }
 
+/* Inline auto-expand textareas (beskrivelse + merknad) — vokser uten øvre
+   grense via _autoResizeMerknadAndScroll-helperen. */
+.mobile-order-desc,
 .mobile-order-merknad,
 .kappe-line-merknad {
     resize: none;
@@ -3116,6 +3105,15 @@ label.settings-default-label.field-required > span::after {
     background: #E8501A;
     color: white;
 }
+/* Template-picker bruker spec-popup-mønsteret men trenger litt mer plass siden
+   prosjektnavn/oppdragsgiver kan være lange. Bredere sheet + høyere maks-høyde. */
+.template-picker-sheet {
+    max-width: 440px;
+    max-height: 85vh;
+}
+.template-picker-sheet .spec-popup-body {
+    max-height: 60vh;
+}
 .variant-popup-btn {
     display: block;
     width: 100%;
@@ -3401,70 +3399,6 @@ label.settings-default-label.field-required > span::after {
     transform: translateY(0);
 }
 
-/* Fullskjerm tekst-editor modal */
-.text-editor-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    height: 100dvh;
-    background: white;
-    z-index: 30;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.text-editor-modal.active {
-    display: flex;
-}
-
-.text-editor-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    border-bottom: 1px solid #ddd;
-    background: #f8f9fa;
-    flex-shrink: 0;
-}
-
-.text-editor-title {
-    font-weight: 600;
-    color: #333;
-    font-size: 13px;
-}
-
-.text-editor-done {
-    background: #E8501A;
-    color: white;
-    border: none;
-    padding: 6px 16px;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.text-editor-done:active {
-    background: #C94615;
-}
-
-.text-editor-textarea {
-    flex: 1;
-    width: 100%;
-    border: none;
-    padding: 15px;
-    font-size: 16px;
-    resize: none;
-    outline: none;
-    box-sizing: border-box;
-    font-family: inherit;
-    overflow: auto;
-    background: #fafafa;
-}
-
 /* Settings modal */
 .settings-page {
     display: block;
@@ -3694,6 +3628,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-top-right-radius: 0;
     margin-top: 0;
     padding: 0;
+}
+
+/* Tom-tilstand for innstillingslister (f.eks. "Ingen prosjekter") */
+.settings-empty-msg {
+    text-align: center;
+    padding: 24px 12px;
+    color: #888;
+    font-size: 13px;
 }
 
 .settings-collapsible-arrow {
@@ -4655,6 +4597,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-add-template-btn:active {
     background: #fef0eb;
 }
+/* Overstyr `.settings-group > *:not(:last-child) { border-bottom: 1px solid #f0f0f0 }`
+   som ellers erstatter knappens egen bunn-border med en lys grå strek. */
+.settings-group > .settings-add-template-btn:not(:last-child) {
+    border-bottom: 2px dashed #ddd;
+}
 .settings-template-item {
     display: flex;
     align-items: center;
@@ -5088,14 +5035,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     }
 
     /* Overlays with .overlay-content wrapper */
-    .picker-overlay,
-    .text-editor-modal {
+    .picker-overlay {
         background: rgba(0,0,0,0.5);
         align-items: center;
         justify-content: center;
     }
-    .picker-overlay > .overlay-content,
-    .text-editor-modal > .overlay-content {
+    .picker-overlay > .overlay-content {
         flex: 0 1 auto;
         max-width: 440px;
         width: 100%;
@@ -5239,6 +5184,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     text-align: center;
     color: #333;
 }
+.fakturaadresse-popup-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 .fakturaadresse-popup-body > input {
     width: 100%;
 }
@@ -5261,7 +5211,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .fakturaadresse-row {
     display: flex;
     gap: 8px;
-    margin-top: 8px;
 }
 .postnr-input { width: 80px; flex-shrink: 0; }
 .poststed-input { flex: 1; min-width: 0; }
@@ -6499,6 +6448,7 @@ body.kappe-view-open { background: #fff; }
     width: 100%;
     cursor: pointer;
     margin-top: 6px;
+    margin-bottom: 12px;
 }
 .kappe-line-body select.kappe-line-product {
     width: 100%;

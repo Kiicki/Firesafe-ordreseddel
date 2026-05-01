@@ -75,10 +75,6 @@ const TRANSLATIONS = {
         placeholder_quantity: 'Antall',
         placeholder_unit: 'Enhet',
 
-        // Text editor
-        text_editor_done: 'Ferdig',
-        text_editor_placeholder: 'Beskriv utført arbeid...',
-
         // Save menu
         save_menu_title: 'Lagre skjema',
         save_option: 'Lagre',
@@ -190,7 +186,6 @@ const TRANSLATIONS = {
         settings_section_autofyll: 'Autofyll',
         settings_section_required: 'Obligatoriske felt',
         settings_fields: 'Feltinnstillinger',
-        settings_templates: 'Prosjekter',
         settings_new_template: '+ Nytt prosjekt',
         settings_edit_template: 'Rediger prosjekt',
         settings_template_deactivate: 'Deaktiver',
@@ -363,8 +358,8 @@ const TRANSLATIONS = {
         settings_lager_section: 'Lager',
         lager_use: 'Bruk lager',
         lager_not_set: 'Ingen lager satt opp. Gå til Innstillinger → Prosjekter & lager.',
-        prosjekt_leveringsadresse_pick: 'Bruk prosjekt-adresse',
-        prosjekt_leveringsadresse_pick_title: 'Velg prosjekt-adresse',
+        prosjekt_leveringsadresse_pick: 'Bruk prosjekt',
+        prosjekt_leveringsadresse_pick_title: 'Velg prosjekt',
         no_prosjekt_leveringsadresser: 'Ingen prosjekter med leveringsadresse',
         settings_new_leveringsadresse: '+ Ny adresse',
         settings_edit_leveringsadresse: 'Rediger adresse',
@@ -602,10 +597,6 @@ const TRANSLATIONS = {
         placeholder_quantity: 'Quantity',
         placeholder_unit: 'Unit',
 
-        // Text editor
-        text_editor_done: 'Done',
-        text_editor_placeholder: 'Describe completed work...',
-
         // Save menu
         save_menu_title: 'Save form',
         save_option: 'Save',
@@ -717,7 +708,6 @@ const TRANSLATIONS = {
         settings_section_autofyll: 'Autofill',
         settings_section_required: 'Required fields',
         settings_fields: 'Field settings',
-        settings_templates: 'Projects',
         settings_new_template: '+ New project',
         settings_edit_template: 'Edit project',
         settings_template_deactivate: 'Deactivate',
@@ -890,8 +880,8 @@ const TRANSLATIONS = {
         settings_lager_section: 'Depot',
         lager_use: 'Use depot',
         lager_not_set: 'No depot set up. Go to Settings → Projects & depot.',
-        prosjekt_leveringsadresse_pick: 'Use project address',
-        prosjekt_leveringsadresse_pick_title: 'Pick project address',
+        prosjekt_leveringsadresse_pick: 'Use project',
+        prosjekt_leveringsadresse_pick_title: 'Pick project',
         no_prosjekt_leveringsadresser: 'No projects with delivery address',
         settings_new_leveringsadresse: '+ New address',
         settings_edit_leveringsadresse: 'Edit address',
