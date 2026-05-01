@@ -118,7 +118,7 @@
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_dato">Dato</label>
-                    <input type="text" id="mobile-signering-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ" disabled>
+                    <input type="text" id="mobile-signering-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ">
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_kundens_underskrift">Kundens underskrift</label>
@@ -256,7 +256,7 @@
                 </div>
                 <div class="footer-cell signature-cell">
                     <div class="signature-input">
-                        <input type="text" id="signering-dato" disabled>
+                        <input type="text" id="signering-dato">
                     </div>
                     <div class="signature-label">Dato</div>
                 </div>
@@ -579,13 +579,11 @@
                     </div>
                 </div>
 
-                <!-- Min info-side (felles autofyll for alle skjematyper) -->
+                <!-- Min info-side (kun personlig identitet) -->
                 <div id="settings-page-min-info" class="settings-page" style="display:none;">
-                    <div class="settings-collapsible-header open" onclick="toggleSettingsSection('mininfo-personalia')">
+                    <div class="settings-static-header">
                         <span data-i18n="settings_min_info_section_personalia">Personalia</span>
-                        <span class="settings-collapsible-arrow open" id="settings-arrow-mininfo-personalia">&rsaquo;</span>
                     </div>
-                    <div class="settings-collapsible-body open" id="settings-body-mininfo-personalia">
                     <div class="settings-group">
                         <div class="settings-autofill-row">
                             <div class="settings-autofill-field">
@@ -610,37 +608,6 @@
                                 <label class="settings-default-label"><span data-i18n="settings_min_info_epost">E-post</span><input type="email" id="mininfo-epost" inputmode="email" autocapitalize="off"></label>
                             </div>
                             <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-epost" checked><span class="settings-toggle-slider"></span></label>
-                        </div>
-                        <div class="settings-autofill-row">
-                            <div class="settings-autofill-field">
-                                <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="mininfo-sted"></label>
-                            </div>
-                            <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-sted" checked><span class="settings-toggle-slider"></span></label>
-                        </div>
-                    </div>
-
-                    </div>
-
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('mininfo-defaults')" style="margin-top: 16px;">
-                        <span data-i18n="settings_min_info_section_defaults">Standardverdier</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-mininfo-defaults">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-mininfo-defaults">
-                        <div class="settings-group">
-                            <div class="settings-toggle-item">
-                                <div class="settings-toggle-info">
-                                    <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
-                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
-                                </div>
-                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-toggle-item">
-                                <div class="settings-toggle-info">
-                                    <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
-                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
-                                </div>
-                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -695,9 +662,38 @@
                             <button type="button" class="settings-add-plan-btn" onclick="addSettingsPlan()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('ordreseddel-defaults')" style="margin-top: 16px;">
+                        <span data-i18n="settings_min_info_section_defaults">Standardverdier</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-ordreseddel-defaults">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-ordreseddel-defaults">
+                        <div class="settings-group">
+                            <div class="settings-autofill-row">
+                                <div class="settings-autofill-field">
+                                    <label class="settings-default-label"><span data-i18n="label_sted">Sted</span><input type="text" id="mininfo-sted"></label>
+                                </div>
+                                <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-sted" checked><span class="settings-toggle-slider"></span></label>
+                            </div>
+                            <div class="settings-toggle-item">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
+                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
+                                </div>
+                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
+                            </div>
+                            <div class="settings-toggle-item">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
+                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
+                                </div>
+                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Lageruttak/Service-skjema (obligatoriske felt) -->
+                <!-- Lageruttak/Service-skjema (obligatoriske felt + standardverdier) -->
                 <div id="settings-page-form-service" class="settings-page" style="display:none;">
                     <div class="settings-collapsible-header open" onclick="toggleSettingsSection('service-required')">
                         <span data-i18n="settings_section_required">Obligatoriske felt</span>
@@ -706,6 +702,29 @@
                     <div class="settings-collapsible-body open" id="settings-body-service-required">
                         <div id="required-service-content">
                             <div id="settings-fields-service-items" class="settings-list-container settings-group"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('service-defaults')" style="margin-top: 16px;">
+                        <span data-i18n="settings_min_info_section_defaults">Standardverdier</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-service-defaults">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-service-defaults">
+                        <div class="settings-group">
+                            <div class="settings-toggle-item">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
+                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
+                                </div>
+                                <label class="settings-toggle"><input type="checkbox" id="service-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
+                            </div>
+                            <div class="settings-toggle-item">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
+                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
+                                </div>
+                                <label class="settings-toggle"><input type="checkbox" id="service-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1513,8 +1532,8 @@
     </div>
 
     <script src="lang.js?v=202"></script>
-    <script src="script.js?v=268"></script>
-    <script src="script-ui.js?v=540"></script>
+    <script src="script.js?v=270"></script>
+    <script src="script-ui.js?v=542"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

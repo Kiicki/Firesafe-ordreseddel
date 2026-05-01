@@ -296,12 +296,6 @@ function setFormReadOnly(readOnly) {
     const fields = document.querySelectorAll('#mobile-form input, #mobile-form textarea, #mobile-form select, #form-container input, #form-container textarea, #form-container select');
     fields.forEach(el => el.disabled = readOnly);
 
-    // Signering-dato er alltid disabled (system-styrt, uavhengig av read-only-status)
-    var sd = document.getElementById('signering-dato');
-    var msd = document.getElementById('mobile-signering-dato');
-    if (sd) sd.disabled = true;
-    if (msd) msd.disabled = true;
-
     // Disable save button in header
     var headerSaveBtn = document.getElementById('header-save-btn');
     if (headerSaveBtn) headerSaveBtn.disabled = readOnly;
@@ -1708,6 +1702,7 @@ function showSettingsPage(page) {
     if (page === 'min-info') {
         _loadMinInfoSettings();
     } else if (page === 'form-ordreseddel') {
+        _loadMinInfoSettings();
         // Obligatoriske felt
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('save');
@@ -1747,6 +1742,7 @@ function showSettingsPage(page) {
                 renderRequiredSettingsItems('service');
             }
         });
+        _loadServiceDefaults();
     } else if (page === 'form-kappe') {
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('kappe');
@@ -9735,4 +9731,44 @@ function _updateMinInfoInputState(key) {
     var input = document.getElementById('mininfo-' + key);
     var cb = document.getElementById('mininfo-autofill-' + key);
     if (input && cb) input.disabled = !cb.checked;
+}
+
+var _serviceDefaultsInitialized = false;
+function _loadServiceDefaults() {
+    var info = getMinInfo();
+    ['uke', 'dato'].forEach(function(k) {
+        var cb = document.getElementById('service-autofill-' + k);
+        if (cb) cb.checked = info['autofill_' + k] !== false;
+    });
+    if (_serviceDefaultsInitialized) return;
+    _serviceDefaultsInitialized = true;
+    ['uke', 'dato'].forEach(function(k) {
+        var cb = document.getElementById('service-autofill-' + k);
+        if (!cb) return;
+        cb.addEventListener('change', function() {
+            var data = getMinInfo();
+            data['autofill_' + k] = cb.checked;
+            safeSetItem(MIN_INFO_KEY, JSON.stringify(data));
+            if (currentUser && db) {
+                db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').set(data)
+                    .catch(function(e) { console.error('Save min_info error:', e); });
+            }
+            var mirror = document.getElementById('mininfo-autofill-' + k);
+            if (mirror) mirror.checked = cb.checked;
+        });
+    });
+    if (currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').get().then(function(doc) {
+            if (!doc.exists) return;
+            var fresh = doc.data() || {};
+            safeSetItem(MIN_INFO_KEY, JSON.stringify(fresh));
+            if (document.body.classList.contains('settings-modal-open')
+                && document.getElementById('settings-page-form-service').style.display !== 'none') {
+                ['uke', 'dato'].forEach(function(k) {
+                    var cb = document.getElementById('service-autofill-' + k);
+                    if (cb) cb.checked = fresh['autofill_' + k] !== false;
+                });
+            }
+        }).catch(function(){});
+    }
 }

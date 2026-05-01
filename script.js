@@ -973,6 +973,7 @@ function getWeekNumber(date) {
 // Regelen er enkel — denne helperen kapsler den inn slik at alle kall-steder
 // (ny, last, startup, konvertering, eksport) ser lik ut.
 function _setSigneringDatoToday() {
+    if (getMinInfo().autofill_dato === false) return;
     var today = formatDate(new Date());
     var sd = document.getElementById('signering-dato');
     var msd = document.getElementById('mobile-signering-dato');
