@@ -3605,20 +3605,21 @@ function buildDesktopWorkLines() {
                 if (!isNaN(val)) orderTotal += val;
             });
             if (orderTotal > 0) {
-                const formatted = orderTotal % 1 === 0 ? orderTotal.toString() : orderTotal.toFixed(1).replace('.', ',');
+                const formatted = orderTotal.toFixed(1).replace('.', ',');
                 addRow('Tid:', formatted, 'timer', { alignRight: true });
                 totalTimer += orderTotal;
             }
         } else if (typeof order.timer === 'string' && order.timer) {
-            addRow('Tid:', order.timer.replace('.', ','), 'timer', { alignRight: true });
             const val = parseFloat(order.timer.replace(',', '.'));
+            const formatted = isNaN(val) ? order.timer.replace('.', ',') : val.toFixed(1).replace('.', ',');
+            addRow('Tid:', formatted, 'timer', { alignRight: true });
             if (!isNaN(val)) totalTimer += val;
         }
     });
 
     // Total timer (only if there are any)
     if (totalTimer > 0) {
-        const formatted = totalTimer % 1 === 0 ? totalTimer.toString() : totalTimer.toFixed(1).replace('.', ',');
+        const formatted = totalTimer.toFixed(1).replace('.', ',');
         addRow('Totalt:', formatted, 'timer', { bold: true, alignRight: true });
     }
 

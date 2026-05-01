@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=435">
+    <link rel="stylesheet" href="styles.css?v=473">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -494,31 +494,27 @@
                 <button class="template-editor-close" onclick="closeTemplateEditor()">&times;</button>
             </div>
             <div class="template-editor-body">
-                <div class="settings-collapsible-header" onclick="toggleSettingsSection('tpl-project')">
+                <div class="settings-static-header">
                     <span data-i18n="kappe_section_project">Prosjekt</span>
-                    <span class="settings-collapsible-arrow open" id="settings-arrow-tpl-project">&rsaquo;</span>
                 </div>
-                <div class="settings-collapsible-body open" id="settings-body-tpl-project">
-                    <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="tpl-edit-prosjektnavn"></label>
-                    <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="tpl-edit-prosjektnr"></label>
-                    <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="tpl-edit-oppdragsgiver"></label>
-                    <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
-                    <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span>
-                        <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template')">
-                            <span id="tpl-fakturaadresse-display-text" class="fakturaadresse-display-placeholder"></span>
-                            <span class="fakturaadresse-chevron">›</span>
-                        </div>
-                        <input type="hidden" id="tpl-edit-fakturaadresse">
-                    </label>
-                    <label class="settings-default-label"><span data-i18n="kappe_section_delivery">Leveringsadresse</span>
-                        <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template-levering')">
-                            <span id="tpl-leveringsadresse-display-text" class="fakturaadresse-display-placeholder"></span>
-                            <span class="fakturaadresse-chevron">›</span>
-                        </div>
-                        <input type="hidden" id="tpl-edit-leveringsadresse">
-                    </label>
-                </div>
-
+                <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="tpl-edit-prosjektnavn"></label>
+                <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="tpl-edit-prosjektnr"></label>
+                <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="tpl-edit-oppdragsgiver"></label>
+                <label class="settings-default-label"><span data-i18n="label_kundens_ref">Kundens ref.</span><input type="text" id="tpl-edit-kundensRef"></label>
+                <label class="settings-default-label"><span data-i18n="label_fakturaadresse">Fakturaadresse</span>
+                    <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template')">
+                        <span id="tpl-fakturaadresse-display-text" class="fakturaadresse-display-placeholder"></span>
+                        <span class="fakturaadresse-chevron">›</span>
+                    </div>
+                    <input type="hidden" id="tpl-edit-fakturaadresse">
+                </label>
+                <label class="settings-default-label"><span data-i18n="kappe_section_delivery">Leveringsadresse</span>
+                    <div class="fakturaadresse-display tpl-fakturaadresse-display" onclick="openFakturaadressePopup('template-levering')">
+                        <span id="tpl-leveringsadresse-display-text" class="fakturaadresse-display-placeholder"></span>
+                        <span class="fakturaadresse-chevron">›</span>
+                    </div>
+                    <input type="hidden" id="tpl-edit-leveringsadresse">
+                </label>
             </div>
             <div class="template-editor-buttons">
                 <button class="template-editor-save-btn" onclick="saveTemplateFromEditor()" data-i18n="toolbar_save">Lagre</button>
@@ -539,11 +535,10 @@
             <div class="modal-body" style="padding: 16px;">
                                 <!-- Hovedmeny -->
                 <div id="settings-page-menu" class="settings-page">
+                    <div class="settings-static-header">
+                        <span data-i18n="settings_section_skjemaer">Skjemaer</span>
+                    </div>
                     <div class="settings-group">
-                        <div class="settings-menu-item" onclick="showSettingsPage('min-info')">
-                            <span data-i18n="settings_min_info">Min info</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
-                        </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('form-ordreseddel')">
                             <span data-i18n="form_title">Ordreseddel</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
@@ -556,23 +551,25 @@
                             <span data-i18n="kappe_title">Kappeskjema</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
+                    </div>
+
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="settings_section_global">Global</span>
+                    </div>
+                    <div class="settings-group">
+                        <div class="settings-menu-item" onclick="showSettingsPage('min-info')">
+                            <span data-i18n="settings_min_info">Min info</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('templates')">
                             <span data-i18n="settings_templates_and_addresses">Maler</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
-                        </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('ordrenr')">
-                            <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
-                        </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('plans')">
-                            <span data-i18n="settings_plans">Plan / Etasjer</span>
-                            <span class="settings-menu-arrow">›</span>
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('materials')">
                             <span data-i18n="settings_materials">Materialer</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('language')">
+                        <div class="settings-menu-item" onclick="openLanguagePopup()">
                             <span data-i18n="settings_language">Språk / Language</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
@@ -582,40 +579,13 @@
                     </div>
                 </div>
 
-                <!-- Ordreseddelnummer-side -->
-                <div id="settings-page-ordrenr" class="settings-page" style="display:none;">
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('ranges')">
-                        <span><span data-i18n="settings_my_numbers">Mine numre</span> <span class="settings-collapsible-count" id="settings-count-ranges"></span></span>
-                        <span class="settings-collapsible-arrow open" id="settings-arrow-ranges">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body open" id="settings-body-ranges">
-                        <div id="settings-ranges"></div>
-                        <div class="settings-add-row">
-                            <input type="text" id="settings-new-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
-                            <input type="text" id="settings-new-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
-                            <button type="button" class="settings-add-btn" onclick="addSettingsRange()" data-i18n="btn_add">Legg til</button>
-                        </div>
-                        <div class="settings-status" id="settings-status"></div>
-                    </div>
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('giveaway')">
-                        <span><span data-i18n="settings_given_away">Gitt bort</span> <span class="settings-collapsible-count" id="settings-count-giveaway"></span></span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-giveaway">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-giveaway">
-                        <div id="settings-given-away"></div>
-                        <div class="settings-add-row">
-                            <input type="text" id="settings-give-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
-                            <input type="text" id="settings-give-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
-                            <button type="button" class="settings-give-btn" onclick="addGivenAwayRange()" data-i18n="settings_give_btn">Gi bort</button>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Min info-side (felles autofyll for alle skjematyper) -->
                 <div id="settings-page-min-info" class="settings-page" style="display:none;">
-                    <div class="settings-static-header">
+                    <div class="settings-collapsible-header open" onclick="toggleSettingsSection('mininfo-personalia')">
                         <span data-i18n="settings_min_info_section_personalia">Personalia</span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-mininfo-personalia">&rsaquo;</span>
                     </div>
+                    <div class="settings-collapsible-body open" id="settings-body-mininfo-personalia">
                     <div class="settings-group">
                         <div class="settings-autofill-row">
                             <div class="settings-autofill-field">
@@ -649,38 +619,94 @@
                         </div>
                     </div>
 
-                    <div class="settings-static-header" style="margin-top: 16px;">
+                    </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('mininfo-defaults')" style="margin-top: 16px;">
                         <span data-i18n="settings_min_info_section_defaults">Standardverdier</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-mininfo-defaults">&rsaquo;</span>
                     </div>
-                    <div class="settings-group">
-                        <div class="settings-toggle-item">
-                            <div class="settings-toggle-info">
-                                <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
-                                <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
+                    <div class="settings-collapsible-body" id="settings-body-mininfo-defaults">
+                        <div class="settings-group">
+                            <div class="settings-toggle-item">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
+                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
+                                </div>
+                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
                             </div>
-                            <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
-                        </div>
-                        <div class="settings-toggle-item">
-                            <div class="settings-toggle-info">
-                                <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
-                                <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
+                            <div class="settings-toggle-item">
+                                <div class="settings-toggle-info">
+                                    <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
+                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
+                                </div>
+                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
                             </div>
-                            <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
                         </div>
                     </div>
                 </div>
 
-                <!-- Ordreseddel-skjema (kun obligatoriske felt) -->
+                <!-- Ordreseddel-skjema (obligatoriske felt + ordrenr + plan, alle som collapsibles) -->
                 <div id="settings-page-form-ordreseddel" class="settings-page" style="display:none;">
-                    <div id="required-own-content">
-                        <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
+                    <div class="settings-collapsible-header open" onclick="toggleSettingsSection('save-required')">
+                        <span data-i18n="settings_section_required">Obligatoriske felt</span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-save-required">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body open" id="settings-body-save-required">
+                        <div id="required-own-content">
+                            <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('ordrenr-section')" style="margin-top: 16px;">
+                        <span data-i18n="settings_ordrenr">Ordreseddelnummer</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-ordrenr-section">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-ordrenr-section">
+                        <div class="settings-subsection-label">
+                            <span><span data-i18n="settings_my_numbers">Mine numre</span> <span class="settings-collapsible-count" id="settings-count-ranges"></span></span>
+                        </div>
+                        <div id="settings-ranges"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
+                            <input type="text" id="settings-new-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
+                            <button type="button" class="settings-add-btn" onclick="addSettingsRange()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                        <div class="settings-status" id="settings-status"></div>
+
+                        <div class="settings-subsection-label settings-subsection-label-spaced">
+                            <span><span data-i18n="settings_given_away">Gitt bort</span> <span class="settings-collapsible-count" id="settings-count-giveaway"></span></span>
+                        </div>
+                        <div id="settings-given-away"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-give-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
+                            <input type="text" id="settings-give-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
+                            <button type="button" class="settings-give-btn" onclick="addGivenAwayRange()" data-i18n="settings_give_btn">Gi bort</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('plans-section')" style="margin-top: 16px;">
+                        <span data-i18n="settings_plans">Plan / Etasjer</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-plans-section">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-plans-section">
+                        <div id="settings-plan-items" class="settings-list-container"></div>
+                        <div class="settings-add-plan-row">
+                            <input type="text" id="settings-new-plan" data-i18n-placeholder="settings_plan_placeholder" placeholder="Etasjenavn..." autocapitalize="characters" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingsPlan()}">
+                            <button type="button" class="settings-add-plan-btn" onclick="addSettingsPlan()" data-i18n="btn_add">Legg til</button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Lageruttak/Service-skjema (kun obligatoriske felt) -->
+                <!-- Lageruttak/Service-skjema (obligatoriske felt) -->
                 <div id="settings-page-form-service" class="settings-page" style="display:none;">
-                    <div id="required-service-content">
-                        <div id="settings-fields-service-items" class="settings-list-container settings-group"></div>
+                    <div class="settings-collapsible-header open" onclick="toggleSettingsSection('service-required')">
+                        <span data-i18n="settings_section_required">Obligatoriske felt</span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-service-required">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body open" id="settings-body-service-required">
+                        <div id="required-service-content">
+                            <div id="settings-fields-service-items" class="settings-list-container settings-group"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -720,51 +746,52 @@
                         </div>
                     </div>
 
-                    <div class="settings-static-header" style="margin-top: 16px;">
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-kerf')" style="margin-top: 16px;">
                         <span data-i18n="kappe_settings_kerf">Bladbredde (mm)</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-kerf">&rsaquo;</span>
                     </div>
-                    <div class="settings-kerf-row">
-                        <input type="text" id="settings-kappe-kerf" inputmode="decimal" pattern="[0-9,.]*" placeholder="2">
+                    <div class="settings-collapsible-body" id="settings-body-kappe-kerf">
+                        <div class="settings-kerf-row">
+                            <input type="text" id="settings-kappe-kerf" inputmode="decimal" pattern="[0-9,.]*" placeholder="2">
+                        </div>
                     </div>
 
-                    <div class="settings-static-header" style="margin-top: 16px;">
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-plate')" style="margin-top: 16px;">
                         <span data-i18n="kappe_settings_plate">Standard plate (mm)</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-plate">&rsaquo;</span>
                     </div>
-                    <div class="settings-plate-row">
-                        <input type="text" id="settings-kappe-plate-lengde" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
-                        <span class="settings-plate-x">×</span>
-                        <input type="text" id="settings-kappe-plate-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
-                    </div>
-                </div>
-
-                <!-- Materialer-side -->
-                <div id="settings-page-plans" class="settings-page settings-page-flex" style="display:none;">
-                    <div class="settings-page-scroll">
-                        <div id="settings-plan-items" class="settings-list-container"></div>
-                    </div>
-                    <div class="settings-page-footer settings-add-plan-row">
-                        <input type="text" id="settings-new-plan" data-i18n-placeholder="settings_plan_placeholder" placeholder="Etasjenavn..." autocapitalize="characters" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingsPlan()}">
-                        <button type="button" class="settings-add-plan-btn" onclick="addSettingsPlan()" data-i18n="btn_add">Legg til</button>
+                    <div class="settings-collapsible-body" id="settings-body-kappe-plate">
+                        <div class="settings-plate-row">
+                            <input type="text" id="settings-kappe-plate-lengde" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                            <span class="settings-plate-x">×</span>
+                            <input type="text" id="settings-kappe-plate-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
+                        </div>
                     </div>
                 </div>
 
                 <div id="settings-page-materials" class="settings-page" style="display:none;">
+                    <div class="settings-static-header">
+                        <span data-i18n="settings_materials">Materialer</span>
+                    </div>
                     <div id="settings-material-items" class="settings-list-container"></div>
                     <div class="settings-add-material-row">
-                        <div class="settings-add-material-top">
-                            <label class="settings-add-label">Nytt materiale <span class="spec-required-star">*</span></label>
-                            <input type="text" id="settings-new-material" autocapitalize="sentences">
+                        <div class="settings-add-material-row-top">
+                            <div class="settings-add-material-field">
+                                <label class="settings-add-label">Nytt materiale <span class="spec-required-star">*</span></label>
+                                <input type="text" id="settings-new-material" autocapitalize="sentences">
+                            </div>
                         </div>
-                        <div class="settings-add-material-mid">
-                            <label class="settings-add-label">Type <span class="spec-required-star">*</span></label>
-                            <select id="settings-new-material-type" class="settings-material-type-select" onchange="updateSettingsUnitFields()">
-                                <option value="standard" data-i18n="material_type_standard_desc">Standard — antall + enhet</option>
-                                <option value="mansjett" data-i18n="material_type_mansjett_desc">Mansjett — bredde/Ø, høyde</option>
-                                <option value="brannpakning" data-i18n="material_type_brannpakning_desc">Brannpakning — bredde/Ø, høyde, runder</option>
-                                <option value="kabelhylse" data-i18n="material_type_kabelhylse_desc">Kabelhylse — bredde/Ø, høyde, dybde</option>
-                            </select>
-                        </div>
-                        <div class="settings-add-material-btm">
+                        <div class="settings-add-material-row-bottom">
+                            <div class="settings-add-material-field">
+                                <label class="settings-add-label">Type <span class="spec-required-star">*</span></label>
+                                <button type="button" id="settings-new-material-type-btn" class="settings-material-type-btn" data-value="standard" data-i18n="material_type_standard" onclick="event.stopPropagation();openNewMatTypePicker()">Standard</button>
+                                <select id="settings-new-material-type" style="display:none" onchange="updateSettingsUnitFields()">
+                                    <option value="standard">Standard</option>
+                                    <option value="mansjett">Mansjett</option>
+                                    <option value="brannpakning">Brannpakning</option>
+                                    <option value="kabelhylse">Kabelhylse</option>
+                                </select>
+                            </div>
                             <div class="settings-add-unit-fields">
                                 <label class="settings-add-label">Variant (valgfri)</label>
                                 <input type="text" id="settings-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron, plate">
@@ -777,50 +804,41 @@
 
                 <!-- Maler-side -->
                 <div id="settings-page-templates" class="settings-page" style="display:none;">
-                    <div class="settings-static-header">
+                    <div class="settings-collapsible-header open" onclick="toggleSettingsSection('templates-prosjekter')">
                         <span data-i18n="settings_prosjekter_section">Prosjekter</span>
+                        <span class="settings-collapsible-arrow open" id="settings-arrow-templates-prosjekter">&rsaquo;</span>
                     </div>
-                    <div class="settings-group settings-prosjekter-section">
-                        <button class="settings-add-template-btn" onclick="showTemplateEditor()" data-i18n="settings_new_template">+ Nytt prosjekt</button>
-                        <div id="settings-template-list"></div>
-                    </div>
-
-                    <div class="settings-group" style="margin-top: 16px;">
-                        <div class="settings-collapsible-header" onclick="toggleSettingsSection('tpl-required')">
-                            <span data-i18n="settings_tpl_required">Obligatoriske felt</span>
-                            <span class="settings-collapsible-arrow" id="settings-arrow-tpl-required">&rsaquo;</span>
-                        </div>
-                        <div class="settings-collapsible-body" id="settings-body-tpl-required">
-                            <div id="settings-fields-template-items" class="settings-list-container"></div>
+                    <div class="settings-collapsible-body open" id="settings-body-templates-prosjekter">
+                        <div class="settings-group settings-prosjekter-section">
+                            <button class="settings-add-template-btn" onclick="showTemplateEditor()" data-i18n="settings_new_template">+ Nytt prosjekt</button>
+                            <div id="settings-template-list"></div>
                         </div>
                     </div>
 
-                    <div class="settings-static-header" style="margin-top: 16px;">
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('tpl-required')" style="margin-top: 16px;">
+                        <span data-i18n="settings_tpl_required">Obligatoriske felt</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-tpl-required">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-tpl-required">
+                        <div id="settings-fields-template-items" class="settings-list-container"></div>
+                    </div>
+
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('templates-lager')" style="margin-top: 16px;">
                         <span data-i18n="settings_lager_section">Lager</span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-templates-lager">&rsaquo;</span>
                     </div>
-                    <div class="settings-group settings-lager-inline" id="settings-lager-inline">
-                        <input type="text" id="lager-inline-veiadresse" placeholder="Gateadresse" data-i18n-placeholder="placeholder_gate" autocapitalize="sentences">
-                        <div class="settings-lager-row">
-                            <input type="text" id="lager-inline-postnr" placeholder="Postnr." data-i18n-placeholder="placeholder_postnr" inputmode="numeric" class="lager-postnr">
-                            <input type="text" id="lager-inline-poststed" placeholder="Poststed" data-i18n-placeholder="placeholder_poststed" autocapitalize="sentences" class="lager-poststed">
+                    <div class="settings-collapsible-body" id="settings-body-templates-lager">
+                        <div class="settings-group settings-lager-inline" id="settings-lager-inline">
+                            <input type="text" id="lager-inline-veiadresse" placeholder="Gateadresse" data-i18n-placeholder="placeholder_gate" autocapitalize="sentences">
+                            <div class="settings-lager-row">
+                                <input type="text" id="lager-inline-postnr" placeholder="Postnr." data-i18n-placeholder="placeholder_postnr" inputmode="numeric" class="lager-postnr">
+                                <input type="text" id="lager-inline-poststed" placeholder="Poststed" data-i18n-placeholder="placeholder_poststed" autocapitalize="sentences" class="lager-poststed">
+                            </div>
                         </div>
                     </div>
                 </div>
 
 
-                <!-- Språk-side -->
-                <div id="settings-page-language" class="settings-page" style="display:none;">
-                    <div class="settings-lang-options settings-group" id="settings-lang-options">
-                        <div class="settings-lang-option" onclick="setLanguage('no')">
-                            <span>Norsk</span>
-                            <span class="settings-lang-check" id="lang-check-no">&#10003;</span>
-                        </div>
-                        <div class="settings-lang-option" onclick="setLanguage('en')">
-                            <span>English</span>
-                            <span class="settings-lang-check" id="lang-check-en"></span>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -1157,6 +1175,28 @@
         </div>
     </div>
 
+    <!-- Språk / Language popup -->
+    <div class="spec-popup-backdrop" id="language-popup" onclick="if(event.target===this)closeLanguagePopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span data-i18n="settings_language">Språk / Language</span>
+            </div>
+            <div class="spec-popup-body">
+                <div class="settings-lang-option" onclick="setLanguage('no');closeLanguagePopup()">
+                    <span>Norsk</span>
+                    <span class="settings-lang-check" id="lang-check-no">&#10003;</span>
+                </div>
+                <div class="settings-lang-option" onclick="setLanguage('en');closeLanguagePopup()">
+                    <span>English</span>
+                    <span class="settings-lang-check" id="lang-check-en"></span>
+                </div>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeLanguagePopup()" data-i18n="btn_cancel">Avbryt</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Signature overlay -->
     <div class="signature-overlay" id="signature-overlay">
         <div class="signature-overlay-header">
@@ -1472,9 +1512,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=199"></script>
-    <script src="script.js?v=267"></script>
-    <script src="script-ui.js?v=526"></script>
+    <script src="lang.js?v=202"></script>
+    <script src="script.js?v=268"></script>
+    <script src="script-ui.js?v=539"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

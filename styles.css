@@ -3,6 +3,12 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+html {
+    /* Reserver alltid plass til scrollbar så content ikke skifter sideveis
+       når man bytter mellom sider/modi der scrollbar dukker opp/forsvinner. */
+    scrollbar-gutter: stable;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -1047,9 +1053,14 @@ body.preview-active .view,
 body.preview-active .top-bar,
 body.signature-active .view,
 body.signature-active .top-bar,
-body.picker-active:not(.servicebil-inntak-mode) .view,
-body.picker-active:not(.servicebil-inntak-mode) .top-bar {
-    display: none;
+/* På mobil (<768px) skjules view bak picker-overlay siden picker er fullscreen.
+   På tablet/PC (>=768px) er picker en sentrert popup, så view skal forbli synlig
+   bak en dimmet bakgrunn — ellers ser bruker bare grå/hvit body. */
+@media screen and (max-width: 767px) {
+    body.picker-active:not(.servicebil-inntak-mode) .view,
+    body.picker-active:not(.servicebil-inntak-mode) .top-bar {
+        display: none;
+    }
 }
 
 /* Mobile views use position: fixed; bottom: var(--toolbar-h),
@@ -1092,16 +1103,13 @@ body.picker-active:not(.servicebil-inntak-mode) .top-bar {
 body.service-view-open #view-form {
     display: none;
 }
-body.service-view-open {
-    background: #fff;
-}
 
 .container.service-view {
     flex: 1;
     background: #fff;
-    margin: 0;
+    margin: 0 auto;
     padding: 0;
-    max-width: none;
+    max-width: 800px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
@@ -1150,11 +1158,15 @@ body.servicebil-inntak-mode #picker-overlay.active {
     height: calc(100dvh - 96px);
 }
 /* I servicebil-inntak-modus brukes header-Lagre som primær-handling.
-   Picker-headerens egne knapper (Avbryt/Materialer/Ok) er overflødige siden
-   picker ER hele inntak-skjemaet og Lagre i servicebil-headeren bekrefter +
-   lagrer. Skjul picker-header for å unngå visuell duplisering. */
-body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
+   Avbryt/Ok-knappene er overflødige siden picker ER inntak-skjemaet og Lagre i
+   servicebil-headeren bekrefter+lagrer. Behold "Materialer"-tittelen for kontekst,
+   men skjul knappene. */
+body.servicebil-inntak-mode #picker-overlay .picker-overlay-cancel,
+body.servicebil-inntak-mode #picker-overlay .picker-overlay-done {
     display: none;
+}
+body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
+    justify-content: center;
 }
 
 /* Bil (Vehicle Inventory) view */
@@ -1830,7 +1842,6 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     background: white;
     padding: 15px;
     width: 100%;
-    flex: 1;
     overflow-anchor: none;
 }
 
@@ -2229,21 +2240,25 @@ label.settings-default-label.field-required > span::after {
 
 .settings-add-plan-row input {
     flex: 1;
-    padding: 8px 10px;
-    border: 1px solid #ccc;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
 }
 
 .settings-add-plan-btn {
-    padding: 8px 16px;
+    background: #E8501A;
+    color: white;
     border: none;
-    border-radius: 6px;
-    background: #c0392b;
-    color: #fff;
-    font-size: 14px;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+    white-space: nowrap;
+}
+.settings-add-plan-btn:active {
+    opacity: 0.8;
 }
 
 .settings-plan-item {
@@ -2554,6 +2569,45 @@ label.settings-default-label.field-required > span::after {
 
 .picker-overlay.active {
     display: flex;
+}
+
+/* Tablet og PC (>= 768px): material-picker som sentrert popup, ikke fullscreen.
+   Tom plass på siden ser bedre ut enn full-bredde med stort tomrom. Mobil
+   beholder fullscreen-stil. */
+@media screen and (min-width: 768px) {
+    .picker-overlay {
+        background: rgba(0,0,0,0.5);
+        align-items: center;
+        justify-content: center;
+    }
+    .picker-overlay > .overlay-content {
+        flex: 0 1 auto;
+        max-width: 480px;
+        width: 100%;
+        max-height: calc(100vh - 80px);
+        background: white;
+        box-shadow: 0 0 30px rgba(0,0,0,0.3);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    /* Servicebil Inntak: picker ER inntak-skjemaet, så den skal fylle samme
+       800px-kortet som resten av Servicebil. Transparent overlay-bakgrunn så
+       grå body vises på sidene; innholdet stretches til full bredde innenfor
+       service-view-kortet, ikke en liten 480px-popup midt i tomrommet. */
+    body.servicebil-inntak-mode .picker-overlay {
+        background: transparent;
+        align-items: stretch;
+        justify-content: stretch;
+    }
+    body.servicebil-inntak-mode .picker-overlay > .overlay-content {
+        max-width: 800px;
+        max-height: none;
+        width: 100%;
+        height: 100%;
+        margin: 0 auto;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        border-radius: 0;
+    }
 }
 
 .picker-overlay-header {
@@ -3512,8 +3566,11 @@ label.settings-default-label.field-required > span::after {
     opacity: 0.5;
 }
 
-/* Hide header back button on settings sub-pages (settings-back-btn takes over) */
-body.settings-subpage-open .header-back-btn {
+/* Hide header back button on settings sub-pages (settings-back-btn takes over).
+   Scope til #settings-header — ellers skjuler regelen tilbakeknappen i Servicebil/
+   Kappe/Ordreseddel-headere når settings-subpage-open ikke er ryddet opp etter at
+   bruker forlot Innstillinger via toolbar-navigasjon (Hjem/Lagret/Verktøy). */
+body.settings-subpage-open #settings-header .header-back-btn {
     display: none;
 }
 
@@ -3532,10 +3589,10 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-range-item {
     display: flex;
     align-items: center;
-    padding: 10px 4px 10px 12px;
-    background: #f5f5f5;
-    border-radius: 6px;
-    margin-bottom: 6px;
+    padding: 4px 4px 4px 12px;
+    background: transparent;
+    border-radius: 0;
+    margin-bottom: 0;
     font-size: 14px;
     color: #333;
 }
@@ -3630,12 +3687,49 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     padding: 0;
 }
 
-/* Tom-tilstand for innstillingslister (f.eks. "Ingen prosjekter") */
-.settings-empty-msg {
-    text-align: center;
-    padding: 24px 12px;
-    color: #888;
-    font-size: 13px;
+/* Materials page: header + list + add-form should appear as one continuous box.
+   Override the default `+ *` styles so items span edge-to-edge with no inset
+   padding, and remove bottom rounding so the add-row sits flush below. */
+#settings-page-materials .settings-static-header + #settings-material-items {
+    padding: 0;
+    border-radius: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+#settings-page-materials .settings-static-header + #settings-material-items:empty {
+    border: none;
+}
+#settings-page-materials .settings-add-material-row {
+    border-left: 1px solid #e0e0e0;
+    border-right: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 0 0 8px 8px;
+    margin-bottom: 8px;
+}
+
+/* Statisk under-seksjon-label inni en collapsible body (f.eks. Mine numre / Gitt bort
+   under Ordreseddelnummer). Ikke klikkbar — bare visuelt skille. */
+.settings-subsection-label {
+    padding: 6px 12px 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+}
+/* Variant brukt på 2. og senere subsection-labels for å gi luft over */
+.settings-subsection-label-spaced {
+    margin-top: 8px;
+}
+
+/* Skjul tomme list-containere og status-felt så de ikke etterlater gap når lister
+   er tomme (f.eks. ingen ranges, ingen plan-items, ingen materialer). */
+.settings-status:empty,
+.settings-list-container:empty,
+#settings-ranges:empty,
+#settings-given-away:empty,
+#settings-template-list:empty,
+#settings-kappe-product-items:empty,
+#settings-kappe-stift-items:empty {
+    display: none;
 }
 
 .settings-collapsible-arrow {
@@ -3685,10 +3779,10 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 4px 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    margin-bottom: 6px;
+    padding: 10px 4px 10px 12px;
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
     font-size: 14px;
     color: #333;
 }
@@ -3702,25 +3796,31 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border: none;
     border-radius: 0;
     margin-bottom: 0;
-    border-bottom: 1px solid #eee;
 }
 
 .settings-collapsible-body .settings-range-item {
     background: none;
     border-radius: 0;
     margin-bottom: 0;
-    border-bottom: 1px solid #eee;
 }
 
 .settings-collapsible-body .settings-toggle-item {
     border: none;
     border-radius: 0;
     margin-bottom: 0;
-    border-bottom: 1px solid #eee;
 }
 
 .settings-collapsible-body .settings-list-container {
     margin-bottom: 0;
+}
+
+/* Når en .settings-group er nested inni en collapsible-body, fjern egen ramme +
+   margin så det ikke blir dobbel border / ekstra gap. Body-en gir allerede ramme. */
+.settings-collapsible-body .settings-group {
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    overflow: visible;
 }
 
 
@@ -3757,8 +3857,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #e74c3c;
     cursor: pointer;
     padding: 0;
-    width: 40px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3842,6 +3942,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-type-btn::after {
     content: ' ▾';
     font-size: 9px;
+}
+/* Type-knappen i nytt-materiale-add-row skal være full bredde og matche
+   input-feltet "Nytt materiale" stil-mesig. */
+#settings-new-material-type-btn {
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 14px;
+    text-align: left;
+    border-radius: 6px;
 }
 .mat-type-backdrop {
     position: fixed;
@@ -3949,22 +4058,23 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 /* Material settings — grouped card layout */
 .settings-material-group {
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
+    border: none;
+    border-radius: 0;
     overflow: hidden;
-    margin-bottom: 8px;
+    margin-bottom: 0;
 }
 .settings-material-header {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 4px 10px 12px;
-    background: #f8f9fa;
+    padding: 4px 4px 4px 12px;
+    background: transparent;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    font-size: 14px;
 }
 .settings-material-header:active:not(:has(.settings-list-edit-input:active)) {
-    background: #f0f1f2;
+    background: #f8f9fa;
 }
 .settings-material-expand {
     font-size: 20px;
@@ -3997,8 +4107,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 2px 4px;
-    font-size: 14px;
+    padding: 6px 10px;
+    font-size: 16px;
     opacity: 0.5;
 }
 .settings-material-edit-btn:active {
@@ -4007,22 +4117,22 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-unit-item {
     display: flex;
     align-items: center;
-    padding: 8px 8px 8px 16px;
+    padding: 10px 8px 10px 16px;
     border-top: 1px solid #f0f0f0;
-    font-size: 13px;
+    font-size: 14px;
     color: #555;
 }
 .settings-material-unit-default {
     cursor: pointer;
-    padding: 8px 12px 8px 4px;
-    margin: -8px 0 -8px -4px;
+    padding: 10px 12px 10px 4px;
+    margin: -10px 0 -10px -4px;
     font-size: 16px;
     line-height: 1;
 }
 .settings-material-unit-star {
     color: #E8501A;
     font-size: 18px;
-    padding: 8px 12px 8px 4px;
+    padding: 10px 12px 10px 4px;
     line-height: 1;
 }
 .settings-material-unit-star.empty {
@@ -4263,40 +4373,41 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 
 .settings-add-material-row {
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 8px;
+    border-top: 1px solid #e0e0e0;
+    background: transparent;
 }
-.settings-add-material-row .settings-add-material-top {
-    padding: 10px 12px;
-    background: #f8f9fa;
+.settings-add-material-row-top {
+    padding: 8px 12px 0;
 }
-.settings-add-material-row .settings-add-material-top input {
+.settings-add-material-row-bottom {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    padding: 8px 12px;
+}
+.settings-add-material-field {
+    flex: 1;
+    min-width: 0;
+}
+.settings-add-material-row input,
+.settings-add-material-row .settings-material-type-btn {
     width: 100%;
     padding: 6px 8px;
     border: 1px solid #ddd;
-    border-radius: 6px;
+    border-radius: 4px;
     font-size: 14px;
     box-sizing: border-box;
     outline: none;
     color: #333;
     background: #fff;
+    height: 32px;
 }
-.settings-add-material-row .settings-add-material-top input:focus {
+.settings-add-material-row input:focus {
     border-color: #E8501A;
 }
 .settings-input-error {
     border-color: #e74c3c !important;
     background: #fef5f5 !important;
-}
-.settings-add-material-row .settings-add-material-mid {
-    padding: 0 12px 10px;
-    background: #f8f9fa;
-}
-.settings-add-material-row .settings-add-material-mid .settings-material-type-select {
-    width: 100%;
-    font-size: 12px;
 }
 .settings-add-label {
     display: block;
@@ -4312,7 +4423,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 .settings-add-unit-fields input {
     width: 100%;
-    flex: none;
 }
 .settings-add-unit-fields input:disabled,
 #settings-new-material-variant:disabled {
@@ -4323,32 +4433,10 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     -webkit-text-fill-color: #999;
     opacity: 1;
 }
-.settings-add-material-row .settings-add-material-btm {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    padding: 8px 12px;
-    border-top: 1px solid #f0f0f0;
-}
-.settings-add-material-row .settings-add-material-btm input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 13px;
-    box-sizing: border-box;
-    outline: none;
-    color: #555;
-    background: #fff;
-}
-.settings-add-material-row .settings-add-material-btm input:focus {
-    border-color: #E8501A;
-}
 .settings-add-material-row .settings-add-btn {
     flex-shrink: 0;
     margin: 0;
-    text-align: center;
+    height: 32px;
 }
 
 .settings-add-btn {
@@ -4425,15 +4513,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 13px;
     font-weight: 500;
     color: #555;
-    padding: 12px 14px;
+    padding: 8px 12px;
     margin-bottom: 0;
 }
 .settings-default-label input,
 .settings-default-label .settings-select {
     display: block;
     width: 100%;
-    margin-top: 4px;
-    padding: 8px 10px;
+    margin-top: 3px;
+    padding: 6px 8px;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
@@ -4445,30 +4533,24 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     outline: none;
     border-color: #E8501A;
 }
-.settings-group .settings-default-label:not(:last-child) {
-    border-bottom: 1px solid #eee;
-}
 .settings-group {
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     overflow: hidden;
     margin-bottom: 16px;
 }
-.settings-group > *:not(:last-child) {
-    border-bottom: 1px solid #f0f0f0;
-}
 .settings-group .settings-toggle-item {
     border: none;
     border-radius: 0;
     margin-bottom: 0;
-    padding: 16px 12px;
+    padding: 10px 12px;
 }
 .settings-autofill-row {
     display: flex;
     align-items: flex-end;
     gap: 10px;
     padding-right: 12px;
-    padding-bottom: 12px;
+    padding-bottom: 8px;
 }
 .settings-autofill-field {
     flex: 1;
@@ -4511,8 +4593,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .required-fields-grouped {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 12px;
+    gap: 0;
+    padding: 0;
 }
 .required-fields-subsection {
     display: flex;
@@ -4524,7 +4606,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #888;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 0 4px 6px;
+    padding: 12px 12px 6px;
 }
 .required-fields-subgroup {
     border: 1px solid #e0e0e0;
@@ -4536,16 +4618,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border: none;
     border-radius: 0;
     margin-bottom: 0;
-    padding: 14px 12px;
-}
-.required-fields-subgroup .settings-toggle-item:not(:last-child) {
-    border-bottom: 1px solid #f0f0f0;
-}
-.settings-collapsible-body .required-fields-subgroup .settings-toggle-item {
-    border-bottom: none;
-}
-.settings-collapsible-body .required-fields-subgroup .settings-toggle-item:not(:last-child) {
-    border-bottom: 1px solid #f0f0f0;
+    padding: 10px 12px;
 }
 
 .settings-tabs {
@@ -4605,10 +4678,10 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-template-item {
     display: flex;
     align-items: center;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    border: none;
+    border-radius: 0;
     padding: 10px 4px 10px 12px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
     cursor: pointer;
 }
 .settings-template-item:active {
@@ -4756,16 +4829,16 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-lang-options {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
 }
 
 .settings-lang-option {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
-    background: #f8f8f8;
-    border-radius: 8px;
+    padding: 12px 16px;
+    background: #fff;
+    border-radius: 0;
     cursor: pointer;
     font-size: 15px;
     font-weight: 500;
@@ -4773,7 +4846,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 
 .settings-lang-option:active {
-    background: #eee;
+    background: #f5f5f5;
 }
 
 .settings-lang-check {
@@ -4900,7 +4973,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     left: 0;
     right: 0;
     bottom: 0;
-    background: #e8e8e8;
+    background: #fff;
     z-index: 45;
     flex-direction: column;
 }
@@ -5034,23 +5107,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         border-radius: 0 0 8px 8px; /* Only bottom corners rounded */
     }
 
-    /* Overlays with .overlay-content wrapper */
-    .picker-overlay {
-        background: rgba(0,0,0,0.5);
-        align-items: center;
-        justify-content: center;
-    }
-    .picker-overlay > .overlay-content {
-        flex: 0 1 auto;
-        max-width: 440px;
-        width: 100%;
-        max-height: calc(100vh - 80px);
-        background: white;
-        box-shadow: 0 0 30px rgba(0,0,0,0.3);
-        border-radius: 10px;
-        overflow: hidden;
-    }
-
     /* Signature overlay - constrain to same width as preview on desktop */
     .signature-overlay {
         background: #f0f0f0;
@@ -5114,6 +5170,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     }
     .container.form-view {
         overflow-y: visible;
+    }
+
+    /* Service- og Kappe-view: skygge rundt sentrert 800px-kort, samme som modaler. */
+    .container.service-view,
+    .container.kappe-view {
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
 }
 
@@ -5243,7 +5305,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 .settings-lager-inline > input {
     width: 100%;
-    padding: 8px 10px;
+    padding: 6px 8px;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
@@ -6285,13 +6347,12 @@ body.bulk-select-active .toolbar {
 
 /* Kappe-view shell (samme mønster som service-view) */
 body.kappe-view-open #view-form { display: none; }
-body.kappe-view-open { background: #fff; }
 .container.kappe-view {
     flex: 1;
     background: #fff;
-    margin: 0;
+    margin: 0 auto;
     padding: 0;
-    max-width: none;
+    max-width: 800px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
@@ -6340,9 +6401,9 @@ body.kappe-view-open { background: #fff; }
 }
 .settings-kerf-row input {
     width: 80px;
-    padding: 10px;
-    font-size: 15px;
-    border: 1px solid #ccc;
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
     border-radius: 6px;
     text-align: center;
 }
@@ -6354,9 +6415,9 @@ body.kappe-view-open { background: #fff; }
 }
 .settings-plate-row input {
     width: 100px;
-    padding: 10px;
-    font-size: 15px;
-    border: 1px solid #ccc;
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
     border-radius: 6px;
     text-align: center;
 }
@@ -6611,18 +6672,14 @@ body.kappe-view-open { background: #fff; }
 /* Brand+dimension nested struktur i settings */
 .kappe-brand-block {
     background: #fff;
-    border: 1px solid #e5e5e5;
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
+    padding: 0;
+    margin-bottom: 0;
 }
 .kappe-brand-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 10px 12px;
 }
 /* (Brand+dim action button styling konsolidert i .kappe-product-item-blokk over) */
 .kappe-brand-name {
@@ -6638,16 +6695,15 @@ body.kappe-view-open { background: #fff; }
 .kappe-dim-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 8px;
+    gap: 0;
+    margin-bottom: 0;
 }
 .kappe-dim-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 0 6px 12px;
-    background: #fafafa;
-    border-radius: 4px;
+    padding: 8px 12px 8px 24px;
+    background: transparent;
 }
 .kappe-dim-name {
     color: #333;
@@ -6664,6 +6720,7 @@ body.kappe-view-open { background: #fff; }
     display: flex;
     gap: 6px;
     align-items: center;
+    padding: 8px 12px 8px 24px;
 }
 .kappe-dim-input {
     flex: 1;

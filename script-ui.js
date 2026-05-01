@@ -99,7 +99,7 @@ function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     _bilHistoryRendered = false;
-    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'service-view-open', 'kappe-view-open', 'calculator-modal-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'calculator-modal-open');
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_form_type');
     sessionStorage.removeItem('firesafe_hent_tab');
@@ -797,21 +797,25 @@ function updatePreviewScale() {
 
     var header = document.querySelector('.preview-overlay-header');
 
-    // Center via block-level margin auto. Requires explicit width (800px set elsewhere)
-    // and preview-scroll as a block container (not flex).
-    fc.style.marginLeft = 'auto';
-    fc.style.marginRight = 'auto';
-
     if (scale < 1) {
-        fc.style.transformOrigin = 'top center';
-        fc.style.transform = 'scale(' + scale + ')';
+        // Skaler fra top-venstre + translateX for å sentrere visuelt. Negativ
+        // margin-right kompenserer for at layout-boksen fortsatt er 800px (transform
+        // endrer ikke layout) — uten dette får parent horisontal scroll.
+        var renderedWidth = 800 * scale;
+        var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
+        fc.style.transformOrigin = 'top left';
+        fc.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
         fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
+        fc.style.marginRight = -(800 - renderedWidth - translateX) + 'px';
+        fc.style.marginLeft = '0';
         if (header) {
-            header.style.maxWidth = (fc.offsetWidth * scale) + 'px';
+            header.style.maxWidth = renderedWidth + 'px';
         }
     } else {
         fc.style.transform = '';
         fc.style.transformOrigin = '';
+        fc.style.marginLeft = 'auto';
+        fc.style.marginRight = 'auto';
         if (header) {
             header.style.maxWidth = '';
         }
@@ -865,27 +869,43 @@ function openPreview() {
         }
     });
 
-    // Recalculate on browser zoom / window resize / device rotation
-    window._previewResizeHandler = updatePreviewScale;
+    // Recalculate on browser zoom / window resize / device rotation.
+    // Wrap i 200ms timeout for orientationchange (lar viewport settle), og rens
+    // + re-init pinch-zoom (samme mønster som service/kappe-preview for konsistens).
+    window._previewResizeHandler = function() {
+        clearTimeout(window._previewOrdreOrientTimer);
+        window._previewOrdreOrientTimer = setTimeout(function() {
+            updatePreviewScale();
+            cleanupPreviewPinchZoom();
+            var scrollEl = document.getElementById('preview-scroll');
+            var fcEl = document.getElementById('form-container');
+            if (!scrollEl || !fcEl) return;
+            var baseScale = Math.min(scrollEl.clientWidth / 800, 1);
+            if (baseScale < 1) initPreviewPinchZoom(scrollEl, fcEl, baseScale);
+        }, 200);
+    };
     window.addEventListener('resize', window._previewResizeHandler);
-    // On orientationchange, wait for viewport to settle before recalculating
-    window._previewOrientHandler = function() { setTimeout(updatePreviewScale, 200); };
-    window.addEventListener('orientationchange', window._previewOrientHandler);
+    window.addEventListener('orientationchange', window._previewResizeHandler);
 }
 
 function closePreview() {
-    // Remove resize listener
+    // Remove resize/orientation listener (samme handler bundet til begge events)
     if (window._previewResizeHandler) {
         window.removeEventListener('resize', window._previewResizeHandler);
+        window.removeEventListener('orientationchange', window._previewResizeHandler);
         window._previewResizeHandler = null;
     }
-    if (window._previewOrientHandler) {
-        window.removeEventListener('orientationchange', window._previewOrientHandler);
-        window._previewOrientHandler = null;
+    if (window._previewOrdreOrientTimer) {
+        clearTimeout(window._previewOrdreOrientTimer);
+        window._previewOrdreOrientTimer = null;
     }
     if (window._svcPreviewOrientTimer) {
         clearTimeout(window._svcPreviewOrientTimer);
         window._svcPreviewOrientTimer = null;
+    }
+    if (window._kappePreviewOrientTimer) {
+        clearTimeout(window._kappePreviewOrientTimer);
+        window._kappePreviewOrientTimer = null;
     }
 
     cleanupPreviewPinchZoom();
@@ -1589,14 +1609,11 @@ function buildOrderNrSettings() {
 function getSettingsPageTitle(page) {
     const titles = {
         'min-info': t('settings_min_info'),
-        ordrenr: t('settings_ordrenr'),
         'form-ordreseddel': t('form_title'),
         'form-service': t('tab_service'),
         'form-kappe': t('kappe_title'),
         templates: t('settings_templates_and_addresses'),
-        language: t('settings_language'),
-        materials: t('settings_materials'),
-        plans: t('settings_plans')
+        materials: t('settings_materials')
     };
     return titles[page] || '';
 }
@@ -1617,6 +1634,19 @@ function _showSettingsDirectly() {
     showView('settings-modal');
     document.body.classList.add('settings-modal-open');
     updateToolbarState();
+}
+
+function openLanguagePopup() {
+    // Oppdater haker basert på currentLang
+    var checkNo = document.getElementById('lang-check-no');
+    var checkEn = document.getElementById('lang-check-en');
+    if (checkNo) checkNo.textContent = currentLang === 'no' ? '✓' : '';
+    if (checkEn) checkEn.textContent = currentLang === 'en' ? '✓' : '';
+    document.getElementById('language-popup').classList.add('active');
+}
+
+function closeLanguagePopup() {
+    document.getElementById('language-popup').classList.remove('active');
 }
 
 function closeSettingsModal() {
@@ -1643,6 +1673,8 @@ function showSettingsMenu() {
 }
 
 function showSettingsPage(page) {
+    // Backward-compat: ordrenr og plans er nå innebygde collapsibles på Ordreseddel-siden
+    if (page === 'ordrenr' || page === 'plans') page = 'form-ordreseddel';
     var pageEl2 = document.getElementById('settings-page-' + page);
     if (!pageEl2) {
         showSettingsMenu();
@@ -1667,30 +1699,16 @@ function showSettingsPage(page) {
 
     // Mark global settings pages as read-only for non-admins
     var pageEl = document.getElementById('settings-page-' + page);
-    if ((page === 'materials' || page === 'plans') && !isAdmin) {
+    if (page === 'materials' && !isAdmin) {
         pageEl.classList.add('settings-readonly');
     } else {
         pageEl.classList.remove('settings-readonly');
     }
 
-    if (page === 'ordrenr') {
-        document.getElementById('settings-new-start').value = '';
-        document.getElementById('settings-new-end').value = '';
-        document.getElementById('settings-give-start').value = '';
-        document.getElementById('settings-give-end').value = '';
-        var cachedOrdrenr = _getCachedOrderNrSettings();
-        // Show cached immediately if available
-        if (cachedOrdrenr) {
-            _applyOrderNrSettings(cachedOrdrenr);
-        }
-        // Refresh from Firebase
-        getOrderNrSettings().then(function(settings) {
-            if (document.body.classList.contains('settings-modal-open'))
-                _applyOrderNrSettings(settings);
-        });
-    } else if (page === 'min-info') {
+    if (page === 'min-info') {
         _loadMinInfoSettings();
     } else if (page === 'form-ordreseddel') {
+        // Obligatoriske felt
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('save');
         getRequiredSettings().then(function(settings) {
@@ -1698,6 +1716,27 @@ function showSettingsPage(page) {
                 cachedRequiredSettings = settings;
                 renderRequiredSettingsItems('save');
             }
+        });
+        // Ordreseddelnummer (innebygd som collapsible)
+        document.getElementById('settings-new-start').value = '';
+        document.getElementById('settings-new-end').value = '';
+        document.getElementById('settings-give-start').value = '';
+        document.getElementById('settings-give-end').value = '';
+        var cachedOrdrenr2 = _getCachedOrderNrSettings();
+        if (cachedOrdrenr2) _applyOrderNrSettings(cachedOrdrenr2);
+        getOrderNrSettings().then(function(settings) {
+            if (document.body.classList.contains('settings-modal-open'))
+                _applyOrderNrSettings(settings);
+        });
+        // Plan / Etasjer (innebygd som collapsible)
+        var storedPlans2 = localStorage.getItem(PLANS_KEY);
+        settingsPlans = storedPlans2 ? sortPlans(JSON.parse(storedPlans2)) : [];
+        document.getElementById('settings-new-plan').value = '';
+        renderPlanSettingsItems();
+        getPlanSettings().then(function(plans) {
+            if (!document.body.classList.contains('settings-modal-open')) return;
+            settingsPlans = sortPlans(plans || []);
+            renderPlanSettingsItems();
         });
     } else if (page === 'form-service') {
         cachedRequiredSettings = _getCachedRequiredSettings();
@@ -1725,9 +1764,6 @@ function showSettingsPage(page) {
         renderKappeStiftSizeSettings();
         _loadKappeKerfSetting();
         _loadKappePlateSetting();
-    } else if (page === 'language') {
-        document.getElementById('lang-check-no').textContent = currentLang === 'no' ? '\u2713' : '';
-        document.getElementById('lang-check-en').textContent = currentLang === 'en' ? '\u2713' : '';
     } else if (page === 'templates') {
         _renderSettingsTemplateListFromData(safeParseJSON(TEMPLATE_KEY, []));
         cachedRequiredSettings = _getCachedRequiredSettings();
@@ -1756,34 +1792,13 @@ function showSettingsPage(page) {
         document.getElementById('settings-new-material-type').value = 'standard';
         document.getElementById('settings-new-material-variant').value = '';
         updateSettingsUnitFields();
-        // Show loading if cache is empty and user is logged in (Firebase has data)
-        if (settingsMaterials.length === 0 && currentUser && db) {
-            document.getElementById('settings-material-items').innerHTML = '<div class="settings-loading">' + t('loading') + '</div>';
-        } else {
-            renderMaterialSettingsItems();
-        }
+        renderMaterialSettingsItems();
         // Refresh from Firebase
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
             settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
             settingsMaterials.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
             renderMaterialSettingsItems();
-        });
-    } else if (page === 'plans') {
-        var storedPlans = localStorage.getItem(PLANS_KEY);
-        settingsPlans = storedPlans ? sortPlans(JSON.parse(storedPlans)) : [];
-        document.getElementById('settings-new-plan').value = '';
-        // Show loading if cache is empty and user is logged in
-        if (settingsPlans.length === 0 && currentUser && db) {
-            document.getElementById('settings-plan-items').innerHTML = '<div class="settings-loading">' + t('loading') + '</div>';
-        } else {
-            renderPlanSettingsItems();
-        }
-        // Refresh from Firebase
-        getPlanSettings().then(function(plans) {
-            if (!document.body.classList.contains('settings-modal-open')) return;
-            settingsPlans = sortPlans(plans || []);
-            renderPlanSettingsItems();
         });
     }
 }
@@ -1903,7 +1918,7 @@ async function loadMaterialSettingsToModal() {
 function renderMaterialSettingsItems() {
     const container = document.getElementById('settings-material-items');
     if (settingsMaterials.length === 0) {
-        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_materials') + '</div>';
+        container.innerHTML = '';
         return;
     }
     // Remember which groups were expanded
@@ -1955,7 +1970,7 @@ function addMaterialUnit(idx) {
     if (!mat.allowedUnits) mat.allowedUnits = [];
     const container = document.getElementById('settings-material-items');
     const group = container.children[idx];
-    const addRow = group.querySelector('[data-tab="units"] .settings-material-unit-add');
+    const addRow = group.querySelector('.settings-material-unit-add');
     if (!addRow) return;
 
     // Check if already editing
@@ -2185,12 +2200,12 @@ function editSettingsMaterial(idx) {
     });
 }
 
-function openMatTypeDropdown(btn, idx) {
-    // Remove any existing dropdown
+// Felles popup-renderer for type-velger. Brukes både for eksisterende materiale
+// (changeMaterialType) og for nytt materiale (oppdaterer skjult select + button-label).
+function _renderMatTypePicker(currentValue, onSelect) {
     const existing = document.querySelector('.mat-type-backdrop');
     if (existing) { closeMatTypeDropdown(); return; }
 
-    const current = btn.dataset.value;
     const types = [
         { value: 'standard', icon: '#', desc: t('material_type_standard_desc'), lm: false },
         { value: 'mansjett', icon: '○', desc: t('material_type_mansjett_desc'), lm: true },
@@ -2198,23 +2213,18 @@ function openMatTypeDropdown(btn, idx) {
         { value: 'kabelhylse', icon: '⬡', desc: t('material_type_kabelhylse_desc'), lm: false }
     ];
 
-    // Backdrop
     const backdrop = document.createElement('div');
     backdrop.className = 'mat-type-backdrop';
     backdrop.onclick = () => closeMatTypeDropdown();
 
-    // Dropdown
     const dropdown = document.createElement('div');
     dropdown.className = 'mat-type-dropdown';
 
-
-
     types.forEach(({ value, icon, desc, lm }) => {
-        const isActive = value === current;
+        const isActive = value === currentValue;
         const item = document.createElement('div');
         item.className = 'mat-type-dropdown-item' + (isActive ? ' active' : '');
         const lmBadge = lm ? '<span class="mat-type-lm-badge">→ løpemeter</span>' : '';
-
         item.innerHTML = `
             <div class="mat-type-icon">${icon}</div>
             <div class="mat-type-text">
@@ -2223,22 +2233,43 @@ function openMatTypeDropdown(btn, idx) {
             </div>
             <div class="mat-type-check">${isActive ? '✓' : ''}</div>
         `;
-
         item.onclick = (e) => {
             e.stopPropagation();
             closeMatTypeDropdown();
-            if (value !== current) changeMaterialType(idx, value);
+            if (value !== currentValue) onSelect(value);
         };
         dropdown.appendChild(item);
     });
 
     document.body.appendChild(backdrop);
     document.body.appendChild(dropdown);
-
-    // Animate in
     requestAnimationFrame(() => {
         backdrop.classList.add('visible');
         dropdown.classList.add('visible');
+    });
+}
+
+function openMatTypeDropdown(btn, idx) {
+    _renderMatTypePicker(btn.dataset.value, function(value) {
+        changeMaterialType(idx, value);
+    });
+}
+
+// Åpne picker for nytt-materiale type-knappen. Oppdaterer den skjulte select-en
+// og knappens label, og kaller updateSettingsUnitFields for å vise/skjule variant-felt.
+function openNewMatTypePicker() {
+    var sel = document.getElementById('settings-new-material-type');
+    if (!sel) return;
+    _renderMatTypePicker(sel.value, function(newValue) {
+        sel.value = newValue;
+        var btn = document.getElementById('settings-new-material-type-btn');
+        if (btn) {
+            btn.dataset.value = newValue;
+            btn.textContent = t('material_type_' + newValue);
+            // Oppdater data-i18n så applyTranslations beholder riktig label ved språk-bytte
+            btn.setAttribute('data-i18n', 'material_type_' + newValue);
+        }
+        if (typeof updateSettingsUnitFields === 'function') updateSettingsUnitFields();
     });
 }
 
@@ -2323,7 +2354,7 @@ function savePlanSettings() {
 function renderPlanSettingsItems() {
     var container = document.getElementById('settings-plan-items');
     if (settingsPlans.length === 0) {
-        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_plans') + '</div>';
+        container.innerHTML = '';
         return;
     }
     var html = '';
@@ -2655,7 +2686,7 @@ function _renderSettingsTemplateListFromData(templates) {
     if (!listEl) return;
 
     if (!templates || templates.length === 0) {
-        listEl.innerHTML = '<div class="settings-empty-msg">' + t('no_templates_settings') + '</div>';
+        listEl.innerHTML = '';
         return;
     }
 
@@ -3020,7 +3051,7 @@ async function deleteTemplateFromSettings(templateId) {
         // Show empty message if no items left
         var listEl = document.getElementById('settings-template-list');
         if (listEl && !listEl.querySelector('.settings-template-item')) {
-            listEl.innerHTML = '<div class="no-saved">' + t('no_templates_settings') + '</div>';
+            listEl.innerHTML = '';
         }
 
         // Firebase in background
@@ -3455,7 +3486,7 @@ function renderSettingsRanges() {
     const container = document.getElementById('settings-ranges');
     const countEl = document.getElementById('settings-count-ranges');
     if (settingsRanges.length === 0) {
-        container.innerHTML = '<div style="font-size:13px;color:#999;margin-bottom:8px;">' + t('settings_no_ranges') + '</div>';
+        container.innerHTML = '';
         if (countEl) countEl.textContent = '';
         return;
     }
@@ -5577,14 +5608,19 @@ function updateServicePreviewScale() {
     var scale = Math.min(availWidth / 1250, 1);
 
     if (scale < 1) {
+        // Sentrer skalert form i viewport via translateX. Negativ margin-right
+        // kompenserer for at layout-boksen fortsatt er 1250px slik at parent ikke
+        // får horisontal scroll.
+        var renderedWidth = 1250 * scale;
+        var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
         container.style.transformOrigin = 'top left';
-        container.style.transform = 'scale(' + scale + ')';
+        container.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
         container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
-        container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
-        container.style.marginLeft = '';
+        container.style.marginRight = -(1250 - renderedWidth - translateX) + 'px';
+        container.style.marginLeft = '0';
         if (header) {
-            header.style.maxWidth = (container.offsetWidth * scale) + 'px';
-            header.style.margin = '0';
+            header.style.maxWidth = renderedWidth + 'px';
+            header.style.margin = '0 auto';
         }
     } else {
         container.style.transform = '';
@@ -5866,7 +5902,12 @@ document.getElementById('mobile-signature-preview').addEventListener('click', fu
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Set toolbar height CSS variable (replaces hardcoded 60px)
+    // Set toolbar height CSS variable (replaces hardcoded 60px).
+    // Må re-syncs når toolbar's faktiske størrelse endres etter initial render —
+    // f.eks. når fonter laster, safe-area-inset-bottom blir applikert (iOS),
+    // eller orientering/viewport endres. Bug-symptom uten ResizeObserver: noen
+    // ganger blir form-actions (Vis/Eksport/Ferdig) skjult bak toolbar fordi
+    // --toolbar-h ble satt for tidlig med feil verdi.
     var toolbar = document.querySelector('.toolbar');
     function syncToolbarHeight() {
         if (toolbar) {
@@ -5874,7 +5915,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     syncToolbarHeight();
-    // Recalculate on rotation / resize so form content doesn't end up behind toolbar
+    // Catch any toolbar-size endring (font-load, safe-area-inset, content-endring)
+    if (toolbar && typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(syncToolbarHeight).observe(toolbar);
+    }
+    // Backup ved full sideinnlasting (fonter ferdig, alt rendret)
+    window.addEventListener('load', syncToolbarHeight);
     window.addEventListener('resize', syncToolbarHeight);
     window.addEventListener('orientationchange', function() { setTimeout(syncToolbarHeight, 200); });
 
@@ -9295,12 +9341,14 @@ function updateKappePreviewScale() {
     var scale = Math.min(availWidth / 1250, 1);
 
     if (scale < 1) {
+        var renderedWidth = 1250 * scale;
+        var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
         container.style.transformOrigin = 'top left';
-        container.style.transform = 'scale(' + scale + ')';
+        container.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
         container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
-        container.style.marginRight = (-(container.offsetWidth * (1 - scale))) + 'px';
-        container.style.marginLeft = '';
-        if (header) { header.style.maxWidth = (container.offsetWidth * scale) + 'px'; header.style.margin = '0'; }
+        container.style.marginRight = -(1250 - renderedWidth - translateX) + 'px';
+        container.style.marginLeft = '0';
+        if (header) { header.style.maxWidth = renderedWidth + 'px'; header.style.margin = '0 auto'; }
     } else {
         container.style.transform = '';
         container.style.transformOrigin = '';
@@ -9345,7 +9393,7 @@ function renderKappeProductSettings() {
     var countEl = document.getElementById('settings-count-kappe-products');
     if (countEl) countEl.textContent = products.length ? '(' + products.length + ')' : '';
     if (!products.length) {
-        container.innerHTML = '<div class="no-saved">' + t('kappe_settings_no_products') + '</div>';
+        container.innerHTML = '';
         return;
     }
     container.innerHTML = products.map(function(p, i) {
@@ -9507,7 +9555,7 @@ function renderKappeStiftSizeSettings() {
     var countEl = document.getElementById('settings-count-kappe-stift');
     if (countEl) countEl.textContent = sizes.length ? '(' + sizes.length + ')' : '';
     if (!sizes.length) {
-        container.innerHTML = '<div class="no-saved">' + t('kappe_settings_no_stift') + '</div>';
+        container.innerHTML = '';
         return;
     }
     container.innerHTML = sizes.map(function(size, i) {
