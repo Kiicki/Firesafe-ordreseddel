@@ -3107,10 +3107,32 @@ function closeSignatureOverlay() {
     window._signedFromServicePreview = false;
 }
 
+function _drawSignatureBaseline(ctx, w, h) {
+    var y = Math.round(h * 0.7);
+    var lineStart = Math.round(w * 0.1);
+    var lineEnd = Math.round(w * 0.9);
+
+    ctx.save();
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(lineStart, y);
+    ctx.lineTo(lineEnd, y);
+    ctx.stroke();
+    ctx.restore();
+}
+
 function redrawSignature() {
-    if (!signatureCanvas || !signatureCtx || signaturePaths.length === 0) return;
+    if (!signatureCanvas || !signatureCtx) return;
     const w = signatureCanvas.clientWidth;
     const h = signatureCanvas.clientHeight;
+
+    signatureCtx.fillStyle = '#fff';
+    signatureCtx.fillRect(0, 0, w, h);
+    _drawSignatureBaseline(signatureCtx, w, h);
+
+    if (signaturePaths.length === 0) return;
 
     signatureCtx.lineCap = 'round';
     signatureCtx.lineJoin = 'round';
@@ -3149,9 +3171,10 @@ function initSignatureCanvas() {
     signatureCtx.lineWidth = 4;
     signatureCtx.strokeStyle = '#000';
 
-    // Clear canvas
+    // Clear canvas + tegn baseline-guide
     signatureCtx.fillStyle = '#fff';
     signatureCtx.fillRect(0, 0, w, h);
+    _drawSignatureBaseline(signatureCtx, w, h);
 
     // Pointer events (unified mouse + touch, CSS transform-aware via offsetX/offsetY)
     signatureCanvas.onpointerdown = handlePointerDown;
@@ -3213,8 +3236,11 @@ function handlePointerUp() {
 
 function clearSignatureCanvas() {
     if (signatureCanvas && signatureCtx) {
+        var w = signatureCanvas.clientWidth;
+        var h = signatureCanvas.clientHeight;
         signatureCtx.fillStyle = '#fff';
-        signatureCtx.fillRect(0, 0, signatureCanvas.clientWidth, signatureCanvas.clientHeight);
+        signatureCtx.fillRect(0, 0, w, h);
+        _drawSignatureBaseline(signatureCtx, w, h);
         signaturePaths = [];
         currentPath = [];
         // Also clear existing image so OK after Nullstill actually removes signature
