@@ -21,7 +21,6 @@ body {
 }
 
 .container {
-    max-width: 800px;
     margin: 0 auto;
     flex: 1;
     display: flex;
@@ -1109,7 +1108,6 @@ body.service-view-open #view-form {
     background: #fff;
     margin: 0 auto;
     padding: 0;
-    max-width: 800px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
@@ -5103,7 +5101,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     align-items: center;
     height: 44px;
     width: 100%;
-    max-width: 800px;
     padding: 0 12px;
     padding-top: env(safe-area-inset-top);
     background: #333;
@@ -5213,10 +5210,18 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     #settings-modal {
         background: #f0f0f0;
     }
-    /* Constrain form view to same width as modals */
+    /* Constrain alle containers (form-view, service-view, kappe-view, etc.) til 800px på desktop */
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
     .container.form-view {
         max-width: 800px;
         margin: 0 auto;
+    }
+    /* Preview overlay header også constrained på desktop */
+    .preview-overlay-header {
+        max-width: 800px;
     }
     .modal-content {
         max-width: 800px;
@@ -6477,7 +6482,6 @@ body.kappe-view-open #view-form { display: none; }
     background: #fff;
     margin: 0 auto;
     padding: 0;
-    max-width: 800px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
