@@ -4978,7 +4978,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 #signature-canvas {
     flex: 1;
     min-height: 0;
-    max-height: 400px;
     touch-action: none;
     cursor: crosshair;
     background: #fff;
@@ -5192,6 +5191,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     }
     #signature-canvas {
         max-width: 800px;
+        max-height: 500px;
         width: 100%;
         background: #fff;
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
