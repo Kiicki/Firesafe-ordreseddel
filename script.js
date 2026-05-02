@@ -2986,6 +2986,12 @@ function updateSignatureLayout() {
     redrawSignature();
 }
 
+function _blockSignatureGestures(e) {
+    // Blokker browser-håndterte gester (kant-swipe → tilbake, pull-to-refresh, pinch-zoom)
+    // mens signaturfeltet er åpent. Pointer events fortsetter å fungere for tegning.
+    if (e.cancelable) e.preventDefault();
+}
+
 async function openSignatureOverlay() {
     const overlay = document.getElementById('signature-overlay');
 
@@ -3004,6 +3010,9 @@ async function openSignatureOverlay() {
 
     window.addEventListener('resize', updateSignatureLayout);
     window.addEventListener('orientationchange', handleSignatureOrientationChange);
+    document.addEventListener('touchstart', _blockSignatureGestures, { passive: false });
+    document.addEventListener('touchmove', _blockSignatureGestures, { passive: false });
+    document.addEventListener('gesturestart', _blockSignatureGestures, { passive: false });
     currentPath = [];
     if (signatureTarget === 'service') {
         signaturePaths = window._serviceSignaturePaths || [];
@@ -3046,6 +3055,9 @@ async function openSignatureOverlay() {
 function cleanupSignatureOverlay() {
     window.removeEventListener('resize', updateSignatureLayout);
     window.removeEventListener('orientationchange', handleSignatureOrientationChange);
+    document.removeEventListener('touchstart', _blockSignatureGestures);
+    document.removeEventListener('touchmove', _blockSignatureGestures);
+    document.removeEventListener('gesturestart', _blockSignatureGestures);
 
     var overlay = document.getElementById('signature-overlay');
     overlay.classList.remove('active');

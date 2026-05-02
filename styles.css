@@ -4892,6 +4892,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     z-index: 50;
     flex-direction: column;
     overflow: hidden;
+    touch-action: none;
+    overscroll-behavior: contain;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .signature-overlay.active {
