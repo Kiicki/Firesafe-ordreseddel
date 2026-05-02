@@ -2976,25 +2976,11 @@ function handleSignatureOrientationChange() {
 
 function updateSignatureLayout() {
     var overlay = document.getElementById('signature-overlay');
-    if (!overlay.classList.contains('active') || signatureOrientationLocked) return;
+    if (!overlay.classList.contains('active')) return;
 
-    if (window.innerWidth < 800 && window.innerHeight > window.innerWidth) {
-        // Portrait on mobile/tablet: CSS rotation to landscape
-        overlay.style.right = 'auto';
-        overlay.style.bottom = 'auto';
-        overlay.style.width = window.innerHeight + 'px';
-        overlay.style.height = window.innerWidth + 'px';
-        overlay.style.transformOrigin = '0 0';
-        overlay.style.transform = 'rotate(90deg) translateY(-100%)';
-    } else {
-        // Landscape: clear inline styles, let CSS position:fixed inset:0 fill screen
-        overlay.style.right = '';
-        overlay.style.bottom = '';
-        overlay.style.width = '';
-        overlay.style.height = '';
-        overlay.style.transform = '';
-        overlay.style.transformOrigin = '';
-    }
+    // Re-init canvas only when device is landscape (portrait viser "snu enheten"-melding via CSS)
+    var isPortraitMobile = window.innerWidth <= 1024 && window.innerHeight > window.innerWidth;
+    if (isPortraitMobile) return;
 
     initSignatureCanvas();
     redrawSignature();
@@ -3016,11 +3002,8 @@ async function openSignatureOverlay() {
     overlay.classList.add('active');
     document.body.classList.add('signature-active');
 
-    if (!signatureOrientationLocked) {
-        updateSignatureLayout();
-        window.addEventListener('resize', updateSignatureLayout);
-        window.addEventListener('orientationchange', handleSignatureOrientationChange);
-    }
+    window.addEventListener('resize', updateSignatureLayout);
+    window.addEventListener('orientationchange', handleSignatureOrientationChange);
     currentPath = [];
     if (signatureTarget === 'service') {
         signaturePaths = window._serviceSignaturePaths || [];

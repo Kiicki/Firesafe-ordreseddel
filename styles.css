@@ -4898,6 +4898,41 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
 }
 
+.signature-overlay-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.signature-rotate-message {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px;
+    background: #fff;
+    color: #333;
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.signature-rotate-message svg {
+    color: #E8501A;
+}
+
+@media (orientation: portrait) and (max-width: 1024px) {
+    .signature-overlay.active .signature-overlay-content {
+        display: none;
+    }
+    .signature-overlay.active .signature-rotate-message {
+        display: flex;
+    }
+}
+
 .signature-overlay-header {
     display: flex;
     align-items: center;
