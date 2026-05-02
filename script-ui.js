@@ -9656,6 +9656,13 @@ function _saveMinInfo() {
         var el = document.getElementById('mininfo-' + f);
         if (el) data[f] = el.value.trim();
     });
+    var fornavnEl = document.getElementById('mininfo-fornavn');
+    var etternavnEl = document.getElementById('mininfo-etternavn');
+    if (fornavnEl) data.fornavn = fornavnEl.value.trim();
+    if (etternavnEl) data.etternavn = etternavnEl.value.trim();
+    if (fornavnEl || etternavnEl) {
+        data.montor = (data.fornavn || '').trim();
+    }
     MIN_INFO_TOGGLES.forEach(function(k) {
         var cb = document.getElementById('mininfo-autofill-' + k);
         if (cb) data['autofill_' + k] = cb.checked;
@@ -9665,6 +9672,22 @@ function _saveMinInfo() {
         db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').set(data)
             .catch(function(e) { console.error('Save min_info error:', e); });
     }
+}
+
+function _splitNameFromMontor(info) {
+    if ((info.fornavn === undefined || info.fornavn === '') && (info.etternavn === undefined || info.etternavn === '') && info.montor) {
+        var parts = info.montor.trim().split(/\s+/);
+        info.fornavn = parts.shift() || '';
+        info.etternavn = parts.join(' ');
+    }
+    return info;
+}
+
+function _populateNameInputs(info) {
+    var fornavnEl = document.getElementById('mininfo-fornavn');
+    var etternavnEl = document.getElementById('mininfo-etternavn');
+    if (fornavnEl) fornavnEl.value = info.fornavn || '';
+    if (etternavnEl) etternavnEl.value = info.etternavn || '';
 }
 
 function _loadMinInfoSettings() {
@@ -9680,10 +9703,12 @@ function _loadMinInfoSettings() {
         delete info.autofill_bestiller;
         safeSetItem(MIN_INFO_KEY, JSON.stringify(info));
     }
+    _splitNameFromMontor(info);
     MIN_INFO_FIELDS.forEach(function(f) {
         var el = document.getElementById('mininfo-' + f);
         if (el) el.value = info[f] || '';
     });
+    _populateNameInputs(info);
     MIN_INFO_TOGGLES.forEach(function(k) {
         var cb = document.getElementById('mininfo-autofill-' + k);
         if (cb) cb.checked = info['autofill_' + k] !== false;
@@ -9692,6 +9717,13 @@ function _loadMinInfoSettings() {
     if (_minInfoInitialized) return;
     _minInfoInitialized = true;
     MIN_INFO_FIELDS.forEach(function(f) {
+        var el = document.getElementById('mininfo-' + f);
+        if (el) el.addEventListener('blur', function() {
+            _saveMinInfo();
+            showNotificationModal(t('settings_defaults_saved'), true);
+        });
+    });
+    ['fornavn', 'etternavn'].forEach(function(f) {
         var el = document.getElementById('mininfo-' + f);
         if (el) el.addEventListener('blur', function() {
             _saveMinInfo();
@@ -9713,10 +9745,12 @@ function _loadMinInfoSettings() {
             safeSetItem(MIN_INFO_KEY, JSON.stringify(fresh));
             if (document.body.classList.contains('settings-modal-open')
                 && document.getElementById('settings-page-min-info').style.display !== 'none') {
+                _splitNameFromMontor(fresh);
                 MIN_INFO_FIELDS.forEach(function(f) {
                     var el = document.getElementById('mininfo-' + f);
                     if (el) el.value = fresh[f] || '';
                 });
+                _populateNameInputs(fresh);
                 MIN_INFO_TOGGLES.forEach(function(k) {
                     var cb = document.getElementById('mininfo-autofill-' + k);
                     if (cb) cb.checked = fresh['autofill_' + k] !== false;
@@ -9728,9 +9762,17 @@ function _loadMinInfoSettings() {
 }
 
 function _updateMinInfoInputState(key) {
-    var input = document.getElementById('mininfo-' + key);
     var cb = document.getElementById('mininfo-autofill-' + key);
-    if (input && cb) input.disabled = !cb.checked;
+    if (!cb) return;
+    if (key === 'montor') {
+        var fornavnEl = document.getElementById('mininfo-fornavn');
+        var etternavnEl = document.getElementById('mininfo-etternavn');
+        if (fornavnEl) fornavnEl.disabled = !cb.checked;
+        if (etternavnEl) etternavnEl.disabled = !cb.checked;
+        return;
+    }
+    var input = document.getElementById('mininfo-' + key);
+    if (input) input.disabled = !cb.checked;
 }
 
 var _serviceDefaultsInitialized = false;

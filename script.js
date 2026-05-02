@@ -613,7 +613,14 @@ if (auth) {
                         .then(function(d) { if (d.exists) safeSetItem(KAPPE_KERF_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                     db.collection('users').doc(user.uid).collection('settings').doc('kappe_plate').get()
                         .then(function(d) { if (d.exists) safeSetItem(KAPPE_PLATE_KEY, JSON.stringify(d.data())); }).catch(function() {})
-                ]).catch(function() {})
+                ]).catch(function() {}),
+                // Sync min_info, leveringsadresser, plate_size (autofyll-data — må være tilgjengelig før bruker åpner skjema)
+                db.collection('users').doc(user.uid).collection('settings').doc('min_info').get()
+                    .then(function(d) { if (d.exists) safeSetItem(MIN_INFO_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('lager').get()
+                    .then(function(d) { if (d.exists) safeSetItem(LEVERINGSADRESSE_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('plateSize').get()
+                    .then(function(d) { if (d.exists) safeSetItem('firesafe_plate_size', JSON.stringify(d.data())); }).catch(function() {})
             ]).then(function() {
                 if (typeof refreshActiveView === 'function') refreshActiveView();
             });
