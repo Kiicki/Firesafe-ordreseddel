@@ -787,32 +787,23 @@ function updatePreviewScale() {
     var cs = getComputedStyle(scroll);
     var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     var availWidth = scroll.clientWidth - padLR;
-    var scale = Math.min(availWidth / 800, 1);
+    var formHeight = fc.offsetHeight;
+    // PC (≥1400px med mus): cap til 800px for å matche resten av appens bredde.
+    // Mobil/nettbrett: full bredde for konsistens med andre views.
+    var isDesktop = window.matchMedia('(min-width: 1400px) and (hover: hover) and (pointer: fine)').matches;
+    var maxRenderedWidth = isDesktop ? 800 : availWidth;
+    var scale = maxRenderedWidth / 800;
 
     var header = document.querySelector('.preview-overlay-header');
-
-    if (scale < 1) {
-        // Skaler fra top-venstre + translateX for å sentrere visuelt. Negativ
-        // margin-right kompenserer for at layout-boksen fortsatt er 800px (transform
-        // endrer ikke layout) — uten dette får parent horisontal scroll.
-        var renderedWidth = 800 * scale;
-        var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
-        fc.style.transformOrigin = 'top left';
-        fc.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
-        fc.style.marginBottom = (-(fc.offsetHeight * (1 - scale))) + 'px';
-        fc.style.marginRight = -(800 - renderedWidth - translateX) + 'px';
-        fc.style.marginLeft = '0';
-        if (header) {
-            header.style.maxWidth = renderedWidth + 'px';
-        }
-    } else {
-        fc.style.transform = '';
-        fc.style.transformOrigin = '';
-        fc.style.marginLeft = 'auto';
-        fc.style.marginRight = 'auto';
-        if (header) {
-            header.style.maxWidth = '';
-        }
+    var renderedWidth = 800 * scale;
+    var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
+    fc.style.transformOrigin = 'top left';
+    fc.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
+    fc.style.marginBottom = (-(formHeight * (1 - scale))) + 'px';
+    fc.style.marginRight = -(800 - renderedWidth - translateX) + 'px';
+    fc.style.marginLeft = '0';
+    if (header) {
+        header.style.maxWidth = renderedWidth + 'px';
     }
 
     window._previewBaseScale = scale;
@@ -5602,37 +5593,34 @@ function updateServicePreviewScale() {
     var scroll = document.getElementById('preview-scroll');
     if (!container || !scroll) return;
 
+    // Wipe any lingering inline styles
+    container.style.transform = '';
+    container.style.transformOrigin = '';
+    container.style.marginLeft = '';
+    container.style.marginRight = '';
+    container.style.marginBottom = '';
+
     var header = document.querySelector('.preview-overlay-header');
     var cs = getComputedStyle(scroll);
     var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     var availWidth = scroll.clientWidth - padLR;
-    var scale = Math.min(availWidth / 1250, 1);
+    var formHeight = container.offsetHeight;
+    // PC (≥1400px med mus): cap til 800px for å matche resten av appens bredde.
+    // Mobil/nettbrett: full bredde for konsistens.
+    var isDesktop = window.matchMedia('(min-width: 1400px) and (hover: hover) and (pointer: fine)').matches;
+    var maxRenderedWidth = isDesktop ? 800 : availWidth;
+    var scale = maxRenderedWidth / 1250;
 
-    if (scale < 1) {
-        // Sentrer skalert form i viewport via translateX. Negativ margin-right
-        // kompenserer for at layout-boksen fortsatt er 1250px slik at parent ikke
-        // får horisontal scroll.
-        var renderedWidth = 1250 * scale;
-        var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
-        container.style.transformOrigin = 'top left';
-        container.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
-        container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
-        container.style.marginRight = -(1250 - renderedWidth - translateX) + 'px';
-        container.style.marginLeft = '0';
-        if (header) {
-            header.style.maxWidth = renderedWidth + 'px';
-            header.style.margin = '0 auto';
-        }
-    } else {
-        container.style.transform = '';
-        container.style.transformOrigin = '';
-        container.style.marginLeft = 'auto';
-        container.style.marginRight = 'auto';
-        container.style.marginBottom = '';
-        if (header) {
-            header.style.maxWidth = '1250px';
-            header.style.margin = '0 auto';
-        }
+    var renderedWidth = 1250 * scale;
+    var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
+    container.style.transformOrigin = 'top left';
+    container.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
+    container.style.marginBottom = (-(formHeight * (1 - scale))) + 'px';
+    container.style.marginRight = -(1250 - renderedWidth - translateX) + 'px';
+    container.style.marginLeft = '0';
+    if (header) {
+        header.style.maxWidth = renderedWidth + 'px';
+        header.style.margin = '0 auto';
     }
 
     window._previewBaseScale = scale;
@@ -9335,29 +9323,33 @@ function updateKappePreviewScale() {
     var scroll = document.getElementById('preview-scroll');
     if (!container || !scroll) return;
 
+    // Wipe any lingering inline styles
+    container.style.transform = '';
+    container.style.transformOrigin = '';
+    container.style.marginLeft = '';
+    container.style.marginRight = '';
+    container.style.marginBottom = '';
+
     var header = document.querySelector('.preview-overlay-header');
     var cs = getComputedStyle(scroll);
     var padLR = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     var availWidth = scroll.clientWidth - padLR;
-    var scale = Math.min(availWidth / 1250, 1);
+    var formHeight = container.offsetHeight;
+    // PC (≥1400px med mus): cap til 800px for å matche resten av appens bredde.
+    // Mobil/nettbrett: full bredde for konsistens.
+    var isDesktop = window.matchMedia('(min-width: 1400px) and (hover: hover) and (pointer: fine)').matches;
+    var maxRenderedWidth = isDesktop ? 800 : availWidth;
+    var scale = maxRenderedWidth / 1250;
 
-    if (scale < 1) {
-        var renderedWidth = 1250 * scale;
-        var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
-        container.style.transformOrigin = 'top left';
-        container.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
-        container.style.marginBottom = (-(container.offsetHeight * (1 - scale))) + 'px';
-        container.style.marginRight = -(1250 - renderedWidth - translateX) + 'px';
-        container.style.marginLeft = '0';
-        if (header) { header.style.maxWidth = renderedWidth + 'px'; header.style.margin = '0 auto'; }
-    } else {
-        container.style.transform = '';
-        container.style.transformOrigin = '';
-        container.style.marginLeft = 'auto';
-        container.style.marginRight = 'auto';
-        container.style.marginBottom = '';
-        if (header) { header.style.maxWidth = '1250px'; header.style.margin = '0 auto'; }
-    }
+    var renderedWidth = 1250 * scale;
+    var translateX = Math.max(0, (availWidth - renderedWidth) / 2);
+    container.style.transformOrigin = 'top left';
+    container.style.transform = 'translate(' + translateX + 'px, 0) scale(' + scale + ')';
+    container.style.marginBottom = (-(formHeight * (1 - scale))) + 'px';
+    container.style.marginRight = -(1250 - renderedWidth - translateX) + 'px';
+    container.style.marginLeft = '0';
+    if (header) { header.style.maxWidth = renderedWidth + 'px'; header.style.margin = '0 auto'; }
+
     window._previewBaseScale = scale;
     window._previewCurrentScale = scale;
 }

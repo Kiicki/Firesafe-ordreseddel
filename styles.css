@@ -5152,8 +5152,11 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     overflow: hidden;
 }
 
-/* PC: Constrain overlays to match form width */
-@media screen and (min-width: 1025px) {
+/* PC: Constrain overlays to match form width.
+   Krever bred skjerm (≥1400px, over iPad Pro landscape 1366px) PLUSS mus + hover
+   for å unngå at nettbrett (også store i landscape) får 800px-låsen ment for ekte PC-skjermer.
+   Doble sjekk: width catches DevTools simulering, hover/pointer catches faktiske enheter. */
+@media screen and (min-width: 1400px) and (hover: hover) and (pointer: fine) {
     /* All views - consistent grey background on desktop */
     #template-modal,
     #saved-modal,
