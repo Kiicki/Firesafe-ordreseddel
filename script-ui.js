@@ -296,6 +296,12 @@ function setFormReadOnly(readOnly) {
     const fields = document.querySelectorAll('#mobile-form input, #mobile-form textarea, #mobile-form select, #form-container input, #form-container textarea, #form-container select');
     fields.forEach(el => el.disabled = readOnly);
 
+    // Signering-dato er alltid disabled (system-styrt — alltid dagens for ny/draft, bevarer historisk for sendt)
+    var sd = document.getElementById('signering-dato');
+    var msd = document.getElementById('mobile-signering-dato');
+    if (sd) sd.disabled = true;
+    if (msd) msd.disabled = true;
+
     // Disable save button in header
     var headerSaveBtn = document.getElementById('header-save-btn');
     if (headerSaveBtn) headerSaveBtn.disabled = readOnly;
@@ -355,8 +361,11 @@ function loadFormDirect(formData) {
     if (!formData) return;
     setFormData(formData);
 
-    // Regel: alltid dagens dato, unntatt for sendte skjema (bevar historisk).
-    if (!formData._isSent) _setSigneringDatoToday();
+    // Regel: alltid dagens dato/uke, unntatt for sendte skjema (bevar historisk).
+    if (!formData._isSent) {
+        _setSigneringDatoToday();
+        _setUkeToToday();
+    }
 
     updateFormTypeChip();
     lastSavedData = getFormDataSnapshot();
@@ -394,14 +403,8 @@ async function duplicateFormDirect(form) {
     document.getElementById('mobile-ordreseddel-nr').value = '';
     autoFillOrderNumber();
 
-    // Sett uke basert på autofyll-innstillinger; signering-dato alltid dagens
-    const now = new Date();
-    const flags = getAutofillFlags();
-    if (flags.uke) {
-        const week = 'Uke ' + getWeekNumber(now);
-        document.getElementById('dato').value = week;
-        document.getElementById('mobile-dato').value = week;
-    }
+    // Uke og signering-dato er alltid dagens (system-styrt)
+    _setUkeToToday();
     _setSigneringDatoToday();
 
     // Tøm kundens underskrift
@@ -3784,14 +3787,8 @@ function clearForm() {
     document.getElementById('mobile-kundens-underskrift').value = '';
     clearSignaturePreview();
 
-    const now = new Date();
-    const flags = getAutofillFlags();
     _setSigneringDatoToday();
-    if (flags.uke) {
-        const week = 'Uke ' + getWeekNumber(now);
-        document.getElementById('dato').value = week;
-        document.getElementById('mobile-dato').value = week;
-    }
+    _setUkeToToday();
 
     sessionStorage.removeItem('firesafe_current');
     sessionStorage.removeItem('firesafe_current_sent');
@@ -3840,14 +3837,8 @@ function duplicateCurrentForm() {
     document.getElementById('mobile-kundens-underskrift').value = '';
     clearSignaturePreview();
 
-    // Sett uke basert på autofyll-innstillinger; signering-dato alltid dagens
-    var now = new Date();
-    var flags = getAutofillFlags();
-    if (flags.uke) {
-        var week = 'Uke ' + getWeekNumber(now);
-        document.getElementById('dato').value = week;
-        document.getElementById('mobile-dato').value = week;
-    }
+    // Uke og signering-dato er alltid dagens (system-styrt)
+    _setUkeToToday();
     _setSigneringDatoToday();
 
     // Reset bestillinger til 1 tomt ordrekort
@@ -4943,13 +4934,11 @@ function openNewServiceForm() {
     // Close template modal
     document.body.classList.remove('template-modal-open');
 
-    // Reset service form and autofill from service defaults
+    // Reset service form. Uke og entry-dato er alltid dagens (system-styrt).
     var serviceDefaults = getMinInfo();
     document.getElementById('service-montor').value = (serviceDefaults.autofill_montor !== false) ? (serviceDefaults.montor || '') : '';
     var ukeField = document.getElementById('service-uke');
-    if (ukeField) {
-        ukeField.value = (serviceDefaults.autofill_uke !== false) ? String(getWeekNumber(new Date())) : '';
-    }
+    if (ukeField) ukeField.value = String(getWeekNumber(new Date()));
     document.getElementById('service-signatur').value = '';
     window._serviceSignaturePaths = [];
     _serviceCurrentId = null;
@@ -4958,13 +4947,10 @@ function openNewServiceForm() {
     var srvPlaceholder = document.querySelector('#service-signature-preview .signature-placeholder');
     if (srvPlaceholder) srvPlaceholder.style.display = '';
 
-    // Init empty entry with autofill
+    // Init empty entry med dagens dato
     var container = document.getElementById('service-entries');
     container.innerHTML = '';
-    var entryData = {};
-    if (serviceDefaults.autofill_dato !== false) {
-        entryData.dato = formatDate(new Date());
-    }
+    var entryData = { dato: formatDate(new Date()) };
     container.appendChild(createServiceEntryCard(entryData, true));
     renumberServiceEntries();
     updateServiceDeleteStates();
@@ -5197,6 +5183,12 @@ function loadServiceFormDirect(formData) {
     _serviceCurrentId = formData.id || null;
     setServiceFormData(formData);
 
+    // Hvis ikke sendt: oppdater Uke til dagens uke (entry-datoer bevares — historisk)
+    if (!formData._isSent) {
+        var ukeField = document.getElementById('service-uke');
+        if (ukeField) ukeField.value = String(getWeekNumber(new Date()));
+    }
+
     // Show service view
     showView('service-view');
     document.body.classList.add('service-view-open');
@@ -5223,12 +5215,12 @@ function duplicateServiceForm(formData) {
     copy.signatureImage = '';
     copy.signaturePaths = [];
 
-    // Autofill dato in entries if enabled
-    var serviceDefaults = getMinInfo();
-    if (serviceDefaults.autofill_dato !== false && copy.entries) {
+    // Dupliser starter som nytt skjema — uke og alle entry-datoer settes til i dag
+    if (copy.entries) {
         var today = formatDate(new Date());
         copy.entries.forEach(function(entry) { entry.dato = today; });
     }
+    copy.uke = String(getWeekNumber(new Date()));
 
     // Load into form
     _serviceCurrentId = null;
@@ -5933,7 +5925,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('kundens-underskrift').value = '';
     document.getElementById('mobile-kundens-underskrift').value = '';
     const _wasSentOnStartup = sessionStorage.getItem('firesafe_current_sent') === '1';
-    if (!_wasSentOnStartup) _setSigneringDatoToday();
+    if (!_wasSentOnStartup) {
+        _setSigneringDatoToday();
+        _setUkeToToday();
+    }
 
     // Sett lastSavedData ETTER alle init-endringer (signering-dato, underskrift)
     if (current) {
@@ -6096,6 +6091,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 _kappeCurrentId = kData.id || null;
                 setKappeFormData(kData);
                 var wasSentK = sessionStorage.getItem('firesafe_kappe_sent') === '1';
+                // Hvis ikke sendt: oppdater Dato til dagens ved reload
+                if (!wasSentK) _setKappeDatoToday();
                 document.getElementById('kappe-sent-banner').style.display = wasSentK ? 'block' : 'none';
                 document.getElementById('btn-kappe-sent').style.display = wasSentK ? 'none' : '';
                 _kappeLastSavedData = getKappeFormDataSnapshot();
@@ -6121,6 +6118,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 _serviceCurrentId = sData.id || null;
                 setServiceFormData(sData);
                 var wasSent = sessionStorage.getItem('firesafe_service_sent') === '1';
+                // Hvis ikke sendt: oppdater Uke til dagens uke ved reload (entry-datoer bevares)
+                if (!wasSent) {
+                    var srvUke = document.getElementById('service-uke');
+                    if (srvUke) srvUke.value = String(getWeekNumber(new Date()));
+                }
                 document.getElementById('service-sent-banner').style.display = wasSent ? 'block' : 'none';
                 document.getElementById('btn-service-sent').style.display = wasSent ? 'none' : '';
                 // Reset kun signatur ved ny sesjon — entry-datoer representerer når
@@ -7822,6 +7824,11 @@ function _kappeApplyDeliveryCollapsedState(forceCollapse) {
     }
 }
 
+function _setKappeDatoToday() {
+    var el = document.getElementById('kappe-dato');
+    if (el) el.value = _kappeFormatDateNO(_kappeTodayISO());
+}
+
 function openNewKappeForm() {
     document.body.classList.remove('template-modal-open');
 
@@ -8719,6 +8726,8 @@ function loadKappeFormDirect(formData) {
 
     _kappeCurrentId = formData.id || null;
     setKappeFormData(formData);
+    // Hvis ikke sendt: oppdater Dato til dagens (sendte skjema bevarer historisk)
+    if (!formData._isSent) _setKappeDatoToday();
 
     showView('kappe-view');
     document.body.classList.add('kappe-view-open');
@@ -8742,6 +8751,7 @@ function duplicateKappeForm(formData) {
 
     _kappeCurrentId = null;
     setKappeFormData(copy);
+    _setKappeDatoToday();
 
     document.body.classList.remove('saved-modal-open');
     sessionStorage.removeItem('firesafe_hent_tab');

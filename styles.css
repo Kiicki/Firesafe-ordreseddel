@@ -1969,6 +1969,57 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     color: #E8501A;
 }
 
+.apps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.app-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
+.app-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #222;
+    margin-bottom: 10px;
+}
+
+.app-store-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.app-store-btn {
+    flex: 1;
+    background: #000;
+    color: #fff;
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: opacity 0.15s ease;
+    min-height: 40px;
+    box-sizing: border-box;
+}
+
+.app-store-btn:active {
+    opacity: 0.7;
+}
+
+.app-store-btn svg {
+    flex-shrink: 0;
+}
+
 .mobile-section-title {
     font-size: 14px;
     font-weight: bold;

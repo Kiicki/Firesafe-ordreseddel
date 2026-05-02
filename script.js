@@ -980,12 +980,19 @@ function getWeekNumber(date) {
 // Regelen er enkel — denne helperen kapsler den inn slik at alle kall-steder
 // (ny, last, startup, konvertering, eksport) ser lik ut.
 function _setSigneringDatoToday() {
-    if (getMinInfo().autofill_dato === false) return;
     var today = formatDate(new Date());
     var sd = document.getElementById('signering-dato');
     var msd = document.getElementById('mobile-signering-dato');
     if (sd) sd.value = today;
     if (msd) msd.value = today;
+}
+
+function _setUkeToToday() {
+    var week = String(getWeekNumber(new Date()));
+    var d = document.getElementById('dato');
+    var md = document.getElementById('mobile-dato');
+    if (d) d.value = week;
+    if (md) md.value = week;
 }
 
 // Check if mobile/tablet (≤1024px) or PC (>1024px)
@@ -1208,14 +1215,26 @@ function convertTextareasToDiv() {
         convertedElements.push({ original: ordreseddelInput, replacement: span });
     }
 
+    // Add "Uke " prefix to dato input for eksport-visning (input lagres som kun nummer)
+    const datoInput = document.getElementById('dato');
+    if (datoInput && datoInput.value && !/^uke\s/i.test(datoInput.value)) {
+        const originalValue = datoInput.value;
+        datoInput.value = 'Uke ' + originalValue;
+        convertedElements.push({ datoInput: datoInput, originalValue: originalValue });
+    }
+
     return convertedElements;
 }
 
 // Restore textareas after export
 function restoreTextareas(convertedElements) {
-    convertedElements.forEach(({ original, replacement }) => {
-        original.style.display = '';
-        replacement.remove();
+    convertedElements.forEach(item => {
+        if (item.datoInput) {
+            item.datoInput.value = item.originalValue;
+        } else if (item.original && item.replacement) {
+            item.original.style.display = '';
+            item.replacement.remove();
+        }
     });
 }
 
@@ -2707,12 +2726,8 @@ function addServiceEntry() {
             card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
         }
     });
-    var entryData = {};
-    var svcDefaults = getMinInfo();
-    if (svcDefaults.autofill_dato !== false) {
-        var now = new Date();
-        entryData.dato = formatDate(now);
-    }
+    // Ny entry får alltid dagens dato (system-styrt)
+    var entryData = { dato: formatDate(new Date()) };
     var card = createServiceEntryCard(entryData, true);
     container.appendChild(card);
     updateServiceDeleteStates();

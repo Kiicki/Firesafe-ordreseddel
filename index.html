@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=485">
+    <link rel="stylesheet" href="styles.css?v=486">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -118,7 +118,7 @@
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_dato">Dato</label>
-                    <input type="text" id="mobile-signering-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ">
+                    <input type="text" id="mobile-signering-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ" disabled>
                 </div>
                 <div class="mobile-field">
                     <label data-i18n="label_kundens_underskrift">Kundens underskrift</label>
@@ -256,7 +256,7 @@
                 </div>
                 <div class="footer-cell signature-cell">
                     <div class="signature-input">
-                        <input type="text" id="signering-dato">
+                        <input type="text" id="signering-dato" disabled>
                     </div>
                     <div class="signature-label">Dato</div>
                 </div>
@@ -401,6 +401,33 @@
                             <span class="useful-link-name">Simployer</span>
                             <svg class="useful-link-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
                         </a>
+                        <a class="useful-link" href="https://www.firesafe.no/produkter/" target="_blank" rel="noopener noreferrer">
+                            <span class="useful-link-name">Firesafe.no produkter</span>
+                            <svg class="useful-link-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                        </a>
+                    </div>
+                </div>
+                <div class="mobile-section">
+                    <div class="mobile-section-title" data-i18n="apps_title">Apper</div>
+                    <div class="apps-list">
+                        <div class="app-card">
+                            <div class="app-name">Stopfire Solutions</div>
+                            <div class="app-store-buttons">
+                                <a class="app-store-btn" href="https://apps.apple.com/no/app/stopfire-solutions/id6746755113?l=nb" target="_blank" rel="noopener noreferrer">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.94-3.08.43-1.09-.53-2.08-.55-3.23 0-1.45.7-2.21.5-3.07-.43C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+                                    <span>App Store</span>
+                                </a>
+                                <a class="app-store-btn" href="https://play.google.com/store/apps/details?id=no.firesafe.stopfire" target="_blank" rel="noopener noreferrer">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                                        <polygon points="3,2 3,22 12,12" fill="#4285F4"/>
+                                        <polygon points="3,2 12,12 16.5,9.4" fill="#EA4335"/>
+                                        <polygon points="12,12 3,22 16.5,14.6" fill="#34A853"/>
+                                        <polygon points="12,12 16.5,9.4 21,12 16.5,14.6" fill="#FBBC04"/>
+                                    </svg>
+                                    <span>Google Play</span>
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -676,20 +703,6 @@
                                 </div>
                                 <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-sted" checked><span class="settings-toggle-slider"></span></label>
                             </div>
-                            <div class="settings-toggle-item">
-                                <div class="settings-toggle-info">
-                                    <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
-                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
-                                </div>
-                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-toggle-item">
-                                <div class="settings-toggle-info">
-                                    <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
-                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
-                                </div>
-                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -706,28 +719,6 @@
                         </div>
                     </div>
 
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('service-defaults')" style="margin-top: 16px;">
-                        <span data-i18n="settings_min_info_section_defaults">Standardverdier</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-service-defaults">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-service-defaults">
-                        <div class="settings-group">
-                            <div class="settings-toggle-item">
-                                <div class="settings-toggle-info">
-                                    <span class="settings-toggle-label" data-i18n="label_uke">Uke</span>
-                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_uke_hint">Settes til denne ukes nummer</span>
-                                </div>
-                                <label class="settings-toggle"><input type="checkbox" id="service-autofill-uke" checked><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-toggle-item">
-                                <div class="settings-toggle-info">
-                                    <span class="settings-toggle-label" data-i18n="label_dato">Dato</span>
-                                    <span class="settings-toggle-hint" data-i18n="settings_min_info_dato_hint">Settes til dagens dato</span>
-                                </div>
-                                <label class="settings-toggle"><input type="checkbox" id="service-autofill-dato" checked><span class="settings-toggle-slider"></span></label>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Kappeskjema (obligatoriske felt + produkt + stift + bladbredde + plate) -->
@@ -1540,9 +1531,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=204"></script>
-    <script src="script.js?v=277"></script>
-    <script src="script-ui.js?v=547"></script>
+    <script src="lang.js?v=205"></script>
+    <script src="script.js?v=282"></script>
+    <script src="script-ui.js?v=551"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
