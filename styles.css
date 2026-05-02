@@ -1080,9 +1080,11 @@ body.signature-active .top-bar,
     overflow: clip;
 }
 
-/* Form view: fixed to viewport so form-header can be sticky */
+/* Form view: fixed to viewport so form-header can be sticky og scroll-kompensasjon
+   ved tastatur fungerer likt for alle skjemaer (ordreseddel/service/kappe). */
 #view-form.view.active,
-#service-view.view.active {
+#service-view.view.active,
+#kappe-view.view.active {
     position: fixed;
     top: 0;
     left: 0;
@@ -1110,6 +1112,7 @@ body.service-view-open #view-form {
     padding: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overflow-anchor: none;
 }
 
 .service-view > .modal-content {
@@ -2332,8 +2335,9 @@ label.settings-default-label.field-required > span::after {
     padding: 4px 8px;
 }
 
-/* Inline auto-expand textareas (beskrivelse + merknad) — vokser uten øvre
-   grense via _autoResizeMerknadAndScroll-helperen. */
+/* Inline auto-expand textareas (beskrivelse + merknad) — vokser med innhold
+   uten øvre grense via _autoResizeMerknadAndScroll-helperen. Side-scroll holder
+   textarea-bunnen synlig (se _ensureTextareaBottomVisible som defensive check). */
 .mobile-order-desc,
 .mobile-order-merknad,
 .kappe-line-merknad {
@@ -6484,6 +6488,7 @@ body.kappe-view-open #view-form { display: none; }
     padding: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overflow-anchor: none;
 }
 .kappe-view > .modal-content {
     overflow: visible;

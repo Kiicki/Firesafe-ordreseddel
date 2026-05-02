@@ -5957,8 +5957,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var toolbar = document.querySelector('.toolbar');
             var viewForm = document.getElementById('view-form');
             var serviceView = document.getElementById('service-view');
-            var formEl = document.getElementById('mobile-form');
-            var serviceFormEl = document.getElementById('service-form');
+            var kappeView = document.getElementById('kappe-view');
             var activeView = document.querySelector('.view.active');
             var activeId = activeView ? activeView.id : null;
 
@@ -5978,6 +5977,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     serviceView.style.minHeight = '0';
                     serviceView.style.overscrollBehavior = 'contain';
                 }
+                if (activeId === 'kappe-view' && kappeView) {
+                    kappeView.style.display = 'block';
+                    kappeView.style.bottom = 'auto';
+                    kappeView.style.height = fullHeight + 'px';
+                    kappeView.style.minHeight = '0';
+                    kappeView.style.overscrollBehavior = 'contain';
+                }
                 // Lock body so scroll can't chain to it
                 document.body.style.overflow = 'hidden';
                 // Shift popup sheets up so they center in visible area (with smooth transition)
@@ -5991,6 +5997,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     var host = null;
                     if (activeId === 'view-form') host = viewForm;
                     else if (activeId === 'service-view') host = serviceView;
+                    else if (activeId === 'kappe-view') host = kappeView;
                     if (host && toolbar.parentNode !== host) {
                         toolbar.classList.add('toolbar--inflow');
                         host.appendChild(toolbar);
@@ -5999,6 +6006,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 if (viewForm) { viewForm.style.display = ''; viewForm.style.bottom = ''; viewForm.style.height = ''; viewForm.style.minHeight = ''; viewForm.style.overscrollBehavior = ''; }
                 if (serviceView) { serviceView.style.display = ''; serviceView.style.bottom = ''; serviceView.style.height = ''; serviceView.style.minHeight = ''; serviceView.style.overscrollBehavior = ''; }
+                if (kappeView) { kappeView.style.display = ''; kappeView.style.bottom = ''; kappeView.style.height = ''; kappeView.style.minHeight = ''; kappeView.style.overscrollBehavior = ''; }
                 document.body.style.overflow = '';
                 var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet');
                 sheets.forEach(function(s) {
@@ -8111,11 +8119,18 @@ function createKappeLineCard(lineData, expanded) {
     var merknadEl = card.querySelector('.kappe-line-merknad');
     if (merknadEl) {
         merknadEl.addEventListener('focus', function() {
+            // Re-kalkuler høyde ved focus — fanger opp stale inline height
+            autoResizeTextarea(this);
             var scroller = _findScrollableAncestor(this);
             this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
         });
         merknadEl.addEventListener('input', function() {
             _autoResizeMerknadAndScroll(this);
+        });
+        merknadEl.addEventListener('blur', function() {
+            var self = this;
+            autoResizeTextarea(self);
+            setTimeout(function() { _ensureTextareaBottomVisible(self); }, 300);
         });
         requestAnimationFrame(function() {
             _autoResizeMerknadAndScroll(merknadEl);

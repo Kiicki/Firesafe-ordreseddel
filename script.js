@@ -1037,6 +1037,27 @@ function _findScrollableAncestor(el) {
     return document.scrollingElement || document.documentElement;
 }
 
+// Sikrer at textareaens bunn er synlig over toolbar/tastatur.
+// Bruker visualViewport når tilgjengelig for å håndtere åpent tastatur korrekt.
+function _ensureTextareaBottomVisible(textarea) {
+    if (!textarea || !document.body.contains(textarea)) return;
+    var rect = textarea.getBoundingClientRect();
+    var visualH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    var toolbarEl = document.querySelector('.toolbar');
+    var toolbarH = 0;
+    if (toolbarEl) {
+        var tbStyle = getComputedStyle(toolbarEl);
+        if (tbStyle.position === 'fixed' && tbStyle.display !== 'none') {
+            toolbarH = toolbarEl.offsetHeight;
+        }
+    }
+    var targetBottom = visualH - toolbarH - 8;
+    if (rect.bottom > targetBottom) {
+        var scroller = _findScrollableAncestor(textarea);
+        if (scroller) scroller.scrollTop += rect.bottom - targetBottom;
+    }
+}
+
 function _autoResizeMerknadAndScroll(textarea) {
     var prevHeight = textarea.offsetHeight;
     autoResizeTextarea(textarea);  // ingen maxLines = ubegrenset vekst
@@ -1078,6 +1099,13 @@ function _autoResizeMerknadAndScroll(textarea) {
             scroller.scrollTop -= giveback;
         }
     }
+
+    // Defensiv sjekk: etter alle scroll-justeringer, sikre at bunnen er synlig.
+    // Fanger opp tilfeller hvor giveback ikke kompenserte nok, eller hvor
+    // textareaen er deeper i sidens layout enn tidligere antatt.
+    requestAnimationFrame(function() {
+        _ensureTextareaBottomVisible(textarea);
+    });
 }
 
 
@@ -1308,12 +1336,20 @@ function createOrderCard(orderData, expanded) {
     const descInput = card.querySelector('.mobile-order-desc');
     descInput.value = desc;
     descInput.addEventListener('focus', function() {
+        autoResizeTextarea(this);
         var scroller = _findScrollableAncestor(this);
         this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
     });
     descInput.addEventListener('input', function() {
         _autoResizeMerknadAndScroll(this);
         updateOrderTitle(card);
+    });
+    descInput.addEventListener('blur', function() {
+        var self = this;
+        autoResizeTextarea(self);
+        // Vent på at keyboard lukkes og viewport stabiliserer seg, så scroll opp
+        // hvis textarea-bunnen havnet under toolbar (typisk pga. scroll clamp).
+        setTimeout(function() { _ensureTextareaBottomVisible(self); }, 300);
     });
     requestAnimationFrame(function() {
         _autoResizeMerknadAndScroll(descInput);
@@ -1346,11 +1382,19 @@ function createOrderCard(orderData, expanded) {
     const merknadEl = card.querySelector('.mobile-order-merknad');
     merknadEl.value = orderData.merknad || '';
     merknadEl.addEventListener('focus', function() {
+        // Re-kalkuler høyde ved focus — fanger opp tilfeller hvor textarea har stale
+        // inline height fra tidligere innhold (f.eks. etter navigasjon tilbake til skjema).
+        autoResizeTextarea(this);
         var scroller = _findScrollableAncestor(this);
         this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
     });
     merknadEl.addEventListener('input', function() {
         _autoResizeMerknadAndScroll(this);
+    });
+    merknadEl.addEventListener('blur', function() {
+        var self = this;
+        autoResizeTextarea(self);
+        setTimeout(function() { _ensureTextareaBottomVisible(self); }, 300);
     });
     requestAnimationFrame(function() {
         _autoResizeMerknadAndScroll(merknadEl);
