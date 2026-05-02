@@ -2989,6 +2989,11 @@ function updateSignatureLayout() {
 function _blockSignatureGestures(e) {
     // Blokker browser-håndterte gester (kant-swipe → tilbake, pull-to-refresh, pinch-zoom)
     // mens signaturfeltet er åpent. Pointer events fortsetter å fungere for tegning.
+    // Tillat touches på knapper og inputs slik at click-events fyrer normalt.
+    var t = e.target;
+    if (t && t.closest && t.closest('button, input, select, textarea, a')) {
+        return;
+    }
     if (e.cancelable) e.preventDefault();
 }
 
@@ -3120,6 +3125,14 @@ function _drawSignatureBaseline(ctx, w, h) {
     ctx.moveTo(lineStart, y);
     ctx.lineTo(lineEnd, y);
     ctx.stroke();
+
+    // Label sentrert under linjen
+    ctx.fillStyle = '#999';
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    var label = (typeof t === 'function') ? t('label_kundens_underskrift') : 'Kundens underskrift';
+    ctx.fillText(label, w / 2, y + 8);
     ctx.restore();
 }
 

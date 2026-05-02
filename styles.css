@@ -4978,6 +4978,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 #signature-canvas {
     flex: 1;
     min-height: 0;
+    max-height: 400px;
     touch-action: none;
     cursor: crosshair;
     background: #fff;
@@ -5171,6 +5172,10 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     .signature-overlay {
         background: #f0f0f0;
         align-items: center;
+    }
+    .signature-overlay-content {
+        max-width: 800px;
+        width: 100%;
     }
     .signature-overlay-header {
         max-width: 800px;
