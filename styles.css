@@ -5000,6 +5000,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     background: #fef0eb;
 }
 
+.signature-overlay-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 /* Signature preview in mobile form */
 .signature-preview {
     height: 42px;
