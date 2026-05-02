@@ -131,50 +131,81 @@ function _migrateMinInfo() {
 
 _migrateMinInfo();
 
-function getKappeProducts() {
+// Returnerer { products: [{name}], dimensions: [...] }
+// Migrerer fra eldre format der dimensjoner var per produkt.
+function _readKappeProductsRaw() {
     try {
         var raw = localStorage.getItem(KAPPE_PRODUCTS_KEY);
-        if (!raw) return KAPPE_DEFAULT_PRODUCTS.slice();
+        if (!raw) return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: [] };
         var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.products) && parsed.products.length) {
-            var products = parsed.products;
-            // Migrer hvis gammelt format (ingen dimensions-felt på første produkt)
-            if (!products[0].hasOwnProperty('dimensions')) {
-                products = _migrateOldKappeProducts(products);
-                try { localStorage.setItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products })); } catch (e) {}
-            }
-            return products;
+        if (!parsed) return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: [] };
+
+        var products = Array.isArray(parsed.products) ? parsed.products : [];
+        var dimensions = Array.isArray(parsed.dimensions) ? parsed.dimensions.slice() : [];
+
+        // Migrasjon 1: eldre format med "Brand 25mm" som ett produkt → split til merke + dim
+        if (products.length && typeof products[0] === 'object' && !products[0].hasOwnProperty('dimensions') && !dimensions.length) {
+            // Allerede i nytt format (objekt med kun name) — ingen dimensjon å hente. La være.
+        } else if (products.length && (typeof products[0] === 'string' || (products[0].name && /\d+(?:\.\d+)?mm$/i.test(products[0].name) && !products[0].dimensions))) {
+            // Gammelt streng-format eller "Brand Xmm" navn — split
+            var migrated = _migrateOldKappeProducts(products);
+            products = migrated.products;
+            dimensions = migrated.dimensions;
+            try { localStorage.setItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products, dimensions: dimensions })); } catch (e) {}
+        } else if (products.length && products[0].hasOwnProperty('dimensions')) {
+            // Mellomformat: hver brand har egen dimensions-array → samle til global
+            var allDims = {};
+            var simpleBrands = products.map(function(p) {
+                (p.dimensions || []).forEach(function(d) { allDims[d] = true; });
+                return { name: p.name };
+            });
+            products = simpleBrands;
+            // Slå sammen med eventuelt eksisterende global dimensions
+            dimensions.forEach(function(d) { allDims[d] = true; });
+            dimensions = Object.keys(allDims);
+            try { localStorage.setItem(KAPPE_PRODUCTS_KEY, JSON.stringify({ products: products, dimensions: dimensions })); } catch (e) {}
         }
-        return KAPPE_DEFAULT_PRODUCTS.slice();
+
+        if (!products.length) products = KAPPE_DEFAULT_PRODUCTS.slice();
+        return { products: products, dimensions: dimensions };
     } catch (e) {
-        return KAPPE_DEFAULT_PRODUCTS.slice();
+        return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: [] };
     }
+}
+
+function getKappeProducts() {
+    return _readKappeProductsRaw().products;
+}
+
+function getKappeDimensions() {
+    return _readKappeProductsRaw().dimensions;
 }
 
 function _migrateOldKappeProducts(oldProducts) {
     var brandMap = {};
     var brandOrder = [];
+    var allDims = {};
     oldProducts.forEach(function(p) {
-        var match = p.name.match(/^(.+?)\s+(\d+(?:\.\d+)?mm)$/i);
+        var name = (typeof p === 'string') ? p : (p && p.name) || '';
+        if (!name) return;
+        var match = name.match(/^(.+?)\s+(\d+(?:\.\d+)?)mm$/i);
         if (match) {
             var brand = match[1].trim();
             var dim = match[2];
             if (!brandMap[brand]) {
-                brandMap[brand] = { name: brand, dimensions: [] };
+                brandMap[brand] = { name: brand };
                 brandOrder.push(brand);
             }
-            if (brandMap[brand].dimensions.indexOf(dim) === -1) {
-                brandMap[brand].dimensions.push(dim);
-            }
+            allDims[dim] = true;
         } else {
-            // Fallback: behold som merke uten dimensjoner
-            if (!brandMap[p.name]) {
-                brandMap[p.name] = { name: p.name, dimensions: [] };
-                brandOrder.push(p.name);
+            if (!brandMap[name]) {
+                brandMap[name] = { name: name };
+                brandOrder.push(name);
             }
         }
     });
-    return brandOrder.map(function(name) { return brandMap[name]; });
+    var products = brandOrder.map(function(n) { return brandMap[n]; });
+    return { products: products, dimensions: Object.keys(allDims) };
 }
 
 function getKappeKerf() {

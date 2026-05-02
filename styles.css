@@ -2808,6 +2808,24 @@ label.settings-default-label.field-required > span::after {
 .kappe-line-product-text-placeholder {
     color: #888;
 }
+.kappe-line-product-info {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+.kappe-line-product-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.kappe-line-product-plate-hint {
+    font-size: 12px;
+    color: #999;
+    font-weight: 400;
+    flex-shrink: 0;
+}
 .kappe-line-product-arrow {
     color: #888;
     font-size: 12px;
@@ -3195,7 +3213,7 @@ label.settings-default-label.field-required > span::after {
     gap: 8px;
     margin-top: 16px;
 }
-.spec-popup-cancel, .spec-popup-ok {
+.spec-popup-cancel, .spec-popup-ok, .spec-popup-confirm {
     flex: 1;
     padding: 12px;
     border: none;
@@ -3208,9 +3226,13 @@ label.settings-default-label.field-required > span::after {
     background: #f0f0f0;
     color: #333;
 }
-.spec-popup-ok {
+.spec-popup-ok,
+.spec-popup-confirm {
     background: #E8501A;
     color: white;
+}
+.spec-popup-confirm:active {
+    background: #C94615;
 }
 /* Template-picker bruker spec-popup-mønsteret men trenger litt mer plass siden
    prosjektnavn/oppdragsgiver kan være lange. Bredere sheet + høyere maks-høyde. */
@@ -6580,6 +6602,115 @@ body.kappe-view-open #view-form { display: none; }
     font-size: 18px;
     color: #666;
     flex-shrink: 0;
+}
+
+/* Plate-seksjon i produkt-picker popup (kappe-form) */
+.kappe-picker-plate-section {
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+.kappe-picker-plate-label {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.kappe-picker-plate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.kappe-picker-plate-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 15px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+.kappe-picker-plate-row input:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+
+/* To-kolonners layout i kappe-produkt-picker: merker venstre, dimensjoner høyre */
+.kappe-picker-split {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: #fff;
+}
+.kappe-picker-brands {
+    flex: 1 1 50%;
+    min-width: 0;
+    overflow-y: auto;
+    border-right: 1px solid #e8e8e8;
+    -webkit-overflow-scrolling: touch;
+}
+.kappe-picker-dimensions {
+    flex: 1 1 50%;
+    min-width: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Felles list-row-styling for begge kolonner */
+.kappe-picker-brands .kappe-product-picker-row,
+.kappe-picker-dimensions .kappe-product-picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 14px 16px;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    transition: background 0.12s ease;
+    text-align: left;
+    padding-left: 13px;
+}
+.kappe-picker-brands .kappe-product-picker-row:last-child,
+.kappe-picker-dimensions .kappe-product-picker-row:last-child {
+    border-bottom: none;
+}
+.kappe-picker-brands .kappe-product-picker-row .kappe-product-picker-name,
+.kappe-picker-dimensions .kappe-product-picker-row .kappe-product-picker-name {
+    font-weight: 500;
+    font-size: 15px;
+    color: #333;
+}
+
+/* Trykk-tilbakemelding (begge kolonner) */
+.kappe-picker-brands .kappe-product-picker-row:active,
+.kappe-picker-dimensions .kappe-product-picker-row:active {
+    background: #fff5f0;
+}
+
+/* Selected state — samme behandling i begge kolonner */
+.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-selected,
+.kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected {
+    background: #fff5f0;
+    border-left-color: #E8501A;
+}
+.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-selected .kappe-product-picker-name,
+.kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected .kappe-product-picker-name {
+    color: #E8501A;
+    font-weight: 700;
+}
+
+/* Dimensjon-kolonne: ekstra checkmark for valgt dimensjon (det faktiske sluttvalget) */
+.kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected::after {
+    content: '✓';
+    margin-left: auto;
+    color: #E8501A;
+    font-weight: 700;
+    font-size: 16px;
 }
 .kappe-kapp-rows {
     display: flex;
