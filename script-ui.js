@@ -5990,7 +5990,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.body.style.overflow = 'hidden';
                 // Shift popup sheets up so they center in visible area (with smooth transition)
                 var popupOffset = (window.innerHeight - fullHeight) / 2;
-                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet');
+                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content');
                 sheets.forEach(function(s) {
                     s.style.transform = 'translateY(-' + popupOffset + 'px)';
                 });
@@ -6010,7 +6010,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (serviceView) { serviceView.style.display = ''; serviceView.style.bottom = ''; serviceView.style.height = ''; serviceView.style.minHeight = ''; serviceView.style.overscrollBehavior = ''; }
                 if (kappeView) { kappeView.style.display = ''; kappeView.style.bottom = ''; kappeView.style.height = ''; kappeView.style.minHeight = ''; kappeView.style.overscrollBehavior = ''; }
                 document.body.style.overflow = '';
-                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet');
+                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content');
                 sheets.forEach(function(s) {
                     s.style.transform = '';
                 });
