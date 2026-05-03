@@ -4879,6 +4879,8 @@ function _setServicebilMode(mode) {
         closePickerOverlay();
     }
     _servicebilMode = mode;
+    // Persister modus så reload/hashchange kan gjenopprette riktig tilstand
+    try { sessionStorage.setItem('firesafe_servicebil_mode', mode); } catch (e) {}
     document.body.classList.toggle('servicebil-inntak-mode', mode === 'inntak');
     document.body.classList.toggle('servicebil-uttak-mode', mode === 'uttak');
     document.querySelectorAll('#servicebil-mode-toggle .mode-btn').forEach(function(btn) {
@@ -5023,6 +5025,7 @@ function closeServiceView() {
     _serviceLastSavedData = null;
     sessionStorage.removeItem('firesafe_service_current');
     sessionStorage.removeItem('firesafe_service_sent');
+    sessionStorage.removeItem('firesafe_servicebil_mode');
 
     // Clear service signature preview
     document.getElementById('service-signatur').value = '';
@@ -6167,6 +6170,9 @@ document.addEventListener('DOMContentLoaded', function() {
         showView('service-view');
         document.body.classList.add('service-view-open');
         document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
+        // Gjenopprett modus (inntak/uttak) — body-klasse + toggle holdes i synk via _setServicebilMode
+        var savedMode = sessionStorage.getItem('firesafe_servicebil_mode') || 'uttak';
+        _setServicebilMode(savedMode);
         // Restore from session if available
         var serviceCurrent = sessionStorage.getItem('firesafe_service_current');
         if (serviceCurrent) {
@@ -6249,6 +6255,12 @@ function _applyHashNavigation(hash) {
             document.body.classList.add('service-view-open');
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open');
         }
+        // Sørg for at mode-body-klasse + toggle alltid matcher persistert/aktiv modus
+        if (!document.body.classList.contains('servicebil-inntak-mode')
+            && !document.body.classList.contains('servicebil-uttak-mode')) {
+            var sm = sessionStorage.getItem('firesafe_servicebil_mode') || 'uttak';
+            _setServicebilMode(sm);
+        }
     } else if (hash === 'kappe') {
         if (!document.body.classList.contains('kappe-view-open')) {
             showView('kappe-view');
@@ -6263,6 +6275,18 @@ function _applyHashNavigation(hash) {
         // No hash = home = template modal
         showTemplateModal();
     }
+}
+
+// Mapper fra hash-verdi til hvilken .view som skal være aktiv. Brukes for å
+// avgjøre om en hashchange faktisk bytter view eller bare synkroniserer URL-en.
+function _viewIdForHash(hash) {
+    if (hash === 'hent') return 'saved-modal';
+    if (hash === 'settings' || hash.indexOf('settings/') === 0) return 'settings-modal';
+    if (hash === 'skjema') return 'view-form';
+    if (hash === 'service') return 'service-view';
+    if (hash === 'kappe') return 'kappe-view';
+    if (hash === 'calc') return 'calculator-modal';
+    return 'template-modal';
 }
 
 // Lukker alle åpne overlays/popups så de ikke blir hengende ved browser-navigering
@@ -6294,17 +6318,22 @@ window.addEventListener('hashchange', function() {
     if (!currentUser) return; // Ikke naviger uten innlogging
     var hash = window.location.hash.slice(1);
 
+    var currentView = document.querySelector('.view.active');
+    var currentId = currentView ? currentView.id : null;
+    // Hvis hashen peker til samme view som allerede er aktivt, er det bare URL-sync
+    // (f.eks. når openNewServiceForm setter hash='service' mens service-view ALLEREDE er aktiv).
+    // Da skal vi IKKE lukke overlays — det river ned auto-åpnet picker o.l.
+    var changingView = _viewIdForHash(hash) !== currentId;
+
     // If we just rolled back or confirmed, apply without re-guarding
     if (_suppressHashGuard) {
         _suppressHashGuard = false;
-        _dismissOverlaysOnNavigation();
+        if (changingView) _dismissOverlaysOnNavigation();
         _applyHashNavigation(hash);
         return;
     }
 
     // Detect if this hashchange leaves a form view with unsaved data
-    var currentView = document.querySelector('.view.active');
-    var currentId = currentView ? currentView.id : null;
     var leavingFormView = (currentId === 'view-form' && hash !== 'skjema')
         || (currentId === 'service-view' && hash !== 'service')
         || (currentId === 'kappe-view' && hash !== 'kappe');
@@ -6333,12 +6362,14 @@ window.addEventListener('hashchange', function() {
         return;
     }
 
-    // Lukk overlays + view-spesifikk cleanup før navigering, slik at swipe-back
-    // oppfører seg som header-tilbakeknapp (navigateBack).
-    _dismissOverlaysOnNavigation();
-    if (leavingFormView) {
-        if (currentId === 'service-view' && typeof closeServiceView === 'function') closeServiceView();
-        if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
+    // Bare lukk overlays + view-cleanup når vi faktisk bytter view. Da oppfører
+    // swipe-back seg som header-tilbakeknappen (navigateBack).
+    if (changingView) {
+        _dismissOverlaysOnNavigation();
+        if (leavingFormView) {
+            if (currentId === 'service-view' && typeof closeServiceView === 'function') closeServiceView();
+            if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
+        }
     }
     _applyHashNavigation(hash);
 });
