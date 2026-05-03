@@ -133,6 +133,8 @@ body {
 }
 
 body:has(#confirm-modal.active) .toolbar::before,
+body:has(#input-modal.active) .toolbar::before,
+body:has(#dag-timer-modal.active) .toolbar::before,
 body:has(#action-popup.active) .toolbar::before,
 body:has(#template-editor-overlay.active) .toolbar::before {
     opacity: 1;
@@ -141,6 +143,8 @@ body:has(#template-editor-overlay.active) .toolbar::before {
 
 /* When overlay is active, prevent button hover/active highlights */
 body:has(#confirm-modal.active) .toolbar button,
+body:has(#input-modal.active) .toolbar button,
+body:has(#dag-timer-modal.active) .toolbar button,
 body:has(#action-popup.active) .toolbar button,
 body:has(#template-editor-overlay.active) .toolbar button {
     pointer-events: none;
