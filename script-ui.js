@@ -1559,10 +1559,11 @@ let settingsGivenAway = [];
 
 async function getOrderNrSettings() {
     let data = null;
+    let fromFirebase = false;
     if (currentUser && db) {
         try {
             const doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').get();
-            if (doc.exists) data = doc.data();
+            if (doc.exists) { data = doc.data(); fromFirebase = true; }
         } catch (e) {
             console.error('Settings error:', e);
         }
@@ -1576,6 +1577,8 @@ async function getOrderNrSettings() {
         data = { ranges: [{ start: data.nrStart, end: data.nrEnd }] };
     }
     if (data && !data.givenAway) data.givenAway = [];
+    // Hold localStorage i synk med Firebase
+    if (fromFirebase && data) safeSetItem(SETTINGS_KEY, JSON.stringify(data));
     return data;
 }
 
@@ -1875,7 +1878,12 @@ async function getMaterialSettings() {
     if (currentUser && db) {
         try {
             const doc = await db.collection('settings').doc('materials').get();
-            if (doc.exists) return normalizeMaterialData(doc.data());
+            if (doc.exists) {
+                const normalized = normalizeMaterialData(doc.data());
+                // Hold localStorage i synk med Firebase
+                safeSetItem(MATERIALS_KEY, JSON.stringify(normalized));
+                return normalized;
+            }
         } catch (e) {
             console.error('Materials settings error:', e);
         }
@@ -2331,7 +2339,12 @@ async function getPlanSettings() {
     if (currentUser && db) {
         try {
             var doc = await db.collection('settings').doc('plans').get();
-            if (doc.exists) return doc.data().plans || [];
+            if (doc.exists) {
+                var plans = doc.data().plans || [];
+                // Hold localStorage i synk med Firebase
+                safeSetItem(PLANS_KEY, JSON.stringify(plans));
+                return plans;
+            }
         } catch (e) { console.error('Plan settings error:', e); }
     }
     var stored = localStorage.getItem(PLANS_KEY);
@@ -2585,12 +2598,15 @@ async function getRequiredSettings() {
             if (doc.exists) {
                 const data = doc.data();
                 const defaults = getDefaultRequiredSettings();
-                return {
+                const merged = {
                     save: { ...defaults.save, ...(data.save || {}) },
                     template: { ...defaults.template, ...(data.template || {}) },
                     service: { ...defaults.service, ...(data.service || {}) },
                     kappe: { ...defaults.kappe, ...(data.kappe || {}) }
                 };
+                // Hold localStorage i synk så neste cache-first-render matcher Firebase
+                safeSetItem(REQUIRED_KEY, JSON.stringify(merged));
+                return merged;
             }
         } catch (e) {
             console.error('Required settings error:', e);
@@ -3235,7 +3251,12 @@ async function getDefaultSettings(tab) {
     if (currentUser && db) {
         try {
             var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).get();
-            if (doc.exists) return doc.data();
+            if (doc.exists) {
+                var data = doc.data();
+                // Hold localStorage i synk med Firebase
+                safeSetItem(storageKey, JSON.stringify(data));
+                return data;
+            }
         } catch (e) {
             console.error('Defaults error:', e);
         }

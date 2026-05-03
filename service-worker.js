@@ -1,4 +1,4 @@
-const CACHE_NAME = 'firesafe-v1010';
+const CACHE_NAME = 'firesafe-v1012';
 const ASSETS = [
     '/Firesafe-ordreseddel/',
     '/Firesafe-ordreseddel/index.html',
