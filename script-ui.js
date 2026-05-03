@@ -6022,11 +6022,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 // Lock body so scroll can't chain to it
                 document.body.style.overflow = 'hidden';
-                // Shift popup sheets up so they center in visible area (with smooth transition)
-                var popupOffset = (window.innerHeight - fullHeight) / 2;
+                // Posisjoner popup-sheets like over tastaturet (med liten margin),
+                // ikke sentrert i synlig område — føles mer naturlig (som iOS/Android).
+                var keyboardMargin = 16;
                 var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content');
                 sheets.forEach(function(s) {
-                    s.style.transform = 'translateY(-' + popupOffset + 'px)';
+                    var mh = s.offsetHeight || 0;
+                    // Original sentrum i window er innerHeight/2, ønsket bunn er fullHeight - margin
+                    var translate = Math.max(0, (window.innerHeight / 2 + mh / 2) - (fullHeight - keyboardMargin));
+                    s.style.transform = 'translateY(-' + translate + 'px)';
                 });
                 // Confirm-modal har padding-bottom for toolbar — fjern det når tastaturet er åpent
                 // slik at popupen sitter naturlig sentrert i synlig område (ikke for høyt).
