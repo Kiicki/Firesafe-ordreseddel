@@ -4117,6 +4117,41 @@ async function doExportPNG(markSent) {
     }
 }
 
+// Web Share API krever at navigator.share() kalles innenfor en aktiv user gesture.
+// PDF/PNG-generering kan ta lang nok tid (særlig for bulk-eksport) til at gesten
+// "går ut" — da feiler share() med "Must be handling a user gesture". Helperen
+// fanger denne spesifikke feilen, viser en bekreft-modal, og kaller share() på
+// nytt fra OK-handleren (som er en ny user gesture).
+//
+// Returnerer: 'shared' | 'aborted' | 'error'
+async function _safeShare(files) {
+    try {
+        await navigator.share({ files: files });
+        return 'shared';
+    } catch (e) {
+        if (e.name === 'AbortError') return 'aborted';
+        var msg = e.message || '';
+        if (/user gesture|user activation|transient activation/i.test(msg)) {
+            return new Promise(function(resolve) {
+                showConfirmModal(t('share_ready_prompt'), function() {
+                    navigator.share({ files: files }).then(function() {
+                        resolve('shared');
+                    }).catch(function(err) {
+                        if (err.name === 'AbortError') {
+                            resolve('aborted');
+                        } else {
+                            showNotificationModal(t('share_error') + err.message);
+                            resolve('error');
+                        }
+                    });
+                }, t('btn_share'), '#E8501A');
+            });
+        }
+        showNotificationModal(t('share_error') + msg);
+        return 'error';
+    }
+}
+
 async function doSharePDF(markSent) {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
@@ -4126,10 +4161,11 @@ async function doSharePDF(markSent) {
         var pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
         var blob = pdf.output('blob');
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
-        await navigator.share({ files: [file] });
-        if (markSent) markCurrentFormAsSent();
+        loading.classList.remove('active');
+        var result = await _safeShare([file]);
+        if (result === 'shared' && markSent) markCurrentFormAsSent();
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -4145,10 +4181,11 @@ async function doSharePNG(markSent) {
         var res = await fetch(dataUrl);
         var blob = await res.blob();
         var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
-        await navigator.share({ files: [file] });
-        if (markSent) markCurrentFormAsSent();
+        loading.classList.remove('active');
+        var result = await _safeShare([file]);
+        if (result === 'shared' && markSent) markCurrentFormAsSent();
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -4778,10 +4815,11 @@ async function doBulkSharePDF(markSent) {
             showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
             return;
         }
-        await navigator.share({ files: [file] });
-        await _bulkFinishAfterExport(markSent);
+        loading.classList.remove('active');
+        var result = await _safeShare([file]);
+        if (result === 'shared') await _bulkFinishAfterExport(markSent);
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -4802,10 +4840,11 @@ async function doBulkSharePNG(markSent) {
             showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
             return;
         }
-        await navigator.share({ files: files });
-        await _bulkFinishAfterExport(markSent);
+        loading.classList.remove('active');
+        var result = await _safeShare(files);
+        if (result === 'shared') await _bulkFinishAfterExport(markSent);
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -4852,10 +4891,11 @@ async function doBulkSharePDFSeparate(markSent) {
             showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
             return;
         }
-        await navigator.share({ files: files });
-        await _bulkFinishAfterExport(markSent);
+        loading.classList.remove('active');
+        var result = await _safeShare(files);
+        if (result === 'shared') await _bulkFinishAfterExport(markSent);
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -5747,10 +5787,11 @@ async function doServiceSharePDF(markSent) {
         var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
         var blob = pdf.output('blob');
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
-        await navigator.share({ files: [file] });
-        if (markSent) markServiceAsSent();
+        loading.classList.remove('active');
+        var result = await _safeShare([file]);
+        if (result === 'shared' && markSent) markServiceAsSent();
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -5766,10 +5807,11 @@ async function doServiceSharePNG(markSent) {
         var res = await fetch(dataUrl);
         var blob = await res.blob();
         var file = new File([blob], getServiceExportFilename('png'), { type: 'image/png' });
-        await navigator.share({ files: [file] });
-        if (markSent) markServiceAsSent();
+        loading.classList.remove('active');
+        var result = await _safeShare([file]);
+        if (result === 'shared' && markSent) markServiceAsSent();
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -9502,10 +9544,11 @@ async function doKappeSharePDF(markSent) {
         var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
         var blob = pdf.output('blob');
         var file = new File([blob], getKappeExportFilename('pdf'), { type: 'application/pdf' });
-        await navigator.share({ files: [file] });
-        if (markSent) markKappeAsSent();
+        loading.classList.remove('active');
+        var result = await _safeShare([file]);
+        if (result === 'shared' && markSent) markKappeAsSent();
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
@@ -9521,10 +9564,11 @@ async function doKappeSharePNG(markSent) {
         var res = await fetch(dataUrl);
         var blob = await res.blob();
         var file = new File([blob], getKappeExportFilename('png'), { type: 'image/png' });
-        await navigator.share({ files: [file] });
-        if (markSent) markKappeAsSent();
+        loading.classList.remove('active');
+        var result = await _safeShare([file]);
+        if (result === 'shared' && markSent) markKappeAsSent();
     } catch (e) {
-        if (e.name !== 'AbortError') showNotificationModal(t('share_error') + e.message);
+        showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
     }
