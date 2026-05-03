@@ -1946,8 +1946,8 @@ function renderMaterialSettingsItems() {
                     ${countBadge}
                 </div>
                 <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}">${t('material_type_' + matType)}</button>
-                <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
                 <button class="settings-material-edit-btn" onclick="event.stopPropagation();editSettingsMaterial(${idx})" title="Rediger navn">✏️</button>
+                <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
                 <span class="settings-material-expand">&rsaquo;</span>
             </div>
             <div class="settings-material-body">${bodyContent}</div>
@@ -2354,14 +2354,9 @@ function renderPlanSettingsItems() {
         container.innerHTML = '';
         return;
     }
-    var html = '';
-    settingsPlans.forEach(function(name, idx) {
-        html += '<div class="settings-plan-item">' +
-            '<span class="settings-plan-name">' + escapeHtml(name) + '</span>' +
-            '<button type="button" class="settings-plan-remove" onclick="removeSettingsPlan(' + idx + ')">✕</button>' +
-            '</div>';
-    });
-    container.innerHTML = html;
+    container.innerHTML = settingsPlans.map(function(name, idx) {
+        return _kappeSettingsItemHtml(name, idx, 'editSettingsPlan', 'removeSettingsPlan');
+    }).join('');
 }
 
 function sortPlans(plans) {
@@ -2406,6 +2401,24 @@ function addSettingsPlan() {
     if (container.children[idx]) {
         container.children[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+}
+
+function editSettingsPlan(idx) {
+    if (!isAdmin) return;
+    var cur = settingsPlans[idx];
+    if (cur === undefined) return;
+    showInputModal(t('settings_plan_edit_title'), cur, function(newName) {
+        newName = (newName || '').trim().toUpperCase();
+        if (!newName) return;
+        if (settingsPlans.some(function(p, i) { return i !== idx && p.toUpperCase() === newName; })) {
+            showNotificationModal(t('settings_plan_exists'));
+            return;
+        }
+        settingsPlans[idx] = newName;
+        sortPlans(settingsPlans);
+        renderPlanSettingsItems();
+        savePlanSettings();
+    });
 }
 
 function removeSettingsPlan(idx) {

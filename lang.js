@@ -232,6 +232,7 @@ const TRANSLATIONS = {
         settings_plan_placeholder: 'Etasjenavn...',
         settings_plan_exists: 'Denne etasjen finnes allerede',
         settings_plan_remove: 'Fjerne "{0}"?',
+        settings_plan_edit_title: 'Rediger etasjenavn:',
         settings_no_plans: 'Ingen etasjer lagt til',
         plan_picker_title: 'Velg plan',
 
@@ -763,6 +764,7 @@ const TRANSLATIONS = {
         settings_plan_placeholder: 'Floor name...',
         settings_plan_exists: 'This floor already exists',
         settings_plan_remove: 'Remove "{0}"?',
+        settings_plan_edit_title: 'Edit floor name:',
         settings_no_plans: 'No floors added',
         plan_picker_title: 'Select floor',
 
