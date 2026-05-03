@@ -7867,11 +7867,16 @@ function renderBilHistory() {
         var item = items[i3];
         var isPafylling = item.type === 'pafylling';
         var typeLabel = isPafylling ? t('bil_history_pafylling') : t('bil_history_uttak');
-        // For uttak: status-dot viser sendt (grønn) vs lagret/draft (oransje), samme mønster som ordreseddel.
-        var statusDot = (!isPafylling) ? '<span class="status-dot ' + (item.isSent ? 'sent' : 'saved') + '"></span>' : '';
-        var titleHtml = statusDot + escapeHtml(item.dato);
+        // Status-dot: inntak er alltid "ferdig" (grønn). Uttak: oransje for lagret/draft, grønn for sendt.
+        var dotClass = isPafylling ? 'sent' : (item.isSent ? 'sent' : 'saved');
+        var statusDot = '<span class="status-dot ' + dotClass + '"></span>';
+        var titleHtml = escapeHtml(item.dato);
         var subtitleHtml = '';
-        if (!isPafylling) {
+        if (isPafylling) {
+            // Inntak har ingen prosjekt-info — vis bare "Servicebil" så subtitle-rad
+            // er konsistent med uttak-kortene som viser prosjektnr/prosjektnavn.
+            subtitleHtml = t('servicebil_title');
+        } else {
             var subParts = [];
             if (item.prosjektnr) subParts.push(escapeHtml(item.prosjektnr));
             if (item.prosjektnavn) subParts.push(escapeHtml(item.prosjektnavn));
@@ -7960,6 +7965,7 @@ function renderBilHistory() {
             ? ' selected' : '';
         html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + selectedClass + '"' + dataAttr + '>' +
             '<div class="bil-history-header">' +
+                statusDot +
                 '<span class="bil-history-type">' + escapeHtml(typeLabel) + '</span>' +
                 '<span class="bil-history-title">' + titleHtml + '</span>' +
                 deleteBtn +

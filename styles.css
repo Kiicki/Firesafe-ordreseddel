@@ -1237,6 +1237,11 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     gap: 8px;
     margin-bottom: 12px;
 }
+/* Status-dot rett før type-badge — sentreres vertikalt med badge-en */
+.bil-history-header > .status-dot {
+    margin-right: 0;
+    margin-top: 7px;
+}
 .bil-history-type {
     font-size: 11px;
     font-weight: 700;
