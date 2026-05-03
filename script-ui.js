@@ -4114,18 +4114,8 @@ async function renderFormToCanvas() {
 }
 
 function getExportFilename(ext) {
-    const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value || 'ukjent';
-    // Bruk uke fra #dato-feltet (inneholder "Uke 16") eller fallback til dagens uke
-    const datoVal = document.getElementById('dato').value || '';
-    const year = new Date().getFullYear();
-    let uke;
-    const match = datoVal.match(/(\d+)/);
-    if (match) {
-        const n = parseInt(match[1], 10);
-        if (n >= 1 && n <= 53) uke = n;
-    }
-    if (!uke) uke = getWeekNumber(new Date());
-    return `ordreseddel_${ordrenr}_Uke-${uke}-${year}.${ext}`;
+    var data = (typeof getFormData === 'function') ? getFormData() : {};
+    return _filenameForForm(data, 0, 'ordreseddel', ext);
 }
 
 async function doExportPDF(markSent) {
@@ -4555,71 +4545,110 @@ function _sharedUkeYearOrRange() {
         : 'Uker-' + min + '-' + max + '-' + year;
 }
 
-function _bulkFilename(ext, type) {
-    if (type === 'kappe') {
-        // Flere kappeskjemaer kan være fra samme dag/uke; bruk dato-rekkevidde fra valgte
-        return 'kappeskjema_samlet_' + _sharedKappeDateOrRange() + '.' + (ext || 'pdf');
+// ─── Konsistent filnavn-system ──────────────────────────────────────────────
+// Alle skjemaer (ordreseddel/servicebil/kappe) følger samme mønster:
+//   {type}_{prosjektnavn}_Uke-N-YYYY.{ext}
+//   {type}_samlet_Uke-N-YYYY.{ext}  (bulk samlet, samme uke)
+//   {type}_samlet_Uker-Min-Max-YYYY.{ext}  (bulk samlet, flere uker)
+// Prosjektnavn er gjenkjennelig for mottakere (vs. prosjektnr som er internt).
+// Uke er den naturlige perioden — ordreseddel/service sendes ukentlig, og
+// for konsistens følger kappe samme mønster (selv om kappe sendes oftere).
+
+function _sanitizeFilenamePart(s) {
+    return String(s == null ? '' : s).trim().replace(/[^A-Za-z0-9æøåÆØÅ_-]/g, '_');
+}
+
+// Returnerer prosjektnr for et skjema (prosjektnavn som fallback). Service-
+// skjemaer har ikke prosjektnr på form-nivå; bruker første ikke-tomme entry.
+function _formProsjektId(data, type) {
+    if (!data) return '';
+    if (type === 'service') {
+        var entries = data.entries || [];
+        for (var i = 0; i < entries.length; i++) {
+            var nr = entries[i] && entries[i].prosjektnr;
+            if (nr && String(nr).trim()) return nr;
+        }
+        for (var j = 0; j < entries.length; j++) {
+            var nv = entries[j] && entries[j].prosjektnavn;
+            if (nv && nv.trim()) return nv;
+        }
+        return '';
     }
-    var prefix = (type === 'service') ? 'lageruttak_samlet' : 'ordreseddel_samlet';
-    return prefix + '_' + _sharedUkeYearOrRange() + '.' + (ext || 'pdf');
+    return data.prosjektnr || data.prosjektnavn || '';
 }
 
-// Bygger filnavn-fragment for separat kappe-fil. Følger samme mønster som
-// getKappeExportFilename: prosjektnavn → prosjektnr → fallback, etterfulgt av dato.
-function _kappeFilenameBase(data, fallbackIdx) {
-    var base = 'kappeskjema';
-    if (data && data.prosjektnavn) base += '_' + data.prosjektnavn.replace(/[^A-Za-z0-9æøåÆØÅ_-]/g, '_');
-    else if (data && data.prosjektnr) base += '_' + data.prosjektnr;
-    else base += '_skjema_' + (fallbackIdx + 1);
-    var dato = (data && data.dato) ? String(data.dato).replace(/\./g, '-') : '';
-    if (dato) base += '_' + dato;
-    return base;
+// Konverter kappeskjema-dato (DD.MM.YYYY) til Uke-N-YYYY-streng.
+// Ordreseddel/service har data.uke direkte; kappe må parse fra dato.
+function _ukeYearForKappeForm(data) {
+    if (!data || !data.dato) return _currentUkeYear();
+    var m = String(data.dato).match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/);
+    if (!m) return _currentUkeYear();
+    var d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    if (isNaN(d.getTime())) return _currentUkeYear();
+    return 'Uke-' + getWeekNumber(d) + '-' + d.getFullYear();
 }
 
-// Dato-rekkevidde for samlet kappe-eksport. Dato i formen DD-MM-YYYY (norsk).
-// - Alle samme dato: "03-05-2026"
-// - Flere datoer: "03-05-2026_til_05-05-2026"
-// - Ingen dato: dagens dato
-function _sharedKappeDateOrRange() {
+function _ukeYearForFormByType(data, type) {
+    return type === 'kappe' ? _ukeYearForKappeForm(data) : _ukeYearForForm(data);
+}
+
+// Bulk-samlet uke-rekkevidde for kappe (samme min/max-mønster som ordreseddel).
+function _sharedUkeYearOrRangeKappe() {
     var forms = _getSelectedForms();
-    if (!forms || !forms.length) return _kappeFormatDateNO(_kappeTodayISO()).replace(/\./g, '-');
-    var dates = [];
+    if (!forms || !forms.length) return _currentUkeYear();
+    var ukes = [];
+    var years = {};
     for (var i = 0; i < forms.length; i++) {
-        var d = forms[i] && forms[i].dato;
-        if (d) dates.push(String(d).replace(/\./g, '-'));
+        var uy = _ukeYearForKappeForm(forms[i]);
+        var m = uy.match(/Uke-(\d+)-(\d+)/);
+        if (!m) continue;
+        ukes.push(parseInt(m[1], 10));
+        years[m[2]] = true;
     }
-    if (!dates.length) return _kappeFormatDateNO(_kappeTodayISO()).replace(/\./g, '-');
-    // Sorter etter ISO-form for å finne min/max
-    var iso = dates.map(function(d) {
-        var m = d.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-        return m ? (m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0')) : null;
-    }).filter(Boolean).sort();
-    if (!iso.length) return _kappeFormatDateNO(_kappeTodayISO()).replace(/\./g, '-');
-    var minDmy = _kappeFormatDateNO(iso[0]).replace(/\./g, '-');
-    var maxDmy = _kappeFormatDateNO(iso[iso.length - 1]).replace(/\./g, '-');
-    return (minDmy === maxDmy) ? minDmy : (minDmy + '_til_' + maxDmy);
+    if (!ukes.length) return _currentUkeYear();
+    var yearKeys = Object.keys(years);
+    if (yearKeys.length > 1) return _currentUkeYear();
+    var min = Math.min.apply(null, ukes);
+    var max = Math.max.apply(null, ukes);
+    var year = yearKeys[0];
+    return (min === max) ? 'Uke-' + min + '-' + year : 'Uker-' + min + '-' + max + '-' + year;
+}
+
+function _typePrefix(type) {
+    return type === 'service' ? 'lageruttak'
+         : type === 'kappe'   ? 'kappeskjema'
+         :                       'ordreseddel';
+}
+
+function _bulkFilename(ext, type) {
+    var range = (type === 'kappe') ? _sharedUkeYearOrRangeKappe() : _sharedUkeYearOrRange();
+    return _typePrefix(type) + '_samlet_' + range + '.' + (ext || 'pdf');
+}
+
+// Per-skjema filnavn (separat bulk-eksport eller fallback).
+//   {type}_{prosjektnr}_Uke-N-YYYY.{ext}
+// Fallback-rekkefølge når prosjektnr mangler:
+//   ordreseddel: prosjektnavn → ordreseddelNr → "skjema_N"
+//   kappe:       prosjektnavn → "skjema_N"
+//   service:     prosjektnavn (fra første entry) → "skjema_N"
+function _filenameForForm(data, fallbackIdx, type, ext) {
+    var prefix = _typePrefix(type);
+    var name = _formProsjektId(data, type);
+    if (!name) {
+        if (type === 'service') name = 'skjema_' + (fallbackIdx + 1);
+        else if (type === 'kappe') name = 'skjema_' + (fallbackIdx + 1);
+        else name = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
+    }
+    var uke = _ukeYearForFormByType(data, type);
+    return prefix + '_' + _sanitizeFilenamePart(name) + '_' + uke + '.' + ext;
 }
 
 function _pngFilenameForForm(data, fallbackIdx, type) {
-    if (type === 'kappe') return _kappeFilenameBase(data, fallbackIdx) + '.png';
-    var uke = _ukeYearForForm(data);
-    if (type === 'service') {
-        var suffix = fallbackIdx > 0 ? '_' + (fallbackIdx + 1) : '';
-        return 'lageruttak_' + uke + suffix + '.png';
-    }
-    var nr = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
-    return 'ordreseddel_' + nr + '_' + uke + '.png';
+    return _filenameForForm(data, fallbackIdx, type, 'png');
 }
 
 function _pdfFilenameForForm(data, fallbackIdx, type) {
-    if (type === 'kappe') return _kappeFilenameBase(data, fallbackIdx) + '.pdf';
-    var uke = _ukeYearForForm(data);
-    if (type === 'service') {
-        var suffix = fallbackIdx > 0 ? '_' + (fallbackIdx + 1) : '';
-        return 'lageruttak_' + uke + suffix + '.pdf';
-    }
-    var nr = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
-    return 'ordreseddel_' + nr + '_' + uke + '.pdf';
+    return _filenameForForm(data, fallbackIdx, type, 'pdf');
 }
 
 // Render alle valgte til separate PDF-filer (én per skjema)
@@ -5923,16 +5952,8 @@ async function renderServiceToCanvas() {
 }
 
 function getServiceExportFilename(ext) {
-    var ukeVal = (document.getElementById('service-uke') || {}).value || '';
-    var year = new Date().getFullYear();
-    var uke;
-    var match = ukeVal.match(/(\d+)/);
-    if (match) {
-        var n = parseInt(match[1], 10);
-        if (n >= 1 && n <= 53) uke = n;
-    }
-    if (!uke) uke = getWeekNumber(new Date());
-    return 'lageruttak_Uke-' + uke + '-' + year + '.' + ext;
+    var data = (typeof getServiceFormData === 'function') ? getServiceFormData() : {};
+    return _filenameForForm(data, 0, 'service', ext);
 }
 
 async function doServiceExportPDF(markSent) {
@@ -9762,16 +9783,7 @@ async function renderKappeToCanvas() {
 
 function getKappeExportFilename(ext) {
     var data = getKappeFormData();
-    var base = 'kappeskjema';
-    // Prosjektnavn er mer gjenkjennelig enn prosjektnr — bruker husker navn, ikke nummer.
-    if (data.prosjektnavn) base += '_' + data.prosjektnavn.replace(/[^A-Za-z0-9æøåÆØÅ_-]/g, '_');
-    else if (data.prosjektnr) base += '_' + data.prosjektnr;
-    // Dato i norsk format DD-MM-YYYY (bindestrek for fil-systemvennlighet).
-    // Flere kappeskjemaer for samme prosjekt sendes i løpet av en uke, så
-    // dato skiller dem fra hverandre.
-    var dato = (data.dato || _kappeFormatDateNO(_kappeTodayISO())).replace(/\./g, '-');
-    if (dato) base += '_' + dato;
-    return base + '.' + ext;
+    return _filenameForForm(data, 0, 'kappe', ext);
 }
 
 async function doKappeExportPDF(markSent) {
