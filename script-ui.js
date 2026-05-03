@@ -6265,6 +6265,31 @@ function _applyHashNavigation(hash) {
     }
 }
 
+// Lukker alle åpne overlays/popups så de ikke blir hengende ved browser-navigering
+// (swipe-back / popstate / programmatisk hash-bytte). Header/top-bar kan ellers
+// bli skjult av body-klasser som picker-active/signature-active/preview-active.
+function _dismissOverlaysOnNavigation() {
+    if (document.body.classList.contains('picker-active') && typeof closePickerOverlay === 'function') {
+        closePickerOverlay();
+    }
+    if (document.body.classList.contains('signature-active') && typeof cleanupSignatureOverlay === 'function') {
+        cleanupSignatureOverlay();
+    }
+    if (document.body.classList.contains('preview-active') && typeof closePreview === 'function') {
+        closePreview();
+    }
+    var specPopup = document.getElementById('spec-popup-overlay');
+    if (specPopup && specPopup.classList.contains('active') && typeof closeSpecPopup === 'function') {
+        closeSpecPopup();
+    }
+    var faktura = document.getElementById('fakturaadresse-popup');
+    if (faktura) faktura.classList.remove('active');
+    var actionPopup = document.getElementById('action-popup');
+    if (actionPopup) actionPopup.classList.remove('active');
+    var kappePicker = document.getElementById('kappe-product-picker-overlay');
+    if (kappePicker) kappePicker.classList.remove('active');
+}
+
 window.addEventListener('hashchange', function() {
     if (!currentUser) return; // Ikke naviger uten innlogging
     var hash = window.location.hash.slice(1);
@@ -6272,6 +6297,7 @@ window.addEventListener('hashchange', function() {
     // If we just rolled back or confirmed, apply without re-guarding
     if (_suppressHashGuard) {
         _suppressHashGuard = false;
+        _dismissOverlaysOnNavigation();
         _applyHashNavigation(hash);
         return;
     }
@@ -6298,12 +6324,22 @@ window.addEventListener('hashchange', function() {
             } else {
                 // Going home (no hash): replaceState doesn't fire hashchange, apply directly
                 history.replaceState(null, '', window.location.pathname);
+                _dismissOverlaysOnNavigation();
+                if (currentId === 'service-view' && typeof closeServiceView === 'function') closeServiceView();
+                if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
                 _applyHashNavigation('');
             }
         }, t('btn_continue'), '#E8501A');
         return;
     }
 
+    // Lukk overlays + view-spesifikk cleanup før navigering, slik at swipe-back
+    // oppfører seg som header-tilbakeknapp (navigateBack).
+    _dismissOverlaysOnNavigation();
+    if (leavingFormView) {
+        if (currentId === 'service-view' && typeof closeServiceView === 'function') closeServiceView();
+        if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
+    }
     _applyHashNavigation(hash);
 });
 
