@@ -5994,6 +5994,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 sheets.forEach(function(s) {
                     s.style.transform = 'translateY(-' + popupOffset + 'px)';
                 });
+                // Confirm-modal har padding-bottom for toolbar — fjern det når tastaturet er åpent
+                // slik at popupen sitter naturlig sentrert i synlig område (ikke for høyt).
+                document.querySelectorAll('.confirm-modal.active').forEach(function(m) {
+                    m.style.paddingBottom = '0';
+                });
                 // Reparent toolbar into scrollable content
                 if (toolbar) {
                     var host = null;
@@ -6013,6 +6018,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content');
                 sheets.forEach(function(s) {
                     s.style.transform = '';
+                });
+                // Restaurer confirm-modal padding-bottom (CSS-default tar over)
+                document.querySelectorAll('.confirm-modal').forEach(function(m) {
+                    m.style.paddingBottom = '';
                 });
                 if (toolbar && toolbar.parentNode !== document.body) {
                     toolbar.classList.remove('toolbar--inflow');
