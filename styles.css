@@ -1210,6 +1210,13 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
 .bil-card-uttak {
     border-left-color: #e0e0e0;
 }
+/* Uttak-kort er klikkbare (åpner skjemaet) — pafylling er ikke det */
+.bil-card-uttak {
+    cursor: pointer;
+}
+.bil-card-uttak:active {
+    background: #f8f8f8;
+}
 
 /* Gruppert utseende — første/siste/eneste kort matcher .saved-item-mønsteret */
 #bil-history-list .bil-history-card:first-child {
@@ -6410,12 +6417,21 @@ body.stopwatch-running .toolbar .btn-calc::after {
     pointer-events: none;
 }
 #saved-modal.select-mode #saved-list .saved-item.selected,
-#saved-modal.select-mode #service-list .saved-item.selected {
+#saved-modal.select-mode #service-list .saved-item.selected,
+#saved-modal.select-mode #kappe-list .saved-item.selected,
+#saved-modal.select-mode #bil-history-list .bil-card-uttak.selected {
     background: #fff3ed;
 }
 #saved-modal.select-mode #saved-list,
-#saved-modal.select-mode #service-list {
+#saved-modal.select-mode #service-list,
+#saved-modal.select-mode #kappe-list,
+#saved-modal.select-mode #bil-history-list {
     padding-bottom: 96px;
+}
+/* I select-mode skal pafylling-kort (inntak) ikke se valgbare ut — det er ikke skjemaer */
+#saved-modal.select-mode #bil-history-list .bil-card-pafylling {
+    opacity: 0.45;
+    pointer-events: none;
 }
 
 .bulk-action-bar {

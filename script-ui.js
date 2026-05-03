@@ -3906,7 +3906,10 @@ function toggleSelectMode() {
     var btn = document.getElementById('saved-select-btn');
     var title = document.getElementById('saved-modal-title');
     if (_selectMode) {
-        _selectTab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
+        // Normaliser tab-keys: sessionStorage bruker 'servicebil', men intern
+        // _selectTab-verdi er 'service' (matcher eksisterende bulk-build-funksjoner).
+        var rawTab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
+        _selectTab = (rawTab === 'servicebil') ? 'service' : rawTab;
         modal.classList.add('select-mode');
         document.body.classList.add('bulk-select-active');
         if (btn) { btn.classList.add('active'); btn.textContent = t('btn_cancel'); }
@@ -3917,22 +3920,49 @@ function toggleSelectMode() {
         document.body.classList.remove('bulk-select-active');
         if (btn) { btn.classList.remove('active'); btn.textContent = t('btn_select'); }
         if (title) title.textContent = t('modal_load_title');
-        // Clear visual selection from all rows
-        document.querySelectorAll('#saved-list .saved-item.selected, #service-list .saved-item.selected')
-            .forEach(function(el) { el.classList.remove('selected'); });
+        // Fjern markering fra alle lister (ordreseddel, kappe, og servicebil-uttak-kort)
+        document.querySelectorAll(
+            '#saved-list .saved-item.selected, ' +
+            '#kappe-list .saved-item.selected, ' +
+            '#bil-history-list .bil-card-uttak.selected'
+        ).forEach(function(el) { el.classList.remove('selected'); });
     }
     updateSelectionUI();
 }
 
 function toggleFormSelection(idx, rowEl) {
-    if (_selectedSet.has(idx)) {
-        _selectedSet.delete(idx);
-        if (rowEl) rowEl.classList.remove('selected');
-    } else {
-        _selectedSet.add(idx);
-        if (rowEl) rowEl.classList.add('selected');
+    var nowSelected = !_selectedSet.has(idx);
+    if (nowSelected) _selectedSet.add(idx);
+    else _selectedSet.delete(idx);
+    // For servicebil kan flere uttak-kort dele samme form-idx (én post per
+    // entry i samme arkiverte service-skjema). Marker alle samtidig.
+    if (_selectTab === 'service') {
+        document.querySelectorAll('#bil-history-list .bil-card-uttak[data-form-idx="' + idx + '"]')
+            .forEach(function(el) { el.classList.toggle('selected', nowSelected); });
+    } else if (rowEl) {
+        rowEl.classList.toggle('selected', nowSelected);
     }
     updateSelectionUI();
+}
+
+// Returner valgbare elementer i aktiv tab. For ordreseddel og kappe er det
+// .saved-item-kort med data-index. For servicebil er det .bil-card-uttak-kort
+// (uttak-poster i bil-history-listen) med data-form-idx — inntak (pafylling)
+// kan IKKE velges siden det ikke er et skjema.
+function _getSelectableItems() {
+    if (_selectTab === 'service') {
+        return document.querySelectorAll('#bil-history-list .bil-card-uttak[data-form-idx]');
+    }
+    if (_selectTab === 'kappe') {
+        return document.querySelectorAll('#kappe-list .saved-item[data-index]');
+    }
+    return document.querySelectorAll('#saved-list .saved-item[data-index]');
+}
+
+function _itemSelectionIdx(el) {
+    var attr = (_selectTab === 'service') ? 'data-form-idx' : 'data-index';
+    var idx = parseInt(el.getAttribute(attr), 10);
+    return isNaN(idx) ? null : idx;
 }
 
 function updateSelectionUI() {
@@ -3944,52 +3974,67 @@ function updateSelectionUI() {
 
     var selectAllBtn = document.getElementById('bulk-select-all-btn');
     if (selectAllBtn) {
-        var listId = _selectTab === 'service' ? 'service-list' : 'saved-list';
-        var items = document.querySelectorAll('#' + listId + ' .saved-item');
-        var allSelected = items.length > 0 && Array.prototype.every.call(items, function(el) {
-            var idx = parseInt(el.getAttribute('data-index'), 10);
-            return !isNaN(idx) && _selectedSet.has(idx);
+        var items = _getSelectableItems();
+        // Alle valgt: alle UNIKE indekser i listen er i _selectedSet.
+        // (Servicebil kan ha flere uttak-kort med samme form-idx — duplikater
+        // teller som "én valgbar enhet".)
+        var uniqueIdxs = {};
+        Array.prototype.forEach.call(items, function(el) {
+            var idx = _itemSelectionIdx(el);
+            if (idx !== null) uniqueIdxs[idx] = true;
+        });
+        var idxList = Object.keys(uniqueIdxs);
+        var allSelected = idxList.length > 0 && idxList.every(function(idx) {
+            return _selectedSet.has(parseInt(idx, 10));
         });
         selectAllBtn.textContent = allSelected ? t('btn_deselect_all') : t('btn_select_all');
-        selectAllBtn.disabled = items.length === 0;
+        selectAllBtn.disabled = idxList.length === 0;
     }
 }
 
 function toggleSelectAllVisible() {
     if (!_selectMode) return;
-    var listId = _selectTab === 'service' ? 'service-list' : 'saved-list';
-    var items = document.querySelectorAll('#' + listId + ' .saved-item');
+    var items = _getSelectableItems();
     if (items.length === 0) return;
-    var allSelected = Array.prototype.every.call(items, function(el) {
-        var idx = parseInt(el.getAttribute('data-index'), 10);
-        return !isNaN(idx) && _selectedSet.has(idx);
+    var uniqueIdxs = {};
+    Array.prototype.forEach.call(items, function(el) {
+        var idx = _itemSelectionIdx(el);
+        if (idx !== null) uniqueIdxs[idx] = true;
     });
-    items.forEach(function(el) {
-        var idx = parseInt(el.getAttribute('data-index'), 10);
-        if (isNaN(idx)) return;
-        if (allSelected) {
-            _selectedSet.delete(idx);
-            el.classList.remove('selected');
-        } else {
-            _selectedSet.add(idx);
-            el.classList.add('selected');
-        }
+    var idxList = Object.keys(uniqueIdxs).map(function(s) { return parseInt(s, 10); });
+    if (idxList.length === 0) return;
+    var allSelected = idxList.every(function(i) { return _selectedSet.has(i); });
+    if (allSelected) {
+        idxList.forEach(function(i) { _selectedSet.delete(i); });
+    } else {
+        idxList.forEach(function(i) { _selectedSet.add(i); });
+    }
+    // Re-applicer .selected-klasse på alle aktuelle elementer (også duplikater for servicebil)
+    Array.prototype.forEach.call(items, function(el) {
+        var idx = _itemSelectionIdx(el);
+        if (idx === null) return;
+        el.classList.toggle('selected', _selectedSet.has(idx));
     });
     updateSelectionUI();
 }
 
 function _getSelectedForms() {
-    var src = _selectTab === 'service' ? (window.loadedServiceForms || []) : (window.loadedForms || []);
+    var src;
+    if (_selectTab === 'service') src = window.loadedServiceForms || [];
+    else if (_selectTab === 'kappe') src = window.loadedKappeForms || [];
+    else src = window.loadedForms || [];
     var out = [];
     for (var i = 0; i < src.length; i++) {
         if (_selectedSet.has(i)) out.push(src[i]);
     }
-    // Sorter etter ordreseddelNr (numerisk stigende) for konsistent rekkefølge i PDF
-    out.sort(function(a, b) {
-        var na = parseInt(a.ordreseddelNr, 10) || 0;
-        var nb = parseInt(b.ordreseddelNr, 10) || 0;
-        return na - nb;
-    });
+    // Sorter etter ordreseddelNr (kun relevant for ordreseddel) for konsistent rekkefølge i PDF
+    if (_selectTab !== 'service' && _selectTab !== 'kappe') {
+        out.sort(function(a, b) {
+            var na = parseInt(a.ordreseddelNr, 10) || 0;
+            var nb = parseInt(b.ordreseddelNr, 10) || 0;
+            return na - nb;
+        });
+    }
     return out;
 }
 
@@ -4324,7 +4369,7 @@ function _forceViewVisible(viewId) {
     // Lagre og fjern body-klasser som skjuler target via CSS
     // (body.saved-modal-open #view-form { display: none }, osv.)
     var bodyClassesToRestore = [];
-    ['saved-modal-open', 'template-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open'].forEach(function(cls) {
+    ['saved-modal-open', 'template-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open', 'kappe-view-open'].forEach(function(cls) {
         if (document.body.classList.contains(cls)) {
             bodyClassesToRestore.push(cls);
             document.body.classList.remove(cls);
@@ -4414,6 +4459,43 @@ async function _bulkBuildServicePDF() {
     return pdf;
 }
 
+async function _renderKappeCanvasFromData(data) {
+    var prev = null;
+    try { prev = getKappeFormData(); } catch (e) {}
+    setKappeFormData(data);
+    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+    try {
+        return await renderKappeToCanvas();
+    } finally {
+        if (prev) {
+            try { setKappeFormData(prev); } catch (e) {}
+        }
+    }
+}
+
+async function _bulkBuildKappePDF() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return null;
+    var restoreView = _forceViewVisible('kappe-view');
+    var pdf = null;
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            var canvas = await _renderKappeCanvasFromData(forms[i]);
+            if (!canvas || !canvas.width || !canvas.height) {
+                throw new Error('Tom canvas for kappeskjema ' + (i + 1) + '/' + forms.length);
+            }
+            if (i === 0) {
+                pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+            } else {
+                _addPageFromCanvas(pdf, canvas, 297, 210, 'JPEG', 0.95);
+            }
+        }
+    } finally {
+        restoreView();
+    }
+    return pdf;
+}
+
 // Dagens uke + år, f.eks. "Uke-16-2026"
 function _currentUkeYear() {
     var now = new Date();
@@ -4474,13 +4556,54 @@ function _sharedUkeYearOrRange() {
 }
 
 function _bulkFilename(ext, type) {
+    if (type === 'kappe') {
+        // Flere kappeskjemaer kan være fra samme dag/uke; bruk dato-rekkevidde fra valgte
+        return 'kappeskjema_samlet_' + _sharedKappeDateOrRange() + '.' + (ext || 'pdf');
+    }
     var prefix = (type === 'service') ? 'lageruttak_samlet' : 'ordreseddel_samlet';
     return prefix + '_' + _sharedUkeYearOrRange() + '.' + (ext || 'pdf');
 }
 
-function _pngFilenameForForm(data, fallbackIdx, isService) {
+// Bygger filnavn-fragment for separat kappe-fil. Følger samme mønster som
+// getKappeExportFilename: prosjektnavn → prosjektnr → fallback, etterfulgt av dato.
+function _kappeFilenameBase(data, fallbackIdx) {
+    var base = 'kappeskjema';
+    if (data && data.prosjektnavn) base += '_' + data.prosjektnavn.replace(/[^A-Za-z0-9æøåÆØÅ_-]/g, '_');
+    else if (data && data.prosjektnr) base += '_' + data.prosjektnr;
+    else base += '_skjema_' + (fallbackIdx + 1);
+    var dato = (data && data.dato) ? String(data.dato).replace(/\./g, '-') : '';
+    if (dato) base += '_' + dato;
+    return base;
+}
+
+// Dato-rekkevidde for samlet kappe-eksport. Dato i formen DD-MM-YYYY (norsk).
+// - Alle samme dato: "03-05-2026"
+// - Flere datoer: "03-05-2026_til_05-05-2026"
+// - Ingen dato: dagens dato
+function _sharedKappeDateOrRange() {
+    var forms = _getSelectedForms();
+    if (!forms || !forms.length) return _kappeFormatDateNO(_kappeTodayISO()).replace(/\./g, '-');
+    var dates = [];
+    for (var i = 0; i < forms.length; i++) {
+        var d = forms[i] && forms[i].dato;
+        if (d) dates.push(String(d).replace(/\./g, '-'));
+    }
+    if (!dates.length) return _kappeFormatDateNO(_kappeTodayISO()).replace(/\./g, '-');
+    // Sorter etter ISO-form for å finne min/max
+    var iso = dates.map(function(d) {
+        var m = d.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+        return m ? (m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0')) : null;
+    }).filter(Boolean).sort();
+    if (!iso.length) return _kappeFormatDateNO(_kappeTodayISO()).replace(/\./g, '-');
+    var minDmy = _kappeFormatDateNO(iso[0]).replace(/\./g, '-');
+    var maxDmy = _kappeFormatDateNO(iso[iso.length - 1]).replace(/\./g, '-');
+    return (minDmy === maxDmy) ? minDmy : (minDmy + '_til_' + maxDmy);
+}
+
+function _pngFilenameForForm(data, fallbackIdx, type) {
+    if (type === 'kappe') return _kappeFilenameBase(data, fallbackIdx) + '.png';
     var uke = _ukeYearForForm(data);
-    if (isService) {
+    if (type === 'service') {
         var suffix = fallbackIdx > 0 ? '_' + (fallbackIdx + 1) : '';
         return 'lageruttak_' + uke + suffix + '.png';
     }
@@ -4488,9 +4611,10 @@ function _pngFilenameForForm(data, fallbackIdx, isService) {
     return 'ordreseddel_' + nr + '_' + uke + '.png';
 }
 
-function _pdfFilenameForForm(data, fallbackIdx, isService) {
+function _pdfFilenameForForm(data, fallbackIdx, type) {
+    if (type === 'kappe') return _kappeFilenameBase(data, fallbackIdx) + '.pdf';
     var uke = _ukeYearForForm(data);
-    if (isService) {
+    if (type === 'service') {
         var suffix = fallbackIdx > 0 ? '_' + (fallbackIdx + 1) : '';
         return 'lageruttak_' + uke + suffix + '.pdf';
     }
@@ -4540,7 +4664,28 @@ async function _bulkBuildServicePDFsSeparate() {
             }
             var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
             var blob = pdf.output('blob');
-            files.push(new File([blob], _pdfFilenameForForm(forms[i], i, true), { type: 'application/pdf' }));
+            files.push(new File([blob], _pdfFilenameForForm(forms[i], i, 'service'), { type: 'application/pdf' }));
+        }
+    } finally {
+        restoreView();
+    }
+    return files;
+}
+
+async function _bulkBuildKappePDFsSeparate() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return [];
+    var restoreView = _forceViewVisible('kappe-view');
+    var files = [];
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            var canvas = await _renderKappeCanvasFromData(forms[i]);
+            if (!canvas || !canvas.width || !canvas.height) {
+                throw new Error('Tom canvas for kappeskjema ' + (i + 1) + '/' + forms.length);
+            }
+            var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+            var blob = pdf.output('blob');
+            files.push(new File([blob], _pdfFilenameForForm(forms[i], i, 'kappe'), { type: 'application/pdf' }));
         }
     } finally {
         restoreView();
@@ -4582,7 +4727,24 @@ async function _bulkBuildServicePNGs() {
         for (var i = 0; i < forms.length; i++) {
             var canvas = await _renderServiceCanvasFromData(forms[i]);
             var blob = await new Promise(function(res) { canvas.toBlob(res, 'image/png'); });
-            files.push(new File([blob], _pngFilenameForForm(forms[i], i, true), { type: 'image/png' }));
+            files.push(new File([blob], _pngFilenameForForm(forms[i], i, 'service'), { type: 'image/png' }));
+        }
+    } finally {
+        restoreView();
+    }
+    return files;
+}
+
+async function _bulkBuildKappePNGs() {
+    var forms = _getSelectedForms();
+    if (!forms.length) return [];
+    var restoreView = _forceViewVisible('kappe-view');
+    var files = [];
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            var canvas = await _renderKappeCanvasFromData(forms[i]);
+            var blob = await new Promise(function(res) { canvas.toBlob(res, 'image/png'); });
+            files.push(new File([blob], _pngFilenameForForm(forms[i], i, 'kappe'), { type: 'image/png' }));
         }
     } finally {
         restoreView();
@@ -4651,12 +4813,41 @@ function _markServiceFormDataAsSent(sourceData) {
     } catch (e) { console.error('Bulk mark-sent (service) error:', e); }
 }
 
+function _markKappeFormDataAsSent(sourceData) {
+    try {
+        var data = JSON.parse(JSON.stringify(sourceData));
+        delete data._isSent;
+        data.savedAt = new Date().toISOString();
+
+        if (!data.id) data.id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+        var archived = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+        var archIdx = archived.findIndex(function(item) { return item.id === data.id; });
+        if (archIdx !== -1) archived[archIdx] = data;
+        else archived.unshift(data);
+        safeSetItem(KAPPE_ARCHIVE_KEY, JSON.stringify(archived));
+        var saved = safeParseJSON(KAPPE_STORAGE_KEY, []);
+        var savedIdx = saved.findIndex(function(item) { return item.id === data.id; });
+        if (savedIdx !== -1) {
+            saved.splice(savedIdx, 1);
+            safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(saved));
+        }
+        if (currentUser && db) {
+            var docId = data.id;
+            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(docId).set(data);
+            }).then(function() {
+                return db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(docId).delete();
+            }).catch(function(e) { console.error('Bulk mark-sent (kappe) error:', e); });
+        }
+    } catch (e) { console.error('Bulk mark-sent (kappe) error:', e); }
+}
+
 function _bulkMarkSelectedAsSent() {
     var forms = _getSelectedForms();
-    var isService = _selectTab === 'service';
     for (var i = 0; i < forms.length; i++) {
         if (forms[i]._isSent) continue; // already sent
-        if (isService) _markServiceFormDataAsSent(forms[i]);
+        if (_selectTab === 'service') _markServiceFormDataAsSent(forms[i]);
+        else if (_selectTab === 'kappe') _markKappeFormDataAsSent(forms[i]);
         else _markOwnFormDataAsSent(forms[i]);
     }
     _lastLocalSaveTs = Date.now();
@@ -4762,7 +4953,7 @@ async function doBulkExportPDF(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : await _bulkBuildOwnPDF();
+        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : (_selectTab === 'kappe' ? await _bulkBuildKappePDF() : await _bulkBuildOwnPDF());
         if (pdf) pdf.save(_bulkFilename('pdf', _selectTab));
         await _bulkFinishAfterExport(markSent);
     } catch (e) {
@@ -4777,7 +4968,7 @@ async function doBulkExportPNG(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var files = _selectTab === 'service' ? await _bulkBuildServicePNGs() : await _bulkBuildOwnPNGs();
+        var files = _selectTab === 'service' ? await _bulkBuildServicePNGs() : (_selectTab === 'kappe' ? await _bulkBuildKappePNGs() : await _bulkBuildOwnPNGs());
         for (var i = 0; i < files.length; i++) {
             var url = URL.createObjectURL(files[i]);
             var a = document.createElement('a');
@@ -4807,7 +4998,7 @@ async function doBulkSharePDF(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : await _bulkBuildOwnPDF();
+        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : (_selectTab === 'kappe' ? await _bulkBuildKappePDF() : await _bulkBuildOwnPDF());
         if (!pdf) return;
         var blob = pdf.output('blob');
         var file = new File([blob], _bulkFilename('pdf', _selectTab), { type: 'application/pdf' });
@@ -4834,7 +5025,7 @@ async function doBulkSharePNG(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var files = _selectTab === 'service' ? await _bulkBuildServicePNGs() : await _bulkBuildOwnPNGs();
+        var files = _selectTab === 'service' ? await _bulkBuildServicePNGs() : (_selectTab === 'kappe' ? await _bulkBuildKappePNGs() : await _bulkBuildOwnPNGs());
         if (!files.length) return;
         if (!navigator.canShare({ files: files })) {
             showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -4856,7 +5047,7 @@ async function doBulkExportPDFSeparate(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : await _bulkBuildOwnPDFsSeparate();
+        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : (_selectTab === 'kappe' ? await _bulkBuildKappePDFsSeparate() : await _bulkBuildOwnPDFsSeparate());
         for (var i = 0; i < files.length; i++) {
             var url = URL.createObjectURL(files[i]);
             var a = document.createElement('a');
@@ -4885,7 +5076,7 @@ async function doBulkSharePDFSeparate(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : await _bulkBuildOwnPDFsSeparate();
+        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : (_selectTab === 'kappe' ? await _bulkBuildKappePDFsSeparate() : await _bulkBuildOwnPDFsSeparate());
         if (!files.length) return;
         if (!navigator.canShare({ files: files })) {
             showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -7601,16 +7792,35 @@ function renderBilHistory() {
         });
     }
 
-    // Uttak (sent service forms)
+    // Uttak — både lagrede (drafts) og sendte service-skjemaer.
+    // window.loadedServiceForms er kilden for select-mode bulk-eksport. Sett den lik
+    // alle uttak-skjemaer (saved + sent dedupet) slik at toggleFormSelection /
+    // _getSelectedForms kan slå opp skjema via samme indeks som data-form-idx.
+    var saved = safeParseJSON(SERVICE_STORAGE_KEY, []);
     var archived = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
-    for (var i2 = 0; i2 < archived.length; i2++) {
-        var form = archived[i2];
+    var combined = [];
+    var seen = {};
+    for (var ai = 0; ai < archived.length; ai++) {
+        var sf = archived[ai];
+        if (sf && sf.id) seen[sf.id] = true;
+        combined.push(Object.assign({}, sf, { _isSent: true }));
+    }
+    for (var si = 0; si < saved.length; si++) {
+        var df = saved[si];
+        if (df && df.id && seen[df.id]) continue; // arkiv-versjon vinner ved duplikat
+        combined.push(Object.assign({}, df, { _isSent: false }));
+    }
+    window.loadedServiceForms = combined;
+    for (var i2 = 0; i2 < combined.length; i2++) {
+        var form = combined[i2];
         var entries = form.entries || [];
         for (var j = 0; j < entries.length; j++) {
             var entry = entries[j];
             if (!entry.materials || entry.materials.length === 0) continue;
             items.push({
                 type: 'uttak',
+                formIdx: i2, // indeks i window.loadedServiceForms — brukes for select-mode + open
+                isSent: !!form._isSent,
                 dato: entry.dato || '',
                 createdAt: form.savedAt || '',
                 prosjektnr: entry.prosjektnr || '',
@@ -7627,6 +7837,7 @@ function renderBilHistory() {
 
     if (items.length === 0) {
         listEl.innerHTML = '<div class="bil-empty-msg">' + t('bil_no_history') + '</div>';
+        if (_selectMode && _selectTab === 'service') updateSelectionUI();
         return;
     }
 
@@ -7635,10 +7846,15 @@ function renderBilHistory() {
         var item = items[i3];
         var isPafylling = item.type === 'pafylling';
         var typeLabel = isPafylling ? t('bil_history_pafylling') : t('bil_history_uttak');
-        var titleHtml = escapeHtml(item.dato);
+        // For uttak: status-dot viser sendt (grønn) vs lagret/draft (oransje), samme mønster som ordreseddel.
+        var statusDot = (!isPafylling) ? '<span class="status-dot ' + (item.isSent ? 'sent' : 'saved') + '"></span>' : '';
+        var titleHtml = statusDot + escapeHtml(item.dato);
         var subtitleHtml = '';
-        if (!isPafylling && item.prosjektnr) {
-            subtitleHtml = escapeHtml(item.prosjektnr) + (item.prosjektnavn ? '<span class="bil-history-sep"></span>' + escapeHtml(item.prosjektnavn) : '');
+        if (!isPafylling) {
+            var subParts = [];
+            if (item.prosjektnr) subParts.push(escapeHtml(item.prosjektnr));
+            if (item.prosjektnavn) subParts.push(escapeHtml(item.prosjektnavn));
+            if (subParts.length) subtitleHtml = subParts.join('<span class="bil-history-sep"></span>');
         }
 
         var matsHtml = '';
@@ -7716,7 +7932,12 @@ function renderBilHistory() {
             : '';
 
         var hiddenClass = i3 >= 10 ? ' bil-history-hidden' : '';
-        html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + '">' +
+        // Uttak-kort får data-form-idx slik at de kan velges i bulk-modus
+        var dataAttr = isPafylling ? '' : ' data-form-idx="' + item.formIdx + '"';
+        // Marker som .selected hvis denne form-idx allerede er i selectedSet (re-render etter delete o.l.)
+        var selectedClass = (!isPafylling && _selectMode && _selectTab === 'service' && _selectedSet.has(item.formIdx))
+            ? ' selected' : '';
+        html += '<div class="bil-history-card ' + (isPafylling ? 'bil-card-pafylling' : 'bil-card-uttak') + hiddenClass + selectedClass + '"' + dataAttr + '>' +
             '<div class="bil-history-header">' +
                 '<span class="bil-history-type">' + escapeHtml(typeLabel) + '</span>' +
                 '<span class="bil-history-title">' + titleHtml + '</span>' +
@@ -7733,7 +7954,36 @@ function renderBilHistory() {
     }
 
     listEl.innerHTML = html;
+    if (_selectMode && _selectTab === 'service') updateSelectionUI();
 }
+
+// Event delegation for bil-history-list:
+//  - Select-mode: tap på uttak-kort toggler valg (inntak/påfylling kan ikke velges).
+//  - Normal-mode: tap på uttak-kort åpner skjemaet (loadServiceFormDirect).
+//  - Inntak/pafylling-kort har bare delete-knapp (håndtert via inline onclick).
+(function() {
+    var bilListEl = document.getElementById('bil-history-list');
+    if (!bilListEl) return;
+    bilListEl.addEventListener('click', function(e) {
+        // Ikke tolk delete-klikk som åpning/valg
+        if (e.target.closest('.bil-history-delete')) return;
+        var card = e.target.closest('.bil-card-uttak[data-form-idx]');
+        if (!card) return;
+        var idx = parseInt(card.getAttribute('data-form-idx'), 10);
+        if (isNaN(idx)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (_selectMode && _selectTab === 'service') {
+            toggleFormSelection(idx, card);
+            return;
+        }
+        // Normal-mode: åpne skjemaet for redigering / re-eksport
+        var form = (window.loadedServiceForms || [])[idx];
+        if (form && typeof loadServiceFormDirect === 'function') {
+            loadServiceFormDirect(form);
+        }
+    });
+})();
 
 function toggleBilHistory() {
     var hidden = document.querySelectorAll('.bil-history-hidden');
@@ -9034,11 +9284,20 @@ function renderKappeFormsList(forms) {
     if (!forms || forms.length === 0) {
         listEl.innerHTML = '<div class="no-saved">' + t('kappe_no_saved') + '</div>';
         window.loadedKappeForms = [];
+        if (_selectMode) updateSelectionUI();
         return;
     }
     window.loadedKappeForms = forms;
     listEl.innerHTML = forms.map(function(item, i) { return _buildKappeItemHtml(item, i); }).join('');
     listEl.querySelectorAll('.saved-item').forEach(function(el, i) { el._formData = window.loadedKappeForms[i]; });
+    // Re-applicer .selected-klasse hvis vi er i select-mode (f.eks. etter delete-refresh)
+    if (_selectMode && _selectTab === 'kappe') {
+        listEl.querySelectorAll('.saved-item').forEach(function(el) {
+            var idx = parseInt(el.getAttribute('data-index'), 10);
+            if (!isNaN(idx) && _selectedSet.has(idx)) el.classList.add('selected');
+        });
+        updateSelectionUI();
+    }
 }
 
 function loadKappeFormDirect(formData) {
@@ -9120,6 +9379,14 @@ function deleteKappeForm(formData) {
     kappeListEl.addEventListener('click', function(e) {
         var item = e.target.closest('.saved-item');
         if (!item) return;
+        // I select-mode toggler item-klikk valg, IKKE åpning av skjema
+        if (_selectMode && _selectTab === 'kappe') {
+            e.preventDefault();
+            e.stopPropagation();
+            var idx = parseInt(item.dataset.index, 10);
+            if (!isNaN(idx)) toggleFormSelection(idx, item);
+            return;
+        }
         var formData = item._formData;
         if (!formData) return;
         var btn = e.target.closest('button');
@@ -9496,8 +9763,14 @@ async function renderKappeToCanvas() {
 function getKappeExportFilename(ext) {
     var data = getKappeFormData();
     var base = 'kappeskjema';
-    if (data.prosjektnr) base += '_' + data.prosjektnr;
-    else if (data.prosjektnavn) base += '_' + data.prosjektnavn.replace(/[^A-Za-z0-9æøåÆØÅ_-]/g, '_');
+    // Prosjektnavn er mer gjenkjennelig enn prosjektnr — bruker husker navn, ikke nummer.
+    if (data.prosjektnavn) base += '_' + data.prosjektnavn.replace(/[^A-Za-z0-9æøåÆØÅ_-]/g, '_');
+    else if (data.prosjektnr) base += '_' + data.prosjektnr;
+    // Dato i norsk format DD-MM-YYYY (bindestrek for fil-systemvennlighet).
+    // Flere kappeskjemaer for samme prosjekt sendes i løpet av en uke, så
+    // dato skiller dem fra hverandre.
+    var dato = (data.dato || _kappeFormatDateNO(_kappeTodayISO())).replace(/\./g, '-');
+    if (dato) base += '_' + dato;
     return base + '.' + ext;
 }
 
