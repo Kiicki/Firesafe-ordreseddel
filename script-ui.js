@@ -6760,8 +6760,13 @@ function calcIsoStift() {
 
     var line2 = '<b>' + data.pins.length + '</b> ' + (method === 'pins' ? t('iso_pins_label') : t('iso_screws_label')) +
         ' &nbsp;|&nbsp; c/c: <b>' + Math.round(data.spacingX) + ' × ' + Math.round(data.spacingY) + ' mm</b>';
-    var showEdge = isHollowResult ? Math.round(data.edgeDistX || data.edgeDist) : Math.round(data.edgeDistX || data.edgeDist);
-    line2 += ' &nbsp;|&nbsp; ' + t('iso_edge') + ': <b>' + showEdge + ' mm</b>';
+    var showEdgeX = Math.round(data.edgeDistX || data.edgeDist);
+    var showEdgeY = Math.round(data.edgeDistY || data.edgeDist);
+    var maxAllowedEdge = (method === 'pins' && isHollowResult) ? 75 : null;
+    var edgeOver = (maxAllowedEdge !== null && (showEdgeX > maxAllowedEdge || showEdgeY > maxAllowedEdge));
+    var edgeStyle = edgeOver ? ' style="color:#d23"' : '';
+    var edgeText = (showEdgeX === showEdgeY) ? showEdgeX + ' mm' : showEdgeX + ' × ' + showEdgeY + ' mm';
+    line2 += ' &nbsp;|&nbsp; ' + t('iso_edge') + ': <b' + edgeStyle + '>' + edgeText + '</b>';
 
     // Rad 3: regler
     var line3;
@@ -6802,34 +6807,98 @@ function _calcPinPositions(width, height, profile, method, thickness) {
     if (steelW < 20) steelW = width;
     if (steelH < 20) steelH = height;
 
-    // Bredde: fordel symmetrisk innenfor stålsonen
-    var cols, edgeDistX, spacingX;
-    var steelEdgeX = Math.min(maxEdge, Math.floor(steelW / 4));
-    var innerW = steelW - 2 * steelEdgeX;
+    // Stål-margin: hold stiften unna selve stål-kanten for sveise-stabilitet
+    var steelMarginX = Math.min(maxEdge, Math.floor(steelW / 4));
+    var steelMarginY = Math.min(maxEdge, Math.floor(steelH / 4));
 
-    if (innerW <= 0 || steelW <= maxEdge * 2) {
-        cols = 1;
-        edgeDistX = steelW / 2;
-        spacingX = 0;
+    // Bredde: HUP/RHS sveisepinner måler kantavstand fra isolasjons-kant (panelets ytterkant).
+    // I/U/L og skruer bruker gammel stål/flens-kant-logikk.
+    var cols, edgeDistX, spacingX, firstColX;
+
+    if (isHollow && method === 'pins') {
+        if (width <= maxEdge * 2) {
+            // én stift kan dekke begge isolasjons-kanter samtidig
+            cols = 1;
+            var pinX = width / 2;
+            if (pinX > steelW - steelMarginX) pinX = steelW - steelMarginX;
+            if (pinX < steelMarginX) pinX = Math.max(steelMarginX, steelW / 2);
+            firstColX = pinX;
+            edgeDistX = Math.max(pinX, width - pinX);
+            spacingX = 0;
+        } else {
+            // multi-col: spred stiftene maksimalt innenfor stål-sonen (steelMargin på hver side)
+            var leftPinX = steelMarginX;
+            var rightPinX = steelW - steelMarginX;
+            if (rightPinX > leftPinX) {
+                var span = rightPinX - leftPinX;
+                cols = Math.max(2, Math.ceil(span / maxCC) + 1);
+                spacingX = span / (cols - 1);
+                firstColX = leftPinX;
+                edgeDistX = Math.max(leftPinX, width - rightPinX);
+            } else {
+                cols = 1;
+                firstColX = leftPinX;
+                edgeDistX = Math.max(leftPinX, width - leftPinX);
+                spacingX = 0;
+            }
+        }
     } else {
-        cols = Math.max(2, Math.ceil(innerW / maxCC) + 1);
-        edgeDistX = steelEdgeX;
-        spacingX = innerW / (cols - 1);
+        var innerW = steelW - 2 * steelMarginX;
+        if (innerW <= 0 || steelW <= maxEdge * 2) {
+            cols = 1;
+            firstColX = steelW / 2;
+            edgeDistX = steelW / 2;
+            spacingX = 0;
+        } else {
+            cols = Math.max(2, Math.ceil(innerW / maxCC) + 1);
+            firstColX = steelMarginX;
+            edgeDistX = steelMarginX;
+            spacingX = innerW / (cols - 1);
+        }
     }
 
-    // Høyde: fordel symmetrisk innenfor stålsonen
-    var rows, edgeDistY, spacingY;
-    var steelEdgeY = Math.min(maxEdge, Math.floor(steelH / 4));
-    var innerH = steelH - 2 * steelEdgeY;
+    // Høyde: samme prinsipp som bredde
+    var rows, edgeDistY, spacingY, firstRowY;
 
-    if (innerH <= 0 || steelH <= maxEdge * 2) {
-        rows = 1;
-        edgeDistY = steelH / 2;
-        spacingY = 0;
+    if (isHollow && method === 'pins') {
+        if (height <= maxEdge * 2) {
+            rows = 1;
+            var pinY = height / 2;
+            if (pinY > steelH - steelMarginY) pinY = steelH - steelMarginY;
+            if (pinY < steelMarginY) pinY = Math.max(steelMarginY, steelH / 2);
+            firstRowY = pinY;
+            edgeDistY = Math.max(pinY, height - pinY);
+            spacingY = 0;
+        } else {
+            // multi-row: spred radene maksimalt innenfor stål-sonen
+            var topPinY = steelMarginY;
+            var botPinY = steelH - steelMarginY;
+            if (botPinY > topPinY) {
+                var spanY = botPinY - topPinY;
+                rows = Math.max(2, Math.ceil(spanY / maxRowCC) + 1);
+                spacingY = spanY / (rows - 1);
+                firstRowY = topPinY;
+                edgeDistY = Math.max(topPinY, height - botPinY);
+            } else {
+                rows = 1;
+                firstRowY = topPinY;
+                edgeDistY = Math.max(topPinY, height - topPinY);
+                spacingY = 0;
+            }
+        }
     } else {
-        rows = Math.max(2, Math.ceil(innerH / maxRowCC) + 1);
-        edgeDistY = steelEdgeY;
-        spacingY = innerH / (rows - 1);
+        var innerH = steelH - 2 * steelMarginY;
+        if (innerH <= 0 || steelH <= maxEdge * 2) {
+            rows = 1;
+            firstRowY = steelH / 2;
+            edgeDistY = steelH / 2;
+            spacingY = 0;
+        } else {
+            rows = Math.max(2, Math.ceil(innerH / maxRowCC) + 1);
+            firstRowY = steelMarginY;
+            edgeDistY = steelMarginY;
+            spacingY = innerH / (rows - 1);
+        }
     }
 
     var edgeDist = maxEdge;
@@ -6837,18 +6906,18 @@ function _calcPinPositions(width, height, profile, method, thickness) {
     var pins = [];
 
     if (!isHollow && method === 'pins') {
-        var rightPinX = steelW - edgeDistX;
-        if (rightPinX < edgeDistX) rightPinX = edgeDistX;
+        var rightPinXX = steelW - firstColX;
+        if (rightPinXX < firstColX) rightPinXX = firstColX;
         for (var r = 0; r < rows; r++) {
-            pins.push({ x: edgeDistX, y: edgeDistY + r * spacingY });
-            if (rightPinX > edgeDistX) pins.push({ x: rightPinX, y: edgeDistY + r * spacingY });
+            pins.push({ x: firstColX, y: firstRowY + r * spacingY });
+            if (rightPinXX > firstColX) pins.push({ x: rightPinXX, y: firstRowY + r * spacingY });
         }
-        spacingX = (rightPinX > edgeDistX) ? rightPinX - edgeDistX : 0;
+        spacingX = (rightPinXX > firstColX) ? rightPinXX - firstColX : 0;
     } else {
         for (var r = 0; r < rows; r++) {
-            var y = edgeDistY + r * spacingY;
+            var y = firstRowY + r * spacingY;
             for (var c = 0; c < cols; c++) {
-                pins.push({ x: edgeDistX + c * spacingX, y: y });
+                pins.push({ x: firstColX + c * spacingX, y: y });
             }
         }
     }
