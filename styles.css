@@ -1989,51 +1989,70 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
 .apps-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
 }
 
-.app-card {
+.app-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
     background: #fff;
     border: 1px solid #e0e0e0;
+    border-bottom: none;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+.app-row:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.app-row:last-child {
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 0 0 8px 8px;
+}
+
+.app-row:only-child {
     border-radius: 8px;
-    padding: 12px 14px;
 }
 
-.app-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: #222;
-    margin-bottom: 10px;
-}
-
-.app-store-buttons {
-    display: flex;
-    gap: 8px;
-}
-
-.app-store-btn {
+.app-row-name {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    color: #222;
+}
+
+.app-row-buttons {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.app-row-btn {
+    width: 32px;
+    height: 32px;
     background: #000;
     color: #fff;
     text-decoration: none;
-    padding: 10px 12px;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 600;
     transition: opacity 0.15s ease;
-    min-height: 40px;
     box-sizing: border-box;
 }
 
-.app-store-btn:active {
+.app-row-btn:active {
     opacity: 0.7;
 }
 
-.app-store-btn svg {
+.app-row-btn svg {
     flex-shrink: 0;
 }
 
