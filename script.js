@@ -2743,6 +2743,22 @@ var dagTimerActiveCard = null;
 var dagNameMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
 var dagShortMap = { ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø' };
 
+// Skjul bullet-separator hvis prev og next dag-del er på forskjellige linjer
+// (dvs. separatoren ville være "dangling" på en linje-grense).
+function _hideEdgeSeparators(container) {
+    if (!container) return;
+    var seps = container.querySelectorAll('.dt-sep');
+    seps.forEach(function(sep) {
+        var prev = sep.previousElementSibling;
+        var next = sep.nextElementSibling;
+        if (!prev || !next) { sep.style.visibility = 'hidden'; return; }
+        var prevTop = prev.getBoundingClientRect().top;
+        var nextTop = next.getBoundingClientRect().top;
+        // Hvis prev og next er på ulike linjer → wrap har skjedd → skjul separator
+        sep.style.visibility = (Math.abs(prevTop - nextTop) > 2) ? 'hidden' : 'visible';
+    });
+}
+
 function updateDagTimerSummary(card) {
     const display = card.querySelector('.dag-timer-display');
     if (!display) return;
@@ -2751,23 +2767,27 @@ function updateDagTimerSummary(card) {
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
     const dayPlans = JSON.parse(card.getAttribute('data-day-plans') || '{}');
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
+    function _formatDayPart(label, hours, plans) {
+        var hoursStr = hours ? escapeHtml(String(hours).replace('.', ',')) + 't' : '';
+        var planStr = plans ? '(' + escapeHtml(plans) + ')' : '';
+        var inner = '<b class="dt-day">' + escapeHtml(label) + '</b>';
+        if (hoursStr) inner += ' ' + hoursStr;
+        if (planStr) inner += ' <span class="dt-plans">' + planStr + '</span>';
+        // Pakk hele dagens del i et inline-block så den ikke brytes midt-i ved word-wrap
+        return '<span class="dt-part">' + inner + '</span>';
+    }
     const parts = dagOrder.filter(d => timer[d] || dayPlans[d]).map(d => {
-        var label = (dagShortMap[d] || d);
-        var bits = [];
-        if (timer[d]) bits.push(String(timer[d]).replace('.', ',') + 't');
-        if (dayPlans[d]) bits.push(dayPlans[d]);
-        return label + ' ' + bits.join(' · ');
+        return _formatDayPart(dagShortMap[d] || d, timer[d], dayPlans[d]);
     });
     var genVal = timer._generelt || timer._total;
     var genPlan = dayPlans._generelt;
     if (genVal || genPlan) {
-        var bits = [];
-        if (genVal) bits.push(String(genVal).replace('.', ',') + 't');
-        if (genPlan) bits.push(genPlan);
-        parts.push('Annet ' + bits.join(' · '));
+        parts.push(_formatDayPart('Annet', genVal, genPlan));
     }
-    var summary = parts.join(', ');
-    textEl.textContent = summary;
+    var summary = parts.join('<span class="dt-sep">•</span>');
+    textEl.innerHTML = summary;
+    // Skjul separator-bullets som havner først/sist på en linje (ved wrap)
+    requestAnimationFrame(function() { _hideEdgeSeparators(textEl); });
     if (summary) {
         display.style.display = '';
         if (btn) btn.style.display = 'none';
