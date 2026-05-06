@@ -3433,6 +3433,11 @@ label.settings-default-label.field-required > span::after {
     box-sizing: border-box;
 }
 
+/* Når picker er åpen må confirm-modal heves over den (z-index: 50) */
+body.picker-active .confirm-modal {
+    z-index: 70;
+}
+
 .confirm-modal.active {
     display: flex;
 }

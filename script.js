@@ -2222,8 +2222,12 @@ function openMaterialPicker(btn, onConfirm) {
                     e.stopPropagation();
                     if (delBtnEl.disabled) return;
                     showConfirmModal(t('picker_delete_confirm'), function() {
+                        // Behold scroll-posisjon slik at header (f.eks. FSC) ikke virker å flytte seg
+                        var listEl = document.getElementById('picker-overlay-list');
+                        var savedScroll = listEl ? listEl.scrollTop : 0;
                         delete pickerState[name];
                         renderPickerList();
+                        if (listEl) listEl.scrollTop = savedScroll;
                     });
                 });
             }
