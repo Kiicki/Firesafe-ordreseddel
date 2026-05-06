@@ -3940,8 +3940,10 @@ function buildDesktopWorkLines() {
         }
     });
 
-    // Total timer (only if there are any)
+    // Total timer (only if there are any). Tom rad over for å skille fra siste bestilling
+    // (ellers ser det ut som totalen tilhører forrige seksjon).
     if (totalTimer > 0) {
+        addRow('', '', '');
         const formatted = totalTimer.toFixed(1).replace('.', ',');
         addRow('Totalt:', formatted, 'timer', { bold: true, alignRight: true });
     }
