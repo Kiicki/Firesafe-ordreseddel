@@ -69,6 +69,7 @@ const TRANSLATIONS = {
         order_plan_placeholder: 'Etasje(r)...',
         order_add: '+ Legg til bestilling',
         order_delete_confirm: 'Slett denne bestillingen?',
+        picker_delete_confirm: 'Slett denne raden?',
 
         // Material placeholders
         placeholder_material: 'Materiale',
@@ -602,6 +603,7 @@ const TRANSLATIONS = {
         order_plan_placeholder: 'Floor(s)...',
         order_add: '+ Add order',
         order_delete_confirm: 'Delete this order?',
+        picker_delete_confirm: 'Delete this row?',
 
         // Material placeholders
         placeholder_material: 'Material',

@@ -3154,6 +3154,31 @@ label.settings-default-label.field-required > span::after {
 .picker-mat-dup-btn:active {
     color: #E8501A;
 }
+.picker-mat-delete-btn {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 8px 6px;
+    -webkit-tap-highlight-color: transparent;
+}
+.picker-mat-delete-btn:active {
+    opacity: 0.6;
+}
+.picker-mat-delete-btn:disabled,
+.picker-mat-delete-btn[disabled] {
+    color: #e74c3c;
+    cursor: default;
+    opacity: 0.3;
+}
+.picker-mat-delete-btn:disabled:active,
+.picker-mat-delete-btn[disabled]:active {
+    opacity: 0.3;
+}
 .picker-mat-dot {
     width: 8px;
     height: 8px;

@@ -1754,13 +1754,15 @@ function openMaterialPicker(btn, onConfirm) {
         return formatDisplayForBreak(normalized);
     }
 
-    function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride, hasVariants) {
+    function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride, hasVariants, deletable) {
         const displayName = displayNameOverride ? formatDisplayName(displayNameOverride) : formatDisplayName(name);
         const enhetLower = (enhet || '').toLowerCase();
         const enhetLabel = enhetLower || 'stk';
         const enhetClass = '';
         const isLauncher = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
         const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser">' + duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
+        // Slett-knappen vises alltid for visuell konsistens, men er disabled på default-produkter
+        const delBtn = '<button type="button" class="picker-mat-delete-btn" title="Fjern"' + (deletable ? '' : ' disabled') + '>' + deleteIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
         const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
             : matType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
             : matType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
@@ -1780,13 +1782,28 @@ function openMaterialPicker(btn, onConfirm) {
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${specBadge}${lmBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
-            ${enhetHtml}${dupBtn}
+            ${enhetHtml}${dupBtn}${delBtn}
         </div>`;
     }
 
     // Helper: find base material object for a name (checks if it's a spec-derived name)
     function findBaseMaterial(name) {
         return allMaterials.find(m => (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse') && name.toLowerCase().startsWith(m.name.toLowerCase() + ' '));
+    }
+
+    // Avgjør om en rad i picker-en kan slettes. Default-produkter fra Innstillinger
+    // skal aldri kunne slettes (det finnes ingen vei tilbake), kun brukerskapte rader
+    // (duplikater, spec-derived, meter-entries, custom).
+    function _isDeletablePickerEntry(name) {
+        if (!name) return false;
+        if (/__meter$/i.test(name)) return true;
+        if (/__\d+$/.test(name)) return true;
+        if (findBaseMaterial(name)) return true;
+        var inDefaults = allMaterials.some(function(m) {
+            return m.name.toLowerCase() === name.toLowerCase();
+        });
+        if (!inDefaults) return true;
+        return false;
     }
 
     function renderPickerList() {
@@ -1906,7 +1923,7 @@ function openMaterialPicker(btn, onConfirm) {
             if (!group.isSpecGroup || isLauncherOnly) {
                 // Standard material or spec launcher without derived entries — render flat
                 group.items.forEach(function(e) {
-                    html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName, e.hasVariants);
+                    html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName, e.hasVariants, _isDeletablePickerEntry(e.name));
                 });
             } else {
                 // Multi-item group — render header + indented sub-rows
@@ -1942,7 +1959,7 @@ function openMaterialPicker(btn, onConfirm) {
                             subDisplay = origEnhet.charAt(0).toUpperCase() + origEnhet.slice(1);
                         }
                     }
-                    var rowHtml = buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, subDisplay, e.hasVariants);
+                    var rowHtml = buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, subDisplay, e.hasVariants, _isDeletablePickerEntry(e.name));
                     // Add grouped class to the row
                     rowHtml = rowHtml.replace('class="picker-mat-row', 'class="picker-mat-row picker-mat-grouped');
                     html += rowHtml;
@@ -2194,6 +2211,20 @@ function openMaterialPicker(btn, onConfirm) {
                         renderPickerList();
                         _scrollPickerToRow(newKey);
                     }
+                });
+            }
+
+            // Delete button — fjerner brukerskapt rad fra pickerState (med bekreftelse)
+            var delBtnEl = row.querySelector('.picker-mat-delete-btn');
+            if (delBtnEl) {
+                delBtnEl.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (delBtnEl.disabled) return;
+                    showConfirmModal(t('picker_delete_confirm'), function() {
+                        delete pickerState[name];
+                        renderPickerList();
+                    });
                 });
             }
         });
