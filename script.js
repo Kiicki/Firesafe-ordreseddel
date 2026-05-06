@@ -3914,7 +3914,7 @@ function buildDesktopWorkLines() {
                     });
                     // Total-rad nederst i seksjonen (kun hvis gruppen har meter-verdier)
                     if (groupHasMeter && group.items.length > 1) {
-                        addRow('    Total:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
+                        addRow('    Totalt:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
                     }
                 }
             });
