@@ -96,12 +96,26 @@ function formatLocaleNum(n, decimals) {
     return s.replace('.', ',');
 }
 
+// Strip eventuell etternavn fra en montør-streng. Etternavn er placeholder for fremtiden
+// og skal aldri vises i UI eller eksport. Bruk denne overalt der montør hentes/settes.
+function stripEtternavn(montorVal) {
+    if (!montorVal) return '';
+    return String(montorVal).trim().split(/\s+/)[0] || '';
+}
+
 function getMinInfo() {
+    var info = {};
     try {
         var raw = localStorage.getItem(MIN_INFO_KEY);
-        if (raw) return JSON.parse(raw) || {};
+        if (raw) info = JSON.parse(raw) || {};
     } catch (e) {}
-    return {};
+    // Montør skal alltid være fornavn (uten etternavn) ved henting
+    if (info.fornavn !== undefined && info.fornavn !== '') {
+        info.montor = String(info.fornavn).trim();
+    } else if (info.montor) {
+        info.montor = stripEtternavn(info.montor);
+    }
+    return info;
 }
 
 function _migrateMinInfo() {
@@ -303,7 +317,53 @@ function isSpecGroupedMaterial(name, enhet) {
     });
 }
 
-function groupMaterialsByBase(materials) {
+// Aggregate duplicate materials for export: same name + same enhet → sum antall.
+// Skjema-visningen beholder separate rader; dette er kun for eksport.
+function aggregateExportMaterials(materials) {
+    var byKey = {};
+    var ordered = [];
+    materials.forEach(function(m) {
+        var name = m.name || '';
+        var enhet = (m.enhet || '').toLowerCase();
+        if (!name) {
+            // Tomme/ukjente entries holdes separate
+            ordered.push(m);
+            return;
+        }
+        var key = name.toLowerCase() + '|' + enhet;
+        if (byKey[key]) {
+            var existing = parseFloat(String(byKey[key].antall || '').replace(',', '.')) || 0;
+            var addNum = parseFloat(String(m.antall || '').replace(',', '.')) || 0;
+            var sum = existing + addNum;
+            byKey[key].antall = (sum % 1 === 0)
+                ? String(sum)
+                : String(sum).replace('.', ',');
+        } else {
+            byKey[key] = { name: m.name, antall: m.antall || '', enhet: m.enhet || '' };
+            ordered.push(byKey[key]);
+        }
+    });
+    return ordered;
+}
+
+// Sort-nøkkel for spec-entries: [diameter, lag/høyde, meter-flag]
+// Brukes til å sortere stigende: Ø100 2 lag før Ø100 3 lag før Ø200 2 lag.
+// Meter-entries (__meter) plasseres sist i gruppen.
+function getSpecSortKey(name) {
+    var s = name || '';
+    if (/__meter$/i.test(s)) return [Number.MAX_SAFE_INTEGER, 0, 1];
+    var diaMatch = s.match(/[øØ](\d+)/);
+    var dia = diaMatch ? parseInt(diaMatch[1], 10) : 0;
+    // Sekundær nøkkel: lag-tall ("2 lag" eller "r2") eller høyde for kabelhylse ("Ø50x250mm")
+    var heightMatch = s.match(/[øØ]\d+x(\d+)mm/i);
+    if (heightMatch) return [dia, parseInt(heightMatch[1], 10), 0];
+    var lagMatch = s.match(/(\d+)\s*lag\b/i) || s.match(/r(\d+)\s*$/i);
+    var lag = lagMatch ? parseInt(lagMatch[1], 10) : 0;
+    return [dia, lag, 0];
+}
+
+function groupMaterialsByBase(materials, options) {
+    options = options || {};
     var groups = [];
     var groupMap = {};
     materials.forEach(function(m) {
@@ -322,6 +382,20 @@ function groupMaterialsByBase(materials) {
             groups.push({ baseName: baseName, items: [m], isSpecGroup: false });
         }
     });
+    // Sort items inside each spec group only when explicitly requested (eksport)
+    if (options.sortItems) {
+        groups.forEach(function(g) {
+            if (g.isSpecGroup && g.items.length > 1) {
+                g.items.sort(function(a, b) {
+                    var ka = getSpecSortKey(a.name);
+                    var kb = getSpecSortKey(b.name);
+                    if (ka[2] !== kb[2]) return ka[2] - kb[2];
+                    if (ka[0] !== kb[0]) return ka[0] - kb[0];
+                    return ka[1] - kb[1];
+                });
+            }
+        });
+    }
     // Sort: single/standard items first, then spec groups
     groups.sort(function(a, b) {
         var aSpec = a.isSpecGroup && a.items.length >= 1 ? 1 : 0;
@@ -1601,6 +1675,21 @@ function getMaterialsFromContainer(matContainer) {
 // Material picker overlay
 let pickerOrderCard = null;
 let pickerState = {}; // { "materialenavn": { checked: true, antall: "5", enhet: "stk" } }
+
+// Scroll picker-listen til en bestemt rad (f.eks. ny duplikat eller spec-entry).
+function _scrollPickerToRow(name) {
+    requestAnimationFrame(function() {
+        var listEl = document.getElementById('picker-overlay-list');
+        if (!listEl || !name) return;
+        var rows = listEl.querySelectorAll('[data-mat-name]');
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].getAttribute('data-mat-name') === name) {
+                rows[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+        }
+    });
+}
 let pickerRenderFn = null; // Reference to renderPickerList inside closure
 
 var pickerConfirmCallback = null;
@@ -1725,7 +1814,9 @@ function openMaterialPicker(btn, onConfirm) {
                 const stateAntall = state ? (state.antall || '') : '';
                 const isChecked = !!(stateAntall && stateAntall.toString().trim());
                 var hasVariants = matObj.allowedUnits && matObj.allowedUnits.length > 0;
-                var defaultVariant = matObj.defaultUnit || (hasVariants ? (typeof matObj.allowedUnits[0] === 'string' ? matObj.allowedUnits[0] : (matObj.allowedUnits[0].plural || matObj.allowedUnits[0])) : '');
+                var defaultVariant = hasVariants
+                    ? (matObj.defaultUnit || (typeof matObj.allowedUnits[0] === 'string' ? matObj.allowedUnits[0] : (matObj.allowedUnits[0].plural || matObj.allowedUnits[0])))
+                    : '';
                 const enhet = state ? (state.enhet || defaultVariant || 'stk') : (defaultVariant || 'stk');
                 entries.push({ name: matObj.name, isChecked, antall: stateAntall, enhet: enhet, matType: 'standard', isSpecDerived: false, hasVariants: hasVariants });
             }
@@ -1741,14 +1832,17 @@ function openMaterialPicker(btn, onConfirm) {
                 entries.push({ name, displayName: meterMatch[1], isChecked: state.checked, antall: state.antall || '', enhet: 'meter', matType: 'standard', isSpecDerived: true });
                 return;
             }
-            // Check for duplicate entries (e.g. "FSA__2")
+            // Check for duplicate entries (e.g. "FSA__2" eller "FSW Ø100 2 lag__2")
             const dupMatch = name.match(/^(.+)__(\d+)$/);
             if (dupMatch) {
                 const baseName = dupMatch[1];
                 const baseMatObj = allMaterials.find(m => m.name === baseName);
+                // Sjekk om dup-basen selv er en spec-derived entry (f.eks. "FSW Ø100 2 lag")
+                const dupSpecBaseMat = baseMatObj ? null : findBaseMaterial(baseName);
                 // For duplicates av vanlige produkter: highlight kun når Antall har verdi.
-                // For duplicates av spec-typer (sjelden): alltid highlighted (entry eksisterer).
-                const baseIsSpec = baseMatObj && (baseMatObj.type === 'mansjett' || baseMatObj.type === 'brannpakning' || baseMatObj.type === 'kabelhylse');
+                // For duplicates av spec-typer eller spec-derived: alltid highlighted.
+                const baseIsSpec = (baseMatObj && (baseMatObj.type === 'mansjett' || baseMatObj.type === 'brannpakning' || baseMatObj.type === 'kabelhylse'))
+                    || !!dupSpecBaseMat;
                 const dupAntall = state.antall || '';
                 const dupChecked = baseIsSpec ? state.checked : !!(dupAntall && dupAntall.toString().trim());
                 entries.push({ name, displayName: baseName, isChecked: dupChecked, antall: dupAntall, enhet: state.enhet || '', matType: 'standard', isSpecDerived: true });
@@ -1763,8 +1857,8 @@ function openMaterialPicker(btn, onConfirm) {
             }
         });
 
-        // Sort alphabetically
-        entries.sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+        // Behold entry-rekkefølge innen hver gruppe (nyeste duplikater vises nederst).
+        // Gruppe-rekkefølgen sorteres separat lenger ned (alfabetisk på baseName).
 
         // Group entries by base material name
         var pickerGroups = [];
@@ -1775,7 +1869,11 @@ function openMaterialPicker(btn, onConfirm) {
             var dupMatch = e.name.match(/^(.+)__(\d+)$/);
             var meterMatch = e.name.match(/^(.+)__meter$/);
             if (dupMatch) {
-                baseName = dupMatch[1];
+                var dupBaseName = dupMatch[1];
+                // Hvis dup-basen selv er en spec-entry (f.eks. "FSW Ø100 2 lag"),
+                // grupper under spec-basen ("FSW") i stedet
+                var dupSpecBase = findBaseMaterial(dupBaseName);
+                baseName = dupSpecBase ? dupSpecBase.name : dupBaseName;
             } else if (meterMatch) {
                 baseName = meterMatch[1];
             } else {
@@ -1823,8 +1921,10 @@ function openMaterialPicker(btn, onConfirm) {
                 group.items.forEach(function(e) {
                     // Build sub-row display name: strip base name for spec-derived, show variant for duplicates
                     var subDisplay = e.displayName || e.name;
-                    if (isSpec && e.name.toLowerCase().startsWith(group.baseName.toLowerCase() + ' ')) {
-                        subDisplay = e.name.substring(group.baseName.length + 1);
+                    // Strip __N suffix for display purposes (kept in storage key)
+                    var nameNoSuffix = e.name.replace(/__(\d+)$/, '');
+                    if (isSpec && nameNoSuffix.toLowerCase().startsWith(group.baseName.toLowerCase() + ' ')) {
+                        subDisplay = nameNoSuffix.substring(group.baseName.length + 1);
                     } else if (e.name.match(/^(.+)__meter$/)) {
                         subDisplay = 'L\u00f8pende';
                     } else if (e.name.match(/^(.+)__(\d+)$/)) {
@@ -1867,13 +1967,23 @@ function openMaterialPicker(btn, onConfirm) {
                 if (headerType === 'mansjett' || headerType === 'brannpakning' || headerType === 'kabelhylse') {
                     // Spec material header: open spec popup
                     openSpecPopup(headerName, function(spec, meterValue) {
+                        var addedKey;
                         if (meterValue !== undefined) {
-                            pickerState[headerName + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                            addedKey = headerName + '__meter';
+                            pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
                         } else {
                             var fullName = headerName + ' ' + spec;
-                            pickerState[fullName] = { checked: true, antall: '', enhet: 'stk' };
+                            // Tillat duplikater: hvis spec-entry allerede finnes, bruk __N suffix
+                            addedKey = fullName;
+                            if (pickerState[addedKey]) {
+                                var n = 2;
+                                while (pickerState[fullName + '__' + n]) n++;
+                                addedKey = fullName + '__' + n;
+                            }
+                            pickerState[addedKey] = { checked: true, antall: '', enhet: 'stk' };
                         }
                         renderPickerList();
+                        _scrollPickerToRow(addedKey);
                     }, headerType);
                 } else {
                     // Standard material with variants: toggle with default variant
@@ -1906,13 +2016,23 @@ function openMaterialPicker(btn, onConfirm) {
                     // popup blir fylt (spec-derived entry opprettes), ikke selve klikket.
                     const baseMat = allMaterials.find(m => m.name === name);
                     openSpecPopup(name, function(spec, meterValue) {
+                        var addedKey;
                         if (meterValue !== undefined) {
-                            pickerState[name + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                            addedKey = name + '__meter';
+                            pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
                         } else {
                             var fullName = name + ' ' + spec;
-                            pickerState[fullName] = { checked: true, antall: '', enhet: 'stk' };
+                            // Tillat duplikater: hvis spec-entry allerede finnes, bruk __N suffix
+                            addedKey = fullName;
+                            if (pickerState[addedKey]) {
+                                var n = 2;
+                                while (pickerState[fullName + '__' + n]) n++;
+                                addedKey = fullName + '__' + n;
+                            }
+                            pickerState[addedKey] = { checked: true, antall: '', enhet: 'stk' };
                         }
                         renderPickerList();
+                        _scrollPickerToRow(addedKey);
                     }, matType);
                     return;
                 }
@@ -2035,26 +2155,44 @@ function openMaterialPicker(btn, onConfirm) {
                         var specName = specBaseMat.name;
                         var specType = specBaseMat.type;
                         openSpecPopup(specName, function(spec, meterValue) {
+                            var addedKey;
                             if (meterValue !== undefined) {
-                                pickerState[specName + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                                addedKey = specName + '__meter';
+                                pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
                             } else {
                                 var fullName = specName + ' ' + spec;
-                                pickerState[fullName] = { checked: true, antall: '', enhet: 'stk' };
+                                // Tillat duplikater: hvis spec-entry allerede finnes, bruk __N suffix
+                                addedKey = fullName;
+                                if (pickerState[addedKey]) {
+                                    var n = 2;
+                                    while (pickerState[fullName + '__' + n]) n++;
+                                    addedKey = fullName + '__' + n;
+                                }
+                                pickerState[addedKey] = { checked: true, antall: '', enhet: 'stk' };
                             }
                             renderPickerList();
+                            _scrollPickerToRow(addedKey);
                         }, specType);
                     } else {
-                        // Standard material: create __N duplicate with default variant
+                        // Standard material: create __N duplicate, arve enhet fra kilde-raden
+                        var sourceState = pickerState[name];
+                        // Hvis kilde-raden ikke er i state ennå (f.eks. bruker har ikke skrevet noe),
+                        // fallback til knappens viste enhet, deretter materialets defaultUnit/første variant
+                        var sourceEnhet = sourceState && sourceState.enhet ? sourceState.enhet : '';
+                        if (!sourceEnhet && enhetBtn) {
+                            sourceEnhet = enhetBtn.getAttribute('data-enhet') || '';
+                        }
                         var dupMatObj = allMaterials.find(m => m.name === baseName);
-                        var defEnhet = dupMatObj && dupMatObj.defaultUnit ? dupMatObj.defaultUnit
-                            : (dupMatObj && dupMatObj.allowedUnits && dupMatObj.allowedUnits.length > 0
-                            ? (typeof dupMatObj.allowedUnits[0] === 'string' ? dupMatObj.allowedUnits[0] : (dupMatObj.allowedUnits[0].plural || dupMatObj.allowedUnits[0]))
+                        var dupHasVariants = dupMatObj && dupMatObj.allowedUnits && dupMatObj.allowedUnits.length > 0;
+                        var defEnhet = sourceEnhet || (dupHasVariants
+                            ? (dupMatObj.defaultUnit || (typeof dupMatObj.allowedUnits[0] === 'string' ? dupMatObj.allowedUnits[0] : (dupMatObj.allowedUnits[0].plural || dupMatObj.allowedUnits[0])))
                             : 'stk');
                         var n = 2;
                         while (pickerState[baseName + '__' + n]) n++;
                         var newKey = baseName + '__' + n;
                         pickerState[newKey] = { checked: false, antall: '', enhet: defEnhet };
                         renderPickerList();
+                        _scrollPickerToRow(newKey);
                     }
                 });
             }
@@ -2881,7 +3019,7 @@ function getServiceFormData() {
 function setServiceFormData(data) {
     if (!data) return;
     var montorEl = document.getElementById('service-montor');
-    if (montorEl) montorEl.value = data.montor || '';
+    if (montorEl) montorEl.value = stripEtternavn(data.montor);
     var ukeEl = document.getElementById('service-uke');
     if (ukeEl) ukeEl.value = data.uke || '';
 
@@ -3680,7 +3818,9 @@ function buildDesktopWorkLines() {
             }
             return true;
         });
-        if (filledMats.length > 0) {
+        // Aggreger duplikater for eksport (samme name + enhet → sum antall)
+        const aggregatedMats = aggregateExportMaterials(filledMats);
+        if (aggregatedMats.length > 0) {
             addRow('Materiell:', '', '', { bold: true, alignRight: true });
             // Helper to add a single material row to export
             function addExportMatRow(m, displayNameOverride) {
@@ -3711,20 +3851,36 @@ function buildDesktopWorkLines() {
                     addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
                 }
             }
-            // Group materials for export
-            var exportGroups = groupMaterialsByBase(filledMats);
+            // Group materials for export (sorter items innen hver gruppe)
+            var exportGroups = groupMaterialsByBase(aggregatedMats, { sortItems: true });
             exportGroups.forEach(function(group) {
                 if (!group.isSpecGroup) {
                     group.items.forEach(function(gm) { addExportMatRow(gm); });
                 } else {
                     // Group header row (bold base name)
                     addRow('  ' + group.baseName.charAt(0).toUpperCase() + group.baseName.slice(1) + ':', '', '', { bold: true, alignRight: true });
+                    var groupTotalMeter = 0;
+                    var groupHasMeter = false;
                     group.items.forEach(function(gm) {
                         var subName = getGroupedDisplayName(gm, group.baseName);
                         subName = subName.charAt(0).toUpperCase() + subName.slice(1);
                         subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
                         addExportMatRow(gm, '    ' + subName);
+                        // Akkumuler total meter for gruppen
+                        var antallNum = parseFloat(String(gm.antall || '').replace(',', '.'));
+                        var pipeInfo = getRunningMeterInfo(gm.name);
+                        if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
+                            groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum);
+                            groupHasMeter = true;
+                        } else if ((gm.enhet || '').toLowerCase() === 'meter' && !isNaN(antallNum)) {
+                            groupTotalMeter += antallNum;
+                            groupHasMeter = true;
+                        }
                     });
+                    // Total-rad nederst i seksjonen (kun hvis gruppen har meter-verdier)
+                    if (groupHasMeter && group.items.length > 1) {
+                        addRow('    Total:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
+                    }
                 }
             });
         }
@@ -3839,7 +3995,7 @@ function setFormData(data) {
     setVal('dato', data.dato);
     setVal('prosjektnr', data.prosjektnr);
     setVal('prosjektnavn', data.prosjektnavn);
-    setVal('montor', data.montor);
+    setVal('montor', stripEtternavn(data.montor));
     setVal('avdeling', data.avdeling);
     setVal('sted', data.sted);
     setVal('signering-dato', data.signeringDato);

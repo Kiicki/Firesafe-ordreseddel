@@ -1863,11 +1863,18 @@ function normalizeMaterialData(data) {
                 if (m.hasRunningMeter || m.isPipe) type = 'brannpakning';
                 else if (m.needsSpec || m.hasDimensions) type = 'kabelhylse';
             }
+            var allowedUnits = normalizeAllowedUnits(m.allowedUnits, m.defaultUnit || '');
+            var defaultUnit = m.defaultUnit || '';
+            // Cleanup: orphan defaultUnit (variant ble fjernet, defaultUnit henger igjen).
+            // For standard-materialer uten varianter skal defaultUnit være tom.
+            if (type === 'standard' && allowedUnits.length === 0 && defaultUnit && defaultUnit !== 'stk') {
+                defaultUnit = '';
+            }
             return {
                 name: m.name,
                 type: type,
-                defaultUnit: m.defaultUnit || '',
-                allowedUnits: normalizeAllowedUnits(m.allowedUnits, m.defaultUnit || '')
+                defaultUnit: defaultUnit,
+                allowedUnits: allowedUnits
             };
         });
     }
@@ -2083,7 +2090,13 @@ function removeMaterialUnit(idx, unitIdx) {
     if (!isAdmin) return;
     const mat = settingsMaterials[idx];
     if (!mat.allowedUnits) return;
+    var removed = mat.allowedUnits[unitIdx];
+    var removedLabel = typeof removed === 'string' ? removed : (removed && (removed.plural || removed.singular) || '');
     mat.allowedUnits.splice(unitIdx, 1);
+    if (mat.defaultUnit && mat.defaultUnit === removedLabel) {
+        var next = mat.allowedUnits[0];
+        mat.defaultUnit = next ? (typeof next === 'string' ? next : (next.plural || next.singular || '')) : '';
+    }
     renderMaterialSettingsItems();
     saveMaterialSettings();
 }
@@ -5756,7 +5769,7 @@ function buildServiceExportTable(cols) {
         '<tr>' +
             '<td rowspan="2" colspan="3" class="se-title-cell"><strong>Lageruttak Servicebiler</strong></td>' +
             '<td class="se-montor-label" style="line-height:20px;">Navn montør:</td>' +
-            '<td colspan="' + (matCols - 1) + '" class="se-montor-value" style="line-height:20px;">' + escapeHtml(data.montor) + '</td>' +
+            '<td colspan="' + (matCols - 1) + '" class="se-montor-value" style="line-height:20px;">' + escapeHtml(stripEtternavn(data.montor)) + '</td>' +
         '</tr>' +
         '<tr>' +
             '<td class="se-montor-label">Signatur:</td>' +
@@ -9004,7 +9017,7 @@ function setKappeFormData(data) {
     document.getElementById('kappe-dato').value = data.dato || _kappeFormatDateNO(_kappeTodayISO());
     document.getElementById('kappe-onsket-leveringsdato').value = _kappeFormatDateNO(data.onsketLeveringsdato) || '';
     document.getElementById('kappe-avdeling').value = data.avdeling || '';
-    document.getElementById('kappe-bestiller').value = data.bestiller || '';
+    document.getElementById('kappe-bestiller').value = stripEtternavn(data.bestiller);
     document.getElementById('kappe-prosjektnr').value = data.prosjektnr || '';
     document.getElementById('kappe-prosjektnavn').value = data.prosjektnavn || '';
     var lev = data.leveringsadresse || {};
