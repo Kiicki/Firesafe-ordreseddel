@@ -2925,6 +2925,46 @@ function adjustDagTimerModal() {
 
 function closeDagTimerModal(confirmed) {
     var modal = document.getElementById('dag-timer-modal');
+    if (!confirmed || !dagTimerActiveCard) {
+        modal.classList.remove('active');
+        modal.style.height = '';
+        modal.style.top = '';
+        modal.removeEventListener('touchmove', dagTimerBlockScroll);
+        modal.removeEventListener('wheel', dagTimerBlockScroll);
+        if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', adjustDagTimerModal);
+            window.visualViewport.removeEventListener('scroll', adjustDagTimerModal);
+        }
+        dagTimerActiveCard = null;
+        return;
+    }
+    const list = document.getElementById('dag-timer-modal-list');
+    const dager = [];
+    const timer = {};
+    const dayPlans = {};
+    // Først: valider at hvis en dag har plan, må den også ha timer (og omvendt).
+    // Forhindrer at brukeren lagrer "Ma (2)" uten timer eller "Ma 4t" uten plan.
+    var incompleteDay = null;
+    list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row)').forEach(row => {
+        if (incompleteDay) return;
+        var dag = row.dataset.dag;
+        var inp = row.querySelector('.dag-timer-modal-input');
+        var planBtn = row.querySelector('.dag-timer-plan-btn');
+        var hasT = !!(inp && inp.value.trim());
+        var hasP = !!(planBtn && (planBtn.getAttribute('data-plan') || '').trim());
+        if (hasT !== hasP) incompleteDay = dagNameMap[dag] || dag;
+    });
+    var genInput = document.getElementById('dag-timer-generelt-input');
+    var genVal = genInput ? genInput.value.trim() : '';
+    var genRow = list.querySelector('.dag-timer-modal-row.dag-timer-total-row');
+    var genPlanBtn = genRow ? genRow.querySelector('.dag-timer-plan-btn') : null;
+    var genPlanVal = genPlanBtn ? (genPlanBtn.getAttribute('data-plan') || '').trim() : '';
+    if (!incompleteDay && (!!genVal !== !!genPlanVal)) incompleteDay = 'Annet';
+    if (incompleteDay) {
+        showNotificationModal(incompleteDay + ': både timer og plan må fylles ut');
+        return;
+    }
+    // Lukker modalen først nå (etter validering passerte)
     modal.classList.remove('active');
     modal.style.height = '';
     modal.style.top = '';
@@ -2934,11 +2974,6 @@ function closeDagTimerModal(confirmed) {
         window.visualViewport.removeEventListener('resize', adjustDagTimerModal);
         window.visualViewport.removeEventListener('scroll', adjustDagTimerModal);
     }
-    if (!confirmed || !dagTimerActiveCard) { dagTimerActiveCard = null; return; }
-    const list = document.getElementById('dag-timer-modal-list');
-    const dager = [];
-    const timer = {};
-    const dayPlans = {};
     list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row)').forEach(row => {
         var dag = row.dataset.dag;
         var inp = row.querySelector('.dag-timer-modal-input');
@@ -2950,15 +2985,8 @@ function closeDagTimerModal(confirmed) {
         var planVal = planBtn ? (planBtn.getAttribute('data-plan') || '').trim() : '';
         if (planVal) dayPlans[dag] = planVal;
     });
-    var genInput = document.getElementById('dag-timer-generelt-input');
-    var genVal = genInput ? genInput.value.trim() : '';
     if (genVal) timer._generelt = genVal;
-    var genRow = list.querySelector('.dag-timer-modal-row.dag-timer-total-row');
-    if (genRow) {
-        var genPlanBtn = genRow.querySelector('.dag-timer-plan-btn');
-        var genPlanVal = genPlanBtn ? (genPlanBtn.getAttribute('data-plan') || '').trim() : '';
-        if (genPlanVal) dayPlans._generelt = genPlanVal;
-    }
+    if (genPlanVal) dayPlans._generelt = genPlanVal;
     dagTimerActiveCard.setAttribute('data-dager', JSON.stringify(dager));
     dagTimerActiveCard.setAttribute('data-timer', JSON.stringify(timer));
     dagTimerActiveCard.setAttribute('data-day-plans', JSON.stringify(dayPlans));
@@ -4287,25 +4315,23 @@ function validateRequiredFields() {
         }
     }
 
-    // Validate dager
+    // Validate dager (Arbeidstid) — krever BÅDE timer og plan på minst én dag.
+    // Plan er per-dag inne i Dager & tid-modalen (data-day-plans), så ingen separat plan-toggle.
     if (saveReqs.dager) {
         const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
         for (let i = 0; i < orderCards.length; i++) {
-            const cardDager = JSON.parse(orderCards[i].getAttribute('data-dager') || '[]');
-            if (cardDager.length === 0) {
+            const card = orderCards[i];
+            const cardTimer = JSON.parse(card.getAttribute('data-timer') || '{}');
+            const cardDayPlans = JSON.parse(card.getAttribute('data-day-plans') || '{}');
+            // Sjekk at minst én dag har BÅDE timer og plan satt
+            var dagOrder = ['ma','ti','on','to','fr','lo','so','_generelt'];
+            var hasComplete = dagOrder.some(function(d) {
+                var hasT = !!(cardTimer[d] && String(cardTimer[d]).trim());
+                var hasP = !!(cardDayPlans[d] && String(cardDayPlans[d]).trim());
+                return hasT && hasP;
+            });
+            if (!hasComplete) {
                 showNotificationModal(t('required_field', t('order_days')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
-                return false;
-            }
-        }
-    }
-
-    // Validate plan
-    if (saveReqs.plan) {
-        const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
-        for (let i = 0; i < orderCards.length; i++) {
-            const planDisplay = orderCards[i].querySelector('.plan-display');
-            if (!planDisplay || !(planDisplay.getAttribute('data-plan') || '').trim()) {
-                showNotificationModal(t('required_field', t('order_plan')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
         }
