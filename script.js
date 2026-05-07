@@ -2727,7 +2727,7 @@ function updateOrderTitle(card) {
     if (!titleEl) return;
     var descInput = card.querySelector('.mobile-order-desc');
     var fullText = descInput ? descInput.value : '';
-    var firstLine = fullText.split('\n').find(function(l) { return l.trim(); }) || '';
+    var trimmed = fullText.trim();
     var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
     var idx = Array.prototype.indexOf.call(cards, card);
     var num = idx >= 0 ? idx + 1 : cards.length + 1;
@@ -2735,8 +2735,8 @@ function updateOrderTitle(card) {
     var isExpanded = wrap && wrap.classList.contains('expanded');
     if (isExpanded) {
         titleEl.textContent = t('order_title') + ' ' + num;
-    } else if (firstLine) {
-        titleEl.textContent = num + '. ' + firstLine;
+    } else if (trimmed) {
+        titleEl.textContent = num + '. ' + trimmed;
     } else {
         titleEl.textContent = t('order_title') + ' ' + num;
     }
@@ -2980,11 +2980,21 @@ function closeDagTimerModal(confirmed) {
 }
 
 function scrollCardToTop(card, smooth) {
-    var scrollContainer = card.closest('.view') || document.documentElement;
-    var containerRect = scrollContainer.getBoundingClientRect();
+    if (!card) return;
+    var scrollContainer = card.closest('.container.form-view')
+        || card.closest('.container.service-view')
+        || card.closest('.view')
+        || document.scrollingElement
+        || document.documentElement;
+    if (!scrollContainer) return;
     var cardRect = card.getBoundingClientRect();
-    var offset = cardRect.top - containerRect.top + scrollContainer.scrollTop - 60;
-    scrollContainer.scrollTo({ top: offset, behavior: smooth ? 'smooth' : 'instant' });
+    var containerRect = scrollContainer.getBoundingClientRect();
+    // Kompenser for sticky form-header som dekker toppen av scroll-containeren
+    var stickyHeader = scrollContainer.querySelector('.modal-header');
+    var stickyHeight = stickyHeader ? stickyHeader.offsetHeight : 0;
+    var target = cardRect.top - containerRect.top + scrollContainer.scrollTop - stickyHeight - 4;
+    if (target < 0) target = 0;
+    scrollContainer.scrollTo({ top: target, behavior: smooth ? 'smooth' : 'auto' });
 }
 
 function toggleOrder(headerEl) {
@@ -2998,7 +3008,9 @@ function toggleOrder(headerEl) {
         arrow.innerHTML = '&#9650;';
         const desc = card.querySelector('.mobile-order-desc');
         if (desc && desc.style.display !== 'none') autoResizeTextarea(desc);
-        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+        // Vent på at ekspansjons-animasjonen (250ms) er ferdig før scroll —
+        // scrollHeight må ha vokst slik at scrollTo faktisk kan nå target-posisjonen.
+        setTimeout(function() { scrollCardToTop(card, true); }, 270);
     } else {
         wrap.classList.remove('expanded');
         arrow.innerHTML = '&#9660;';
@@ -3136,7 +3148,7 @@ function toggleServiceEntry(headerEl) {
     if (!wrap.classList.contains('expanded')) {
         wrap.classList.add('expanded');
         arrow.innerHTML = '&#9650;';
-        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+        setTimeout(function() { scrollCardToTop(card, true); }, 270);
     } else {
         wrap.classList.remove('expanded');
         arrow.innerHTML = '&#9660;';
