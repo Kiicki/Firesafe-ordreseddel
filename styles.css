@@ -2206,6 +2206,12 @@ label.settings-default-label.field-required > span::after {
     overscroll-behavior: none;
 }
 
+/* Skjul dag-timer-modal mens plan-popupen er åpen for å unngå
+   visuell stabling. Modalen forblir i DOM så state bevares. */
+#dag-timer-modal.dag-timer-modal--hidden {
+    display: none !important;
+}
+
 .confirm-modal-content.dag-timer-modal-content {
     /* Match .spec-popup-sheet (plan-popup) for konsistent bredde.
        Trenger høyere spesifisitet enn .confirm-modal-content (definert senere i CSS). */

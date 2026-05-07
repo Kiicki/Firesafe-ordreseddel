@@ -2714,6 +2714,9 @@ function confirmPlanPicker() {
 
 function closePlanPicker() {
     document.getElementById('plan-popup').classList.remove('active');
+    // Vis dag-timer-modal igjen om den var skjult under plan-valg
+    var modal = document.getElementById('dag-timer-modal');
+    if (modal) modal.classList.remove('dag-timer-modal--hidden');
     _planPickerDisplay = null;
     _planPickerState = {};
 
@@ -2818,10 +2821,16 @@ function openDagTimerModal(btn) {
         trigger.setAttribute('data-plan', initialVal);
         trigger.textContent = initialVal ? 'Endre' : '+ Plan';
         trigger.classList.toggle('dag-timer-plan-btn--empty', !initialVal);
+        function openPlan() {
+            // Skjul dag-timer-modal mens plan-popup er åpen, så de ikke stables visuelt
+            var modal = document.getElementById('dag-timer-modal');
+            if (modal) modal.classList.add('dag-timer-modal--hidden');
+            openPlanPicker(trigger);
+        }
         trigger.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            openPlanPicker(trigger);
+            openPlan();
         });
         // Verdi-display (kun synlig når etasjer er valgt)
         var values = document.createElement('div');
@@ -2832,7 +2841,7 @@ function openDagTimerModal(btn) {
         values.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            openPlanPicker(trigger);
+            openPlan();
         });
         return { trigger: trigger, values: values };
     }
