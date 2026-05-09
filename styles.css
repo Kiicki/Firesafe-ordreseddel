@@ -1343,14 +1343,14 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     background: #fff;
 }
 
-/* Keyboard open: revert to document flow so everything scrolls together.
-   Headers (.sticky-header, #form-header) keep position: sticky så Lagre/back
-   buttons stay visible.
-   Triggeres via body.keyboard-open (satt av JS) — én sentral kilde til
-   sannhet, ingen avhengighet av viewport-størrelse. */
-body.keyboard-open #template-modal.view.active,
-body.keyboard-open #saved-modal.view.active,
-body.keyboard-open #settings-modal.view.active,
+/* Keyboard open: form-views (view-form, service-view, kappe-view) går til
+   document-flow så toolbar flyter med innhold. Sticky #form-header /
+   #service-header forblir synlig på toppen via egen position: sticky.
+
+   Modal-views (saved/template/settings) brukes IKKE her — de beholder sin
+   egen modal-body-scroll, fordi sticky-header inni flex-column med overflow:
+   visible ikke ankrer pålitelig i alle browsere. Toolbar for modal-views
+   håndteres via JS-reparenting til active modal-body. */
 body.keyboard-open #view-form.view.active,
 body.keyboard-open #service-view.view.active,
 body.keyboard-open #kappe-view.view.active {
@@ -1359,16 +1359,6 @@ body.keyboard-open #kappe-view.view.active {
     height: auto;
     min-height: calc(100dvh - 60px);
     overflow: visible;
-}
-body.keyboard-open #template-modal.view.active > .modal-content,
-body.keyboard-open #saved-modal.view.active > .modal-content,
-body.keyboard-open #settings-modal.view.active > .modal-content {
-    overflow: visible;
-}
-body.keyboard-open #template-modal.view.active .modal-body,
-body.keyboard-open #saved-modal.view.active .modal-body,
-body.keyboard-open #settings-modal.view.active .modal-body {
-    overflow-y: visible;
 }
 body.keyboard-open .toolbar {
     position: static;
@@ -1383,6 +1373,33 @@ body.keyboard-open {
    popup-content unødvendig oppover. */
 body.keyboard-open .confirm-modal {
     padding-bottom: 0;
+}
+
+/* Modal-views: når toolbar er reparent'et til modal-body, gjør modal-body
+   til flex column og push toolbar til bunn via margin-top: auto. Forhindrer
+   tomrom under toolbar når listen er kort. Høyere spesifisitet enn
+   #saved-modal.view.active .modal-body (1,3,1 vs 1,2,1) så vi vinner. */
+#template-modal.view.active .modal-body.toolbar-host,
+#saved-modal.view.active .modal-body.toolbar-host,
+#settings-modal.view.active .modal-body.toolbar-host {
+    display: flex;
+    flex-direction: column;
+}
+#template-modal.view.active .modal-body.toolbar-host > .toolbar--inflow,
+#saved-modal.view.active .modal-body.toolbar-host > .toolbar--inflow,
+#settings-modal.view.active .modal-body.toolbar-host > .toolbar--inflow {
+    margin-top: auto;
+}
+
+/* Toolbar in-flow inside modal-body: position: static, ingen box-shadow */
+.toolbar.toolbar--inflow {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    box-shadow: none;
+    z-index: auto;
 }
 
 /* Template modal (home page) styling to match form page */

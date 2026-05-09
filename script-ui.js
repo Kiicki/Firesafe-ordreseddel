@@ -6261,6 +6261,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
+    // Modal-views beholder egen modal-body-scroll (sticky-header funker ikke i
+    // body-scroll-modus med flex column overflow visible). Toolbar for disse
+    // reparentes til aktiv modal-body så den blir del av scrollable content.
+    var MODAL_VIEW_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
     // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
     // Må krympes til synlig viewport ellers blir scroll i intern liste broken
     // (browseren mister touch-events for området bak tastaturet).
@@ -6381,15 +6385,39 @@ document.addEventListener('DOMContentLoaded', function() {
         lastAppliedState = stateKey;
         forceNextApply = false;
 
-        // --- Toggle body.keyboard-open: CSS gjør resten ---
-        // Views, modal-content, modal-body, toolbar, body — alt får riktig
-        // oppførsel via body.keyboard-open-CSS-regler:
-        //   - Views: position: static, overflow: visible (flyter i body)
-        //   - modal-content/modal-body: overflow visible (alt flyter)
-        //   - toolbar: position: static (i body's normale flow på slutten)
-        //   - body: padding-bottom: 0
-        // Body scroller naturlig — alt content + toolbar i flyt.
+        // --- Toggle body.keyboard-open for form-views ---
+        // CSS body.keyboard-open-regler håndterer form-views (view-form etc.):
+        // position: static, body scroller, toolbar er i flow på slutten.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
+
+        // --- Toolbar reparenting for MODAL-views (saved/template/settings) ---
+        // Modal-views beholder modal-body-scroll. Toolbar appendes til aktiv
+        // modal-body så den scroller med listen (i stedet for å være fixed
+        // bottom over tastaturet).
+        var toolbar = document.querySelector('.toolbar');
+        if (toolbar) {
+            var modalHost = null;
+            if (keyboardOpen && MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
+                var view = document.getElementById(activeId);
+                if (view) {
+                    var bodies = view.querySelectorAll('.modal-body');
+                    for (var i = 0; i < bodies.length; i++) {
+                        if (bodies[i].offsetParent !== null) { modalHost = bodies[i]; break; }
+                    }
+                }
+            }
+            var prevParent = toolbar.parentNode;
+            if (modalHost && toolbar.parentNode !== modalHost) {
+                if (prevParent && prevParent.classList) prevParent.classList.remove('toolbar-host');
+                toolbar.classList.add('toolbar--inflow');
+                modalHost.appendChild(toolbar);
+                modalHost.classList.add('toolbar-host');
+            } else if (!modalHost && toolbar.parentNode !== document.body) {
+                if (prevParent && prevParent.classList) prevParent.classList.remove('toolbar-host');
+                toolbar.classList.remove('toolbar--inflow');
+                document.body.appendChild(toolbar);
+            }
+        }
 
         // --- Fullscreen-overlays (picker etc.): krymp til synlig viewport ---
         // Disse er position:fixed med height:100%/100dvh og strekker seg
