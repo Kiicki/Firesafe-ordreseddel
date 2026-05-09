@@ -6325,6 +6325,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Toolbar-guard: når toolbar er reparent'et inn i en modal-body, kan
+    // innerHTML-replacements (fra renderSavedFormsList etc.) ødelegge den.
+    // Denne MutationObserveren overvåker modal-body for childList-endringer
+    // og re-appender toolbar hvis den blir fjernet. Toolbar-elementet beholdes
+    // i minne via referanse (selv om det fjernes fra DOM via innerHTML), så
+    // re-append fungerer.
+    var toolbarGuardObserver = null;
+    var guardedHost = null;
+    function startToolbarGuard(host, toolbar) {
+        stopToolbarGuard();
+        guardedHost = host;
+        toolbarGuardObserver = new MutationObserver(function() {
+            if (guardedHost && !guardedHost.contains(toolbar)) {
+                guardedHost.appendChild(toolbar);
+            }
+        });
+        toolbarGuardObserver.observe(host, { childList: true });
+    }
+    function stopToolbarGuard() {
+        if (toolbarGuardObserver) {
+            toolbarGuardObserver.disconnect();
+            toolbarGuardObserver = null;
+        }
+        guardedHost = null;
+    }
+
 
     function ensureContentObserver(content, isActive, keyboardOpen) {
         // Koble ResizeObserver til når popup er aktiv OG tastatur åpent.
@@ -6393,9 +6419,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- Modal-views: krymp til synlig viewport ---
         // KRITISK: ALLE fire egenskaper må settes (top, bottom, height,
         // min-height). CSS har min-height: calc(100dvh - 60px) som vinner
-        // over height hvis ikke overskrevet. Uten min-height: 0 blir view
-        // potensielt kortere/lengre enn synlig viewport, og du får
-        // body-bakgrunn under toolbar eller toolbar bak tastatur.
+        // over height hvis ikke overskrevet.
         MODAL_VIEW_IDS.forEach(function(id) {
             var view = document.getElementById(id);
             if (!view) return;
@@ -6413,20 +6437,29 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Toolbar: når tastatur er åpent OG modal-view er aktiv, plasser
-        // toolbar inni view-roten (ikke modal-body). Bruker CSS
-        // body.keyboard-open .toolbar { position: static } + view's flex
-        // column layout for å plassere den naturlig nederst.
+        // --- Toolbar reparenting: inn i AKTIV modal-body for modal-views ---
+        // Toolbar appendes til den scrollable modal-body slik at den scroller
+        // SAMMEN med listeitems (ikke fast over tastatur). Bruker en
+        // MutationObserver-vakt for å re-append toolbar hvis innerHTML på
+        // saved-list/template-list/etc. ødelegger den under re-rendering.
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
             var modalHost = null;
             if (keyboardOpen && MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
-                modalHost = document.getElementById(activeId);
+                var view = document.getElementById(activeId);
+                if (view) {
+                    var bodies = view.querySelectorAll('.modal-body');
+                    for (var i = 0; i < bodies.length; i++) {
+                        if (bodies[i].offsetParent !== null) { modalHost = bodies[i]; break; }
+                    }
+                }
             }
             if (modalHost && toolbar.parentNode !== modalHost) {
                 toolbar.classList.add('toolbar--inflow');
                 modalHost.appendChild(toolbar);
+                startToolbarGuard(modalHost, toolbar);
             } else if (!modalHost && toolbar.parentNode !== document.body) {
+                stopToolbarGuard();
                 toolbar.classList.remove('toolbar--inflow');
                 document.body.appendChild(toolbar);
             }
