@@ -6357,14 +6357,13 @@ document.addEventListener('DOMContentLoaded', function() {
             var o = document.getElementById(id);
             if (o && o.classList.contains('active')) activeOverlaySig += id + ',';
         });
-        // Bruker keyboardOpen som primær state, IKKE vv.height/offsetTop direkte.
-        // URL-bar-bevegelse (~50-60px) endrer vv.height/offsetTop men IKKE
-        // keyboardOpen — så apply kjører ikke under scroll. Math.floor(/100)
-        // som tie-breaker for tastatur-animasjon som kan ha mellomverdier
-        // mellom åpne/lukket states.
+        // State-key inkluderer KUN logisk state — IKKE vv.height/offsetTop.
+        // URL-bar-bevegelse under scroll endrer vv.height (~50-60px) men IKKE
+        // den logiske staten — så apply kjøres ikke under scroll og momentum
+        // forstyrres ikke. Tastatur-animasjonens sluttverdier hentes via
+        // debounced forced-apply (settle-timer 250ms etter siste resize).
         var stateKey =
             (keyboardOpen ? '1' : '0') + '|' +
-            Math.floor(vv.height / 100) + '|' +
             (activeId || '') + '|' +
             activePopupSig + '|' +
             activeOverlaySig;
@@ -6454,13 +6453,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // === Trigger-registrering ===
 
     if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', scheduleApply);
-        // visualViewport.scroll fyrer hver frame under scroll når URL-baren
-        // beveger seg — avbryter momentum-scroll hvis vi reagerer. Vi dropper
-        // denne lytteren bevisst. Konsekvens: overlay-top kan være litt off
-        // hvis URL-bar viser/skjuler under scroll, men det er kosmetisk og
-        // synes ikke for brukeren. Resize fyrer fortsatt for åpne/lukke
-        // tastatur og orientering, så all funksjonell state forblir korrekt.
+        window.visualViewport.addEventListener('resize', function() {
+            // Umiddelbar apply: state-memo filtrerer URL-bar-mikrobevegelser.
+            // Hvis logisk state har endret seg (keyboardOpen, popups), kjører
+            // apply for å gi rask respons.
+            scheduleApply();
+            // Debounced forced-apply: 250ms etter siste resize forces re-apply
+            // for å fange final vv.height etter:
+            //   - Tastatur-animasjon (multiple resize-events under animasjon)
+            //   - URL-bar-settle etter scroll
+            //   - Orienterings-rotasjon
+            // forceNextApply bypasser state-memo så piksel-cap, view-høyde og
+            // overlay-størrelse oppdateres med faktiske nye vv-verdier.
+            scheduleSettleApply();
+        });
+        // visualViewport.scroll dropet bevisst — fyrer per frame under scroll
+        // når URL-bar beveger seg, ville avbryte momentum hvis lyttet på.
+    }
+    var settleTimer = null;
+    function scheduleSettleApply() {
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(function() {
+            settleTimer = null;
+            scheduleForcedApply();
+        }, 250);
     }
 
     // Subtree MutationObserver på document.body — fanger BÅDE class-endringer
