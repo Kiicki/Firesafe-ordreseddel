@@ -6288,6 +6288,36 @@ document.addEventListener('DOMContentLoaded', function() {
     var forceNextApply = false;
     function scheduleForcedApply() { forceNextApply = true; scheduleApply(); }
 
+    // Hysteresis på keyboardOpen for å unngå flicker. Hvis input kortvarig
+    // mister fokus (f.eks. browser auto-scroll-into-view under scroll, eller
+    // mid-momentum focus-justering), kan vv.height kortvarig vise "lukket"
+    // tastatur. Uten hysteresis ville toolbar-reparenting skje to ganger
+    // (lukket → åpen igjen) og forstyrre scroll/UI.
+    // - Åpning: settes umiddelbart når detektert
+    // - Lukking: forsinkes 400ms — må være vedvarende lukket
+    var stableKeyboardOpen = false;
+    var keyboardCloseTimer = null;
+    function updateKeyboardState() {
+        if (!window.visualViewport) return false;
+        var vv = window.visualViewport;
+        var rawHeight = window.innerHeight - vv.height - vv.offsetTop;
+        var rawOpen = rawHeight > 100;
+        if (rawOpen) {
+            if (keyboardCloseTimer) { clearTimeout(keyboardCloseTimer); keyboardCloseTimer = null; }
+            stableKeyboardOpen = true;
+        } else if (stableKeyboardOpen && !keyboardCloseTimer) {
+            keyboardCloseTimer = setTimeout(function() {
+                keyboardCloseTimer = null;
+                // Re-sjekk ved utløp: tastatur kan ha kommet tilbake
+                var vv2 = window.visualViewport;
+                if (vv2 && (window.innerHeight - vv2.height - vv2.offsetTop) > 100) return;
+                stableKeyboardOpen = false;
+                scheduleForcedApply();
+            }, 400);
+        }
+        return stableKeyboardOpen;
+    }
+
     function scheduleApply() {
         if (rafScheduled) return;
         rafScheduled = true;
@@ -6336,8 +6366,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function applyKeyboardLayout() {
         if (!window.visualViewport) return;
         var vv = window.visualViewport;
-        var keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
-        var keyboardOpen = keyboardHeight > KEYBOARD_THRESHOLD;
+        // Bruker stable (hysteresis-applied) keyboardOpen — ikke rå momentan
+        // verdi. Dette unngår toolbar-bouncing når input kortvarig mister
+        // fokus under scroll og browser midlertidig viser tastatur som lukket.
+        var keyboardOpen = updateKeyboardState();
         var fullHeight = vv.offsetTop + vv.height;
         var activeView = document.querySelector('.view.active');
         var activeId = activeView ? activeView.id : null;
