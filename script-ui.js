@@ -6390,30 +6390,43 @@ document.addEventListener('DOMContentLoaded', function() {
         // position: static, body scroller, toolbar er i flow på slutten.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
 
-        // --- Toolbar reparenting for MODAL-views (saved/template/settings) ---
-        // Modal-views beholder modal-body-scroll. Toolbar appendes til aktiv
-        // modal-body så den scroller med listen (i stedet for å være fixed
-        // bottom over tastaturet).
+        // --- Modal-views: krymp til synlig viewport + reposisjoner toolbar ---
+        // Modal-views (saved/template/settings) beholder fixed-positioning og
+        // intern modal-body-scroll. For å få toolbar synlig over tastaturet
+        // OG sticky-header til å fungere, krymper vi view-roten til synlig
+        // viewport (top: vv.offsetTop, bunn = top av tastaturet).
+        // Toolbar reparentes IKKE til modal-body — innerHTML-replacements i
+        // saved-list ville ødelegge toolbar. I stedet plasseres toolbar
+        // absolutt nederst i view-roten via CSS, i flow-konteksten av view.
+        MODAL_VIEW_IDS.forEach(function(id) {
+            var view = document.getElementById(id);
+            if (!view) return;
+            var isModalActive = view.classList.contains('active');
+            if (keyboardOpen && isModalActive) {
+                view.style.top = vv.offsetTop + 'px';
+                view.style.bottom = 'auto';
+                view.style.height = vv.height + 'px';
+            } else {
+                view.style.top = '';
+                view.style.bottom = '';
+                view.style.height = '';
+            }
+        });
+
+        // Toolbar: når tastatur er åpent OG modal-view er aktiv, plasser
+        // toolbar inni view-roten (ikke modal-body). Bruker CSS
+        // body.keyboard-open .toolbar { position: static } + view's flex
+        // column layout for å plassere den naturlig nederst.
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
             var modalHost = null;
             if (keyboardOpen && MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
-                var view = document.getElementById(activeId);
-                if (view) {
-                    var bodies = view.querySelectorAll('.modal-body');
-                    for (var i = 0; i < bodies.length; i++) {
-                        if (bodies[i].offsetParent !== null) { modalHost = bodies[i]; break; }
-                    }
-                }
+                modalHost = document.getElementById(activeId);
             }
-            var prevParent = toolbar.parentNode;
             if (modalHost && toolbar.parentNode !== modalHost) {
-                if (prevParent && prevParent.classList) prevParent.classList.remove('toolbar-host');
                 toolbar.classList.add('toolbar--inflow');
                 modalHost.appendChild(toolbar);
-                modalHost.classList.add('toolbar-host');
             } else if (!modalHost && toolbar.parentNode !== document.body) {
-                if (prevParent && prevParent.classList) prevParent.classList.remove('toolbar-host');
                 toolbar.classList.remove('toolbar--inflow');
                 document.body.appendChild(toolbar);
             }

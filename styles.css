@@ -1375,23 +1375,13 @@ body.keyboard-open .confirm-modal {
     padding-bottom: 0;
 }
 
-/* Modal-views: når toolbar er reparent'et til modal-body, gjør modal-body
-   til flex column og push toolbar til bunn via margin-top: auto. Forhindrer
-   tomrom under toolbar når listen er kort. Høyere spesifisitet enn
-   #saved-modal.view.active .modal-body (1,3,1 vs 1,2,1) så vi vinner. */
-#template-modal.view.active .modal-body.toolbar-host,
-#saved-modal.view.active .modal-body.toolbar-host,
-#settings-modal.view.active .modal-body.toolbar-host {
-    display: flex;
-    flex-direction: column;
-}
-#template-modal.view.active .modal-body.toolbar-host > .toolbar--inflow,
-#saved-modal.view.active .modal-body.toolbar-host > .toolbar--inflow,
-#settings-modal.view.active .modal-body.toolbar-host > .toolbar--inflow {
-    margin-top: auto;
-}
-
-/* Toolbar in-flow inside modal-body: position: static, ingen box-shadow */
+/* Modal-views når tastatur er åpent: toolbar reparent'es til view-roten
+   (saved-modal/template-modal/settings-modal) som er flex column. Toolbar
+   blir naturlig sist (etter modal-content) og plasseres på bunnen.
+   modal-content fyller (flex: 1) — modal-body inni scroller listen som før.
+   Sticky-header forblir låst på toppen av modal-content. Toolbar appendes
+   til view-roten (ikke modal-body) så innerHTML-replacements i listen ikke
+   ødelegger den. */
 .toolbar.toolbar--inflow {
     position: static;
     left: auto;
@@ -1400,6 +1390,7 @@ body.keyboard-open .confirm-modal {
     width: 100%;
     box-shadow: none;
     z-index: auto;
+    flex-shrink: 0;
 }
 
 /* Template modal (home page) styling to match form page */
