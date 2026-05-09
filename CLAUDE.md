@@ -114,22 +114,22 @@ Appen brukes mye på mobil og nettbrett. Når brukeren tapper på et input-felt 
 
 ### Arkitektur — to lag
 
-**Lag 1 (PRIMÆR): CSS-drevet via `body.keyboard-open`-klasse**
+**Lag 1: CSS-drevet via `body.keyboard-open`-klasse (form-views)**
 
-Dette er hovedmekanismen for views, modal-content, modal-body og toolbar. Alt styres i CSS — JS bare toggler klassen. Når `body.keyboard-open` er satt:
-- Alle views (`#view-form`, `#saved-modal`, `#template-modal`, etc.): `position: static; overflow: visible; height: auto; min-height: calc(100dvh - 60px)`
-- `.modal-content`/`.modal-body`: `overflow: visible`
+For form-views (`#view-form`, `#service-view`, `#kappe-view`) styres tastatur-respons i CSS. JS bare toggler klassen. Når `body.keyboard-open` er satt:
+- Form-views: `position: static; overflow: visible; height: auto; min-height: calc(100dvh - 60px)`
 - `.toolbar`: `position: static; box-shadow: none` (flyter naturlig på slutten av body)
 - `.confirm-modal`: `padding-bottom: 0`
 - `body`: `padding-bottom: 0`
 
-Resultat: hele body flyter naturlig som ett dokument. Sticky-headers (`.sticky-header`, `#form-header`) holder seg på toppen via egen `position: sticky`. Toolbar havner på slutten av body's normale flow. Ingen høydejustering, ingen reparenting, ingen overflow-låsing.
+Resultat for form-views: body flyter naturlig som ett dokument. Sticky-headers (`#form-header`, `#service-header`) holder seg på toppen via egen `position: sticky`. Toolbar havner på slutten av body's normale flow.
 
-**Lag 2: JS-håndtering for popups og fullscreen overlays**
+**Lag 2: JS-håndtering for elementer som ikke kan flyte naturlig**
 
-For ting som forblir `position: fixed` (popups, fullscreen overlays) trenger vi JS — de er ikke i body's normale flow:
-- **Popups** (`.confirm-modal-content`, `.spec-popup-sheet`, `.fakturaadresse-popup-sheet`): piksel-cap på `max-height = vv.height - 32` + `transform: translateY(-N)` som ankrer bunnen rett over tastaturet
-- **Fullscreen-overlays** (`#picker-overlay`, `#unit-picker-overlay`, `#kappe-product-picker-overlay`, `#template-picker-overlay`): krympes til `top: vv.offsetTop` + `height: vv.height` så de ikke strekker seg bak tastaturet (browseren mister touch-events for området bak tastaturet ellers)
+- **Modal-views** (`#saved-modal`, `#template-modal`, `#settings-modal`):
+  Beholder `position: fixed`. JS krymper til synlig viewport (`top: vv.offsetTop; height: vv.height; min-height: 0; bottom: auto`). Toolbar reparentes til AKTIV `.modal-body` (med `--inflow`-klasse) så den scroller med listeitems. Sticky-header forblir låst på toppen. En MutationObserver-vakt re-appender toolbar hvis innerHTML-replacements i listen ødelegger den.
+- **Fullscreen-overlays** (`#picker-overlay`, `#unit-picker-overlay`, `#kappe-product-picker-overlay`, `#template-picker-overlay`): krympes til `top: vv.offsetTop` + `height: vv.height` så de ikke strekker seg bak tastaturet (browseren mister touch-events for området bak tastaturet ellers).
+- **Popups** (`.confirm-modal-content`, `.spec-popup-sheet`, `.fakturaadresse-popup-sheet`): piksel-cap på `max-height = vv.height - 32` + `transform: translateY(-N)` som ankrer bunnen rett over tastaturet.
 
 ### Sentrale fakta
 
@@ -177,10 +177,14 @@ Da plukkes den AUTOMATISK opp av `applyKeyboardLayout` og MutationObserveren. Ba
 ### Hva du IKKE skal gjøre
 
 - ❌ Ikke registrer egne `visualViewport.resize`/`scroll`-listenere i popup/view-kode — det skaper konkurrerende handlere
-- ❌ Ikke flytt eller reparent toolbar manuelt — CSS via `body.keyboard-open .toolbar` håndterer det
-- ❌ Ikke set `view.style.height/bottom/display` manuelt for å håndtere tastatur — bruk CSS-laget
+- ❌ Ikke flytt eller reparent toolbar manuelt — `applyKeyboardLayout` eier toolbar-plassering (CSS for form-views, JS reparent for modal-views)
+- ❌ Ikke set `view.style.height/bottom/display` manuelt for å håndtere tastatur — `applyKeyboardLayout` eier det
 - ❌ Ikke set `transform: translateY(...)` manuelt på popup-content — `applyKeyboardLayout` eier det
 - ❌ Ikke stol på CSS `max-height: calc(100% - X)` for å begrense popup-content over tastaturet — det løses mot full skjerm. Bruk JS piksel-cap
+
+### Tab-switch i modal-views
+
+Tab-switch (f.eks. `switchHentTab`) endrer modal-body via inline `style.display`, ikke class. MutationObserveren overvåker class-endringer, ikke style — så tab-switch fanges ikke automatisk. Hvis du legger til ny tab-switch-funksjon i en modal-view, kall `window.applyKeyboardLayout()` på slutten så toolbar flyttes til den nye aktive modal-body.
 
 ### Sjekkliste før du committer en UI-endring
 

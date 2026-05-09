@@ -86,8 +86,10 @@ function showView(viewId) {
         target.scrollTop = 0;
         window.scrollTo(0, 0);
     }
-    // Toolbar reparenting brukes ikke lenger — body.keyboard-open-CSS-klassen
-    // styrer toolbar-posisjon (static when keyboard open, fixed bottom otherwise).
+    // Toolbar-state (i body vs. inni modal-body) håndteres av
+    // applyKeyboardLayout via MutationObserver på .view-class-endringer.
+    // Når .active flyttes til en annen view, fyrer observeren og apply
+    // re-evaluerer modalHost — ingen manuell håndtering trengs her.
 }
 
 function closeAllModals() {
@@ -536,6 +538,11 @@ function switchHentTab(tab) {
         if (kappeSearch) kappeSearch.style.display = '';
         loadKappeTab();
     }
+    // Tab-switch endrer modal-body display via inline-style. MutationObserveren
+    // i tastatur-handleren overvåker class, ikke style — så vi må eksplisitt
+    // trigge applyKeyboardLayout for å re-evaluere hvilken modal-body toolbar
+    // skal være i. Uten dette ville toolbar bli stuck i forrige aktive modal-body.
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 
 // Action popup
@@ -6240,22 +6247,52 @@ document.addEventListener('DOMContentLoaded', function() {
     // - Visual viewport (window.visualViewport) krymper til synlig område over tastaturet
     // - position:fixed-element ankres mot layout viewport og dekker fortsatt hele skjermen
     //
-    // applyKeyboardLayout() er den ENESTE eieren av tastatur-respons:
-    //   - Justerer aktive views (view-form, service-view, kappe-view) til synlig høyde
-    //   - Reparenterer toolbar inn i scrollable view når tastatur er åpent
-    //   - For ALLE popups (.confirm-modal-content, .spec-popup-sheet,
-    //     .fakturaadresse-popup-sheet): piksel-cap på max-height + translateY for å
-    //     ankre popupen rett over tastaturet
-    //   - Funksjonen er idempotent og trygg å kalle gjentatte ganger
+    // applyKeyboardLayout() er den ENESTE JS-eieren av tastatur-respons.
+    // To-lags arkitektur:
     //
-    // Robusthet — fem trigger-mekanismer dekker alle scenarier:
-    //   1. visualViewport.resize (tastatur åpnes/lukkes, orientering)
-    //   2. visualViewport.scroll (URL-bar viser/skjuler under scroll)
-    //   3. document.body subtree MutationObserver — class-endringer på popup-backdrops
-    //      (fanger BÅDE eksisterende OG dynamisk lagde popups, og class-toggling)
-    //   4. ResizeObserver per aktiv popup-content (re-kalkulerer translate når
-    //      content vokser/krymper, f.eks. når tekst skrives og felter utvider seg)
-    //   5. focusin/focusout fallback (noen browsere fyrer focus før vv.resize)
+    // LAG 1 (CSS-drevet via body.keyboard-open-klasse):
+    //   - Form-views (view-form, service-view, kappe-view): position: static,
+    //     overflow: visible, body scroller naturlig, toolbar i flow på slutten
+    //   - Sticky-headers (#form-header, #service-header) holder seg på topp
+    //   - body padding-bottom: 0 (toolbar ikke fixed lenger)
+    //   - .confirm-modal padding-bottom: 0
+    //
+    // LAG 2 (JS — for elementer som ikke kan flyte naturlig):
+    //   - Modal-views (saved-modal, template-modal, settings-modal):
+    //     krympes til synlig viewport (fixed-positioned, height: vv.height,
+    //     min-height: 0). Toolbar reparentes til aktiv modal-body så den
+    //     scroller med listeitems. MutationObserver-vakt re-appender toolbar
+    //     hvis innerHTML-replacements ødelegger den.
+    //   - Fullscreen-overlays (#picker-overlay etc.): krympes til synlig
+    //     viewport (top: vv.offsetTop, height: vv.height) så scroll i intern
+    //     liste fungerer (ellers mister browseren touch-events bak tastatur).
+    //   - Popups (.confirm-modal-content, .spec-popup-sheet,
+    //     .fakturaadresse-popup-sheet): piksel-cap på max-height +
+    //     translateY-ankring rett over tastatur.
+    //
+    // Funksjonen er idempotent (state-memo skip'er hvis logisk state uendret)
+    // og trygg å kalle gjentatte ganger.
+    //
+    // Robusthet — fem trigger-mekanismer:
+    //   1. visualViewport.resize (umiddelbar apply + 250ms settle for å
+    //      fange final vv-verdier etter tastatur-animasjon/URL-bar-settle)
+    //   2. document.body subtree MutationObserver — class-endringer på
+    //      popup-backdrops OG .view (view-bytter), pluss childList for
+    //      dynamisk innsatte popups
+    //   3. ResizeObserver per aktiv popup-content (re-kalkulerer translate
+    //      når content vokser/krymper)
+    //   4. focusin/focusout — filtrert til kun text-inputs/textarea/
+    //      contenteditable så scroll-momentum ikke avbrytes ved tap på
+    //      ikke-keyboard-åpnende elementer (knapper, checkboxer)
+    //   5. Initial scheduleApply() ved DOMContentLoaded
+    //
+    // visualViewport.scroll lyttes IKKE på — fyrer per frame under scroll
+    // når URL-bar beveger seg, ville avbryte momentum. Final vv-verdier
+    // hentes via settle-timer i stedet.
+    //
+    // Tab-switch i modal-views (switchHentTab etc.) endrer modal-body
+    // display via inline-style, ikke class. Disse må eksplisitt kalle
+    // window.applyKeyboardLayout() for å trigge re-evaluering.
     //
     // requestAnimationFrame-debouncing: alle triggers ruter gjennom scheduleApply()
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
@@ -6299,7 +6336,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!window.visualViewport) return false;
         var vv = window.visualViewport;
         var rawHeight = window.innerHeight - vv.height - vv.offsetTop;
-        var rawOpen = rawHeight > 100;
+        var rawOpen = rawHeight > KEYBOARD_THRESHOLD;
         if (rawOpen) {
             if (keyboardCloseTimer) { clearTimeout(keyboardCloseTimer); keyboardCloseTimer = null; }
             stableKeyboardOpen = true;
@@ -6308,7 +6345,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 keyboardCloseTimer = null;
                 // Re-sjekk ved utløp: tastatur kan ha kommet tilbake
                 var vv2 = window.visualViewport;
-                if (vv2 && (window.innerHeight - vv2.height - vv2.offsetTop) > 100) return;
+                if (vv2 && (window.innerHeight - vv2.height - vv2.offsetTop) > KEYBOARD_THRESHOLD) return;
                 stableKeyboardOpen = false;
                 scheduleForcedApply();
             }, 400);
@@ -6397,11 +6434,6 @@ document.addEventListener('DOMContentLoaded', function() {
             var o = document.getElementById(id);
             if (o && o.classList.contains('active')) activeOverlaySig += id + ',';
         });
-        // State-key inkluderer KUN logisk state — IKKE vv.height/offsetTop.
-        // URL-bar-bevegelse under scroll endrer vv.height (~50-60px) men IKKE
-        // den logiske staten — så apply kjøres ikke under scroll og momentum
-        // forstyrres ikke. Tastatur-animasjonens sluttverdier hentes via
-        // debounced forced-apply (settle-timer 250ms etter siste resize).
         var stateKey =
             (keyboardOpen ? '1' : '0') + '|' +
             (activeId || '') + '|' +
@@ -6555,7 +6587,12 @@ document.addEventListener('DOMContentLoaded', function() {
             var m = mutations[i];
             if (m.type === 'attributes' && m.attributeName === 'class') {
                 var t = m.target;
-                if (t && t.nodeType === 1 && typeof t.matches === 'function' && t.matches(POPUP_BACKDROP_SELECTOR)) {
+                // Trigger apply for popup-backdrop class changes (popup
+                // åpnes/lukkes) OG for .view class changes (view-bytte —
+                // når .active flyttes fra én view til en annen, må vi
+                // re-evaluere modalHost og toolbar-plassering).
+                if (t && t.nodeType === 1 && typeof t.matches === 'function' &&
+                    (t.matches(POPUP_BACKDROP_SELECTOR) || t.matches('.view'))) {
                     scheduleApply();
                     return;
                 }
