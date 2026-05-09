@@ -6429,10 +6429,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // focusin/focusout: fallback-trigger. Noen browsere fyrer focus FØR
     // visualViewport.resize, så uten denne ville første frame etter fokus
-    // ha feil layout. rAF-debouncing gjør at dette ikke koster noe når
-    // resize fyrer parallelt.
-    document.addEventListener('focusin', scheduleApply);
-    document.addEventListener('focusout', scheduleApply);
+    // ha feil layout.
+    //
+    // KRITISK: Filtrer til kun elementer som FAKTISK åpner tastatur
+    // (text-inputs, textarea, contenteditable). Uten dette ville fokus på
+    // ENHVER focusable (knapp, checkbox) trigge applyKeyboardLayout som
+    // tvinger layout-reflow via offsetHeight-lesing — det avbryter
+    // scroll-momentum når brukeren scroller i en popup-liste og fingeren
+    // strøyfer en focusable item på vei (klassisk "første swipe stopper"-bug).
+    function isKeyboardOpeningElement(el) {
+        if (!el || el.nodeType !== 1) return false;
+        var tag = el.tagName;
+        if (tag === 'TEXTAREA') return true;
+        if (el.isContentEditable) return true;
+        if (tag === 'INPUT') {
+            var type = (el.type || 'text').toLowerCase();
+            // Disse input-typene åpner skjermtastatur. Ekskluderer button,
+            // checkbox, radio, file, color, range, submit, image, reset.
+            return ['text', 'tel', 'email', 'number', 'search', 'url', 'password', 'date', 'time', 'datetime-local', 'month', 'week'].indexOf(type) !== -1;
+        }
+        return false;
+    }
+    document.addEventListener('focusin', function(e) {
+        if (isKeyboardOpeningElement(e.target)) scheduleApply();
+    });
+    document.addEventListener('focusout', function(e) {
+        if (isKeyboardOpeningElement(e.target)) scheduleApply();
+    });
 
     // Initial sync — håndterer edge case der tastatur allerede er åpent ved
     // sidelasting (f.eks. retur til PWA der state ikke er nullstilt)
