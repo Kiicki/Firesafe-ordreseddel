@@ -1375,22 +1375,25 @@ body.keyboard-open .confirm-modal {
     padding-bottom: 0;
 }
 
-/* Modal-views når tastatur er åpent: toolbar reparent'es til view-roten
-   (saved-modal/template-modal/settings-modal) som er flex column. Toolbar
-   blir naturlig sist (etter modal-content) og plasseres på bunnen.
-   modal-content fyller (flex: 1) — modal-body inni scroller listen som før.
-   Sticky-header forblir låst på toppen av modal-content. Toolbar appendes
-   til view-roten (ikke modal-body) så innerHTML-replacements i listen ikke
-   ødelegger den. */
+/* Toolbar når den er inflow inni modal-body: position: static + negativ
+   margin for å nøytralisere modal-body's 15px padding. Uten negativ margin
+   blir toolbar smalere enn vanlig (innenfor padding-boksen) og det er gap
+   under toolbar (på grunn av modal-body's padding-bottom). */
 .toolbar.toolbar--inflow {
     position: static;
     left: auto;
     right: auto;
     bottom: auto;
-    width: 100%;
     box-shadow: none;
     z-index: auto;
     flex-shrink: 0;
+    /* Nøytraliser modal-body's padding (15px) — toolbar stretcher til
+       modal-body's edge horisontalt og bunnen. */
+    margin-left: -15px;
+    margin-right: -15px;
+    margin-bottom: -15px;
+    margin-top: 0;
+    width: auto;  /* ikke 100% når margin er negativ */
 }
 
 /* Template modal (home page) styling to match form page */
