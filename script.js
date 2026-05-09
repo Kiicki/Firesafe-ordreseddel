@@ -2916,26 +2916,27 @@ function dagTimerBlockScroll(e) {
 function adjustDagTimerModal() {
     var modal = document.getElementById('dag-timer-modal');
     if (!modal.classList.contains('active')) return;
-    if (window.visualViewport) {
-        var vv = window.visualViewport;
-        modal.style.height = vv.height + 'px';
-        modal.style.top = vv.offsetTop + 'px';
-        modal.style.bottom = 'auto';
-        // Tastatur-deteksjon: visualViewport blir vesentlig mindre enn window.
-        // Når tastatur er åpent: aligner modalen til topp og kompakter rader
-        // så tittel + flere dager blir synlig.
-        var kbOpen = (window.innerHeight - vv.height) > 150;
-        document.body.classList.toggle('dag-timer-keyboard-open', kbOpen);
-    }
+    if (!window.visualViewport) return;
+    var vv = window.visualViewport;
+    // Beregn tastatur-høyde fra differansen mellom layout- og visualViewport.
+    // Med `interactive-widget=resizes-visual` forblir layout viewport (window.innerHeight)
+    // full skjerm — kun visualViewport krymper når tastatur åpnes.
+    var keyboardHeight = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    var kbOpen = keyboardHeight > 100;
+    // Modalen forblir top:0/bottom:0 (full layout viewport) — vi pusher kun
+    // innholdet opp over tastaturet via padding-bottom. Slik unngår vi at
+    // popupen havner bak nettleser-chrome (URL-bar) i toppen.
+    modal.style.paddingBottom = kbOpen ? keyboardHeight + 'px' : '';
+    modal.style.paddingTop = kbOpen ? vv.offsetTop + 'px' : '';
+    document.body.classList.toggle('dag-timer-keyboard-open', kbOpen);
 }
 
 function closeDagTimerModal(confirmed) {
     var modal = document.getElementById('dag-timer-modal');
     if (!confirmed || !dagTimerActiveCard) {
         modal.classList.remove('active');
-        modal.style.height = '';
-        modal.style.top = '';
-        modal.style.bottom = '';
+        modal.style.paddingTop = '';
+        modal.style.paddingBottom = '';
         document.body.classList.remove('dag-timer-keyboard-open');
         modal.removeEventListener('touchmove', dagTimerBlockScroll);
         modal.removeEventListener('wheel', dagTimerBlockScroll);
@@ -2974,9 +2975,8 @@ function closeDagTimerModal(confirmed) {
     }
     // Lukker modalen først nå (etter validering passerte)
     modal.classList.remove('active');
-    modal.style.height = '';
-    modal.style.top = '';
-    modal.style.bottom = '';
+    modal.style.paddingTop = '';
+    modal.style.paddingBottom = '';
     document.body.classList.remove('dag-timer-keyboard-open');
     modal.removeEventListener('touchmove', dagTimerBlockScroll);
     modal.removeEventListener('wheel', dagTimerBlockScroll);

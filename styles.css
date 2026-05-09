@@ -2206,15 +2206,10 @@ label.settings-default-label.field-required > span::after {
     overscroll-behavior: none;
 }
 
-/* Når tastatur er åpent: aligner til topp, dropp toolbar-padding (toolbaren
-   skjules av tastaturet uansett) og kompakter rader/padding så tittel +
-   flere dager blir synlig samtidig. */
-body.dag-timer-keyboard-open #dag-timer-modal {
-    align-items: flex-start;
-    padding-bottom: 8px;
-    padding-top: 8px;
-}
-
+/* Når tastatur er åpent: JS setter padding-bottom = tastaturhøyde og
+   padding-top = visualViewport.offsetTop slik at innholdet sentreres over
+   tastaturet. Kompakter rader/padding så tittel + flere dager blir synlig
+   samtidig i den reduserte synlige høyden. */
 body.dag-timer-keyboard-open .confirm-modal-content.dag-timer-modal-content {
     max-height: calc(100% - 16px) !important;
     padding: 14px 16px;
