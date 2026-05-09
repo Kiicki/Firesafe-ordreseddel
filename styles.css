@@ -2912,6 +2912,27 @@ label.settings-default-label.field-required > span::after {
     padding: 4px 0;
 }
 
+/* Scroll-chain-prevention for ALLE popup-scrollbare lister og bodies.
+   Uten `overscroll-behavior: contain` blir første swipe ved scroll-grensen
+   "spist" av forsøk på å videresende scrollet til parent — særlig synlig
+   når body er låst (tastatur åpent med body.overflow: hidden), men også
+   bug ved retningsskifte ved grensene generelt ("må swipe to ganger").
+   touch-action: pan-y sikrer at vertikal scroll ikke konkurrerer med
+   horisontale gestures. */
+.picker-overlay-list,
+.unit-picker-list,
+.spec-popup-body,
+.confirm-modal-content,
+.profile-info-body,
+.kappe-picker-brands,
+.kappe-picker-dimensions,
+#plan-popup-list,
+.template-editor-body {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+}
+
 /* Kappe-produkt-picker (knapp + popup) */
 .kappe-line-product-btn {
     width: 100%;
