@@ -2904,6 +2904,10 @@ function openDagTimerModal(btn) {
         window.visualViewport.addEventListener('resize', adjustDagTimerModal);
         window.visualViewport.addEventListener('scroll', adjustDagTimerModal);
     }
+    // Kjør én gang nå i tilfelle tastaturet allerede er åpent (f.eks. fokus
+    // overført fra et annet input-felt) — visualViewport.resize fyrer ikke
+    // når state allerede er stabil ved modal-åpning.
+    adjustDagTimerModal();
 }
 
 function dagTimerBlockScroll(e) {

@@ -6282,7 +6282,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Posisjoner popup-sheets like over tastaturet (med liten margin),
                 // ikke sentrert i synlig område — føles mer naturlig (som iOS/Android).
                 var keyboardMargin = 16;
-                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content');
+                // dag-timer-modal-content ekskluderes — den er høy (8 dager + Annet)
+                // og den translateY-baserte ankringen her presser toppen ut av synlig
+                // område. adjustDagTimerModal() i script.js håndterer denne dedikert
+                // med padding + piksel-cap på max-height.
+                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content:not(.dag-timer-modal-content)');
                 sheets.forEach(function(s) {
                     var mh = s.offsetHeight || 0;
                     // Original sentrum i window er innerHeight/2, ønsket bunn er fullHeight - margin
@@ -6291,7 +6295,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 // Confirm-modal har padding-bottom for toolbar — fjern det når tastaturet er åpent
                 // slik at popupen sitter naturlig sentrert i synlig område (ikke for høyt).
-                document.querySelectorAll('.confirm-modal.active').forEach(function(m) {
+                // Ekskluder dag-timer-modal — den styrer egen padding-bottom via JS.
+                document.querySelectorAll('.confirm-modal.active:not(#dag-timer-modal)').forEach(function(m) {
                     m.style.paddingBottom = '0';
                 });
                 // Reparent toolbar into scrollable content
