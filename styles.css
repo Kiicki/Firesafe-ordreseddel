@@ -105,34 +105,6 @@ body {
     z-index: 40;
 }
 
-/* When toolbar is reparented inside form during keyboard-open, it flows with content */
-.toolbar.toolbar--inflow {
-    position: static;
-    left: auto;
-    right: auto;
-    bottom: auto;
-    width: 100%;
-    box-shadow: none;
-    margin-top: 0;
-    padding-bottom: 8px;
-    z-index: auto;
-}
-
-/* Modal-body som vert for toolbar (saved-modal etc.):
-   Bruk flex column + margin-top: auto på toolbar for å pushe den til bunn
-   av modal-body. Uten dette får man tomrom under toolbar når listen er
-   kort (toolbar legger seg etter siste item, modal-body har flex-høyde
-   som er større enn innholdet).
-   - Kort innhold: items øverst, toolbar nederst — INGEN tomrom under
-   - Langt innhold: items overflow, scroll, toolbar etter items, sticky-feel
-     ved bunn av synlig modal-body */
-.modal-body.toolbar-host {
-    display: flex;
-    flex-direction: column;
-}
-.modal-body.toolbar-host > .toolbar--inflow {
-    margin-top: auto;
-}
 
 /* Dark overlay on toolbar when popup is active */
 .toolbar::before {
@@ -1403,6 +1375,13 @@ body.keyboard-open .toolbar {
     box-shadow: none;
 }
 body.keyboard-open {
+    padding-bottom: 0;
+}
+/* Confirm-modal-backdrop har padding-bottom: var(--toolbar-h, 60px) for å gi
+   plass til toolbar. Når tastatur er åpent er toolbar i flow (ikke fixed),
+   så denne paddingen er ikke lenger nødvendig — den ville bare presset
+   popup-content unødvendig oppover. */
+body.keyboard-open .confirm-modal {
     padding-bottom: 0;
 }
 

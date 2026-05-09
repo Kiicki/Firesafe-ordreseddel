@@ -110,7 +110,26 @@ async function getMyData(lastDoc) {
 
 ## VIKTIG: Tastatur-håndtering på mobil/nettbrett
 
-Appen brukes mye på mobil og nettbrett. Når brukeren tapper på et input-felt åpnes skjermtastaturet, og dette **må alltid håndteres** for popups, modaler og scrollbare visninger. **Test alltid både uten og med tastatur åpent** før du erklærer en UI-endring som ferdig.
+Appen brukes mye på mobil og nettbrett. Når brukeren tapper på et input-felt åpnes skjermtastaturet. **Test alltid både uten og med tastatur åpent** før du erklærer en UI-endring som ferdig.
+
+### Arkitektur — to lag
+
+**Lag 1 (PRIMÆR): CSS-drevet via `body.keyboard-open`-klasse**
+
+Dette er hovedmekanismen for views, modal-content, modal-body og toolbar. Alt styres i CSS — JS bare toggler klassen. Når `body.keyboard-open` er satt:
+- Alle views (`#view-form`, `#saved-modal`, `#template-modal`, etc.): `position: static; overflow: visible; height: auto; min-height: calc(100dvh - 60px)`
+- `.modal-content`/`.modal-body`: `overflow: visible`
+- `.toolbar`: `position: static; box-shadow: none` (flyter naturlig på slutten av body)
+- `.confirm-modal`: `padding-bottom: 0`
+- `body`: `padding-bottom: 0`
+
+Resultat: hele body flyter naturlig som ett dokument. Sticky-headers (`.sticky-header`, `#form-header`) holder seg på toppen via egen `position: sticky`. Toolbar havner på slutten av body's normale flow. Ingen høydejustering, ingen reparenting, ingen overflow-låsing.
+
+**Lag 2: JS-håndtering for popups og fullscreen overlays**
+
+For ting som forblir `position: fixed` (popups, fullscreen overlays) trenger vi JS — de er ikke i body's normale flow:
+- **Popups** (`.confirm-modal-content`, `.spec-popup-sheet`, `.fakturaadresse-popup-sheet`): piksel-cap på `max-height = vv.height - 32` + `transform: translateY(-N)` som ankrer bunnen rett over tastaturet
+- **Fullscreen-overlays** (`#picker-overlay`, `#unit-picker-overlay`, `#kappe-product-picker-overlay`, `#template-picker-overlay`): krympes til `top: vv.offsetTop` + `height: vv.height` så de ikke strekker seg bak tastaturet (browseren mister touch-events for området bak tastaturet ellers)
 
 ### Sentrale fakta
 
@@ -118,65 +137,59 @@ Appen brukes mye på mobil og nettbrett. Når brukeren tapper på et input-felt 
    - **Layout viewport** (`window.innerHeight`) forblir full skjerm når tastatur åpnes
    - **Visual viewport** (`window.visualViewport.height`) krymper til området over tastaturet
    - `position: fixed`-element ankres mot **layout viewport** — så de dekker fortsatt hele skjermen, inkludert området bak tastaturet
-   - Konsekvens: en sentrert popup vil havne bak tastaturet hvis du ikke aktivt kompenserer
+   - Lag-1-løsningen (static via body.keyboard-open) sidesteps dette ved å gjøre views ikke-fixed
 
-2. **CSS-prosenter er en felle:** `max-height: calc(100% - X)` på `.confirm-modal-content` og lignende løses mot **layout viewport** (full skjerm), IKKE synlig område. En popup kan bli større enn synlig viewport selv med CSS max-height satt. Eneste robuste løsning er **piksel-cap via JS**.
+2. **CSS-prosenter er en felle:** `max-height: calc(100% - X)` på popup-content løses mot **layout viewport** (full skjerm), IKKE synlig område. En popup kan bli større enn synlig viewport selv med CSS max-height satt. Eneste robuste løsning for popups er **piksel-cap via JS** (`element.style.setProperty('max-height', px + 'px', 'important')`)
 
-### Unified handler: `applyKeyboardLayout()` i `script-ui.js` (~linje 6245)
+### Unified handler: `applyKeyboardLayout()` i `script-ui.js`
 
-Det finnes **ÉN** sentral funksjon som er ENESTE eier av tastatur-respons. Hold den slik — ikke lag konkurrerende handlere i andre filer.
+ÉN sentral funksjon eier all tastatur-respons. Hold det slik — ikke lag konkurrerende handlere.
 
-**Hva den gjør (idempotent — trygg å kalle gjentatte ganger):**
-1. Justerer aktive views (`view-form`, `service-view`, `kappe-view`) til synlig høyde via `height: vv.offsetTop + vv.height`
-2. Reparenterer toolbaren inn i scrollable view (`.toolbar--inflow`-klasse) — så den ikke blokkerer input
-3. `body.overflow = 'hidden'` mens tastatur er åpent
-4. For ALLE popup-content under aktive backdrops (`.confirm-modal-content`, `.spec-popup-sheet`, `.fakturaadresse-popup-sheet`):
-   - Setter eksplisitt **piksel-cap** på `max-height = vv.height - 32` (med `setProperty(..., 'important')` for å overstyre CSS !important)
-   - Måler `offsetHeight` post-cap og beregner `transform: translateY(-N)` som ankrer bunnen rett over tastaturet (med 16px margin)
-5. Fjerner toolbar-`padding-bottom` på aktive `.confirm-modal`-backdrops
+**Hva den gjør (idempotent):**
+1. Detekter keyboardOpen via `(window.innerHeight - vv.height - vv.offsetTop) > 100` med hysteresis (åpning umiddelbar, lukking forsinket 400ms for å unngå flicker ved kortvarig fokus-mistring under scroll)
+2. State-memo via signatur av (keyboardOpen + activeView + aktive popups + aktive overlays). Skip apply hvis logisk state er uendret. URL-bar-bevegelse under scroll blir filtrert bort siden den ikke endrer logisk state — momentum-scroll forstyrres ikke
+3. Toggle `body.keyboard-open` (Lag 1)
+4. Justere fullscreen-overlays + popup-content (Lag 2)
 
-**Triggers (fem mekanismer dekker alle scenarioer, alle rutet gjennom `requestAnimationFrame`-debouncing så maks 1 apply per frame):**
+**Triggers (alle gjennom `requestAnimationFrame`-debouncing — maks 1 apply per frame):**
 1. `visualViewport.resize` — tastatur åpnes/lukkes, orienterings-endring
-2. `visualViewport.scroll` — URL-bar viser/skjuler under scroll
-3. **`MutationObserver` på `document.body` (subtree)** — fanger BÅDE class-endringer på eksisterende popup-backdrops OG dynamisk innsatte popups (childList)
-4. **`ResizeObserver` per aktiv popup-content** — re-kalkulerer translate når content vokser/krymper (f.eks. tekst-ekspansjon, async-lastet innhold)
-5. `focusin`/`focusout` på document — fallback for browsere som fyrer focus før `vv.resize`
-6. Initial kjøring ved DOMContentLoaded (sync state ved sidelasting)
+2. **Settle-timer (250ms etter siste resize)** — forced apply som bypasser state-memo, fanger final vv-verdier etter tastatur-animasjon eller URL-bar-settle
+3. **`MutationObserver` på `document.body` (subtree)** — fanger BÅDE class-endringer på popup-backdrops OG dynamisk innsatte popups (childList). Filtrert til kun popup-backdrop-mutations for ytelse
+4. **`ResizeObserver` per aktiv popup-content** — re-kalkulerer translate når content vokser/krymper (tekst-ekspansjon, dynamisk innhold). Bruker `forceNextApply`-flagg så content-vekst bypasser state-memo
+5. `focusin`/`focusout` på document — **filtrert til kun text-inputs/textarea/contenteditable** så scroll-momentum ikke avbrytes når finger lander på checkbox/knapp under scroll
+6. Initial kjøring ved DOMContentLoaded
+
+**Bevisst IKKE lyttet til:** `visualViewport.scroll` — fyrer per frame når URL-baren beveger seg under scroll, ville avbryte momentum-scroll om vi reagerte. Final vv-verdier hentes via settle-timer i stedet.
 
 ### Når du legger til en ny popup eller modal
 
-**99% av tilfellene — gjør INGENTING ekstra:**
+**Bruk én av eksisterende strukturer:**
+- Backdrop `.confirm-modal` + content `.confirm-modal-content` (sentrert popup)
+- Backdrop `.spec-popup-backdrop` + content `.spec-popup-sheet`
+- Backdrop `.fakturaadresse-popup-backdrop` + content `.fakturaadresse-popup-sheet`
 
-Hvis popupen din bruker en av disse strukturene, plukkes den AUTOMATISK opp av `applyKeyboardLayout` og MutationObserveren — du trenger ikke skrive en linje tastatur-kode:
-- Backdrop med klasse `.confirm-modal` + content med klasse `.confirm-modal-content`
-- Backdrop med klasse `.spec-popup-backdrop` + content med klasse `.spec-popup-sheet`
-- Backdrop med klasse `.fakturaadresse-popup-backdrop` + content med klasse `.fakturaadresse-popup-sheet`
+Da plukkes den AUTOMATISK opp av `applyKeyboardLayout` og MutationObserveren. Backdropen må toggle `.active`-klassen for å vises.
 
-Backdropen må toggle `.active`-klassen for å vises (CSS bruker `.active` for `display: flex`).
+**Ny view (full-skjerm scrollable):** Bruk `.view`-klassen og legg view-IDen til CSS-blokken `body.keyboard-open #din-view.view.active { ... }` så CSS-laget håndterer den.
 
-**Hvis du legger til en HELT ny backdrop-type** (bruker IKKE en av selectorene over):
-1. Legg til klassene dine i selectorene i `applyKeyboardLayout` (både i content-loop og MutationObserver-init)
-2. Eller: bruk en av eksisterende klasser (anbefalt — minimerer kompleksitet)
-
-**Hvis popup-content er HØY** (mange rader, lange lister): ikke noe ekstra trengs. Piksel-cap'en i `applyKeyboardLayout` håndterer dette automatisk.
+**Ny fullscreen overlay (som picker):** Legg ID-en til `FULLSCREEN_OVERLAY_IDS` i `script-ui.js` (én linje endring).
 
 ### Hva du IKKE skal gjøre
 
-- ❌ Ikke registrer egne `visualViewport.resize`/`scroll`-listenere i popup-spesifikk kode — det skaper konkurrerende handlere som kjemper om samme inline-styles
-- ❌ Ikke set `padding-top`/`padding-bottom` manuelt på backdrops i popup-kode — `applyKeyboardLayout` eier dette
-- ❌ Ikke bruk `transform: translateY(...)` manuelt på popup-content — `applyKeyboardLayout` eier dette
-- ❌ Ikke bruk CSS `body.<noe>-keyboard-open`-klasser med utgangspunkt i tastaturstate — bruk `applyKeyboardLayout` i stedet
-- ❌ Ikke stol på CSS `max-height: calc(100% - X)` for å begrense popup over tastaturet — det løses mot full skjerm
+- ❌ Ikke registrer egne `visualViewport.resize`/`scroll`-listenere i popup/view-kode — det skaper konkurrerende handlere
+- ❌ Ikke flytt eller reparent toolbar manuelt — CSS via `body.keyboard-open .toolbar` håndterer det
+- ❌ Ikke set `view.style.height/bottom/display` manuelt for å håndtere tastatur — bruk CSS-laget
+- ❌ Ikke set `transform: translateY(...)` manuelt på popup-content — `applyKeyboardLayout` eier det
+- ❌ Ikke stol på CSS `max-height: calc(100% - X)` for å begrense popup-content over tastaturet — det løses mot full skjerm. Bruk JS piksel-cap
 
 ### Sjekkliste før du committer en UI-endring
 
-- [ ] Testet uten tastatur åpent (alle elementer synlige, normal scroll fungerer)
+- [ ] Testet uten tastatur (alle elementer synlige, normal scroll)
 - [ ] Testet med tastatur åpent på input-felt i den nye/endrede komponenten
 - [ ] Tittel og lukke-/lagre-knapper synlige i begge tilstander
 - [ ] Popup ikke blokkert av tastaturet
-- [ ] Lange popups: scroll inni popup fungerer over tastaturet
-- [ ] Hvis det er et scrollbart område: fokuserte input scroller til synlig posisjon
-- [ ] Inline styles ryddes opp når tastaturet lukkes / komponenten lukkes (`applyKeyboardLayout` håndterer dette automatisk for popups som bruker standardklassene)
+- [ ] Scroll fungerer jevnt (ingen avbrudd midt i momentum)
+- [ ] Toolbar oppfører seg riktig (i flow under tastatur-åpent, fixed bottom ellers)
 
 ## VIKTIG: Cache-versjon ved hver endring
 

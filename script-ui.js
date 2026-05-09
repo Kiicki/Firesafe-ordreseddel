@@ -86,13 +86,8 @@ function showView(viewId) {
         target.scrollTop = 0;
         window.scrollTo(0, 0);
     }
-    // When switching views, ensure toolbar is back at body-level (fixed bottom).
-    // Keyboard-open reparenting is handled by visualViewport.resize.
-    var _tb = document.querySelector('.toolbar');
-    if (_tb && _tb.parentNode !== document.body) {
-        document.body.appendChild(_tb);
-        _tb.classList.remove('toolbar--inflow');
-    }
+    // Toolbar reparenting brukes ikke lenger — body.keyboard-open-CSS-klassen
+    // styrer toolbar-posisjon (static when keyboard open, fixed bottom otherwise).
 }
 
 function closeAllModals() {
@@ -6266,15 +6261,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
-    // Form-views: scroll skjer på view-roten (view har overflow-y: auto,
-    // modal-content har overflow: visible). Toolbar appendes til view-roten.
-    var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
-    // Modal-views: scroll skjer i modal-body (intern scroll-container).
-    // Sticky-header forblir på toppen, modal-body scroller. Toolbar appendes
-    // til den AKTIVE modal-body (ikke view-roten), så den scroller med listen.
-    var MODAL_VIEW_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
-    // Alle keyboard-aware views: høyde-justering når tastatur åpnes
-    var SCROLLABLE_VIEW_IDS = FORM_VIEW_IDS.concat(MODAL_VIEW_IDS);
     // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
     // Må krympes til synlig viewport ellers blir scroll i intern liste broken
     // (browseren mister touch-events for området bak tastaturet).
@@ -6335,13 +6321,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // setViewKeyboardState og getToolbarHost er ikke lenger nødvendig —
-    // body.keyboard-open-klassen styrer alt via CSS:
-    // - Views: position: static, overflow: visible (flyter i body)
-    // - modal-content/modal-body: overflow visible (alt flyter)
-    // - toolbar: position: static (i body's normale flow på slutten)
-    // - body: scroller naturlig
-    // Sticky-headers forblir sticky og holder seg synlige på toppen.
 
     function ensureContentObserver(content, isActive, keyboardOpen) {
         // Koble ResizeObserver til når popup er aktiv OG tastatur åpent.
@@ -6374,11 +6353,11 @@ document.addEventListener('DOMContentLoaded', function() {
         var activeId = activeView ? activeView.id : null;
 
         // === Materiell state-sjekk ===
-        // Bygg en signatur av aktive popups/overlays + kvantiserte vv-verdier.
-        // Avrunder vv.offsetTop og vv.height til 32px for å filtrere ut
-        // URL-bar-fluctuations som ellers ville fyre apply midt i scroll og
-        // avbryte momentum. 32px er stort nok til å filtrere mikrobevegelser
-        // men lite nok til å fange ekte tastatur-state-skift (200+ px).
+        // Bygg en signatur av logisk state. Bevisst INGEN vv.height/offsetTop —
+        // URL-bar-bevegelse under scroll endrer disse men IKKE den logiske
+        // staten, så apply skip'es og momentum-scroll forstyrres ikke. Final
+        // vv-verdier (etter tastatur-animasjon, URL-bar-settle) hentes via
+        // settle-timer (debounced forced-apply 250ms etter siste resize).
         var activePopupSig = '';
         document.querySelectorAll(POPUP_BACKDROP_SELECTOR).forEach(function(b) {
             if (b.classList.contains('active')) activePopupSig += b.id + ',';
@@ -6456,12 +6435,8 @@ document.addEventListener('DOMContentLoaded', function() {
             s.style.transform = 'translateY(-' + translate + 'px)';
         });
 
-        // --- Confirm-modal backdrop: fjern toolbar-padding når tastatur er åpent ---
-        // (kun .confirm-modal har padding-bottom for toolbar)
-        document.querySelectorAll('.confirm-modal').forEach(function(m) {
-            var isActive = m.classList.contains('active');
-            m.style.paddingBottom = (keyboardOpen && isActive) ? '0' : '';
-        });
+        // Confirm-modal padding-bottom håndteres nå via CSS-regelen
+        // body.keyboard-open .confirm-modal { padding-bottom: 0 }
     }
 
     // Eksponer globalt — bruk i edge cases der man trenger å trigge eksplisitt.
