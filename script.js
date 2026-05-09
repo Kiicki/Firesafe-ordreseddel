@@ -2920,6 +2920,12 @@ function adjustDagTimerModal() {
         var vv = window.visualViewport;
         modal.style.height = vv.height + 'px';
         modal.style.top = vv.offsetTop + 'px';
+        modal.style.bottom = 'auto';
+        // Tastatur-deteksjon: visualViewport blir vesentlig mindre enn window.
+        // Når tastatur er åpent: aligner modalen til topp og kompakter rader
+        // så tittel + flere dager blir synlig.
+        var kbOpen = (window.innerHeight - vv.height) > 150;
+        document.body.classList.toggle('dag-timer-keyboard-open', kbOpen);
     }
 }
 
@@ -2929,6 +2935,8 @@ function closeDagTimerModal(confirmed) {
         modal.classList.remove('active');
         modal.style.height = '';
         modal.style.top = '';
+        modal.style.bottom = '';
+        document.body.classList.remove('dag-timer-keyboard-open');
         modal.removeEventListener('touchmove', dagTimerBlockScroll);
         modal.removeEventListener('wheel', dagTimerBlockScroll);
         if (window.visualViewport) {
@@ -2968,6 +2976,8 @@ function closeDagTimerModal(confirmed) {
     modal.classList.remove('active');
     modal.style.height = '';
     modal.style.top = '';
+    modal.style.bottom = '';
+    document.body.classList.remove('dag-timer-keyboard-open');
     modal.removeEventListener('touchmove', dagTimerBlockScroll);
     modal.removeEventListener('wheel', dagTimerBlockScroll);
     if (window.visualViewport) {
