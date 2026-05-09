@@ -6278,6 +6278,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // kobles ut når popup deaktiveres. Map for iteration + lookup.
     var contentResizeObservers = new Map();
     var rafScheduled = false;
+    // State-memoisering: skip apply hvis tilstand er materielt uendret.
+    // KRITISK for scroll-momentum: under scroll kan URL-bar bevege seg og
+    // fyre vv-events på hver frame. Uten memoisering ville hver event
+    // forårsake reflow midt i scroll-momentum og avbryte det.
+    var lastAppliedState = null;
+    // ResizeObserver må kunne bypasse dedup når content-størrelse endres
+    // (ellers vil dynamisk content-vekst ikke trigge re-kalkulering av transform).
+    var forceNextApply = false;
+    function scheduleForcedApply() { forceNextApply = true; scheduleApply(); }
 
     function scheduleApply() {
         if (rafScheduled) return;
@@ -6309,10 +6318,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // Koble ResizeObserver til når popup er aktiv OG tastatur åpent.
         // Når content endrer størrelse (f.eks. tekst-ekspansjon, dynamisk
         // innhold), trigges ny apply så translate forblir riktig.
+        // Bruker scheduleForcedApply slik at content-vekst bypasser
+        // state-memoisering (stateKey ville ellers vise "uendret").
         var hasObs = contentResizeObservers.has(content);
         if (isActive && keyboardOpen) {
             if (!hasObs && typeof ResizeObserver === 'function') {
-                var ro = new ResizeObserver(scheduleApply);
+                var ro = new ResizeObserver(scheduleForcedApply);
                 ro.observe(content);
                 contentResizeObservers.set(content, ro);
             }
@@ -6330,6 +6341,31 @@ document.addEventListener('DOMContentLoaded', function() {
         var fullHeight = vv.offsetTop + vv.height;
         var activeView = document.querySelector('.view.active');
         var activeId = activeView ? activeView.id : null;
+
+        // === Materiell state-sjekk ===
+        // Bygg en signatur av aktive popups/overlays + kvantiserte vv-verdier.
+        // Avrunder vv.offsetTop og vv.height til 4px for å filtrere ut små
+        // URL-bar-fluctuations som ellers ville fyre apply per frame under
+        // scroll og avbryte momentum.
+        var activePopupSig = '';
+        document.querySelectorAll(POPUP_BACKDROP_SELECTOR).forEach(function(b) {
+            if (b.classList.contains('active')) activePopupSig += b.id + ',';
+        });
+        var activeOverlaySig = '';
+        FULLSCREEN_OVERLAY_IDS.forEach(function(id) {
+            var o = document.getElementById(id);
+            if (o && o.classList.contains('active')) activeOverlaySig += id + ',';
+        });
+        var stateKey =
+            (keyboardOpen ? '1' : '0') + '|' +
+            Math.round(vv.offsetTop / 4) + '|' +
+            Math.round(vv.height / 4) + '|' +
+            (activeId || '') + '|' +
+            activePopupSig + '|' +
+            activeOverlaySig;
+        if (stateKey === lastAppliedState && !forceNextApply) return;
+        lastAppliedState = stateKey;
+        forceNextApply = false;
 
         // --- Active scrollable views: justert høyde + scroll-låst body ---
         SCROLLABLE_VIEW_IDS.forEach(function(id) {
