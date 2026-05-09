@@ -6344,9 +6344,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // === Materiell state-sjekk ===
         // Bygg en signatur av aktive popups/overlays + kvantiserte vv-verdier.
-        // Avrunder vv.offsetTop og vv.height til 4px for å filtrere ut små
-        // URL-bar-fluctuations som ellers ville fyre apply per frame under
-        // scroll og avbryte momentum.
+        // Avrunder vv.offsetTop og vv.height til 32px for å filtrere ut
+        // URL-bar-fluctuations som ellers ville fyre apply midt i scroll og
+        // avbryte momentum. 32px er stort nok til å filtrere mikrobevegelser
+        // men lite nok til å fange ekte tastatur-state-skift (200+ px).
         var activePopupSig = '';
         document.querySelectorAll(POPUP_BACKDROP_SELECTOR).forEach(function(b) {
             if (b.classList.contains('active')) activePopupSig += b.id + ',';
@@ -6356,10 +6357,14 @@ document.addEventListener('DOMContentLoaded', function() {
             var o = document.getElementById(id);
             if (o && o.classList.contains('active')) activeOverlaySig += id + ',';
         });
+        // Bruker keyboardOpen som primær state, IKKE vv.height/offsetTop direkte.
+        // URL-bar-bevegelse (~50-60px) endrer vv.height/offsetTop men IKKE
+        // keyboardOpen — så apply kjører ikke under scroll. Math.floor(/100)
+        // som tie-breaker for tastatur-animasjon som kan ha mellomverdier
+        // mellom åpne/lukket states.
         var stateKey =
             (keyboardOpen ? '1' : '0') + '|' +
-            Math.round(vv.offsetTop / 4) + '|' +
-            Math.round(vv.height / 4) + '|' +
+            Math.floor(vv.height / 100) + '|' +
             (activeId || '') + '|' +
             activePopupSig + '|' +
             activeOverlaySig;
@@ -6450,7 +6455,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', scheduleApply);
-        window.visualViewport.addEventListener('scroll', scheduleApply);
+        // visualViewport.scroll fyrer hver frame under scroll når URL-baren
+        // beveger seg — avbryter momentum-scroll hvis vi reagerer. Vi dropper
+        // denne lytteren bevisst. Konsekvens: overlay-top kan være litt off
+        // hvis URL-bar viser/skjuler under scroll, men det er kosmetisk og
+        // synes ikke for brukeren. Resize fyrer fortsatt for åpne/lukke
+        // tastatur og orientering, så all funksjonell state forblir korrekt.
     }
 
     // Subtree MutationObserver på document.body — fanger BÅDE class-endringer
