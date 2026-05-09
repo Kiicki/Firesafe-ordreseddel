@@ -6390,14 +6390,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // position: static, body scroller, toolbar er i flow på slutten.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
 
-        // --- Modal-views: krymp til synlig viewport + reposisjoner toolbar ---
-        // Modal-views (saved/template/settings) beholder fixed-positioning og
-        // intern modal-body-scroll. For å få toolbar synlig over tastaturet
-        // OG sticky-header til å fungere, krymper vi view-roten til synlig
-        // viewport (top: vv.offsetTop, bunn = top av tastaturet).
-        // Toolbar reparentes IKKE til modal-body — innerHTML-replacements i
-        // saved-list ville ødelegge toolbar. I stedet plasseres toolbar
-        // absolutt nederst i view-roten via CSS, i flow-konteksten av view.
+        // --- Modal-views: krymp til synlig viewport ---
+        // KRITISK: ALLE fire egenskaper må settes (top, bottom, height,
+        // min-height). CSS har min-height: calc(100dvh - 60px) som vinner
+        // over height hvis ikke overskrevet. Uten min-height: 0 blir view
+        // potensielt kortere/lengre enn synlig viewport, og du får
+        // body-bakgrunn under toolbar eller toolbar bak tastatur.
         MODAL_VIEW_IDS.forEach(function(id) {
             var view = document.getElementById(id);
             if (!view) return;
@@ -6406,10 +6404,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 view.style.top = vv.offsetTop + 'px';
                 view.style.bottom = 'auto';
                 view.style.height = vv.height + 'px';
+                view.style.minHeight = '0';
             } else {
                 view.style.top = '';
                 view.style.bottom = '';
                 view.style.height = '';
+                view.style.minHeight = '';
             }
         });
 
