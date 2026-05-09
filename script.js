@@ -2918,17 +2918,35 @@ function adjustDagTimerModal() {
     if (!modal.classList.contains('active')) return;
     if (!window.visualViewport) return;
     var vv = window.visualViewport;
-    // Beregn tastatur-høyde fra differansen mellom layout- og visualViewport.
-    // Med `interactive-widget=resizes-visual` forblir layout viewport (window.innerHeight)
-    // full skjerm — kun visualViewport krymper når tastatur åpnes.
+    // Med `interactive-widget=resizes-visual` forblir layout viewport
+    // (window.innerHeight) full skjerm når tastatur åpnes — kun
+    // visualViewport krymper. Position:fixed-element posisjoneres mot
+    // layout viewport, så vi må manuelt skyve innholdet inn i synlig
+    // område over tastaturet.
     var keyboardHeight = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     var kbOpen = keyboardHeight > 100;
-    // Modalen forblir top:0/bottom:0 (full layout viewport) — vi pusher kun
-    // innholdet opp over tastaturet via padding-bottom. Slik unngår vi at
-    // popupen havner bak nettleser-chrome (URL-bar) i toppen.
-    modal.style.paddingBottom = kbOpen ? keyboardHeight + 'px' : '';
-    modal.style.paddingTop = kbOpen ? vv.offsetTop + 'px' : '';
     document.body.classList.toggle('dag-timer-keyboard-open', kbOpen);
+    var content = modal.querySelector('.dag-timer-modal-content');
+    if (kbOpen) {
+        // Padding flytter sentreringspunktet til synlig viewport-senter:
+        // modalen er full skjerm, padding-top = vv.offsetTop (URL-bar over),
+        // padding-bottom = tastaturhøyde. Med flex align-items: center
+        // havner content midt mellom URL-bar og tastatur.
+        modal.style.paddingTop = vv.offsetTop + 'px';
+        modal.style.paddingBottom = keyboardHeight + 'px';
+        // Cap content i piksler — CSS max-height: calc(100% - X) løser
+        // 100% mot layout viewport (full skjerm), ikke synlig område,
+        // så content kan bli større enn synlig og overskride toppen ved
+        // sentrering. Eksplisitt piksel-cap forhindrer dette.
+        if (content) {
+            var maxH = Math.max(180, vv.height - 16);
+            content.style.setProperty('max-height', maxH + 'px', 'important');
+        }
+    } else {
+        modal.style.paddingTop = '';
+        modal.style.paddingBottom = '';
+        if (content) content.style.removeProperty('max-height');
+    }
 }
 
 function closeDagTimerModal(confirmed) {
@@ -2937,6 +2955,8 @@ function closeDagTimerModal(confirmed) {
         modal.classList.remove('active');
         modal.style.paddingTop = '';
         modal.style.paddingBottom = '';
+        var contentCancel = modal.querySelector('.dag-timer-modal-content');
+        if (contentCancel) contentCancel.style.removeProperty('max-height');
         document.body.classList.remove('dag-timer-keyboard-open');
         modal.removeEventListener('touchmove', dagTimerBlockScroll);
         modal.removeEventListener('wheel', dagTimerBlockScroll);
@@ -2977,6 +2997,8 @@ function closeDagTimerModal(confirmed) {
     modal.classList.remove('active');
     modal.style.paddingTop = '';
     modal.style.paddingBottom = '';
+    var contentOk = modal.querySelector('.dag-timer-modal-content');
+    if (contentOk) contentOk.style.removeProperty('max-height');
     document.body.classList.remove('dag-timer-keyboard-open');
     modal.removeEventListener('touchmove', dagTimerBlockScroll);
     modal.removeEventListener('wheel', dagTimerBlockScroll);
