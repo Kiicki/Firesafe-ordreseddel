@@ -6267,6 +6267,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
     var SCROLLABLE_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
+    // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
+    // Må krympes til synlig viewport ellers blir scroll i intern liste broken
+    // (browseren mister touch-events for området bak tastaturet).
+    var FULLSCREEN_OVERLAY_IDS = ['picker-overlay', 'unit-picker-overlay', 'kappe-product-picker-overlay', 'template-picker-overlay'];
     var KEYBOARD_THRESHOLD = 100;
     var KEYBOARD_MARGIN = 16;
 
@@ -6333,6 +6337,25 @@ document.addEventListener('DOMContentLoaded', function() {
             setViewKeyboardState(v, keyboardOpen && activeId === id, fullHeight);
         });
         document.body.style.overflow = keyboardOpen ? 'hidden' : '';
+
+        // --- Fullscreen-overlays (picker etc.): krymp til synlig viewport ---
+        // Disse er position:fixed med height:100%/100dvh og strekker seg
+        // bak tastaturet. Hvis ikke krympet, mister browseren touch-events
+        // for området bak tastaturet, og scroll i intern liste fungerer ikke.
+        // top: vv.offsetTop (clearance for URL-bar over)
+        // height: vv.height (bunn av overlay = topp av tastaturet)
+        FULLSCREEN_OVERLAY_IDS.forEach(function(id) {
+            var overlay = document.getElementById(id);
+            if (!overlay) return;
+            var isOverlayActive = overlay.classList.contains('active');
+            if (keyboardOpen && isOverlayActive) {
+                overlay.style.top = vv.offsetTop + 'px';
+                overlay.style.height = vv.height + 'px';
+            } else {
+                overlay.style.top = '';
+                overlay.style.height = '';
+            }
+        });
 
         // --- Toolbar reparenting: inn i scrollable view når tastatur er åpent ---
         var toolbar = document.querySelector('.toolbar');
