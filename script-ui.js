@@ -6238,98 +6238,205 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // Keyboard handling with `interactive-widget=resizes-visual`:
-    // When keyboard opens: reparent toolbar into scrollable form content,
-    // adjust form bottom to keyboard edge. Toolbar becomes scrollable.
-    // When keyboard closes: restore toolbar to body (fixed at bottom).
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', function() {
-            var vv = window.visualViewport;
-            var keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
-            var keyboardOpen = keyboardHeight > 100;
-            var toolbar = document.querySelector('.toolbar');
-            var viewForm = document.getElementById('view-form');
-            var serviceView = document.getElementById('service-view');
-            var kappeView = document.getElementById('kappe-view');
-            var activeView = document.querySelector('.view.active');
-            var activeId = activeView ? activeView.id : null;
+    // === UNIFIED TASTATUR-HÅNDTERING ===
+    //
+    // Med viewport-meta `interactive-widget=resizes-visual`:
+    // - Layout viewport (window.innerHeight) forblir full skjerm når tastatur åpnes
+    // - Visual viewport (window.visualViewport) krymper til synlig område over tastaturet
+    // - position:fixed-element ankres mot layout viewport og dekker fortsatt hele skjermen
+    //
+    // applyKeyboardLayout() er den ENESTE eieren av tastatur-respons:
+    //   - Justerer aktive views (view-form, service-view, kappe-view) til synlig høyde
+    //   - Reparenterer toolbar inn i scrollable view når tastatur er åpent
+    //   - For ALLE popups (.confirm-modal-content, .spec-popup-sheet,
+    //     .fakturaadresse-popup-sheet): piksel-cap på max-height + translateY for å
+    //     ankre popupen rett over tastaturet
+    //   - Funksjonen er idempotent og trygg å kalle gjentatte ganger
+    //
+    // Robusthet — fem trigger-mekanismer dekker alle scenarier:
+    //   1. visualViewport.resize (tastatur åpnes/lukkes, orientering)
+    //   2. visualViewport.scroll (URL-bar viser/skjuler under scroll)
+    //   3. document.body subtree MutationObserver — class-endringer på popup-backdrops
+    //      (fanger BÅDE eksisterende OG dynamisk lagde popups, og class-toggling)
+    //   4. ResizeObserver per aktiv popup-content (re-kalkulerer translate når
+    //      content vokser/krymper, f.eks. når tekst skrives og felter utvider seg)
+    //   5. focusin/focusout fallback (noen browsere fyrer focus før vv.resize)
+    //
+    // requestAnimationFrame-debouncing: alle triggers ruter gjennom scheduleApply()
+    // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
+    var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
+    var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
+    var SCROLLABLE_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
+    var KEYBOARD_THRESHOLD = 100;
+    var KEYBOARD_MARGIN = 16;
 
-            if (keyboardOpen) {
-                var fullHeight = vv.offsetTop + vv.height;
-                if (activeId === 'view-form' && viewForm) {
-                    viewForm.style.display = 'block';
-                    viewForm.style.bottom = 'auto';
-                    viewForm.style.height = fullHeight + 'px';
-                    viewForm.style.minHeight = '0';
-                    viewForm.style.overscrollBehavior = 'contain';
-                }
-                if (activeId === 'service-view' && serviceView) {
-                    serviceView.style.display = 'block';
-                    serviceView.style.bottom = 'auto';
-                    serviceView.style.height = fullHeight + 'px';
-                    serviceView.style.minHeight = '0';
-                    serviceView.style.overscrollBehavior = 'contain';
-                }
-                if (activeId === 'kappe-view' && kappeView) {
-                    kappeView.style.display = 'block';
-                    kappeView.style.bottom = 'auto';
-                    kappeView.style.height = fullHeight + 'px';
-                    kappeView.style.minHeight = '0';
-                    kappeView.style.overscrollBehavior = 'contain';
-                }
-                // Lock body so scroll can't chain to it
-                document.body.style.overflow = 'hidden';
-                // Posisjoner popup-sheets like over tastaturet (med liten margin),
-                // ikke sentrert i synlig område — føles mer naturlig (som iOS/Android).
-                var keyboardMargin = 16;
-                // dag-timer-modal-content ekskluderes — den er høy (8 dager + Annet)
-                // og den translateY-baserte ankringen her presser toppen ut av synlig
-                // område. adjustDagTimerModal() i script.js håndterer denne dedikert
-                // med padding + piksel-cap på max-height.
-                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content:not(.dag-timer-modal-content)');
-                sheets.forEach(function(s) {
-                    var mh = s.offsetHeight || 0;
-                    // Original sentrum i window er innerHeight/2, ønsket bunn er fullHeight - margin
-                    var translate = Math.max(0, (window.innerHeight / 2 + mh / 2) - (fullHeight - keyboardMargin));
-                    s.style.transform = 'translateY(-' + translate + 'px)';
-                });
-                // Confirm-modal har padding-bottom for toolbar — fjern det når tastaturet er åpent
-                // slik at popupen sitter naturlig sentrert i synlig område (ikke for høyt).
-                // Ekskluder dag-timer-modal — den styrer egen padding-bottom via JS.
-                document.querySelectorAll('.confirm-modal.active:not(#dag-timer-modal)').forEach(function(m) {
-                    m.style.paddingBottom = '0';
-                });
-                // Reparent toolbar into scrollable content
-                if (toolbar) {
-                    var host = null;
-                    if (activeId === 'view-form') host = viewForm;
-                    else if (activeId === 'service-view') host = serviceView;
-                    else if (activeId === 'kappe-view') host = kappeView;
-                    if (host && toolbar.parentNode !== host) {
-                        toolbar.classList.add('toolbar--inflow');
-                        host.appendChild(toolbar);
-                    }
-                }
-            } else {
-                if (viewForm) { viewForm.style.display = ''; viewForm.style.bottom = ''; viewForm.style.height = ''; viewForm.style.minHeight = ''; viewForm.style.overscrollBehavior = ''; }
-                if (serviceView) { serviceView.style.display = ''; serviceView.style.bottom = ''; serviceView.style.height = ''; serviceView.style.minHeight = ''; serviceView.style.overscrollBehavior = ''; }
-                if (kappeView) { kappeView.style.display = ''; kappeView.style.bottom = ''; kappeView.style.height = ''; kappeView.style.minHeight = ''; kappeView.style.overscrollBehavior = ''; }
-                document.body.style.overflow = '';
-                var sheets = document.querySelectorAll('.fakturaadresse-popup-sheet, .spec-popup-sheet, .confirm-modal-content');
-                sheets.forEach(function(s) {
-                    s.style.transform = '';
-                });
-                // Restaurer confirm-modal padding-bottom (CSS-default tar over)
-                document.querySelectorAll('.confirm-modal').forEach(function(m) {
-                    m.style.paddingBottom = '';
-                });
-                if (toolbar && toolbar.parentNode !== document.body) {
-                    toolbar.classList.remove('toolbar--inflow');
-                    document.body.appendChild(toolbar);
-                }
-            }
+    // ResizeObservers per popup-content — kobles inn når popup blir aktiv,
+    // kobles ut når popup deaktiveres. Map for iteration + lookup.
+    var contentResizeObservers = new Map();
+    var rafScheduled = false;
+
+    function scheduleApply() {
+        if (rafScheduled) return;
+        rafScheduled = true;
+        requestAnimationFrame(function() {
+            rafScheduled = false;
+            applyKeyboardLayout();
         });
     }
+
+    function setViewKeyboardState(view, on, fullHeight) {
+        if (!view) return;
+        if (on) {
+            view.style.display = 'block';
+            view.style.bottom = 'auto';
+            view.style.height = fullHeight + 'px';
+            view.style.minHeight = '0';
+            view.style.overscrollBehavior = 'contain';
+        } else {
+            view.style.display = '';
+            view.style.bottom = '';
+            view.style.height = '';
+            view.style.minHeight = '';
+            view.style.overscrollBehavior = '';
+        }
+    }
+
+    function ensureContentObserver(content, isActive, keyboardOpen) {
+        // Koble ResizeObserver til når popup er aktiv OG tastatur åpent.
+        // Når content endrer størrelse (f.eks. tekst-ekspansjon, dynamisk
+        // innhold), trigges ny apply så translate forblir riktig.
+        var hasObs = contentResizeObservers.has(content);
+        if (isActive && keyboardOpen) {
+            if (!hasObs && typeof ResizeObserver === 'function') {
+                var ro = new ResizeObserver(scheduleApply);
+                ro.observe(content);
+                contentResizeObservers.set(content, ro);
+            }
+        } else if (hasObs) {
+            contentResizeObservers.get(content).disconnect();
+            contentResizeObservers.delete(content);
+        }
+    }
+
+    function applyKeyboardLayout() {
+        if (!window.visualViewport) return;
+        var vv = window.visualViewport;
+        var keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
+        var keyboardOpen = keyboardHeight > KEYBOARD_THRESHOLD;
+        var fullHeight = vv.offsetTop + vv.height;
+        var activeView = document.querySelector('.view.active');
+        var activeId = activeView ? activeView.id : null;
+
+        // --- Active scrollable views: justert høyde + scroll-låst body ---
+        SCROLLABLE_VIEW_IDS.forEach(function(id) {
+            var v = document.getElementById(id);
+            setViewKeyboardState(v, keyboardOpen && activeId === id, fullHeight);
+        });
+        document.body.style.overflow = keyboardOpen ? 'hidden' : '';
+
+        // --- Toolbar reparenting: inn i scrollable view når tastatur er åpent ---
+        var toolbar = document.querySelector('.toolbar');
+        if (toolbar) {
+            var hostId = (keyboardOpen && SCROLLABLE_VIEW_IDS.indexOf(activeId) !== -1) ? activeId : null;
+            var host = hostId ? document.getElementById(hostId) : null;
+            if (host && toolbar.parentNode !== host) {
+                toolbar.classList.add('toolbar--inflow');
+                host.appendChild(toolbar);
+            } else if (!host && toolbar.parentNode !== document.body) {
+                toolbar.classList.remove('toolbar--inflow');
+                document.body.appendChild(toolbar);
+            }
+        }
+
+        // --- Popups: max-height piksel-cap + translateY-ankring over tastatur ---
+        // Targeter alle popup-content under aktive backdrops. Cap'er max-height
+        // så content ikke kan bli større enn synlig område, deretter måles
+        // offsetHeight (post-cap) og brukes til å beregne translateY.
+        var allContents = document.querySelectorAll(POPUP_CONTENT_SELECTOR);
+        allContents.forEach(function(s) {
+            var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
+            var isActive = !!(backdrop && backdrop.classList.contains('active'));
+            ensureContentObserver(s, isActive, keyboardOpen);
+            if (!keyboardOpen || !isActive) {
+                s.style.removeProperty('max-height');
+                s.style.transform = '';
+                return;
+            }
+            var maxH = Math.max(180, vv.height - KEYBOARD_MARGIN * 2);
+            s.style.setProperty('max-height', maxH + 'px', 'important');
+            // Måle høyde POST-cap (offsetHeight tvinger layout og leser ny verdi)
+            var mh = s.offsetHeight || 0;
+            // Anker bunnen rett over tastaturet med margin.
+            // Original sentrering plasserer bunnen ved innerHeight/2 + mh/2.
+            // Ønsket bunn = vv.offsetTop + vv.height - KEYBOARD_MARGIN.
+            var desiredBottom = fullHeight - KEYBOARD_MARGIN;
+            var currentBottom = window.innerHeight / 2 + mh / 2;
+            var translate = Math.max(0, currentBottom - desiredBottom);
+            s.style.transform = 'translateY(-' + translate + 'px)';
+        });
+
+        // --- Confirm-modal backdrop: fjern toolbar-padding når tastatur er åpent ---
+        // (kun .confirm-modal har padding-bottom for toolbar)
+        document.querySelectorAll('.confirm-modal').forEach(function(m) {
+            var isActive = m.classList.contains('active');
+            m.style.paddingBottom = (keyboardOpen && isActive) ? '0' : '';
+        });
+    }
+
+    // Eksponer globalt — bruk i edge cases der man trenger å trigge eksplisitt.
+    // I 99% av tilfellene er dette ikke nødvendig (alle triggers er automatiske).
+    window.applyKeyboardLayout = scheduleApply;
+
+    // === Trigger-registrering ===
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', scheduleApply);
+        window.visualViewport.addEventListener('scroll', scheduleApply);
+    }
+
+    // Subtree MutationObserver på document.body — fanger BÅDE class-endringer
+    // (popup åpnes/lukkes via .active-klassen) OG dynamisk innsatte popups
+    // (legges til DOM etter sidelasting). Filtrert til kun relevante mutations
+    // for ytelse — selve apply'en er rAF-debounced så maks 1/frame.
+    var domObserver = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+            var m = mutations[i];
+            if (m.type === 'attributes' && m.attributeName === 'class') {
+                var t = m.target;
+                if (t && t.nodeType === 1 && typeof t.matches === 'function' && t.matches(POPUP_BACKDROP_SELECTOR)) {
+                    scheduleApply();
+                    return;
+                }
+            } else if (m.type === 'childList' && m.addedNodes && m.addedNodes.length > 0) {
+                for (var j = 0; j < m.addedNodes.length; j++) {
+                    var n = m.addedNodes[j];
+                    if (n.nodeType !== 1) continue;
+                    if ((n.matches && n.matches(POPUP_BACKDROP_SELECTOR)) ||
+                        (n.querySelector && n.querySelector(POPUP_BACKDROP_SELECTOR))) {
+                        scheduleApply();
+                        return;
+                    }
+                }
+            }
+        }
+    });
+    domObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class'],
+        childList: true,
+        subtree: true
+    });
+
+    // focusin/focusout: fallback-trigger. Noen browsere fyrer focus FØR
+    // visualViewport.resize, så uten denne ville første frame etter fokus
+    // ha feil layout. rAF-debouncing gjør at dette ikke koster noe når
+    // resize fyrer parallelt.
+    document.addEventListener('focusin', scheduleApply);
+    document.addEventListener('focusout', scheduleApply);
+
+    // Initial sync — håndterer edge case der tastatur allerede er åpent ved
+    // sidelasting (f.eks. retur til PWA der state ikke er nullstilt)
+    scheduleApply();
 
     // Load dropdown options for materials/units and plans
     getDropdownOptions();
