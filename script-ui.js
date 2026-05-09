@@ -6266,7 +6266,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
-    var SCROLLABLE_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
+    // Form-views: scroll skjer på view-roten (view har overflow-y: auto,
+    // modal-content har overflow: visible). Toolbar appendes til view-roten.
+    var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
+    // Modal-views: scroll skjer i modal-body (intern scroll-container).
+    // Sticky-header forblir på toppen, modal-body scroller. Toolbar appendes
+    // til den AKTIVE modal-body (ikke view-roten), så den scroller med listen.
+    var MODAL_VIEW_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
+    // Alle keyboard-aware views: høyde-justering når tastatur åpnes
+    var SCROLLABLE_VIEW_IDS = FORM_VIEW_IDS.concat(MODAL_VIEW_IDS);
     // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
     // Må krympes til synlig viewport ellers blir scroll i intern liste broken
     // (browseren mister touch-events for området bak tastaturet).
@@ -6327,10 +6335,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function setViewKeyboardState(view, on, fullHeight) {
+    function setViewKeyboardState(view, on, fullHeight, isFormView) {
         if (!view) return;
         if (on) {
-            view.style.display = 'block';
+            // display: block kun for form-views (modal-content har overflow:
+            // visible der, og scroll skjer på view-roten). Modal-views beholder
+            // flex layout slik at modal-body kan flexe og fylle synlig område.
+            if (isFormView) view.style.display = 'block';
             view.style.bottom = 'auto';
             view.style.height = fullHeight + 'px';
             view.style.minHeight = '0';
@@ -6342,6 +6353,25 @@ document.addEventListener('DOMContentLoaded', function() {
             view.style.minHeight = '';
             view.style.overscrollBehavior = '';
         }
+    }
+
+    // Finn elementet toolbar skal appendes til for en gitt view.
+    // - Form-views: view-roten (overflow-y: auto er på view, modal-content
+    //   passer naturlig høyde, toolbar scroller med innhold)
+    // - Modal-views: aktiv modal-body (det er der innholdet scroller; sticky-
+    //   header forblir låst i toppen, så toolbar inni modal-body får scroll
+    //   med listen, ikke med sticky-header)
+    function getToolbarHost(viewId, view) {
+        if (!view) return null;
+        if (FORM_VIEW_IDS.indexOf(viewId) !== -1) return view;
+        if (MODAL_VIEW_IDS.indexOf(viewId) !== -1) {
+            // Finn synlig modal-body (offsetParent er null for display:none)
+            var bodies = view.querySelectorAll('.modal-body');
+            for (var i = 0; i < bodies.length; i++) {
+                if (bodies[i].offsetParent !== null) return bodies[i];
+            }
+        }
+        return null;
     }
 
     function ensureContentObserver(content, isActive, keyboardOpen) {
@@ -6406,7 +6436,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- Active scrollable views: justert høyde + scroll-låst body ---
         SCROLLABLE_VIEW_IDS.forEach(function(id) {
             var v = document.getElementById(id);
-            setViewKeyboardState(v, keyboardOpen && activeId === id, fullHeight);
+            var isFormView = FORM_VIEW_IDS.indexOf(id) !== -1;
+            setViewKeyboardState(v, keyboardOpen && activeId === id, fullHeight, isFormView);
         });
         document.body.style.overflow = keyboardOpen ? 'hidden' : '';
 
@@ -6429,11 +6460,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // --- Toolbar reparenting: inn i scrollable view når tastatur er åpent ---
+        // --- Toolbar reparenting: inn i scrollable element når tastatur er åpent ---
+        // Form-views: toolbar appendes til view-roten (scroll på view-nivå)
+        // Modal-views: toolbar appendes til aktiv modal-body (scroll inne der)
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
-            var hostId = (keyboardOpen && SCROLLABLE_VIEW_IDS.indexOf(activeId) !== -1) ? activeId : null;
-            var host = hostId ? document.getElementById(hostId) : null;
+            var view = (keyboardOpen && SCROLLABLE_VIEW_IDS.indexOf(activeId) !== -1)
+                ? document.getElementById(activeId) : null;
+            var host = getToolbarHost(activeId, view);
             if (host && toolbar.parentNode !== host) {
                 toolbar.classList.add('toolbar--inflow');
                 host.appendChild(toolbar);
