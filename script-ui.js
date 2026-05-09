@@ -6463,15 +6463,23 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- Toolbar reparenting: inn i scrollable element når tastatur er åpent ---
         // Form-views: toolbar appendes til view-roten (scroll på view-nivå)
         // Modal-views: toolbar appendes til aktiv modal-body (scroll inne der)
+        // I tillegg legges 'toolbar-host'-klasse på modal-body slik at flex-
+        // CSS pusher toolbar til bunn (forhindrer tomrom under toolbar når
+        // listen er kort).
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
             var view = (keyboardOpen && SCROLLABLE_VIEW_IDS.indexOf(activeId) !== -1)
                 ? document.getElementById(activeId) : null;
             var host = getToolbarHost(activeId, view);
+            // Rens toolbar-host-klasse fra forrige host hvis den endres
+            var prevParent = toolbar.parentNode;
             if (host && toolbar.parentNode !== host) {
+                if (prevParent && prevParent.classList) prevParent.classList.remove('toolbar-host');
                 toolbar.classList.add('toolbar--inflow');
                 host.appendChild(toolbar);
+                if (host.classList) host.classList.add('toolbar-host');
             } else if (!host && toolbar.parentNode !== document.body) {
+                if (prevParent && prevParent.classList) prevParent.classList.remove('toolbar-host');
                 toolbar.classList.remove('toolbar--inflow');
                 document.body.appendChild(toolbar);
             }

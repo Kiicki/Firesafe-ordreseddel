@@ -118,6 +118,22 @@ body {
     z-index: auto;
 }
 
+/* Modal-body som vert for toolbar (saved-modal etc.):
+   Bruk flex column + margin-top: auto på toolbar for å pushe den til bunn
+   av modal-body. Uten dette får man tomrom under toolbar når listen er
+   kort (toolbar legger seg etter siste item, modal-body har flex-høyde
+   som er større enn innholdet).
+   - Kort innhold: items øverst, toolbar nederst — INGEN tomrom under
+   - Langt innhold: items overflow, scroll, toolbar etter items, sticky-feel
+     ved bunn av synlig modal-body */
+.modal-body.toolbar-host {
+    display: flex;
+    flex-direction: column;
+}
+.modal-body.toolbar-host > .toolbar--inflow {
+    margin-top: auto;
+}
+
 /* Dark overlay on toolbar when popup is active */
 .toolbar::before {
     content: '';
