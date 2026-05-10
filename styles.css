@@ -1354,10 +1354,9 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     background: #fff;
 }
 
-/* Keyboard open: form-views flyter i dokumentet slik at toolbar blir siste
-   del av scrollbart innhold. Modal-views håndteres fortsatt av JS fordi de
-   må beholde intern scroll i modal-body. */
-body.keyboard-open,
+/* Keyboard focus in form-views: formene flyter i dokumentet slik at toolbar
+   blir siste del av scrollbart innhold. body.keyboard-open er global og må
+   ikke styre toolbar/form-layout for søkefelt i #hent. */
 body.keyboard-focus {
     padding-bottom: 0;
 }
@@ -1370,9 +1369,6 @@ body.keyboard-focus .confirm-modal {
     padding-bottom: 0;
 }
 
-body.keyboard-open #view-form.view.active,
-body.keyboard-open #service-view.view.active,
-body.keyboard-open #kappe-view.view.active,
 body.keyboard-focus #view-form.view.active,
 body.keyboard-focus #service-view.view.active,
 body.keyboard-focus #kappe-view.view.active {
@@ -1386,22 +1382,22 @@ body.keyboard-focus #kappe-view.view.active {
     overflow: visible;
 }
 
-body.keyboard-open .container.form-view,
-body.keyboard-open .container.service-view,
-body.keyboard-open .container.kappe-view,
 body.keyboard-focus .container.form-view,
 body.keyboard-focus .container.service-view,
 body.keyboard-focus .container.kappe-view {
     overflow-y: visible;
 }
 
-body.keyboard-open .toolbar:not(.toolbar--inflow),
 body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     position: static;
     left: auto;
     right: auto;
     bottom: auto;
     box-shadow: none;
+}
+
+body.saved-modal-open.keyboard-open .toolbar:not(.toolbar--inflow) {
+    display: none;
 }
 
 .toolbar.toolbar--keyboard-form {

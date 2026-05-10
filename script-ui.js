@@ -705,10 +705,12 @@ function navigateBack() {
         }
         return;
     }
-    // From Skjemaer: close and go to form
+    // From Skjemaer: go back to home. closeModal() is reserved for loading a
+    // saved form into the order form.
     if (currentId === 'saved-modal') {
         if (_selectMode) toggleSelectMode();
-        closeModal();
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        showTemplateModal();
         return;
     }
     // From Innstillinger: close and go to form
@@ -5876,7 +5878,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // applyKeyboardLayout() er den ENESTE JS-eieren av tastatur-respons.
     // To-lags arkitektur:
     //
-    // LAG 1 (CSS-drevet via body.keyboard-open-klasse):
+    // LAG 1 (CSS-drevet via body.keyboard-focus-klasse):
     //   - Form-views (view-form, service-view, kappe-view): position: static,
     //     overflow: visible, body scroller naturlig, toolbar i flow på slutten
     //   - Sticky-headers (#form-header, #service-header) holder seg på topp
@@ -6260,9 +6262,10 @@ document.addEventListener('DOMContentLoaded', function() {
         lastAppliedState = stateKey;
         forceNextApply = false;
 
-        // --- Toggle body.keyboard-open for form-views ---
-        // CSS body.keyboard-open-regler håndterer form-views (view-form etc.):
-        // position: static, body scroller, toolbar er i flow på slutten.
+        // --- Toggle body.keyboard-open for physical keyboard state ---
+        // Form-layout styres av body.keyboard-focus, ikke keyboard-open.
+        // keyboard-open brukes fortsatt til modal/overlay-height og til å
+        // skjule toolbar på #hent mens søkefeltet har tastatur åpent.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
 
         // --- Modal-views: krymp til synlig viewport ---
