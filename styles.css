@@ -3038,8 +3038,8 @@ label.settings-default-label.field-required > span::after {
 .picker-mat-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
+    gap: 6px;
+    padding: 6px 8px;
     border-bottom: 1px solid #f0f0f0;
     border-left: 4px solid transparent;
 }
@@ -3105,10 +3105,10 @@ label.settings-default-label.field-required > span::after {
 }
 
 .picker-mat-enhet-btn {
-    width: 90px;
+    width: 75px;
     flex-shrink: 0;
-    padding: 8px;
-    font-size: 14px;
+    padding: 8px 4px;
+    font-size: 13px;
     border: 1px solid #ddd;
     border-radius: 6px;
     background: #fff;
@@ -3123,10 +3123,10 @@ label.settings-default-label.field-required > span::after {
     color: #999;
 }
 .picker-mat-enhet-static {
-    width: 90px;
+    width: 75px;
     flex-shrink: 0;
-    padding: 8px;
-    font-size: 14px;
+    padding: 8px 4px;
+    font-size: 13px;
     text-align: center;
     color: #999;
     white-space: nowrap;

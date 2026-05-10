@@ -97,12 +97,20 @@ function closeAllModals() {
     if (actionPopup) actionPopup.classList.remove('active');
     _bilHistoryRendered = false;
     document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'calculator-modal-open');
+    // Servicebil-inntak/uttak-modus + picker-overlay må også lukkes —
+    // ellers blir picker-overlay synlig over hjem/lagrede når brukeren
+    // navigerer vekk fra Servicebil Inntak via toolbar (Hjem etc.).
+    document.body.classList.remove('servicebil-inntak-mode', 'servicebil-uttak-mode');
+    if (document.body.classList.contains('picker-active') && typeof closePickerOverlay === 'function') {
+        closePickerOverlay();
+    }
     sessionStorage.removeItem('firesafe_settings_page');
     sessionStorage.removeItem('firesafe_form_type');
     sessionStorage.removeItem('firesafe_hent_tab');
     sessionStorage.removeItem('firesafe_defaults_tab');
     sessionStorage.removeItem('firesafe_service_current');
     sessionStorage.removeItem('firesafe_kappe_current');
+    sessionStorage.removeItem('firesafe_servicebil_mode');
     showView('view-form');
 }
 
