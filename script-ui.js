@@ -6212,6 +6212,9 @@ document.addEventListener('DOMContentLoaded', function() {
         var activeView = document.querySelector('.view.active');
         var activeId = activeView ? activeView.id : null;
         trackViewportSize();
+        if (!formKeyboardMode && keyboardOpen && isFormKeyboardTarget(document.activeElement)) {
+            setFormKeyboardMode(true, document.activeElement);
+        }
         if (formKeyboardMode) {
             keyboardOpen = true;
             placeToolbarForFormKeyboard(true, document.activeElement);
