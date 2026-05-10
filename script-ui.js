@@ -6001,16 +6001,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
 
-        // Formfelt-fokus er autoritativt for form-layouten: toolbar må aldri
-        // gå tilbake til fixed mens et skjema-input fortsatt har fokus. Enkelte
-        // Android/PWA-kombinasjoner rapporterer vv/window-målinger ustabilt
-        // under keyboard-animasjonen; hvis vi stoler blindt på dem får vi
-        // toolbar fixed over tastaturet etter 250/400ms.
-        if (_hasFocusedFormKeyboardElement()) return true;
-
         if (viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed) {
             return false;
         }
+
+        // Fallback kun før vi vet at viewport-måling fungerer på enheten.
+        // Når en målemetode er bekreftet, må den få styre både åpning og
+        // lukking. Android kan la input beholde fokus etter at tastaturet er
+        // lukket; da skal toolbar tilbake til fixed bunn.
+        if (_hasFocusedFormKeyboardElement()) return true;
         return false;
     }
     function updateKeyboardState() {
@@ -6039,7 +6038,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function settleClosedKeyboardFromMetrics() {
         if (!(viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed)) return;
-        if (_hasFocusedFormKeyboardElement()) return;
         if (_isKeyboardOpenByViewport() || _isKeyboardOpenByLayoutResize()) return;
         if (keyboardCloseTimer) {
             clearTimeout(keyboardCloseTimer);
