@@ -1341,8 +1341,13 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
 #settings-modal.view.active .modal-body {
     flex: 1;
     overflow-y: auto;
-    overscroll-behavior: contain;
     min-height: 0;
+}
+
+body.keyboard-open #template-modal.view.active .modal-body,
+body.keyboard-open #saved-modal.view.active .modal-body,
+body.keyboard-open #settings-modal.view.active .modal-body {
+    overscroll-behavior: contain;
 }
 
 /* Sticky header wrapper */
