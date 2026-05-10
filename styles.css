@@ -695,6 +695,14 @@ body.template-modal-open > .top-bar {
 body:has(#dag-timer-modal.active) .toolbar {
     display: none;
 }
+/* Servicebil-inntak-mode: picker-overlay ER skjemaet, så toolbar skal
+   vises som vanlig (sticky bottom) selv om picker er aktiv. Overstyrer
+   .picker-overlay.active ~ .toolbar { display: none } over. Når tastatur
+   er åpent, reparenterer JS toolbar inn i .picker-overlay-list og bruker
+   .toolbar--inflow — denne regelen påvirker kun toolbar-i-body-tilstanden. */
+body.servicebil-inntak-mode .picker-overlay.active ~ .toolbar {
+    display: flex;
+}
 
 body:has(#dag-timer-modal.active) {
     padding-bottom: 0 !important;
@@ -1145,10 +1153,13 @@ body.servicebil-uttak-mode .servicebil-inntak-only { display: none !important; }
 
 /* Servicebil Inntak: picker er IKKE fullskjerm — header (44px) + toggle (52px)
    peeker over så bruker kan klikke Uttak. Lagre i view-headeren ER bekreft-
-   handlingen for picker-utvalget (picker-headeren skjules nedenfor). */
+   handlingen for picker-utvalget (picker-headeren skjules nedenfor).
+   Bunn: trekker fra toolbar-høyden så toolbar i body (fixed bottom) er synlig.
+   Når tastatur er åpent overstyrer JS height inline til vv.height — toolbar
+   reparentes da inn i .picker-overlay-list. */
 body.servicebil-inntak-mode #picker-overlay.active {
     top: 96px;
-    height: calc(100dvh - 96px);
+    height: calc(100dvh - 96px - var(--toolbar-h, 60px));
 }
 /* I servicebil-inntak-modus brukes header-Lagre som primær-handling.
    Avbryt/Ok-knappene er overflødige siden picker ER inntak-skjemaet og Lagre i
@@ -1375,10 +1386,10 @@ body.keyboard-open .confirm-modal {
     padding-bottom: 0;
 }
 
-/* Toolbar når den er inflow inni modal-body: position: static + negativ
-   margin for å nøytralisere modal-body's 15px padding. Uten negativ margin
-   blir toolbar smalere enn vanlig (innenfor padding-boksen) og det er gap
-   under toolbar (på grunn av modal-body's padding-bottom). */
+/* Toolbar når den er inflow (reparent'et til en scrollable host): position
+   static, ingen box-shadow. Margin nøytraliserer host'ens padding så toolbar
+   strekker til kantene og bunnen. Margin er kontekst-spesifikk siden modal-
+   body og picker-overlay-list har forskjellig padding. */
 .toolbar.toolbar--inflow {
     position: static;
     left: auto;
@@ -1387,13 +1398,18 @@ body.keyboard-open .confirm-modal {
     box-shadow: none;
     z-index: auto;
     flex-shrink: 0;
-    /* Nøytraliser modal-body's padding (15px) — toolbar stretcher til
-       modal-body's edge horisontalt og bunnen. */
+    margin-top: 0;
+    width: auto;  /* ikke 100% når margin er negativ */
+}
+/* I modal-body: padding er 15px alle sider — nøytraliser med -15px. */
+.modal-body > .toolbar.toolbar--inflow {
     margin-left: -15px;
     margin-right: -15px;
     margin-bottom: -15px;
-    margin-top: 0;
-    width: auto;  /* ikke 100% når margin er negativ */
+}
+/* I picker-overlay-list: padding er 4px 0 — nøytraliser kun bottom. */
+.picker-overlay-list > .toolbar.toolbar--inflow {
+    margin-bottom: -4px;
 }
 
 /* Template modal (home page) styling to match form page */

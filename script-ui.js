@@ -6389,6 +6389,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
+    // Finn elementet toolbar skal appendes til når tastatur er åpent.
+    // Returnerer null hvis toolbar skal være i body (default — fixed bottom).
+    function findToolbarScrollHost(keyboardOpen, activeId) {
+        if (!keyboardOpen) return null;
+        // Servicebil-inntak-mode: picker-overlay ER skjemaet, toolbar
+        // skal scrolle med .picker-overlay-list når tastatur er åpent.
+        // Når tastatur er lukket forblir toolbar i body (fixed bottom);
+        // CSS-regelen som ellers skjuler toolbar over picker, overstyres
+        // for servicebil-inntak-mode.
+        if (document.body.classList.contains('servicebil-inntak-mode')) {
+            var picker = document.getElementById('picker-overlay');
+            if (picker && picker.classList.contains('active')) {
+                var list = picker.querySelector('.picker-overlay-list');
+                if (list) return list;
+            }
+        }
+        // Andre modal-views: kun når tastatur er åpent
+        if (MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
+            var view = document.getElementById(activeId);
+            if (view) {
+                var bodies = view.querySelectorAll('.modal-body');
+                for (var i = 0; i < bodies.length; i++) {
+                    if (bodies[i].offsetParent !== null) return bodies[i];
+                }
+            }
+        }
+        return null;
+    }
+
     function ensureContentObserver(content, isActive, keyboardOpen) {
         // Koble ResizeObserver til når popup er aktiv OG tastatur åpent.
         // Når content endrer størrelse (f.eks. tekst-ekspansjon, dynamisk
@@ -6434,11 +6463,15 @@ document.addEventListener('DOMContentLoaded', function() {
             var o = document.getElementById(id);
             if (o && o.classList.contains('active')) activeOverlaySig += id + ',';
         });
+        // servicebil-inntak-mode endrer toolbar-host (til picker-overlay-list)
+        // selv om aktive popups/overlays er identisk. Må derfor være i state-key.
+        var inntakMode = document.body.classList.contains('servicebil-inntak-mode') ? '1' : '0';
         var stateKey =
             (keyboardOpen ? '1' : '0') + '|' +
             (activeId || '') + '|' +
             activePopupSig + '|' +
-            activeOverlaySig;
+            activeOverlaySig + '|' +
+            inntakMode;
         if (stateKey === lastAppliedState && !forceNextApply) return;
         lastAppliedState = stateKey;
         forceNextApply = false;
@@ -6469,23 +6502,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // --- Toolbar reparenting: inn i AKTIV modal-body for modal-views ---
-        // Toolbar appendes til den scrollable modal-body slik at den scroller
-        // SAMMEN med listeitems (ikke fast over tastatur). Bruker en
-        // MutationObserver-vakt for å re-append toolbar hvis innerHTML på
-        // saved-list/template-list/etc. ødelegger den under re-rendering.
+        // --- Toolbar reparenting: inn i scrollable host når tastatur er åpent ---
+        // Toolbar appendes til den scrollable container'en slik at den scroller
+        // SAMMEN med items. Hvilken container som er host avhenger av kontekst:
+        //   - Modal-views (saved/template/settings): aktiv .modal-body
+        //   - Servicebil-inntak-mode: picker-overlay-list (picker IS skjemaet,
+        //     så toolbar må være innenfor picker-overlay-list-scrollen)
+        // En MutationObserver-vakt re-appender toolbar hvis innerHTML på lista
+        // ødelegger den under re-rendering.
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
-            var modalHost = null;
-            if (keyboardOpen && MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
-                var view = document.getElementById(activeId);
-                if (view) {
-                    var bodies = view.querySelectorAll('.modal-body');
-                    for (var i = 0; i < bodies.length; i++) {
-                        if (bodies[i].offsetParent !== null) { modalHost = bodies[i]; break; }
-                    }
-                }
-            }
+            var modalHost = findToolbarScrollHost(keyboardOpen, activeId);
             if (modalHost && toolbar.parentNode !== modalHost) {
                 toolbar.classList.add('toolbar--inflow');
                 modalHost.appendChild(toolbar);
@@ -6587,10 +6614,14 @@ document.addEventListener('DOMContentLoaded', function() {
             var m = mutations[i];
             if (m.type === 'attributes' && m.attributeName === 'class') {
                 var t = m.target;
-                // Trigger apply for popup-backdrop class changes (popup
-                // åpnes/lukkes) OG for .view class changes (view-bytte —
-                // når .active flyttes fra én view til en annen, må vi
-                // re-evaluere modalHost og toolbar-plassering).
+                // Trigger apply for class-endringer på:
+                //  - body (f.eks. servicebil-inntak-mode → endrer toolbar-host)
+                //  - popup-backdrops (popup åpnes/lukkes)
+                //  - .view (view-bytte, .active flyttes mellom views)
+                if (t === document.body) {
+                    scheduleApply();
+                    return;
+                }
                 if (t && t.nodeType === 1 && typeof t.matches === 'function' &&
                     (t.matches(POPUP_BACKDROP_SELECTOR) || t.matches('.view'))) {
                     scheduleApply();
