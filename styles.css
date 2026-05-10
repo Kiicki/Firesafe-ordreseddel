@@ -1404,6 +1404,21 @@ body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     box-shadow: none;
 }
 
+.toolbar.toolbar--keyboard-form {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    box-shadow: none !important;
+    z-index: auto;
+    flex-shrink: 0;
+}
+
+.mobile-form > .toolbar.toolbar--keyboard-form {
+    width: calc(100% + 30px);
+    margin: 0 -15px -15px;
+}
+
 /* Toolbar når den er inflow (reparent'et til en scrollable host): position
    static, ingen box-shadow. Margin nøytraliserer host'ens padding så toolbar
    strekker til kantene og bunnen. Margin er kontekst-spesifikk siden modal-
