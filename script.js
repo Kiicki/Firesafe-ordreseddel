@@ -1679,6 +1679,44 @@ let pickerOrderCard = null;
 let pickerState = {}; // { "materialenavn": { checked: true, antall: "5", enhet: "stk" } }
 
 // Scroll picker-listen til en bestemt rad (f.eks. ny duplikat eller spec-entry).
+// Brukes etter Dupliser-knapp: scroller listen NEDOVER med nøyaktig den nye
+// raden's høyde. Effekt: originalen glir opp og den nye raden inntar samme
+// skjerm-posisjon som originalen hadde. Brukerens muse-peker forblir på
+// samme skjerm-posisjon, men den nye raden er nå under pekeren — så
+// pekeren "flyttet seg" til den nye raden uten egentlig å bevege seg.
+function _scrollPickerOneRowAfterDup(name) {
+    requestAnimationFrame(function() {
+        var listEl = document.getElementById('picker-overlay-list');
+        if (!listEl || !name) return;
+        var rows = listEl.querySelectorAll('[data-mat-name]');
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].getAttribute('data-mat-name') === name) {
+                var newRow = rows[i];
+                // Smooth scroll så bevegelsen er synlig og naturlig (ikke
+                // hopp). scrollBy med behavior: 'smooth' støttes i alle
+                // moderne browsere; instant fallback hvis ikke støttet.
+                if (typeof listEl.scrollBy === 'function') {
+                    listEl.scrollBy({ top: newRow.offsetHeight, behavior: 'smooth' });
+                } else {
+                    listEl.scrollTop += newRow.offsetHeight;
+                }
+                // Cursor i Antall-feltet på den nye raden — klar for input.
+                // preventScroll så browseren ikke overstyrer vår scroll.
+                var antallInput = newRow.querySelector('.picker-mat-antall');
+                if (antallInput && !antallInput.disabled) {
+                    try { antallInput.focus({ preventScroll: true }); }
+                    catch (err) { antallInput.focus(); }
+                }
+                return;
+            }
+        }
+    });
+}
+
+// Brukes når en ny rad opprettes via spec-popup (klikk på navn på
+// mansjett/brannpakning/kabelhylse-launcher). Den nye raden erstatter
+// launcheren ved samme posisjon, så vi trenger kun å sikre at den er synlig
+// hvis den havnet utenfor viewporten av en eller annen grunn.
 function _scrollPickerToRow(name) {
     requestAnimationFrame(function() {
         var listEl = document.getElementById('picker-overlay-list');
@@ -1686,7 +1724,7 @@ function _scrollPickerToRow(name) {
         var rows = listEl.querySelectorAll('[data-mat-name]');
         for (var i = 0; i < rows.length; i++) {
             if (rows[i].getAttribute('data-mat-name') === name) {
-                rows[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                rows[i].scrollIntoView({ block: 'nearest' });
                 return;
             }
         }
@@ -1757,34 +1795,39 @@ function openMaterialPicker(btn, onConfirm) {
     }
 
     function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride, hasVariants, deletable) {
-        const displayName = displayNameOverride ? formatDisplayName(displayNameOverride) : formatDisplayName(name);
+        const baseDisplay = displayNameOverride ? formatDisplayName(displayNameOverride) : formatDisplayName(name);
         const enhetLower = (enhet || '').toLowerCase();
-        const enhetLabel = enhetLower || 'stk';
-        const enhetClass = '';
         const isLauncher = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
+        // Klassifiser enhet:
+        //  - meter/løpende: vises som liten "m"-badge ved siden av navn
+        //  - stk eller tom: ingen ekstra visning (default)
+        //  - alt annet (Patron, Pølse, etc.): er en variant — append'es til navn
+        const isMeterEnhet = enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm';
+        const isVariantEnhet = !!enhetLower && enhetLower !== 'stk' && !isMeterEnhet;
+        // Bygg visningsnavn: append variant hvis material har variant valgt
+        const displayName = (hasVariants && isVariantEnhet)
+            ? baseDisplay + ' ' + (enhet || '')
+            : baseDisplay;
         const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser">' + duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
         // Slett-knappen vises alltid for visuell konsistens, men er disabled på default-produkter
         const delBtn = '<button type="button" class="picker-mat-delete-btn" title="Fjern"' + (deletable ? '' : ' disabled') + '>' + deleteIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
+        // Farget prikk markerer at materiale har valg-muligheter (klikkbart navn).
+        // Spec-typer har egne farger; standard med varianter får grønn prikk.
         const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
             : matType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
             : matType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
-            : '';
-        const specBadge = typeDot;
-        const lmBadge = '';
+            : (hasVariants ? '<span class="picker-mat-dot picker-mat-dot-variant"></span>' : '');
+        // Liten "m"-badge for løpende-/meter-materialer (i stedet for egen enhet-kolonne)
+        const meterBadge = isMeterEnhet ? '<span class="picker-mat-meter-badge">m</span>' : '';
         const antallPlaceholder = t('placeholder_quantity');
         // Spec-launchere (mansjett/brannpakning/kabelhylse uten valgt størrelse) krever
-        // at bruker klikker navnet for å åpne spec-popup. For alle andre produkter
-        // skal Antall/enhet være direkte redigerbare — typing auto-aktiverer produktet.
+        // at bruker klikker navnet for å åpne spec-popup. Antall er disabled der.
         const isSpecLauncher = isLauncher && !isChecked;
         const disabledAttr = isSpecLauncher ? ' disabled' : '';
-        const isClickableEnhet = hasVariants || (enhetLower && enhetLower !== 'stk');
-        const enhetHtml = isClickableEnhet
-            ? `<button type="button" class="picker-mat-enhet-btn${enhetClass}" data-enhet="${escapeHtml(enhetLower)}"${disabledAttr}>${escapeHtml(enhetLabel)}</button>`
-            : `<span class="picker-mat-enhet-static">${escapeHtml(enhetLabel)}</span>`;
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${specBadge}${lmBadge}</div>
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}">
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${typeDot}${meterBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
-            ${enhetHtml}${dupBtn}${delBtn}
+            ${dupBtn}${delBtn}
         </div>`;
     }
 
@@ -1858,13 +1901,17 @@ function openMaterialPicker(btn, onConfirm) {
                 const baseMatObj = allMaterials.find(m => m.name === baseName);
                 // Sjekk om dup-basen selv er en spec-derived entry (f.eks. "FSW Ø100 2 lag")
                 const dupSpecBaseMat = baseMatObj ? null : findBaseMaterial(baseName);
-                // For duplicates av vanlige produkter: highlight kun når Antall har verdi.
-                // For duplicates av spec-typer eller spec-derived: alltid highlighted.
+                // For duplicates av vanlige produkter: highlight når state.checked
+                // er true (f.eks. nylig opprettet via Dupliser) ELLER når Antall
+                // har verdi. For duplicates av spec-typer eller spec-derived: alltid highlighted.
                 const baseIsSpec = (baseMatObj && (baseMatObj.type === 'mansjett' || baseMatObj.type === 'brannpakning' || baseMatObj.type === 'kabelhylse'))
                     || !!dupSpecBaseMat;
                 const dupAntall = state.antall || '';
-                const dupChecked = baseIsSpec ? state.checked : !!(dupAntall && dupAntall.toString().trim());
-                entries.push({ name, displayName: baseName, isChecked: dupChecked, antall: dupAntall, enhet: state.enhet || '', matType: 'standard', isSpecDerived: true });
+                const dupChecked = baseIsSpec ? state.checked : (state.checked || !!(dupAntall && dupAntall.toString().trim()));
+                // hasVariants må arves fra base-materialet så duplikat-raden får
+                // riktig visning (variant i navn + grønn prikk).
+                const dupHasVariants = !!(baseMatObj && baseMatObj.allowedUnits && baseMatObj.allowedUnits.length > 0);
+                entries.push({ name, displayName: baseName, isChecked: dupChecked, antall: dupAntall, enhet: state.enhet || '', matType: 'standard', isSpecDerived: true, hasVariants: dupHasVariants });
             } else if (baseMat) {
                 // Spec-derived entry (e.g. "Kabelhylse ø50x250mm")
                 const enhet = state.enhet || 'stk';
@@ -2084,9 +2131,31 @@ function openMaterialPicker(btn, onConfirm) {
                     }, derivedBase.type, prefill);
                     return;
                 }
-                // Vanlige produkter: klikk på navn har ingen effekt. Bruker må klikke
-                // direkte i Antall-feltet for å skrive en verdi. Highlighting styres
-                // utelukkende av Antall-verdien.
+                // Standard-materialer med varianter: klikk på navn åpner variant-popup
+                // (erstatter den gamle enhet-knappen). Velg variant → variant blir del
+                // av visningsnavnet ("FSA" → "FSA Patron"), antall-feltet aktiveres.
+                var rowHasVariants = row.getAttribute('data-has-variants') === '1';
+                if (rowHasVariants) {
+                    _ensureState();
+                    var lookupName = name.replace(/__\d+$/, '');
+                    var matObjV = allMaterials.find(m => m.name === lookupName) || findBaseMaterial(name);
+                    var variantsV = matObjV && matObjV.allowedUnits && matObjV.allowedUnits.length > 0 ? matObjV.allowedUnits : null;
+                    if (variantsV) {
+                        var optionsV = [];
+                        variantsV.forEach(function(v) {
+                            var label = typeof v === 'string' ? v : (v.plural || v.singular || v);
+                            optionsV.push({ label: label, type: 'variant' });
+                        });
+                        openVariantPopup(matObjV.name, optionsV, function(selected) {
+                            pickerState[name].enhet = selected;
+                            renderPickerList();
+                        });
+                    }
+                    return;
+                }
+                // Vanlige produkter (rene stk-materialer): klikk på navn har ingen
+                // effekt. Bruker må klikke direkte i Antall-feltet for å skrive en
+                // verdi. Highlighting styres utelukkende av Antall-verdien.
             });
 
             // Highlighting-regler:
@@ -2190,7 +2259,7 @@ function openMaterialPicker(btn, onConfirm) {
                                 pickerState[addedKey] = { checked: true, antall: '', enhet: 'stk' };
                             }
                             renderPickerList();
-                            _scrollPickerToRow(addedKey);
+                            _scrollPickerOneRowAfterDup(addedKey);
                         }, specType);
                     } else {
                         // Standard material: create __N duplicate, arve enhet fra kilde-raden
@@ -2209,9 +2278,12 @@ function openMaterialPicker(btn, onConfirm) {
                         var n = 2;
                         while (pickerState[baseName + '__' + n]) n++;
                         var newKey = baseName + '__' + n;
-                        pickerState[newKey] = { checked: false, antall: '', enhet: defEnhet };
+                        // checked: true så den nye duplikat-raden vises som
+                        // aktiv (orange highlighting) umiddelbart — bruker
+                        // forventer at duplikatet er "klar" som kilden var.
+                        pickerState[newKey] = { checked: true, antall: '', enhet: defEnhet };
                         renderPickerList();
-                        _scrollPickerToRow(newKey);
+                        _scrollPickerOneRowAfterDup(newKey);
                     }
                 });
             }
@@ -2241,6 +2313,15 @@ function openMaterialPicker(btn, onConfirm) {
     if (!window._pickerSavedScroll) window._pickerSavedScroll = _saveScrollPositions();
     modal.classList.add('active');
     document.body.classList.add('picker-active');
+
+    // Reset picker-list scroll til topp så bruker alltid begynner på toppen
+    // ved gjenåpning. Må kjøres ETTER modal er .active (ellers er elementet
+    // display:none og scrollTop-setting har ikke effekt). rAF venter til layout
+    // er ferdig så scrollHeight er etablert.
+    requestAnimationFrame(function() {
+        var pickerListEl = document.getElementById('picker-overlay-list');
+        if (pickerListEl) pickerListEl.scrollTop = 0;
+    });
 }
 
 function closePickerOverlay() {
