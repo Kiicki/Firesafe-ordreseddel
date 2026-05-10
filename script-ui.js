@@ -5962,6 +5962,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var keyboardBaselineInnerHeight = window.innerHeight || 0;
     var formKeyboardMode = false;
     var formKeyboardSawViewportShrink = false;
+    var lastFormKeyboardTarget = null;
     var maxObservedViewportHeight = window.innerHeight || 0;
     var IS_TOUCH_DEVICE = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
         || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
@@ -6033,7 +6034,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function syncKeyboardFocusClass(focusedEl, keyboardOpen) {
-        var shouldUseFormKeyboardLayout = !!(IS_TOUCH_DEVICE && keyboardOpen && isFormKeyboardTarget(focusedEl));
+        var shouldUseFormKeyboardLayout = !!(formKeyboardMode || (IS_TOUCH_DEVICE && keyboardOpen && isFormKeyboardTarget(focusedEl)));
         document.body.classList.toggle('keyboard-focus', shouldUseFormKeyboardLayout);
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) toolbar.classList.toggle('toolbar--keyboard-form', shouldUseFormKeyboardLayout);
@@ -6057,7 +6058,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!toolbar) return;
 
         if (active) {
-            var formHost = findFormToolbarHost(focusedEl || document.activeElement);
+            if (isFormKeyboardTarget(focusedEl)) {
+                lastFormKeyboardTarget = focusedEl;
+            }
+            var formHost = findFormToolbarHost(lastFormKeyboardTarget || focusedEl || document.activeElement);
             if (!formHost) return;
             stopToolbarGuard();
             toolbar.classList.remove('toolbar--inflow');
@@ -6086,6 +6090,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!formKeyboardMode) return;
         formKeyboardMode = false;
         formKeyboardSawViewportShrink = false;
+        lastFormKeyboardTarget = null;
         placeToolbarForFormKeyboard(false);
         forceNextApply = true;
     }
@@ -6177,8 +6182,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function findFormToolbarHost(focused) {
         focused = focused || document.activeElement;
-        if (!isFormKeyboardTarget(focused)) return null;
-        var formView = focused.closest('#view-form, #service-view, #kappe-view');
+        var formView = isFormKeyboardTarget(focused)
+            ? focused.closest('#view-form, #service-view, #kappe-view')
+            : document.querySelector('#view-form.view.active, #service-view.view.active, #kappe-view.view.active');
         if (!formView) return null;
         return formView.querySelector('.mobile-form') || formView;
     }
@@ -6295,7 +6301,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // ødelegger den under re-rendering.
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
-            var formHost = formKeyboardMode ? findFormToolbarHost() : null;
+            var formHost = formKeyboardMode ? findFormToolbarHost(lastFormKeyboardTarget) : null;
             var modalHost = findToolbarScrollHost(keyboardOpen, activeId);
             if (formHost) {
                 stopToolbarGuard();
@@ -6552,14 +6558,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     document.addEventListener('focusout', function(e) {
         if (isKeyboardOpeningElement(e.target)) {
-            setTimeout(function() {
-                var next = document.activeElement;
-                if (!isFormKeyboardTarget(next)) {
-                    setFormKeyboardMode(false);
-                }
-                syncKeyboardFocusClass(next, isFormKeyboardTarget(next));
-                scheduleForcedApply();
-            }, 50);
+            scheduleForcedApply();
         }
     });
 
