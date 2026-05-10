@@ -6340,11 +6340,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // - Lukking: forsinkes 400ms — må være vedvarende lukket
     var stableKeyboardOpen = false;
     var keyboardCloseTimer = null;
+    // Touch-enhets-deteksjon for å skille mellom mobil/tablet (har skjermtastatur)
+    // og desktop (fysisk tastatur, ingen on-screen).
+    var IS_TOUCH_DEVICE = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+        || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    function _isKeyboardOpenRaw() {
+        // Touch-enhet: focus på et tekst-input/textarea ER skjermtastatur åpent.
+        // Dette er den ENESTE pålitelige deteksjonen på tvers av browsere/PWA-modus.
+        // visualViewport-sammenligning er upålitelig fordi PWA-modus, gamle
+        // browser-versjoner og forskjellige interactive-widget-implementasjoner
+        // kan gi ulike resultater.
+        if (IS_TOUCH_DEVICE) {
+            return !!(document.activeElement && isKeyboardOpeningElement(document.activeElement));
+        }
+        // Desktop: bruk vv-sammenligning (i tilfelle touchscreen-laptop med
+        // skjermtastatur). Vanligvis uvanlig.
+        if (window.visualViewport) {
+            var vv = window.visualViewport;
+            var rawHeight = window.innerHeight - vv.height - vv.offsetTop;
+            if (rawHeight > KEYBOARD_THRESHOLD) return true;
+        }
+        return false;
+    }
     function updateKeyboardState() {
         if (!window.visualViewport) return false;
-        var vv = window.visualViewport;
-        var rawHeight = window.innerHeight - vv.height - vv.offsetTop;
-        var rawOpen = rawHeight > KEYBOARD_THRESHOLD;
+        var rawOpen = _isKeyboardOpenRaw();
         if (rawOpen) {
             if (keyboardCloseTimer) { clearTimeout(keyboardCloseTimer); keyboardCloseTimer = null; }
             stableKeyboardOpen = true;
@@ -6352,8 +6372,7 @@ document.addEventListener('DOMContentLoaded', function() {
             keyboardCloseTimer = setTimeout(function() {
                 keyboardCloseTimer = null;
                 // Re-sjekk ved utløp: tastatur kan ha kommet tilbake
-                var vv2 = window.visualViewport;
-                if (vv2 && (window.innerHeight - vv2.height - vv2.offsetTop) > KEYBOARD_THRESHOLD) return;
+                if (_isKeyboardOpenRaw()) return;
                 stableKeyboardOpen = false;
                 scheduleForcedApply();
             }, 400);
