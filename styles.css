@@ -1396,10 +1396,6 @@ body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     box-shadow: none;
 }
 
-body.saved-modal-open.keyboard-open .toolbar:not(.toolbar--inflow) {
-    display: none;
-}
-
 .toolbar.toolbar--keyboard-form {
     position: static !important;
     left: auto !important;
@@ -1492,6 +1488,10 @@ body.saved-modal-open.keyboard-open .toolbar:not(.toolbar--inflow) {
 }
 #template-modal .modal-body {
     padding-top: 6px;
+}
+
+#saved-modal .modal-body {
+    background: #fff;
 }
 
 /* Statiske elementer i modaler - ikke krymp */

@@ -5929,11 +5929,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Form-views håndteres av CSS når tastaturet er åpent: view går tilbake
     // til normal dokumentflyt og toolbar ligger nederst i body-scrollen.
     var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
-    // Modal-views: krympes ved tastatur. Toolbar reparenteres kun for views
-    // der selve innholdet er en redigerbar scrollflate. På #hent skal toolbar
-    // ikke inn i resultatlisten; det skaper tomt grått felt under korte lister.
+    // Modal-views: krympes ved tastatur. Toolbar reparenteres til aktiv
+    // scrollflate slik at den blir nederste scroll-element, ikke fixed over
+    // tastaturet.
     var MODAL_VIEW_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
-    var MODAL_TOOLBAR_HOST_IDS = ['template-modal', 'settings-modal'];
+    var MODAL_TOOLBAR_HOST_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
     // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
     // Må krympes til synlig viewport ellers blir scroll i intern liste broken
     // (browseren mister touch-events for området bak tastaturet).
@@ -6248,6 +6248,19 @@ document.addEventListener('DOMContentLoaded', function() {
             var o = document.getElementById(id);
             if (o && o.classList.contains('active')) activeOverlaySig += id + ',';
         });
+        var activeModalBodySig = '';
+        if (MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
+            var activeModalView = document.getElementById(activeId);
+            if (activeModalView) {
+                var activeBodies = activeModalView.querySelectorAll('.modal-body');
+                for (var bodyIdx = 0; bodyIdx < activeBodies.length; bodyIdx++) {
+                    if (activeBodies[bodyIdx].offsetParent !== null) {
+                        activeModalBodySig = activeBodies[bodyIdx].id || String(bodyIdx);
+                        break;
+                    }
+                }
+            }
+        }
         // servicebil-inntak-mode endrer toolbar-host (til picker-overlay-list)
         // selv om aktive popups/overlays er identisk. Må derfor være i state-key.
         var inntakMode = document.body.classList.contains('servicebil-inntak-mode') ? '1' : '0';
@@ -6255,6 +6268,7 @@ document.addEventListener('DOMContentLoaded', function() {
             (keyboardOpen ? '1' : '0') + '|' +
             (keyboardFocusActive ? '1' : '0') + '|' +
             (activeId || '') + '|' +
+            activeModalBodySig + '|' +
             activePopupSig + '|' +
             activeOverlaySig + '|' +
             inntakMode;
@@ -6264,8 +6278,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // --- Toggle body.keyboard-open for physical keyboard state ---
         // Form-layout styres av body.keyboard-focus, ikke keyboard-open.
-        // keyboard-open brukes fortsatt til modal/overlay-height og til å
-        // skjule toolbar på #hent mens søkefeltet har tastatur åpent.
+        // keyboard-open brukes fortsatt til modal/overlay-height.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
 
         // --- Modal-views: krymp til synlig viewport ---
