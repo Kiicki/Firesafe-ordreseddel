@@ -377,12 +377,6 @@ function setFormReadOnly(readOnly) {
 
 }
 
-function loadForm(index) {
-    if (window.loadedForms[index]) {
-        loadFormDirect(window.loadedForms[index]);
-    }
-}
-
 function loadFormDirect(formData) {
     if (!formData) return;
     setFormData(formData);
@@ -446,13 +440,6 @@ async function duplicateFormDirect(form) {
     document.getElementById('form-header-title').textContent = t('form_title');
     window.scrollTo(0, 0);
     showNotificationModal(t('duplicated_success'), true);
-}
-
-function deleteForm(event, index) {
-    if (event) event.stopPropagation();
-    const form = window.loadedForms[index];
-    if (!form) return;
-    deleteFormDirect(form);
 }
 
 function deleteFormDirect(form) {
@@ -1108,32 +1095,6 @@ function clearSearchInput(inputId, listId) {
     input.focus();
 }
 
-function moveCurrentToSaved() {
-    const ordrenr = document.getElementById('ordreseddel-nr').value || document.getElementById('mobile-ordreseddel-nr').value;
-    if (!ordrenr) return;
-
-    const formsCol = 'forms';
-    const archiveCol = 'archive';
-
-    // localStorage first (optimistic)
-    var archived = safeParseJSON(ARCHIVE_KEY, []);
-    var formIndex = archived.findIndex(function(f) { return f.ordreseddelNr === ordrenr; });
-    var formId = (formIndex !== -1) ? archived[formIndex].id : null;
-    if (formIndex !== -1) {
-        var saved = safeParseJSON(STORAGE_KEY, []);
-        var movedForm = archived.splice(formIndex, 1)[0];
-        saved.unshift(movedForm);
-        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
-        safeSetItem(STORAGE_KEY, JSON.stringify(saved));
-    }
-
-    _lastLocalSaveTs = Date.now();
-    setFormReadOnly(false);
-    showNotificationModal(t('move_to_saved_success'), true);
-
-    enqueueUserDocMove(formsCol, archiveCol, formId, movedForm, 'Move to saved');
-}
-
 function markCurrentFormAsSent() {
     try {
         var data = getFormData();
@@ -1173,37 +1134,6 @@ function markCurrentFormAsSent() {
     } catch (e) {
         console.error('Mark as sent error:', e);
     }
-}
-
-function moveToSaved(event, index) {
-    if (event) event.stopPropagation();
-    showConfirmModal(t('move_to_saved_confirm'), function() {
-        const form = window.loadedForms[index];
-        if (!form) return;
-
-        // localStorage first (optimistic)
-        const archived = safeParseJSON(ARCHIVE_KEY, []);
-        const saved = safeParseJSON(STORAGE_KEY, []);
-        const idx = archived.findIndex(f => f.id === form.id);
-        if (idx !== -1) {
-            const f = archived.splice(idx, 1)[0];
-            saved.unshift(f);
-            safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
-            safeSetItem(STORAGE_KEY, JSON.stringify(saved));
-        }
-
-        // Hvis det åpne skjemaet er det som ble flyttet, fjern sendt-modus
-        const currentOrdrenr = document.getElementById('mobile-ordreseddel-nr').value;
-        if (currentOrdrenr && form.ordreseddelNr === currentOrdrenr) {
-            setFormReadOnly(false);
-        }
-
-        _lastLocalSaveTs = Date.now();
-        showSavedForms();
-        showNotificationModal(t('move_to_saved_success'), true);
-
-        enqueueUserDocMove('forms', 'archive', form.id, form, 'Restore');
-    }, t('btn_move'), '#333');
 }
 
 // ============================================
@@ -1257,70 +1187,6 @@ function autoFillOrderNumber() {
         document.getElementById('ordreseddel-nr').value = nextNr;
         document.getElementById('mobile-ordreseddel-nr').value = nextNr;
     }
-}
-
-function loadTemplateDirect(template) {
-    if (!template) return;
-
-    preNewFormData = null;
-    clearForm();
-    setFormReadOnly(false);
-
-    // Fill defaults first, then override with template values
-    autoFillDefaults();
-
-    // Template values override defaults (only non-empty, project fields only)
-    const templateFields = {
-        'oppdragsgiver': template.oppdragsgiver,
-        'prosjektnr': template.prosjektnr,
-        'prosjektnavn': template.prosjektnavn,
-        'kundens-ref': template.kundensRef,
-        'fakturaadresse': template.fakturaadresse
-    };
-    for (const [id, val] of Object.entries(templateFields)) {
-        if (val) {
-            const el = document.getElementById(id);
-            const mobileEl = document.getElementById('mobile-' + id);
-            if (el) el.value = val;
-            if (mobileEl) mobileEl.value = val;
-        }
-    }
-
-    autoFillOrderNumber();
-    updateFakturaadresseDisplay('fakturaadresse-display-text', template.fakturaadresse || '');
-
-    showView('view-form');
-    document.body.classList.remove('template-modal-open');
-    updateToolbarState();
-    window.location.hash = 'skjema';
-    sessionStorage.setItem('firesafe_form_type', 'own');
-    sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
-    lastSavedData = getFormDataSnapshot();
-    document.getElementById('form-header-title').textContent = t('form_title');
-    updateOrderDeleteStates();
-    window.scrollTo(0, 0);
-}
-
-function deleteTemplateDirect(template) {
-    if (!template) return;
-    showConfirmModal(t('template_delete_confirm'), function() {
-        // Optimistic removal: update local state + DOM immediately
-        var arrIdx = window.loadedTemplates.findIndex(function(t) { return t.id === template.id; });
-        if (arrIdx !== -1) window.loadedTemplates.splice(arrIdx, 1);
-        var lsList = safeParseJSON(TEMPLATE_KEY, []);
-        var lsIdx = lsList.findIndex(function(t) { return t.id === template.id; });
-        if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
-        // Remove DOM element from picker if open
-        document.querySelectorAll('#template-picker-list .saved-item').forEach(function(el) {
-            if (el._formData && el._formData.id === template.id) el.remove();
-        });
-
-        // Firebase in background
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('templates').doc(template.id).delete()
-                .catch(function(e) { console.error('Delete template error:', e); });
-        }
-    });
 }
 
 function closeTemplateModal() {
@@ -1860,10 +1726,6 @@ function editMaterialUnit(idx, unitIdx, itemEl) {
         if (e.key === 'Escape') { cancel(); }
     }
     inputV.addEventListener('keydown', handleKey);
-}
-
-function setDefaultUnit(idx, unitIdx) {
-    // No longer needed — kept as no-op for backward compat
 }
 
 function setDefaultVariant(idx, unitIdx) {
@@ -2501,6 +2363,14 @@ async function toggleRequiredField(section, key, value) {
 
 var _editingTemplateId = null;
 
+function _findSettingsTemplateItem(templateId) {
+    var items = document.querySelectorAll('.settings-template-item[data-id]');
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].getAttribute('data-id') === String(templateId)) return items[i];
+    }
+    return null;
+}
+
 function _renderSettingsTemplateListFromData(templates) {
     var listEl = document.getElementById('settings-template-list');
     if (!listEl) return;
@@ -2514,16 +2384,17 @@ function _renderSettingsTemplateListFromData(templates) {
         var isActive = tpl.active !== false;
         var name = escapeHtml(tpl.prosjektnavn) || t('no_name');
         var detail = [tpl.oppdragsgiver, tpl.prosjektnr].filter(function(x) { return x; }).map(escapeHtml).join(' \u2022 ');
-        var id = escapeHtml(tpl.id);
+        var idAttr = escapeHtml(tpl.id);
+        var idJs = escapeJsStringAttr(tpl.id);
 
         var duplicateBtn = isActive
-            ? '<button class="settings-template-duplicate-btn" onclick="event.stopPropagation(); duplicateTemplateFromSettings(\'' + id + '\')" title="' + t('duplicate_btn') + '">'
+            ? '<button class="settings-template-duplicate-btn" onclick="event.stopPropagation(); duplicateTemplateFromSettings(\'' + idJs + '\')" title="' + t('duplicate_btn') + '">'
             : '<button class="settings-template-duplicate-btn disabled" onclick="event.stopPropagation()" title="' + t('duplicate_btn') + '">';
         var delBtn = isActive
-            ? '<button class="settings-template-delete-btn" onclick="event.stopPropagation(); deleteTemplateFromSettings(\'' + id + '\')" title="' + t('delete_btn') + '">'
+            ? '<button class="settings-template-delete-btn" onclick="event.stopPropagation(); deleteTemplateFromSettings(\'' + idJs + '\')" title="' + t('delete_btn') + '">'
             : '<button class="settings-template-delete-btn disabled" onclick="event.stopPropagation()" title="' + t('delete_btn') + '">';
 
-        return '<div class="settings-template-item' + (isActive ? '' : ' inactive') + '" data-id="' + id + '" onclick="showTemplateEditor(\'' + id + '\')">' +
+        return '<div class="settings-template-item' + (isActive ? '' : ' inactive') + '" data-id="' + idAttr + '" onclick="showTemplateEditor(\'' + idJs + '\')">' +
             '<div class="settings-template-item-info">' +
                 '<div class="settings-template-item-row1">' + name + '</div>' +
                 (detail ? '<div class="settings-template-item-row2">' + detail + '</div>' : '') +
@@ -2579,10 +2450,7 @@ function _saveLagerInline() {
         data[f] = el ? el.value.trim() : '';
     });
     saveLager(data);
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc('lager').set(data)
-            .catch(function(e) { console.error('Save lager error:', e); });
-    }
+    enqueueUserDocSet('settings', 'lager', data, 'Save lager');
 }
 
 function openProsjektLeveringsadressePicker() {
@@ -2801,11 +2669,7 @@ async function saveTemplateFromEditor() {
         safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
         showNotificationModal(t('template_updated'), true);
 
-        // Firebase in background
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('templates').doc(_editingTemplateId).update(data)
-                .catch(function(e) { console.error('Update template error:', e); });
-        }
+        enqueueUserDocSet('templates', _editingTemplateId, data, 'Update template', { merge: true });
     } else {
         // Create new template
         data.createdAt = new Date().toISOString();
@@ -2818,11 +2682,7 @@ async function saveTemplateFromEditor() {
         safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
         showNotificationModal(t('template_save_success'), true);
 
-        // Firebase in background
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('templates').doc(data.id).set(data)
-                .catch(function(e) { console.error('Create template error:', e); });
-        }
+        enqueueUserDocSet('templates', data.id, data, 'Create template');
     }
 
     closeTemplateEditor();
@@ -2836,7 +2696,7 @@ async function toggleTemplateActive(templateId) {
     var newActive = tpl.active === false ? true : false;
 
     // Update visual state + localStorage immediately (optimistic)
-    var itemEl = document.querySelector('.settings-template-item[data-id="' + templateId + '"]');
+    var itemEl = _findSettingsTemplateItem(templateId);
     if (itemEl) {
         if (newActive) itemEl.classList.remove('inactive');
         else itemEl.classList.add('inactive');
@@ -2848,11 +2708,7 @@ async function toggleTemplateActive(templateId) {
         safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
     }
 
-    // Firebase in background
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).update({ active: newActive })
-            .catch(function(e) { console.error('Toggle template error:', e); });
-    }
+    enqueueUserDocSet('templates', templateId, { active: newActive }, 'Toggle template', { merge: true });
 }
 
 async function deleteTemplateFromSettings(templateId) {
@@ -2866,7 +2722,7 @@ async function deleteTemplateFromSettings(templateId) {
         var lsIdx = lsList.findIndex(function(t) { return t.id === templateId; });
         if (lsIdx !== -1) { lsList.splice(lsIdx, 1); safeSetItem(TEMPLATE_KEY, JSON.stringify(lsList)); }
         // Remove DOM element
-        var el = document.querySelector('.settings-template-item[data-id="' + templateId + '"]');
+        var el = _findSettingsTemplateItem(templateId);
         if (el) el.remove();
         // Show empty message if no items left
         var listEl = document.getElementById('settings-template-list');
@@ -2874,11 +2730,7 @@ async function deleteTemplateFromSettings(templateId) {
             listEl.innerHTML = '';
         }
 
-        // Firebase in background
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('templates').doc(templateId).delete()
-                .catch(function(e) { console.error('Delete template error:', e); });
-        }
+        enqueueUserDocDelete('templates', templateId, 'Delete template');
     });
 }
 
@@ -3105,10 +2957,7 @@ function addSettingsRange() {
     const settings = buildOrderNrSettings();
     safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
     showNotificationModal(t('settings_range_added'), true);
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
-            .catch(function(e) { console.error('Save range error:', e); });
-    }
+    enqueueUserDocSet('settings', 'ordrenr', settings, 'Save range');
 }
 
 function removeSettingsRange(idx) {
@@ -3120,10 +2969,7 @@ function removeSettingsRange(idx) {
         // Auto-save: localStorage first, Firebase in background
         const settings = buildOrderNrSettings();
         safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
-                .catch(function(e) { console.error('Remove range error:', e); });
-        }
+        enqueueUserDocSet('settings', 'ordrenr', settings, 'Remove range');
     });
 }
 
@@ -3188,10 +3034,7 @@ function addGivenAwayRange() {
     const settings = buildOrderNrSettings();
     safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
     showNotificationModal(t('settings_give_added'), true);
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
-            .catch(function(e) { console.error('Save give-away error:', e); });
-    }
+    enqueueUserDocSet('settings', 'ordrenr', settings, 'Save give-away');
 }
 
 function removeGivenAway(idx) {
@@ -3204,10 +3047,7 @@ function removeGivenAway(idx) {
         // Auto-save: localStorage first, Firebase in background
         const settings = buildOrderNrSettings();
         safeSetItem(SETTINGS_KEY, JSON.stringify(settings));
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('settings').doc('ordrenr').set(settings)
-                .catch(function(e) { console.error('Remove give-away error:', e); });
-        }
+        enqueueUserDocSet('settings', 'ordrenr', settings, 'Remove give-away');
     });
 }
 
@@ -3410,37 +3250,6 @@ function newForm() {
     } else {
         doNewForm();
     }
-}
-
-function duplicateCurrentForm() {
-    // Clear order number and signature fields
-    document.getElementById('ordreseddel-nr').value = '';
-    document.getElementById('mobile-ordreseddel-nr').value = '';
-    document.getElementById('kundens-underskrift').value = '';
-    document.getElementById('mobile-kundens-underskrift').value = '';
-    clearSignaturePreview();
-
-    // Uke og signering-dato er alltid dagens (system-styrt)
-    _setUkeToToday();
-    _setSigneringDatoToday();
-
-    // Reset bestillinger til 1 tomt ordrekort
-    var container = document.getElementById('mobile-orders');
-    container.innerHTML = '';
-    container.appendChild(createOrderCard({ description: '', materials: [], timer: '' }, true));
-    updateOrderDeleteStates();
-    document.getElementById('work-lines').innerHTML = '';
-
-    // Mark as unsaved
-    lastSavedData = null;
-
-    // Remove sent banner if visible
-    document.getElementById('sent-banner').style.display = 'none';
-    setFormReadOnly(false);
-
-    // Auto-fill next order number
-    autoFillOrderNumber();
-    window.scrollTo(0, 0);
 }
 
 // ============================================
@@ -3778,15 +3587,6 @@ async function doSharePNG(markSent) {
 // ============================================
 // Tvinger #view-form synlig under rendering (nødvendig for html2canvas når vi er i saved-modal).
 // Returnerer en restore-funksjon.
-// Beregner custom PDF-sidehøyde basert på canvas-aspect og fast sidebredde.
-// Minimum-høyde = standard A4-proporsjon for gitt bredde, slik at korte skjemaer
-// beholder vanlig A4-utseende. Lange skjemaer får lengre side (vertikalt), slik
-// at bredden alltid forblir konsistent (210mm portrait / 297mm landscape).
-function _customPageHeight(canvas, pageWidth, minHeight) {
-    var natural = canvas.height * pageWidth / canvas.width;
-    return Math.max(minHeight, natural);
-}
-
 // Lager en ny PDF med custom sidestørrelse som matcher canvas-aspect.
 function _createPdfFromCanvas(canvas, pageWidth, minHeight, imageType, quality) {
     var jsPDF = window.jspdf.jsPDF;
@@ -3813,83 +3613,6 @@ function _addPageFromCanvas(pdf, canvas, pageWidth, minHeight, imageType, qualit
     pdf.addPage([pageWidth, customHeight], orientation);
     var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
     pdf.addImage(dataUrl, type, 0, 0, pageWidth, Math.min(natural, customHeight));
-}
-
-// Lager A4-PDF (297×210mm landscape eller 210×297mm portrait) og legger canvas inn
-// ved naturlig skala (canvas.width → pageW). Hvis canvas er høyere enn én A4-side
-// tillater, deles canvas i skiver og hver skive får sin egen A4-side (multi-page).
-// Dette bevarer tekststørrelsen uansett hvor mye innhold det er.
-function _createA4PdfFromCanvas(canvas, orientation, imageType, quality) {
-    var jsPDF = window.jspdf.jsPDF;
-    var type = imageType || 'PNG';
-    var mime = type === 'JPEG' ? 'image/jpeg' : 'image/png';
-    var isLand = orientation === 'l' || orientation === 'landscape';
-    var pageW = isLand ? 297 : 210;
-    var pageH = isLand ? 210 : 297;
-    var pdf = new jsPDF({ orientation: isLand ? 'l' : 'p', unit: 'mm', format: 'a4' });
-    var scale = pageW / canvas.width;
-    var canvasHmm = canvas.height * scale;
-
-    if (canvasHmm <= pageH) {
-        var offsetY = (pageH - canvasHmm) / 2;
-        var dataUrl = (quality != null) ? canvas.toDataURL(mime, quality) : canvas.toDataURL(mime);
-        pdf.addImage(dataUrl, type, 0, offsetY, pageW, canvasHmm);
-        return pdf;
-    }
-
-    var pagePixH = Math.floor(pageH / scale);
-    var numPages = Math.ceil(canvas.height / pagePixH);
-    for (var i = 0; i < numPages; i++) {
-        if (i > 0) pdf.addPage('a4', isLand ? 'l' : 'p');
-        var sliceY = i * pagePixH;
-        var sliceH = Math.min(pagePixH, canvas.height - sliceY);
-        var slice = document.createElement('canvas');
-        slice.width = canvas.width;
-        slice.height = sliceH;
-        var ctx = slice.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, slice.width, slice.height);
-        ctx.drawImage(canvas, 0, -sliceY);
-        var sliceHmm = sliceH * scale;
-        var dUrl = (quality != null) ? slice.toDataURL(mime, quality) : slice.toDataURL(mime);
-        pdf.addImage(dUrl, type, 0, 0, pageW, sliceHmm);
-    }
-    return pdf;
-}
-
-// Lager et nytt canvas med fast A4-aspect (297:210 landscape eller 210:297 portrait)
-// og tegner original-canvas proporsjonalt sentrert med hvit bakgrunn. Brukes for
-// PNG-eksport slik at filen har samme print-kompatible aspekt som PDF.
-function _createA4CanvasFromCanvas(canvas, orientation) {
-    var isLand = orientation === 'l' || orientation === 'landscape';
-    var aspect = isLand ? (297 / 210) : (210 / 297);
-    var srcAspect = canvas.width / canvas.height;
-    var outW, outH;
-    if (srcAspect > aspect) {
-        outW = canvas.width;
-        outH = Math.round(canvas.width / aspect);
-    } else {
-        outH = canvas.height;
-        outW = Math.round(canvas.height * aspect);
-    }
-    var out = document.createElement('canvas');
-    out.width = outW;
-    out.height = outH;
-    var ctx = out.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, outW, outH);
-    var drawW, drawH;
-    if (srcAspect > aspect) {
-        drawW = outW;
-        drawH = Math.round(outW / srcAspect);
-    } else {
-        drawH = outH;
-        drawW = Math.round(outH * srcAspect);
-    }
-    var offsetX = Math.round((outW - drawW) / 2);
-    var offsetY = Math.round((outH - drawH) / 2);
-    ctx.drawImage(canvas, offsetX, offsetY, drawW, drawH);
-    return out;
 }
 
 // Bytter midlertidig aktiv view til target-view og fjerner body-klasser som skjuler target,
@@ -4691,14 +4414,6 @@ function _setServicebilMode(mode) {
     }
 }
 
-// Callback fra material-picker når brukeren bekrefter materialer i Inntak-modus.
-function _onServicebilInntakMaterialsConfirm(materials) {
-    var container = document.getElementById('servicebil-inntak-materials');
-    if (container && typeof renderMaterialSummary === 'function') {
-        renderMaterialSummary(container, materials);
-    }
-}
-
 // Hovedinngang: åpner Servicebil-view i valgt modus (default Inntak).
 // I Inntak-modus auto-åpnes material-picker siden Inntak ER bare en picker.
 function openServicebilView(defaultMode) {
@@ -4887,40 +4602,6 @@ async function saveServiceForm() {
         }
     } finally {
         if (saveBtn) saveBtn.disabled = false;
-    }
-}
-
-function loadServiceTab() {
-    // Show cached data immediately
-    var cachedSaved = safeParseJSON(SERVICE_STORAGE_KEY, []);
-    var cachedSent = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
-    var cachedForms = cachedSaved.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
-        .concat(cachedSent.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
-        .sort(function(a, b) {
-            if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
-            return (b.savedAt || '').localeCompare(a.savedAt || '');
-        });
-    renderServiceFormsList(cachedForms);
-
-    // Refresh from Firestore
-    if (currentUser && db) {
-        Promise.all([getServiceForms(), getServiceSentForms()]).then(function(results) {
-            if (Date.now() - _lastLocalSaveTs < 5000) return;
-            var savedResult = results[0], sentResult = results[1];
-            _serviceLastDoc = savedResult.lastDoc;
-            _serviceSentLastDoc = sentResult.lastDoc;
-            safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
-            safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-            var allForms = savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
-                .concat(sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
-                .sort(function(a, b) {
-                    if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
-                    return (b.savedAt || '').localeCompare(a.savedAt || '');
-                });
-            if (document.body.classList.contains('saved-modal-open')) {
-                renderServiceFormsList(allForms);
-            }
-        }).catch(function(e) { console.error('Refresh service forms:', e); });
     }
 }
 
@@ -5820,7 +5501,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
     // Må krympes til synlig viewport ellers blir scroll i intern liste broken
     // (browseren mister touch-events for området bak tastaturet).
-    var FULLSCREEN_OVERLAY_IDS = ['picker-overlay', 'unit-picker-overlay', 'kappe-product-picker-overlay', 'template-picker-overlay'];
+    var FULLSCREEN_OVERLAY_IDS = ['picker-overlay', 'kappe-product-picker-overlay', 'template-picker-overlay'];
     var KEYBOARD_THRESHOLD = 100;
     var KEYBOARD_MARGIN = 16;
 
@@ -6804,10 +6485,6 @@ var MC_MIN_SEGMENTS = 15;
 function mcCalcSegments(diameter) {
     var n = Math.round(Math.PI * (diameter + 2 * MC_SEGMENT_PITCH) / MC_SEGMENT_PITCH);
     return Math.max(MC_MIN_SEGMENTS, n);
-}
-
-function mcCalcPerRoll(segments) {
-    return Math.floor(MC_SEGMENTS_PER_ROLL / segments);
 }
 
 function mcCalcClips(diameter) {
@@ -7874,12 +7551,6 @@ function laResetSection(sectionEl) {
     laCalc();
 }
 
-function laReset() {
-    document.getElementById('la-sections').innerHTML = '';
-    _laSectionCount = 0;
-    laAddSection();
-}
-
 function laCalc() {
     var sections = document.querySelectorAll('.la-section');
     for (var s = 0; s < sections.length; s++) {
@@ -7952,10 +7623,7 @@ function bplSetDefault() {
     var h = parseLocaleNum(document.getElementById('bpl-plate-h').value) || 600;
     var data = { w: w, h: h };
     localStorage.setItem('firesafe_plate_size', JSON.stringify(data));
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc('plateSize').set(data)
-            .catch(function(e) { console.error('Save plate size error:', e); });
-    }
+    enqueueUserDocSet('settings', 'plateSize', data, 'Save plate size');
     showNotificationModal('Standard platestørrelse lagret: ' + formatLocaleNum(w) + ' × ' + formatLocaleNum(h) + ' mm', true);
 }
 
@@ -8748,33 +8416,6 @@ function selectKappeProduct(value) {
     closeKappeProductPicker();
 }
 
-function _kappeProductOptionsHtml(selectedName) {
-    var products = getKappeProducts();
-    var html = '<option value="" disabled hidden' + (selectedName ? '' : ' selected') + '>' + escapeHtml(t('kappe_product_placeholder')) + '</option>';
-    // Bygg flat liste av alle merke+dim kombinasjoner
-    var allOptions = [];
-    products.forEach(function(p) {
-        if (p.dimensions && p.dimensions.length) {
-            p.dimensions.forEach(function(dim) {
-                allOptions.push(p.name + ' ' + _formatDimMm(dim));
-            });
-        } else {
-            allOptions.push(p.name);
-        }
-    });
-    // Sorter alfabetisk så samme merke kommer etter hverandre
-    allOptions.sort(function(a, b) { return a.localeCompare(b, 'no'); });
-    allOptions.forEach(function(fullName) {
-        var sel = (fullName === selectedName) ? ' selected' : '';
-        html += '<option value="' + escapeHtml(fullName) + '"' + sel + '>' + escapeHtml(fullName) + '</option>';
-    });
-    // Bakoverkompat: hvis selectedName ikke matcher noen option, legg den til som ekstra option
-    if (selectedName && html.indexOf('value="' + escapeHtml(selectedName) + '"') === -1) {
-        html += '<option value="' + escapeHtml(selectedName) + '" selected>' + escapeHtml(selectedName) + ' (uregistrert)</option>';
-    }
-    return html;
-}
-
 function _createKappeKappRow(kappData) {
     var d = kappData || {};
     var row = document.createElement('div');
@@ -9077,16 +8718,6 @@ function applyKappeStiftPicker() {
     container.innerHTML = newRows;
     _updateKappeStiftAddBtnState();
     closeActionPopup();
-}
-
-function addKappeStiftRow(size) {
-    var container = document.getElementById('kappe-stift');
-    if (!container) return;
-    if (container.querySelector('[data-row-size="' + size + '"]')) return;
-    container.insertAdjacentHTML('beforeend', _kappeStiftRowHtml(size, ''));
-    _updateKappeStiftAddBtnState();
-    var input = container.querySelector('[data-row-size="' + size + '"] .kappe-stift-input');
-    if (input) input.focus();
 }
 
 function removeKappeStiftRow(btn) {
@@ -9444,8 +9075,7 @@ function loadKappeTab() {
             } else if (localSaved.length > 0) {
                 localSaved.forEach(function(form) {
                     if (form && form.id) {
-                        db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(form.id).set(form)
-                            .catch(function(e) { console.error('Migrate kappe save error:', e); });
+                        enqueueUserDocSet('kappeforms', form.id, form, 'Migrate kappe save');
                     }
                 });
                 fbSaved = localSaved;
@@ -9455,8 +9085,7 @@ function loadKappeTab() {
             } else if (localSent.length > 0) {
                 localSent.forEach(function(form) {
                     if (form && form.id) {
-                        db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(form.id).set(form)
-                            .catch(function(e) { console.error('Migrate kappe sent error:', e); });
+                        enqueueUserDocSet('kappeArchive', form.id, form, 'Migrate kappe sent');
                     }
                 });
                 fbSent = localSent;
@@ -10326,10 +9955,7 @@ function removeGlobalKappeDimension(idx) {
 // Felles hjelper: lagre kappe-innstilling både lokalt og til Firebase
 function _syncKappeSetting(localKey, fbDoc, data) {
     safeSetItem(localKey, JSON.stringify(data));
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(data)
-            .catch(function(e) { console.error('Sync ' + fbDoc + ' error:', e); });
-    }
+    enqueueUserDocSet('settings', fbDoc, data, 'Sync ' + fbDoc);
 }
 
 // --- Stift-størrelser CRUD ---
@@ -10458,10 +10084,7 @@ function _saveMinInfo() {
         if (cb) data['autofill_' + k] = cb.checked;
     });
     safeSetItem(MIN_INFO_KEY, JSON.stringify(data));
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').set(data)
-            .catch(function(e) { console.error('Save min_info error:', e); });
-    }
+    enqueueUserDocSet('settings', 'min_info', data, 'Save min_info');
 }
 
 function _splitNameFromMontor(info) {
@@ -10581,10 +10204,7 @@ function _loadServiceDefaults() {
             var data = getMinInfo();
             data['autofill_' + k] = cb.checked;
             safeSetItem(MIN_INFO_KEY, JSON.stringify(data));
-            if (currentUser && db) {
-                db.collection('users').doc(currentUser.uid).collection('settings').doc('min_info').set(data)
-                    .catch(function(e) { console.error('Save min_info error:', e); });
-            }
+            enqueueUserDocSet('settings', 'min_info', data, 'Save min_info');
             var mirror = document.getElementById('mininfo-autofill-' + k);
             if (mirror) mirror.checked = cb.checked;
         });

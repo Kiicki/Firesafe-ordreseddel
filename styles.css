@@ -718,13 +718,12 @@ body:has(#dag-timer-modal.active) .view.active {
 
 /* Generell scroll-lås: hindre at innhold bak popups scroller.
    Gjelder alle overlay-popups (confirm, picker, spec, plan, varianter,
-   fakturaadresse, unit-picker, signatur, preview, tekst-editor). */
+   fakturaadresse, signatur, preview, tekst-editor). */
 body:has(:is(
     .confirm-modal,
     .picker-overlay,
     .spec-popup-backdrop,
     .fakturaadresse-popup-backdrop,
-    .unit-picker-backdrop,
     .signature-overlay,
     .preview-overlay
 ).active) {
@@ -1050,7 +1049,7 @@ body.settings-modal-open #view-form {
    Sikrer at kun overlay-innholdet er i DOM-renderingen — løser blant annet
    Firefox "Save Full Page"-screenshot som ellers fanger underliggende form.
    Gjelder kun fullskjerm-opake overlays (preview, signatur, picker), ikke
-   gjennomsiktige dialogbokser (confirm, spec-popup, unit-picker) der form-en
+   gjennomsiktige dialogbokser (confirm, spec-popup) der form-en
    bevisst skal synes bak. */
 body.preview-active .view,
 body.preview-active .top-bar,
@@ -3015,7 +3014,6 @@ label.settings-default-label.field-required > span::after {
    Kun overscroll-behavior — ikke touch-action, da det kan blokkere andre
    gestures på felles klasser som .confirm-modal-content. */
 .picker-overlay-list,
-.unit-picker-list,
 .spec-popup-body,
 .profile-info-body,
 .kappe-picker-brands,
@@ -3160,184 +3158,19 @@ label.settings-default-label.field-required > span::after {
     outline: none;
     border-color: #E8501A;
 }
-/* Greyout for Antall/enhet kun på spec-launchere (mansjett/brannpakning/kabelhylse
+/* Greyout for Antall kun på spec-launchere (mansjett/brannpakning/kabelhylse
    uten valgt størrelse) — disse krever klikk på navn for å åpne spec-popup. Vanlige
    produkter skal se klikkbare ut slik at bruker kan skrive direkte i Antall. */
 .picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected) .picker-mat-antall,
-.picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected) .picker-mat-enhet-btn,
-.picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected) .picker-mat-enhet-static,
 .picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected) .picker-mat-antall,
-.picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected) .picker-mat-enhet-btn,
-.picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected) .picker-mat-enhet-static,
-.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-antall,
-.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-enhet-btn,
-.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-enhet-static {
+.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-antall {
     opacity: 0.3;
 }
 
-.picker-mat-enhet-btn {
-    width: 75px;
-    flex-shrink: 0;
-    padding: 8px 4px;
-    font-size: 13px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #fff;
-    text-align: center;
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.picker-mat-enhet-btn.placeholder {
-    color: #999;
-}
-.picker-mat-enhet-static {
-    width: 75px;
-    flex-shrink: 0;
-    padding: 8px 4px;
-    font-size: 13px;
-    text-align: center;
-    color: #999;
-    white-space: nowrap;
-}
-
-.picker-mat-enhet-btn:active {
-    background: #f5f5f5;
-}
-
-.picker-mat-antall:disabled,
-.picker-mat-enhet-btn:disabled {
+.picker-mat-antall:disabled {
     opacity: 0.3;
     cursor: default;
     pointer-events: none;
-}
-
-/* Unit picker bottom sheet */
-.unit-picker-backdrop {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.25);
-    z-index: 60;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-}
-
-.unit-picker-backdrop.active {
-    display: flex;
-}
-
-.unit-picker-backdrop.visible {
-    opacity: 1;
-}
-
-.unit-picker-sheet {
-    background: #fff;
-    border-radius: 14px;
-    width: calc(100% - 32px);
-    max-width: 340px;
-    max-height: 85vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-    transform: scale(0.95);
-    transition: transform 0.15s ease;
-}
-
-.unit-picker-backdrop.visible .unit-picker-sheet {
-    transform: scale(1);
-}
-
-.unit-picker-header {
-    padding: 14px 16px 8px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #999;
-}
-
-.unit-picker-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0;
-}
-
-.unit-picker-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 14px 16px;
-    font-size: 15px;
-    border: none;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-    color: #333;
-    box-sizing: border-box;
-    transition: background 0.1s ease;
-}
-
-.unit-picker-item:not(:last-child) {
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.unit-picker-item:active {
-    background: #f8f8f8;
-}
-
-.unit-picker-item-selected {
-    color: #E8501A;
-    font-weight: 600;
-}
-
-.unit-picker-item-check {
-    font-size: 16px;
-    color: #E8501A;
-    width: 20px;
-    text-align: center;
-}
-
-.unit-picker-custom {
-    display: flex;
-    gap: 8px;
-    padding: 12px 16px;
-    border-top: 1px solid #f0f0f0;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    width: 100%;
-}
-
-.unit-picker-custom input {
-    flex: 1;
-    min-width: 0;
-    padding: 10px 12px;
-    font-size: 14px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    box-sizing: border-box;
-}
-
-.unit-picker-custom input:focus {
-    outline: none;
-    border-color: #E8501A;
-}
-
-.unit-picker-custom-ok {
-    padding: 10px 16px;
-    background: #E8501A;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
 }
 
 .picker-mat-custom .picker-mat-check {

@@ -242,8 +242,6 @@ const DEV_MODE = location.protocol === 'file:' || location.hostname === 'localho
 
 let authReady = false; // true after first onAuthStateChanged
 let cachedRequiredSettings = null;
-function sortAlpha(arr) { arr.sort((a, b) => a.localeCompare(b, 'no')); }
-function sortUnits(arr) { arr.sort((a, b) => (a.plural || '').localeCompare(b.plural || '', 'no')); }
 
 // Apply non-breaking spaces inside (…) and zero-width spaces after × for cleaner line-wrapping.
 // Display-only — never call on data that will be stored or compared.
@@ -422,10 +420,6 @@ function normalizeVariant(materialName, enhet) {
     return enhet;
 }
 
-function getInflectedUnit(materialName, enhet, antall) {
-    return enhet || '';
-}
-
 // Safe JSON parse from localStorage - prevents crash on corrupt data
 function safeParseJSON(key, fallback) {
     try { var v = JSON.parse(localStorage.getItem(key)); return v || fallback; }
@@ -438,11 +432,12 @@ function safeSetItem(key, value) {
     catch(e) { console.error('localStorage quota exceeded:', key); }
 }
 
-function enqueueUserDocSet(collectionName, docId, data, context) {
+function enqueueUserDocSet(collectionName, docId, data, context, options) {
     if (!currentUser || !db || !docId) return;
     if (!window._pendingFirestoreOps) window._pendingFirestoreOps = Promise.resolve();
     window._pendingFirestoreOps = window._pendingFirestoreOps.then(function() {
-        return db.collection('users').doc(currentUser.uid).collection(collectionName).doc(docId).set(data);
+        var ref = db.collection('users').doc(currentUser.uid).collection(collectionName).doc(docId);
+        return options ? ref.set(data, options) : ref.set(data);
     }).catch(function(e) {
         console.error((context || 'Firestore set') + ' error:', e);
     });
@@ -484,6 +479,16 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+function escapeJsStringAttr(str) {
+    return escapeHtml(String(str || '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029'));
+}
+
 // ============================================
 // FLERSPRÅK
 // ============================================
@@ -501,7 +506,7 @@ function setLanguage(lang) {
     applyTranslations();
     // Save to Firebase if logged in
     if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc('language').set({ lang }).catch(() => {});
+        enqueueUserDocSet('settings', 'language', { lang: lang }, 'Save language');
     }
 }
 
@@ -706,8 +711,7 @@ if (auth) {
                         // Migrer lokal data til Firebase
                         localSaved.forEach(function(form) {
                             if (form && form.id) {
-                                db.collection('users').doc(user.uid).collection('kappeforms').doc(form.id).set(form)
-                                    .catch(function(e) { console.error('Migrate kappe save error:', e); });
+                                enqueueUserDocSet('kappeforms', form.id, form, 'Migrate kappe save');
                             }
                         });
                     }
@@ -716,8 +720,7 @@ if (auth) {
                     } else if (localSent.length > 0) {
                         localSent.forEach(function(form) {
                             if (form && form.id) {
-                                db.collection('users').doc(user.uid).collection('kappeArchive').doc(form.id).set(form)
-                                    .catch(function(e) { console.error('Migrate kappe sent error:', e); });
+                                enqueueUserDocSet('kappeArchive', form.id, form, 'Migrate kappe sent');
                             }
                         });
                     }
@@ -1860,7 +1863,7 @@ function openMaterialPicker(btn, onConfirm) {
     }
 
     function renderPickerList() {
-        pickerRenderFn = renderPickerList; // Expose for unitPickerCallback
+        pickerRenderFn = renderPickerList;
         // Build list: configured materials + checked spec-derived entries + checked custom entries
         const entries = [];
 
@@ -2080,7 +2083,6 @@ function openMaterialPicker(btn, onConfirm) {
         list.querySelectorAll('.picker-mat-row').forEach(row => {
             const nameDiv = row.querySelector('.picker-mat-check');
             const antallInput = row.querySelector('.picker-mat-antall');
-            const enhetBtn = row.querySelector('.picker-mat-enhet-btn');
             const name = row.getAttribute('data-mat-name');
             const matType = row.getAttribute('data-mat-type') || 'standard';
 
@@ -2179,10 +2181,6 @@ function openMaterialPicker(btn, onConfirm) {
                 var stdMatObj = allMaterials.find(function(m) { return m.name === lookupName; });
                 var stdVariants = stdMatObj && stdMatObj.allowedUnits && stdMatObj.allowedUnits.length > 0 ? stdMatObj.allowedUnits : null;
                 var defaultEnhet = stdVariants ? (typeof stdVariants[0] === 'string' ? stdVariants[0] : (stdVariants[0].plural || stdVariants[0])) : 'stk';
-                if (enhetBtn) {
-                    var btnEnhet = enhetBtn.getAttribute('data-enhet') || '';
-                    if (btnEnhet) defaultEnhet = btnEnhet;
-                }
                 pickerState[name] = { checked: false, antall: '', enhet: defaultEnhet };
             }
 
@@ -2199,34 +2197,6 @@ function openMaterialPicker(btn, onConfirm) {
                     // Vanlig produkt: valgt iff Antall har verdi
                     pickerState[name].checked = hasValue;
                     row.classList.toggle('picker-mat-selected', hasValue);
-                }
-                // Capture default enhet from button if not already set in state
-                if (!pickerState[name].enhet && enhetBtn) {
-                    var btnEnhet = enhetBtn.getAttribute('data-enhet') || '';
-                    if (btnEnhet) pickerState[name].enhet = btnEnhet;
-                }
-            });
-
-            if (enhetBtn) enhetBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                if (isSpecType) return;  // spec-launcher: enhet-knapp disabled
-                _ensureState();
-                // Find material object (handle __N keys)
-                var lookupName = name.replace(/__\d+$/, '');
-                var matObj = allMaterials.find(m => m.name === lookupName) || findBaseMaterial(name);
-                var variants = matObj && matObj.allowedUnits && matObj.allowedUnits.length > 0 ? matObj.allowedUnits : null;
-                if (variants) {
-                    var btnEl = this;
-                    var options = [];
-                    variants.forEach(function(v) {
-                        var label = typeof v === 'string' ? v : (v.plural || v);
-                        options.push({ label: label, type: 'variant' });
-                    });
-                    openVariantPopup(matObj.name, options, function(selected, type) {
-                        pickerState[name].enhet = selected;
-                        btnEl.setAttribute('data-enhet', selected);
-                        btnEl.textContent = selected;
-                    });
                 }
             });
 
@@ -2273,11 +2243,8 @@ function openMaterialPicker(btn, onConfirm) {
                         // Standard material: create __N duplicate, arve enhet fra kilde-raden
                         var sourceState = pickerState[name];
                         // Hvis kilde-raden ikke er i state ennå (f.eks. bruker har ikke skrevet noe),
-                        // fallback til knappens viste enhet, deretter materialets defaultUnit/første variant
+                        // fallback til materialets defaultUnit/første variant
                         var sourceEnhet = sourceState && sourceState.enhet ? sourceState.enhet : '';
-                        if (!sourceEnhet && enhetBtn) {
-                            sourceEnhet = enhetBtn.getAttribute('data-enhet') || '';
-                        }
                         var dupMatObj = allMaterials.find(m => m.name === baseName);
                         var dupHasVariants = dupMatObj && dupMatObj.allowedUnits && dupMatObj.allowedUnits.length > 0;
                         var defEnhet = sourceEnhet || (dupHasVariants
@@ -2616,51 +2583,6 @@ function pickerOverlayConfirm() {
         sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     }
     closePickerOverlay();
-}
-
-// Unit picker overlay
-let unitPickerCallback = null;
-
-function openUnitPicker(matName, btnEl, allowedUnits, matObj) {
-    const overlay = document.getElementById('unit-picker-overlay');
-    const listEl = document.getElementById('unit-picker-list');
-
-    listEl.innerHTML = '';
-
-    unitPickerCallback = function(value) {
-        btnEl.setAttribute('data-enhet', value);
-        btnEl.textContent = value || t('placeholder_unit');
-        btnEl.classList.toggle('placeholder', !value);
-        if (!pickerState[matName]) pickerState[matName] = { checked: false, antall: '', enhet: '' };
-        pickerState[matName].enhet = value;
-        // Auto-select when both antall and enhet are filled
-        if (value && pickerState[matName].antall && !pickerState[matName].checked) {
-            pickerState[matName].checked = true;
-            if (pickerRenderFn) pickerRenderFn();
-        }
-    };
-
-    // Unit item click
-    listEl.querySelectorAll('.unit-picker-item').forEach(item => {
-        item.addEventListener('click', function() {
-            // Get only the label text, excluding the check mark span
-            var label = this.childNodes[0].textContent;
-            unitPickerCallback(label);
-            closeUnitPicker();
-        });
-    });
-
-    overlay.classList.add('active');
-    requestAnimationFrame(() => overlay.classList.add('visible'));
-}
-
-function closeUnitPicker() {
-    const overlay = document.getElementById('unit-picker-overlay');
-    overlay.classList.remove('visible');
-    setTimeout(() => {
-        overlay.classList.remove('active');
-        unitPickerCallback = null;
-    }, 150);
 }
 
 // Variant popup for standard materials with variants

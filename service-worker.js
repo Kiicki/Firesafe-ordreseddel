@@ -1,4 +1,4 @@
-const CACHE_NAME = 'firesafe-v1154';
+const CACHE_NAME = 'firesafe-v1156';
 const ASSETS = [
     '/Firesafe-ordreseddel/',
     '/Firesafe-ordreseddel/index.html',
@@ -35,6 +35,15 @@ self.addEventListener('fetch', event => {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
         return;
     }
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
+    const isSameOrigin = url.origin === self.location.origin;
+    const isKnownExternalAsset = ASSETS.includes(event.request.url);
+    if (!isSameOrigin && !isKnownExternalAsset) {
+        return;
+    }
 
     // Let Firebase requests go to network always
     if (url.hostname.includes('googleapis.com') || url.hostname.includes('gstatic.com') || url.hostname.includes('firebaseapp.com')) {
@@ -54,7 +63,7 @@ self.addEventListener('fetch', event => {
             })
             .catch(() => {
                 // Network failed, try cache
-                return caches.match(event.request, { ignoreSearch: true });
+                return caches.match(event.request, { ignoreSearch: true }).then(cached => cached || Response.error());
             })
     );
 });

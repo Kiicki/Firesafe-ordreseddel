@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=568">
+    <link rel="stylesheet" href="styles.css?v=569">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -1126,16 +1126,6 @@
         </div>
     </div>
 
-    <!-- Unit picker overlay -->
-    <div class="unit-picker-backdrop" id="unit-picker-overlay" onclick="if(event.target===this)closeUnitPicker()">
-        <div class="unit-picker-sheet">
-            <div class="unit-picker-header">
-                <span data-i18n="placeholder_unit">Enhet</span>
-            </div>
-            <div class="unit-picker-list" id="unit-picker-list"></div>
-        </div>
-    </div>
-
     <!-- Spec input popup -->
     <div class="spec-popup-backdrop" id="spec-popup" onclick="if(event.target===this)closeSpecPopup()">
         <div class="spec-popup-sheet">
@@ -1574,8 +1564,8 @@
     </div>
 
     <script src="lang.js?v=210"></script>
-    <script src="script.js?v=344"></script>
-    <script src="script-ui.js?v=638"></script>
+    <script src="script.js?v=345"></script>
+    <script src="script-ui.js?v=639"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
