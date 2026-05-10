@@ -6341,6 +6341,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // - Lukking: forsinkes 400ms — må være vedvarende lukket
     var stableKeyboardOpen = false;
     var keyboardCloseTimer = null;
+    var keyboardFocusPendingUntil = 0;
     var IS_TOUCH_DEVICE = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
         || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
     // Sporer om visualViewport-deteksjon faktisk fungerer på denne enheten.
@@ -6348,11 +6349,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Etter det stoler vi på vv-deteksjon (også for å detektere når tastatur
     // lukkes, f.eks. via Android back-knapp som ikke alltid blur'er input).
     var vvDetectionConfirmed = false;
+    function _isKeyboardOpenByViewport() {
+        if (!window.visualViewport) return false;
+        var vv = window.visualViewport;
+        return (window.innerHeight - vv.height - vv.offsetTop) > KEYBOARD_THRESHOLD;
+    }
     function _isKeyboardOpenRaw() {
         if (window.visualViewport) {
-            var vv = window.visualViewport;
-            var rawHeight = window.innerHeight - vv.height - vv.offsetTop;
-            if (rawHeight > KEYBOARD_THRESHOLD) {
+            if (_isKeyboardOpenByViewport()) {
                 // vv viser tydelig at tastatur er åpent — markér at vv fungerer
                 // på denne enheten, og bruk vv som autoritativ kilde fremover.
                 vvDetectionConfirmed = true;
@@ -6394,14 +6398,38 @@ document.addEventListener('DOMContentLoaded', function() {
         return !!(activeView && FORM_VIEW_IDS.indexOf(activeView.id) !== -1);
     }
 
-    function syncKeyboardFocusClass(focusedEl) {
-        var shouldUseFormKeyboardLayout = !!(
+    function syncKeyboardFocusClass(focusedEl, keyboardOpen) {
+        var focusWantsFormKeyboardLayout = !!(
             IS_TOUCH_DEVICE &&
             isFormViewActive() &&
             focusedEl &&
             isKeyboardOpeningElement(focusedEl)
         );
+        var viewportOpen = _isKeyboardOpenByViewport();
+        var viewportSaysClosed = vvDetectionConfirmed && !viewportOpen;
+        var inFocusGrace = Date.now() < keyboardFocusPendingUntil;
+        var shouldUseFormKeyboardLayout = focusWantsFormKeyboardLayout && (
+            keyboardOpen ||
+            viewportOpen ||
+            inFocusGrace ||
+            !vvDetectionConfirmed
+        );
+        if (viewportSaysClosed && !inFocusGrace) {
+            shouldUseFormKeyboardLayout = false;
+        }
         document.body.classList.toggle('keyboard-focus', shouldUseFormKeyboardLayout);
+    }
+
+    function settleClosedKeyboardFromViewport() {
+        if (!vvDetectionConfirmed || _isKeyboardOpenByViewport()) return;
+        keyboardFocusPendingUntil = 0;
+        if (keyboardCloseTimer) {
+            clearTimeout(keyboardCloseTimer);
+            keyboardCloseTimer = null;
+        }
+        stableKeyboardOpen = false;
+        document.body.classList.remove('keyboard-open', 'keyboard-focus');
+        forceNextApply = true;
     }
 
     function scheduleApply() {
@@ -6491,6 +6519,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var fullHeight = vv.offsetTop + vv.height;
         var activeView = document.querySelector('.view.active');
         var activeId = activeView ? activeView.id : null;
+        syncKeyboardFocusClass(document.activeElement, keyboardOpen);
+        var keyboardFocusActive = document.body.classList.contains('keyboard-focus');
 
         // === Materiell state-sjekk ===
         // Bygg en signatur av logisk state. Bevisst INGEN vv.height/offsetTop —
@@ -6512,6 +6542,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var inntakMode = document.body.classList.contains('servicebil-inntak-mode') ? '1' : '0';
         var stateKey =
             (keyboardOpen ? '1' : '0') + '|' +
+            (keyboardFocusActive ? '1' : '0') + '|' +
             (activeId || '') + '|' +
             activePopupSig + '|' +
             activeOverlaySig + '|' +
@@ -6524,7 +6555,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // CSS body.keyboard-open-regler håndterer form-views (view-form etc.):
         // position: static, body scroller, toolbar er i flow på slutten.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
-        syncKeyboardFocusClass(document.activeElement);
 
         // --- Modal-views: krymp til synlig viewport ---
         MODAL_VIEW_IDS.forEach(function(id) {
@@ -6642,6 +6672,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', function() {
+            settleClosedKeyboardFromViewport();
             // Umiddelbar apply: state-memo filtrerer URL-bar-mikrobevegelser.
             // Hvis logisk state har endret seg (keyboardOpen, popups), kjører
             // apply for å gi rask respons.
@@ -6734,15 +6765,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     document.addEventListener('focusin', function(e) {
         if (isKeyboardOpeningElement(e.target)) {
-            syncKeyboardFocusClass(e.target);
+            keyboardFocusPendingUntil = Date.now() + 1200;
+            syncKeyboardFocusClass(e.target, true);
             scheduleApply();
         }
     });
     document.addEventListener('focusout', function(e) {
         if (isKeyboardOpeningElement(e.target)) {
+            keyboardFocusPendingUntil = 0;
             setTimeout(function() {
-                syncKeyboardFocusClass(document.activeElement);
-                scheduleApply();
+                syncKeyboardFocusClass(document.activeElement, false);
+                scheduleForcedApply();
             }, 50);
         }
     });
