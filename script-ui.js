@@ -12,6 +12,29 @@ var _lastLocalSaveTs = 0;
 var _pendingFirestoreOps = window._pendingFirestoreOps || Promise.resolve();
 window._pendingFirestoreOps = _pendingFirestoreOps;
 
+document.addEventListener('click', function(e) {
+    var link = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!link) return;
+
+    var href = link.getAttribute('href');
+    if (!href || href.charAt(0) === '#') return;
+
+    var url;
+    try {
+        url = new URL(href, window.location.href);
+    } catch (err) {
+        return;
+    }
+
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.origin === window.location.origin) {
+        return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+    window.open(url.href, '_blank', 'noopener,noreferrer');
+});
+
 // Bulk select mode state (saved-modal multi-select for bulk export)
 var _selectMode = false;
 var _selectedSet = new Set();  // indices into active tab's loaded array
