@@ -6340,25 +6340,34 @@ document.addEventListener('DOMContentLoaded', function() {
     // - Lukking: forsinkes 400ms — må være vedvarende lukket
     var stableKeyboardOpen = false;
     var keyboardCloseTimer = null;
-    // Touch-enhets-deteksjon for å skille mellom mobil/tablet (har skjermtastatur)
-    // og desktop (fysisk tastatur, ingen on-screen).
     var IS_TOUCH_DEVICE = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
         || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    // Sporer om visualViewport-deteksjon faktisk fungerer på denne enheten.
+    // Settes til true første gang vi observerer vv.height krympet pga tastatur.
+    // Etter det stoler vi på vv-deteksjon (også for å detektere når tastatur
+    // lukkes, f.eks. via Android back-knapp som ikke alltid blur'er input).
+    var vvDetectionConfirmed = false;
     function _isKeyboardOpenRaw() {
-        // Touch-enhet: focus på et tekst-input/textarea ER skjermtastatur åpent.
-        // Dette er den ENESTE pålitelige deteksjonen på tvers av browsere/PWA-modus.
-        // visualViewport-sammenligning er upålitelig fordi PWA-modus, gamle
-        // browser-versjoner og forskjellige interactive-widget-implementasjoner
-        // kan gi ulike resultater.
-        if (IS_TOUCH_DEVICE) {
-            return !!(document.activeElement && isKeyboardOpeningElement(document.activeElement));
-        }
-        // Desktop: bruk vv-sammenligning (i tilfelle touchscreen-laptop med
-        // skjermtastatur). Vanligvis uvanlig.
         if (window.visualViewport) {
             var vv = window.visualViewport;
             var rawHeight = window.innerHeight - vv.height - vv.offsetTop;
-            if (rawHeight > KEYBOARD_THRESHOLD) return true;
+            if (rawHeight > KEYBOARD_THRESHOLD) {
+                // vv viser tydelig at tastatur er åpent — markér at vv fungerer
+                // på denne enheten, og bruk vv som autoritativ kilde fremover.
+                vvDetectionConfirmed = true;
+                return true;
+            }
+            // Hvis vv har fungert før, stol på den nå — vv viser at tastatur
+            // er lukket, så det ER lukket. Ignorer focus (input kan forbli
+            // fokusert etter Android back-knapp uten at tastatur er åpent).
+            if (vvDetectionConfirmed) return false;
+        }
+        // Fallback: vv har aldri fungert (eller ikke tilgjengelig) — bruk
+        // focus-basert deteksjon på touch-enheter. Dette dekker race-condition
+        // der vv ikke har respondert på keyboard-åpning enda, OG eldre browsere
+        // som ikke honorerer interactive-widget=resizes-visual.
+        if (IS_TOUCH_DEVICE && document.activeElement && isKeyboardOpeningElement(document.activeElement)) {
+            return true;
         }
         return false;
     }
