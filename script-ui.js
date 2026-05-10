@@ -50,10 +50,7 @@ function refreshActiveView() {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
             window.loadedTemplates = result.forms;
-            if (document.body.classList.contains('template-modal-open')) {
-                var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
-                renderTemplateList(activeTemplates, false, _templateHasMore);
-            }
+            safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
         }).catch(function(e) { console.error('Refresh templates:', e); });
     }
 }
@@ -553,52 +550,9 @@ function switchHentTab(tab) {
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 
-// Action popup
-function showItemMenu(event, type, index, isSent) {
-    event.stopPropagation();
-    var actions = [];
-    var title = '';
-    if (type === 'form') {
-        var form = window.loadedForms[index];
-        if (form) title = form.ordreseddelNr || '';
-        if (isSent) {
-            actions.push({ label: t('sent_banner_move'), onclick: 'moveToSaved(null, ' + index + ')' });
-        } else {
-            actions.push({ label: t('duplicate_btn'), onclick: 'duplicateForm(null, ' + index + ')' });
-        }
-        actions.push({ label: t('delete_btn'), onclick: 'deleteForm(null, ' + index + ')', disabled: isSent });
-    } else if (type === 'template') {
-        var tmpl = window.loadedTemplates[index];
-        if (tmpl) {
-            title = [tmpl.prosjektnavn, tmpl.oppdragsgiver, tmpl.prosjektnr].filter(function(x) { return x; }).join(' • ');
-        }
-        actions.push({ label: t('duplicate_btn'), onclick: 'duplicateTemplate(' + index + ')' });
-        actions.push({ label: t('delete_btn'), onclick: 'deleteTemplate(null, ' + index + ')' });
-    }
-    showActionPopup(title, actions);
-}
-
-function showActionPopup(title, actions) {
-    const popup = document.getElementById('action-popup');
-    var titleEl = document.getElementById('action-popup-title');
-    titleEl.textContent = title;
-    titleEl.style.display = title ? '' : 'none';
-    const buttonsEl = document.getElementById('action-popup-buttons');
-    buttonsEl.innerHTML = actions.map((a, i) =>
-        `<div class="confirm-modal-buttons"${i > 0 ? ' style="margin-top:8px"' : ''}><button class="confirm-btn-ok" style="background:#333;flex:1${a.disabled ? ';opacity:0.4;pointer-events:none' : ''}" onclick="${a.onclick}; closeActionPopup()"${a.disabled ? ' disabled' : ''}>${a.label}</button></div>`
-    ).join('') +
-    '<div class="confirm-modal-buttons" style="margin-top:4px"><button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button></div>';
-    popup.classList.add('active');
-}
-
 function closeActionPopup(e) {
     if (e && e.target !== document.getElementById('action-popup')) return;
     document.getElementById('action-popup').classList.remove('active');
-}
-
-function showSaveMenu() {
-    if (isModalOpen()) return;
-    saveForm();
 }
 
 // ─── Preview overlay ────────────────────────────────────────────────────────
@@ -1106,28 +1060,6 @@ function filterList(listId, searchId) {
                     }
                 });
             }
-        } else if (listId === 'template-list') {
-            if (!_templatesAll) _templatesAll = window.loadedTemplates ? window.loadedTemplates.slice() : [];
-            if (!term) { var all3 = _templatesAll; _templatesAll = null; renderTemplateList(all3, false, _templateHasMore); return; }
-            var filtered3 = _templatesAll.filter(function(f) {
-                return (f.prosjektnavn || '').toLowerCase().startsWith(term) ||
-                       (f.oppdragsgiver || '').toLowerCase().startsWith(term) ||
-                       (f.prosjektnr || '').toLowerCase().startsWith(term);
-            });
-            renderTemplateList(filtered3);
-            // Søk i Firestore etter ulastede maler
-            if (_templateHasMore && currentUser && db) {
-                var ver3 = ++_searchVersion;
-                firestoreSearchForms(rawTerm, [
-                    { name: 'templates', isSent: false }
-                ], 'prosjektnavn').then(function(fsResults) {
-                    if (ver3 !== _searchVersion) return;
-                    var merged = mergeSearchResults(filtered3, fsResults);
-                    if (merged.length > filtered3.length) {
-                        renderTemplateList(merged);
-                    }
-                });
-            }
         } else if (listId === 'template-picker-list') {
             var cachedAll = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
             var pickerListEl = document.getElementById('template-picker-list');
@@ -1373,46 +1305,6 @@ function _buildTemplateItemHtml(item, index) {
     '</div>';
 }
 
-function renderTemplateList(templates, append, hasMore) {
-    var listEl = document.getElementById('template-list');
-    if (!listEl) return;
-    var existingBtn = listEl.querySelector('.load-more-btn');
-    if (existingBtn) existingBtn.remove();
-
-    if (!append) {
-        if (!templates || templates.length === 0) {
-            listEl.innerHTML = '<div class="no-saved">' + t('no_templates') + '</div>';
-            return;
-        }
-        window.loadedTemplates = templates;
-        listEl.innerHTML = templates.map(function(item, i) { return _buildTemplateItemHtml(item, i); }).join('');
-    } else {
-        var startIndex = window.loadedTemplates.length;
-        window.loadedTemplates = window.loadedTemplates.concat(templates);
-        var html = templates.map(function(item, i) { return _buildTemplateItemHtml(item, startIndex + i); }).join('');
-        listEl.insertAdjacentHTML('beforeend', html);
-    }
-
-    listEl.querySelectorAll('.saved-item').forEach(function(el, i) {
-        el._formData = window.loadedTemplates[i];
-    });
-
-    if (hasMore) {
-        listEl.insertAdjacentHTML('beforeend', '<button class="load-more-btn" onclick="loadMoreTemplates()">' + t('load_more') + '</button>');
-    }
-}
-
-async function loadMoreTemplates() {
-    var btn = document.querySelector('#template-list .load-more-btn');
-    if (btn) btn.textContent = '...';
-    if (_templateHasMore && _templateLastDoc) {
-        var result = await getTemplates(_templateLastDoc);
-        _templateLastDoc = result.lastDoc;
-        _templateHasMore = result.hasMore;
-        renderTemplateList(result.forms, true, _templateHasMore);
-    }
-}
-
 var _bilHistoryRendered = false;
 function showTemplateModal() {
     closeAllModals();
@@ -1429,12 +1321,6 @@ function autoFillOrderNumber() {
         document.getElementById('ordreseddel-nr').value = nextNr;
         document.getElementById('mobile-ordreseddel-nr').value = nextNr;
     }
-}
-
-function loadTemplate(index) {
-    const template = window.loadedTemplates[index];
-    if (!template) return;
-    loadTemplateDirect(template);
 }
 
 function loadTemplateDirect(template) {
@@ -1479,13 +1365,6 @@ function loadTemplateDirect(template) {
     window.scrollTo(0, 0);
 }
 
-function deleteTemplate(event, index) {
-    if (event) event.stopPropagation();
-    const template = window.loadedTemplates[index];
-    if (!template) return;
-    deleteTemplateDirect(template);
-}
-
 function deleteTemplateDirect(template) {
     if (!template) return;
     showConfirmModal(t('template_delete_confirm'), function() {
@@ -1506,32 +1385,6 @@ function deleteTemplateDirect(template) {
                 .catch(function(e) { console.error('Delete template error:', e); });
         }
     });
-}
-
-async function duplicateTemplate(index) {
-    const template = window.loadedTemplates[index];
-    if (!template) return;
-
-    showConfirmModal(t('duplicate_confirm'), async function() {
-    const copy = Object.assign({}, template);
-    copy.prosjektnavn = (copy.prosjektnavn || '') + ' (kopi)';
-    copy.createdAt = new Date().toISOString();
-
-    // Update localStorage + local state immediately (optimistic)
-    copy.id = Date.now().toString();
-    const templates = safeParseJSON(TEMPLATE_KEY, []);
-    templates.push(copy);
-    safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
-    if (window.loadedTemplates) window.loadedTemplates.push(copy);
-    showNotificationModal(t('duplicated_success'), true);
-    showTemplateModal();
-
-    // Firebase in background
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('templates').doc(copy.id).set(copy)
-            .catch(function(e) { console.error('Duplicate template error:', e); });
-    }
-    }, t('duplicate_btn'));
 }
 
 function closeTemplateModal() {
@@ -3253,28 +3106,6 @@ function updateRequiredIndicators() {
 
 const DEFAULT_FIELDS = ['montor', 'avdeling', 'sted'];
 
-var _defaultsTab = 'own';
-
-async function getDefaultSettings(tab) {
-    var fbDoc = tab === 'service' ? 'defaults_service' : tab === 'kappe' ? 'defaults_kappe' : 'defaults';
-    var storageKey = tab === 'service' ? SERVICE_DEFAULTS_KEY : tab === 'kappe' ? KAPPE_DEFAULTS_KEY : DEFAULTS_KEY;
-    if (currentUser && db) {
-        try {
-            var doc = await db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).get();
-            if (doc.exists) {
-                var data = doc.data();
-                // Hold localStorage i synk med Firebase
-                safeSetItem(storageKey, JSON.stringify(data));
-                return data;
-            }
-        } catch (e) {
-            console.error('Defaults error:', e);
-        }
-    }
-    var stored = localStorage.getItem(storageKey);
-    return stored ? JSON.parse(stored) : {};
-}
-
 async function syncDefaultsToLocal() {
     if (!db || !currentUser) return;
     try {
@@ -3297,185 +3128,6 @@ async function syncDefaultsToLocal() {
     } catch (e) { /* localStorage-cache brukes som fallback */ }
 }
 
-function saveDefaultSettings() {
-    if (_defaultsTab === 'service') {
-        // Save service defaults
-        var sDefaults = {};
-        var montorEl = document.getElementById('default-service-montor');
-        if (montorEl && montorEl.value.trim()) sDefaults.montor = montorEl.value.trim();
-        var existing = safeParseJSON(SERVICE_DEFAULTS_KEY, {});
-        if (existing.autofill_uke !== undefined) sDefaults.autofill_uke = existing.autofill_uke;
-        safeSetItem(SERVICE_DEFAULTS_KEY, JSON.stringify(sDefaults));
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_service').set(sDefaults)
-                .catch(function(e) { console.error('Save service defaults error:', e); });
-        }
-        return;
-    }
-
-    if (_defaultsTab === 'kappe') {
-        var kDefaults = {};
-        KAPPE_DEFAULT_FIELDS.forEach(function(field) {
-            var el = document.getElementById('default-kappe-' + field);
-            if (el && el.value.trim()) kDefaults[field] = el.value.trim();
-        });
-        // Bevar autofill-flagg
-        var kExisting = safeParseJSON(KAPPE_DEFAULTS_KEY, {});
-        KAPPE_DEFAULT_FIELDS.forEach(function(field) {
-            var k = 'autofill_' + field;
-            if (kExisting[k] !== undefined) kDefaults[k] = kExisting[k];
-        });
-        safeSetItem(KAPPE_DEFAULTS_KEY, JSON.stringify(kDefaults));
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection('settings').doc('defaults_kappe').set(kDefaults)
-                .catch(function(e) { console.error('Save kappe defaults error:', e); });
-        }
-        return;
-    }
-
-    // Save ordreseddel defaults
-    var defaults = {};
-    DEFAULT_FIELDS.forEach(field => {
-        var val = document.getElementById('default-' + field).value.trim();
-        if (val) defaults[field] = val;
-    });
-    var key = DEFAULTS_KEY;
-    var fbDoc = 'defaults';
-    var existing = safeParseJSON(key, {});
-    ['autofill_montor', 'autofill_avdeling', 'autofill_sted', 'autofill_uke', 'autofill_dato'].forEach(function(k) {
-        if (existing[k] !== undefined) defaults[k] = existing[k];
-    });
-    safeSetItem(key, JSON.stringify(defaults));
-
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults)
-            .catch(function(e) { console.error('Save defaults error:', e); });
-    }
-}
-
-// Auto-save defaults on blur
-let defaultsInitialValues = {};
-let defaultsAutoSaveInitialized = false;
-
-function initDefaultsAutoSave() {
-    if (defaultsAutoSaveInitialized) return;
-    defaultsAutoSaveInitialized = true;
-
-    DEFAULT_FIELDS.forEach(field => {
-        const input = document.getElementById('default-' + field);
-        if (input) {
-            input.addEventListener('blur', async function() {
-                const newVal = this.value.trim();
-                if (newVal !== defaultsInitialValues[field]) {
-                    defaultsInitialValues[field] = newVal;
-                    await saveDefaultSettings();
-                    showNotificationModal(t('settings_defaults_saved'), true);
-                }
-            });
-        }
-    });
-
-    // Service defaults auto-save
-    var serviceMontor = document.getElementById('default-service-montor');
-    if (serviceMontor) {
-        serviceMontor.addEventListener('blur', function() {
-            var prev = _defaultsTab;
-            _defaultsTab = 'service';
-            saveDefaultSettings();
-            _defaultsTab = prev;
-            showNotificationModal(t('settings_defaults_saved'), true);
-        });
-    }
-
-    // Kappe defaults auto-save
-    KAPPE_DEFAULT_FIELDS.forEach(function(field) {
-        var input = document.getElementById('default-kappe-' + field);
-        if (!input) return;
-        input.addEventListener('blur', function() {
-            var newVal = this.value.trim();
-            var cacheKey = 'kappe_' + field;
-            if (newVal !== defaultsInitialValues[cacheKey]) {
-                defaultsInitialValues[cacheKey] = newVal;
-                var prev = _defaultsTab;
-                _defaultsTab = 'kappe';
-                saveDefaultSettings();
-                _defaultsTab = prev;
-                showNotificationModal(t('settings_defaults_saved'), true);
-            }
-        });
-    });
-}
-
-var KAPPE_DEFAULT_FIELDS = ['avdeling', 'bestiller', 'mottaker', 'veiadresse', 'postnr', 'poststed', 'kontakt', 'tlf'];
-
-function _applyDefaultsToUI(defaults, tab) {
-    if (!tab || tab === 'own') {
-        DEFAULT_FIELDS.forEach(function(field) {
-            var input = document.getElementById('default-' + field);
-            if (input) {
-                input.value = defaults[field] || '';
-                defaultsInitialValues[field] = input.value;
-            }
-        });
-        ['montor', 'avdeling', 'sted', 'uke', 'dato'].forEach(function(key) {
-            var cb = document.getElementById('autofill-' + key);
-            if (cb) {
-                cb.checked = defaults['autofill_' + key] !== false;
-                _updateAutofillInputState(key);
-            }
-        });
-    } else if (tab === 'service') {
-        var montorEl = document.getElementById('default-service-montor');
-        if (montorEl) montorEl.value = defaults.montor || '';
-        var montorCb = document.getElementById('autofill-service-montor');
-        if (montorCb) {
-            montorCb.checked = defaults.autofill_montor !== false;
-            _updateAutofillInputState('montor', 'service');
-        }
-        var datoEl = document.getElementById('autofill-service-dato');
-        if (datoEl) datoEl.checked = defaults.autofill_dato !== false;
-    } else if (tab === 'kappe') {
-        KAPPE_DEFAULT_FIELDS.forEach(function(field) {
-            var input = document.getElementById('default-kappe-' + field);
-            if (input) {
-                input.value = defaults[field] || '';
-                defaultsInitialValues['kappe_' + field] = input.value;
-            }
-            var cb = document.getElementById('autofill-kappe-' + field);
-            if (cb) {
-                cb.checked = defaults['autofill_' + field] !== false;
-                _updateAutofillInputState(field, 'kappe');
-            }
-        });
-    }
-}
-
-function _updateAutofillInputState(key, type) {
-    var prefix = type === 'service' ? 'default-service-'
-              : type === 'kappe' ? 'default-kappe-'
-              : 'default-';
-    var cbId = type === 'service' ? 'autofill-service-' + key
-             : type === 'kappe' ? 'autofill-kappe-' + key
-             : 'autofill-' + key;
-    var input = document.getElementById(prefix + key);
-    var cb = document.getElementById(cbId);
-    if (input && cb) {
-        input.disabled = !cb.checked;
-    }
-}
-
-function loadDefaultsForTab(tab) {
-    var storageKey = tab === 'service' ? SERVICE_DEFAULTS_KEY : tab === 'kappe' ? KAPPE_DEFAULTS_KEY : DEFAULTS_KEY;
-    // Show cached immediately
-    var stored = localStorage.getItem(storageKey);
-    _applyDefaultsToUI(stored ? JSON.parse(stored) : {}, tab);
-    // Background refresh
-    getDefaultSettings(tab).then(function(defaults) {
-        if (document.body.classList.contains('settings-modal-open'))
-            _applyDefaultsToUI(defaults, tab);
-    });
-}
-
 function autoFillDefaults(type) {
     var defaults = getMinInfo();
     DEFAULT_FIELDS.forEach(field => {
@@ -3487,40 +3139,6 @@ function autoFillDefaults(type) {
             if (mobileEl) mobileEl.value = defaults[field];
         }
     });
-}
-
-function getAutofillFlags(type) {
-    var defaults = getMinInfo();
-    return {
-        montor: defaults.autofill_montor !== false,
-        avdeling: defaults.autofill_avdeling !== false,
-        uke: defaults.autofill_uke !== false,
-        dato: defaults.autofill_dato !== false,
-        sted: defaults.autofill_sted !== false
-    };
-}
-
-function saveAutofillToggle(key, value, type) {
-    var scope = type || _defaultsTab;
-    var storageKey = scope === 'service' ? SERVICE_DEFAULTS_KEY
-                   : scope === 'kappe' ? KAPPE_DEFAULTS_KEY
-                   : DEFAULTS_KEY;
-    var fbDoc = scope === 'service' ? 'defaults_service'
-              : scope === 'kappe' ? 'defaults_kappe'
-              : 'defaults';
-    var stored = localStorage.getItem(storageKey);
-    var defaults = stored ? JSON.parse(stored) : {};
-    defaults['autofill_' + key] = value;
-    safeSetItem(storageKey, JSON.stringify(defaults));
-
-    // Update input disabled state
-    _updateAutofillInputState(key, scope === 'service' ? 'service' : scope === 'kappe' ? 'kappe' : undefined);
-
-    // Firebase in background
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('settings').doc(fbDoc).set(defaults)
-            .catch(function(e) { console.error('Save autofill toggle:', e); });
-    }
 }
 
 function renderSettingsRanges() {
@@ -6341,39 +5959,53 @@ document.addEventListener('DOMContentLoaded', function() {
     // - Lukking: forsinkes 400ms — må være vedvarende lukket
     var stableKeyboardOpen = false;
     var keyboardCloseTimer = null;
-    var keyboardFocusPendingUntil = 0;
+    var keyboardBaselineInnerHeight = window.innerHeight || 0;
     var IS_TOUCH_DEVICE = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
         || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-    // Sporer om visualViewport-deteksjon faktisk fungerer på denne enheten.
-    // Settes til true første gang vi observerer vv.height krympet pga tastatur.
-    // Etter det stoler vi på vv-deteksjon (også for å detektere når tastatur
-    // lukkes, f.eks. via Android back-knapp som ikke alltid blur'er input).
-    var vvDetectionConfirmed = false;
+    // Sporer hvilke keyboard-målinger som faktisk fungerer på enheten.
+    // Noen Android/PWA-varianter krymper visualViewport, andre krymper
+    // window.innerHeight. Fokus brukes bare som fallback før en målemetode
+    // har bekreftet at den kan se keyboardet.
+    var viewportKeyboardDetectionConfirmed = false;
+    var layoutKeyboardDetectionConfirmed = false;
     function _isKeyboardOpenByViewport() {
         if (!window.visualViewport) return false;
         var vv = window.visualViewport;
         return (window.innerHeight - vv.height - vv.offsetTop) > KEYBOARD_THRESHOLD;
     }
+    function _isKeyboardOpenByLayoutResize() {
+        return (keyboardBaselineInnerHeight - window.innerHeight) > KEYBOARD_THRESHOLD;
+    }
+    function _hasFocusedFormKeyboardElement() {
+        return !!(
+            IS_TOUCH_DEVICE &&
+            isFormViewActive() &&
+            document.activeElement &&
+            isKeyboardOpeningElement(document.activeElement)
+        );
+    }
     function _isKeyboardOpenRaw() {
-        if (window.visualViewport) {
-            if (_isKeyboardOpenByViewport()) {
-                // vv viser tydelig at tastatur er åpent — markér at vv fungerer
-                // på denne enheten, og bruk vv som autoritativ kilde fremover.
-                vvDetectionConfirmed = true;
-                return true;
-            }
-            // Hvis vv har fungert før, stol på den nå — vv viser at tastatur
-            // er lukket, så det ER lukket. Ignorer focus (input kan forbli
-            // fokusert etter Android back-knapp uten at tastatur er åpent).
-            if (vvDetectionConfirmed) return false;
+        var viewportOpen = _isKeyboardOpenByViewport();
+        if (viewportOpen) {
+            viewportKeyboardDetectionConfirmed = true;
+            return true;
         }
+
+        var layoutOpen = _isKeyboardOpenByLayoutResize();
+        if (layoutOpen) {
+            layoutKeyboardDetectionConfirmed = true;
+            return true;
+        }
+
+        if (viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed) {
+            return false;
+        }
+
         // Fallback: vv har aldri fungert (eller ikke tilgjengelig) — bruk
         // focus-basert deteksjon på touch-enheter. Dette dekker race-condition
         // der vv ikke har respondert på keyboard-åpning enda, OG eldre browsere
         // som ikke honorerer interactive-widget=resizes-visual.
-        if (IS_TOUCH_DEVICE && document.activeElement && isKeyboardOpeningElement(document.activeElement)) {
-            return true;
-        }
+        if (_hasFocusedFormKeyboardElement()) return true;
         return false;
     }
     function updateKeyboardState() {
@@ -6399,35 +6031,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function syncKeyboardFocusClass(focusedEl, keyboardOpen) {
-        var focusWantsFormKeyboardLayout = !!(
+        var shouldUseFormKeyboardLayout = !!(
             IS_TOUCH_DEVICE &&
             isFormViewActive() &&
             focusedEl &&
-            isKeyboardOpeningElement(focusedEl)
+            isKeyboardOpeningElement(focusedEl) &&
+            keyboardOpen
         );
-        var viewportOpen = _isKeyboardOpenByViewport();
-        var viewportSaysClosed = vvDetectionConfirmed && !viewportOpen;
-        var inFocusGrace = Date.now() < keyboardFocusPendingUntil;
-        var shouldUseFormKeyboardLayout = focusWantsFormKeyboardLayout && (
-            keyboardOpen ||
-            viewportOpen ||
-            inFocusGrace ||
-            !vvDetectionConfirmed
-        );
-        if (viewportSaysClosed && !inFocusGrace) {
-            shouldUseFormKeyboardLayout = false;
-        }
         document.body.classList.toggle('keyboard-focus', shouldUseFormKeyboardLayout);
     }
 
-    function settleClosedKeyboardFromViewport() {
-        if (!vvDetectionConfirmed || _isKeyboardOpenByViewport()) return;
-        keyboardFocusPendingUntil = 0;
+    function settleClosedKeyboardFromMetrics() {
+        if (!(viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed)) return;
+        if (_isKeyboardOpenByViewport() || _isKeyboardOpenByLayoutResize()) return;
         if (keyboardCloseTimer) {
             clearTimeout(keyboardCloseTimer);
             keyboardCloseTimer = null;
         }
         stableKeyboardOpen = false;
+        keyboardBaselineInnerHeight = Math.max(keyboardBaselineInnerHeight || 0, window.innerHeight || 0);
         document.body.classList.remove('keyboard-open', 'keyboard-focus');
         forceNextApply = true;
     }
@@ -6672,7 +6294,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', function() {
-            settleClosedKeyboardFromViewport();
+            settleClosedKeyboardFromMetrics();
             // Umiddelbar apply: state-memo filtrerer URL-bar-mikrobevegelser.
             // Hvis logisk state har endret seg (keyboardOpen, popups), kjører
             // apply for å gi rask respons.
@@ -6765,14 +6387,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     document.addEventListener('focusin', function(e) {
         if (isKeyboardOpeningElement(e.target)) {
-            keyboardFocusPendingUntil = Date.now() + 1200;
+            keyboardBaselineInnerHeight = Math.max(keyboardBaselineInnerHeight || 0, window.innerHeight || 0);
             syncKeyboardFocusClass(e.target, true);
             scheduleApply();
         }
     });
     document.addEventListener('focusout', function(e) {
         if (isKeyboardOpeningElement(e.target)) {
-            keyboardFocusPendingUntil = 0;
             setTimeout(function() {
                 syncKeyboardFocusClass(document.activeElement, false);
                 scheduleForcedApply();
@@ -6920,20 +6541,15 @@ document.addEventListener('DOMContentLoaded', function() {
             updateServiceDeleteStates();
         }
     } else if (!hash || hash === '') {
-        // Home page - render cached templates (filter out deactivated)
-        var cached = safeParseJSON(TEMPLATE_KEY, []).filter(function(t) { return t.active !== false; });
-        renderTemplateList(cached);
+        window.loadedTemplates = safeParseJSON(TEMPLATE_KEY, []);
         updateToolbarState();
         // Background refresh
         if (currentUser && db) {
             getTemplates().then(function(result) {
                 _templateLastDoc = result.lastDoc;
                 _templateHasMore = result.hasMore;
+                window.loadedTemplates = result.forms;
                 safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
-                if (document.body.classList.contains('template-modal-open')) {
-                    var activeTemplates = result.forms.filter(function(t) { return t.active !== false; });
-                    renderTemplateList(activeTemplates, false, _templateHasMore);
-                }
             }).catch(function(e) { console.error('Refresh templates:', e); });
         }
     }
@@ -7014,7 +6630,7 @@ function _dismissOverlaysOnNavigation() {
     if (document.body.classList.contains('preview-active') && typeof closePreview === 'function') {
         closePreview();
     }
-    var specPopup = document.getElementById('spec-popup-overlay');
+    var specPopup = document.getElementById('spec-popup');
     if (specPopup && specPopup.classList.contains('active') && typeof closeSpecPopup === 'function') {
         closeSpecPopup();
     }
@@ -8549,14 +8165,6 @@ function toggleBilHistory() {
     if (btn) {
         btn.textContent = isExpanded ? t('bil_show_less') : t('bil_show_more', hidden.length);
     }
-}
-
-function openBilPafylling() {
-    openMaterialPicker(null, function(materials) {
-        if (materials.length > 0) {
-            saveBilPafylling(materials);
-        }
-    });
 }
 
 function saveBilPafylling(materials) {

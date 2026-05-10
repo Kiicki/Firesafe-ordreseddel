@@ -146,8 +146,8 @@ Resultat for form-views: body flyter naturlig som ett dokument. Sticky-headers (
 ÉN sentral funksjon eier all tastatur-respons. Hold det slik — ikke lag konkurrerende handlere.
 
 **Hva den gjør (idempotent):**
-1. Detekter keyboardOpen via `(window.innerHeight - vv.height - vv.offsetTop) > 100` med hysteresis (åpning umiddelbar, lukking forsinket 400ms for å unngå flicker ved kortvarig fokus-mistring under scroll)
-2. State-memo via signatur av (keyboardOpen + activeView + aktive popups + aktive overlays). Skip apply hvis logisk state er uendret. URL-bar-bevegelse under scroll blir filtrert bort siden den ikke endrer logisk state — momentum-scroll forstyrres ikke
+1. Detekter keyboardOpen via målinger, ikke tidsbaserte workarounds: først `visualViewport`, deretter `window.innerHeight` mot baseline fra før fokus. Fokus på text-input brukes bare som fallback før en målemetode har bekreftet at den fungerer på enheten.
+2. State-memo via signatur av (keyboardOpen + keyboard-focus + activeView + aktive popups + aktive overlays). Skip apply hvis logisk state er uendret. URL-bar-bevegelse under scroll blir filtrert bort siden den ikke endrer logisk state — momentum-scroll forstyrres ikke
 3. Toggle `body.keyboard-open` (Lag 1)
 4. Justere fullscreen-overlays + popup-content (Lag 2)
 
