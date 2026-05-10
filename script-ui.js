@@ -5927,8 +5927,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Form-views håndteres av CSS når tastaturet er åpent: view går tilbake
     // til normal dokumentflyt og toolbar ligger nederst i body-scrollen.
     var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
-    // Modal-views: scroll skjer i .modal-body. Toolbar reparentes der.
+    // Modal-views: krympes ved tastatur. Toolbar reparenteres kun for views
+    // der selve innholdet er en redigerbar scrollflate. På #hent skal toolbar
+    // ikke inn i resultatlisten; det skaper tomt grått felt under korte lister.
     var MODAL_VIEW_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
+    var MODAL_TOOLBAR_HOST_IDS = ['template-modal', 'settings-modal'];
     // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
     // Må krympes til synlig viewport ellers blir scroll i intern liste broken
     // (browseren mister touch-events for området bak tastaturet).
@@ -6168,7 +6171,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (list) return list;
             }
         }
-        if (MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
+        if (MODAL_TOOLBAR_HOST_IDS.indexOf(activeId) !== -1) {
             var modalView = document.getElementById(activeId);
             if (modalView) {
                 var bodies = modalView.querySelectorAll('.modal-body');
