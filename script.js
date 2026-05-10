@@ -28,27 +28,6 @@ const MIN_INFO_KEY = 'firesafe_min_info';
 const MIN_INFO_FIELDS = ['montor', 'avdeling', 'mobil', 'epost', 'sted'];
 const MIN_INFO_TOGGLES = ['montor', 'avdeling', 'mobil', 'epost', 'sted', 'uke', 'dato'];
 
-function getLeveringsadresser() {
-    try {
-        var raw = localStorage.getItem(LEVERINGSADRESSE_KEY);
-        if (!raw) return [];
-        var arr = JSON.parse(raw);
-        return Array.isArray(arr) ? arr : [];
-    } catch (e) { return []; }
-}
-
-function saveLeveringsadresseLocal(arr) {
-    try { localStorage.setItem(LEVERINGSADRESSE_KEY, JSON.stringify(arr)); } catch (e) {}
-}
-
-function findLeveringsadresseById(id) {
-    var arr = getLeveringsadresser();
-    for (var i = 0; i < arr.length; i++) {
-        if (arr[i].id === id) return arr[i];
-    }
-    return null;
-}
-
 // Single lager-objekt (én lager-adresse)
 function getLager() {
     try {
@@ -457,6 +436,41 @@ function safeParseJSON(key, fallback) {
 function safeSetItem(key, value) {
     try { localStorage.setItem(key, value); }
     catch(e) { console.error('localStorage quota exceeded:', key); }
+}
+
+function enqueueUserDocSet(collectionName, docId, data, context) {
+    if (!currentUser || !db || !docId) return;
+    if (!window._pendingFirestoreOps) window._pendingFirestoreOps = Promise.resolve();
+    window._pendingFirestoreOps = window._pendingFirestoreOps.then(function() {
+        return db.collection('users').doc(currentUser.uid).collection(collectionName).doc(docId).set(data);
+    }).catch(function(e) {
+        console.error((context || 'Firestore set') + ' error:', e);
+    });
+    if (typeof _pendingFirestoreOps !== 'undefined') _pendingFirestoreOps = window._pendingFirestoreOps;
+}
+
+function enqueueUserDocDelete(collectionName, docId, context) {
+    if (!currentUser || !db || !docId) return;
+    if (!window._pendingFirestoreOps) window._pendingFirestoreOps = Promise.resolve();
+    window._pendingFirestoreOps = window._pendingFirestoreOps.then(function() {
+        return db.collection('users').doc(currentUser.uid).collection(collectionName).doc(docId).delete();
+    }).catch(function(e) {
+        console.error((context || 'Firestore delete') + ' error:', e);
+    });
+    if (typeof _pendingFirestoreOps !== 'undefined') _pendingFirestoreOps = window._pendingFirestoreOps;
+}
+
+function enqueueUserDocMove(targetCollection, sourceCollection, docId, data, context) {
+    if (!currentUser || !db || !docId) return;
+    if (!window._pendingFirestoreOps) window._pendingFirestoreOps = Promise.resolve();
+    window._pendingFirestoreOps = window._pendingFirestoreOps.then(function() {
+        return db.collection('users').doc(currentUser.uid).collection(targetCollection).doc(docId).set(data);
+    }).then(function() {
+        return db.collection('users').doc(currentUser.uid).collection(sourceCollection).doc(docId).delete();
+    }).catch(function(e) {
+        console.error((context || 'Firestore move') + ' error:', e);
+    });
+    if (typeof _pendingFirestoreOps !== 'undefined') _pendingFirestoreOps = window._pendingFirestoreOps;
 }
 
 // Global HTML escape function - prevents XSS attacks
@@ -4571,16 +4585,10 @@ async function saveForm() {
                 showNotificationModal(t(wasSent ? 'update_success' : 'save_success'), true);
                 if (!wasSent) showSavedForms();
 
-                // Firebase: serialisert via _pendingFirestoreOps
-                if (currentUser && db) {
-                    var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
-                    var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
-                    var docId = data.id;
-                    _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                        return formsRef.doc(docId).set(data);
-                    }).then(function() {
-                        if (archivedIdx !== -1) return archiveRef.doc(docId).delete();
-                    }).catch(function(e) { console.error('Firestore save error:', e); });
+                if (archivedIdx !== -1) {
+                    enqueueUserDocMove(formsCollection, archiveCollection, data.id, data, 'Firestore save');
+                } else {
+                    enqueueUserDocSet(formsCollection, data.id, data, 'Firestore save');
                 }
             }, t('btn_update'), '#E8501A');
         } else {
@@ -4611,17 +4619,10 @@ async function saveForm() {
             showNotificationModal(t('save_success'), true);
             if (!wasSent2) showSavedForms();
 
-            // Firebase: serialisert via _pendingFirestoreOps
-            if (currentUser && db) {
-                var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
-                var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
-                var docId = data.id;
-                var hadArchived = archivedIdx !== -1;
-                _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                    return formsRef.doc(docId).set(data);
-                }).then(function() {
-                    if (hadArchived) return archiveRef.doc(docId).delete();
-                }).catch(function(e) { console.error('Firestore save error:', e); });
+            if (archivedIdx !== -1) {
+                enqueueUserDocMove(formsCollection, archiveCollection, data.id, data, 'Firestore save');
+            } else {
+                enqueueUserDocSet(formsCollection, data.id, data, 'Firestore save');
             }
         }
     } finally {

@@ -9,7 +9,8 @@ var _savedLastDoc = null, _sentLastDoc = null, _savedHasMore = false, _sentHasMo
 var _templateLastDoc = null, _templateHasMore = false;
 var _serviceLastDoc = null, _serviceSentLastDoc = null, _serviceHasMore = false, _serviceSentHasMore = false;
 var _lastLocalSaveTs = 0;
-var _pendingFirestoreOps = Promise.resolve();
+var _pendingFirestoreOps = window._pendingFirestoreOps || Promise.resolve();
+window._pendingFirestoreOps = _pendingFirestoreOps;
 
 // Bulk select mode state (saved-modal multi-select for bulk export)
 var _selectMode = false;
@@ -387,15 +388,6 @@ function loadFormDirect(formData) {
     window.scrollTo(0, 0);
 }
 
-async function duplicateForm(event, index) {
-    if (event) event.stopPropagation();
-    const form = window.loadedForms[index];
-    if (!form) return;
-    showConfirmModal(t('duplicate_confirm'), function() {
-        duplicateFormDirect(form);
-    }, t('duplicate_btn'));
-}
-
 async function duplicateFormDirect(form) {
     if (!form) return;
 
@@ -467,13 +459,7 @@ function deleteFormDirect(form) {
 
         _lastLocalSaveTs = Date.now();
 
-        // Firebase in background (serialized)
-        if (currentUser && db) {
-            var docId = form.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection(col).doc(docId).delete();
-            }).catch(function(e) { console.error('Delete error:', e); });
-        }
+        enqueueUserDocDelete(col, form.id, 'Delete');
     });
 }
 
@@ -1122,14 +1108,7 @@ function moveCurrentToSaved() {
     setFormReadOnly(false);
     showNotificationModal(t('move_to_saved_success'), true);
 
-    // Firebase in background (serialized, direct doc access)
-    if (currentUser && db && formId) {
-        _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-            return db.collection('users').doc(currentUser.uid).collection(formsCol).doc(formId).set(movedForm);
-        }).then(function() {
-            return db.collection('users').doc(currentUser.uid).collection(archiveCol).doc(formId).delete();
-        }).catch(function(e) { console.error('Move to saved error:', e); });
-    }
+    enqueueUserDocMove(formsCol, archiveCol, formId, movedForm, 'Move to saved');
 }
 
 function markCurrentFormAsSent() {
@@ -1167,17 +1146,7 @@ function markCurrentFormAsSent() {
         loadedForms = [];
         _showSavedFormsDirectly();
 
-        // Firebase: serialisert via _pendingFirestoreOps for å unngå race conditions
-        if (currentUser && db) {
-            var archiveRef = db.collection('users').doc(currentUser.uid).collection(archiveCollection);
-            var formsRef = db.collection('users').doc(currentUser.uid).collection(formsCollection);
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return archiveRef.doc(docId).set(data);
-            }).then(function() {
-                return formsRef.doc(docId).delete();
-            }).catch(function(e) { console.error('Mark as sent Firebase error:', e); });
-        }
+        enqueueUserDocMove(archiveCollection, formsCollection, data.id, data, 'Mark as sent Firebase');
     } catch (e) {
         console.error('Mark as sent error:', e);
     }
@@ -1210,15 +1179,7 @@ function moveToSaved(event, index) {
         showSavedForms();
         showNotificationModal(t('move_to_saved_success'), true);
 
-        // Firebase in background (serialized)
-        if (currentUser && db) {
-            var docId = form.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('forms').doc(docId).set(form);
-            }).then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('archive').doc(docId).delete();
-            }).catch(function(e) { console.error('Restore error:', e); });
-        }
+        enqueueUserDocMove('forms', 'archive', form.id, form, 'Restore');
     }, t('btn_move'), '#333');
 }
 
@@ -1242,56 +1203,6 @@ async function getTemplates(lastDoc) {
     }
     if (auth && !authReady) return { forms: [], lastDoc: null, hasMore: false };
     return { forms: safeParseJSON(TEMPLATE_KEY, []), lastDoc: null, hasMore: false };
-}
-
-async function saveAsTemplate() {
-    // Sync mobile to original first
-    if (isMobile()) {
-        syncMobileToOriginal();
-    }
-
-    // Validate template required fields
-    const reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
-    const templateReqs = reqSettings.template || {};
-    const templateFieldMap = {
-        prosjektnavn:   { id: 'prosjektnavn',  key: 'validation_prosjektnavn' },
-        prosjektnr:     { id: 'prosjektnr',    key: 'validation_prosjektnr' },
-        oppdragsgiver:  { id: 'oppdragsgiver', key: 'validation_oppdragsgiver' },
-        kundensRef:     { id: 'kundens-ref',     key: 'validation_kundens_ref' },
-        fakturaadresse: { id: 'fakturaadresse',  key: 'validation_fakturaadresse' }
-    };
-    for (const [settingKey, fieldInfo] of Object.entries(templateFieldMap)) {
-        if (!templateReqs[settingKey]) continue;
-        const el = document.getElementById(fieldInfo.id);
-        if (!el || !el.value.trim()) {
-            showNotificationModal(t('required_field', t(fieldInfo.key)));
-            return;
-        }
-    }
-
-    const templateData = {
-        prosjektnavn: document.getElementById('prosjektnavn').value.trim(),
-        prosjektnr: document.getElementById('prosjektnr').value.trim(),
-        oppdragsgiver: document.getElementById('oppdragsgiver').value.trim(),
-        kundensRef: document.getElementById('kundens-ref').value.trim(),
-        fakturaadresse: document.getElementById('fakturaadresse').value.trim(),
-        createdAt: new Date().toISOString(),
-        createdBy: currentUser ? currentUser.uid : 'local'
-    };
-
-    // Update localStorage + local state immediately (optimistic)
-    templateData.id = Date.now().toString();
-    const templates = safeParseJSON(TEMPLATE_KEY, []);
-    templates.push(templateData);
-    safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
-    if (window.loadedTemplates) window.loadedTemplates.push(templateData);
-    showNotificationModal(t('template_save_success'), true);
-
-    // Firebase in background
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('templates').doc(templateData.id).set(templateData)
-            .catch(function(e) { console.error('Save template error:', e); });
-    }
 }
 
 function _buildTemplateItemHtml(item, index) {
@@ -1553,9 +1464,9 @@ function showSettingsPage(page) {
         header.insertBefore(backBtn, header.firstChild);
     }
 
-    // Mark global settings pages as read-only for non-admins
+    // Read-only styling is page-level, while the dispatch below loads data.
     var pageEl = document.getElementById('settings-page-' + page);
-    if (page === 'materials' && !isAdmin) {
+    if ((page === 'materials' && !isAdmin) || page === 'form-ordreseddel') {
         pageEl.classList.add('settings-readonly');
     } else {
         pageEl.classList.remove('settings-readonly');
@@ -1777,14 +1688,6 @@ function saveMaterialSettings() {
         db.collection('settings').doc('materials').set(data)
             .catch(function(e) { console.error('Save materials settings error:', e); });
     }
-}
-
-async function loadMaterialSettingsToModal() {
-    const data = await getMaterialSettings();
-    settingsMaterials = (data && data.materials) ? data.materials.slice() : [];
-    settingsMaterials.sort((a, b) => a.name.localeCompare(b.name, 'no'));
-    renderMaterialSettingsItems();
-    document.getElementById('settings-new-material').value = '';
 }
 
 function renderMaterialSettingsItems() {
@@ -2517,15 +2420,6 @@ function saveRequiredSettings(data) {
         db.collection('settings').doc('required').set(data)
             .catch(function(e) { console.error('Save required settings error:', e); });
     }
-}
-
-async function loadRequiredSettingsToModal() {
-    const data = await getRequiredSettings();
-    cachedRequiredSettings = data;
-    renderRequiredSettingsItems('save');
-    renderRequiredSettingsItems('template');
-    renderRequiredSettingsItems('service');
-    renderRequiredSettingsItems('kappe');
 }
 
 function renderRequiredSettingsItems(section) {
@@ -4432,14 +4326,7 @@ function _markOwnFormDataAsSent(sourceData) {
         else archived.unshift(data);
         safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
         addToOrderNumberIndex(data.ordreseddelNr);
-        if (currentUser && db) {
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('archive').doc(docId).set(data);
-            }).then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('forms').doc(docId).delete();
-            }).catch(function(e) { console.error('Bulk mark-sent (own) error:', e); });
-        }
+        enqueueUserDocMove('archive', 'forms', data.id, data, 'Bulk mark-sent (own)');
     } catch (e) { console.error('Bulk mark-sent (own) error:', e); }
 }
 
@@ -4461,14 +4348,7 @@ function _markServiceFormDataAsSent(sourceData) {
             saved.splice(savedIdx, 1);
             safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(saved));
         }
-        if (currentUser && db) {
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('serviceArchive').doc(docId).set(data);
-            }).then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('serviceforms').doc(docId).delete();
-            }).catch(function(e) { console.error('Bulk mark-sent (service) error:', e); });
-        }
+        enqueueUserDocMove('serviceArchive', 'serviceforms', data.id, data, 'Bulk mark-sent (service)');
     } catch (e) { console.error('Bulk mark-sent (service) error:', e); }
 }
 
@@ -4490,14 +4370,7 @@ function _markKappeFormDataAsSent(sourceData) {
             saved.splice(savedIdx, 1);
             safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(saved));
         }
-        if (currentUser && db) {
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(docId).set(data);
-            }).then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(docId).delete();
-            }).catch(function(e) { console.error('Bulk mark-sent (kappe) error:', e); });
-        }
+        enqueueUserDocMove('kappeArchive', 'kappeforms', data.id, data, 'Bulk mark-sent (kappe)');
     } catch (e) { console.error('Bulk mark-sent (kappe) error:', e); }
 }
 
@@ -4984,16 +4857,10 @@ async function saveServiceForm() {
             _showSavedFormsDirectly('service');
         }
 
-        // Firebase in background
-        if (currentUser && db) {
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('serviceforms').doc(docId).set(data);
-            }).then(function() {
-                if (wasSent) {
-                    return db.collection('users').doc(currentUser.uid).collection('serviceArchive').doc(docId).delete();
-                }
-            }).catch(function(e) { console.error('Service save Firebase error:', e); });
+        if (wasSent) {
+            enqueueUserDocMove('serviceforms', 'serviceArchive', data.id, data, 'Service save Firebase');
+        } else {
+            enqueueUserDocSet('serviceforms', data.id, data, 'Service save Firebase');
         }
     } finally {
         if (saveBtn) saveBtn.disabled = false;
@@ -5185,11 +5052,7 @@ function deleteServiceForm(formData) {
         if (loadedIdx !== -1) window.loadedServiceForms.splice(loadedIdx, 1);
         renderServiceFormsList(window.loadedServiceForms);
         _lastLocalSaveTs = Date.now();
-        // Firebase
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid).collection(col).doc(formData.id).delete()
-                .catch(function(e) { console.error('Delete service form error:', e); });
-        }
+        enqueueUserDocDelete(col, formData.id, 'Delete service form');
     });
 }
 
@@ -5233,15 +5096,7 @@ function markServiceAsSent() {
         loadedForms = [];
         _showSavedFormsDirectly('service');
 
-        // Firebase
-        if (currentUser && db) {
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('serviceArchive').doc(docId).set(data);
-            }).then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('serviceforms').doc(docId).delete();
-            }).catch(function(e) { console.error('Mark service as sent error:', e); });
-        }
+        enqueueUserDocMove('serviceArchive', 'serviceforms', data.id, data, 'Mark service as sent');
     } catch(e) {
         console.error('Mark service as sent error:', e);
     }
@@ -5926,8 +5781,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
-    // Form-views håndteres av CSS når tastaturet er åpent: view går tilbake
-    // til normal dokumentflyt og toolbar ligger nederst i body-scrollen.
+    // Felles toolbar-regel:
+    // - Tastatur lukket: toolbar eies av body og er fixed i bunn.
+    // - Tastatur åpent: toolbar flyttes til aktiv scroll-host som siste element.
+    //   Kort innhold presses ned til tastaturet via .toolbar-keyboard-host;
+    //   langt innhold scroller naturlig ned til toolbar.
+    // Denne regelen gjelder generelt for alle views nedenfor, ikke som
+    // side-spesifikk spesialhåndtering.
     var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
     // Modal-views: krympes ved tastatur. Toolbar reparenteres til aktiv
     // scrollflate slik at den blir nederste scroll-element, ikke fixed over
@@ -8381,12 +8241,7 @@ function saveBilPafylling(materials) {
     list.unshift(record);
     safeSetItem(BIL_STORAGE_KEY, JSON.stringify(list));
 
-    // Firebase sync
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid)
-          .collection('bilPafylling').doc(record.id).set(record)
-          .catch(function(e) { console.error('Bil påfylling Firebase error:', e); });
-    }
+    enqueueUserDocSet('bilPafylling', record.id, record, 'Bil påfylling Firebase');
 
     renderBilHistory();
     showNotificationModal(t('bil_pafylling_saved'), true);
@@ -8401,12 +8256,7 @@ function deleteBilPafylling(id) {
             safeSetItem(BIL_STORAGE_KEY, JSON.stringify(list));
         }
 
-        // Firebase sync
-        if (currentUser && db) {
-            db.collection('users').doc(currentUser.uid)
-              .collection('bilPafylling').doc(id).delete()
-              .catch(function(e) { console.error('Delete bil påfylling Firebase error:', e); });
-        }
+        enqueueUserDocDelete('bilPafylling', id, 'Delete bil påfylling Firebase');
 
         renderBilHistory();
     }, t('btn_delete'), '#d32f2f');
@@ -9495,16 +9345,10 @@ async function saveKappeForm() {
             _showSavedFormsDirectly('kappe');
         }
 
-        // Firebase i bakgrunnen — synkroniser til kappeforms-collection
-        if (currentUser && db) {
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(docId).set(data);
-            }).then(function() {
-                if (wasSent) {
-                    return db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(docId).delete();
-                }
-            }).catch(function(e) { console.error('Kappe save Firebase error:', e); });
+        if (wasSent) {
+            enqueueUserDocMove('kappeforms', 'kappeArchive', data.id, data, 'Kappe save Firebase');
+        } else {
+            enqueueUserDocSet('kappeforms', data.id, data, 'Kappe save Firebase');
         }
     } finally {
         if (saveBtn) saveBtn.disabled = false;
@@ -9541,15 +9385,7 @@ function markKappeAsSent() {
         closeKappeView();
         _showSavedFormsDirectly('kappe');
 
-        // Firebase i bakgrunnen — flytt fra kappeforms til kappeArchive
-        if (currentUser && db) {
-            var docId = data.id;
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('kappeArchive').doc(docId).set(data);
-            }).then(function() {
-                return db.collection('users').doc(currentUser.uid).collection('kappeforms').doc(docId).delete();
-            }).catch(function(e) { console.error('Kappe markAsSent Firebase error:', e); });
-        }
+        enqueueUserDocMove('kappeArchive', 'kappeforms', data.id, data, 'Kappe markAsSent Firebase');
     } catch(e) {
         console.error('Mark kappe as sent error:', e);
     }
@@ -9726,12 +9562,7 @@ function deleteKappeForm(formData) {
         renderKappeFormsList(window.loadedKappeForms);
         _lastLocalSaveTs = Date.now();
 
-        // Firebase delete i bakgrunnen
-        if (currentUser && db && formData.id) {
-            _pendingFirestoreOps = _pendingFirestoreOps.then(function() {
-                return db.collection('users').doc(currentUser.uid).collection(collection).doc(formData.id).delete();
-            }).catch(function(e) { console.error('Kappe delete Firebase error:', e); });
-        }
+        enqueueUserDocDelete(collection, formData.id, 'Kappe delete Firebase');
     });
 }
 
