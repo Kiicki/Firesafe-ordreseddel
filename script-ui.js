@@ -6306,9 +6306,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
-    // Modal-views beholder egen modal-body-scroll (sticky-header funker ikke i
-    // body-scroll-modus med flex column overflow visible). Toolbar for disse
-    // reparentes til aktiv modal-body så den blir del av scrollable content.
+    // Form-views: scroll skjer på view-roten (overflow-y: auto fra CSS).
+    // Toolbar reparentes inn i view-roten når tastatur er åpent.
+    var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
+    // Modal-views: scroll skjer i .modal-body. Toolbar reparentes der.
     var MODAL_VIEW_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
     // Fullscreen-overlays (height:100%/100dvh) som strekker seg bak tastaturet.
     // Må krympes til synlig viewport ellers blir scroll i intern liste broken
@@ -6429,11 +6430,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Returnerer null hvis toolbar skal være i body (default — fixed bottom).
     function findToolbarScrollHost(keyboardOpen, activeId) {
         if (!keyboardOpen) return null;
-        // Servicebil-inntak-mode: picker-overlay ER skjemaet, toolbar
-        // skal scrolle med .picker-overlay-list når tastatur er åpent.
-        // Når tastatur er lukket forblir toolbar i body (fixed bottom);
-        // CSS-regelen som ellers skjuler toolbar over picker, overstyres
-        // for servicebil-inntak-mode.
         if (document.body.classList.contains('servicebil-inntak-mode')) {
             var picker = document.getElementById('picker-overlay');
             if (picker && picker.classList.contains('active')) {
@@ -6441,15 +6437,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (list) return list;
             }
         }
-        // Andre modal-views: kun når tastatur er åpent
         if (MODAL_VIEW_IDS.indexOf(activeId) !== -1) {
-            var view = document.getElementById(activeId);
-            if (view) {
-                var bodies = view.querySelectorAll('.modal-body');
+            var modalView = document.getElementById(activeId);
+            if (modalView) {
+                var bodies = modalView.querySelectorAll('.modal-body');
                 for (var i = 0; i < bodies.length; i++) {
                     if (bodies[i].offsetParent !== null) return bodies[i];
                 }
             }
+        }
+        // Form-views: view-form/service-view/kappe-view har overflow-y: auto.
+        // Toolbar appendes inn i view-roten så den scroller med innholdet.
+        // JS setter view-roten til eksplisitt vv.height så scroll-konteksten er bundet.
+        if (FORM_VIEW_IDS.indexOf(activeId) !== -1) {
+            return document.getElementById(activeId);
         }
         return null;
     }
@@ -6518,9 +6519,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.classList.toggle('keyboard-open', keyboardOpen);
 
         // --- Modal-views: krymp til synlig viewport ---
-        // KRITISK: ALLE fire egenskaper må settes (top, bottom, height,
-        // min-height). CSS har min-height: calc(100dvh - 60px) som vinner
-        // over height hvis ikke overskrevet.
         MODAL_VIEW_IDS.forEach(function(id) {
             var view = document.getElementById(id);
             if (!view) return;
@@ -6533,6 +6531,22 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 view.style.top = '';
                 view.style.bottom = '';
+                view.style.height = '';
+                view.style.minHeight = '';
+            }
+        });
+
+        // --- Form-views: bind høyde til synlig viewport så internal scroll
+        // virker (view har overflow-y: auto, men trenger eksplisitt height
+        // for at scroll skal aktiveres).
+        FORM_VIEW_IDS.forEach(function(id) {
+            var view = document.getElementById(id);
+            if (!view) return;
+            var isFormActive = view.classList.contains('active');
+            if (keyboardOpen && isFormActive) {
+                view.style.height = vv.height + 'px';
+                view.style.minHeight = '0';
+            } else {
                 view.style.height = '';
                 view.style.minHeight = '';
             }
