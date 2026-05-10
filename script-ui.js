@@ -6306,8 +6306,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
-    // Form-views: scroll skjer på view-roten (overflow-y: auto fra CSS).
-    // Toolbar reparentes inn i view-roten når tastatur er åpent.
+    // Form-views håndteres av CSS når tastaturet er åpent: view går tilbake
+    // til normal dokumentflyt og toolbar ligger nederst i body-scrollen.
     var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
     // Modal-views: scroll skjer i .modal-body. Toolbar reparentes der.
     var MODAL_VIEW_IDS = ['saved-modal', 'template-modal', 'settings-modal'];
@@ -6446,12 +6446,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-        // Form-views: view-form/service-view/kappe-view har overflow-y: auto.
-        // Toolbar appendes inn i view-roten så den scroller med innholdet.
-        // JS setter view-roten til eksplisitt vv.height så scroll-konteksten er bundet.
-        if (FORM_VIEW_IDS.indexOf(activeId) !== -1) {
-            return document.getElementById(activeId);
-        }
         return null;
     }
 
@@ -6536,20 +6530,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // --- Form-views: bind høyde til synlig viewport så internal scroll
-        // virker (view har overflow-y: auto, men trenger eksplisitt height
-        // for at scroll skal aktiveres).
+        // --- Form-views: CSS eier tastatur-layouten. Rydd vekk eventuell
+        // inline height fra eldre kjøringer slik toolbar ikke blir låst over
+        // tastaturet i en intern scroll-container.
         FORM_VIEW_IDS.forEach(function(id) {
             var view = document.getElementById(id);
             if (!view) return;
-            var isFormActive = view.classList.contains('active');
-            if (keyboardOpen && isFormActive) {
-                view.style.height = vv.height + 'px';
-                view.style.minHeight = '0';
-            } else {
-                view.style.height = '';
-                view.style.minHeight = '';
-            }
+            view.style.height = '';
+            view.style.minHeight = '';
         });
 
         // --- Toolbar reparenting: inn i scrollable host når tastatur er åpent ---

@@ -1354,11 +1354,9 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     background: #fff;
 }
 
-/* Keyboard open: alle scrollable views (form-views, modal-views) håndteres
-   via JS — view får eksplisitt height = vv.height og toolbar reparentes inn
-   som siste child. Scroll skjer internt i view, toolbar er på slutten av
-   scrollbar content. body.keyboard-open-klassen brukes kun for body padding
-   og confirm-modal-padding. */
+/* Keyboard open: form-views flyter i dokumentet slik at toolbar blir siste
+   del av scrollbart innhold. Modal-views håndteres fortsatt av JS fordi de
+   må beholde intern scroll i modal-body. */
 body.keyboard-open {
     padding-bottom: 0;
 }
@@ -1368,6 +1366,33 @@ body.keyboard-open {
    popup-content unødvendig oppover. */
 body.keyboard-open .confirm-modal {
     padding-bottom: 0;
+}
+
+body.keyboard-open #view-form.view.active,
+body.keyboard-open #service-view.view.active,
+body.keyboard-open #kappe-view.view.active {
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    height: auto;
+    min-height: calc(100dvh - 60px);
+    overflow: visible;
+}
+
+body.keyboard-open .container.form-view,
+body.keyboard-open .container.service-view,
+body.keyboard-open .container.kappe-view {
+    overflow-y: visible;
+}
+
+body.keyboard-open .toolbar:not(.toolbar--inflow) {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    box-shadow: none;
 }
 
 /* Toolbar når den er inflow (reparent'et til en scrollable host): position
