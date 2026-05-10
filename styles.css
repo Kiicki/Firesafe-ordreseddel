@@ -1357,20 +1357,25 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
 /* Keyboard open: form-views flyter i dokumentet slik at toolbar blir siste
    del av scrollbart innhold. Modal-views håndteres fortsatt av JS fordi de
    må beholde intern scroll i modal-body. */
-body.keyboard-open {
+body.keyboard-open,
+body.keyboard-focus {
     padding-bottom: 0;
 }
 /* Confirm-modal-backdrop har padding-bottom: var(--toolbar-h, 60px) for å gi
    plass til toolbar. Når tastatur er åpent er toolbar i flow (ikke fixed),
    så denne paddingen er ikke lenger nødvendig — den ville bare presset
    popup-content unødvendig oppover. */
-body.keyboard-open .confirm-modal {
+body.keyboard-open .confirm-modal,
+body.keyboard-focus .confirm-modal {
     padding-bottom: 0;
 }
 
 body.keyboard-open #view-form.view.active,
 body.keyboard-open #service-view.view.active,
-body.keyboard-open #kappe-view.view.active {
+body.keyboard-open #kappe-view.view.active,
+body.keyboard-focus #view-form.view.active,
+body.keyboard-focus #service-view.view.active,
+body.keyboard-focus #kappe-view.view.active {
     position: static;
     top: auto;
     left: auto;
@@ -1383,11 +1388,15 @@ body.keyboard-open #kappe-view.view.active {
 
 body.keyboard-open .container.form-view,
 body.keyboard-open .container.service-view,
-body.keyboard-open .container.kappe-view {
+body.keyboard-open .container.kappe-view,
+body.keyboard-focus .container.form-view,
+body.keyboard-focus .container.service-view,
+body.keyboard-focus .container.kappe-view {
     overflow-y: visible;
 }
 
-body.keyboard-open .toolbar:not(.toolbar--inflow) {
+body.keyboard-open .toolbar:not(.toolbar--inflow),
+body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     position: static;
     left: auto;
     right: auto;

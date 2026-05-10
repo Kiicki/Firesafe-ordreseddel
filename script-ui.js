@@ -6373,7 +6373,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }
     function updateKeyboardState() {
-        if (!window.visualViewport) return false;
         var rawOpen = _isKeyboardOpenRaw();
         if (rawOpen) {
             if (keyboardCloseTimer) { clearTimeout(keyboardCloseTimer); keyboardCloseTimer = null; }
@@ -6388,6 +6387,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 400);
         }
         return stableKeyboardOpen;
+    }
+
+    function isFormViewActive() {
+        var activeView = document.querySelector('.view.active');
+        return !!(activeView && FORM_VIEW_IDS.indexOf(activeView.id) !== -1);
+    }
+
+    function syncKeyboardFocusClass(focusedEl) {
+        var shouldUseFormKeyboardLayout = !!(
+            IS_TOUCH_DEVICE &&
+            isFormViewActive() &&
+            focusedEl &&
+            isKeyboardOpeningElement(focusedEl)
+        );
+        document.body.classList.toggle('keyboard-focus', shouldUseFormKeyboardLayout);
     }
 
     function scheduleApply() {
@@ -6469,8 +6483,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function applyKeyboardLayout() {
-        if (!window.visualViewport) return;
-        var vv = window.visualViewport;
+        var vv = window.visualViewport || { offsetTop: 0, height: window.innerHeight };
         // Bruker stable (hysteresis-applied) keyboardOpen — ikke rå momentan
         // verdi. Dette unngår toolbar-bouncing når input kortvarig mister
         // fokus under scroll og browser midlertidig viser tastatur som lukket.
@@ -6511,6 +6524,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // CSS body.keyboard-open-regler håndterer form-views (view-form etc.):
         // position: static, body scroller, toolbar er i flow på slutten.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
+        syncKeyboardFocusClass(document.activeElement);
 
         // --- Modal-views: krymp til synlig viewport ---
         MODAL_VIEW_IDS.forEach(function(id) {
@@ -6719,10 +6733,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }
     document.addEventListener('focusin', function(e) {
-        if (isKeyboardOpeningElement(e.target)) scheduleApply();
+        if (isKeyboardOpeningElement(e.target)) {
+            syncKeyboardFocusClass(e.target);
+            scheduleApply();
+        }
     });
     document.addEventListener('focusout', function(e) {
-        if (isKeyboardOpeningElement(e.target)) scheduleApply();
+        if (isKeyboardOpeningElement(e.target)) {
+            setTimeout(function() {
+                syncKeyboardFocusClass(document.activeElement);
+                scheduleApply();
+            }, 50);
+        }
     });
 
     // Initial sync — håndterer edge case der tastatur allerede er åpent ved
