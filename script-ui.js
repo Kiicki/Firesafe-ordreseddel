@@ -6279,8 +6279,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // --- Popups: max-height piksel-cap + translateY-ankring over tastatur ---
         // Targeter alle popup-content under aktive backdrops. Cap'er max-height
-        // så content ikke kan bli større enn synlig område, deretter måles
-        // offsetHeight (post-cap) og brukes til å beregne translateY.
+        // så content ikke kan bli større enn synlig område. Deretter måles
+        // faktisk posisjon i DOM og flyttes bare hvis bunnen ligger under
+        // synlig viewport. Dette må baseres på getBoundingClientRect(), ikke
+        // window.innerHeight/2, fordi noen popups ligger i backdrops som selv
+        // krympes når tastaturet er åpent.
         var allContents = document.querySelectorAll(POPUP_CONTENT_SELECTOR);
         allContents.forEach(function(s) {
             var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
@@ -6293,15 +6296,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             var maxH = Math.max(180, vv.height - KEYBOARD_MARGIN * 2);
             s.style.setProperty('max-height', maxH + 'px', 'important');
-            // Måle høyde POST-cap (offsetHeight tvinger layout og leser ny verdi)
-            var mh = s.offsetHeight || 0;
-            // Anker bunnen rett over tastaturet med margin.
-            // Original sentrering plasserer bunnen ved innerHeight/2 + mh/2.
-            // Ønsket bunn = vv.offsetTop + vv.height - KEYBOARD_MARGIN.
+            s.style.transform = '';
+
             var desiredBottom = fullHeight - KEYBOARD_MARGIN;
-            var currentBottom = window.innerHeight / 2 + mh / 2;
-            var translate = Math.max(0, currentBottom - desiredBottom);
-            s.style.transform = 'translateY(-' + translate + 'px)';
+            var rect = s.getBoundingClientRect();
+            var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
+            var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
+            s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
         });
 
         // Confirm-modal padding-bottom håndteres nå via CSS-regelen
