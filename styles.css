@@ -1368,11 +1368,22 @@ body.keyboard-open #kappe-view.view.active {
     position: static;
     bottom: auto;
     height: auto;
-    min-height: calc(100dvh - 60px);
+    /* min-height: 100dvh (ikke - 60px toolbar) — view-form skal fylle HELE
+       synlig viewport når tastatur er åpent, så toolbar (som ligger ETTER
+       view-form i body's flow) havner UNDER synlig område. Bruker må scrolle
+       for å se toolbar — som er det forventede mønsteret når den er en del
+       av scrollable content. */
+    min-height: 100dvh;
     overflow: visible;
 }
 body.keyboard-open .toolbar {
-    position: static;
+    /* !important fordi base .toolbar { position: fixed } er en velkjent
+       fast-setting og noen browsere/kontekster har høy CSS-prioritet på den.
+       Pluss vi tvinger bottom: auto + z-index: auto så fixed-bottom-stiler
+       ikke kan dra toolbar tilbake til viewport-bunn. */
+    position: static !important;
+    bottom: auto !important;
+    z-index: auto !important;
     box-shadow: none;
 }
 body.keyboard-open {

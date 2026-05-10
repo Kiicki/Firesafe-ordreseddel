@@ -6521,14 +6521,24 @@ document.addEventListener('DOMContentLoaded', function() {
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
             var modalHost = findToolbarScrollHost(keyboardOpen, activeId);
-            if (modalHost && toolbar.parentNode !== modalHost) {
-                toolbar.classList.add('toolbar--inflow');
-                modalHost.appendChild(toolbar);
-                startToolbarGuard(modalHost, toolbar);
-            } else if (!modalHost && toolbar.parentNode !== document.body) {
+            if (modalHost) {
+                if (toolbar.parentNode !== modalHost) {
+                    toolbar.classList.add('toolbar--inflow');
+                    modalHost.appendChild(toolbar);
+                    startToolbarGuard(modalHost, toolbar);
+                }
+            } else {
+                // Ingen modal-host: toolbar skal være i body uten --inflow-klasse.
+                // Garanterer alltid at klassen fjernes (selv om toolbar allerede
+                // er i body) — kritisk fordi --inflow-CSS bruker position: static
+                // og negativ margin som er feil for body-context.
                 stopToolbarGuard();
-                toolbar.classList.remove('toolbar--inflow');
-                document.body.appendChild(toolbar);
+                if (toolbar.classList.contains('toolbar--inflow')) {
+                    toolbar.classList.remove('toolbar--inflow');
+                }
+                if (toolbar.parentNode !== document.body) {
+                    document.body.appendChild(toolbar);
+                }
             }
         }
 
