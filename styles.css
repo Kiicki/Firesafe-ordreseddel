@@ -20,6 +20,10 @@ body {
     min-height: 100dvh;
 }
 
+body.keyboard-open {
+    padding-bottom: 0;
+}
+
 .container {
     margin: 0 auto;
     flex: 1;
@@ -1337,6 +1341,7 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
 #settings-modal.view.active .modal-body {
     flex: 1;
     overflow-y: auto;
+    overscroll-behavior: contain;
     min-height: 0;
 }
 
