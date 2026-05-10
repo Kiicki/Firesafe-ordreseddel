@@ -1084,6 +1084,27 @@ body.signature-active .top-bar,
     overflow: clip;
 }
 
+body.template-modal-open:not(.keyboard-open) #template-modal.view.active {
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    height: auto;
+    min-height: calc(100dvh - var(--toolbar-h, 60px));
+    overflow: visible;
+}
+
+body.template-modal-open:not(.keyboard-open) #template-modal.view.active > .modal-content {
+    min-height: calc(100dvh - var(--toolbar-h, 60px));
+    overflow: visible;
+}
+
+body.template-modal-open:not(.keyboard-open) #template-modal.view.active .modal-body {
+    flex: none;
+    overflow: visible;
+}
+
 /* Form view: fixed to viewport so form-header can be sticky og scroll-kompensasjon
    ved tastatur fungerer likt for alle skjemaer (ordreseddel/service/kappe). */
 #view-form.view.active,
