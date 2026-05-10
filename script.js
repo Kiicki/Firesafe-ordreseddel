@@ -1109,7 +1109,7 @@ function isMobile() {
 function autoResizeTextarea(textarea, maxLines) {
     textarea.style.overflow = 'hidden';
     textarea.rows = 1;
-    textarea.style.height = '0';
+    textarea.style.height = 'auto';
     void textarea.offsetHeight;
     var scrollH = textarea.scrollHeight;
     var cs = getComputedStyle(textarea);
@@ -1450,11 +1450,7 @@ function createOrderCard(orderData, expanded) {
         updateOrderTitle(card);
     });
     descInput.addEventListener('blur', function() {
-        var self = this;
-        autoResizeTextarea(self);
-        // Vent på at keyboard lukkes og viewport stabiliserer seg, så scroll opp
-        // hvis textarea-bunnen havnet under toolbar (typisk pga. scroll clamp).
-        setTimeout(function() { _ensureTextareaBottomVisible(self); }, 300);
+        autoResizeTextarea(this);
     });
     requestAnimationFrame(function() {
         _autoResizeMerknadAndScroll(descInput);
@@ -1499,9 +1495,7 @@ function createOrderCard(orderData, expanded) {
         _autoResizeMerknadAndScroll(this);
     });
     merknadEl.addEventListener('blur', function() {
-        var self = this;
-        autoResizeTextarea(self);
-        setTimeout(function() { _ensureTextareaBottomVisible(self); }, 300);
+        autoResizeTextarea(this);
     });
     requestAnimationFrame(function() {
         _autoResizeMerknadAndScroll(merknadEl);

@@ -6398,6 +6398,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // forceNextApply bypasser state-memo så piksel-cap, view-høyde og
             // overlay-størrelse oppdateres med faktiske nye vv-verdier.
             scheduleSettleApply();
+            scheduleKeyboardTargetVisibilityCheck(document.activeElement);
         });
         // visualViewport.scroll dropet bevisst — fyrer per frame under scroll
         // når URL-bar beveger seg, ville avbryte momentum hvis lyttet på.
@@ -6476,6 +6477,66 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return false;
     }
+
+    function findKeyboardScrollContainer(el) {
+        if (typeof _findScrollableAncestor === 'function') {
+            return _findScrollableAncestor(el);
+        }
+        return document.scrollingElement || document.documentElement;
+    }
+
+    function ensureKeyboardTargetVisible(el) {
+        if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
+
+        var rect = el.getBoundingClientRect();
+        var vv = window.visualViewport;
+        var viewportTop = vv ? vv.offsetTop : 0;
+        var viewportBottom = vv ? (vv.offsetTop + vv.height) : window.innerHeight;
+        var topPadding = 56;
+        var bottomPadding = 16;
+
+        var toolbar = document.querySelector('.toolbar');
+        if (toolbar) {
+            var toolbarStyle = getComputedStyle(toolbar);
+            if (toolbarStyle.position === 'fixed' && toolbarStyle.display !== 'none') {
+                bottomPadding += toolbar.offsetHeight || 0;
+            }
+        }
+
+        var minTop = viewportTop + topPadding;
+        var maxBottom = viewportBottom - bottomPadding;
+        var delta = 0;
+
+        if (rect.height >= (maxBottom - minTop)) {
+            if (rect.top < minTop || rect.top > maxBottom) delta = rect.top - minTop;
+        } else if (rect.bottom > maxBottom) {
+            delta = rect.bottom - maxBottom;
+        } else if (rect.top < minTop) {
+            delta = rect.top - minTop;
+        }
+
+        if (Math.abs(delta) < 1) return;
+
+        var scroller = findKeyboardScrollContainer(el);
+        if (!scroller) return;
+        if (scroller === document.scrollingElement || scroller === document.documentElement || scroller === document.body) {
+            window.scrollBy(0, delta);
+        } else {
+            scroller.scrollTop += delta;
+        }
+    }
+
+    function scheduleKeyboardTargetVisibilityCheck(el) {
+        if (!isKeyboardOpeningElement(el)) return;
+        requestAnimationFrame(function() {
+            ensureKeyboardTargetVisible(el);
+            requestAnimationFrame(function() {
+                ensureKeyboardTargetVisible(el);
+            });
+        });
+        setTimeout(function() { ensureKeyboardTargetVisible(el); }, 280);
+    }
+
     document.addEventListener('focusin', function(e) {
         if (isKeyboardOpeningElement(e.target)) {
             keyboardBaselineInnerHeight = Math.max(keyboardBaselineInnerHeight || 0, window.innerHeight || 0);
@@ -6485,6 +6546,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 setFormKeyboardMode(true, e.target);
             }
             syncKeyboardFocusClass(e.target, isFormKeyboardTarget(e.target));
+            scheduleKeyboardTargetVisibilityCheck(e.target);
             scheduleApply();
         }
     });
@@ -8930,9 +8992,7 @@ function createKappeLineCard(lineData, expanded) {
             _autoResizeMerknadAndScroll(this);
         });
         merknadEl.addEventListener('blur', function() {
-            var self = this;
-            autoResizeTextarea(self);
-            setTimeout(function() { _ensureTextareaBottomVisible(self); }, 300);
+            autoResizeTextarea(this);
         });
         requestAnimationFrame(function() {
             _autoResizeMerknadAndScroll(merknadEl);
