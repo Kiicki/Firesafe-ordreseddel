@@ -6069,6 +6069,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var formHost = findFormToolbarHost(lastFormKeyboardTarget || focusedEl || document.activeElement);
             if (!formHost) return;
             stopToolbarGuard();
+            prepareKeyboardToolbarHost(formHost);
             toolbar.classList.remove('toolbar--inflow');
             toolbar.classList.add('toolbar--keyboard-form');
             document.body.classList.add('keyboard-open', 'keyboard-focus');
@@ -6079,6 +6080,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         toolbar.classList.remove('toolbar--keyboard-form');
+        clearKeyboardToolbarHosts();
         if (toolbar.parentNode !== document.body) {
             document.body.appendChild(toolbar);
         }
@@ -6123,6 +6125,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.classList.remove('keyboard-open', 'keyboard-focus');
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) toolbar.classList.remove('toolbar--keyboard-form');
+        clearKeyboardToolbarHosts();
         forceNextApply = true;
     }
 
@@ -6159,6 +6162,23 @@ document.addEventListener('DOMContentLoaded', function() {
             toolbarGuardObserver = null;
         }
         guardedHost = null;
+    }
+
+    function clearKeyboardToolbarHosts(exceptHost) {
+        document.querySelectorAll('.toolbar-keyboard-host').forEach(function(host) {
+            if (host === exceptHost) return;
+            host.classList.remove('toolbar-keyboard-host');
+            host.style.minHeight = '';
+        });
+    }
+
+    function prepareKeyboardToolbarHost(host) {
+        if (!host) return;
+        clearKeyboardToolbarHosts(host);
+        host.classList.add('toolbar-keyboard-host');
+        var rect = host.getBoundingClientRect();
+        var available = Math.max(0, getVisibleViewportHeight() - rect.top);
+        if (available) host.style.minHeight = available + 'px';
     }
 
 
@@ -6324,12 +6344,14 @@ document.addEventListener('DOMContentLoaded', function() {
             var modalHost = findToolbarScrollHost(keyboardOpen, activeId);
             if (formHost) {
                 stopToolbarGuard();
+                prepareKeyboardToolbarHost(formHost);
                 toolbar.classList.remove('toolbar--inflow');
                 toolbar.classList.add('toolbar--keyboard-form');
                 if (toolbar.parentNode !== formHost) {
                     formHost.appendChild(toolbar);
                 }
             } else if (modalHost) {
+                prepareKeyboardToolbarHost(modalHost);
                 toolbar.classList.add('toolbar--inflow');
                 toolbar.classList.remove('toolbar--keyboard-form');
                 if (toolbar.parentNode !== modalHost) {
@@ -6342,6 +6364,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // er i body) — kritisk fordi --inflow-CSS bruker position: static
                 // og negativ margin som er feil for body-context.
                 stopToolbarGuard();
+                clearKeyboardToolbarHosts();
                 if (toolbar.classList.contains('toolbar--inflow')) {
                     toolbar.classList.remove('toolbar--inflow');
                 }

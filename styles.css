@@ -1437,9 +1437,24 @@ body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     flex-shrink: 0;
 }
 
+.toolbar-keyboard-host {
+    display: flex !important;
+    flex-direction: column;
+}
+
+.toolbar-keyboard-host > :not(.toolbar) {
+    flex-shrink: 0;
+}
+
+.toolbar-keyboard-host > .toolbar.toolbar--keyboard-form,
+.toolbar-keyboard-host > .toolbar.toolbar--inflow {
+    margin-top: auto;
+}
+
 .mobile-form > .toolbar.toolbar--keyboard-form {
     width: calc(100% + 30px);
     margin: 0 -15px -15px;
+    margin-top: auto;
 }
 
 /* Toolbar når den er inflow (reparent'et til en scrollable host): position
@@ -1462,10 +1477,12 @@ body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     margin-left: -15px;
     margin-right: -15px;
     margin-bottom: -15px;
+    margin-top: auto;
 }
 /* I picker-overlay-list: padding er 4px 0 — nøytraliser kun bottom. */
 .picker-overlay-list > .toolbar.toolbar--inflow {
     margin-bottom: -4px;
+    margin-top: auto;
 }
 
 /* Template modal (home page) styling to match form page */
