@@ -1415,13 +1415,21 @@ function showSettingsPage(page) {
             }
         });
         var newBrandEl = document.getElementById('settings-new-kappe-brand');
+        var newKappeTypeEl = document.getElementById('settings-new-kappe-type');
+        var newKappeTypeBtn = document.getElementById('settings-new-kappe-type-btn');
         var newDimEl = document.getElementById('settings-new-kappe-dim');
-        var newStiftEl = document.getElementById('settings-new-kappe-stift');
+        var newKappeUnitsEl = document.getElementById('settings-new-kappe-units');
         if (newBrandEl) newBrandEl.value = '';
+        if (newKappeTypeEl) newKappeTypeEl.value = 'isolasjon';
+        if (newKappeTypeBtn) {
+            newKappeTypeBtn.dataset.value = 'isolasjon';
+            newKappeTypeBtn.textContent = t('kappe_product_type_isolasjon');
+            newKappeTypeBtn.setAttribute('data-i18n', 'kappe_product_type_isolasjon');
+        }
         if (newDimEl) newDimEl.value = '';
-        if (newStiftEl) newStiftEl.value = '';
+        if (newKappeUnitsEl) newKappeUnitsEl.value = '';
+        updateKappeNewProductUnitPlaceholder();
         renderKappeProductSettings();
-        renderKappeStiftSizeSettings();
         _loadKappeKerfSetting();
         _loadKappePlateSetting();
     } else if (page === 'templates') {
@@ -1600,8 +1608,8 @@ function renderMaterialSettingsItems() {
             const label = typeof u === 'string' ? u : (u.plural || u.singular || '');
             const isDefault = label === (item.defaultUnit || '') || (!item.defaultUnit && ui === 0);
             const starIcon = isDefault ? '<span class="settings-material-unit-star" title="Standard">★</span>' : '<span class="settings-material-unit-star empty" title="Sett som standard" onclick="event.stopPropagation();setDefaultVariant(' + idx + ',' + ui + ')">☆</span>';
-            const removeBtn = `<button class="settings-material-unit-remove" onclick="event.stopPropagation();removeMaterialUnit(${idx},${ui})">&times;</button>`;
-            const editBtn = `<button class="settings-material-unit-edit-btn" onclick="event.stopPropagation();editMaterialUnit(${idx},${ui},this)" title="Rediger">✏️</button>`;
+            const removeBtn = `<button class="settings-material-unit-remove" onclick="event.stopPropagation();removeMaterialUnit(${idx},${ui})">${deleteIcon}</button>`;
+            const editBtn = `<button class="settings-material-unit-edit-btn" onclick="event.stopPropagation();editMaterialUnit(${idx},${ui},this)" title="Rediger">${editIcon}</button>`;
             return `<div class="settings-material-unit-item">
                 ${starIcon}<span class="settings-material-unit-text">${escapeHtml(label)}</span>${editBtn}${removeBtn}</div>`;
         }).join('');
@@ -1618,7 +1626,7 @@ function renderMaterialSettingsItems() {
                     ${countBadge}
                 </div>
                 <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}">${t('material_type_' + matType)}</button>
-                <button class="settings-material-edit-btn" onclick="event.stopPropagation();editSettingsMaterial(${idx})" title="Rediger navn">✏️</button>
+                <button class="settings-material-edit-btn" onclick="event.stopPropagation();editSettingsMaterial(${idx})" title="Rediger navn">${editIcon}</button>
                 <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
                 <span class="settings-material-expand">&rsaquo;</span>
             </div>
@@ -2229,7 +2237,7 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'kontakt',             labelKey: 'kappe_label_kontakt' },
         { key: 'tlf',                 labelKey: 'kappe_label_tlf' },
         { key: 'produkter',           labelKey: 'kappe_section_products' },
-        { key: 'stift',               labelKey: 'kappe_section_staples' },
+        { key: 'stift',               labelKey: 'kappe_section_fasteners' },
         { key: 'merknad',             labelKey: 'kappe_col_merknad' }
     ]
 };
@@ -4843,17 +4851,39 @@ function buildServiceExportTable(cols) {
     var container = document.getElementById('service-export-container');
 
     // Get ALL materials from settings (not just used ones)
-    var allMats = cachedMaterialOptions || [];
-    var matNames = allMats.map(function(m) {
-        if (!m.name) return '';
-        var n = m.name.charAt(0).toUpperCase() + m.name.slice(1);
-        return formatKabelhylseSpec(n.replace(/ø(?=\d)/g, 'Ø'));
+    var allMats = typeof getMaterialPickerOptions === 'function'
+        ? getMaterialPickerOptions(cachedMaterialOptions || [])
+        : (cachedMaterialOptions || []);
+    var matColumns = [];
+    allMats.forEach(function(m) {
+        var key = m.name || '';
+        var label = m.displayName || key;
+        if (typeof MATERIAL_KAPPE_LAUNCHER !== 'undefined' && key === MATERIAL_KAPPE_LAUNCHER) {
+            if (typeof getKappeProducts === 'function' && getKappeProducts().length) {
+                matColumns.push({ key: MATERIAL_ISOLATION_LAUNCHER, label: getMaterialIsolationLabel() });
+            }
+            if (typeof getKappeFastenerProducts === 'function') {
+                getKappeFastenerProducts().forEach(function(product) {
+                    matColumns.push({ key: product.name, label: product.name });
+                });
+            }
+            return;
+        }
+        if (!label) {
+            matColumns.push({ key: '', label: '' });
+            return;
+        }
+        var n = label.charAt(0).toUpperCase() + label.slice(1);
+        matColumns.push({
+            key: key,
+            label: formatKabelhylseSpec(n.replace(/ø(?=\d)/g, 'Ø'))
+        });
     });
 
     var matCols = cols || 3;
-    var matRowCount = Math.max(2, Math.ceil(matNames.length / matCols));
+    var matRowCount = Math.max(2, Math.ceil(matColumns.length / matCols));
     // Pad to fill all slots
-    while (matNames.length < matCols * matRowCount) matNames.push('');
+    while (matColumns.length < matCols * matRowCount) matColumns.push({ key: '', label: '' });
 
     // Helper: check if material is a spec type
     function isSpecType(baseName) {
@@ -4865,6 +4895,29 @@ function buildServiceExportTable(cols) {
     function buildCellValue(baseName, entryMaterials) {
         if (!baseName) return '';
         var mats = entryMaterials || [];
+
+        if (baseName === MATERIAL_ISOLATION_LAUNCHER) {
+            var isolationLines = [];
+            mats.forEach(function(m) {
+                if (!m.name || !m.antall || !shouldGroupAsKappeIsolation(m)) return;
+                var productLabel = formatKappeIsolationName(m.name, m.enhet);
+                var unit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                var unitLabel = unit === 'meter' ? ' meter' : ' ' + unit;
+                isolationLines.push(escapeHtml(productLabel) + ' ' + formatRunningMeters(m.antall) + unitLabel);
+            });
+            return isolationLines.join('<br>');
+        }
+
+        if (typeof getKappeFastenerProducts === 'function' && getKappeFastenerProducts().some(function(product) { return product.name === baseName; })) {
+            var stiftLines = [];
+            mats.forEach(function(m) {
+                if (!m.name || !m.antall || !shouldGroupAsKappeStift(m) || m.name !== baseName) return;
+                var stiftLabel = formatKappeStiftName(m.enhet);
+                var unitLabel = m.quantityUnit || getKappeProductDefaultUnit(m.name) || 'stk';
+                stiftLines.push(escapeHtml(stiftLabel) + ' ' + formatRunningMeters(m.antall) + ' ' + escapeHtml(unitLabel));
+            });
+            return stiftLines.join('<br>');
+        }
 
         if (isSpecType(baseName)) {
             // Spec material: collect all derived entries matching this base
@@ -4912,8 +4965,8 @@ function buildServiceExportTable(cols) {
                     if (mEnhet && mEnhet !== 'stk' && mEnhet !== 'meter') {
                         variantSuffix = ' ' + mEnhet;
                     }
-                    var stdIsMeter = (m.enhet || '').toLowerCase() === 'meter';
-                    var stdUnitLabel = stdIsMeter ? ' meter' : ' stk';
+                    var stdUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                    var stdUnitLabel = stdUnit === 'meter' ? ' meter' : ' ' + stdUnit;
                     matched.push(formatRunningMeters(m.antall) + stdUnitLabel + escapeHtml(variantSuffix));
                 }
             });
@@ -4966,7 +5019,7 @@ function buildServiceExportTable(cols) {
             '<td class="se-info-label-cell">Prosjekt nr:</td>' +
             '<td class="se-info-label-cell">Prosjektnavn</td>';
         for (var c = 0; c < matCols; c++) {
-            allRows += '<th>' + escapeHtml(matNames[c] || '') + '</th>';
+            allRows += '<th>' + escapeHtml(matColumns[c].label || '') + '</th>';
         }
         allRows += '</tr>';
 
@@ -4976,7 +5029,7 @@ function buildServiceExportTable(cols) {
             '<td rowspan="' + valueRowspan + '" class="se-info-value-cell">' + escapeHtml(entry.prosjektnr || '') + '</td>' +
             '<td rowspan="' + valueRowspan + '" class="se-info-value-cell">' + escapeHtml(entry.prosjektnavn || '') + '</td>';
         for (var c = 0; c < matCols; c++) {
-            var val = buildCellValue(matNames[c], entry.materials);
+            var val = buildCellValue(matColumns[c].key, entry.materials);
             allRows += '<td' + (val ? ' class="se-has-value"' : '') + '>' + val + '</td>';
         }
         allRows += '</tr>';
@@ -4987,7 +5040,7 @@ function buildServiceExportTable(cols) {
             allRows += '<tr>';
             for (var c = 0; c < matCols; c++) {
                 var idx = mr * matCols + c;
-                allRows += '<th>' + escapeHtml(matNames[idx] || '') + '</th>';
+                allRows += '<th>' + escapeHtml(matColumns[idx].label || '') + '</th>';
             }
             allRows += '</tr>';
 
@@ -4995,7 +5048,7 @@ function buildServiceExportTable(cols) {
             allRows += '<tr>';
             for (var c = 0; c < matCols; c++) {
                 var idx = mr * matCols + c;
-                var val = buildCellValue(matNames[idx], entry.materials);
+                var val = buildCellValue(matColumns[idx].key, entry.materials);
                 allRows += '<td' + (val ? ' class="se-has-value"' : '') + '>' + val + '</td>';
             }
             allRows += '</tr>';
@@ -7791,8 +7844,8 @@ function renderBilHistory() {
                 var lm = calculateRunningMeters(pipeInfo, pipes);
                 detailParts.push(formatRunningMeters(lm) + ' meter');
             } else {
-                var bilIsMeter = (m.enhet || '').toLowerCase() === 'meter';
-                var bilUnit = bilIsMeter ? ' meter' : ' stk';
+                var bilQuantityUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                var bilUnit = bilQuantityUnit === 'meter' ? ' meter' : ' ' + bilQuantityUnit;
                 detailParts.push(formatRunningMeters(m.antall) + bilUnit);
             }
             return detailParts.join(' ');
@@ -7824,7 +7877,7 @@ function renderBilHistory() {
         var bilGroups = groupMaterialsByBase(item.materials);
         for (var g = 0; g < bilGroups.length; g++) {
             var bilGroup = bilGroups[g];
-            if (!bilGroup.isSpecGroup) {
+            if (!bilGroup.isSpecGroup && !bilGroup.isIsolationGroup && !bilGroup.isStiftGroup) {
                 for (var fi = 0; fi < bilGroup.items.length; fi++) {
                     var m = bilGroup.items[fi];
                     matsHtml += '<div class="bil-history-mat"><div class="mat-summary-row">'
@@ -7833,8 +7886,9 @@ function renderBilHistory() {
                         + '</div></div>';
                 }
             } else {
+                var bilGroupTitle = bilGroup.displayName || bilGroup.baseName;
                 matsHtml += '<div class="bil-history-mat"><div class="bil-history-group-header">'
-                    + escapeHtml(bilGroup.baseName.charAt(0).toUpperCase() + bilGroup.baseName.slice(1))
+                    + escapeHtml(bilGroupTitle.charAt(0).toUpperCase() + bilGroupTitle.slice(1))
                     + '</div>';
                 for (var gi = 0; gi < bilGroup.items.length; gi++) {
                     var gm = bilGroup.items[gi];
@@ -8239,58 +8293,146 @@ function _getDefaultPlate() {
 }
 
 var _currentKappeProductBtn = null;
+var _productDimensionPickerCallback = null;
+var _productDimensionPickerProducts = [];
+var _productDimensionPickerDimensions = [];
+var _productDimensionPickerGetDimensionsForProduct = null;
+var _productDimensionPickerShowPlate = true;
+var _productDimensionPickerRequireDimension = false;
 var _kappePickerSelectedBrand = null;
 var _kappePickerSelectedDim = null;
 
-function openKappeProductPicker(btn) {
-    _currentKappeProductBtn = btn;
-    var overlay = document.getElementById('kappe-product-picker-overlay');
-    var hiddenInput = btn.parentElement.querySelector('.kappe-line-product');
-    var currentValue = hiddenInput ? hiddenInput.value : '';
+function _escapeKappePickerJs(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
 
-    // Last plate-verdier inn i picker-input fra linjens skjulte plate-felter
-    var card = btn.closest('.kappe-line-card');
-    var plateLenInput = document.getElementById('kappe-picker-plate-length');
-    var plateWidInput = document.getElementById('kappe-picker-plate-width');
-    if (card && plateLenInput && plateWidInput) {
-        var lineLen = card.querySelector('.kappe-line-plate-length');
-        var lineWid = card.querySelector('.kappe-line-plate-width');
-        var def = _getDefaultPlate();
-        plateLenInput.value = (lineLen && lineLen.value) || def.lengde;
-        plateWidInput.value = (lineWid && lineWid.value) || def.bredde;
+function _normalizeProductDimensionPickerDim(value, dimensions) {
+    if (!value) return null;
+    var raw = String(value).trim();
+    var wanted = _formatDimMm(raw).toLowerCase();
+    for (var i = 0; i < dimensions.length; i++) {
+        var dim = String(dimensions[i] || '').trim();
+        if (!dim) continue;
+        if (dim.toLowerCase() === raw.toLowerCase()) return dim;
+        if (_formatDimMm(dim).toLowerCase() === wanted) return dim;
     }
+    return null;
+}
 
-    var products = getKappeProducts();
-
-    // Parse lagret verdi til merke + dimensjon for initiell uthevelse
-    var initialBrand = null;
-    var initialDim = null;
-    if (currentValue) {
-        for (var i = 0; i < products.length; i++) {
-            var p = products[i];
-            if (currentValue === p.name) {
-                initialBrand = p.name;
-                break;
-            }
-            if (currentValue.indexOf(p.name + ' ') === 0) {
-                initialBrand = p.name;
-                // Resten er dimensjon (med "mm" suffix typisk)
-                initialDim = currentValue.substring(p.name.length + 1).replace(/mm$/i, '').trim();
-                break;
-            }
+function _parseProductDimensionValue(value, products) {
+    var currentValue = String(value || '').trim();
+    var result = { brand: '', dim: '' };
+    if (!currentValue) return result;
+    for (var i = 0; i < products.length; i++) {
+        var p = products[i];
+        if (!p || !p.name) continue;
+        if (currentValue === p.name) {
+            result.brand = p.name;
+            return result;
+        }
+        if (currentValue.indexOf(p.name + ' ') === 0) {
+            result.brand = p.name;
+            result.dim = currentValue.substring(p.name.length + 1).trim();
+            return result;
         }
     }
-    if (!initialBrand && products.length > 0) initialBrand = products[0].name;
+    return result;
+}
+
+function openProductDimensionPicker(options) {
+    options = options || {};
+    var overlay = document.getElementById('kappe-product-picker-overlay');
+    if (!overlay) return false;
+
+    var products = (options.products || getKappeProducts()).filter(function(product) {
+        return product && product.name;
+    });
+    var dimensions = (options.dimensions || getKappeDimensions()).map(function(dim) {
+        return String(dim || '').trim();
+    }).filter(function(dim) {
+        return !!dim;
+    });
+    _sortKappeNumeric(dimensions);
+
+    if (!products.length) {
+        showNotificationModal(t('kappe_settings_no_products'));
+        return false;
+    }
+    if (options.requireDimension && !dimensions.length) {
+        showNotificationModal(t('kappe_settings_no_dimensions'));
+        return false;
+    }
+
+    _productDimensionPickerCallback = options.onConfirm || null;
+    _productDimensionPickerProducts = products;
+    _productDimensionPickerDimensions = dimensions;
+    _productDimensionPickerGetDimensionsForProduct = typeof options.getDimensionsForProduct === 'function'
+        ? options.getDimensionsForProduct
+        : null;
+    _productDimensionPickerShowPlate = !!options.showPlate;
+    _productDimensionPickerRequireDimension = !!options.requireDimension;
+
+    var titleEl = document.getElementById('product-dimension-picker-title');
+    if (titleEl) titleEl.textContent = options.title || t('kappe_col_produkt');
+
+    var plateSection = document.getElementById('product-dimension-picker-plate-section');
+    if (plateSection) plateSection.style.display = _productDimensionPickerShowPlate ? '' : 'none';
+
+    var plateLenInput = document.getElementById('kappe-picker-plate-length');
+    var plateWidInput = document.getElementById('kappe-picker-plate-width');
+    if (_productDimensionPickerShowPlate && plateLenInput && plateWidInput) {
+        var def = _getDefaultPlate();
+        plateLenInput.value = (options.plate && options.plate.length) || def.lengde;
+        plateWidInput.value = (options.plate && options.plate.width) || def.bredde;
+    }
+
+    var initialBrand = products.some(function(product) { return product.name === options.initialBrand; })
+        ? options.initialBrand
+        : products[0].name;
     _kappePickerSelectedBrand = initialBrand;
+    var initialDimensions = _getProductDimensionPickerDimensionsForBrand(initialBrand);
+    var initialDim = _normalizeProductDimensionPickerDim(options.initialDim, initialDimensions);
+    if (!initialDim && options.defaultFirstDimension && initialDimensions.length) initialDim = initialDimensions[0];
     _kappePickerSelectedDim = initialDim;
 
-    _renderKappePickerTabs(products);
-    _renderKappePickerDimensions(products);
+    _renderKappePickerTabs();
+    _renderKappePickerDimensions();
 
     overlay.classList.add('active');
+    return true;
+}
+
+function openKappeProductPicker(btn) {
+    _currentKappeProductBtn = btn;
+    var hiddenInput = btn.parentElement.querySelector('.kappe-line-product');
+    var currentValue = hiddenInput ? hiddenInput.value : '';
+    var products = getKappeProducts();
+    var parsed = _parseProductDimensionValue(currentValue, products);
+    var plate = null;
+    var card = btn.closest('.kappe-line-card');
+    if (card) {
+        var lineLen = card.querySelector('.kappe-line-plate-length');
+        var lineWid = card.querySelector('.kappe-line-plate-width');
+        plate = {
+            length: lineLen ? lineLen.value : '',
+            width: lineWid ? lineWid.value : ''
+        };
+    }
+    var opened = openProductDimensionPicker({
+        title: t('kappe_col_produkt'),
+        showPlate: true,
+        initialBrand: parsed.brand,
+        initialDim: parsed.dim,
+        plate: plate,
+        onConfirm: function(selection) {
+            selectKappeProduct(selection.value);
+        }
+    });
+    if (!opened) _currentKappeProductBtn = null;
 }
 
 function _renderKappePickerTabs(products) {
+    products = products || _productDimensionPickerProducts;
     var brandsEl = document.getElementById('kappe-picker-brands-list');
     if (!brandsEl) return;
     if (!products.length) {
@@ -8299,7 +8441,7 @@ function _renderKappePickerTabs(products) {
     }
     brandsEl.innerHTML = products.map(function(p) {
         var sel = (p.name === _kappePickerSelectedBrand) ? ' kappe-product-picker-row-selected' : '';
-        var safe = p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        var safe = _escapeKappePickerJs(p.name);
         return '<div class="kappe-product-picker-row' + sel + '" onclick="_selectKappePickerBrand(\'' + safe + '\')">' +
             '<span class="kappe-product-picker-name">' + escapeHtml(p.name) + '</span>' +
         '</div>';
@@ -8308,19 +8450,39 @@ function _renderKappePickerTabs(products) {
 
 function _selectKappePickerBrand(brand) {
     _kappePickerSelectedBrand = brand;
-    // Beholder _kappePickerSelectedDim — bruker kan endre merke uten å miste dim-valg
-    var products = getKappeProducts();
-    _renderKappePickerTabs(products);
-    _renderKappePickerDimensions(products);
+    var dims = _getProductDimensionPickerDimensionsForBrand(brand);
+    var normalizedDim = _normalizeProductDimensionPickerDim(_kappePickerSelectedDim, dims);
+    _kappePickerSelectedDim = normalizedDim || (dims.length ? dims[0] : '');
+    _renderKappePickerTabs();
+    _renderKappePickerDimensions();
 }
 
 function _selectKappePickerDim(dim) {
     _kappePickerSelectedDim = dim;
-    var products = getKappeProducts();
-    _renderKappePickerDimensions(products);
+    _renderKappePickerDimensions();
+}
+
+function _getProductDimensionPickerDimensionsForBrand(brand) {
+    var dims;
+    if (_productDimensionPickerGetDimensionsForProduct) {
+        var product = _productDimensionPickerProducts.find(function(p) {
+            return p && p.name === brand;
+        });
+        dims = _productDimensionPickerGetDimensionsForProduct(product || { name: brand });
+    } else {
+        dims = _productDimensionPickerDimensions;
+    }
+    dims = (dims || []).map(function(dim) {
+        return String(dim || '').trim();
+    }).filter(function(dim) {
+        return !!dim;
+    });
+    _sortKappeNumeric(dims);
+    return dims;
 }
 
 function _renderKappePickerDimensions(products) {
+    products = products || _productDimensionPickerProducts;
     var listEl = document.getElementById('kappe-product-picker-list');
     if (!listEl) return;
 
@@ -8329,9 +8491,7 @@ function _renderKappePickerDimensions(products) {
         return;
     }
 
-    // Bruk globale dimensjoner — gjelder for alle merker
-    var dims = getKappeDimensions().slice();
-    _sortKappeNumeric(dims);
+    var dims = _getProductDimensionPickerDimensionsForBrand(_kappePickerSelectedBrand);
 
     if (!dims.length) {
         listEl.innerHTML = '<div class="kappe-product-picker-empty">' + t('kappe_settings_no_dimensions') + '</div>';
@@ -8340,7 +8500,7 @@ function _renderKappePickerDimensions(products) {
 
     listEl.innerHTML = dims.map(function(dim) {
         var sel = (dim === _kappePickerSelectedDim) ? ' kappe-product-picker-row-selected' : '';
-        var safe = dim.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        var safe = _escapeKappePickerJs(dim);
         return '<div class="kappe-product-picker-row' + sel + '" onclick="_selectKappePickerDim(\'' + safe + '\')">' +
             '<span class="kappe-product-picker-name">' + escapeHtml(_formatDimMm(dim)) + '</span>' +
             '</div>';
@@ -8348,24 +8508,50 @@ function _renderKappePickerDimensions(products) {
 }
 
 function confirmKappeProductPicker() {
-    if (!_currentKappeProductBtn) return;
     if (!_kappePickerSelectedBrand) {
         showNotificationModal(t('kappe_settings_no_products'));
         return;
     }
+    if (_productDimensionPickerRequireDimension && !_kappePickerSelectedDim) {
+        showNotificationModal(t('kappe_settings_no_dimensions'));
+        return;
+    }
     var value;
+    var enhet = '';
     if (_kappePickerSelectedDim) {
-        value = _kappePickerSelectedBrand + ' ' + _formatDimMm(_kappePickerSelectedDim);
+        enhet = _formatDimMm(_kappePickerSelectedDim);
+        value = _kappePickerSelectedBrand + ' ' + enhet;
     } else {
         value = _kappePickerSelectedBrand;
     }
-    selectKappeProduct(value);
+    if (_productDimensionPickerCallback) {
+        var selectedProduct = _productDimensionPickerProducts.find(function(product) {
+            return product && product.name === _kappePickerSelectedBrand;
+        }) || null;
+        _productDimensionPickerCallback({
+            name: _kappePickerSelectedBrand,
+            dim: _kappePickerSelectedDim || '',
+            enhet: enhet,
+            value: value,
+            product: selectedProduct,
+            source: selectedProduct && selectedProduct.source ? selectedProduct.source : ''
+        });
+    }
+    closeKappeProductPicker();
 }
 
 function closeKappeProductPicker() {
     var overlay = document.getElementById('kappe-product-picker-overlay');
     overlay.classList.remove('active');
     _currentKappeProductBtn = null;
+    _productDimensionPickerCallback = null;
+    _productDimensionPickerProducts = [];
+    _productDimensionPickerDimensions = [];
+    _productDimensionPickerGetDimensionsForProduct = null;
+    _productDimensionPickerShowPlate = true;
+    _productDimensionPickerRequireDimension = false;
+    _kappePickerSelectedBrand = null;
+    _kappePickerSelectedDim = null;
 }
 
 function selectKappeProduct(value) {
@@ -8637,10 +8823,12 @@ function updateKappeDeleteStates() {
     delBtns.forEach(function(btn) { btn.disabled = cards.length <= 1; });
 }
 
-function _kappeStiftRowHtml(size, value) {
-    return '<div class="kappe-stift-row" data-row-size="' + escapeHtml(size) + '">' +
-        '<label class="kappe-stift-label">' + escapeHtml(_formatDimMm(size)) + '</label>' +
-        '<input type="text" class="kappe-stift-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Kartonger" value="' + escapeHtml(value || '') + '">' +
+function _kappeStiftRowHtml(size, value, productName, unit) {
+    productName = productName || MATERIAL_STIFT_LAUNCHER;
+    unit = unit || getKappeProductDefaultUnit(productName) || 'stk';
+    return '<div class="kappe-stift-row" data-row-size="' + escapeHtml(size) + '" data-product="' + escapeHtml(productName) + '" data-unit="' + escapeHtml(unit) + '">' +
+        '<label class="kappe-stift-label">' + escapeHtml(productName + ' ' + _formatDimMm(size)) + '</label>' +
+        '<input type="text" class="kappe-stift-input" data-size="' + escapeHtml(size) + '" data-product="' + escapeHtml(productName) + '" data-unit="' + escapeHtml(unit) + '" inputmode="numeric" placeholder="' + escapeHtml(unit) + '" value="' + escapeHtml(value || '') + '">' +
         '<button type="button" class="kappe-stift-remove" onclick="removeKappeStiftRow(this)" aria-label="Fjern">' + deleteIcon + '</button>' +
     '</div>';
 }
@@ -8649,10 +8837,11 @@ function renderKappeStiftRows(existing) {
     var container = document.getElementById('kappe-stift');
     if (!container) return;
     var html = '';
-    (existing || []).forEach(function(s) {
-        var size = s.storrelse || s['størrelse'];
+    var rows = (existing && existing.length) ? existing : [];
+    rows.forEach(function(s) {
+        var size = s.storrelse || s['størrelse'] || s.enhet;
         if (!size) return;
-        html += _kappeStiftRowHtml(size, s.antall);
+        html += _kappeStiftRowHtml(size, s.antall, s.produkt || s.product || MATERIAL_STIFT_LAUNCHER, s.enhetType || s.unit || s.quantityUnit);
     });
     container.innerHTML = html;
     _updateKappeStiftAddBtnState();
@@ -8661,63 +8850,41 @@ function renderKappeStiftRows(existing) {
 function _updateKappeStiftAddBtnState() {
     var btn = document.getElementById('kappe-stift-add');
     if (!btn) return;
-    var used = Array.prototype.map.call(
-        document.querySelectorAll('#kappe-stift .kappe-stift-row'),
-        function(r) { return r.getAttribute('data-row-size'); }
-    );
-    btn.disabled = used.length >= getKappeStiftSizes().length;
+    btn.disabled = !getKappeFastenerProducts().length || !getKappeDimensions().length;
 }
 
 function openKappeStiftPicker() {
-    // Samle eksisterende verdier så picker kan pre-fylle
-    var currentValues = {};
-    document.querySelectorAll('#kappe-stift .kappe-stift-row').forEach(function(row) {
-        var size = row.getAttribute('data-row-size');
-        var input = row.querySelector('.kappe-stift-input');
-        currentValues[size] = input ? input.value : '';
+    var fasteners = getKappeFastenerProducts();
+    if (!fasteners.length) {
+        showNotificationModal(t('kappe_settings_no_products'));
+        return;
+    }
+    var opened = openProductDimensionPicker({
+        title: getKappeFastenerLabel(),
+        products: fasteners,
+        dimensions: getKappeDimensions(),
+        showPlate: false,
+        requireDimension: true,
+        defaultFirstDimension: true,
+        onConfirm: function(selection) {
+            var container = document.getElementById('kappe-stift');
+            if (!container) return;
+            var product = selection.product || getKappeCatalogProduct(selection.name) || {};
+            var size = selection.enhet || selection.dim || '';
+            var unit = getKappeProductDefaultUnit(selection.name) || 'stk';
+            container.insertAdjacentHTML('beforeend', _kappeStiftRowHtml(size, '', selection.name, unit));
+            _updateKappeStiftAddBtnState();
+            requestAnimationFrame(function() {
+                var rows = container.querySelectorAll('.kappe-stift-row');
+                var row = rows[rows.length - 1];
+                if (!row) return;
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                var input = row.querySelector('.kappe-stift-input');
+                if (input) input.focus();
+            });
+        }
     });
-
-    var popup = document.getElementById('action-popup');
-    var titleEl = document.getElementById('action-popup-title');
-    titleEl.textContent = t('kappe_stift_pick');
-    titleEl.style.display = '';
-    var buttonsEl = document.getElementById('action-popup-buttons');
-    var listHtml = '<div class="kappe-stift-picker-list">';
-    getKappeStiftSizes().forEach(function(size) {
-        var val = currentValues[size] || '';
-        listHtml += '<div class="kappe-stift-picker-row">' +
-            '<label class="kappe-stift-picker-label">' + escapeHtml(size) + '</label>' +
-            '<input type="text" class="kappe-stift-picker-input" data-size="' + escapeHtml(size) + '" inputmode="numeric" placeholder="Kartonger" value="' + escapeHtml(val) + '">' +
-        '</div>';
-    });
-    listHtml += '</div>';
-    buttonsEl.innerHTML = listHtml +
-        '<div class="confirm-modal-buttons" style="margin-top:12px">' +
-            '<button class="confirm-btn-cancel" style="flex:1" onclick="closeActionPopup()">' + t('btn_cancel') + '</button>' +
-            '<button class="confirm-btn-ok" style="flex:1;background:#E8501A" onclick="applyKappeStiftPicker()">OK</button>' +
-        '</div>';
-    popup.classList.add('active');
-    // Auto-focus første tomme felt
-    requestAnimationFrame(function() {
-        var firstEmpty = buttonsEl.querySelector('.kappe-stift-picker-input:placeholder-shown') || buttonsEl.querySelector('.kappe-stift-picker-input');
-        if (firstEmpty) firstEmpty.focus();
-    });
-}
-
-function applyKappeStiftPicker() {
-    var container = document.getElementById('kappe-stift');
-    if (!container) return;
-    var picker = document.querySelectorAll('#action-popup .kappe-stift-picker-input');
-    var newRows = '';
-    picker.forEach(function(inp) {
-        var size = inp.getAttribute('data-size');
-        var v = (inp.value || '').trim();
-        if (!size || !v) return;
-        newRows += _kappeStiftRowHtml(size, v);
-    });
-    container.innerHTML = newRows;
-    _updateKappeStiftAddBtnState();
-    closeActionPopup();
+    if (!opened) _updateKappeStiftAddBtnState();
 }
 
 function removeKappeStiftRow(btn) {
@@ -8740,7 +8907,12 @@ function getKappeFormData() {
     var stift = [];
     document.querySelectorAll('#kappe-stift .kappe-stift-input').forEach(function(inp) {
         var v = inp.value || '';
-        if (v) stift.push({ storrelse: inp.getAttribute('data-size'), antall: v });
+        if (v) stift.push({
+            produkt: inp.getAttribute('data-product') || MATERIAL_STIFT_LAUNCHER,
+            storrelse: inp.getAttribute('data-size'),
+            antall: v,
+            enhetType: inp.getAttribute('data-unit') || ''
+        });
     });
     return {
         type: 'kappe',
@@ -8761,6 +8933,7 @@ function getKappeFormData() {
         pallemerking: document.getElementById('kappe-pallemerking').value,
         lines: lines,
         stift: stift,
+        fasteners: stift,
         savedAt: new Date().toISOString()
     };
 }
@@ -8794,7 +8967,7 @@ function setKappeFormData(data) {
     list.forEach(function(line) { container.appendChild(createKappeLineCard(line, list.length === 1)); });
     renumberKappeLines();
     updateKappeDeleteStates();
-    renderKappeStiftRows(data.stift || []);
+    renderKappeStiftRows(data.fasteners || data.stift || []);
 }
 
 function hasUnsavedKappeChanges() {
@@ -8864,7 +9037,7 @@ function updateKappeRequiredIndicators() {
         else prodSection.classList.remove('field-required');
     }
     // Stift-seksjon
-    var stiftSection = document.querySelector('.mobile-section-title[data-i18n="kappe_section_staples"]');
+    var stiftSection = document.querySelector('.mobile-section-title[data-i18n="kappe_section_fasteners"]');
     if (stiftSection) {
         if (req.stift === true) stiftSection.classList.add('field-required');
         else stiftSection.classList.remove('field-required');
@@ -9547,22 +9720,25 @@ function buildKappeExportTable() {
             '<tbody>' + productRows + '</tbody>' +
         '</table>';
 
-    var stiftMap = {};
-    (data.stift || []).forEach(function(s) { stiftMap[s.storrelse || s['størrelse']] = s.antall; });
+    var fastenerRowsData = data.fasteners || data.stift || [];
     var stiftRows = '';
-    getKappeStiftSizes().forEach(function(size) {
+    fastenerRowsData.forEach(function(item) {
+        if (!item || !item.antall) return;
+        var productName = item.produkt || item.product || MATERIAL_STIFT_LAUNCHER;
+        var size = item.storrelse || item['størrelse'] || item.enhet || '';
+        var unit = item.enhetType || item.unit || item.quantityUnit || getKappeProductDefaultUnit(productName) || 'stk';
         stiftRows +=
             '<tr>' +
-                '<td class="ke-stift-size">' + escapeHtml(size) + '</td>' +
-                '<td class="ke-stift-antall">' + escapeHtml(stiftMap[size] || '') + '</td>' +
+                '<td class="ke-stift-size">' + escapeHtml(productName + (size ? ' ' + _formatDimMm(size) : '')) + '</td>' +
+                '<td class="ke-stift-antall">' + escapeHtml(item.antall || '') + ' ' + escapeHtml(unit) + '</td>' +
             '</tr>';
     });
 
     var stiftTable =
-        '<div class="ke-section-title">Stift</div>' +
+        '<div class="ke-section-title">' + escapeHtml(getKappeFastenerLabel()) + '</div>' +
         '<table class="ke-stift-table">' +
             '<colgroup><col style="width:55%"><col style="width:45%"></colgroup>' +
-            '<thead><tr><th>Størrelse (mm)</th><th>Kartonger</th></tr></thead>' +
+            '<thead><tr><th>Produkt/dimensjon</th><th>Antall</th></tr></thead>' +
             '<tbody>' + stiftRows + '</tbody>' +
         '</table>';
 
@@ -9802,15 +9978,136 @@ function updateKappePreviewScale() {
 // ─── Kappe product settings CRUD ───────────────────────────────────────────
 
 function _kappeSettingsItemHtml(name, idx, editFn, removeFn) {
-    return '<div class="settings-list-item kappe-product-item" data-idx="' + idx + '">' +
+    return '<div class="settings-list-item settings-action-row" data-idx="' + idx + '">' +
         '<div class="settings-list-item-main">' +
             '<div class="settings-list-item-name">' + escapeHtml(name) + '</div>' +
         '</div>' +
         '<div class="settings-list-item-actions">' +
-            '<button type="button" class="settings-item-edit" onclick="' + editFn + '(' + idx + ')" title="' + t('edit_btn') + '">' + (typeof editIcon !== 'undefined' ? editIcon : '✏️') + '</button>' +
+            '<button type="button" class="settings-item-edit" onclick="' + editFn + '(' + idx + ')" title="' + t('edit_btn') + '">' + editIcon + '</button>' +
             '<button type="button" class="settings-item-remove" onclick="' + removeFn + '(' + idx + ')" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
         '</div>' +
     '</div>';
+}
+
+function _kappeProductSettingsItemHtml(product, idx) {
+    var units = product.units || [];
+    var variantCount = units.length;
+    var countBadge = variantCount > 0
+        ? '<span class="settings-material-variant-count" title="' + variantCount + ' ' + (variantCount === 1 ? 'enhet' : 'enheter') + '">' + variantCount + '</span>'
+        : '';
+    var unitsHtml = units.map(function(unit, unitIdx) {
+        var isDefault = unit === product.defaultUnit || (!product.defaultUnit && unitIdx === 0);
+        var starIcon = isDefault
+            ? '<span class="settings-material-unit-star" title="Standard">★</span>'
+            : '<span class="settings-material-unit-star empty" title="Sett som standard" onclick="event.stopPropagation();setDefaultKappeProductUnit(' + idx + ',' + unitIdx + ')">☆</span>';
+        return '<div class="settings-material-unit-item">' +
+            starIcon +
+            '<span class="settings-material-unit-text">' + escapeHtml(unit) + '</span>' +
+            '<button class="settings-material-unit-edit-btn" onclick="event.stopPropagation();editKappeProductUnit(' + idx + ',' + unitIdx + ',this)" title="' + t('edit_btn') + '">' + editIcon + '</button>' +
+            '<button class="settings-material-unit-remove" onclick="event.stopPropagation();removeKappeProductUnit(' + idx + ',' + unitIdx + ')">' + deleteIcon + '</button>' +
+        '</div>';
+    }).join('');
+    return '<div class="settings-material-group kappe-product-settings-group">' +
+        '<div class="settings-material-header" onclick="toggleKappeProductExpand(this)">' +
+            '<div class="settings-material-name-wrap">' +
+                '<span class="settings-material-name-display settings-kappe-product-name-display">' + escapeHtml(product.name) + '</span>' +
+                countBadge +
+            '</div>' +
+            '<button class="settings-material-type-btn" onclick="event.stopPropagation();openKappeProductTypePicker(this,' + idx + ')" data-value="' + (product.type || 'isolasjon') + '">' + _getKappeProductTypeLabel(product.type) + '</button>' +
+            '<button class="settings-material-edit-btn" onclick="event.stopPropagation();editKappeProduct(' + idx + ')" title="' + t('edit_btn') + '">' + editIcon + '</button>' +
+            '<button class="settings-delete-btn" onclick="event.stopPropagation();removeKappeProduct(' + idx + ')" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
+            '<span class="settings-material-expand">&rsaquo;</span>' +
+        '</div>' +
+        '<div class="settings-material-body">' +
+            unitsHtml +
+            '<div class="settings-material-unit-add" onclick="addKappeProductUnit(' + idx + ')">+ Legg til enhet</div>' +
+        '</div>' +
+    '</div>';
+}
+
+function _getKappeProductTypeLabel(type) {
+    return type === 'festemiddel' ? t('kappe_product_type_festemiddel') : t('kappe_product_type_isolasjon');
+}
+
+function _getKappeProductTypeDesc(type) {
+    return type === 'festemiddel' ? 'stk, eske' : 'meter, pakker';
+}
+
+function _getKappeProductTypeIcon(type) {
+    return type === 'festemiddel' ? '•' : 'm';
+}
+
+function toggleKappeProductExpand(headerEl) {
+    var group = headerEl.closest('.settings-material-group');
+    if (group) group.classList.toggle('expanded');
+}
+
+function _renderKappeProductTypePicker(currentValue, onSelect) {
+    var existing = document.querySelector('.mat-type-backdrop');
+    if (existing) { closeMatTypeDropdown(); return; }
+    var types = [
+        { value: 'isolasjon', desc: 'Løpende meter eller pakker' },
+        { value: 'festemiddel', desc: 'Stk eller eske' }
+    ];
+    var backdrop = document.createElement('div');
+    backdrop.className = 'mat-type-backdrop';
+    backdrop.onclick = function() { closeMatTypeDropdown(); };
+    var dropdown = document.createElement('div');
+    dropdown.className = 'mat-type-dropdown';
+    types.forEach(function(typeInfo) {
+        var value = typeInfo.value;
+        var isActive = value === currentValue;
+        var item = document.createElement('div');
+        item.className = 'mat-type-dropdown-item' + (isActive ? ' active' : '');
+        item.innerHTML =
+            '<div class="mat-type-icon">' + escapeHtml(_getKappeProductTypeIcon(value)) + '</div>' +
+            '<div class="mat-type-text">' +
+                '<div class="mat-type-label">' + escapeHtml(_getKappeProductTypeLabel(value)) + '</div>' +
+                '<div class="mat-type-desc">' + escapeHtml(typeInfo.desc) + '</div>' +
+            '</div>' +
+            '<div class="mat-type-check">' + (isActive ? '✓' : '') + '</div>';
+        item.onclick = function(e) {
+            e.stopPropagation();
+            closeMatTypeDropdown();
+            if (value !== currentValue) onSelect(value);
+        };
+        dropdown.appendChild(item);
+    });
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dropdown);
+    requestAnimationFrame(function() {
+        backdrop.classList.add('visible');
+        dropdown.classList.add('visible');
+    });
+}
+
+function openKappeProductTypePicker(btn, idx) {
+    _renderKappeProductTypePicker(btn.dataset.value || 'isolasjon', function(value) {
+        changeKappeProductType(idx, value);
+    });
+}
+
+function openNewKappeProductTypePicker() {
+    var sel = document.getElementById('settings-new-kappe-type');
+    if (!sel) return;
+    _renderKappeProductTypePicker(sel.value || 'isolasjon', function(value) {
+        sel.value = value;
+        var btn = document.getElementById('settings-new-kappe-type-btn');
+        if (btn) {
+            btn.dataset.value = value;
+            btn.textContent = _getKappeProductTypeLabel(value);
+            btn.setAttribute('data-i18n', 'kappe_product_type_' + value);
+        }
+        updateKappeNewProductUnitPlaceholder();
+    });
+}
+
+function updateKappeNewProductUnitPlaceholder() {
+    var sel = document.getElementById('settings-new-kappe-type');
+    var unitsEl = document.getElementById('settings-new-kappe-units');
+    if (!sel || !unitsEl) return;
+    var type = sel.value === 'festemiddel' ? 'festemiddel' : 'isolasjon';
+    unitsEl.placeholder = _getKappeProductTypeDesc(type);
 }
 
 // Sorterer dimensjoner/stift-størrelser numerisk når mulig, ellers alfabetisk.
@@ -9824,9 +10121,21 @@ function _sortKappeNumeric(arr) {
     });
 }
 
+function _parseKappeUnits(value, type) {
+    var units = String(value || '').split(',').map(function(unit) {
+        return unit.trim();
+    }).filter(Boolean);
+    return units;
+}
+
+function _saveKappeCatalog(catalog) {
+    var normalized = _buildKappeCatalog(catalog.products || [], catalog.dimensions || []);
+    _syncKappeSetting(KAPPE_CATALOG_KEY, 'kappe_catalog', normalized);
+}
+
 // Lagrer ny products-array + globale dimensions atomisk til localStorage og Firebase
 function _saveKappeProducts(products, dimensions) {
-    _syncKappeSetting(KAPPE_PRODUCTS_KEY, 'kappe_products', { products: products, dimensions: dimensions });
+    _saveKappeCatalog({ products: products, dimensions: dimensions });
 }
 
 function renderKappeProductSettings() {
@@ -9834,7 +10143,12 @@ function renderKappeProductSettings() {
     var dimContainer = document.getElementById('settings-kappe-dim-items');
     if (!brandContainer || !dimContainer) return;
 
-    var products = getKappeProducts();
+    var expandedSet = new Set();
+    brandContainer.querySelectorAll('.kappe-product-settings-group.expanded').forEach(function(el) {
+        var name = el.querySelector('.settings-kappe-product-name-display');
+        if (name) expandedSet.add(name.textContent);
+    });
+    var products = getKappeCatalogProducts();
     var dimensions = getKappeDimensions().slice();
     _sortKappeNumeric(dimensions);
 
@@ -9843,9 +10157,12 @@ function renderKappeProductSettings() {
     var dimCount = document.getElementById('settings-count-kappe-dimensions');
     if (dimCount) dimCount.textContent = dimensions.length ? '(' + dimensions.length + ')' : '';
 
-    // Render merker (samme stil som Stift-listen)
     brandContainer.innerHTML = products.map(function(p, i) {
-        return _kappeSettingsItemHtml(p.name, i, 'editKappeProduct', 'removeKappeProduct');
+        var html = _kappeProductSettingsItemHtml(p, i);
+        if (expandedSet.has(p.name)) {
+            html = html.replace('kappe-product-settings-group', 'kappe-product-settings-group expanded');
+        }
+        return html;
     }).join('');
 
     // Render dimensjoner — vis kun verdien (uten "mm"-suffix)
@@ -9859,39 +10176,204 @@ function addKappeProduct() {
     if (!nameEl) return;
     var name = (nameEl.value || '').trim();
     if (!name) { showNotificationModal(t('kappe_settings_name_required')); nameEl.focus(); return; }
-
-    var products = getKappeProducts();
+    var typeEl = document.getElementById('settings-new-kappe-type');
+    var unitsEl = document.getElementById('settings-new-kappe-units');
+    var type = typeEl && typeEl.value === 'festemiddel' ? 'festemiddel' : 'isolasjon';
+    var units = _parseKappeUnits(unitsEl ? unitsEl.value : '', type);
+    var products = getKappeCatalogProducts();
     if (products.some(function(p) { return p.name.toLowerCase() === name.toLowerCase(); })) {
         showNotificationModal(t('kappe_settings_duplicate'));
         return;
     }
-    products.push({ name: name });
-    products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+    products.push({ name: name, type: type, units: units, defaultUnit: units[0] || '', usesDimensions: true });
     _saveKappeProducts(products, getKappeDimensions());
     nameEl.value = '';
+    if (unitsEl) unitsEl.value = '';
     renderKappeProductSettings();
 }
 
 function editKappeProduct(idx) {
-    var products = getKappeProducts();
+    var products = getKappeCatalogProducts();
     var p = products[idx];
     if (!p) return;
-    showInputModal(t('kappe_settings_edit_name'), p.name, function(newName) {
-        newName = (newName || '').trim();
-        if (!newName) return;
-        if (products.some(function(other, i) { return i !== idx && other.name.toLowerCase() === newName.toLowerCase(); })) {
-            showNotificationModal(t('kappe_settings_duplicate'));
+    var container = document.getElementById('settings-kappe-brand-items');
+    var item = container ? container.children[idx] : null;
+    var span = item ? item.querySelector('.settings-kappe-product-name-display') : null;
+    if (!span) return;
+    var oldName = p.name;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'settings-list-edit-input';
+    input.value = oldName;
+    input.onclick = function(e) { e.stopPropagation(); };
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+    var saved = false;
+
+    function save() {
+        if (saved) return;
+        saved = true;
+        var newName = input.value.trim();
+        if (!newName || newName === oldName) {
+            renderKappeProductSettings();
             return;
         }
-        products[idx] = { name: newName };
-        products.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+        if (products.some(function(other, i) { return i !== idx && other.name.toLowerCase() === newName.toLowerCase(); })) {
+            showNotificationModal(t('kappe_settings_duplicate'));
+            renderKappeProductSettings();
+            return;
+        }
+        products[idx].name = newName;
         _saveKappeProducts(products, getKappeDimensions());
         renderKappeProductSettings();
+    }
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { saved = true; renderKappeProductSettings(); }
     });
 }
 
+function changeKappeProductType(idx, type) {
+    var products = getKappeCatalogProducts();
+    var p = products[idx];
+    if (!p) return;
+    var newType = type === 'festemiddel' ? 'festemiddel' : 'isolasjon';
+    p.type = newType;
+    if (!Array.isArray(p.units)) p.units = [];
+    if (p.units.length && (!p.defaultUnit || !p.units.some(function(unit) { return unit.toLowerCase() === String(p.defaultUnit).toLowerCase(); }))) {
+        p.defaultUnit = p.units[0];
+    } else if (!p.units.length) {
+        p.defaultUnit = '';
+    }
+    _saveKappeProducts(products, getKappeDimensions());
+    renderKappeProductSettings();
+}
+
+function setDefaultKappeProductUnit(idx, unitIdx) {
+    var products = getKappeCatalogProducts();
+    var p = products[idx];
+    if (!p || !p.units || !p.units[unitIdx]) return;
+    p.defaultUnit = p.units[unitIdx];
+    _saveKappeProducts(products, getKappeDimensions());
+    renderKappeProductSettings();
+}
+
+function addKappeProductUnit(idx) {
+    var products = getKappeCatalogProducts();
+    var p = products[idx];
+    if (!p) return;
+    var container = document.getElementById('settings-kappe-brand-items');
+    var group = container ? container.children[idx] : null;
+    if (!group) return;
+    group.classList.add('expanded');
+    if (group.querySelector('.settings-material-unit-edit')) return;
+    var addRow = group.querySelector('.settings-material-unit-add');
+    if (!addRow) return;
+
+    var editRow = document.createElement('div');
+    editRow.className = 'settings-material-unit-edit';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Enhet';
+    input.autocapitalize = 'off';
+    var okBtn = document.createElement('button');
+    okBtn.className = 'settings-unit-save settings-unit-save-ok';
+    okBtn.textContent = 'OK';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'settings-unit-save settings-unit-cancel';
+    cancelBtn.textContent = '✕';
+    editRow.appendChild(input);
+    editRow.appendChild(okBtn);
+    editRow.appendChild(cancelBtn);
+    addRow.before(editRow);
+    addRow.style.display = 'none';
+    input.focus();
+    editRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    function save() {
+        var unit = input.value.trim();
+        if (!unit) { renderKappeProductSettings(); return; }
+        if (!p.units) p.units = [];
+        if (p.units.some(function(existing) { return existing.toLowerCase() === unit.toLowerCase(); })) {
+            showNotificationModal(t('kappe_settings_duplicate'));
+            renderKappeProductSettings();
+            return;
+        }
+        p.units.push(unit);
+        if (!p.defaultUnit) p.defaultUnit = unit;
+        _saveKappeProducts(products, getKappeDimensions());
+        renderKappeProductSettings();
+    }
+    function cancel() { renderKappeProductSettings(); }
+    okBtn.addEventListener('click', save);
+    cancelBtn.addEventListener('click', cancel);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { cancel(); }
+    });
+}
+
+function editKappeProductUnit(idx, unitIdx, itemEl) {
+    var products = getKappeCatalogProducts();
+    var p = products[idx];
+    if (!p || !p.units || !p.units[unitIdx]) return;
+    var oldUnit = p.units[unitIdx];
+    var editRow = document.createElement('div');
+    editRow.className = 'settings-material-unit-edit';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = oldUnit;
+    input.placeholder = 'Enhet';
+    var okBtn = document.createElement('button');
+    okBtn.className = 'settings-unit-save settings-unit-save-ok';
+    okBtn.textContent = 'OK';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'settings-unit-save settings-unit-cancel';
+    cancelBtn.textContent = '✕';
+    editRow.appendChild(input);
+    editRow.appendChild(okBtn);
+    editRow.appendChild(cancelBtn);
+    itemEl.closest('.settings-material-unit-item').replaceWith(editRow);
+    input.focus();
+    input.select();
+
+    function save() {
+        var unit = input.value.trim();
+        if (!unit) { renderKappeProductSettings(); return; }
+        if (p.units.some(function(existing, i) { return i !== unitIdx && existing.toLowerCase() === unit.toLowerCase(); })) {
+            showNotificationModal(t('kappe_settings_duplicate'));
+            renderKappeProductSettings();
+            return;
+        }
+        p.units[unitIdx] = unit;
+        if (p.defaultUnit === oldUnit) p.defaultUnit = unit;
+        _saveKappeProducts(products, getKappeDimensions());
+        renderKappeProductSettings();
+    }
+    function cancel() { renderKappeProductSettings(); }
+    okBtn.addEventListener('click', save);
+    cancelBtn.addEventListener('click', cancel);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { cancel(); }
+    });
+}
+
+function removeKappeProductUnit(idx, unitIdx) {
+    var products = getKappeCatalogProducts();
+    var p = products[idx];
+    if (!p || !p.units || !p.units[unitIdx]) return;
+    var removed = p.units[unitIdx];
+    p.units.splice(unitIdx, 1);
+    if (p.defaultUnit === removed) p.defaultUnit = p.units[0] || '';
+    _saveKappeProducts(products, getKappeDimensions());
+    renderKappeProductSettings();
+}
+
 function removeKappeProduct(idx) {
-    var products = getKappeProducts();
+    var products = getKappeCatalogProducts();
     var p = products[idx];
     if (!p) return;
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + p.name + '"?', function() {
@@ -9916,7 +10398,7 @@ function addGlobalKappeDimension() {
     }
     dimensions.push(dim);
     _sortKappeNumeric(dimensions);
-    _saveKappeProducts(getKappeProducts(), dimensions);
+    _saveKappeProducts(getKappeCatalogProducts(), dimensions);
     inputEl.value = '';
     renderKappeProductSettings();
 }
@@ -9935,7 +10417,7 @@ function editGlobalKappeDimension(idx) {
         }
         dimensions[idx] = newDim;
         _sortKappeNumeric(dimensions);
-        _saveKappeProducts(getKappeProducts(), dimensions);
+        _saveKappeProducts(getKappeCatalogProducts(), dimensions);
         renderKappeProductSettings();
     });
 }
@@ -9947,7 +10429,7 @@ function removeGlobalKappeDimension(idx) {
     if (dim === undefined) return;
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + _formatDimMm(dim) + '"?', function() {
         dimensions.splice(idx, 1);
-        _saveKappeProducts(getKappeProducts(), dimensions);
+        _saveKappeProducts(getKappeCatalogProducts(), dimensions);
         renderKappeProductSettings();
     }, t('btn_remove'), '#e74c3c');
 }
@@ -9956,80 +10438,6 @@ function removeGlobalKappeDimension(idx) {
 function _syncKappeSetting(localKey, fbDoc, data) {
     safeSetItem(localKey, JSON.stringify(data));
     enqueueUserDocSet('settings', fbDoc, data, 'Sync ' + fbDoc);
-}
-
-// --- Stift-størrelser CRUD ---
-
-function _saveKappeStiftSizes(sizes) {
-    _syncKappeSetting(KAPPE_STIFT_SIZES_KEY, 'kappe_stift_sizes', { sizes: sizes });
-}
-
-function renderKappeStiftSizeSettings() {
-    var container = document.getElementById('settings-kappe-stift-items');
-    if (!container) return;
-    var sizes = getKappeStiftSizes().slice();
-    _sortKappeNumeric(sizes);
-    var countEl = document.getElementById('settings-count-kappe-stift');
-    if (countEl) countEl.textContent = sizes.length ? '(' + sizes.length + ')' : '';
-    if (!sizes.length) {
-        container.innerHTML = '';
-        return;
-    }
-    container.innerHTML = sizes.map(function(size, i) {
-        return _kappeSettingsItemHtml(size, i, 'editKappeStiftSize', 'removeKappeStiftSize');
-    }).join('');
-}
-
-function addKappeStiftSize() {
-    var el = document.getElementById('settings-new-kappe-stift');
-    if (!el) return;
-    var value = (el.value || '').trim();
-    if (!value) { showNotificationModal(t('kappe_settings_stift_required')); el.focus(); return; }
-    var sizes = getKappeStiftSizes();
-    if (sizes.some(function(s) { return s.toLowerCase() === value.toLowerCase(); })) {
-        showNotificationModal(t('kappe_settings_duplicate'));
-        return;
-    }
-    sizes.push(value);
-    _sortKappeNumeric(sizes);
-    _saveKappeStiftSizes(sizes);
-    el.value = '';
-    renderKappeStiftSizeSettings();
-}
-
-function editKappeStiftSize(idx) {
-    var sizes = getKappeStiftSizes();
-    var sortedSizes = sizes.slice();
-    _sortKappeNumeric(sortedSizes);
-    var cur = sortedSizes[idx];
-    if (cur === undefined) return;
-    showInputModal(t('kappe_settings_edit_stift'), cur, function(newVal) {
-        newVal = (newVal || '').trim();
-        if (!newVal) return;
-        if (sizes.some(function(s) { return s !== cur && s.toLowerCase() === newVal.toLowerCase(); })) {
-            showNotificationModal(t('kappe_settings_duplicate'));
-            return;
-        }
-        var origIdx = sizes.indexOf(cur);
-        if (origIdx >= 0) sizes[origIdx] = newVal;
-        _sortKappeNumeric(sizes);
-        _saveKappeStiftSizes(sizes);
-        renderKappeStiftSizeSettings();
-    });
-}
-
-function removeKappeStiftSize(idx) {
-    var sizes = getKappeStiftSizes();
-    var sortedSizes = sizes.slice();
-    _sortKappeNumeric(sortedSizes);
-    var cur = sortedSizes[idx];
-    if (cur === undefined) return;
-    showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + cur + '"?', function() {
-        var origIdx = sizes.indexOf(cur);
-        if (origIdx >= 0) sizes.splice(origIdx, 1);
-        _saveKappeStiftSizes(sizes);
-        renderKappeStiftSizeSettings();
-    }, t('btn_remove'), '#e74c3c');
 }
 
 function _loadKappeKerfSetting() {

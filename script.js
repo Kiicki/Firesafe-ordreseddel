@@ -13,12 +13,16 @@ const BIL_STORAGE_KEY = 'firesafe_bil_pafylling';
 const KAPPE_STORAGE_KEY = 'firesafe_kappe';
 const KAPPE_ARCHIVE_KEY = 'firesafe_kappe_arkiv';
 const KAPPE_DEFAULTS_KEY = 'firesafe_defaults_kappe';
+const KAPPE_CATALOG_KEY = 'firesafe_kappe_catalog';
 const KAPPE_PRODUCTS_KEY = 'firesafe_kappe_products';
 const KAPPE_STIFT_SIZES_KEY = 'firesafe_kappe_stift_sizes';
 const KAPPE_DEFAULT_PRODUCTS = [
-    { name: 'Fireprotect', dimensions: ['25mm', '40mm', '60mm'] }
+    { name: 'Fireprotect', type: 'isolasjon', units: ['meter', 'pakker'], defaultUnit: 'meter', usesDimensions: true }
 ];
 const KAPPE_DEFAULT_STIFT_SIZES = ['22mm', '27mm', '32mm', '42mm', '52mm'];
+const KAPPE_DEFAULT_DIMENSIONS = ['25mm', '40mm', '60mm'];
+const KAPPE_DEFAULT_FASTENER_UNIT = 'stk';
+const KAPPE_DEFAULT_ISOLATION_UNIT = 'meter';
 const KAPPE_KERF_KEY = 'firesafe_kappe_kerf';
 const KAPPE_DEFAULT_KERF = 2;
 const KAPPE_PLATE_KEY = 'firesafe_kappe_plate';
@@ -124,14 +128,81 @@ function _migrateMinInfo() {
 
 _migrateMinInfo();
 
-// Returnerer { products: [{name}], dimensions: [...] }
-// Migrerer fra eldre format der dimensjoner var per produkt.
-function _readKappeProductsRaw() {
+function _normalizeKappeDimension(value) {
+    var text = String(value || '').trim();
+    if (!text) return '';
+    return text.replace(/\s*mm$/i, '');
+}
+
+function _normalizeKappeCatalogProduct(product) {
+    if (!product) return null;
+    var name = String(product.name || '').trim();
+    if (!name) return null;
+    var type = product.type === 'festemiddel' ? 'festemiddel' : 'isolasjon';
+    var units = Array.isArray(product.units) ? product.units : [];
+    var seen = {};
+    units = units.map(function(unit) { return String(unit || '').trim(); }).filter(function(unit) {
+        var key = unit.toLowerCase();
+        if (!key || seen[key]) return false;
+        seen[key] = true;
+        return true;
+    });
+    var defaultUnit = String(product.defaultUnit || '').trim();
+    if (!units.length || !units.some(function(unit) { return unit.toLowerCase() === defaultUnit.toLowerCase(); })) {
+        defaultUnit = units.length ? units[0] : '';
+    }
+    return {
+        name: name,
+        type: type,
+        units: units,
+        defaultUnit: defaultUnit,
+        usesDimensions: product.usesDimensions !== false
+    };
+}
+
+function _dedupeKappeDimensions(values) {
+    var seen = {};
+    var result = [];
+    (values || []).forEach(function(value) {
+        var dim = _normalizeKappeDimension(value);
+        if (!dim) return;
+        var key = dim.toLowerCase();
+        if (seen[key]) return;
+        seen[key] = true;
+        result.push(dim);
+    });
+    _sortKappeMaterialSizes(result);
+    return result;
+}
+
+function _buildKappeCatalog(products, dimensions) {
+    var seenProducts = {};
+    var normalizedProducts = [];
+    (products || []).forEach(function(product) {
+        var normalized = _normalizeKappeCatalogProduct(product);
+        if (!normalized) return;
+        var key = normalized.name.toLowerCase();
+        if (seenProducts[key]) return;
+        seenProducts[key] = true;
+        normalizedProducts.push(normalized);
+    });
+    if (!normalizedProducts.length) normalizedProducts = KAPPE_DEFAULT_PRODUCTS.map(_normalizeKappeCatalogProduct).filter(Boolean);
+    normalizedProducts.sort(function(a, b) {
+        if (a.type !== b.type) return a.type === 'isolasjon' ? -1 : 1;
+        return a.name.localeCompare(b.name, 'no');
+    });
+    return {
+        products: normalizedProducts,
+        dimensions: _dedupeKappeDimensions(dimensions)
+    };
+}
+
+function _readLegacyKappeProductsRaw() {
     try {
         var raw = localStorage.getItem(KAPPE_PRODUCTS_KEY);
-        if (!raw) return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: [] };
+        if (!raw) return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: KAPPE_DEFAULT_DIMENSIONS.slice() };
         var parsed = JSON.parse(raw);
-        if (!parsed) return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: [] };
+        if (!parsed) return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: KAPPE_DEFAULT_DIMENSIONS.slice() };
 
         var products = Array.isArray(parsed.products) ? parsed.products : [];
         var dimensions = Array.isArray(parsed.dimensions) ? parsed.dimensions.slice() : [];
@@ -162,16 +233,88 @@ function _readKappeProductsRaw() {
         if (!products.length) products = KAPPE_DEFAULT_PRODUCTS.slice();
         return { products: products, dimensions: dimensions };
     } catch (e) {
-        return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: [] };
+        return { products: KAPPE_DEFAULT_PRODUCTS.slice(), dimensions: KAPPE_DEFAULT_DIMENSIONS.slice() };
     }
 }
 
+function _readLegacyKappeStiftSizes() {
+    try {
+        var raw = localStorage.getItem(KAPPE_STIFT_SIZES_KEY);
+        if (!raw) return KAPPE_DEFAULT_STIFT_SIZES.slice();
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.sizes) && parsed.sizes.length) return parsed.sizes;
+    } catch (e) {}
+    return KAPPE_DEFAULT_STIFT_SIZES.slice();
+}
+
+function _migrateKappeCatalog() {
+    var legacy = _readLegacyKappeProductsRaw();
+    var products = (legacy.products || []).map(function(product) {
+        return _normalizeKappeCatalogProduct({
+            name: product && product.name ? product.name : product,
+            type: 'isolasjon',
+            units: [],
+            defaultUnit: '',
+            usesDimensions: true
+        });
+    }).filter(Boolean);
+    if (!products.some(function(product) { return product.name.toLowerCase() === 'stift'; })) {
+        products.push({
+            name: 'Stift',
+            type: 'festemiddel',
+            units: [],
+            defaultUnit: '',
+            usesDimensions: true
+        });
+    }
+    var dimensions = (legacy.dimensions || []).concat(_readLegacyKappeStiftSizes());
+    if (!dimensions.length) dimensions = KAPPE_DEFAULT_DIMENSIONS.concat(KAPPE_DEFAULT_STIFT_SIZES);
+    return _buildKappeCatalog(products, dimensions);
+}
+
+function getKappeCatalog() {
+    try {
+        var raw = localStorage.getItem(KAPPE_CATALOG_KEY);
+        if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && Array.isArray(parsed.products)) {
+                return _buildKappeCatalog(parsed.products, parsed.dimensions || []);
+            }
+        }
+    } catch (e) {}
+    var migrated = _migrateKappeCatalog();
+    try { localStorage.setItem(KAPPE_CATALOG_KEY, JSON.stringify(migrated)); } catch (e) {}
+    return migrated;
+}
+
+function getKappeCatalogProducts(type) {
+    var products = getKappeCatalog().products || [];
+    if (!type) return products;
+    return products.filter(function(product) { return product.type === type; });
+}
+
+function getKappeCatalogProduct(name) {
+    var lookup = String(name || '').trim().toLowerCase();
+    if (!lookup) return null;
+    return getKappeCatalogProducts().find(function(product) {
+        return product.name.toLowerCase() === lookup;
+    }) || null;
+}
+
 function getKappeProducts() {
-    return _readKappeProductsRaw().products;
+    return getKappeCatalogProducts('isolasjon').map(function(product) {
+        return { name: product.name, type: product.type, units: product.units, defaultUnit: product.defaultUnit, usesDimensions: product.usesDimensions };
+    });
+}
+
+function getKappeFastenerProducts() {
+    return getKappeCatalogProducts('festemiddel').map(function(product) {
+        return { name: product.name, type: product.type, units: product.units, defaultUnit: product.defaultUnit, usesDimensions: product.usesDimensions };
+    });
 }
 
 function getKappeDimensions() {
-    return _readKappeProductsRaw().dimensions;
+    return getKappeCatalog().dimensions;
 }
 
 function _migrateOldKappeProducts(oldProducts) {
@@ -227,15 +370,184 @@ function getKappePlate() {
 }
 
 function getKappeStiftSizes() {
-    try {
-        var raw = localStorage.getItem(KAPPE_STIFT_SIZES_KEY);
-        if (!raw) return KAPPE_DEFAULT_STIFT_SIZES.slice();
-        var parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.sizes) && parsed.sizes.length) return parsed.sizes;
-        return KAPPE_DEFAULT_STIFT_SIZES.slice();
-    } catch (e) {
-        return KAPPE_DEFAULT_STIFT_SIZES.slice();
+    return getKappeDimensions();
+}
+
+function _formatKappeMaterialSize(value) {
+    var text = String(value || '').trim();
+    if (!text) return '';
+    return /mm$/i.test(text) ? text.replace(/\s*mm$/i, 'mm') : text + 'mm';
+}
+
+function _sortKappeMaterialSizes(values) {
+    values.sort(function(a, b) {
+        var na = parseFloat(String(a).replace(',', '.'));
+        var nb = parseFloat(String(b).replace(',', '.'));
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return String(a).localeCompare(String(b), 'no');
+    });
+}
+
+function _getUniqueKappeMaterialSizes(values) {
+    var seen = {};
+    var result = [];
+    (values || []).forEach(function(value) {
+        var label = _formatKappeMaterialSize(value);
+        if (!label) return;
+        var key = label.toLowerCase();
+        if (seen[key]) return;
+        seen[key] = true;
+        result.push(label);
+    });
+    _sortKappeMaterialSizes(result);
+    return result;
+}
+
+const MATERIAL_KAPPE_LAUNCHER = '__kappe_materialer';
+const MATERIAL_ISOLATION_LAUNCHER = '__kappe_isolasjon';
+const MATERIAL_STIFT_LAUNCHER = 'Stift';
+
+function getMaterialKappeLabel() {
+    return typeof t === 'function' ? t('material_kappe') : 'Kappematerialer';
+}
+
+function getMaterialIsolationLabel() {
+    return typeof t === 'function' ? t('material_isolation') : 'Isolasjon';
+}
+
+function getMaterialStiftLabel() {
+    return typeof t === 'function' ? t('kappe_section_staples') : 'Stift';
+}
+
+function getKappeFastenerLabel() {
+    return typeof t === 'function' ? t('kappe_section_fasteners') : 'Festemidler';
+}
+
+function _stripPickerSuffix(name) {
+    return String(name || '').replace(/__(\d+|meter)$/i, '');
+}
+
+function _getKappeProductName(name) {
+    var lookup = _stripPickerSuffix(name).toLowerCase();
+    if (!lookup || lookup === MATERIAL_KAPPE_LAUNCHER || lookup === MATERIAL_ISOLATION_LAUNCHER) return '';
+    var product = getKappeProducts().find(function(p) {
+        return p && p.name && p.name.toLowerCase() === lookup;
+    });
+    return product ? product.name : '';
+}
+
+function isKappeIsolationMaterial(name, source) {
+    if (source === 'kappe-products') return true;
+    return !!_getKappeProductName(name);
+}
+
+function isKappeStiftMaterial(name, source, enhet) {
+    if (source === 'kappe-stift' || source === 'kappe-fastener') return true;
+    var lookup = _stripPickerSuffix(name).toLowerCase();
+    var isFastenerProduct = getKappeFastenerProducts().some(function(product) {
+        return product.name.toLowerCase() === lookup;
+    });
+    if (!isFastenerProduct && lookup !== MATERIAL_STIFT_LAUNCHER.toLowerCase()) return false;
+    if (hasConfiguredMaterialName(name)) return false;
+    if (!enhet) return true;
+    var size = _formatKappeMaterialSize(enhet);
+    return getKappeDimensions().some(function(s) {
+        return _formatKappeMaterialSize(s).toLowerCase() === size.toLowerCase();
+    });
+}
+
+function hasConfiguredMaterialName(name) {
+    var lookup = _stripPickerSuffix(name).toLowerCase();
+    if (!lookup || !cachedMaterialOptions) return false;
+    return cachedMaterialOptions.some(function(material) {
+        return material && material.name && material.name.toLowerCase() === lookup;
+    });
+}
+
+function shouldGroupAsKappeIsolation(material) {
+    if (!material || !material.name) return false;
+    if (material.source === 'kappe-products') return true;
+    return isKappeIsolationMaterial(material.name, material.source) && !hasConfiguredMaterialName(material.name);
+}
+
+function shouldGroupAsKappeStift(material) {
+    if (!material || !material.name) return false;
+    return isKappeStiftMaterial(material.name, material.source, material.enhet);
+}
+
+function formatKappeIsolationName(name, enhet) {
+    var productName = _getKappeProductName(name) || _stripPickerSuffix(name);
+    var dim = _formatKappeMaterialSize(enhet || '');
+    return dim ? productName + ' ' + dim : productName;
+}
+
+function formatKappeStiftName(enhet) {
+    return _formatKappeMaterialSize(enhet || '') || getMaterialStiftLabel();
+}
+
+function getKappeProductDefaultUnit(name) {
+    var product = getKappeCatalogProduct(name);
+    if (!product) return '';
+    if (product.defaultUnit) return product.defaultUnit;
+    return product.type === 'festemiddel' ? KAPPE_DEFAULT_FASTENER_UNIT : KAPPE_DEFAULT_ISOLATION_UNIT;
+}
+
+function getMaterialPickerOptions(baseMaterials) {
+    var materials = Array.isArray(baseMaterials) ? baseMaterials.slice() : [];
+
+    var derived = [];
+    var hasKappeProducts = getKappeProducts().length > 0;
+    var hasFasteners = getKappeFastenerProducts().length > 0 && getKappeDimensions().length > 0;
+    if (hasKappeProducts || hasFasteners) {
+        derived.push({
+            name: MATERIAL_KAPPE_LAUNCHER,
+            displayName: getMaterialKappeLabel(),
+            type: 'kappe-isolation',
+            defaultUnit: '',
+            allowedUnits: [],
+            quantityUnit: 'meter',
+            source: 'kappe-materials-launcher'
+        });
     }
+
+    return materials.concat(derived);
+}
+
+function getMaterialPickerConfig(materialName) {
+    var lookupName = _stripPickerSuffix(materialName).toLowerCase();
+    if (!lookupName) return null;
+    var baseMaterials = (typeof cachedMaterialOptions !== 'undefined' && cachedMaterialOptions) ? cachedMaterialOptions : [];
+    var materialConfig = getMaterialPickerOptions(baseMaterials).find(function(material) {
+        return material && material.name && material.name.toLowerCase() === lookupName;
+    });
+    if (materialConfig) return materialConfig;
+    var productName = _getKappeProductName(lookupName);
+    if (productName) return {
+        name: productName,
+        type: 'standard',
+        quantityUnit: 'meter',
+        source: 'kappe-products'
+    };
+    if (getKappeFastenerProducts().some(function(product) { return product.name.toLowerCase() === lookupName; }) && !hasConfiguredMaterialName(materialName) && getKappeDimensions().length) {
+        return {
+            name: _stripPickerSuffix(materialName),
+            type: 'standard',
+            quantityUnit: 'stk',
+            source: lookupName === MATERIAL_STIFT_LAUNCHER.toLowerCase() ? 'kappe-stift' : 'kappe-fastener'
+        };
+    }
+    return null;
+}
+
+function getMaterialQuantityUnit(materialName, enhet, source) {
+    if (source && source.indexOf('unit:') === 0) return source.substring(5);
+    var enhetLower = (enhet || '').toLowerCase();
+    if (enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm') return 'meter';
+    var productDefault = getKappeProductDefaultUnit(materialName);
+    if (productDefault) return productDefault;
+    if (source === 'kappe-products') return 'meter';
+    var config = getMaterialPickerConfig(materialName);
+    return (config && config.quantityUnit === 'meter') ? 'meter' : 'stk';
 }
 
 const DEV_MODE = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -307,7 +619,9 @@ function aggregateExportMaterials(materials) {
             ordered.push(m);
             return;
         }
-        var key = name.toLowerCase() + '|' + enhet;
+        var source = m.source || '';
+        var quantityUnit = m.quantityUnit || '';
+        var key = name.toLowerCase() + '|' + enhet + '|' + source + '|' + quantityUnit;
         if (byKey[key]) {
             var existing = parseFloat(String(byKey[key].antall || '').replace(',', '.')) || 0;
             var addNum = parseFloat(String(m.antall || '').replace(',', '.')) || 0;
@@ -317,6 +631,8 @@ function aggregateExportMaterials(materials) {
                 : String(sum).replace('.', ',');
         } else {
             byKey[key] = { name: m.name, antall: m.antall || '', enhet: m.enhet || '' };
+            if (source) byKey[key].source = source;
+            if (quantityUnit) byKey[key].quantityUnit = quantityUnit;
             ordered.push(byKey[key]);
         }
     });
@@ -345,18 +661,27 @@ function groupMaterialsByBase(materials, options) {
     var groupMap = {};
     materials.forEach(function(m) {
         var mName = m.name || '';
-        var baseName = getBaseMaterialName(mName, m.enhet);
+        var isIsolation = shouldGroupAsKappeIsolation(m);
+        var isStift = shouldGroupAsKappeStift(m);
+        var baseName = isIsolation ? MATERIAL_ISOLATION_LAUNCHER : (isStift ? _stripPickerSuffix(mName) : getBaseMaterialName(mName, m.enhet));
         var isSpec = isSpecGroupedMaterial(mName, m.enhet);
-        if (isSpec && groupMap[baseName]) {
+        if ((isSpec || isIsolation || isStift) && groupMap[baseName]) {
             // Add to existing spec group
             groupMap[baseName].items.push(m);
-        } else if (isSpec) {
+        } else if (isSpec || isIsolation || isStift) {
             // Start new spec group
-            groupMap[baseName] = { baseName: baseName, items: [m], isSpecGroup: true };
+            groupMap[baseName] = {
+                baseName: baseName,
+                displayName: isIsolation ? getMaterialIsolationLabel() : baseName,
+                items: [m],
+                isSpecGroup: isSpec,
+                isIsolationGroup: isIsolation,
+                isStiftGroup: isStift
+            };
             groups.push(groupMap[baseName]);
         } else {
             // Standard material — always flat (own group with 1 item)
-            groups.push({ baseName: baseName, items: [m], isSpecGroup: false });
+            groups.push({ baseName: baseName, displayName: baseName, items: [m], isSpecGroup: false, isIsolationGroup: false, isStiftGroup: false });
         }
     });
     // Sort items inside each spec group only when explicitly requested (eksport)
@@ -375,10 +700,10 @@ function groupMaterialsByBase(materials, options) {
     }
     // Sort: single/standard items first, then spec groups
     groups.sort(function(a, b) {
-        var aSpec = a.isSpecGroup && a.items.length >= 1 ? 1 : 0;
-        var bSpec = b.isSpecGroup && b.items.length >= 1 ? 1 : 0;
+        var aSpec = (a.isSpecGroup || a.isIsolationGroup || a.isStiftGroup) && a.items.length >= 1 ? 1 : 0;
+        var bSpec = (b.isSpecGroup || b.isIsolationGroup || b.isStiftGroup) && b.items.length >= 1 ? 1 : 0;
         if (aSpec !== bSpec) return aSpec - bSpec;
-        return a.baseName.localeCompare(b.baseName, 'nb');
+        return (a.displayName || a.baseName).localeCompare(b.displayName || b.baseName, 'nb');
     });
     return groups;
 }
@@ -386,6 +711,15 @@ function groupMaterialsByBase(materials, options) {
 // Get display name for a sub-item within a group (strip base name for spec materials, show variant for standard)
 function getGroupedDisplayName(m, baseName) {
     var name = m.name || '';
+    if (baseName === MATERIAL_ISOLATION_LAUNCHER) {
+        return formatKappeIsolationName(name, m.enhet);
+    }
+    if (baseName === MATERIAL_STIFT_LAUNCHER) {
+        return formatKappeStiftName(m.enhet);
+    }
+    if (shouldGroupAsKappeStift(m)) {
+        return formatKappeStiftName(m.enhet);
+    }
     // Direct meter entry under spec-base → label as "Løpende"
     if (m.enhet === 'meter' && name.toLowerCase() === baseName.toLowerCase()) {
         return 'l\u00f8pende';
@@ -405,8 +739,7 @@ function getGroupedDisplayName(m, baseName) {
 // Normalize stored enhet against current variant names from settings
 function normalizeVariant(materialName, enhet) {
     if (!enhet || enhet === 'stk' || enhet === 'meter') return enhet;
-    if (!cachedMaterialOptions) return enhet;
-    var matConfig = cachedMaterialOptions.find(function(cm) { return cm.name.toLowerCase() === materialName.toLowerCase(); });
+    var matConfig = getMaterialPickerConfig(materialName);
     if (!matConfig || !matConfig.allowedUnits || matConfig.allowedUnits.length === 0) return enhet;
     // Check if stored enhet matches a variant (case-insensitive, startsWith to handle old plural forms)
     var enhetLower = enhet.toLowerCase();
@@ -638,7 +971,7 @@ if (auth) {
              STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, PLANS_KEY, BIL_STORAGE_KEY,
              SERVICE_STORAGE_KEY, SERVICE_ARCHIVE_KEY, SERVICE_DEFAULTS_KEY,
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
-             KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
+             KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY,
              'firesafe_lang', 'firesafe_plate_size']
                 .forEach(function(key) { localStorage.removeItem(key); });
@@ -727,10 +1060,12 @@ if (auth) {
                 }).catch(function() {}) : Promise.resolve(),
                 // Sync Kappe-metadata (produkter, stift-størrelser, kerf, plate)
                 Promise.all([
+                    db.collection('users').doc(user.uid).collection('settings').doc('kappe_catalog').get()
+                        .then(function(d) { if (d.exists) safeSetItem(KAPPE_CATALOG_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                     db.collection('users').doc(user.uid).collection('settings').doc('kappe_products').get()
-                        .then(function(d) { if (d.exists) safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                        .then(function(d) { if (d.exists && !localStorage.getItem(KAPPE_CATALOG_KEY)) safeSetItem(KAPPE_PRODUCTS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                     db.collection('users').doc(user.uid).collection('settings').doc('kappe_stift_sizes').get()
-                        .then(function(d) { if (d.exists) safeSetItem(KAPPE_STIFT_SIZES_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                        .then(function(d) { if (d.exists && !localStorage.getItem(KAPPE_CATALOG_KEY)) safeSetItem(KAPPE_STIFT_SIZES_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                     db.collection('users').doc(user.uid).collection('settings').doc('kappe_kerf').get()
                         .then(function(d) { if (d.exists) safeSetItem(KAPPE_KERF_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                     db.collection('users').doc(user.uid).collection('settings').doc('kappe_plate').get()
@@ -1581,6 +1916,8 @@ function createMaterialSummaryRow(m, groupBaseName) {
     div.setAttribute('data-mat-name', m.name || '');
     div.setAttribute('data-mat-antall', m.antall || '');
     div.setAttribute('data-mat-enhet', m.enhet || '');
+    div.setAttribute('data-mat-source', m.source || '');
+    div.setAttribute('data-mat-quantity-unit', m.quantityUnit || '');
     var nameFormatted;
     if (groupBaseName) {
         // Grouped sub-row: show just the spec/variant part
@@ -1624,8 +1961,8 @@ function createMaterialSummaryRow(m, groupBaseName) {
         detailParts.push(escapeHtml(m.antall) + ' stk');
     } else {
         if (m.antall) {
-            var isMeter = (m.enhet || '').toLowerCase() === 'meter';
-            var unitLabel = isMeter ? ' meter' : ' stk';
+            var quantityUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+            var unitLabel = quantityUnit === 'meter' ? ' meter' : ' ' + quantityUnit;
             detailParts.push(formatRunningMeters(m.antall) + unitLabel);
         }
     }
@@ -1654,14 +1991,15 @@ function renderMaterialSummary(matContainer, materials) {
     // Group by base material name
     var groups = groupMaterialsByBase(filtered);
     groups.forEach(function(group) {
-        if (!group.isSpecGroup) {
+        if (!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) {
             // Standard material or single spec — render flat
             group.items.forEach(function(m) { matContainer.appendChild(createMaterialSummaryRow(m)); });
         } else {
             // Spec group with multiple items — header + indented sub-rows
             var headerDiv = document.createElement('div');
             headerDiv.className = 'mat-summary-group-header';
-            headerDiv.textContent = group.baseName.charAt(0).toUpperCase() + group.baseName.slice(1);
+            var groupTitle = group.displayName || group.baseName;
+            headerDiv.textContent = groupTitle.charAt(0).toUpperCase() + groupTitle.slice(1);
             matContainer.appendChild(headerDiv);
             group.items.forEach(function(m) {
                 var subRow = createMaterialSummaryRow(m, group.baseName);
@@ -1678,8 +2016,13 @@ function getMaterialsFromContainer(matContainer) {
         const name = row.getAttribute('data-mat-name') || '';
         const antall = row.getAttribute('data-mat-antall') || '';
         const enhet = row.getAttribute('data-mat-enhet') || '';
+        const source = row.getAttribute('data-mat-source') || '';
+        const quantityUnit = row.getAttribute('data-mat-quantity-unit') || '';
         if (name || antall || enhet) {
-            materials.push({ name, antall, enhet });
+            var mat = { name, antall, enhet };
+            if (source) mat.source = source;
+            if (quantityUnit) mat.quantityUnit = quantityUnit;
+            materials.push(mat);
         }
     });
     return materials;
@@ -1689,61 +2032,108 @@ function getMaterialsFromContainer(matContainer) {
 let pickerOrderCard = null;
 let pickerState = {}; // { "materialenavn": { checked: true, antall: "5", enhet: "stk" } }
 
-// Scroll picker-listen til en bestemt rad (f.eks. ny duplikat eller spec-entry).
-// Brukes etter Dupliser-knapp: scroller listen NEDOVER med nøyaktig den nye
-// raden's høyde. Effekt: originalen glir opp og den nye raden inntar samme
-// skjerm-posisjon som originalen hadde. Brukerens muse-peker forblir på
-// samme skjerm-posisjon, men den nye raden er nå under pekeren — så
-// pekeren "flyttet seg" til den nye raden uten egentlig å bevege seg.
-function _scrollPickerOneRowAfterDup(name) {
+function _pickerNameBelongsToGroup(name, groupName) {
+    if (!name || !groupName) return false;
+    return name === groupName || name.indexOf(groupName + '__') === 0 || name.indexOf(groupName + ' ') === 0;
+}
+
+function _scrollPickerTargetIntoView(targetName, options) {
+    options = options || {};
     requestAnimationFrame(function() {
         var listEl = document.getElementById('picker-overlay-list');
-        if (!listEl || !name) return;
+        if (!listEl || !targetName) return;
+
+        var header = null;
+        var groupName = options.groupName || '';
+        if (groupName) {
+            var headers = listEl.querySelectorAll('.picker-mat-group-header[data-mat-name]');
+            for (var h = 0; h < headers.length; h++) {
+                if (headers[h].getAttribute('data-mat-name') === groupName) {
+                    header = headers[h];
+                    break;
+                }
+            }
+        }
+
         var rows = listEl.querySelectorAll('[data-mat-name]');
+        var target = null;
         for (var i = 0; i < rows.length; i++) {
-            if (rows[i].getAttribute('data-mat-name') === name) {
-                var newRow = rows[i];
-                // Smooth scroll så bevegelsen er synlig og naturlig (ikke
-                // hopp). scrollBy med behavior: 'smooth' støttes i alle
-                // moderne browsere; instant fallback hvis ikke støttet.
-                if (typeof listEl.scrollBy === 'function') {
-                    listEl.scrollBy({ top: newRow.offsetHeight, behavior: 'smooth' });
-                } else {
-                    listEl.scrollTop += newRow.offsetHeight;
-                }
-                // Cursor i Antall-feltet på den nye raden — klar for input.
-                // preventScroll så browseren ikke overstyrer vår scroll.
-                var antallInput = newRow.querySelector('.picker-mat-antall');
-                if (antallInput && !antallInput.disabled) {
-                    try { antallInput.focus({ preventScroll: true }); }
-                    catch (err) { antallInput.focus(); }
-                }
-                return;
+            var rowName = rows[i].getAttribute('data-mat-name');
+            if (options.preferLastInGroup && _pickerNameBelongsToGroup(rowName, groupName)) {
+                target = rows[i];
+            } else if (!target && rowName === targetName) {
+                target = rows[i];
+            }
+        }
+        if (!target) target = header;
+        if (!target) return;
+
+        var margin = 12;
+        var listRect = listEl.getBoundingClientRect();
+        var targetRect = target.getBoundingClientRect();
+        var overflowBottom = targetRect.bottom - (listRect.bottom - margin);
+        if (overflowBottom > 0) {
+            listEl.scrollTop += overflowBottom;
+            return;
+        }
+
+        var headerRect = header ? header.getBoundingClientRect() : targetRect;
+        var overflowTop = (listRect.top + margin) - headerRect.top;
+        if (overflowTop > 0) {
+            listEl.scrollTop -= overflowTop;
+        }
+
+        if (options.focusAntall) {
+            var antallInput = target.querySelector('.picker-mat-antall');
+            if (antallInput && !antallInput.disabled) {
+                try { antallInput.focus({ preventScroll: true }); }
+                catch (err) { antallInput.focus(); }
             }
         }
     });
 }
 
-// Brukes når en ny rad opprettes via spec-popup (klikk på navn på
-// mansjett/brannpakning/kabelhylse-launcher). Den nye raden erstatter
-// launcheren ved samme posisjon, så vi trenger kun å sikre at den er synlig
-// hvis den havnet utenfor viewporten av en eller annen grunn.
 function _scrollPickerToRow(name) {
-    requestAnimationFrame(function() {
-        var listEl = document.getElementById('picker-overlay-list');
-        if (!listEl || !name) return;
-        var rows = listEl.querySelectorAll('[data-mat-name]');
-        for (var i = 0; i < rows.length; i++) {
-            if (rows[i].getAttribute('data-mat-name') === name) {
-                rows[i].scrollIntoView({ block: 'nearest' });
-                return;
-            }
-        }
-    });
+    _scrollPickerTargetIntoView(name);
+}
+
+function _scrollPickerOneRowAfterDup(name) {
+    _scrollPickerTargetIntoView(name, { focusAntall: true });
 }
 let pickerRenderFn = null; // Reference to renderPickerList inside closure
 
 var pickerConfirmCallback = null;
+
+function parseMaterialPickerKey(key) {
+    var raw = String(key || '');
+    var meterMatch = raw.match(/^(.+)__meter(?:__(\d+))?$/);
+    if (meterMatch) {
+        return {
+            baseName: meterMatch[1],
+            realName: meterMatch[1],
+            isMeterEntry: true,
+            isDuplicate: !!meterMatch[2],
+            duplicateIndex: meterMatch[2] ? parseInt(meterMatch[2], 10) : 1
+        };
+    }
+    var dupMatch = raw.match(/^(.+)__(\d+)$/);
+    if (dupMatch) {
+        return {
+            baseName: dupMatch[1],
+            realName: dupMatch[1],
+            isMeterEntry: false,
+            isDuplicate: true,
+            duplicateIndex: parseInt(dupMatch[2], 10)
+        };
+    }
+    return {
+        baseName: raw,
+        realName: raw,
+        isMeterEntry: false,
+        isDuplicate: false,
+        duplicateIndex: 1
+    };
+}
 
 function openMaterialPicker(btn, onConfirm) {
     // If material cache is empty and user is logged in, fetch from Firebase first
@@ -1768,10 +2158,20 @@ function openMaterialPicker(btn, onConfirm) {
     const matContainer = card ? card.querySelector('.mobile-order-materials') : null;
     const existing = matContainer ? getMaterialsFromContainer(matContainer) : [];
 
-    const allMaterials = cachedMaterialOptions || [];
+    const allMaterials = getMaterialPickerOptions(cachedMaterialOptions || []);
 
     const modal = document.getElementById('picker-overlay');
     const list = document.getElementById('picker-overlay-list');
+
+    function parsePickerStorageKey(key) {
+        return parseMaterialPickerKey(key);
+    }
+
+    function nextPickerDuplicateKey(baseKey) {
+        var n = 2;
+        while (pickerState[baseKey + '__' + n]) n++;
+        return baseKey + '__' + n;
+    }
 
     // Initialize pickerState from existing materials
     pickerState = {};
@@ -1786,12 +2186,15 @@ function openMaterialPicker(btn, onConfirm) {
             // Direct meter entry on a spec-base → use __meter suffix so it's treated as a meter entry in the picker
             var storageKey = (m.enhet === 'meter' && isSpecBaseMat) ? m.name + '__meter' : m.name;
             // If this name already exists in pickerState, use __N suffix for duplicates
+            var materialState = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+            if (m.source) materialState.source = m.source;
+            if (m.quantityUnit) materialState.quantityUnit = m.quantityUnit;
             if (pickerState[storageKey]) {
-                if (!dupCounters[m.name]) dupCounters[m.name] = 1;
-                dupCounters[m.name]++;
-                pickerState[m.name + '__' + dupCounters[m.name]] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+                if (!dupCounters[storageKey]) dupCounters[storageKey] = 1;
+                dupCounters[storageKey]++;
+                pickerState[storageKey + '__' + dupCounters[storageKey]] = materialState;
             } else {
-                pickerState[storageKey] = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
+                pickerState[storageKey] = materialState;
             }
         }
     });
@@ -1805,21 +2208,25 @@ function openMaterialPicker(btn, onConfirm) {
         return formatDisplayForBreak(normalized);
     }
 
-    function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride, hasVariants, deletable) {
+    function buildRow(name, isChecked, antall, enhet, matType, displayNameOverride, hasVariants, deletable, source, quantityUnit) {
         const baseDisplay = displayNameOverride ? formatDisplayName(displayNameOverride) : formatDisplayName(name);
         const enhetLower = (enhet || '').toLowerCase();
-        const isLauncher = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
+        const isIsolationLauncher = matType === 'kappe-isolation';
+        const isStiftLauncher = matType === 'kappe-stift';
+        const isLauncher = isIsolationLauncher || isStiftLauncher || matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
         // Klassifiser enhet:
         //  - meter/løpende: vises som liten "m"-badge ved siden av navn
         //  - stk eller tom: ingen ekstra visning (default)
         //  - alt annet (Patron, Pølse, etc.): er en variant — append'es til navn
         const isMeterEnhet = enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm';
         const isVariantEnhet = !!enhetLower && enhetLower !== 'stk' && !isMeterEnhet;
+        const activeQuantityUnit = quantityUnit || getMaterialQuantityUnit(name, enhet, source);
+        const isMeterQuantity = activeQuantityUnit === 'meter';
         // Bygg visningsnavn: append variant hvis material har variant valgt
         const displayName = (hasVariants && isVariantEnhet)
             ? baseDisplay + ' ' + (enhet || '')
             : baseDisplay;
-        const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser">' + duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
+        const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser"' + ((isIsolationLauncher || isStiftLauncher) ? ' disabled' : '') + '>' + duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
         // Slett-knappen vises alltid for visuell konsistens, men er disabled på default-produkter
         const delBtn = '<button type="button" class="picker-mat-delete-btn" title="Fjern"' + (deletable ? '' : ' disabled') + '>' + deleteIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
         // Farget prikk markerer at materiale har valg-muligheter (klikkbart navn).
@@ -1827,15 +2234,17 @@ function openMaterialPicker(btn, onConfirm) {
         const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
             : matType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
             : matType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
+            : matType === 'kappe-isolation' ? '<span class="picker-mat-dot picker-mat-dot-isolation"></span>'
+            : matType === 'kappe-stift' ? '<span class="picker-mat-dot picker-mat-dot-stift"></span>'
             : (hasVariants ? '<span class="picker-mat-dot picker-mat-dot-variant"></span>' : '');
         // Liten "m"-badge for løpende-/meter-materialer (i stedet for egen enhet-kolonne)
-        const meterBadge = isMeterEnhet ? '<span class="picker-mat-meter-badge">m</span>' : '';
-        const antallPlaceholder = t('placeholder_quantity');
+        const meterBadge = (isMeterEnhet || (isMeterQuantity && !isLauncher)) ? '<span class="picker-mat-meter-badge">m</span>' : '';
+        const antallPlaceholder = (isIsolationLauncher || isStiftLauncher) ? t('btn_select') : (isMeterQuantity ? 'Meter' : (activeQuantityUnit && activeQuantityUnit !== 'stk' ? activeQuantityUnit : t('placeholder_quantity')));
         // Spec-launchere (mansjett/brannpakning/kabelhylse uten valgt størrelse) krever
         // at bruker klikker navnet for å åpne spec-popup. Antall er disabled der.
         const isSpecLauncher = isLauncher && !isChecked;
         const disabledAttr = isSpecLauncher ? ' disabled' : '';
-        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}">
+        return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}" data-mat-source="${escapeHtml(source || '')}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(displayName)}</span>${typeDot}${meterBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
             ${dupBtn}${delBtn}
@@ -1852,6 +2261,7 @@ function openMaterialPicker(btn, onConfirm) {
     // (duplikater, spec-derived, meter-entries, custom).
     function _isDeletablePickerEntry(name) {
         if (!name) return false;
+        if (pickerState[name] && (pickerState[name].source === 'kappe-stift' || pickerState[name].source === 'kappe-fastener')) return true;
         if (/__meter$/i.test(name)) return true;
         if (/__\d+$/.test(name)) return true;
         if (findBaseMaterial(name)) return true;
@@ -1862,6 +2272,57 @@ function openMaterialPicker(btn, onConfirm) {
         return false;
     }
 
+    function addIsolationPickerEntry(materialName, enhet) {
+        var productName = _getKappeProductName(materialName) || materialName;
+        var addedKey = productName;
+        if (pickerState[addedKey]) {
+            var n = 2;
+            while (pickerState[productName + '__' + n]) n++;
+            addedKey = productName + '__' + n;
+        }
+        pickerState[addedKey] = {
+            checked: true,
+            antall: '',
+            enhet: _formatKappeMaterialSize(enhet || ''),
+            source: 'kappe-products',
+            quantityUnit: getKappeProductDefaultUnit(productName) || 'meter'
+        };
+        return addedKey;
+    }
+
+    function addStiftPickerEntry(enhet, productName, quantityUnit) {
+        var baseName = productName || MATERIAL_STIFT_LAUNCHER;
+        var addedKey = baseName;
+        if (pickerState[addedKey]) {
+            var n = 2;
+            while (pickerState[baseName + '__' + n]) n++;
+            addedKey = baseName + '__' + n;
+        }
+        pickerState[addedKey] = {
+            checked: true,
+            antall: '',
+            enhet: _formatKappeMaterialSize(enhet || ''),
+            source: baseName === MATERIAL_STIFT_LAUNCHER ? 'kappe-stift' : 'kappe-fastener',
+            quantityUnit: quantityUnit || getKappeProductDefaultUnit(baseName) || 'stk'
+        };
+        return addedKey;
+    }
+
+    function addKappeMaterialSelection(selection, preservedAntall) {
+        if (!selection) return '';
+        var source = selection.source || '';
+        if (!source && selection.product && selection.product.source) source = selection.product.source;
+        var isFastener = source === 'kappe-stift' || source === 'kappe-fastener' || (selection.product && selection.product.type === 'festemiddel');
+        var addedKey = isFastener
+            ? addStiftPickerEntry(selection.enhet, selection.name, selection.quantityUnit)
+            : addIsolationPickerEntry(selection.name, selection.enhet);
+        if (preservedAntall !== undefined && pickerState[addedKey]) {
+            pickerState[addedKey].antall = preservedAntall || '';
+            pickerState[addedKey].checked = true;
+        }
+        return addedKey;
+    }
+
     function renderPickerList() {
         pickerRenderFn = renderPickerList;
         // Build list: configured materials + checked spec-derived entries + checked custom entries
@@ -1870,12 +2331,23 @@ function openMaterialPicker(btn, onConfirm) {
         // Add all configured materials
         allMaterials.forEach(matObj => {
             var matType = matObj.type || 'standard';
-            if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
+            if (matType === 'kappe-isolation' || matType === 'kappe-stift') {
+                entries.push({
+                    name: matObj.name,
+                    displayName: matObj.displayName || (matType === 'kappe-isolation' ? getMaterialIsolationLabel() : getMaterialStiftLabel()),
+                    isChecked: false,
+                    antall: '',
+                    enhet: '',
+                    matType: matType,
+                    isSpecDerived: false,
+                    source: matObj.source || ''
+                });
+            } else if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
                 // Spec material: show as launcher only if no derived entries exist (checked or unchecked)
                 const baseLower = matObj.name.toLowerCase();
                 const hasDerived = Object.keys(pickerState).some(k => {
                     const kLower = k.toLowerCase();
-                    return kLower.startsWith(baseLower + ' ') || kLower === baseLower + '__meter';
+                    return kLower.startsWith(baseLower + ' ') || kLower === baseLower + '__meter' || kLower.startsWith(baseLower + '__meter__');
                 });
                 if (!hasDerived) {
                     entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: matObj.defaultUnit || '', matType: matType, isSpecDerived: false });
@@ -1899,10 +2371,47 @@ function openMaterialPicker(btn, onConfirm) {
         Object.keys(pickerState).forEach(name => {
             const state = pickerState[name];
             const baseMat = findBaseMaterial(name);
+            const stateSource = state.source || '';
+            if (isKappeStiftMaterial(name, stateSource, state.enhet)) {
+                const antall = state.antall || '';
+                entries.push({
+                    name,
+                    displayName: formatKappeStiftName(state.enhet || ''),
+                    groupBaseName: _stripPickerSuffix(name),
+                    groupDisplayName: _stripPickerSuffix(name),
+                    isChecked: state.checked || !!(antall && antall.toString().trim()),
+                    antall: antall,
+                    enhet: state.enhet || '',
+                    matType: 'standard',
+                    isSpecDerived: true,
+                    hasVariants: false,
+                    source: state.source || 'kappe-stift',
+                    quantityUnit: state.quantityUnit || getKappeProductDefaultUnit(_stripPickerSuffix(name)) || 'stk'
+                });
+                return;
+            }
+            if (name !== MATERIAL_ISOLATION_LAUNCHER && (stateSource === 'kappe-products' || (!hasConfiguredMaterialName(name) && isKappeIsolationMaterial(name, stateSource)))) {
+                const antall = state.antall || '';
+                entries.push({
+                    name,
+                    displayName: formatKappeIsolationName(name, state.enhet || ''),
+                    groupBaseName: MATERIAL_ISOLATION_LAUNCHER,
+                    groupDisplayName: getMaterialIsolationLabel(),
+                    isChecked: state.checked || !!(antall && antall.toString().trim()),
+                    antall: antall,
+                    enhet: state.enhet || '',
+                    matType: 'standard',
+                    isSpecDerived: true,
+                    hasVariants: false,
+                    source: 'kappe-products',
+                    quantityUnit: state.quantityUnit || getKappeProductDefaultUnit(name) || 'meter'
+                });
+                return;
+            }
             // Check for meter entries (e.g. "FSW__meter")
-            const meterMatch = name.match(/^(.+)__meter$/);
-            if (meterMatch) {
-                entries.push({ name, displayName: meterMatch[1], isChecked: state.checked, antall: state.antall || '', enhet: 'meter', matType: 'standard', isSpecDerived: true });
+            const parsedKey = parsePickerStorageKey(name);
+            if (parsedKey.isMeterEntry) {
+                entries.push({ name, displayName: parsedKey.baseName, isChecked: state.checked, antall: state.antall || '', enhet: 'meter', matType: 'standard', isSpecDerived: true });
                 return;
             }
             // Check for duplicate entries (e.g. "FSA__2" eller "FSW Ø100 2 lag__2")
@@ -1941,86 +2450,91 @@ function openMaterialPicker(btn, onConfirm) {
         var pickerGroups = [];
         var pickerGroupMap = {};
         entries.forEach(function(e) {
-            // Determine base name for grouping
             var baseName;
-            var dupMatch = e.name.match(/^(.+)__(\d+)$/);
-            var meterMatch = e.name.match(/^(.+)__meter$/);
-            if (dupMatch) {
-                var dupBaseName = dupMatch[1];
-                // Hvis dup-basen selv er en spec-entry (f.eks. "FSW Ø100 2 lag"),
-                // grupper under spec-basen ("FSW") i stedet
+            var parsedEntryKey = parsePickerStorageKey(e.name);
+            if (e.groupBaseName) {
+                baseName = e.groupBaseName;
+            } else if (parsedEntryKey.isMeterEntry) {
+                baseName = parsedEntryKey.baseName;
+            } else if (parsedEntryKey.isDuplicate) {
+                var dupBaseName = parsedEntryKey.baseName;
                 var dupSpecBase = findBaseMaterial(dupBaseName);
                 baseName = dupSpecBase ? dupSpecBase.name : dupBaseName;
-            } else if (meterMatch) {
-                baseName = meterMatch[1];
             } else {
                 var specBase = findBaseMaterial(e.name);
                 baseName = specBase ? specBase.name : e.name;
             }
             if (!pickerGroupMap[baseName]) {
-                // Find type for group header
                 var baseMatObj = allMaterials.find(function(m) { return m.name === baseName; });
                 var groupType = baseMatObj ? (baseMatObj.type || 'standard') : 'standard';
                 var isSpec = groupType === 'mansjett' || groupType === 'brannpakning' || groupType === 'kabelhylse';
-                pickerGroupMap[baseName] = { baseName: baseName, items: [], groupType: groupType, isSpecGroup: isSpec };
+                var isIsolation = groupType === 'kappe-isolation' || baseName === MATERIAL_ISOLATION_LAUNCHER;
+                var isStift = groupType === 'kappe-stift' || baseName === MATERIAL_STIFT_LAUNCHER || e.source === 'kappe-stift' || e.source === 'kappe-fastener';
+                pickerGroupMap[baseName] = {
+                    baseName: baseName,
+                    displayName: e.groupDisplayName || (baseMatObj && baseMatObj.displayName) || (isIsolation ? getMaterialIsolationLabel() : (isStift ? getMaterialStiftLabel() : baseName)),
+                    items: [],
+                    groupType: groupType,
+                    isSpecGroup: isSpec,
+                    isIsolationGroup: isIsolation,
+                    isStiftGroup: isStift
+                };
                 pickerGroups.push(pickerGroupMap[baseName]);
             }
             pickerGroupMap[baseName].items.push(e);
         });
 
-        // Sort: flat items first, spec groups last
         pickerGroups.sort(function(a, b) {
-            var aIsGroup = a.isSpecGroup && a.items.length >= 1 ? 1 : 0;
-            var bIsGroup = b.isSpecGroup && b.items.length >= 1 ? 1 : 0;
+            var aIsGroup = (a.isSpecGroup || a.isIsolationGroup || a.isStiftGroup) && a.items.length >= 1 ? 1 : 0;
+            var bIsGroup = (b.isSpecGroup || b.isIsolationGroup || b.isStiftGroup) && b.items.length >= 1 ? 1 : 0;
             if (aIsGroup !== bIsGroup) return aIsGroup - bIsGroup;
-            return a.baseName.localeCompare(b.baseName, 'nb');
+            return (a.displayName || a.baseName).localeCompare(b.displayName || b.baseName, 'nb');
         });
 
         let html = '';
         pickerGroups.forEach(function(group) {
-            // Check if spec group only has launcher (no actual spec-derived entries)
-            var isLauncherOnly = group.isSpecGroup && group.items.length === 1 && group.items[0].name === group.baseName;
-            if (!group.isSpecGroup || isLauncherOnly) {
-                // Standard material or spec launcher without derived entries — render flat
+            var isLauncherOnly = (group.isSpecGroup || group.isIsolationGroup || group.isStiftGroup) && group.items.length === 1 && group.items[0].name === group.baseName;
+            if ((!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) || isLauncherOnly) {
                 group.items.forEach(function(e) {
-                    html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName, e.hasVariants, _isDeletablePickerEntry(e.name));
+                    html += buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, e.displayName, e.hasVariants, _isDeletablePickerEntry(e.name), e.source, e.quantityUnit);
                 });
             } else {
-                // Multi-item group — render header + indented sub-rows
-                var gType = group.groupType;
+                var gType = group.isIsolationGroup
+                    ? 'kappe-isolation'
+                    : (group.isStiftGroup ? 'kappe-stift' : group.groupType);
                 var isSpec = gType === 'mansjett' || gType === 'brannpakning' || gType === 'kabelhylse';
                 var typeDot = gType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
                     : gType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
                     : gType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
+                    : gType === 'kappe-isolation' ? '<span class="picker-mat-dot picker-mat-dot-isolation"></span>'
+                    : gType === 'kappe-stift' ? '<span class="picker-mat-dot picker-mat-dot-stift"></span>'
                     : '';
                 html += '<div class="picker-mat-group-header" data-mat-name="' + escapeHtml(group.baseName) + '" data-mat-type="' + (gType || 'standard') + '">'
-                    + '<span class="picker-mat-name">' + escapeHtml(group.baseName) + '</span>' + typeDot + '</div>';
+                    + '<span class="picker-mat-name">' + escapeHtml(group.displayName || group.baseName) + '</span>' + typeDot + '</div>';
                 group.items.forEach(function(e) {
-                    // Build sub-row display name: strip base name for spec-derived, show variant for duplicates
+                    if ((group.isIsolationGroup || group.isStiftGroup) && e.name === group.baseName && (e.source === 'kappe-isolation-launcher' || e.source === 'kappe-stift-launcher')) return;
                     var subDisplay = e.displayName || e.name;
-                    // Strip __N suffix for display purposes (kept in storage key)
                     var nameNoSuffix = e.name.replace(/__(\d+)$/, '');
-                    if (isSpec && nameNoSuffix.toLowerCase().startsWith(group.baseName.toLowerCase() + ' ')) {
+                    if (group.isIsolationGroup) {
+                        subDisplay = e.displayName || formatKappeIsolationName(e.name, e.enhet);
+                    } else if (group.isStiftGroup) {
+                        subDisplay = e.displayName || formatKappeStiftName(e.enhet);
+                    } else if (isSpec && nameNoSuffix.toLowerCase().startsWith(group.baseName.toLowerCase() + ' ')) {
                         subDisplay = nameNoSuffix.substring(group.baseName.length + 1);
-                    } else if (e.name.match(/^(.+)__meter$/)) {
+                    } else if (parsePickerStorageKey(e.name).isMeterEntry) {
                         subDisplay = 'L\u00f8pende';
                     } else if (e.name.match(/^(.+)__(\d+)$/)) {
-                        // Duplicate: show variant from enhet if available
                         var dupEnhet = normalizeVariant(group.baseName, e.enhet || '').toLowerCase();
-                        if (dupEnhet && dupEnhet !== 'stk' && dupEnhet !== 'meter') {
-                            subDisplay = dupEnhet.charAt(0).toUpperCase() + dupEnhet.slice(1);
-                        } else {
-                            subDisplay = group.baseName;
-                        }
+                        subDisplay = (dupEnhet && dupEnhet !== 'stk' && dupEnhet !== 'meter')
+                            ? dupEnhet.charAt(0).toUpperCase() + dupEnhet.slice(1)
+                            : group.baseName;
                     } else if (e.name === group.baseName) {
-                        // Original entry with variant
                         var origEnhet = normalizeVariant(group.baseName, e.enhet || '').toLowerCase();
                         if (origEnhet && origEnhet !== 'stk' && origEnhet !== 'meter') {
                             subDisplay = origEnhet.charAt(0).toUpperCase() + origEnhet.slice(1);
                         }
                     }
-                    var rowHtml = buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, subDisplay, e.hasVariants, _isDeletablePickerEntry(e.name));
-                    // Add grouped class to the row
+                    var rowHtml = buildRow(e.name, e.isChecked, e.antall, e.enhet, e.matType, subDisplay, e.hasVariants, _isDeletablePickerEntry(e.name), e.source, e.quantityUnit);
                     rowHtml = rowHtml.replace('class="picker-mat-row', 'class="picker-mat-row picker-mat-grouped');
                     html += rowHtml;
                 });
@@ -2041,12 +2555,25 @@ function openMaterialPicker(btn, onConfirm) {
             header.addEventListener('click', function() {
                 var headerName = header.getAttribute('data-mat-name');
                 var headerType = header.getAttribute('data-mat-type') || 'standard';
-                if (headerType === 'mansjett' || headerType === 'brannpakning' || headerType === 'kabelhylse') {
+                if (headerType === 'kappe-isolation') {
+                    openMaterialKappePicker(function(selection) {
+                        var addedKey = addKappeMaterialSelection(selection);
+                        renderPickerList();
+                        _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
+                    });
+                } else if (headerType === 'kappe-stift') {
+                    openMaterialKappePicker(function(selection) {
+                        var addedKey = addKappeMaterialSelection(selection);
+                        renderPickerList();
+                        _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
+                    }, { name: MATERIAL_STIFT_LAUNCHER, source: 'kappe-stift' });
+                } else if (headerType === 'mansjett' || headerType === 'brannpakning' || headerType === 'kabelhylse') {
                     // Spec material header: open spec popup
                     openSpecPopup(headerName, function(spec, meterValue) {
                         var addedKey;
                         if (meterValue !== undefined) {
                             addedKey = headerName + '__meter';
+                            if (pickerState[addedKey]) addedKey = nextPickerDuplicateKey(addedKey);
                             pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
                         } else {
                             var fullName = headerName + ' ' + spec;
@@ -2076,6 +2603,7 @@ function openMaterialPicker(btn, onConfirm) {
                         if (!pickerState[headerName].enhet) pickerState[headerName].enhet = defaultEnhet;
                     }
                     renderPickerList();
+                    _scrollPickerToRow(headerName);
                 }
             });
         });
@@ -2087,6 +2615,22 @@ function openMaterialPicker(btn, onConfirm) {
             const matType = row.getAttribute('data-mat-type') || 'standard';
 
             nameDiv.addEventListener('click', function() {
+                if (matType === 'kappe-isolation') {
+                    openMaterialKappePicker(function(selection) {
+                        var addedKey = addKappeMaterialSelection(selection);
+                        renderPickerList();
+                        _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
+                    });
+                    return;
+                }
+                if (matType === 'kappe-stift') {
+                    openMaterialKappePicker(function(selection) {
+                        var addedKey = addKappeMaterialSelection(selection);
+                        renderPickerList();
+                        _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
+                    }, { name: MATERIAL_STIFT_LAUNCHER, source: 'kappe-stift' });
+                    return;
+                }
                 if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
                     // Spec-launcher: åpne spec-popup. Highlighting er knyttet til om
                     // popup blir fylt (spec-derived entry opprettes), ikke selve klikket.
@@ -2095,6 +2639,7 @@ function openMaterialPicker(btn, onConfirm) {
                         var addedKey;
                         if (meterValue !== undefined) {
                             addedKey = name + '__meter';
+                            if (pickerState[addedKey]) addedKey = nextPickerDuplicateKey(addedKey);
                             pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
                         } else {
                             var fullName = name + ' ' + spec;
@@ -2112,13 +2657,39 @@ function openMaterialPicker(btn, onConfirm) {
                     }, matType);
                     return;
                 }
+                var isolationState = pickerState[name];
+                var isIsolationEntry = isolationState && (isolationState.source === 'kappe-products' || (!hasConfiguredMaterialName(name) && isKappeIsolationMaterial(name, isolationState.source)));
+                if (isIsolationEntry) {
+                    var oldName = name;
+                    var oldState = Object.assign({}, isolationState);
+                    openMaterialKappePicker(function(selection) {
+                        delete pickerState[oldName];
+                        var newKey = addKappeMaterialSelection(selection, oldState.antall || '');
+                        renderPickerList();
+                        _scrollPickerTargetIntoView(newKey, { focusAntall: true });
+                    }, { name: oldName, enhet: oldState.enhet || '', source: 'kappe-products' });
+                    return;
+                }
+                var stiftState = pickerState[name];
+                var isStiftEntry = stiftState && isKappeStiftMaterial(name, stiftState.source, stiftState.enhet);
+                if (isStiftEntry) {
+                    var oldStiftName = name;
+                    var oldStiftState = Object.assign({}, stiftState);
+                    openMaterialKappePicker(function(selection) {
+                        delete pickerState[oldStiftName];
+                        var newStiftKey = addKappeMaterialSelection(selection, oldStiftState.antall || '');
+                        renderPickerList();
+                        _scrollPickerTargetIntoView(newStiftKey, { focusAntall: true });
+                    }, { name: MATERIAL_STIFT_LAUNCHER, enhet: oldStiftState.enhet || '', source: 'kappe-stift' });
+                    return;
+                }
                 // Spec-derived sub-rad (f.eks. "Kabelhylse Ø50x250mm" eller "FSW__meter"):
                 // klikk på navn åpner spec-popup forhåndsutfylt med eksisterende verdier
                 // slik at bruker kan justere dimensjoner.
-                var meterMatch = name.match(/^(.+)__meter$/);
+                var parsedNameKey = parsePickerStorageKey(name);
                 var derivedBase = null;
-                if (meterMatch) {
-                    derivedBase = allMaterials.find(function(m) { return m.name === meterMatch[1] && (m.type === 'mansjett' || m.type === 'brannpakning'); });
+                if (parsedNameKey.isMeterEntry) {
+                    derivedBase = allMaterials.find(function(m) { return m.name === parsedNameKey.baseName && (m.type === 'mansjett' || m.type === 'brannpakning'); });
                 } else {
                     derivedBase = findBaseMaterial(name);
                 }
@@ -2128,16 +2699,22 @@ function openMaterialPicker(btn, onConfirm) {
                     var prefill = _parseSpecFromName(oldName, derivedBase.name);
                     if (prefill && prefill.isMeter) prefill.meter = oldState.antall || '';
                     openSpecPopup(derivedBase.name, function(spec, meterValue) {
+                        var targetKey;
                         delete pickerState[oldName];
                         if (meterValue !== undefined) {
-                            pickerState[derivedBase.name + '__meter'] = { checked: true, antall: meterValue, enhet: 'meter' };
+                            var meterKey = parsedNameKey.isMeterEntry ? oldName : derivedBase.name + '__meter';
+                            if (!parsedNameKey.isMeterEntry && pickerState[meterKey]) meterKey = nextPickerDuplicateKey(meterKey);
+                            pickerState[meterKey] = { checked: true, antall: meterValue, enhet: 'meter' };
+                            targetKey = meterKey;
                         } else {
                             var newName = derivedBase.name + ' ' + spec;
                             // Bevar Antall fra gammel entry (men bare hvis dimensjons-modus,
                             // siden meter-modus erstatter Antall med meter-verdi)
                             pickerState[newName] = { checked: true, antall: oldState.antall || '', enhet: oldState.enhet || 'stk' };
+                            targetKey = newName;
                         }
                         renderPickerList();
+                        _scrollPickerToRow(targetKey);
                     }, derivedBase.type, prefill);
                     return;
                 }
@@ -2159,6 +2736,7 @@ function openMaterialPicker(btn, onConfirm) {
                         openVariantPopup(matObjV.name, optionsV, function(selected) {
                             pickerState[name].enhet = selected;
                             renderPickerList();
+                            _scrollPickerToRow(name);
                         });
                     }
                     return;
@@ -2173,7 +2751,7 @@ function openMaterialPicker(btn, onConfirm) {
             // - Spec-derived (entry opprettet via spec-popup): alltid highlighted
             // - Vanlig produkt: highlighted iff Antall har verdi
             var isSpecType = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
-            var isSpecDerived = name.endsWith('__meter') || !!findBaseMaterial(name);
+            var isSpecDerived = parsePickerStorageKey(name).isMeterEntry || !!findBaseMaterial(name);
 
             function _ensureState() {
                 if (pickerState[name]) return;
@@ -2206,7 +2784,16 @@ function openMaterialPicker(btn, onConfirm) {
                 dupBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    var baseName = name.replace(/__\d+$/, '');
+                    var parsedDupKey = parsePickerStorageKey(name);
+                    var baseName = parsedDupKey.baseName;
+                    if (parsedDupKey.isMeterEntry) {
+                        var meterBaseKey = parsedDupKey.baseName + '__meter';
+                        var meterNewKey = nextPickerDuplicateKey(meterBaseKey);
+                        pickerState[meterNewKey] = { checked: true, antall: '', enhet: 'meter' };
+                        renderPickerList();
+                        _scrollPickerOneRowAfterDup(meterNewKey);
+                        return;
+                    }
                     // Check if this is a spec-derived material (has a base spec material)
                     var specBaseMat = findBaseMaterial(baseName) || findBaseMaterial(name);
                     if (!specBaseMat) {
@@ -2224,6 +2811,7 @@ function openMaterialPicker(btn, onConfirm) {
                             var addedKey;
                             if (meterValue !== undefined) {
                                 addedKey = specName + '__meter';
+                                if (pickerState[addedKey]) addedKey = nextPickerDuplicateKey(addedKey);
                                 pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
                             } else {
                                 var fullName = specName + ' ' + spec;
@@ -2245,18 +2833,21 @@ function openMaterialPicker(btn, onConfirm) {
                         // Hvis kilde-raden ikke er i state ennå (f.eks. bruker har ikke skrevet noe),
                         // fallback til materialets defaultUnit/første variant
                         var sourceEnhet = sourceState && sourceState.enhet ? sourceState.enhet : '';
+                        var sourceSource = sourceState && sourceState.source
+                            ? sourceState.source
+                            : ((!hasConfiguredMaterialName(baseName) && isKappeIsolationMaterial(baseName, '')) ? 'kappe-products'
+                                : ((!hasConfiguredMaterialName(baseName) && isKappeStiftMaterial(baseName, '', sourceEnhet)) ? 'kappe-stift' : ''));
                         var dupMatObj = allMaterials.find(m => m.name === baseName);
                         var dupHasVariants = dupMatObj && dupMatObj.allowedUnits && dupMatObj.allowedUnits.length > 0;
                         var defEnhet = sourceEnhet || (dupHasVariants
                             ? (dupMatObj.defaultUnit || (typeof dupMatObj.allowedUnits[0] === 'string' ? dupMatObj.allowedUnits[0] : (dupMatObj.allowedUnits[0].plural || dupMatObj.allowedUnits[0])))
                             : 'stk');
-                        var n = 2;
-                        while (pickerState[baseName + '__' + n]) n++;
-                        var newKey = baseName + '__' + n;
+                        var newKey = nextPickerDuplicateKey(baseName);
                         // checked: true så den nye duplikat-raden vises som
                         // aktiv (orange highlighting) umiddelbart — bruker
                         // forventer at duplikatet er "klar" som kilden var.
                         pickerState[newKey] = { checked: true, antall: '', enhet: defEnhet };
+                        if (sourceSource) pickerState[newKey].source = sourceSource;
                         renderPickerList();
                         _scrollPickerOneRowAfterDup(newKey);
                     }
@@ -2308,6 +2899,65 @@ function closePickerOverlay() {
 
 }
 
+function openMaterialKappePicker(callback, prefill) {
+    if (typeof openProductDimensionPicker !== 'function') {
+        showNotificationModal(t('kappe_settings_no_products'));
+        return;
+    }
+    var products = getKappeProducts().map(function(product) {
+        return Object.assign({}, product, { source: 'kappe-products' });
+    });
+    var fastenerProducts = getKappeFastenerProducts().map(function(product) {
+        return Object.assign({}, product, { source: product.name === MATERIAL_STIFT_LAUNCHER ? 'kappe-stift' : 'kappe-fastener' });
+    });
+    products = products.concat(fastenerProducts);
+    var stiftSizes = _getUniqueKappeMaterialSizes(getKappeDimensions());
+    if (!products.length) {
+        showNotificationModal(t('kappe_settings_no_products'));
+        return;
+    }
+    var defaultDimensions = getKappeDimensions();
+    var initialBrand = '';
+    if (prefill && prefill.source === 'kappe-stift') {
+        initialBrand = MATERIAL_STIFT_LAUNCHER;
+    } else if (prefill && prefill.name) {
+        initialBrand = _getKappeProductName(prefill.name) || prefill.name;
+    }
+    openProductDimensionPicker({
+        title: getMaterialKappeLabel(),
+        products: products,
+        dimensions: defaultDimensions.concat(stiftSizes),
+        getDimensionsForProduct: function(product) {
+            return product && product.source === 'kappe-stift' ? stiftSizes : defaultDimensions;
+        },
+        showPlate: false,
+        requireDimension: true,
+        defaultFirstDimension: true,
+        initialBrand: initialBrand,
+        initialDim: prefill && prefill.enhet ? prefill.enhet : '',
+        onConfirm: function(selection) {
+            if (callback) {
+                var source = selection.source || (selection.product && selection.product.source) || 'kappe-products';
+                callback({
+                    name: selection.name,
+                    enhet: _formatKappeMaterialSize(selection.enhet || selection.dim || ''),
+                    source: source,
+                    product: selection.product || null,
+                    quantityUnit: getKappeProductDefaultUnit(selection.name)
+                });
+            }
+        }
+    });
+}
+
+function openMaterialIsolationPicker(callback, prefill) {
+    openMaterialKappePicker(callback, prefill);
+}
+
+function closeMaterialIsolationPicker() {
+    if (typeof closeKappeProductPicker === 'function') closeKappeProductPicker();
+}
+
 // Spec popup for materials that need a specification
 let specPopupCallback = null;
 let specPopupMatType = 'kabelhylse'; // 'mansjett' | 'brannpakning' | 'kabelhylse'
@@ -2318,7 +2968,7 @@ let specMeterMode = false;
 // baseName = base-materialets navn (f.eks. "Kabelhylse", "FSW")
 // Returnerer { width, height, depth, rounds } eller { isMeter: true } eller null.
 function _parseSpecFromName(name, baseName) {
-    if (name.endsWith('__meter')) return { isMeter: true };
+    if (/__meter(?:__\d+)?$/i.test(name)) return { isMeter: true };
     var specStr = name.substring(baseName.length + 1); // strip "BaseName "
     // Format: "<dims>mm" optionally followed by " <N> lag" (brannpakning lag-suffix)
     var lagMatch = specStr.match(/^(.+?)mm(?:\s+(\d+)\s+lag)?$/);
@@ -2534,10 +3184,12 @@ function pickerOverlayConfirm() {
     if (!pickerOrderCard && !pickerConfirmCallback) { closePickerOverlay(); return; }
 
     // Helper: check if name is a spec-base material (launcher) — should never be exported
-    var allMats = cachedMaterialOptions || [];
+    var allMats = getMaterialPickerOptions(cachedMaterialOptions || []);
     function isSpecBase(name) {
+        if (name === MATERIAL_KAPPE_LAUNCHER) return true;
+        if (name === MATERIAL_ISOLATION_LAUNCHER) return true;
         return allMats.some(function(m) {
-            return m.name === name && (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse');
+            return m.name === name && (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse' || m.type === 'kappe-isolation');
         });
     }
 
@@ -2562,9 +3214,15 @@ function pickerOverlayConfirm() {
     for (const [name, state] of Object.entries(pickerState)) {
         if (isSpecBase(name)) continue;
         if (state.checked) {
-            // Strip __N or __meter suffix for duplicated/meter entries
-            const realName = name.replace(/__(\d+|meter)$/, '');
-            materials.push({ name: realName, antall: state.antall || '', enhet: state.enhet || '' });
+            // Strip internal picker suffixes before persisting materials.
+            const parsedKey = parseMaterialPickerKey(name);
+            const realName = parsedKey.realName;
+            var source = state.source || ((!hasConfiguredMaterialName(name) && isKappeIsolationMaterial(name, state.source)) ? 'kappe-products'
+                : ((!hasConfiguredMaterialName(name) && isKappeStiftMaterial(name, state.source, state.enhet)) ? 'kappe-stift' : ''));
+            var material = { name: realName, antall: state.antall || '', enhet: state.enhet || '' };
+            if (source) material.source = source;
+            if (state.quantityUnit) material.quantityUnit = state.quantityUnit;
+            materials.push(material);
         }
     }
 
@@ -4043,18 +4701,19 @@ function buildDesktopWorkLines() {
                         : baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
                     addRow(formatDisplayForBreak(nameWithStk), formatRunningMeters(lm), 'meter', { alignRight: true });
                 } else {
-                    var exportUnit = (m.enhet || '').toLowerCase() === 'meter' ? 'meter' : 'stk';
+                    var exportUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
                     addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
                 }
             }
             // Group materials for export (sorter items innen hver gruppe)
             var exportGroups = groupMaterialsByBase(aggregatedMats, { sortItems: true });
             exportGroups.forEach(function(group) {
-                if (!group.isSpecGroup) {
+                if (!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) {
                     group.items.forEach(function(gm) { addExportMatRow(gm); });
                 } else {
                     // Group header row (bold base name)
-                    addRow('  ' + group.baseName.charAt(0).toUpperCase() + group.baseName.slice(1) + ':', '', '', { bold: true, alignRight: true });
+                    var exportGroupTitle = group.displayName || group.baseName;
+                    addRow('  ' + exportGroupTitle.charAt(0).toUpperCase() + exportGroupTitle.slice(1) + ':', '', '', { bold: true, alignRight: true });
                     var groupTotalMeter = 0;
                     var groupHasMeter = false;
                     group.items.forEach(function(gm) {
@@ -4068,7 +4727,7 @@ function buildDesktopWorkLines() {
                         if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
                             groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum);
                             groupHasMeter = true;
-                        } else if ((gm.enhet || '').toLowerCase() === 'meter' && !isNaN(antallNum)) {
+                        } else if ((gm.quantityUnit || getMaterialQuantityUnit(gm.name, gm.enhet, gm.source)) === 'meter' && !isNaN(antallNum)) {
                             groupTotalMeter += antallNum;
                             groupHasMeter = true;
                         }

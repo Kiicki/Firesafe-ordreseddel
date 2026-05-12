@@ -3116,7 +3116,9 @@ label.settings-default-label.field-required > span::after {
 /* Spec-launchere uten valgt størrelse er ikke direkte redigerbare og skal se nedtonet ut */
 .picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected),
 .picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected),
-.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) {
+.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected),
+.picker-mat-row[data-mat-type="kappe-isolation"]:not(.picker-mat-selected),
+.picker-mat-row[data-mat-type="kappe-stift"]:not(.picker-mat-selected) {
     opacity: 0.5;
 }
 
@@ -3163,7 +3165,9 @@ label.settings-default-label.field-required > span::after {
    produkter skal se klikkbare ut slik at bruker kan skrive direkte i Antall. */
 .picker-mat-row[data-mat-type="mansjett"]:not(.picker-mat-selected) .picker-mat-antall,
 .picker-mat-row[data-mat-type="brannpakning"]:not(.picker-mat-selected) .picker-mat-antall,
-.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-antall {
+.picker-mat-row[data-mat-type="kabelhylse"]:not(.picker-mat-selected) .picker-mat-antall,
+.picker-mat-row[data-mat-type="kappe-isolation"]:not(.picker-mat-selected) .picker-mat-antall,
+.picker-mat-row[data-mat-type="kappe-stift"]:not(.picker-mat-selected) .picker-mat-antall {
     opacity: 0.3;
 }
 
@@ -3235,6 +3239,12 @@ label.settings-default-label.field-required > span::after {
 }
 .picker-mat-dot-kabelhylse {
     background: #FF9800;
+}
+.picker-mat-dot-isolation {
+    background: #00A6A6;
+}
+.picker-mat-dot-stift {
+    background: #7E57C2;
 }
 /* Variant-prikk: grønn for å markere at standard-materiale har varianter
    (Patron/Pølse etc.) — samme mønster som spec-materialer (klikk på navn
@@ -3984,7 +3994,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 4px 10px 12px;
+    padding: 4px 4px 4px 12px;
     border: none;
     border-radius: 0;
     margin-bottom: 0;
@@ -3995,6 +4005,29 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-list-item span {
     cursor: pointer;
     flex: 1;
+}
+
+.settings-action-row {
+    min-height: 40px;
+    padding: 2px 4px 2px 20px;
+}
+
+.settings-action-row .settings-list-item-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.settings-action-row .settings-list-item-name {
+    font-size: 14px;
+    font-weight: 400;
+    color: #333;
+}
+
+.settings-action-row .settings-list-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .settings-collapsible-body .settings-list-item {
@@ -4056,13 +4089,14 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-color: #e55a00;
 }
 
-.settings-delete-btn {
+.settings-delete-btn,
+.settings-item-edit,
+.settings-item-remove {
     background: none;
     border: none;
-    color: #e74c3c;
     cursor: pointer;
     padding: 0;
-    width: 36px;
+    width: 32px;
     height: 36px;
     display: flex;
     align-items: center;
@@ -4070,12 +4104,28 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     flex-shrink: 0;
 }
 
-.settings-delete-btn svg {
+.settings-delete-btn {
+    color: #e74c3c;
+}
+
+.settings-item-edit {
+    color: #E8501A;
+}
+
+.settings-item-remove {
+    color: #e74c3c;
+}
+
+.settings-delete-btn svg,
+.settings-item-edit svg,
+.settings-item-remove svg {
     width: 20px;
     height: 20px;
 }
 
-.settings-delete-btn:active {
+.settings-delete-btn:active,
+.settings-item-edit:active,
+.settings-item-remove:active {
     opacity: 0.6;
 }
 
@@ -4150,7 +4200,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 }
 /* Type-knappen i nytt-materiale-add-row skal være full bredde og matche
    input-feltet "Nytt materiale" stil-mesig. */
-#settings-new-material-type-btn {
+#settings-new-material-type-btn,
+#settings-new-kappe-type-btn {
     width: 100%;
     padding: 6px 10px;
     font-size: 14px;
@@ -4271,7 +4322,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-header {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     padding: 4px 4px 4px 12px;
     background: transparent;
     cursor: pointer;
@@ -4331,13 +4382,23 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-edit-btn {
     background: none;
     border: none;
+    color: #E8501A;
     cursor: pointer;
-    padding: 6px 10px;
-    font-size: 16px;
-    opacity: 0.5;
+    padding: 0;
+    width: 32px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 1;
+}
+.settings-material-edit-btn svg {
+    width: 20px;
+    height: 20px;
 }
 .settings-material-edit-btn:active {
-    opacity: 1;
+    opacity: 0.6;
 }
 .settings-material-unit-item {
     display: flex;
@@ -4374,11 +4435,20 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-unit-edit-btn {
     background: none;
     border: none;
-    font-size: 14px;
+    color: #E8501A;
     cursor: pointer;
-    padding: 4px 8px;
-    line-height: 1;
-    opacity: 0.4;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0.75;
+}
+.settings-material-unit-edit-btn svg {
+    width: 18px;
+    height: 18px;
 }
 .settings-material-unit-edit-btn:active {
     opacity: 1;
@@ -4386,14 +4456,23 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-unit-remove {
     background: none;
     border: none;
-    color: #ccc;
-    font-size: 18px;
+    color: #e74c3c;
     cursor: pointer;
-    padding: 4px 8px;
-    line-height: 1;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0.75;
+}
+.settings-material-unit-remove svg {
+    width: 18px;
+    height: 18px;
 }
 .settings-material-unit-remove:hover {
-    color: #e74c3c;
+    opacity: 1;
 }
 .settings-material-unit-add {
     padding: 8px 12px 8px 16px;
@@ -6851,6 +6930,10 @@ body.kappe-view-open #view-form { display: none; }
     font-weight: 700;
     font-size: 16px;
 }
+.picker-mat-row[data-mat-type="kappe-isolation"] .picker-mat-antall,
+.picker-mat-row[data-mat-type="kappe-stift"] .picker-mat-antall {
+    color: #777;
+}
 .kappe-kapp-rows {
     display: flex;
     flex-direction: column;
@@ -6985,11 +7068,28 @@ body.kappe-view-open #view-form { display: none; }
     gap: 10px;
     padding: 4px 0;
 }
+.kappe-stift-picker-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 0 2px;
+    color: #777;
+    font-size: 12px;
+    font-weight: 600;
+}
 .kappe-stift-picker-label {
     flex: 0 0 56px;
     font-weight: 600;
     font-size: 15px;
     color: #333;
+}
+.kappe-stift-picker-header .kappe-stift-picker-label {
+    font-size: 12px;
+    color: #777;
+}
+.kappe-stift-picker-heading {
+    flex: 1;
+    min-width: 0;
 }
 .kappe-stift-picker-input {
     flex: 1;
@@ -7047,11 +7147,14 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-dim-item .settings-item-remove {
     background: transparent;
     border: none;
-    padding: 6px;
+    padding: 0;
+    width: 32px;
+    height: 36px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 .kappe-product-item .settings-item-edit,
 .kappe-brand-header .settings-item-edit,
@@ -7069,8 +7172,8 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-brand-header .settings-item-remove svg,
 .kappe-dim-item .settings-item-edit svg,
 .kappe-dim-item .settings-item-remove svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 
 /* Brand+dimension nested struktur i settings */
