@@ -4912,7 +4912,7 @@ function buildServiceExportTable(cols) {
             var stiftLines = [];
             mats.forEach(function(m) {
                 if (!m.name || !m.antall || !shouldGroupAsKappeStift(m) || m.name !== baseName) return;
-                var stiftLabel = formatKappeStiftName(m.enhet);
+                var stiftLabel = formatKappeStiftName(m.enhet, m.name);
                 var unitLabel = m.quantityUnit || getKappeProductDefaultUnit(m.name) || 'stk';
                 stiftLines.push(escapeHtml(stiftLabel) + ' ' + formatRunningMeters(m.antall) + ' ' + escapeHtml(unitLabel));
             });
