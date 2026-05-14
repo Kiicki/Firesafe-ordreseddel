@@ -3160,6 +3160,21 @@ label.settings-default-label.field-required > span::after {
     outline: none;
     border-color: #E8501A;
 }
+
+.picker-mat-unit-pill {
+    display: inline-block;
+    background: #FFE5D9;
+    color: #E8501A;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
+    vertical-align: 2px;
+    text-transform: lowercase;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+}
 /* Greyout for Antall kun på spec-launchere (mansjett/brannpakning/kabelhylse
    uten valgt størrelse) — disse krever klikk på navn for å åpne spec-popup. Vanlige
    produkter skal se klikkbare ut slik at bruker kan skrive direkte i Antall. */
@@ -3182,6 +3197,28 @@ label.settings-default-label.field-required > span::after {
 }
 
 /* Spec dot in material picker */
+.picker-mat-unit-btn {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    color: #555;
+    cursor: pointer;
+    flex-shrink: 0;
+    min-width: 38px;
+    height: 28px;
+    padding: 0 8px;
+    margin: 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: lowercase;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.picker-mat-unit-btn:active {
+    background: #fff5f0;
+    border-color: #E8501A;
+    color: #E8501A;
+}
 .picker-mat-dup-btn {
     background: none;
     border: none;
@@ -3196,6 +3233,17 @@ label.settings-default-label.field-required > span::after {
 }
 .picker-mat-dup-btn:active {
     color: #E8501A;
+}
+.picker-mat-dup-btn:disabled,
+.picker-mat-dup-btn[disabled] {
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.3;
+}
+.picker-mat-dup-btn:disabled:active,
+.picker-mat-dup-btn[disabled]:active {
+    color: #666;
+    opacity: 0.3;
 }
 .picker-mat-delete-btn {
     background: none;
@@ -3215,7 +3263,7 @@ label.settings-default-label.field-required > span::after {
 .picker-mat-delete-btn:disabled,
 .picker-mat-delete-btn[disabled] {
     color: #e74c3c;
-    cursor: default;
+    cursor: not-allowed;
     opacity: 0.3;
 }
 .picker-mat-delete-btn:disabled:active,
@@ -3385,14 +3433,18 @@ label.settings-default-label.field-required > span::after {
     cursor: pointer;
     text-align: left;
 }
-.spec-popup-meter-toggle {
-    background: none;
-    border: none;
-    color: #E8501A;
-    font-size: 13px;
-    cursor: pointer;
-    padding: 8px 0 0;
-    text-decoration: underline;
+/* Stk/Meter-toggle øverst i spec-popup. Bruker samme klasser som kappe-picker-toggle. */
+.spec-popup-mode-toggle {
+    margin-bottom: 14px;
+}
+.spec-popup-body input:disabled {
+    background: #f2f2f2;
+    color: #999;
+    border-color: #e0e0e0;
+    cursor: not-allowed;
+}
+.spec-popup-body input:disabled::placeholder {
+    color: #b0b0b0;
 }
 
 .picker-item-hint {
@@ -3426,8 +3478,9 @@ label.settings-default-label.field-required > span::after {
 .mat-summary-detail {
     color: #777;
     font-size: 13px;
-    flex-shrink: 0;
+    flex-shrink: 1;
     margin-left: 8px;
+    white-space: nowrap;
 }
 
 /* Material grouping styles */
@@ -3458,7 +3511,7 @@ label.settings-default-label.field-required > span::after {
     padding: 8px 2px 2px;
 }
 .mat-summary-grouped {
-    padding-left: 14px;
+    padding-left: 10px;
 }
 .bil-history-group-header {
     font-weight: 600;
@@ -6855,6 +6908,325 @@ body.kappe-view-open #view-form { display: none; }
     border-color: #E8501A;
 }
 
+/* Spesifikasjons-seksjon (synlig kun når isolasjons-produkt er valgt): bytter mellom Bredde og Plate */
+.kappe-picker-bredde-section {
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    /* Lås høyden så popup ikke hopper mellom iso-modus (toggle + bredde + plate)
+       og festemiddel-modus (toggle + hint). Verdien matcher iso-innholdets
+       totale vertikale plass-behov inkl. paddings og margins. */
+    min-height: 175px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+.kappe-picker-mode-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+.kappe-picker-mode-btn {
+    flex: 1;
+    padding: 8px 10px;
+    background: #fff;
+    border: none;
+    color: #666;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+}
+.kappe-picker-mode-btn + .kappe-picker-mode-btn {
+    border-left: 1px solid #ccc;
+}
+.kappe-picker-mode-btn.active {
+    background: #E8501A;
+    color: #fff;
+}
+.kappe-picker-mode-btn:not(.active):active {
+    background: #f0f0f0;
+}
+.kappe-picker-spec-bredde input {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 15px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    background: #fff;
+    color: #333;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.kappe-picker-spec-plate {
+    margin-top: 10px;
+}
+
+/* Festemiddel-hint: fyller restplassen i bredde-section etter toggle, så
+   popup-høyden matcher iso-modus eksakt. */
+.kappe-picker-fastener-hint {
+    flex: 1;
+    margin-top: 4px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.kappe-picker-hint-line {
+    color: #444;
+}
+.kappe-picker-hint-line strong {
+    color: #222;
+    font-weight: 700;
+    display: inline-block;
+    min-width: 38px;
+}
+.kappe-picker-hint-note {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #f0f0f0;
+    color: #888;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* Plate-register i innstillinger (kompakt layout) */
+.settings-plate-item {
+    padding: 8px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: #fff;
+}
+.settings-plate-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.settings-plate-dim {
+    font-weight: 600;
+    font-size: 14px;
+    color: #222;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.settings-plate-default-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: #E8501A;
+    border-radius: 3px;
+    padding: 2px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+.settings-plate-header-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+.settings-plate-header-actions button {
+    padding: 4px;
+}
+.settings-plate-edit-input {
+    width: 64px;
+    padding: 6px 4px;
+    text-align: center;
+    font-size: 15px;
+}
+.settings-plate-products {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+.settings-plate-products-label {
+    /* Skjult — taggene selv kommuniserer "brukes av" uten redundant label */
+    display: none;
+}
+.settings-plate-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fff5f0;
+    border: 1px solid #f3c1a8;
+    border-radius: 12px;
+    padding: 2px 4px 2px 8px;
+    font-size: 12px;
+    color: #c84415;
+    font-weight: 500;
+}
+.settings-plate-tag-remove {
+    background: rgba(255,255,255,0.7);
+    border: none;
+    color: #c84415;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+.settings-plate-tag-remove:active {
+    background: #E8501A;
+    color: #fff;
+}
+.settings-plate-empty {
+    color: #aaa;
+    font-style: italic;
+    font-size: 12px;
+}
+.settings-plate-assign-btn {
+    background: #fff;
+    border: 1px dashed #ccc;
+    color: #666;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.12s, color 0.12s;
+}
+.settings-plate-assign-btn:active {
+    border-color: #E8501A;
+    border-style: solid;
+    color: #E8501A;
+}
+/* Add-rad for ny plate: matcher popup-stilen (.kappe-picker-plate-section) */
+.settings-add-plate-wrap {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+}
+.settings-add-plate-label {
+    display: block;
+    font-size: 13px;
+    color: #555;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.settings-add-plate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.settings-add-plate-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 15px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    background: #fff;
+}
+.settings-add-plate-row input:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+.settings-add-plate-row .settings-plate-x {
+    color: #999;
+    font-weight: 600;
+    font-size: 16px;
+}
+.settings-add-plate-row .settings-add-btn {
+    flex-shrink: 0;
+}
+
+/* Plate-assign-modal: bredere enn standard confirm-modal */
+.kappe-plate-assign-content {
+    width: 360px;
+    max-width: calc(100% - 32px);
+    text-align: left;
+}
+.kappe-plate-assign-content .confirm-modal-text {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.kappe-plate-assign-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    border: 1px solid #eee;
+    border-radius: 6px;
+}
+.settings-plate-assign-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.settings-plate-assign-row:last-child {
+    border-bottom: none;
+}
+.settings-plate-assign-row:active {
+    background: #fafafa;
+}
+.settings-plate-assign-checkbox {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    accent-color: #E8501A;
+    cursor: pointer;
+}
+.settings-plate-assign-name {
+    font-size: 15px;
+    color: #333;
+    flex: 1;
+}
+.settings-plate-assign-hint {
+    font-size: 12px;
+    color: #999;
+    font-weight: 400;
+}
+.kappe-picker-spec-bredde input:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+.kappe-picker-spec-bredde.disabled input,
+.kappe-picker-spec-bredde input:disabled {
+    background: #f2f2f2;
+    color: #999;
+    border-color: #e0e0e0;
+    cursor: not-allowed;
+}
+.kappe-picker-spec-bredde.disabled input::placeholder,
+.kappe-picker-spec-bredde input:disabled::placeholder {
+    color: #b0b0b0;
+    font-style: italic;
+}
+
 /* To-kolonners layout i kappe-produkt-picker: merker venstre, dimensjoner høyre */
 .kappe-picker-split {
     display: flex;
@@ -6869,6 +7241,23 @@ body.kappe-view-open #view-form { display: none; }
     overflow-y: auto;
     border-right: 1px solid #e8e8e8;
     -webkit-overflow-scrolling: touch;
+}
+/* Type-prikk-prefiks per brand-rad: indikerer isolasjon (oransje) vs festemiddel (grå)
+   uten å bryte radvis alignment med dimensjon-kolonnen. */
+.kappe-picker-type-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 10px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+.kappe-picker-type-dot-iso {
+    background: #E8501A;
+}
+.kappe-picker-type-dot-fast {
+    background: #999;
 }
 .kappe-picker-dimensions {
     flex: 1 1 50%;

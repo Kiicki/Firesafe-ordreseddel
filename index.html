@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=580">
+    <link rel="stylesheet" href="styles.css?v=607">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -768,14 +768,10 @@
                                 <div class="settings-add-material-field">
                                     <label class="settings-add-label" data-i18n="kappe_settings_product_type">Type</label>
                                     <button type="button" id="settings-new-kappe-type-btn" class="settings-material-type-btn" data-value="isolasjon" data-i18n="kappe_product_type_isolasjon" onclick="event.stopPropagation();openNewKappeProductTypePicker()">Isolasjon</button>
-                                    <select id="settings-new-kappe-type" style="display:none" onchange="updateKappeNewProductUnitPlaceholder()">
+                                    <select id="settings-new-kappe-type" style="display:none">
                                         <option value="isolasjon">Isolasjon</option>
                                         <option value="festemiddel">Festemiddel</option>
                                     </select>
-                                </div>
-                                <div class="settings-add-unit-fields">
-                                    <label class="settings-add-label" data-i18n="kappe_settings_units">Enheter</label>
-                                    <input type="text" id="settings-new-kappe-units" autocapitalize="off" data-i18n-placeholder="kappe_settings_units_placeholder" placeholder="meter, pakker">
                                 </div>
                                 <button type="button" class="settings-add-btn" onclick="addKappeProduct()" data-i18n="btn_add">Legg til</button>
                             </div>
@@ -804,15 +800,32 @@
                         </div>
                     </div>
 
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-plate')" style="margin-top: 16px;">
-                        <span data-i18n="kappe_settings_plate">Standard plate (mm)</span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-plate">&rsaquo;</span>
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-plates')" style="margin-top: 16px;">
+                        <span><span data-i18n="kappe_settings_plates">Plater (mm)</span> <span class="settings-collapsible-count" id="settings-count-kappe-plates"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-plates">&rsaquo;</span>
                     </div>
-                    <div class="settings-collapsible-body" id="settings-body-kappe-plate">
-                        <div class="settings-plate-row">
-                            <input type="text" id="settings-kappe-plate-lengde" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
-                            <span class="settings-plate-x">×</span>
-                            <input type="text" id="settings-kappe-plate-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
+                    <div class="settings-collapsible-body" id="settings-body-kappe-plates">
+                        <div id="settings-kappe-plate-items"></div>
+                        <div class="settings-add-plate-wrap">
+                            <label class="settings-add-plate-label">Plate (mm)</label>
+                            <div class="settings-add-plate-row">
+                                <input type="text" id="settings-new-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                                <span class="settings-plate-x">×</span>
+                                <input type="text" id="settings-new-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
+                                <button type="button" class="settings-add-btn" onclick="addKappePlate()" data-i18n="btn_add">Legg til</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal for å tildele produkter til en plate -->
+                <div class="confirm-modal" id="kappe-plate-assign-modal" onclick="if(event.target===this)closeKappePlateAssignModal()">
+                    <div class="confirm-modal-content kappe-plate-assign-content" onclick="event.stopPropagation()">
+                        <div class="confirm-modal-text" id="kappe-plate-assign-title">Tildel produkter</div>
+                        <div class="kappe-plate-assign-list" id="kappe-plate-assign-body"></div>
+                        <div class="confirm-modal-buttons">
+                            <button class="confirm-btn-cancel" onclick="closeKappePlateAssignModal()" data-i18n="btn_cancel">Avbryt</button>
+                            <button class="confirm-btn-ok" onclick="saveKappePlateAssign()" data-i18n="btn_save">Lagre</button>
                         </div>
                     </div>
                 </div>
@@ -1104,6 +1117,32 @@
                     <input type="text" id="kappe-picker-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
                 </div>
             </div>
+            <div class="kappe-picker-bredde-section" id="product-dimension-picker-bredde-section" style="display:none">
+                <div class="kappe-picker-mode-toggle kappe-picker-mode-toggle-iso" id="kappe-picker-mode-toggle-iso" role="tablist">
+                    <button type="button" class="kappe-picker-mode-btn active" data-mode="bredde" onclick="_setKappePickerSpecMode('bredde')">Bredde</button>
+                    <button type="button" class="kappe-picker-mode-btn" data-mode="plate" onclick="_setKappePickerSpecMode('plate')">Plate</button>
+                </div>
+                <div class="kappe-picker-mode-toggle kappe-picker-mode-toggle-fast" id="kappe-picker-mode-toggle-fast" role="tablist" style="display:none">
+                    <button type="button" class="kappe-picker-mode-btn active" data-mode="stk" onclick="_setKappePickerSpecMode('stk')">Stk</button>
+                    <button type="button" class="kappe-picker-mode-btn" data-mode="eske" onclick="_setKappePickerSpecMode('eske')">Eske</button>
+                </div>
+                <div class="kappe-picker-spec-bredde" id="kappe-picker-spec-bredde">
+                    <input type="text" id="kappe-picker-bredde-input" inputmode="numeric" pattern="[0-9]*" placeholder="bredde i mm">
+                </div>
+                <div class="kappe-picker-spec-plate" id="kappe-picker-spec-plate-wrap">
+                    <label class="kappe-picker-plate-label">Plate (mm)</label>
+                    <div class="kappe-picker-plate-row">
+                        <input type="text" id="kappe-picker-spec-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                        <span class="kappe-plate-x">×</span>
+                        <input type="text" id="kappe-picker-spec-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
+                    </div>
+                </div>
+                <div class="kappe-picker-fastener-hint" id="kappe-picker-fastener-hint" style="display:none">
+                    <div class="kappe-picker-hint-line"><strong>Stk</strong> &middot; enkeltvise stykker</div>
+                    <div class="kappe-picker-hint-line"><strong>Eske</strong> &middot; kartonger</div>
+                    <div class="kappe-picker-hint-note">Antall fylles på raden etter Velg</div>
+                </div>
+            </div>
             <div class="kappe-picker-split">
                 <div class="kappe-picker-brands" id="kappe-picker-brands-list"></div>
                 <div class="kappe-picker-dimensions" id="kappe-product-picker-list"></div>
@@ -1140,6 +1179,10 @@
                 <span id="spec-popup-title"></span>
             </div>
             <div class="spec-popup-body">
+                <div class="kappe-picker-mode-toggle spec-popup-mode-toggle" id="spec-popup-mode-toggle" style="display:none">
+                    <button type="button" class="kappe-picker-mode-btn active" data-mode="stk" onclick="_setSpecPopupMode('stk')">Stk</button>
+                    <button type="button" class="kappe-picker-mode-btn" data-mode="meter" onclick="_setSpecPopupMode('meter')">Meter</button>
+                </div>
                 <div class="spec-popup-field">
                     <label id="spec-popup-label1" class="spec-popup-label"><span class="spec-required-star">*</span></label>
                     <input type="text" id="spec-popup-input" placeholder="" autocapitalize="off">
@@ -1152,11 +1195,6 @@
                     <label id="spec-popup-label3" class="spec-popup-label"></label>
                     <input type="text" id="spec-popup-input3" placeholder="" autocapitalize="off">
                 </div>
-                <div class="spec-popup-field" id="spec-popup-meter-field" style="display:none">
-                    <label class="spec-popup-label">Meter <span class="spec-required-star">*</span></label>
-                    <input type="text" id="spec-popup-meter-input" placeholder="" inputmode="decimal" autocapitalize="off">
-                </div>
-                <button type="button" id="spec-popup-meter-toggle" class="spec-popup-meter-toggle" onclick="toggleSpecMeterMode()" style="display:none">Eller fyll inn meter direkte</button>
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecPopup()" data-i18n="btn_cancel">Avbryt</button>
@@ -1570,9 +1608,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=215"></script>
-    <script src="script.js?v=363"></script>
-    <script src="script-ui.js?v=656"></script>
+    <script src="lang.js?v=219"></script>
+    <script src="script.js?v=411"></script>
+    <script src="script-ui.js?v=684"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
