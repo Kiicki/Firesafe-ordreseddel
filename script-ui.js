@@ -1448,7 +1448,7 @@ function showSettingsPage(page) {
         if (currentUser && db) {
             db.collection('users').doc(currentUser.uid).collection('settings').doc('lager').get().then(function(doc) {
                 if (!doc.exists) return;
-                saveLager(doc.data());
+                _saveLagerLocalOnly(doc.data());
                 if (document.body.classList.contains('settings-modal-open')) _loadLagerInline();
             }).catch(function() {});
         }
@@ -2484,7 +2484,7 @@ function _saveLagerInline() {
         var el = document.getElementById('lager-inline-' + f);
         data[f] = el ? el.value.trim() : '';
     });
-    saveLager(data);
+    _saveLagerLocalOnly(data);
     enqueueUserDocSet('settings', 'lager', data, 'Save lager');
 }
 
@@ -7173,6 +7173,12 @@ function _swNormalize(w) {
 
 function _swSave(list) {
     try { localStorage.setItem(_SW_KEY, JSON.stringify(list)); } catch (e) {}
+    // Sync til Firebase så stoppeklokker er tilgjengelig på alle enheter
+    // (per CLAUDE.md: brukerdata må persisteres begge steder). Dekker også
+    // delete/clear siden alle skrive-flyter ender med _swSave.
+    if (typeof enqueueUserDocSet === 'function') {
+        enqueueUserDocSet('settings', 'stopwatches', { list: list || [] }, 'Sync stopwatches');
+    }
 }
 
 function _swNewId() {

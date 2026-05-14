@@ -48,7 +48,10 @@ function getLager() {
     } catch (e) { return null; }
 }
 
-function saveLager(obj) {
+// Skriver bare til localStorage — kallere som ønsker Firebase-sync må selv kalle
+// enqueueUserDocSet('settings', 'lager', ...). Brukes fra Firebase-fetch-pathen
+// (cache-tilbakeskriving) og fra _saveLagerInline (som håndterer Firebase separat).
+function _saveLagerLocalOnly(obj) {
     try { localStorage.setItem(LEVERINGSADRESSE_KEY, JSON.stringify(obj || null)); } catch (e) {}
 }
 
@@ -1133,7 +1136,7 @@ if (auth) {
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY,
-             'firesafe_lang', 'firesafe_plate_size']
+             'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
             if (typeof cachedMaterialOptions !== 'undefined') cachedMaterialOptions = null;
@@ -1237,7 +1240,16 @@ if (auth) {
                 db.collection('users').doc(user.uid).collection('settings').doc('lager').get()
                     .then(function(d) { if (d.exists) safeSetItem(LEVERINGSADRESSE_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('plateSize').get()
-                    .then(function(d) { if (d.exists) safeSetItem('firesafe_plate_size', JSON.stringify(d.data())); }).catch(function() {})
+                    .then(function(d) { if (d.exists) safeSetItem('firesafe_plate_size', JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('stopwatches').get()
+                    .then(function(d) {
+                        if (d.exists && Array.isArray(d.data().list)) {
+                            safeSetItem('firesafe_stopwatches', JSON.stringify(d.data().list));
+                            // Re-render hvis stopwatch-pagen er åpen; ellers returnerer
+                            // _swRenderList tidlig (ingen #sw-list i DOM).
+                            if (typeof _swRenderList === 'function') _swRenderList();
+                        }
+                    }).catch(function() {})
             ]).then(function() {
                 if (typeof refreshActiveView === 'function') refreshActiveView();
             });
