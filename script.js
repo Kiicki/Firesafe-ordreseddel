@@ -2096,6 +2096,9 @@ function createMaterialSummaryRow(m, groupBaseName) {
         div.setAttribute('data-mat-plate-length', m.plate.length || '');
         div.setAttribute('data-mat-plate-width', m.plate.width || '');
     }
+    if (m.lmPerSide) div.setAttribute('data-mat-lm-per-side', m.lmPerSide);
+    if (m.antallObjekter) div.setAttribute('data-mat-antall-objekter', m.antallObjekter);
+    if (m.sider) div.setAttribute('data-mat-sider', m.sider);
     var nameFormatted;
     if (groupBaseName) {
         // Grouped sub-row: show just the spec/variant part
@@ -2223,6 +2226,9 @@ function getMaterialsFromContainer(matContainer) {
         const specMode = row.getAttribute('data-mat-spec-mode') || '';
         const plateLength = row.getAttribute('data-mat-plate-length') || '';
         const plateWidth = row.getAttribute('data-mat-plate-width') || '';
+        const lmPerSide = row.getAttribute('data-mat-lm-per-side') || '';
+        const antallObjekter = row.getAttribute('data-mat-antall-objekter') || '';
+        const sider = row.getAttribute('data-mat-sider') || '';
         if (name || antall || enhet) {
             var mat = { name, antall, enhet };
             if (source) mat.source = source;
@@ -2230,6 +2236,9 @@ function getMaterialsFromContainer(matContainer) {
             if (bredde) mat.bredde = bredde;
             if (specMode) mat.specMode = specMode;
             if (plateLength || plateWidth) mat.plate = { length: plateLength, width: plateWidth };
+            if (lmPerSide) mat.lmPerSide = lmPerSide;
+            if (antallObjekter) mat.antallObjekter = antallObjekter;
+            if (sider) mat.sider = sider;
             materials.push(mat);
         }
     });
@@ -2400,6 +2409,9 @@ function openMaterialPicker(btn, onConfirm) {
             if (m.bredde) materialState.bredde = m.bredde;
             if (m.specMode) materialState.specMode = m.specMode;
             if (m.plate && (m.plate.length || m.plate.width)) materialState.plate = m.plate;
+            if (m.lmPerSide) materialState.lmPerSide = m.lmPerSide;
+            if (m.antallObjekter) materialState.antallObjekter = m.antallObjekter;
+            if (m.sider) materialState.sider = m.sider;
             if (pickerState[storageKey]) {
                 if (!dupCounters[storageKey]) dupCounters[storageKey] = 1;
                 dupCounters[storageKey]++;
@@ -2526,7 +2538,7 @@ function openMaterialPicker(btn, onConfirm) {
         return false;
     }
 
-    function addIsolationPickerEntry(materialName, enhet, bredde, specMode, plate) {
+    function addIsolationPickerEntry(materialName, enhet, bredde, specMode, plate, usage) {
         var productName = _getKappeProductName(materialName) || materialName;
         var addedKey = productName;
         if (pickerState[addedKey]) {
@@ -2554,6 +2566,14 @@ function openMaterialPicker(btn, onConfirm) {
         // Plate-dim er relevant for begge moduser (brukes til kalkulering av antall plater).
         if (plate && (plate.length || plate.width)) {
             pickerState[addedKey].plate = { length: plate.length || '', width: plate.width || '' };
+        }
+        // LM/Antall/Sider (bredde-modus): lagre beregnet total som antall + separate
+        // felt for popup-prefyll ved re-redigering.
+        if (usage) {
+            if (usage.computedTotalLm) pickerState[addedKey].antall = usage.computedTotalLm;
+            if (usage.lmPerSide) pickerState[addedKey].lmPerSide = usage.lmPerSide;
+            if (usage.antallObjekter) pickerState[addedKey].antallObjekter = usage.antallObjekter;
+            if (usage.sider) pickerState[addedKey].sider = usage.sider;
         }
         return addedKey;
     }
@@ -2585,9 +2605,23 @@ function openMaterialPicker(btn, onConfirm) {
         var isFastener = source === 'kappe-stift' || source === 'kappe-fastener' || (selection.product && selection.product.type === 'festemiddel');
         var addedKey = isFastener
             ? addStiftPickerEntry(selection.enhet, selection.name, selection.quantityUnit, selection.specMode)
-            : addIsolationPickerEntry(selection.name, selection.enhet, selection.bredde, selection.specMode, selection.plate);
+            : addIsolationPickerEntry(selection.name, selection.enhet, selection.bredde, selection.specMode, selection.plate, {
+                lmPerSide: selection.lmPerSide || '',
+                antallObjekter: selection.antallObjekter || '',
+                sider: selection.sider || '',
+                computedTotalLm: selection.computedTotalLm || ''
+            });
+        // Festemiddel: antall fylles nå i popupen (selection.antall) — analogt med
+        // computedTotalLm for isolasjon. Vinner over bevart rad-verdi.
+        if (isFastener && selection.antall != null && selection.antall !== '' && pickerState[addedKey]) {
+            pickerState[addedKey].antall = String(selection.antall);
+        }
         if (preservedAntall !== undefined && pickerState[addedKey]) {
-            pickerState[addedKey].antall = preservedAntall || '';
+            // Ny computedTotalLm/antall fra popup vinner over bevart rad-verdi
+            // (bruker endret verdier ved re-redigering).
+            if (!selection.computedTotalLm && (selection.antall == null || selection.antall === '')) {
+                pickerState[addedKey].antall = preservedAntall || '';
+            }
             pickerState[addedKey].checked = true;
         }
         return addedKey;
@@ -2828,7 +2862,7 @@ function openMaterialPicker(btn, onConfirm) {
                 var headerName = header.getAttribute('data-mat-name');
                 var headerType = header.getAttribute('data-mat-type') || 'standard';
                 if (headerType === 'kappe-isolation') {
-                    openMaterialKappePicker(function(selection) {
+                    openIsoCardPopup(function(selection) {
                         var addedKey = addKappeMaterialSelection(selection);
                         renderPickerList();
                         _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
@@ -2882,7 +2916,7 @@ function openMaterialPicker(btn, onConfirm) {
 
             nameDiv.addEventListener('click', function() {
                 if (matType === 'kappe-isolation') {
-                    openMaterialKappePicker(function(selection) {
+                    openIsoCardPopup(function(selection) {
                         var addedKey = addKappeMaterialSelection(selection);
                         renderPickerList();
                         _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
@@ -2928,7 +2962,7 @@ function openMaterialPicker(btn, onConfirm) {
                 if (isIsolationEntry) {
                     var oldName = name;
                     var oldState = Object.assign({}, isolationState);
-                    openMaterialKappePicker(function(selection) {
+                    openIsoCardPopup(function(selection) {
                         delete pickerState[oldName];
                         var newKey = addKappeMaterialSelection(selection, oldState.antall || '');
                         renderPickerList();
@@ -2939,7 +2973,11 @@ function openMaterialPicker(btn, onConfirm) {
                         source: 'kappe-products',
                         bredde: oldState.bredde || '',
                         specMode: oldState.specMode || '',
-                        plate: oldState.plate || null
+                        plate: oldState.plate || null,
+                        antall: oldState.antall || '',
+                        lmPerSide: oldState.lmPerSide || '',
+                        antallObjekter: oldState.antallObjekter || '',
+                        sider: oldState.sider || ''
                     });
                     return;
                 }
@@ -3082,7 +3120,7 @@ function openMaterialPicker(btn, onConfirm) {
                     var kappeSrcState = pickerState[name];
                     var kappeSrc = kappeSrcState && kappeSrcState.source;
                     if (kappeSrc === 'kappe-products' || kappeSrc === 'kappe-stift' || kappeSrc === 'kappe-fastener') {
-                        openMaterialKappePicker(function(selection) {
+                        openIsoCardPopup(function(selection) {
                             var newKey = addKappeMaterialSelection(selection);
                             renderPickerList();
                             _scrollPickerOneRowAfterDup(newKey);
@@ -3258,6 +3296,11 @@ function openMaterialKappePicker(callback, prefill) {
         initialPlate: prefill && prefill.plate ? prefill.plate : null,
         initialMode: prefill && prefill.specMode ? prefill.specMode : '',
         initialFastener: !!(prefill && prefill.source === 'kappe-stift'),
+        initialUsage: prefill ? {
+            lmPerSide: prefill.lmPerSide,
+            antallObjekter: prefill.antallObjekter,
+            sider: prefill.sider
+        } : null,
         onConfirm: function(selection) {
             if (callback) {
                 var source = selection.source || (selection.product && selection.product.source) || 'kappe-products';
@@ -3270,7 +3313,11 @@ function openMaterialKappePicker(callback, prefill) {
                     specMode: selection.specMode || '',
                     product: selection.product || null,
                     // Festemiddel: popup leverer 'stk'/'eske' direkte. Isolasjon: bruk produktets default.
-                    quantityUnit: selection.quantityUnit || getKappeProductDefaultUnit(selection.name)
+                    quantityUnit: selection.quantityUnit || getKappeProductDefaultUnit(selection.name),
+                    lmPerSide: selection.lmPerSide || '',
+                    antallObjekter: selection.antallObjekter || '',
+                    sider: selection.sider || '',
+                    computedTotalLm: selection.computedTotalLm || ''
                 });
             }
         }
@@ -3566,6 +3613,9 @@ function pickerOverlayConfirm() {
                 if (state.plate && (state.plate.length || state.plate.width)) {
                     material.plate = state.plate;
                 }
+                if (state.lmPerSide) material.lmPerSide = state.lmPerSide;
+                if (state.antallObjekter) material.antallObjekter = state.antallObjekter;
+                if (state.sider) material.sider = state.sider;
             }
             materials.push(material);
         }

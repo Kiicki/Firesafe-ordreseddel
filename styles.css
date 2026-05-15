@@ -6880,6 +6880,7 @@ body.kappe-view-open #view-form { display: none; }
     padding: 12px 16px;
     background: #f8f9fa;
     border-bottom: 1px solid #e0e0e0;
+    position: relative;
 }
 .kappe-picker-plate-label {
     display: block;
@@ -6913,10 +6914,11 @@ body.kappe-view-open #view-form { display: none; }
     padding: 12px 16px;
     background: #f8f9fa;
     border-bottom: 1px solid #e0e0e0;
-    /* Lås høyden så popup ikke hopper mellom iso-modus (toggle + bredde + plate)
-       og festemiddel-modus (toggle + hint). Verdien matcher iso-innholdets
-       totale vertikale plass-behov inkl. paddings og margins. */
-    min-height: 175px;
+    /* Lås høyden så popup ikke hopper mellom iso-modus (toggle + Bredde/LM/
+       Antall/Sider på én rad + plate) og festemiddel-modus (toggle + hint).
+       flex-shrink:0 hindrer at split-listen klemmer plate-input når plassen er knapp. */
+    min-height: 210px;
+    flex-shrink: 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -6952,9 +6954,36 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-picker-mode-btn:not(.active):active {
     background: #f0f0f0;
 }
-.kappe-picker-spec-bredde input {
+.kappe-picker-spec-plate {
+    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+/* Bredde/LM/Antall/Sider for isolasjon bredde-modus — fire felt på rad + sum */
+.kappe-picker-iso-usage {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 6px;
+    margin-top: 8px;
+    flex-shrink: 0;
+}
+.kappe-picker-iso-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.kappe-picker-iso-field label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #666;
+    text-align: center;
+}
+.kappe-picker-iso-field input {
     width: 100%;
-    padding: 8px 10px;
+    padding: 8px 6px;
     font-size: 15px;
     text-align: center;
     border: 1px solid #ccc;
@@ -6962,10 +6991,94 @@ body.kappe-view-open #view-form { display: none; }
     box-sizing: border-box;
     background: #fff;
     color: #333;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.kappe-picker-spec-plate {
-    margin-top: 10px;
+.kappe-picker-iso-field input:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+.kappe-picker-iso-total {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #E8501A;
+    min-height: 16px;
+}
+
+/* Isolerings-kort-popup (kappeskjema-kort-stil). z-index 55 — under
+   produkt-undervelgeren (#kappe-product-picker-overlay, z-index 60) så
+   den vises over kort-popupen. */
+#iso-card-popup.iso-card-backdrop {
+    z-index: 55;
+}
+/* Festemiddel-placeholder ligger som overlay oppå plate-section. Label+row
+   beholdes (visibility:hidden) så seksjonen har EKSAKT samme høyde — listen
+   "hopper" ikke når man bytter isolasjon ↔ festemiddel. */
+.kappe-picker-plate-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 13px;
+    text-align: center;
+    padding: 12px 16px;
+    box-sizing: border-box;
+}
+#iso-card-popup .spec-popup-sheet {
+    gap: 10px;
+}
+#iso-card-popup .spec-popup-header {
+    margin-bottom: 0;
+}
+#iso-card-popup .spec-popup-buttons {
+    margin-top: 0;
+}
+.iso-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    display: block;
+}
+#iso-card-popup .kappe-picker-mode-toggle {
+    margin-bottom: 0;
+}
+#iso-card-popup .kappe-quad-row {
+    gap: 6px;
+}
+.iso-card-total {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #E8501A;
+    min-height: 16px;
+}
+.iso-card-plate-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.iso-card-plate-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-align: center;
+}
+.iso-card-plate-field input {
+    width: 100%;
+    padding: 10px 8px;
+    font-size: 15px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    background: #fff;
+    color: #333;
+}
+.iso-card-plate-field input:focus {
+    outline: none;
+    border-color: #E8501A;
 }
 
 /* Festemiddel-hint: fyller restplassen i bredde-section etter toggle, så
@@ -7210,23 +7323,6 @@ body.kappe-view-open #view-form { display: none; }
     color: #999;
     font-weight: 400;
 }
-.kappe-picker-spec-bredde input:focus {
-    outline: none;
-    border-color: #E8501A;
-}
-.kappe-picker-spec-bredde.disabled input,
-.kappe-picker-spec-bredde input:disabled {
-    background: #f2f2f2;
-    color: #999;
-    border-color: #e0e0e0;
-    cursor: not-allowed;
-}
-.kappe-picker-spec-bredde.disabled input::placeholder,
-.kappe-picker-spec-bredde input:disabled::placeholder {
-    color: #b0b0b0;
-    font-style: italic;
-}
-
 /* To-kolonners layout i kappe-produkt-picker: merker venstre, dimensjoner høyre */
 .kappe-picker-split {
     display: flex;
@@ -7272,6 +7368,8 @@ body.kappe-view-open #view-form { display: none; }
     display: flex;
     align-items: center;
     justify-content: flex-start;
+    box-sizing: border-box;
+    min-height: 47px;
     padding: 14px 16px;
     border: none;
     border-bottom: 1px solid #f0f0f0;
@@ -7281,6 +7379,7 @@ body.kappe-view-open #view-form { display: none; }
     transition: background 0.12s ease;
     text-align: left;
     padding-left: 13px;
+    position: relative;
 }
 .kappe-picker-brands .kappe-product-picker-row:last-child,
 .kappe-picker-dimensions .kappe-product-picker-row:last-child {
@@ -7311,10 +7410,15 @@ body.kappe-view-open #view-form { display: none; }
     font-weight: 700;
 }
 
-/* Dimensjon-kolonne: ekstra checkmark for valgt dimensjon (det faktiske sluttvalget) */
+/* Dimensjon-kolonne: ekstra checkmark for valgt dimensjon (det faktiske sluttvalget).
+   Absolutt-posisjonert så den ikke utvider radhøyden — ellers skyves radene under
+   ned og kolonnene mister vertikal alignment med produkt-kolonnen. */
 .kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected::after {
     content: '✓';
-    margin-left: auto;
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
     color: #E8501A;
     font-weight: 700;
     font-size: 16px;
