@@ -3294,11 +3294,25 @@ label.settings-default-label.field-required > span::after {
 .picker-mat-dot-stift {
     background: #7E57C2;
 }
-/* Variant-prikk: grønn for å markere at standard-materiale har varianter
-   (Patron/Pølse etc.) — samme mønster som spec-materialer (klikk på navn
-   for å åpne valg-popup). */
-.picker-mat-dot-variant {
-    background: #4CAF50;
+/* Standard-materiale med varianter: lite tall-badge (antall varianter),
+   speiler .settings-material-variant-count. Erstatter den gamle grønne
+   prikken som ble forvekslet med spec/popup-prikkene. */
+.picker-mat-variant-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 5px;
+    margin-left: 6px;
+    background: #E8501A;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    vertical-align: middle;
 }
 
 /* Meter-badge: liten "m"-merkelapp ved siden av navn for løpende-/meter-
@@ -7040,6 +7054,25 @@ body.kappe-view-open #view-form { display: none; }
     font-weight: 600;
     color: #666;
     display: block;
+}
+/* Multi-rad i bredde-modus — speiler .kappe-kapp-row-strukturen */
+#iso-card-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.iso-card-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+}
+.iso-card-row .kappe-quad-row {
+    flex: 1;
+    min-width: 0;
+}
+#iso-card-add-row {
+    margin-top: 0;
+    margin-bottom: 0;
 }
 #iso-card-popup .kappe-picker-mode-toggle {
     margin-bottom: 0;

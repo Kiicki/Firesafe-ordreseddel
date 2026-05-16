@@ -8717,6 +8717,17 @@ function _selectKappePickerBrand(brand) {
             plateWidEl.value = assigned.width;
         }
     }
+    // Topp-plate-section (showPlate-modus, bl.a. iso-kort-undervelgeren): samme
+    // auto-fyll så plate matcher valgt produkts tildelte plate ved brand-bytte.
+    if (_productDimensionPickerShowPlate && typeof getKappePlateForProduct === 'function') {
+        var topLenEl = document.getElementById('kappe-picker-plate-length');
+        var topWidEl = document.getElementById('kappe-picker-plate-width');
+        if (topLenEl && topWidEl) {
+            var assignedTop = getKappePlateForProduct(brand);
+            topLenEl.value = assignedTop.length;
+            topWidEl.value = assignedTop.width;
+        }
+    }
 }
 
 function _selectKappePickerDim(dim) {
@@ -8950,6 +8961,58 @@ var _isoCardCallback = null;
 var _isoCardMode = 'bredde';
 var _isoCardSelected = null; // { name, enhet, dim, plate:{length,width}, source }
 
+// Bredde-modus støtter flere linjer per produkt (som kappeskjema "+ Legg til kapp").
+function _createIsoCardRow(data) {
+    var d = data || {};
+    var row = document.createElement('div');
+    row.className = 'iso-card-row';
+    row.innerHTML =
+        '<div class="kappe-quad-row">' +
+            '<div class="mobile-field field-required"><label data-i18n="iso_bredde">Bredde</label>' +
+                '<input type="text" class="isc-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.bredde || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+            '<div class="mobile-field field-required"><label data-i18n="iso_lm_per_side">LM</label>' +
+                '<input type="text" class="isc-lm" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.lopemeter || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+            '<div class="mobile-field field-required"><label data-i18n="iso_antall_objekter">Antall</label>' +
+                '<input type="text" class="isc-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '1') + '" oninput="_updateIsoCardTotal()"></div>' +
+            '<div class="mobile-field field-required"><label data-i18n="iso_sider">Sider</label>' +
+                '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '1') + '" oninput="_updateIsoCardTotal()"></div>' +
+        '</div>' +
+        '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
+    return row;
+}
+
+function _isoCardAddRow() {
+    var container = document.getElementById('iso-card-rows');
+    if (!container) return;
+    container.appendChild(_createIsoCardRow({}));
+    _updateIsoCardRemoveStates();
+    _updateIsoCardTotal();
+    if (typeof applyTranslations === 'function') applyTranslations();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+window._isoCardAddRow = _isoCardAddRow;
+
+function _isoCardRemoveRow(btn) {
+    var container = document.getElementById('iso-card-rows');
+    if (!container) return;
+    if (container.querySelectorAll('.iso-card-row').length <= 1) return;
+    var row = btn.closest('.iso-card-row');
+    if (row) row.remove();
+    _updateIsoCardRemoveStates();
+    _updateIsoCardTotal();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+window._isoCardRemoveRow = _isoCardRemoveRow;
+
+function _updateIsoCardRemoveStates() {
+    var container = document.getElementById('iso-card-rows');
+    if (!container) return;
+    var rows = container.querySelectorAll('.iso-card-row');
+    container.querySelectorAll('.kappe-kapp-remove-btn').forEach(function(b) {
+        b.disabled = rows.length <= 1;
+    });
+}
+
 function openIsoCardPopup(callback, prefill) {
     var popup = document.getElementById('iso-card-popup');
     if (!popup) return;
@@ -8987,12 +9050,19 @@ function openIsoCardPopup(callback, prefill) {
         ).replace('openKappeProductPicker(this)', '_openIsoCardProductSubpicker(this)');
     }
 
-    // Prefyll felt
+    // Prefyll: bygg én bredde-rad fra prefill (re-redigering) eller tom rad.
+    var rowsEl = document.getElementById('iso-card-rows');
+    if (rowsEl) {
+        rowsEl.innerHTML = '';
+        rowsEl.appendChild(_createIsoCardRow({
+            bredde: prefill.bredde ? String(prefill.bredde).replace(/mm$/i, '') : '',
+            lopemeter: prefill.lmPerSide != null ? String(prefill.lmPerSide) : '',
+            antall: prefill.antallObjekter != null && prefill.antallObjekter !== '' ? String(prefill.antallObjekter) : '1',
+            sider: prefill.sider != null && prefill.sider !== '' ? String(prefill.sider) : '1'
+        }));
+    }
+    _updateIsoCardRemoveStates();
     var setVal = function(id, v) { var el = document.getElementById(id); if (el) el.value = v; };
-    setVal('iso-card-bredde', prefill.bredde ? String(prefill.bredde).replace(/mm$/i, '') : '');
-    setVal('iso-card-lm', prefill.lmPerSide != null ? String(prefill.lmPerSide) : '');
-    setVal('iso-card-antall', prefill.antallObjekter != null && prefill.antallObjekter !== '' ? String(prefill.antallObjekter) : '1');
-    setVal('iso-card-sider', prefill.sider != null && prefill.sider !== '' ? String(prefill.sider) : '1');
     setVal('iso-card-plate-antall', prefill.specMode === 'plate' && prefill.antall ? String(prefill.antall) : '');
     setVal('iso-card-fastener-antall', prefillIsFastener && prefill.antall ? String(prefill.antall) : '');
 
@@ -9039,14 +9109,16 @@ function _applyIsoCardProductType() {
 }
 
 function _applyIsoCardMode() {
-    var quad = document.getElementById('iso-card-quad');
+    var rows = document.getElementById('iso-card-rows');
+    var addBtn = document.getElementById('iso-card-add-row');
     var total = document.getElementById('iso-card-total');
     var plateField = document.getElementById('iso-card-plate-field');
     var fastField = document.getElementById('iso-card-fastener-field');
     var isFastener = !!(_isoCardSelected && _isoCardSelected.isFastener);
     var isBredde = !isFastener && _isoCardMode === 'bredde';
     var isPlate = !isFastener && _isoCardMode === 'plate';
-    if (quad) quad.style.display = isBredde ? '' : 'none';
+    if (rows) rows.style.display = isBredde ? '' : 'none';
+    if (addBtn) addBtn.style.display = isBredde ? '' : 'none';
     if (total) total.style.display = isBredde ? '' : 'none';
     if (plateField) plateField.style.display = isPlate ? '' : 'none';
     // Festemiddel: antall fylles direkte i popupen (stk/eske-antall).
@@ -9060,17 +9132,23 @@ function _applyIsoCardMode() {
 function _updateIsoCardTotal() {
     var totalEl = document.getElementById('iso-card-total');
     if (!totalEl) return;
-    var lmEl = document.getElementById('iso-card-lm');
-    var antEl = document.getElementById('iso-card-antall');
-    var sidEl = document.getElementById('iso-card-sider');
-    var lm = lmEl ? parseLocaleNum(lmEl.value) : 0;
-    if (!lm || lm <= 0 || isNaN(lm)) { totalEl.textContent = ''; return; }
-    var ant = antEl ? parseLocaleNum(antEl.value) : 1;
-    var sid = sidEl ? parseLocaleNum(sidEl.value) : 1;
-    if (!ant || ant <= 0 || isNaN(ant)) ant = 1;
-    if (!sid || sid <= 0 || isNaN(sid)) sid = 1;
-    var totalNum = Math.round(lm * ant * sid * 100) / 100;
-    totalEl.textContent = '= ' + String(totalNum).replace('.', ',') + ' lm';
+    var container = document.getElementById('iso-card-rows');
+    if (!container) { totalEl.textContent = ''; return; }
+    var sum = 0;
+    container.querySelectorAll('.iso-card-row').forEach(function(row) {
+        var lmEl = row.querySelector('.isc-lm');
+        var antEl = row.querySelector('.isc-antall');
+        var sidEl = row.querySelector('.isc-sider');
+        var lm = lmEl ? parseLocaleNum(lmEl.value) : 0;
+        if (!lm || lm <= 0 || isNaN(lm)) return;
+        var ant = antEl ? parseLocaleNum(antEl.value) : 1;
+        var sid = sidEl ? parseLocaleNum(sidEl.value) : 1;
+        if (!ant || ant <= 0 || isNaN(ant)) ant = 1;
+        if (!sid || sid <= 0 || isNaN(sid)) sid = 1;
+        sum += lm * ant * sid;
+    });
+    if (sum <= 0) { totalEl.textContent = ''; return; }
+    totalEl.textContent = '= ' + String(Math.round(sum * 100) / 100).replace('.', ',') + ' lm';
 }
 window._updateIsoCardTotal = _updateIsoCardTotal;
 
@@ -9192,13 +9270,6 @@ function confirmIsoCardPopup() {
         if (fcb) fcb(fastSel);
         return;
     }
-    var base = {
-        name: sel.name,
-        enhet: sel.enhet || '',
-        source: 'kappe-products',
-        plate: sel.plate || null,
-        quantityUnit: _isoCardMode === 'plate' ? 'stk' : 'meter'
-    };
     if (_isoCardMode === 'plate') {
         var plateAntEl = document.getElementById('iso-card-plate-antall');
         var plateAnt = plateAntEl ? String(plateAntEl.value || '').trim() : '';
@@ -9206,40 +9277,71 @@ function confirmIsoCardPopup() {
             showNotificationModal('Fyll inn antall plater.');
             return;
         }
-        base.specMode = 'plate';
-        base.computedTotalLm = plateAnt.replace('.', ',');
-    } else {
-        var breddeEl = document.getElementById('iso-card-bredde');
-        var breddeVal = breddeEl ? String(breddeEl.value || '').trim() : '';
-        if (!breddeVal) {
-            showNotificationModal('Fyll inn bredde, eller bytt til Plate-modus.');
+        var plateSel = {
+            name: sel.name,
+            enhet: sel.enhet || '',
+            source: 'kappe-products',
+            plate: sel.plate || null,
+            quantityUnit: 'stk',
+            specMode: 'plate',
+            computedTotalLm: plateAnt.replace('.', ',')
+        };
+        var pcb = _isoCardCallback;
+        closeIsoCardPopup();
+        if (pcb) pcb(plateSel);
+        return;
+    }
+    // Bredde-modus: én selection per linje. Hopp over tomme rader, valider at
+    // minst én rad har utfylt bredde.
+    var container = document.getElementById('iso-card-rows');
+    var rows = container ? Array.prototype.slice.call(container.querySelectorAll('.iso-card-row')) : [];
+    var selections = [];
+    for (var i = 0; i < rows.length; i++) {
+        var rEl = rows[i];
+        var bEl = rEl.querySelector('.isc-bredde');
+        var lEl = rEl.querySelector('.isc-lm');
+        var aEl = rEl.querySelector('.isc-antall');
+        var sEl = rEl.querySelector('.isc-sider');
+        var bVal = bEl ? String(bEl.value || '').trim() : '';
+        var lVal = lEl ? String(lEl.value || '').trim() : '';
+        var aVal = aEl ? String(aEl.value || '').trim() : '';
+        var sVal = sEl ? String(sEl.value || '').trim() : '';
+        // Helt tom rad → ignorer
+        if (!bVal && !lVal && (!aVal || aVal === '1') && (!sVal || sVal === '1')) continue;
+        if (!bVal) {
+            showNotificationModal('Fyll inn bredde på alle linjer, eller fjern tomme linjer.');
             return;
         }
-        var lmEl = document.getElementById('iso-card-lm');
-        var antEl = document.getElementById('iso-card-antall');
-        var sidEl = document.getElementById('iso-card-sider');
-        var lmVal = lmEl ? String(lmEl.value || '').trim() : '';
-        var antVal = antEl ? String(antEl.value || '').trim() : '';
-        var sidVal = sidEl ? String(sidEl.value || '').trim() : '';
-        var lmNum = parseLocaleNum(lmVal);
-        var computedTotalLm = '';
-        if (lmNum && lmNum > 0 && !isNaN(lmNum)) {
-            var antNum = parseLocaleNum(antVal);
-            var sidNum = parseLocaleNum(sidVal);
-            if (!antNum || antNum <= 0 || isNaN(antNum)) antNum = 1;
-            if (!sidNum || sidNum <= 0 || isNaN(sidNum)) sidNum = 1;
-            computedTotalLm = String(Math.round(lmNum * antNum * sidNum * 100) / 100).replace('.', ',');
+        var lNum = parseLocaleNum(lVal);
+        var ctl = '';
+        if (lNum && lNum > 0 && !isNaN(lNum)) {
+            var aNum = parseLocaleNum(aVal);
+            var sNum = parseLocaleNum(sVal);
+            if (!aNum || aNum <= 0 || isNaN(aNum)) aNum = 1;
+            if (!sNum || sNum <= 0 || isNaN(sNum)) sNum = 1;
+            ctl = String(Math.round(lNum * aNum * sNum * 100) / 100).replace('.', ',');
         }
-        base.specMode = 'bredde';
-        base.bredde = breddeVal;
-        base.lmPerSide = lmVal;
-        base.antallObjekter = antVal;
-        base.sider = sidVal;
-        base.computedTotalLm = computedTotalLm;
+        selections.push({
+            name: sel.name,
+            enhet: sel.enhet || '',
+            source: 'kappe-products',
+            plate: sel.plate || null,
+            quantityUnit: 'meter',
+            specMode: 'bredde',
+            bredde: bVal,
+            lmPerSide: lVal,
+            antallObjekter: aVal,
+            sider: sVal,
+            computedTotalLm: ctl
+        });
+    }
+    if (!selections.length) {
+        showNotificationModal('Fyll inn bredde, eller bytt til Plate-modus.');
+        return;
     }
     var cb = _isoCardCallback;
     closeIsoCardPopup();
-    if (cb) cb(base);
+    if (cb) selections.forEach(function(s) { cb(s); });
 }
 window.confirmIsoCardPopup = confirmIsoCardPopup;
 window.openIsoCardPopup = openIsoCardPopup;

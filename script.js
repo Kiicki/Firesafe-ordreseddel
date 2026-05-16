@@ -2494,14 +2494,24 @@ function openMaterialPicker(btn, onConfirm) {
         // Unit-toggle på raden fjernet — enhet velges via popup-modus (Bredde/Plate for isolasjon,
         // Stk/Eske for festemiddel) og er låst etter at raden er opprettet.
         const unitBtn = '';
-        // Farget prikk markerer at materiale har valg-muligheter (klikkbart navn).
-        // Spec-typer har egne farger; standard med varianter får grønn prikk.
+        // Farget prikk markerer spec-materialer (klikk navn → valg-popup).
+        // Standard med varianter får et tall-badge (antall varianter) i stedet
+        // — samme mønster som Innstillinger → Materialer, så prikk-fargekoden
+        // ikke forveksles med spec/popup-materialer.
         const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
             : matType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
             : matType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
             : matType === 'kappe-isolation' ? '<span class="picker-mat-dot picker-mat-dot-isolation"></span>'
             : matType === 'kappe-stift' ? '<span class="picker-mat-dot picker-mat-dot-stift"></span>'
-            : (hasVariants ? '<span class="picker-mat-dot picker-mat-dot-variant"></span>' : '');
+            : '';
+        let variantBadge = '';
+        if (hasVariants && !typeDot) {
+            var _bm = allMaterials.find(function(m) { return m.name === (parseMaterialPickerKey(name).baseName || name); });
+            var _vc = _bm && _bm.allowedUnits ? _bm.allowedUnits.length : 0;
+            if (_vc > 0) {
+                variantBadge = '<span class="picker-mat-variant-count" title="' + _vc + ' ' + (_vc === 1 ? 'variant' : 'varianter') + '">' + _vc + '</span>';
+            }
+        }
         // Meter-badgen er fjernet etter brukerønske — Antall-placeholder ("Meter") og
         // navn-format ("løpende"/"Ø50mm") kommuniserer enheten godt nok uten badge.
         const meterBadge = '';
@@ -2511,7 +2521,7 @@ function openMaterialPicker(btn, onConfirm) {
         const antallPlaceholder = (isIsolationLauncher || isStiftLauncher) ? t('btn_select') : t('placeholder_quantity');
         const disabledAttr = isSpecLauncher ? ' disabled' : '';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}" data-mat-source="${escapeHtml(source || '')}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}${meterPillHtml}</span>${typeDot}${meterBadge}</div>
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}${meterPillHtml}</span>${typeDot}${variantBadge}${meterBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
             ${unitBtn}${dupBtn}${delBtn}
         </div>`;
