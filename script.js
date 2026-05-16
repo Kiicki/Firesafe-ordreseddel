@@ -3030,8 +3030,8 @@ function openMaterialPicker(btn, onConfirm) {
                         if (meterValue !== undefined) {
                             var meterKey = parsedNameKey.isMeterEntry ? oldName : derivedBase.name + '__meter';
                             if (!parsedNameKey.isMeterEntry && pickerState[meterKey]) meterKey = nextPickerDuplicateKey(meterKey);
-                            // Bevar gammel antall ved redigering av eksisterende meter-rad
-                            // (popup-meter er nå tom — brukeren fyller antall i picker).
+                            // Meter skrives nå direkte i popupen; bruk den verdien.
+                            // Fallback til gammel antall kun hvis tom (skal ikke skje pga. validering).
                             var preservedAntall = meterValue || (parsedNameKey.isMeterEntry ? (oldState.antall || '') : '');
                             pickerState[meterKey] = { checked: true, antall: preservedAntall, enhet: 'meter' };
                             targetKey = meterKey;
@@ -3387,6 +3387,10 @@ function openSpecPopup(baseName, callback, matType, prefill) {
     input.value = (prefill && prefill.width != null) ? String(prefill.width) : '';
     input2.value = (prefill && prefill.height != null) ? String(prefill.height) : '';
     input3.value = '';
+    var meterInput = document.getElementById('spec-popup-meter-input');
+    var meterField = document.getElementById('spec-popup-meter-field');
+    if (meterInput) meterInput.value = (prefill && prefill.meter != null && prefill.meter !== '') ? String(prefill.meter) : '';
+    if (meterField) meterField.style.display = 'none';
     if (prefill && !prefill.isMeter) {
         if (specPopupMatType === 'brannpakning' && prefill.rounds != null) input3.value = String(prefill.rounds);
         else if (specPopupMatType !== 'mansjett' && prefill.depth != null) input3.value = String(prefill.depth);
@@ -3454,20 +3458,58 @@ function openSpecPopup(baseName, callback, matType, prefill) {
     input.onkeydown = keyHandler;
     input2.onkeydown = keyHandler;
     input3.onkeydown = keyHandler;
+    if (meterInput) meterInput.onkeydown = keyHandler;
     document.getElementById('spec-popup').classList.add('active');
     if (prefill && prefill.isMeter) {
-        // Prefill av meter-rad: åpne i meter-modus (disabled dim-inputs). Antall fylles i picker.
+        // Prefill av meter-rad: åpne i meter-modus.
         toggleSpecMeterMode();
     } else {
         setTimeout(function() { input.focus(); }, 100);
     }
+    requestAnimationFrame(_anchorSpecPopupTop);
 }
 
 function closeSpecPopup() {
-    document.getElementById('spec-popup').classList.remove('active');
+    var sp = document.getElementById('spec-popup');
+    sp.classList.remove('active');
+    if (typeof _clearPopupTopAnchor === 'function') _clearPopupTopAnchor('spec-popup');
     specPopupCallback = null;
     specPopupMatType = 'kabelhylse';
     specMeterMode = false;
+}
+
+// Måler høyeste modus (Stk dim-felter) uansett aktiv modus via synkron
+// display-toggle (ingen flicker) og topp-forankrer spec-popupen der. Toppen +
+// Stk/Meter-toggle står fast; boksen følger innhold (CLAUDE.md "Popup-størrelse").
+function _anchorSpecPopupTop() {
+    var sp = document.getElementById('spec-popup');
+    if (!sp || !sp.classList.contains('active')) return;
+    var sheet = sp.querySelector('.spec-popup-sheet');
+    if (!sheet) return;
+    var input1 = document.getElementById('spec-popup-input');
+    var field1 = input1 ? input1.parentElement : null;
+    var field2 = document.getElementById('spec-popup-field2');
+    var field3 = document.getElementById('spec-popup-field3');
+    var meterField = document.getElementById('spec-popup-meter-field');
+    var saved = {
+        f1: field1 ? field1.style.display : null,
+        f2: field2 ? field2.style.display : null,
+        f3: field3 ? field3.style.display : null,
+        m: meterField ? meterField.style.display : null
+    };
+    sheet.style.minHeight = '';
+    if (field1) field1.style.display = '';
+    if (field2) field2.style.display = '';
+    if (field3) field3.style.display = (specPopupMatType === 'mansjett') ? 'none' : '';
+    if (meterField) meterField.style.display = 'none';
+    var measured = sheet.offsetHeight;
+    if (field1) field1.style.display = saved.f1;
+    if (field2) field2.style.display = saved.f2;
+    if (field3) field3.style.display = saved.f3;
+    if (meterField) meterField.style.display = saved.m;
+    if (measured > 0 && typeof _applyPopupTopAnchor === 'function') {
+        _applyPopupTopAnchor('spec-popup', measured);
+    }
 }
 
 function _setSpecPopupMode(mode) {
@@ -3475,15 +3517,26 @@ function _setSpecPopupMode(mode) {
     var input1 = document.getElementById('spec-popup-input');
     var input2 = document.getElementById('spec-popup-input2');
     var input3 = document.getElementById('spec-popup-input3');
+    var field1 = input1.parentElement;
+    var field2 = document.getElementById('spec-popup-field2');
+    var field3 = document.getElementById('spec-popup-field3');
+    var meterField = document.getElementById('spec-popup-meter-field');
+    var meterInput = document.getElementById('spec-popup-meter-input');
     var toggle = document.getElementById('spec-popup-mode-toggle');
 
     if (specMeterMode) {
-        // Meter-modus: dim-inputs disables. Antall fylles i picker etter OK.
-        input1.disabled = true;
-        input2.disabled = true;
-        input3.disabled = true;
+        // Meter-modus: skjul dim-feltene, vis meter-input så bruker skriver meter direkte.
+        if (field1) field1.style.display = 'none';
+        if (field2) field2.style.display = 'none';
+        if (field3) field3.style.display = 'none';
+        if (meterField) meterField.style.display = '';
+        if (meterInput) setTimeout(function() { meterInput.focus(); }, 50);
     } else {
-        // Stk-modus: dim-inputs aktive, fokus på bredde.
+        // Stk-modus: vis dim-felter (field3 skjult for mansjett), skjul meter-input.
+        if (meterField) meterField.style.display = 'none';
+        if (field1) field1.style.display = '';
+        if (field2) field2.style.display = '';
+        if (field3) field3.style.display = (specPopupMatType === 'mansjett') ? 'none' : '';
         input1.disabled = false;
         input2.disabled = false;
         input3.disabled = false;
@@ -3494,6 +3547,9 @@ function _setSpecPopupMode(mode) {
             btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
         });
     }
+    // Høyden endres ved modus-bytte (topp fast, bunn flytter); be tastatur-
+    // handleren re-beregne transform/max-height umiddelbart (ikke vent på ResizeObserver).
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 window._setSpecPopupMode = _setSpecPopupMode;
 
@@ -3503,10 +3559,16 @@ function toggleSpecMeterMode() {
 }
 
 function confirmSpecPopup() {
-    // Meter-modus: opprett __meter-rad uten antall. Bruker fyller antall i picker etterpå.
-    // Sender tom streng som signal — callerens edit-flyt kan bevare gammel antall ved redigering.
+    // Meter-modus: bruker skriver meter direkte i popupen.
     if (specMeterMode) {
-        if (specPopupCallback) specPopupCallback(null, '');
+        var meterEl = document.getElementById('spec-popup-meter-input');
+        var meterVal = meterEl ? String(meterEl.value || '').trim() : '';
+        var meterNum = parseFloat(meterVal.replace(',', '.'));
+        if (!meterVal || isNaN(meterNum) || meterNum <= 0) {
+            showNotificationModal('Fyll inn meter.');
+            return;
+        }
+        if (specPopupCallback) specPopupCallback(null, meterVal);
         closeSpecPopup();
         return;
     }

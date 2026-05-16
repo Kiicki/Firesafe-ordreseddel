@@ -8529,6 +8529,7 @@ function openProductDimensionPicker(options) {
     _updateKappePickerBreddeVisibility();
 
     overlay.classList.add('active');
+    requestAnimationFrame(function() { _lockPopupSheetHeight('kappe-product-picker-overlay'); });
     return true;
 }
 
@@ -8630,6 +8631,7 @@ function _setKappePickerSpecMode(mode) {
     if (ISO_MODES.indexOf(mode) === -1 && FASTENER_MODES.indexOf(mode) === -1) return;
     _kappePickerSpecMode = mode;
     _applyKappePickerSpecMode();
+    _lockPopupSheetHeight('kappe-product-picker-overlay');
 }
 window._setKappePickerSpecMode = _setKappePickerSpecMode;
 
@@ -8728,6 +8730,7 @@ function _selectKappePickerBrand(brand) {
             topWidEl.value = assignedTop.width;
         }
     }
+    _lockPopupSheetHeight('kappe-product-picker-overlay');
 }
 
 function _selectKappePickerDim(dim) {
@@ -8882,9 +8885,61 @@ function confirmKappeProductPicker() {
     closeKappeProductPicker();
 }
 
+// Generisk popup-høyde-lås (CLAUDE.md "Popup-størrelse"): ratchet opp — en
+// åpen popup krymper aldri mens den er åpen (ingen "hopp" ved toggle/tab).
+// Tak ≤ 80vh; innholdet scroller internt over taket. Nullstilles ved lukking.
+function _lockPopupSheetHeight(popupId) {
+    var p = document.getElementById(popupId);
+    if (!p || !p.classList.contains('active')) return;
+    var sheet = p.querySelector('.spec-popup-sheet');
+    if (!sheet) return;
+    var cap = Math.round((window.innerHeight || 800) * 0.8);
+    var prev = parseFloat(sheet.style.minHeight) || 0;
+    var locked = Math.min(Math.max(prev, sheet.offsetHeight), cap);
+    if (locked > 0) sheet.style.minHeight = locked + 'px';
+}
+window._lockPopupSheetHeight = _lockPopupSheetHeight;
+
+function _unlockPopupSheetHeight(popupId) {
+    var p = document.getElementById(popupId);
+    if (!p) return;
+    var sheet = p.querySelector('.spec-popup-sheet');
+    if (sheet) sheet.style.minHeight = '';
+}
+
+// Topp-forankret + innholds-adaptiv (CLAUDE.md "Popup-størrelse"): forankrer
+// popup-toppen på Y der den HØYESTE modusen ville vært sentrert, og lar høyden
+// følge innholdet (ingen min-height-lås). Toppen — og dermed toggle-knappene —
+// flytter seg ikke når man bytter modus; boksen krymper/vokser nedenfra, ingen
+// tomrom. Offset ≥16px så `applyKeyboardLayout` (live getBoundingClientRect)
+// beholder headroom til å løfte popupen over tastaturet.
+function _applyPopupTopAnchor(popupId, tallestH) {
+    var p = document.getElementById(popupId);
+    if (!p || !p.classList.contains('active')) return;
+    var sheet = p.querySelector('.spec-popup-sheet');
+    if (!sheet) return;
+    var vh = window.innerHeight || 800;
+    var off = Math.round((vh - tallestH) / 2);
+    if (off < 16) off = 16;
+    p.classList.add('popup-top-anchored');
+    sheet.style.minHeight = '';
+    sheet.style.marginTop = off + 'px';
+}
+window._applyPopupTopAnchor = _applyPopupTopAnchor;
+
+function _clearPopupTopAnchor(popupId) {
+    var p = document.getElementById(popupId);
+    if (!p) return;
+    p.classList.remove('popup-top-anchored');
+    var sheet = p.querySelector('.spec-popup-sheet');
+    if (sheet) { sheet.style.marginTop = ''; sheet.style.minHeight = ''; }
+}
+window._clearPopupTopAnchor = _clearPopupTopAnchor;
+
 function closeKappeProductPicker() {
     var overlay = document.getElementById('kappe-product-picker-overlay');
     overlay.classList.remove('active');
+    _unlockPopupSheetHeight('kappe-product-picker-overlay');
     _currentKappeProductBtn = null;
     _productDimensionPickerCallback = null;
     _productDimensionPickerProducts = [];
@@ -8973,9 +9028,9 @@ function _createIsoCardRow(data) {
             '<div class="mobile-field field-required"><label data-i18n="iso_lm_per_side">LM</label>' +
                 '<input type="text" class="isc-lm" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.lopemeter || '') + '" oninput="_updateIsoCardTotal()"></div>' +
             '<div class="mobile-field field-required"><label data-i18n="iso_antall_objekter">Antall</label>' +
-                '<input type="text" class="isc-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '1') + '" oninput="_updateIsoCardTotal()"></div>' +
+                '<input type="text" class="isc-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '') + '" oninput="_updateIsoCardTotal()"></div>' +
             '<div class="mobile-field field-required"><label data-i18n="iso_sider">Sider</label>' +
-                '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '1') + '" oninput="_updateIsoCardTotal()"></div>' +
+                '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '') + '" oninput="_updateIsoCardTotal()"></div>' +
         '</div>' +
         '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
     return row;
@@ -8988,7 +9043,7 @@ function _isoCardAddRow() {
     _updateIsoCardRemoveStates();
     _updateIsoCardTotal();
     if (typeof applyTranslations === 'function') applyTranslations();
-    _lockIsoCardMinHeight();
+    _anchorIsoCardTop();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 window._isoCardAddRow = _isoCardAddRow;
@@ -9001,7 +9056,7 @@ function _isoCardRemoveRow(btn) {
     if (row) row.remove();
     _updateIsoCardRemoveStates();
     _updateIsoCardTotal();
-    _lockIsoCardMinHeight();
+    _anchorIsoCardTop();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 window._isoCardRemoveRow = _isoCardRemoveRow;
@@ -9059,8 +9114,8 @@ function openIsoCardPopup(callback, prefill) {
         rowsEl.appendChild(_createIsoCardRow({
             bredde: prefill.bredde ? String(prefill.bredde).replace(/mm$/i, '') : '',
             lopemeter: prefill.lmPerSide != null ? String(prefill.lmPerSide) : '',
-            antall: prefill.antallObjekter != null && prefill.antallObjekter !== '' ? String(prefill.antallObjekter) : '1',
-            sider: prefill.sider != null && prefill.sider !== '' ? String(prefill.sider) : '1'
+            antall: prefill.antallObjekter != null && prefill.antallObjekter !== '' ? String(prefill.antallObjekter) : '',
+            sider: prefill.sider != null && prefill.sider !== '' ? String(prefill.sider) : ''
         }));
     }
     _updateIsoCardRemoveStates();
@@ -9080,15 +9135,14 @@ function openIsoCardPopup(callback, prefill) {
 
     popup.classList.add('active');
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    requestAnimationFrame(_lockIsoCardMinHeight);
+    requestAnimationFrame(_anchorIsoCardTop);
 }
 
 function closeIsoCardPopup() {
     var popup = document.getElementById('iso-card-popup');
     if (popup) {
         popup.classList.remove('active');
-        var sheet = popup.querySelector('.spec-popup-sheet');
-        if (sheet) sheet.style.minHeight = '';
+        _clearPopupTopAnchor('iso-card-popup');
     }
     _isoCardCallback = null;
     _isoCardSelected = null;
@@ -9119,7 +9173,8 @@ function _applyIsoCardProductType() {
 // Plate/Festemiddel ikke krymper sheeten ("hopp"). Måler bredde-modus-høyden
 // uansett aktiv modus via synkron display-toggle (ingen flicker — browseren
 // maler ikke midt i JS). Ingen hardkodet px — følger faktisk innhold.
-function _lockIsoCardMinHeight() {
+// Måler høyeste modus (Stk med rader) og topp-forankrer iso-kort der.
+function _anchorIsoCardTop() {
     var popup = document.getElementById('iso-card-popup');
     if (!popup || !popup.classList.contains('active')) return;
     var sheet = popup.querySelector('.spec-popup-sheet');
@@ -9148,10 +9203,7 @@ function _lockIsoCardMinHeight() {
     if (total) total.style.display = saved.total;
     if (plateField) plateField.style.display = saved.plate;
     if (fastField) fastField.style.display = saved.fast;
-    // Tak: lås aldri høyere enn sheetens max-height (80vh) — ellers skyves
-    // innholdet utenfor skjermen. Rad-listen scroller internt over taket.
-    var cap = Math.round((window.innerHeight || 800) * 0.8);
-    if (measured > 0) sheet.style.minHeight = Math.min(measured, cap) + 'px';
+    if (measured > 0) _applyPopupTopAnchor('iso-card-popup', measured);
 }
 
 function _applyIsoCardMode() {
@@ -9408,7 +9460,7 @@ function _createKappeKappRow(kappData) {
             '</div>' +
             '<div class="mobile-field field-required">' +
                 '<label data-i18n="kappe_col_antall">Antall</label>' +
-                '<input type="text" class="kappe-line-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '1') + '">' +
+                '<input type="text" class="kappe-line-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '') + '">' +
             '</div>' +
             '<div class="mobile-field field-required">' +
                 '<label data-i18n="kappe_col_antall_sider">Sider</label>' +

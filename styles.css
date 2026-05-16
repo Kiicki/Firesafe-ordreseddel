@@ -2189,7 +2189,8 @@ input.date-invalid {
 .mobile-field.field-required > label::after,
 .mobile-order-materials-section.field-required > label::after,
 .mobile-section-title.field-required::after,
-.mobile-order-title.field-required::after {
+.mobile-order-title.field-required::after,
+.iso-card-plate-field.field-required > label::after {
     content: ' *';
     color: #e74c3c;
     font-weight: bold;
@@ -3342,6 +3343,12 @@ label.settings-default-label.field-required > span::after {
 }
 .spec-popup-backdrop.active {
     display: flex;
+}
+/* Topp-forankret (CLAUDE.md "Popup-størrelse"): sheet ankres på beregnet
+   margin-top (tallest-sentrert Y) i stedet for å sentreres — toppen/toggle
+   står fast, boksen følger innholdet. */
+.spec-popup-backdrop.popup-top-anchored {
+    align-items: flex-start;
 }
 .spec-popup-sheet {
     background: #fff;
@@ -7047,10 +7054,7 @@ body.kappe-view-open #view-form { display: none; }
     margin-bottom: 0;
 }
 #iso-card-popup .spec-popup-buttons {
-    /* Forankret i bunn: når sheeten er låst til høyeste modus (Stk multi-rad)
-       og en sparsom modus (Plate/Festemiddel) er aktiv, presses knappene ned
-       så tomrommet leses som bevisst pusterom — ikke flytende knapper. */
-    margin-top: auto;
+    margin-top: 0;
 }
 .iso-card-label {
     font-size: 12px;

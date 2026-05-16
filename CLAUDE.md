@@ -197,17 +197,17 @@ Tab-switch (f.eks. `switchHentTab`) endrer modal-body via inline `style.display`
 
 ## Popup-størrelse (konvensjon)
 
-Apple-prinsipp: en popup er **stabil mens den er åpen** og reflower ikke pga. intern tilstandsendring.
+Apple-prinsipp: **toppen av popupen står fast** mens den er åpen; boksen følger innholdet (ingen tomrom, ingen toggle-hopp).
 
-1. **Innholds-tilpasset som standard.** Popuper får størrelse fra innholdet, med `max-height: 80vh` + intern scroll. Ingen hardkodede pikselhøyder — legger man til innhold vokser popupen automatisk og scroller. De fleste popuper har ingen interne modus/tab-bytter og er uberørt av punkt 2-3.
+1. **Innholds-tilpasset som standard.** Popuper får størrelse fra innholdet, `max-height: 80vh` + intern scroll. Ingen hardkodede pikselhøyder. De fleste popuper har ingen interne modus/tab-bytter og er uberørt av punkt 2-3.
 
-2. **Ingen reflow ved intern modus/tab-veksling.** En popup med interne toggler/tabs (f.eks. iso-kort: Stk/Plate/Festemiddel) skal IKKE endre størrelse når man bytter modus. Reserver plass for den **høyeste modusen** — mål den faktiske høyden i den rikeste tilstanden og lås `min-height` på sheeten mens popup er åpen (re-mål ved innholds-endring som add/remove rad; nullstill ved lukking). Mønster: `_lockIsoCardMinHeight()` i `script-ui.js` + plate-placeholder-mønsteret i undervelgeren. Ingen magiske tall — alltid målt fra innhold.
+2. **Topp-forankret + innholds-adaptiv for fler-modus-popuper.** En sentrert popup som endrer høyde ved modus-bytte re-sentreres → toppen (og toggle-knappene) hopper. Løsning: **forankre toppen** på Y der den HØYESTE modusen ville vært sentrert, og la høyden følge innholdet. Toppen/toggle står fast; boksen krymper/vokser nedenfra; ingen tomrom i sparsom modus. Bruk delt helper **`_applyPopupTopAnchor(popupId, tallestH)`** + **`_clearPopupTopAnchor(popupId)`** (script-ui.js). Mål høyeste modus ved åpning (og ved innholds-endring, f.eks. add/remove rad) via synkron force-tallest-layout + `sheet.offsetHeight`, og send som `tallestH`. Helperen setter scoped klasse `.popup-top-anchored` (CSS: `.spec-popup-backdrop.popup-top-anchored{align-items:flex-start}`) + beregnet `margin-top` (offset ≥ 16px). Dekket: spec-popup (`_anchorSpecPopupTop`), iso-kort (`_anchorIsoCardTop`). Nye fler-modus-popuper SKAL bruke disse helperne. Ingen magiske tall — alt målt fra innhold.
 
-3. **Handlingsknapper forankret i bunnen.** Når en sparsom modus er aktiv i en låst-høyde popup, skal Avbryt/Velg presses til bunnen (`margin-top: auto` i flex-column sheet) så tomrommet leser som bevisst pusterom — ikke flytende knapper midt i popupen.
+3. **Tastatur-headroom.** Offset clampes til ≥16px (aldri helt øverst). `applyKeyboardLayout` måler `getBoundingClientRect()` live og bruker `maxTranslate = rect.top − margin` til å løfte popupen over tastaturet — `rect.top` ≈ offset må derfor være > margin. Kall `applyKeyboardLayout()` eksplisitt etter modus-bytte (høyden endres; ikke vent på ResizeObserver).
 
-4. **Aldri innhold utenfor skjermen — intern scroll.** En popup skal ALDRI bli høyere enn skjermen. Vokser innholdet (f.eks. mange rader) skal det scrolle internt (fast header/knapper, scrollbart innholds-/listeområde), ikke skyve popup eller knapper ut av syne. Min-height-låsen (punkt 2) MÅ ha et tak ≤ sheetens `max-height` (~80vh, mål mot `window.innerHeight`) — lås aldri høyere enn skjermen. Mønster: `#iso-card-rows { max-height: …vh; overflow-y:auto }` + tak i `_lockIsoCardMinHeight()`.
+4. **Aldri innhold utenfor skjermen — intern scroll.** Vokser innholdet > `max-height: 80vh` skal det scrolle internt (fast header/knapper, scrollbart innholds-/listeområde). Mønster: `#iso-card-rows { max-height:…vh; overflow-y:auto }`. Offsetet er ≥16px så liten skjerm/svært høy modus clampes trygt; innhold scroller.
 
-Animert størrelsesendring er bevisst valgt bort (CSS kan ikke animere `height:auto`; JS-måling er høy risiko mot `applyKeyboardLayout`). Nye fler-modus-popuper skal følge punkt 2-3; eksisterende migreres bevisst ved behov, ikke i én sveip (delte `.spec-popup-sheet`-klasser samspiller med tastatur-systemet).
+Unntak: produkt-undervelger (`#kappe-product-picker-overlay`) er en liste-popup uten sparsom-modus-problem og beholder ratchet-låsen `_lockPopupSheetHeight`/`_unlockPopupSheetHeight`. Animert størrelsesendring er bevisst valgt bort (CSS kan ikke animere `height:auto`; JS-måling er høy risiko mot `applyKeyboardLayout`).
 
 ## VIKTIG: Cache-versjon ved hver endring
 

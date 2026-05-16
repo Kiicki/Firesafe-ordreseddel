@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=621">
+    <link rel="stylesheet" href="styles.css?v=625">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -1188,13 +1188,13 @@
             <div class="kappe-kapp-rows" id="iso-card-rows"></div>
             <button type="button" class="kappe-add-kapp-btn" id="iso-card-add-row" onclick="_isoCardAddRow()">+ <span data-i18n="iso_add_row">Legg til rad</span></button>
             <div class="iso-card-total" id="iso-card-total"></div>
-            <div class="iso-card-plate-field" id="iso-card-plate-field" style="display:none">
+            <div class="iso-card-plate-field field-required" id="iso-card-plate-field" style="display:none">
                 <label data-i18n="iso_plate_count">Antall plater</label>
-                <input type="text" id="iso-card-plate-antall" inputmode="decimal" pattern="[0-9,.]*" placeholder="0">
+                <input type="text" id="iso-card-plate-antall" inputmode="decimal" pattern="[0-9,.]*">
             </div>
-            <div class="iso-card-plate-field" id="iso-card-fastener-field" style="display:none">
+            <div class="iso-card-plate-field field-required" id="iso-card-fastener-field" style="display:none">
                 <label data-i18n="iso_antall_objekter">Antall</label>
-                <input type="text" id="iso-card-fastener-antall" inputmode="decimal" pattern="[0-9,.]*" placeholder="0">
+                <input type="text" id="iso-card-fastener-antall" inputmode="decimal" pattern="[0-9,.]*">
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeIsoCardPopup()" data-i18n="btn_cancel">Avbryt</button>
@@ -1243,6 +1243,10 @@
                 <div class="spec-popup-field" id="spec-popup-field3">
                     <label id="spec-popup-label3" class="spec-popup-label"></label>
                     <input type="text" id="spec-popup-input3" placeholder="" autocapitalize="off">
+                </div>
+                <div class="spec-popup-field" id="spec-popup-meter-field" style="display:none">
+                    <label class="spec-popup-label">Meter <span class="spec-required-star">*</span></label>
+                    <input type="text" id="spec-popup-meter-input" inputmode="decimal" pattern="[0-9,.]*" autocapitalize="off">
                 </div>
             </div>
             <div class="spec-popup-buttons">
@@ -1658,8 +1662,8 @@
     </div>
 
     <script src="lang.js?v=227"></script>
-    <script src="script.js?v=417"></script>
-    <script src="script-ui.js?v=699"></script>
+    <script src="script.js?v=421"></script>
+    <script src="script-ui.js?v=704"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
