@@ -7047,7 +7047,10 @@ body.kappe-view-open #view-form { display: none; }
     margin-bottom: 0;
 }
 #iso-card-popup .spec-popup-buttons {
-    margin-top: 0;
+    /* Forankret i bunn: når sheeten er låst til høyeste modus (Stk multi-rad)
+       og en sparsom modus (Plate/Festemiddel) er aktiv, presses knappene ned
+       så tomrommet leses som bevisst pusterom — ikke flytende knapper. */
+    margin-top: auto;
 }
 .iso-card-label {
     font-size: 12px;
@@ -7055,11 +7058,29 @@ body.kappe-view-open #view-form { display: none; }
     color: #666;
     display: block;
 }
-/* Multi-rad i bredde-modus — speiler .kappe-kapp-row-strukturen */
+/* Multi-rad i bredde-modus — speiler .kappe-kapp-row-strukturen.
+   Rad-listen scroller internt så mange rader ikke skyver popupen utenfor
+   skjermen (Apple-mønster: fast header/knapper, scrollbart innhold). */
+/* Kun rad-listen er det fleksible/scrollbare området. Alt annet i sheeten
+   (header, produkt, toggle, knapper) skal IKKE krympe — ellers blir
+   Stk/Plate-toggle klemt/dekket når innholdet er høyere enn sheeten. */
+#iso-card-popup .spec-popup-sheet > *:not(#iso-card-rows) {
+    flex-shrink: 0;
+}
 #iso-card-rows {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Klar separasjon fra Stk/Plate-toggle + intern padding så scrollede
+       rader ikke kolliderer visuelt med toggle over. */
+    margin-top: 4px;
+    padding: 6px 2px;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
 }
 .iso-card-row {
     display: flex;

@@ -8988,6 +8988,7 @@ function _isoCardAddRow() {
     _updateIsoCardRemoveStates();
     _updateIsoCardTotal();
     if (typeof applyTranslations === 'function') applyTranslations();
+    _lockIsoCardMinHeight();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 window._isoCardAddRow = _isoCardAddRow;
@@ -9000,6 +9001,7 @@ function _isoCardRemoveRow(btn) {
     if (row) row.remove();
     _updateIsoCardRemoveStates();
     _updateIsoCardTotal();
+    _lockIsoCardMinHeight();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 window._isoCardRemoveRow = _isoCardRemoveRow;
@@ -9078,11 +9080,16 @@ function openIsoCardPopup(callback, prefill) {
 
     popup.classList.add('active');
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    requestAnimationFrame(_lockIsoCardMinHeight);
 }
 
 function closeIsoCardPopup() {
     var popup = document.getElementById('iso-card-popup');
-    if (popup) popup.classList.remove('active');
+    if (popup) {
+        popup.classList.remove('active');
+        var sheet = popup.querySelector('.spec-popup-sheet');
+        if (sheet) sheet.style.minHeight = '';
+    }
     _isoCardCallback = null;
     _isoCardSelected = null;
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
@@ -9106,6 +9113,45 @@ function _applyIsoCardProductType() {
     var fastToggle = document.getElementById('iso-card-mode-toggle-fast');
     if (isoToggle) isoToggle.style.display = isFastener ? 'none' : '';
     if (fastToggle) fastToggle.style.display = isFastener ? '' : 'none';
+}
+
+// Låser popup-høyden til den høyeste modusen (Stk multi-rad) så bytte til
+// Plate/Festemiddel ikke krymper sheeten ("hopp"). Måler bredde-modus-høyden
+// uansett aktiv modus via synkron display-toggle (ingen flicker — browseren
+// maler ikke midt i JS). Ingen hardkodet px — følger faktisk innhold.
+function _lockIsoCardMinHeight() {
+    var popup = document.getElementById('iso-card-popup');
+    if (!popup || !popup.classList.contains('active')) return;
+    var sheet = popup.querySelector('.spec-popup-sheet');
+    if (!sheet) return;
+    var rows = document.getElementById('iso-card-rows');
+    var addBtn = document.getElementById('iso-card-add-row');
+    var total = document.getElementById('iso-card-total');
+    var plateField = document.getElementById('iso-card-plate-field');
+    var fastField = document.getElementById('iso-card-fastener-field');
+    var saved = {
+        rows: rows ? rows.style.display : null,
+        add: addBtn ? addBtn.style.display : null,
+        total: total ? total.style.display : null,
+        plate: plateField ? plateField.style.display : null,
+        fast: fastField ? fastField.style.display : null
+    };
+    sheet.style.minHeight = '';
+    if (rows) rows.style.display = '';
+    if (addBtn) addBtn.style.display = '';
+    if (total) total.style.display = '';
+    if (plateField) plateField.style.display = 'none';
+    if (fastField) fastField.style.display = 'none';
+    var measured = sheet.offsetHeight;
+    if (rows) rows.style.display = saved.rows;
+    if (addBtn) addBtn.style.display = saved.add;
+    if (total) total.style.display = saved.total;
+    if (plateField) plateField.style.display = saved.plate;
+    if (fastField) fastField.style.display = saved.fast;
+    // Tak: lås aldri høyere enn sheetens max-height (80vh) — ellers skyves
+    // innholdet utenfor skjermen. Rad-listen scroller internt over taket.
+    var cap = Math.round((window.innerHeight || 800) * 0.8);
+    if (measured > 0) sheet.style.minHeight = Math.min(measured, cap) + 'px';
 }
 
 function _applyIsoCardMode() {

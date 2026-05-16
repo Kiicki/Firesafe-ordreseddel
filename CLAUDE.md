@@ -195,6 +195,20 @@ Tab-switch (f.eks. `switchHentTab`) endrer modal-body via inline `style.display`
 - [ ] Scroll fungerer jevnt (ingen avbrudd midt i momentum)
 - [ ] Toolbar oppfører seg riktig (i flow under tastatur-åpent, fixed bottom ellers)
 
+## Popup-størrelse (konvensjon)
+
+Apple-prinsipp: en popup er **stabil mens den er åpen** og reflower ikke pga. intern tilstandsendring.
+
+1. **Innholds-tilpasset som standard.** Popuper får størrelse fra innholdet, med `max-height: 80vh` + intern scroll. Ingen hardkodede pikselhøyder — legger man til innhold vokser popupen automatisk og scroller. De fleste popuper har ingen interne modus/tab-bytter og er uberørt av punkt 2-3.
+
+2. **Ingen reflow ved intern modus/tab-veksling.** En popup med interne toggler/tabs (f.eks. iso-kort: Stk/Plate/Festemiddel) skal IKKE endre størrelse når man bytter modus. Reserver plass for den **høyeste modusen** — mål den faktiske høyden i den rikeste tilstanden og lås `min-height` på sheeten mens popup er åpen (re-mål ved innholds-endring som add/remove rad; nullstill ved lukking). Mønster: `_lockIsoCardMinHeight()` i `script-ui.js` + plate-placeholder-mønsteret i undervelgeren. Ingen magiske tall — alltid målt fra innhold.
+
+3. **Handlingsknapper forankret i bunnen.** Når en sparsom modus er aktiv i en låst-høyde popup, skal Avbryt/Velg presses til bunnen (`margin-top: auto` i flex-column sheet) så tomrommet leser som bevisst pusterom — ikke flytende knapper midt i popupen.
+
+4. **Aldri innhold utenfor skjermen — intern scroll.** En popup skal ALDRI bli høyere enn skjermen. Vokser innholdet (f.eks. mange rader) skal det scrolle internt (fast header/knapper, scrollbart innholds-/listeområde), ikke skyve popup eller knapper ut av syne. Min-height-låsen (punkt 2) MÅ ha et tak ≤ sheetens `max-height` (~80vh, mål mot `window.innerHeight`) — lås aldri høyere enn skjermen. Mønster: `#iso-card-rows { max-height: …vh; overflow-y:auto }` + tak i `_lockIsoCardMinHeight()`.
+
+Animert størrelsesendring er bevisst valgt bort (CSS kan ikke animere `height:auto`; JS-måling er høy risiko mot `applyKeyboardLayout`). Nye fler-modus-popuper skal følge punkt 2-3; eksisterende migreres bevisst ved behov, ikke i én sveip (delte `.spec-popup-sheet`-klasser samspiller med tastatur-systemet).
+
 ## VIKTIG: Cache-versjon ved hver endring
 
 Brukeren tester appen som PWA på mobil — service worker cacher filer aggressivt. **ALLTID** bump cache-versjoner ved hver kode-endring slik at brukeren får siste versjon:
