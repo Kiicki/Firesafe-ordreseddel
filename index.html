@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=625">
+    <link rel="stylesheet" href="styles.css?v=651">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -1187,15 +1187,10 @@
             </div>
             <div class="kappe-kapp-rows" id="iso-card-rows"></div>
             <button type="button" class="kappe-add-kapp-btn" id="iso-card-add-row" onclick="_isoCardAddRow()">+ <span data-i18n="iso_add_row">Legg til rad</span></button>
-            <div class="iso-card-total" id="iso-card-total"></div>
-            <div class="iso-card-plate-field field-required" id="iso-card-plate-field" style="display:none">
-                <label data-i18n="iso_plate_count">Antall plater</label>
-                <input type="text" id="iso-card-plate-antall" inputmode="decimal" pattern="[0-9,.]*">
-            </div>
-            <div class="iso-card-plate-field field-required" id="iso-card-fastener-field" style="display:none">
-                <label data-i18n="iso_antall_objekter">Antall</label>
-                <input type="text" id="iso-card-fastener-antall" inputmode="decimal" pattern="[0-9,.]*">
-            </div>
+            <div class="kappe-kapp-rows" id="iso-card-plate-rows" style="display:none"></div>
+            <button type="button" class="kappe-add-kapp-btn" id="iso-card-plate-add" onclick="_isoCardAddPlateRow()" style="display:none">+ <span data-i18n="iso_add_row">Legg til rad</span></button>
+            <div class="kappe-kapp-rows" id="iso-card-fastener-rows" style="display:none"></div>
+            <button type="button" class="kappe-add-kapp-btn" id="iso-card-fastener-add" onclick="_isoCardAddFastenerRow()" style="display:none">+ <span data-i18n="iso_add_row">Legg til rad</span></button>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeIsoCardPopup()" data-i18n="btn_cancel">Avbryt</button>
                 <button type="button" class="spec-popup-confirm" onclick="confirmIsoCardPopup()" data-i18n="btn_select">Velg</button>
@@ -1661,9 +1656,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=227"></script>
+    <script src="lang.js?v=233"></script>
     <script src="script.js?v=421"></script>
-    <script src="script-ui.js?v=704"></script>
+    <script src="script-ui.js?v=730"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

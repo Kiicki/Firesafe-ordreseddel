@@ -2189,8 +2189,7 @@ input.date-invalid {
 .mobile-field.field-required > label::after,
 .mobile-order-materials-section.field-required > label::after,
 .mobile-section-title.field-required::after,
-.mobile-order-title.field-required::after,
-.iso-card-plate-field.field-required > label::after {
+.mobile-order-title.field-required::after {
     content: ' *';
     color: #e74c3c;
     font-weight: bold;
@@ -2644,6 +2643,24 @@ label.settings-default-label.field-required > span::after {
 .mobile-add-line-btn:active {
     background: rgba(0, 0, 0, 0.05);
 }
+/* "+ Legg til kapp" og "+ Legg til plate" side ved side på én rad. */
+.kappe-add-row-buttons {
+    display: flex;
+    gap: 8px;
+}
+.kappe-add-row-buttons .kappe-add-kapp-btn {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+}
+/* Vises før produkt er valgt (ingen rader/knapper ennå). */
+.kappe-line-pick-hint {
+    font-size: 13px;
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    padding: 10px 4px;
+}
 
 
 /* Order cards */
@@ -3073,6 +3090,7 @@ label.settings-default-label.field-required > span::after {
     flex-shrink: 0;
 }
 .kappe-product-picker-row {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3093,6 +3111,29 @@ label.settings-default-label.field-required > span::after {
     background: #E8501A;
     color: #fff;
     border-color: #E8501A;
+}
+/* Antall-valgte-badge på produkt-rad (multi-modus festemiddel). Forankret
+   til høyre kant så det sentrerte produktnavnet ikke klemmes/forskyves. */
+.kappe-picker-sel-badge {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #E8501A;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    box-sizing: border-box;
+}
+.kappe-product-picker-row-selected .kappe-picker-sel-badge {
+    background: #fff;
+    color: #E8501A;
 }
 .kappe-product-picker-name {
     font-size: 15px;
@@ -6877,11 +6918,14 @@ body.kappe-view-open #view-form { display: none; }
     text-align: center;
     display: block;
 }
+/* Legacy enkelt-felt plate-rad. Layout (display/gap/align) settes nå av den
+   delte .kappe-kapp-row, .kappe-plate-row-blokken lenger ned. IKKE sett
+   margin-bottom her — Stk-raden (.kappe-kapp-row) har ingen, så ekstra
+   margin her gjør at "+ Legg til rad" hopper ~10px ved Stk/Plate-bytte. */
 .kappe-plate-row {
     display: flex;
     gap: 8px;
     align-items: center;
-    margin-bottom: 10px;
 }
 .kappe-plate-row input {
     flex: 1;
@@ -6971,6 +7015,30 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-picker-mode-btn.active {
     background: #E8501A;
     color: #fff;
+}
+/* Prikk-indikator: modusen har utfylte verdier (selv om den er skjult bak
+   toggle). Som løper-prikken på Verktøy-toolbar-knappen, men UTEN puls
+   (statisk her — puls beholdes kun for stoppeklokke): sirkel med
+   halo-ring i knappens bakgrunnsfarge.
+   Inaktiv knapp (hvit bg): oransje prikk, hvit ring.
+   Aktiv knapp (oransje bg): hvit prikk, oransje ring — for kontrast. */
+.kappe-picker-mode-btn {
+    position: relative;
+}
+.kappe-picker-mode-btn.mode-has-data::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #E8501A;
+    box-shadow: 0 0 0 2px #fff;
+}
+.kappe-picker-mode-btn.active.mode-has-data::after {
+    background: #fff;
+    box-shadow: 0 0 0 2px #E8501A;
 }
 .kappe-picker-mode-btn:not(.active):active {
     background: #f0f0f0;
@@ -7071,7 +7139,11 @@ body.kappe-view-open #view-form { display: none; }
 #iso-card-popup .spec-popup-sheet > *:not(#iso-card-rows) {
     flex-shrink: 0;
 }
-#iso-card-rows {
+/* Felles for alle tre rad-containere (Stk/Plate/Festemiddel) — identisk
+   layout så det ikke "hopper" ved modus-bytte. Ingen ramme/ekstra padding. */
+#iso-card-rows,
+#iso-card-plate-rows,
+#iso-card-fastener-rows {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -7079,12 +7151,6 @@ body.kappe-view-open #view-form { display: none; }
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    /* Klar separasjon fra Stk/Plate-toggle + intern padding så scrollede
-       rader ikke kolliderer visuelt med toggle over. */
-    margin-top: 4px;
-    padding: 6px 2px;
-    border-top: 1px solid #eee;
-    border-bottom: 1px solid #eee;
 }
 .iso-card-row {
     display: flex;
@@ -7095,7 +7161,12 @@ body.kappe-view-open #view-form { display: none; }
     flex: 1;
     min-width: 0;
 }
-#iso-card-add-row {
+/* Alle tre legg-til-rad-knappene (Stk/Plate/Festemiddel) skal ha identisk
+   spacing — kun sheetens gap:10px, ingen egen margin. Ellers hopper knappen
+   ved modus-bytte (Plate/Festemiddel arvet .kappe-add-kapp-btn-margin). */
+#iso-card-add-row,
+#iso-card-plate-add,
+#iso-card-fastener-add {
     margin-top: 0;
     margin-bottom: 0;
 }
@@ -7104,39 +7175,6 @@ body.kappe-view-open #view-form { display: none; }
 }
 #iso-card-popup .kappe-quad-row {
     gap: 6px;
-}
-.iso-card-total {
-    text-align: center;
-    font-size: 13px;
-    font-weight: 700;
-    color: #E8501A;
-    min-height: 16px;
-}
-.iso-card-plate-field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.iso-card-plate-field label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #666;
-    text-align: center;
-}
-.iso-card-plate-field input {
-    width: 100%;
-    padding: 10px 8px;
-    font-size: 15px;
-    text-align: center;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    box-sizing: border-box;
-    background: #fff;
-    color: #333;
-}
-.iso-card-plate-field input:focus {
-    outline: none;
-    border-color: #E8501A;
 }
 
 /* Festemiddel-hint: fyller restplassen i bredde-section etter toggle, så
@@ -7390,7 +7428,8 @@ body.kappe-view-open #view-form { display: none; }
     background: #fff;
 }
 .kappe-picker-brands {
-    flex: 1 1 50%;
+    /* Produktnavn er lengre enn dimensjoner → bredere kolonne. */
+    flex: 1 1 64%;
     min-width: 0;
     overflow-y: auto;
     border-right: 1px solid #e8e8e8;
@@ -7414,7 +7453,7 @@ body.kappe-view-open #view-form { display: none; }
     background: #999;
 }
 .kappe-picker-dimensions {
-    flex: 1 1 50%;
+    flex: 1 1 36%;
     min-width: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -7448,6 +7487,18 @@ body.kappe-view-open #view-form { display: none; }
     font-weight: 500;
     font-size: 15px;
     color: #333;
+    /* Fyll tilgjengelig bredde og forkort med ellipsis i stedet for å gå
+       under badge/checkmark (absolutt-posisjonert til høyre). */
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Reserver plass til antall-badgen på produkt-rader så navnet aldri
+   havner under den (badgen er absolutt ved right:8px). */
+.kappe-picker-brands .kappe-product-picker-row {
+    padding-right: 40px;
 }
 
 /* Trykk-tilbakemelding (begge kolonner) */
@@ -7485,18 +7536,28 @@ body.kappe-view-open #view-form { display: none; }
 .picker-mat-row[data-mat-type="kappe-stift"] .picker-mat-antall {
     color: #777;
 }
-.kappe-kapp-rows {
+.kappe-kapp-rows,
+.kappe-plate-rows,
+.kappe-fast-rows {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    /* Avstanden mellom rader settes via margin-bottom på selve raden (ikke
+       container-gap) så spacingen er IDENTISK også på tvers av container-
+       grensen kapp↔plate↔fast (gap virker bare innad i én container). */
+    gap: 0;
 }
-.kappe-kapp-row {
+.kappe-kapp-row,
+.kappe-plate-row,
+.kappe-fast-row {
     display: flex;
     align-items: flex-end;
     flex-wrap: wrap;
     gap: 4px;
+    margin-bottom: 6px;
 }
-.kappe-kapp-row .kappe-quad-row {
+.kappe-kapp-row .kappe-quad-row,
+.kappe-plate-row .kappe-quad-row,
+.kappe-fast-row .kappe-quad-row {
     flex: 1;
     min-width: 0;
 }
@@ -7512,13 +7573,26 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-quad-row .mobile-field label {
     text-align: center;
     display: block;
+    /* Aldri brekk etikett til to linjer — ellers blir 4-felt-raden (Stk)
+       høyere enn 1-felt-raden (Plate) og "+ Legg til rad" havner på ulik Y. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Lik radhøyde uansett 1 vs 4 felt → add-knappen står på samme Y i alle moduser. */
+.iso-card-row,
+.kappe-kapp-row,
+.kappe-plate-row,
+.kappe-fast-row {
+    min-height: 56px;
 }
 .kappe-quad-row .mobile-field input {
     padding: 10px 4px;
     font-size: 15px;
     text-align: center;
 }
-.kappe-kapp-remove-btn {
+.kappe-kapp-remove-btn,
+.kappe-plate-remove-btn {
     background: none;
     border: none;
     color: #e74c3c;
@@ -7528,11 +7602,13 @@ body.kappe-view-open #view-form { display: none; }
     display: flex;
     align-items: flex-end;
 }
-.kappe-kapp-remove-btn svg {
+.kappe-kapp-remove-btn svg,
+.kappe-plate-remove-btn svg {
     width: 20px;
     height: 20px;
 }
-.kappe-kapp-remove-btn:disabled {
+.kappe-kapp-remove-btn:disabled,
+.kappe-plate-remove-btn:disabled {
     color: #ccc;
     cursor: default;
 }
@@ -7560,45 +7636,29 @@ body.kappe-view-open #view-form { display: none; }
 
 /* Stift-seksjon — dynamiske rader med legg-til-knapp */
 #kappe-stift { display: flex; flex-direction: column; gap: 6px; }
+/* Festemiddel-rad: samme oppsett som kapp-rad (felt-label over input via
+   .kappe-quad-row/.mobile-field) for konsistent stil. */
 .kappe-stift-row {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 0;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 6px;
 }
 .kappe-stift-label {
-    flex: 0 0 56px;
+    flex: 1 1 auto;
+    min-width: 0;
     font-weight: 600;
     font-size: 14px;
     color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Linjer opp med input-baseline (raden er flex-end). */
+    padding-bottom: 11px;
 }
-.kappe-stift-input {
-    flex: 1;
-    padding: 8px 10px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 14px;
-    min-width: 0;
+.kappe-stift-fields {
+    flex: 0 0 156px;
 }
-.kappe-stift-remove {
-    flex: 0 0 36px;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    color: #e74c3c;
-    cursor: pointer;
-    padding: 0;
-    border-radius: 6px;
-}
-.kappe-stift-remove svg {
-    width: 22px;
-    height: 22px;
-}
-.kappe-stift-remove:hover { background: #fde8e8; }
 #kappe-stift-add {
     margin-top: 10px;
 }
@@ -7884,14 +7944,29 @@ body.kappe-view-open #view-form { display: none; }
 .ke-stift-table {
     width: 100%;
     table-layout: fixed;
-    border-collapse: collapse;
+    /* separate + spacing:0 (ikke collapse): Chrome dropper kollapsede 1px-
+       streker ved ikke-100% zoom — egne cellerammer rendres konsistent. */
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 12px;
+}
+/* Zoom-robust enkelt-strek-rutenett: tabellen tegner topp+venstre, hver
+   celle kun høyre+bunn. border-collapse:separate (Chrome dropper kollapsede
+   streker ved ≠100% zoom). 2px (ikke 1px) fordi preview-en transform-
+   nedskaleres — 1px blir sub-pixel og forsvinner. Samme som
+   .service-export-table. !important slår shorthand-border under. */
+.ke-products-table,
+.ke-stift-table {
+    border-top: 2px solid #000;
+    border-left: 2px solid #000;
 }
 .ke-products-table th,
 .ke-products-table td,
 .ke-stift-table th,
 .ke-stift-table td {
-    border: 1px solid #000;
+    border: 0 !important;
+    border-right: 2px solid #000 !important;
+    border-bottom: 2px solid #000 !important;
     padding: 5px 4px;
     text-align: center;
     vertical-align: middle;
@@ -7926,6 +8001,18 @@ body.kappe-view-open #view-form { display: none; }
 }
 .ke-merknad {
     font-style: italic;
+}
+/* Plate-modus-rad: hele plater (ingen kapping). Tydelig skille fra kappeliste. */
+.ke-plate-cell {
+    text-align: left !important;
+    padding-left: 10px !important;
+}
+.ke-plate-note {
+    font-size: 10px;
+    color: #666;
+    font-weight: 400;
+    font-style: italic;
+    margin-left: 4px;
 }
 .ke-td-wn630 {
     vertical-align: top;
