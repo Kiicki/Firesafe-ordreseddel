@@ -556,11 +556,9 @@ function shouldGroupAsKappeStift(material) {
 function formatKappeIsolationName(name, enhet, bredde, specMode) {
     var productName = _getKappeProductName(name) || _stripPickerSuffix(name);
     var dim = _formatKappeMaterialSize(enhet || '');
-    var base = dim ? productName + ' ' + dim : productName;
-    // Bruk '×' uten spaces (konsistent med FSC/FSW/Kabelhylse-format).
-    if (bredde) base += '×' + String(bredde).replace(/mm$/i, '') + 'mm';
-    else if (specMode === 'plate') base += ' (plate)';
-    return base;
+    // Kun produkt + tykkelse. Bredde/plate er kun input til plate-
+    // kalkulasjon — irrelevant visuelt her (antall-kolonnen viser "X plater").
+    return dim ? productName + ' ' + dim : productName;
 }
 
 function _ceilToHalf(value) {
@@ -606,10 +604,8 @@ function formatKappeStiftName(enhet, name, quantityUnit) {
     if (dim && productName.toLowerCase() === dim.toLowerCase()) {
         productName = getMaterialStiftLabel();
     }
-    var base = dim ? productName + ' ' + dim : productName;
-    // Eske er ikke-default — vis i navnet for tydelighet. Stk er default og utelates.
-    if (quantityUnit === 'eske') base += ' (eske)';
-    return base;
+    // Enhet (stk/eske) vises allerede i antall-kolonnen → ikke dupliser i navnet.
+    return dim ? productName + ' ' + dim : productName;
 }
 
 function getKappeProductDefaultUnit(name) {
@@ -2154,7 +2150,8 @@ function createMaterialSummaryRow(m, groupBaseName) {
     } else if (m.source === 'kappe-products') {
         // Kappe-isolasjon: vis plate-antall som primær metrikk (konsistent for både bredde- og plate-modus).
         // Avrundes opp til nærmeste halve plate; meter/stk vises ikke — det er plater brukeren bestiller.
-        var kappePlateCount = calcKappePlateCount(m);
+        // Pre-aggregert rad (samme produkt+tykkelse slått sammen): bruk summen.
+        var kappePlateCount = (m.__plateSum != null) ? m.__plateSum : calcKappePlateCount(m);
         if (kappePlateCount > 0) {
             detailParts.push(formatKappePlateCount(kappePlateCount) + ' ' + (kappePlateCount === 1 ? 'plate' : 'plater'));
         } else if (m.antall) {
@@ -2205,11 +2202,51 @@ function renderMaterialSummary(matContainer, materials) {
             var groupTitle = group.displayName || group.baseName;
             headerDiv.textContent = groupTitle.charAt(0).toUpperCase() + groupTitle.slice(1);
             matContainer.appendChild(headerDiv);
-            group.items.forEach(function(m) {
-                var subRow = createMaterialSummaryRow(m, group.baseName);
-                subRow.classList.add('mat-summary-grouped');
-                matContainer.appendChild(subRow);
-            });
+            if (group.isIsolationGroup) {
+                // Faktura-visning = lik eksporten: én sammenslått linje pr.
+                // produkt+tykkelse (summert plater). De EKTE radene beholdes
+                // skjult med full data (data-merged-rad telles ikke ved
+                // lagring) så bredde/plate/antall ikke går tapt. Festemiddel
+                // vises som vanlig (separate rader).
+                var isoMap = {}, isoAgg = [], nonIso = [];
+                group.items.forEach(function(gm) {
+                    if (gm.source !== 'kappe-products') { nonIso.push(gm); return; }
+                    var key = (gm.name || '').toLowerCase() + '|' + (gm.enhet || '').toLowerCase();
+                    var pc = (typeof calcKappePlateCount === 'function') ? calcKappePlateCount(gm) : 0;
+                    if (isoMap[key]) {
+                        isoMap[key].__plateSum += pc;
+                    } else {
+                        isoMap[key] = { name: gm.name, enhet: gm.enhet, source: gm.source, __plateSum: pc };
+                        isoAgg.push(isoMap[key]);
+                    }
+                });
+                // Synlig sammenslått rad pr. produkt (matcher eksport).
+                isoAgg.forEach(function(agg) {
+                    var mRow = createMaterialSummaryRow(agg, group.baseName);
+                    mRow.classList.add('mat-summary-grouped');
+                    mRow.setAttribute('data-merged', '1');
+                    matContainer.appendChild(mRow);
+                });
+                // Ekte data-rader (skjult) — kilden som lagres/eksporteres.
+                group.items.forEach(function(m) {
+                    if (m.source !== 'kappe-products') return;
+                    var dRow = createMaterialSummaryRow(m, group.baseName);
+                    dRow.classList.add('mat-summary-grouped', 'mat-row-data-only');
+                    matContainer.appendChild(dRow);
+                });
+                // Festemiddel: vanlige (synlige) rader.
+                nonIso.forEach(function(m) {
+                    var fRow = createMaterialSummaryRow(m, group.baseName);
+                    fRow.classList.add('mat-summary-grouped');
+                    matContainer.appendChild(fRow);
+                });
+            } else {
+                group.items.forEach(function(m) {
+                    var subRow = createMaterialSummaryRow(m, group.baseName);
+                    subRow.classList.add('mat-summary-grouped');
+                    matContainer.appendChild(subRow);
+                });
+            }
         }
     });
 }
@@ -2217,6 +2254,9 @@ function renderMaterialSummary(matContainer, materials) {
 function getMaterialsFromContainer(matContainer) {
     const materials = [];
     matContainer.querySelectorAll('.mobile-material-row').forEach(row => {
+        // Visuell sammenslått isolasjon-rad er kun visning — ikke en ekte
+        // material-kilde (de ekte radene ligger skjult med full data).
+        if (row.getAttribute('data-merged') === '1') return;
         const name = row.getAttribute('data-mat-name') || '';
         const antall = row.getAttribute('data-mat-antall') || '';
         const enhet = row.getAttribute('data-mat-enhet') || '';
@@ -2455,7 +2495,7 @@ function openMaterialPicker(btn, onConfirm) {
         // Enhets-pill etter navnet for konsistens på alle rader. Spec-launchere
         // (ikke valgt enda) får ingen pill — de er placeholder for popup.
         let unitPillText = '';
-        if (!isSpecLauncher) {
+        if (!isSpecLauncher && !isIsolationLauncher) {
             if (source === 'kappe-products') {
                 unitPillText = isMeterQuantity ? 'meter' : 'plate';
             } else if (source === 'kappe-stift' || source === 'kappe-fastener') {
@@ -2482,11 +2522,13 @@ function openMaterialPicker(btn, onConfirm) {
         // Dupliser-knapp er disabled på alle rader uten data (isChecked=false): launcher-rader
         // som ikke er aktivert, og standard-materialer der Antall fortsatt er tomt. Det er
         // ingen meningsfull "kilde" å duplisere før raden faktisk har innhold.
-        const dupDisabled = !isChecked;
+        // "Isolering"-launcheren: vis Antall/dupliser/slett som vanlige rader
+        // (konsistent), men ALLTID disabled — mengder/handlinger skjer i popupen.
+        const dupDisabled = !isChecked || isIsolationLauncher;
         const dupBtn = '<button type="button" class="picker-mat-dup-btn" title="Dupliser"' + (dupDisabled ? ' disabled' : '') + '>' + duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
         // Slett-knappen er disabled på default-produkter (kan ikke fjernes) og på inaktive rader
         // (ingen data å slette). Brukerskapte duplikater/spec-rader beholder slett-knappen aktiv.
-        const delDisabled = !deletable || !isChecked;
+        const delDisabled = !deletable || !isChecked || isIsolationLauncher;
         const delBtn = '<button type="button" class="picker-mat-delete-btn" title="Fjern"' + (delDisabled ? ' disabled' : '') + '>' + deleteIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
         // Kappe-rader (isolasjon/festemiddel): klikkbar enhetsbryter til høyre.
         //   Isolasjon (source='kappe-products'): veksler 'meter' ↔ 'stk'
@@ -2518,8 +2560,11 @@ function openMaterialPicker(btn, onConfirm) {
         // Placeholder: alltid "Antall" for vanlige rader. Launcher-rader (iso/stift)
         // viser "Velg" siden bruker må åpne sub-picker først. Enheten (eske/meter/stk)
         // er allerede synlig i radnavnet eller via toggle, så ikke i placeholder.
-        const antallPlaceholder = (isIsolationLauncher || isStiftLauncher) ? t('btn_select') : t('placeholder_quantity');
-        const disabledAttr = isSpecLauncher ? ' disabled' : '';
+        // Isolering-launcher viser samme felt som FSC/FSW (Antall + dupliser
+        // + slett) for konsistens, men ALLTID disabled (mengder fylles inni
+        // popupen som åpnes ved klikk på raden).
+        const antallPlaceholder = isStiftLauncher ? t('btn_select') : t('placeholder_quantity');
+        const disabledAttr = (isSpecLauncher || isIsolationLauncher) ? ' disabled' : '';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}" data-mat-source="${escapeHtml(source || '')}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}${meterPillHtml}</span>${typeDot}${variantBadge}${meterBadge}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
@@ -2637,6 +2682,63 @@ function openMaterialPicker(btn, onConfirm) {
         return addedKey;
     }
 
+    // Samle alle iso/festemiddel-valg fra picker-state → entries for å gjen-
+    // åpne iso-popupen forhåndsfylt. Returnerer { entries, keys } (keys =
+    // picker-state-nøkler som skal slettes ved "erstatt").
+    function _gatherKappeMaterialEntries() {
+        var entries = [], keys = [];
+        Object.keys(pickerState).forEach(function(name) {
+            var st = pickerState[name];
+            if (!st) return;
+            if (isKappeStiftMaterial(name, st.source || '', st.enhet)) {
+                keys.push(name);
+                entries.push({
+                    source: st.source || 'kappe-stift',
+                    name: _stripPickerSuffix(name) || name,
+                    enhet: st.enhet || '',
+                    specMode: st.specMode || st.quantityUnit || 'stk',
+                    antall: st.antall || ''
+                });
+                return;
+            }
+            if (name !== MATERIAL_ISOLATION_LAUNCHER &&
+                (st.source === 'kappe-products' || (!hasConfiguredMaterialName(name) && isKappeIsolationMaterial(name, st.source)))) {
+                keys.push(name);
+                entries.push({
+                    source: 'kappe-products',
+                    name: _getKappeProductName(name) || _stripPickerSuffix(name) || name,
+                    enhet: st.enhet || '',
+                    plate: st.plate || null,
+                    specMode: st.specMode === 'plate' ? 'plate' : 'bredde',
+                    antall: st.antall || '',
+                    bredde: st.bredde || '',
+                    lmPerSide: st.lmPerSide || '',
+                    antallObjekter: st.antallObjekter || '',
+                    sider: st.sider || ''
+                });
+            }
+        });
+        return { entries: entries, keys: keys };
+    }
+    function _kappeMaterialEntryCount() {
+        return _gatherKappeMaterialEntries().entries.length;
+    }
+
+    // Åpne iso-popupen forhåndsfylt med ALLE tidligere valg. "Velg" erstatter
+    // hele iso/festemiddel-settet (sletter gamle nøkler først).
+    function _openIsoMaterialPopup() {
+        var g = _gatherKappeMaterialEntries();
+        var replaced = false;
+        openIsoCardPopup(function(selection) {
+            if (!replaced) {
+                g.keys.forEach(function(k) { delete pickerState[k]; });
+                replaced = true;
+            }
+            addKappeMaterialSelection(selection);
+            renderPickerList();
+        }, g.entries.length ? { entries: g.entries } : undefined);
+    }
+
     function renderPickerList() {
         pickerRenderFn = renderPickerList;
         // Build list: configured materials + checked spec-derived entries + checked custom entries
@@ -2645,11 +2747,20 @@ function openMaterialPicker(btn, onConfirm) {
         // Add all configured materials
         allMaterials.forEach(matObj => {
             var matType = matObj.type || 'standard';
-            if (matType === 'kappe-isolation' || matType === 'kappe-stift') {
+            if (matType === 'kappe-stift') {
+                // Festemiddel håndteres nå inni "Isolering"-popupen — egen
+                // Stift-launcher skjules (kun én "Isolering"-rad).
+                return;
+            }
+            if (matType === 'kappe-isolation') {
+                // Kun ÉN "Isolering"-launcher. Markeres aktiv + viser antall
+                // valgte (iso + festemiddel) når den har data. Ingen løse rader.
+                var _kCount = _kappeMaterialEntryCount();
                 entries.push({
                     name: matObj.name,
-                    displayName: matObj.displayName || (matType === 'kappe-isolation' ? getMaterialIsolationLabel() : getMaterialStiftLabel()),
-                    isChecked: false,
+                    displayName: (matObj.displayName || getMaterialIsolationLabel())
+                        + (_kCount > 0 ? ' (' + _kCount + ')' : ''),
+                    isChecked: _kCount > 0,
                     antall: '',
                     enhet: '',
                     matType: matType,
@@ -2686,40 +2797,13 @@ function openMaterialPicker(btn, onConfirm) {
             const state = pickerState[name];
             const baseMat = findBaseMaterial(name);
             const stateSource = state.source || '';
+            // Iso/festemiddel-valg vises IKKE som løse rader lenger — de
+            // representeres av den ene "Isolering"-launcheren (åpne den for
+            // å se/redigere/fjerne). State beholdes (eksport/lagring).
             if (isKappeStiftMaterial(name, stateSource, state.enhet)) {
-                const antall = state.antall || '';
-                entries.push({
-                    name,
-                    displayName: formatKappeStiftName(state.enhet || '', name, state.quantityUnit),
-                    groupBaseName: MATERIAL_KAPPE_LAUNCHER,
-                    groupDisplayName: getMaterialKappeLabel(),
-                    isChecked: state.checked || !!(antall && antall.toString().trim()),
-                    antall: antall,
-                    enhet: state.enhet || '',
-                    matType: 'standard',
-                    isSpecDerived: true,
-                    hasVariants: false,
-                    source: state.source || 'kappe-stift',
-                    quantityUnit: state.quantityUnit || getKappeProductDefaultUnit(_stripPickerSuffix(name)) || 'stk'
-                });
                 return;
             }
             if (name !== MATERIAL_ISOLATION_LAUNCHER && (stateSource === 'kappe-products' || (!hasConfiguredMaterialName(name) && isKappeIsolationMaterial(name, stateSource)))) {
-                const antall = state.antall || '';
-                entries.push({
-                    name,
-                    displayName: formatKappeIsolationName(name, state.enhet || '', state.bredde, state.specMode),
-                    groupBaseName: MATERIAL_KAPPE_LAUNCHER,
-                    groupDisplayName: getMaterialKappeLabel(),
-                    isChecked: state.checked || !!(antall && antall.toString().trim()),
-                    antall: antall,
-                    enhet: state.enhet || '',
-                    matType: 'standard',
-                    isSpecDerived: true,
-                    hasVariants: false,
-                    source: 'kappe-products',
-                    quantityUnit: state.quantityUnit || getKappeProductDefaultUnit(name) || 'meter'
-                });
                 return;
             }
             // Check for meter entries (e.g. "FSW__meter")
@@ -2872,11 +2956,7 @@ function openMaterialPicker(btn, onConfirm) {
                 var headerName = header.getAttribute('data-mat-name');
                 var headerType = header.getAttribute('data-mat-type') || 'standard';
                 if (headerType === 'kappe-isolation') {
-                    openIsoCardPopup(function(selection) {
-                        var addedKey = addKappeMaterialSelection(selection);
-                        renderPickerList();
-                        _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
-                    });
+                    _openIsoMaterialPopup();
                 } else if (headerType === 'mansjett' || headerType === 'brannpakning' || headerType === 'kabelhylse') {
                     // Spec material header: open spec popup
                     openSpecPopup(headerName, function(spec, meterValue) {
@@ -2926,11 +3006,7 @@ function openMaterialPicker(btn, onConfirm) {
 
             nameDiv.addEventListener('click', function() {
                 if (matType === 'kappe-isolation') {
-                    openIsoCardPopup(function(selection) {
-                        var addedKey = addKappeMaterialSelection(selection);
-                        renderPickerList();
-                        _scrollPickerTargetIntoView(addedKey, { focusAntall: true });
-                    });
+                    _openIsoMaterialPopup();
                     return;
                 }
                 if (matType === 'kappe-stift') {
@@ -3091,7 +3167,8 @@ function openMaterialPicker(btn, onConfirm) {
                 pickerState[name] = { checked: false, antall: '', enhet: defaultEnhet };
             }
 
-            antallInput.addEventListener('input', function() {
+            // Samle-launcher ("Isolering") har ingen antall-input — hopp over.
+            if (antallInput) antallInput.addEventListener('input', function() {
                 if (isSpecType) return;  // spec-launcher: input disabled (krever popup)
                 _ensureState();
                 var val = this.value;

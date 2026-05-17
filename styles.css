@@ -3176,6 +3176,20 @@ label.settings-default-label.field-required > span::after {
     min-width: 0;
     cursor: pointer;
 }
+/* Samle-launcher ("Isolering"): ingen antall-felt — kun navn + pil (popup). */
+.picker-mat-launcher-row {
+    cursor: pointer;
+}
+.picker-mat-launcher-arrow {
+    flex: 0 0 auto;
+    color: #999;
+    font-size: 20px;
+    line-height: 1;
+    padding: 0 6px;
+}
+.picker-mat-launcher-row.picker-mat-selected .picker-mat-launcher-arrow {
+    color: #E8501A;
+}
 
 .picker-mat-name {
     font-size: 15px;
@@ -3574,6 +3588,11 @@ label.settings-default-label.field-required > span::after {
 }
 .mat-summary-grouped {
     padding-left: 10px;
+}
+/* Ekte iso-data-rader holdes i DOM (kilde for lagring/eksport) men
+   skjules visuelt — fakturakortet viser kun den sammenslåtte raden. */
+.mat-row-data-only {
+    display: none !important;
 }
 .bil-history-group-header {
     font-weight: 600;
@@ -7130,43 +7149,146 @@ body.kappe-view-open #view-form { display: none; }
     color: #666;
     display: block;
 }
-/* Multi-rad i bredde-modus — speiler .kappe-kapp-row-strukturen.
-   Rad-listen scroller internt så mange rader ikke skyver popupen utenfor
-   skjermen (Apple-mønster: fast header/knapper, scrollbart innhold). */
-/* Kun rad-listen er det fleksible/scrollbare området. Alt annet i sheeten
-   (header, produkt, toggle, knapper) skal IKKE krympe — ellers blir
-   Stk/Plate-toggle klemt/dekket når innholdet er høyere enn sheeten. */
-#iso-card-popup .spec-popup-sheet > *:not(#iso-card-rows) {
+/* Apple-mønster: fast header (tittel + produkt) og fast footer (Avbryt/
+   Velg); ALT variabelt innhold (kapp/plate/festemiddel + knapper) ligger i
+   ÉN scrollbar wrapper, så popupen aldri vokser utenfor skjermen. */
+#iso-card-popup .spec-popup-sheet > *:not(#iso-card-scroll) {
     flex-shrink: 0;
 }
-/* Felles for alle tre rad-containere (Stk/Plate/Festemiddel) — identisk
-   layout så det ikke "hopper" ved modus-bytte. Ingen ramme/ekstra padding. */
-#iso-card-rows,
-#iso-card-plate-rows,
-#iso-card-fastener-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+#iso-card-scroll {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* Luft mellom slett-knappene og scrollbaren (ellers ligger de helt
+       inntil scroll-kanten). */
+    padding-right: 8px;
+}
+/* Rad-containere flyter normalt inni scroll-wrapperen (ingen egen scroll).
+   Avstand mellom rader via margin-bottom på raden (ikke container-gap), så
+   spacingen er identisk OGSÅ på tvers av container-grensen kapp↔plate. */
+.iso-block-kapp-rows,
+.iso-block-plate-rows,
+#iso-card-fastener-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+/* Én produkt-blokk = egen produkt-velger + egne kapp/plate-rader. Hver
+   blokk er et eget kort (som kappeskjema-kortene) så man tydelig ser hvor
+   ett produkt slutter og det neste begynner. */
+#iso-card-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.iso-card-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fafafa;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 12px;
+}
+.iso-card-block-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+/* «Produkt» som kort-overskrift. */
+.iso-card-block-head .iso-card-label {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #888;
+}
+/* Slett-produkt: rød, som alle slett-knapper ellers på nettsiden. */
+.iso-card-block-remove {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #e74c3c;
+    display: flex;
+    align-items: center;
+}
+.iso-card-block-remove svg {
+    width: 18px;
+    height: 18px;
+}
+.iso-card-block-remove:disabled {
+    color: #ccc;
+    cursor: default;
+}
+/* «+ Legg til isolasjonsprodukt» er et nivå over rad-knappene: full bredde,
+   stiplet ramme, så det leses som «nytt produkt», ikke «ny rad». */
+#iso-card-add-product {
+    width: 100%;
+    justify-content: center;
+    border: 1px dashed #f47b20;
+    border-radius: 8px;
+    padding: 10px;
+}
+/* Festemidler er en egen del — eget kort med tydelig overskrift og god
+   luft over, så det ikke klistrer seg til isolasjons-blokkene. */
+.iso-card-fast-section {
+    margin-top: 18px;
+    background: #fafafa;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+/* Seksjons-overskrift (f.eks. «Festemidler»). */
+.iso-card-section-head {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #888;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e5e5;
 }
 .iso-card-row {
     display: flex;
     align-items: flex-end;
     gap: 4px;
+    margin-bottom: 6px;
 }
 .iso-card-row .kappe-quad-row {
     flex: 1;
     min-width: 0;
 }
+/* Festemiddel-rad i iso-popupen: produktnavn til venstre, kompakt antall. */
+.iso-card-fast-row .iso-card-fast-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+    /* Lange navn brekker til 2 linjer i stedet for å bli avkortet, så
+       navnet får mer plass og Stk/Eske trenger lite. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+    padding-bottom: 10px;
+}
+/* Smal Stk/Eske-blokk (samme felt-størrelse som Bredde/LM-radene over). */
+.iso-card-fast-row .kappe-quad-row {
+    flex: 0 0 124px;
+}
 /* Alle tre legg-til-rad-knappene (Stk/Plate/Festemiddel) skal ha identisk
    spacing — kun sheetens gap:10px, ingen egen margin. Ellers hopper knappen
    ved modus-bytte (Plate/Festemiddel arvet .kappe-add-kapp-btn-margin). */
-#iso-card-add-row,
-#iso-card-plate-add,
-#iso-card-fastener-add {
+#iso-card-popup .kappe-add-kapp-btn {
     margin-top: 0;
     margin-bottom: 0;
 }
