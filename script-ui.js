@@ -6151,12 +6151,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if ((!keyboardOpen && !focusInPopup) || !isActive) {
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
+                s.style.transition = '';
                 return;
             }
             // Fjern ev. topp-forankrings-marginTop som ellers offset'er
             // posisjonen — transform-en under eier nå plasseringen helt.
             if (backdrop) backdrop.classList.remove('popup-top-anchored');
             s.style.marginTop = '';
+            // KRITISK: skru av transform-transition mens vi posisjonerer.
+            // Ellers er sheeten midt i en 0.15s-animasjon når vi måler
+            // getBoundingClientRect rett etter transform='' → feil løft →
+            // ny transform → ny animasjon → opp/ned-oscillasjon. Uten
+            // transition blir målingen eksakt og plasseringen idempotent.
+            s.style.transition = 'none';
 
             var innerH = window.innerHeight || visH;
             // Krympte viewporten REELT? (Chrome-fane: visualViewport krymper
