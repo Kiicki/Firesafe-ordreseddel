@@ -3671,6 +3671,16 @@ label.settings-default-label.field-required > span::after {
 .spec-popup-backdrop.popup-top-anchored {
     align-items: flex-start;
 }
+/* #spec-popup (FSC/FSW/Kabelhylse/mansjett) auto-fokuserer alltid et felt
+   ved åpning → tastatur kommer alltid opp. Åpne derfor ALLTID toppstilt,
+   slik at åpne-posisjonen er IDENTISK med tastatur-posisjonen. Da er det
+   ingen «sentrert → snap til topp»-blink når tastaturet glir opp. */
+#spec-popup.spec-popup-backdrop {
+    align-items: flex-start;
+}
+#spec-popup .spec-popup-sheet {
+    margin-top: 16px;
+}
 .spec-popup-sheet {
     background: #fff;
     border-radius: 12px;
