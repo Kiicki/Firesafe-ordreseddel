@@ -402,7 +402,26 @@ function loadFormDirect(formData) {
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
-    window.scrollTo(0, 0);
+    // Skjema skal ALLTID åpnes fra toppen. closeModal() viser #view-form,
+    // men `body.saved-modal-open` fjernes først etterpå — så en synkron
+    // scroll-reset her treffer mens viewet ennå er display:none og fester
+    // seg ikke. Nullstill etter at viewet faktisk er synlig (neste frame).
+    _resetFormViewScroll();
+}
+
+// Nullstill scroll-posisjon på det aktive form-viewet (scroll-containeren
+// er #view-form selv, jf. .container.form-view{overflow-y:auto}).
+function _resetFormViewScroll() {
+    function doReset() {
+        var vf = document.getElementById('view-form');
+        if (vf) vf.scrollTop = 0;
+        window.scrollTo(0, 0);
+    }
+    doReset();
+    requestAnimationFrame(function() {
+        doReset();
+        requestAnimationFrame(doReset);
+    });
 }
 
 async function duplicateFormDirect(form) {
@@ -438,7 +457,7 @@ async function duplicateFormDirect(form) {
     sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
     // Update form header title
     document.getElementById('form-header-title').textContent = t('form_title');
-    window.scrollTo(0, 0);
+    _resetFormViewScroll();
     showNotificationModal(t('duplicated_success'), true);
 }
 
@@ -9087,6 +9106,8 @@ function closeKappeProductPicker() {
     var fastToggle = document.getElementById('kappe-picker-mode-toggle-fast');
     if (isoToggle) isoToggle.style.display = '';
     if (fastToggle) fastToggle.style.display = 'none';
+    // Vis iso-kort-popupen igjen hvis undervelgeren ble åpnet derfra.
+    if (typeof _showIsoCardAfterPicker === 'function') _showIsoCardAfterPicker();
 }
 
 function selectKappeProduct(value, selection) {
@@ -9158,19 +9179,25 @@ var _isoCardSelected = null; // { name, enhet, dim, plate:{length,width}, source
 function _createIsoCardRow(data) {
     var d = data || {};
     var row = document.createElement('div');
-    row.className = 'iso-card-row';
+    row.className = 'iso-card-row iso-card-row--calc';
+    // Valgt kutteretning for raden ('' = auto/mest svinn, 'L' = langs
+    // platelengde, 'W' = langs platebredde). Bevares ved re-redigering.
+    row.dataset.iscOrient = d.kappeOrient || '';
     row.innerHTML =
-        '<div class="kappe-quad-row">' +
-            '<div class="mobile-field field-required"><label data-i18n="iso_bredde">Bredde</label>' +
-                '<input type="text" class="isc-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.bredde || '') + '" oninput="_updateIsoCardTotal()"></div>' +
-            '<div class="mobile-field field-required"><label data-i18n="iso_lm_per_side">LM</label>' +
-                '<input type="text" class="isc-lm" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.lopemeter || '') + '" oninput="_updateIsoCardTotal()"></div>' +
-            '<div class="mobile-field field-required"><label data-i18n="iso_antall_objekter">Antall</label>' +
-                '<input type="text" class="isc-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '') + '" oninput="_updateIsoCardTotal()"></div>' +
-            '<div class="mobile-field field-required"><label data-i18n="iso_sider">Sider</label>' +
-                '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+        '<div class="iso-card-row-main">' +
+            '<div class="kappe-quad-row">' +
+                '<div class="mobile-field field-required"><label data-i18n="iso_bredde">Bredde</label>' +
+                    '<input type="text" class="isc-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.bredde || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+                '<div class="mobile-field field-required"><label data-i18n="iso_lm_per_side">LM</label>' +
+                    '<input type="text" class="isc-lm" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.lopemeter || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+                '<div class="mobile-field field-required"><label data-i18n="iso_antall_objekter">Antall</label>' +
+                    '<input type="text" class="isc-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+                '<div class="mobile-field field-required"><label data-i18n="iso_sider">Sider</label>' +
+                    '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+            '</div>' +
+            '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>' +
         '</div>' +
-        '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
+        '<div class="iso-card-row-plates"></div>';
     return row;
 }
 
@@ -9279,13 +9306,16 @@ function _updateRowsRemoveStates() {}
 function _createIsoCardPlateRow(data) {
     var d = data || {};
     var row = document.createElement('div');
-    row.className = 'iso-card-row';
+    row.className = 'iso-card-row iso-card-row--calc';
     row.innerHTML =
-        '<div class="kappe-quad-row">' +
-            '<div class="mobile-field field-required"><label data-i18n="iso_plate_count">Antall plater</label>' +
-                '<input type="text" class="isc-plate-antall" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.antall || '') + '" oninput="_updateIsoCardModeIndicators()"></div>' +
+        '<div class="iso-card-row-main">' +
+            '<div class="kappe-quad-row">' +
+                '<div class="mobile-field field-required"><label data-i18n="iso_plate_count">Antall plater</label>' +
+                    '<input type="text" class="isc-plate-antall" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.antall || '') + '" oninput="_updateIsoCardTotal()"></div>' +
+            '</div>' +
+            '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemovePlateRow(this)" title="Fjern rad">' + deleteIcon + '</button>' +
         '</div>' +
-        '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemovePlateRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
+        '<div class="iso-card-row-plates"></div>';
     return row;
 }
 function _isoCardAddPlateRow(btn) {
@@ -9341,6 +9371,22 @@ function _isoCardRemoveFastenerRow(btn) {
 }
 window._isoCardRemoveFastenerRow = _isoCardRemoveFastenerRow;
 
+// Produkt-/festemiddel-undervelgeren legger seg oppå iso-kort-popupen. Skjul
+// iso-kortet mens undervelgeren er åpen (samme mønster som dag-timer ↔ plan)
+// så man ikke ser «Isolering» bak. Gjenopprettes når undervelgeren lukkes.
+function _hideIsoCardForPicker() {
+    var p = document.getElementById('iso-card-popup');
+    if (p && p.classList.contains('active')) {
+        p.classList.add('iso-card-popup--hidden');
+        window._isoCardHiddenForPicker = true;
+    }
+}
+function _showIsoCardAfterPicker() {
+    var p = document.getElementById('iso-card-popup');
+    if (p) p.classList.remove('iso-card-popup--hidden');
+    window._isoCardHiddenForPicker = false;
+}
+
 // "+ Legg til festemiddel" i materiale-pickeren: åpner fler-velgeren for
 // festemidler (Brannskruer/Stift + flere dimensjoner, som kappeskjema).
 // Valgte festemidler legges som materiale-valg i ordreseddelen.
@@ -9370,6 +9416,7 @@ function _isoCardOpenFastenerPicker() {
             });
         });
     }
+    _hideIsoCardForPicker();
     openProductDimensionPicker({
         title: t('kappe_section_fasteners'),
         products: fasteners,
@@ -9425,7 +9472,8 @@ function _isoCardFillBlockRows(block, prefill) {
             bredde: prefill.bredde ? String(prefill.bredde).replace(/mm$/i, '') : '',
             lopemeter: prefill.lmPerSide != null ? String(prefill.lmPerSide) : '',
             antall: prefill.antallObjekter != null && prefill.antallObjekter !== '' ? String(prefill.antallObjekter) : '',
-            sider: prefill.sider != null && prefill.sider !== '' ? String(prefill.sider) : ''
+            sider: prefill.sider != null && prefill.sider !== '' ? String(prefill.sider) : '',
+            kappeOrient: prefill.kappeOrient || ''
         }));
     }
 }
@@ -9477,7 +9525,8 @@ function _isoCardBuildFromEntries(entries) {
                             bredde: e.bredde ? String(e.bredde).replace(/mm$/i, '') : '',
                             lopemeter: e.lmPerSide != null ? String(e.lmPerSide) : '',
                             antall: e.antallObjekter != null ? String(e.antallObjekter) : '',
-                            sider: e.sider != null ? String(e.sider) : ''
+                            sider: e.sider != null ? String(e.sider) : '',
+                            kappeOrient: e.kappeOrient || ''
                         }));
                     }
                 });
@@ -9574,9 +9623,10 @@ function openIsoCardPopup(callback, prefill) {
 function closeIsoCardPopup() {
     var popup = document.getElementById('iso-card-popup');
     if (popup) {
-        popup.classList.remove('active');
+        popup.classList.remove('active', 'iso-card-popup--hidden');
         _clearPopupTopAnchor('iso-card-popup');
     }
+    window._isoCardHiddenForPicker = false;
     _isoCardMaxH = 0;
     _isoCardCallback = null;
     _isoCardSelected = null;
@@ -9652,11 +9702,104 @@ function _updateIsoCardModeIndicators() {
 }
 window._updateIsoCardModeIndicators = _updateIsoCardModeIndicators;
 
+// Beregn plater pr. rad i Isolering-popupen + total. Bruker SAMME
+// calcKappePlateCount() som summen/eksporten, så tallene er garantert
+// konsistente. Ren visning — rører ikke data/lagring/eksport.
+function _updateIsoCardPlateLines() {
+    if (typeof calcKappePlateCount !== 'function') return;
+    var fmt = (typeof formatKappePlateCount === 'function')
+        ? formatKappePlateCount
+        : function(v) { return (Math.round(v * 10) / 10).toString().replace('.', ','); };
+    var total = 0, anyRow = false;
+    var blocks = document.querySelectorAll('#iso-card-blocks .iso-card-block');
+    blocks.forEach(function(block) {
+        var sel = block._sel || {};
+        var plate = sel.plate || null;
+        // Kapp-rader — vis plater + velgbar kutteretning (per rad).
+        block.querySelectorAll('.iso-block-kapp-rows .iso-card-row--calc').forEach(function(row) {
+            var out = row.querySelector('.iso-card-row-plates');
+            if (!out) return;
+            var bVal = (row.querySelector('.isc-bredde') || {}).value || '';
+            var lVal = (row.querySelector('.isc-lm') || {}).value || '';
+            var aVal = (row.querySelector('.isc-antall') || {}).value || '';
+            var sVal = (row.querySelector('.isc-sider') || {}).value || '';
+            bVal = String(bVal).trim(); lVal = String(lVal).trim();
+            if (!sel.name || !plate || !bVal || !lVal) { out.innerHTML = ''; return; }
+            var lNum = parseLocaleNum(lVal);
+            var aNum = parseLocaleNum(aVal); if (!aNum || aNum <= 0 || isNaN(aNum)) aNum = 1;
+            var sNum = parseLocaleNum(sVal); if (!sNum || sNum <= 0 || isNaN(sNum)) sNum = 1;
+            if (!lNum || lNum <= 0 || isNaN(lNum)) { out.innerHTML = ''; return; }
+            var totalLm = Math.round(lNum * aNum * sNum * 100) / 100;
+            var baseMat = {
+                name: sel.name, enhet: sel.enhet || '', source: 'kappe-products',
+                specMode: 'bredde', bredde: bVal, plate: plate, antall: String(totalLm)
+            };
+            var orient = String(row.dataset.iscOrient || '');
+            var pc = calcKappePlateCount(Object.assign({}, baseMat, { kappeOrient: orient }));
+            if (!(pc > 0)) { out.innerHTML = ''; return; }
+            total += pc; anyRow = true;
+
+            out.innerHTML = '';
+            var ori = (typeof calcKappePlateOrientations === 'function')
+                ? calcKappePlateOrientations(baseMat) : { L: null, W: null, auto: pc };
+            // Vis begge retnings-valg når begge retninger er mulige — også
+            // når platetallet tilfeldigvis er likt (retningen er fortsatt et
+            // bevisst valg). Kun fallback til én verdi hvis bredden gjør at
+            // bare én retning gir strimler.
+            var hasChoice = !!(ori.L && ori.W);
+            if (!hasChoice) {
+                out.textContent = '≈ ' + fmt(pc) + ' plater';
+                return;
+            }
+            // Standard (orient '') = mest svinn → marker den største chipen.
+            var autoKey = (ori.L.plates >= ori.W.plates) ? 'L' : 'W';
+            var selKey = (orient === 'L' || orient === 'W') ? orient : autoKey;
+            [['L', ori.L], ['W', ori.W]].forEach(function(pair) {
+                var key = pair[0], o = pair[1];
+                var chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'iso-orient-chip' + (key === selKey ? ' iso-orient-chip--sel' : '');
+                chip.textContent = o.slm + 'mm: ' + fmt(o.plates);
+                chip.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    row.dataset.iscOrient = key;
+                    _updateIsoCardTotal();
+                });
+                out.appendChild(chip);
+            });
+        });
+        // Plate-rader (hele plater)
+        block.querySelectorAll('.iso-block-plate-rows .iso-card-row--calc').forEach(function(row) {
+            var out = row.querySelector('.iso-card-row-plates');
+            if (!out) return;
+            var pVal = String((row.querySelector('.isc-plate-antall') || {}).value || '').trim();
+            if (!pVal) { out.textContent = ''; return; }
+            var pc = calcKappePlateCount({ specMode: 'plate', antall: pVal });
+            if (pc > 0) {
+                out.textContent = '≈ ' + fmt(pc) + ' plater';
+                total += pc; anyRow = true;
+            } else { out.textContent = ''; }
+        });
+    });
+    var sumEl = document.getElementById('iso-card-sum');
+    if (sumEl) {
+        if (anyRow) {
+            sumEl.textContent = 'Sum: ' + fmt(total) + ' plater';
+            sumEl.style.display = '';
+        } else {
+            sumEl.textContent = '';
+            sumEl.style.display = 'none';
+        }
+    }
+}
+
 // Lm-totalen ble fjernet (tok unødig plass). Funksjonen beholdes som
 // hook fordi den er bundet til mange oninput-handlere og kallsteder —
-// den oppdaterer nå kun Stk/Plate-prikk-indikatorene.
+// oppdaterer Stk/Plate-prikk-indikatorene + plater pr. rad/sum.
 function _updateIsoCardTotal() {
     _updateIsoCardModeIndicators();
+    _updateIsoCardPlateLines();
 }
 window._updateIsoCardTotal = _updateIsoCardTotal;
 
@@ -9674,6 +9817,7 @@ function _openIsoCardProductSubpicker(btn) {
     }
     var defaultDimensions = typeof getKappeDimensions === 'function' ? getKappeDimensions() : [];
     var sel = (block && block._sel) || {};
+    _hideIsoCardForPicker();
     openProductDimensionPicker({
         title: getMaterialKappeLabel(),
         products: products,
@@ -9793,7 +9937,8 @@ function confirmIsoCardPopup() {
                 name: sel.name, enhet: sel.enhet || '', source: 'kappe-products',
                 plate: sel.plate || null, quantityUnit: 'meter', specMode: 'bredde',
                 bredde: bVal, lmPerSide: lVal, antallObjekter: aVal, sider: sVal,
-                computedTotalLm: ctl
+                computedTotalLm: ctl,
+                kappeOrient: rEl.dataset.iscOrient || ''
             });
         }
         // Hele plater
@@ -9851,6 +9996,214 @@ function confirmIsoCardPopup() {
 }
 window.confirmIsoCardPopup = confirmIsoCardPopup;
 window.openIsoCardPopup = openIsoCardPopup;
+
+// ─── Timer-oversikt ─────────────────────────────────────────────────────────
+// Lesbar oversikt over timer PER BESTILLING innenfor DENNE ordreseddelen.
+// Hver bestilling kan ha timer på flere dager — derfor lister vi bestillinger
+// (ikke dager: én dag kan ha mange bestillinger), viser dag-fordelingen
+// kompakt + sum, og lar deg åpne bestillingens egen Arbeidstid-popup for å
+// redigere (den håndterer fler-dagers korrekt). Ingen dato-/uke-logikk,
+// ingenting på tvers av ordresedler.
+var TIMER_DAY_KEYS = ['ma', 'ti', 'on', 'to', 'fr', 'lo', 'so'];
+
+function _orderTimerObj(card) {
+    try { return JSON.parse(card.getAttribute('data-timer') || '{}') || {}; }
+    catch (e) { return {}; }
+}
+function _fmtHours(n) {
+    if (!n) return '0';
+    return (Math.round(n * 100) / 100).toString().replace('.', ',');
+}
+// Summer timer per ukedag (+ Annet) på tvers av alle bestillinger i
+// ordreseddelen. _generelt har forrang over legacy _total.
+function _weekTimerTotals() {
+    var tot = { _generelt: 0, total: 0 };
+    TIMER_DAY_KEYS.forEach(function(k) { tot[k] = 0; });
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
+        var tm = _orderTimerObj(card);
+        TIMER_DAY_KEYS.forEach(function(k) {
+            var n = parseLocaleNum(tm[k]);
+            if (!isNaN(n)) tot[k] += n;
+        });
+        var g = (tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt
+            : ((tm._total != null && String(tm._total).trim() !== '') ? tm._total : null);
+        if (g != null) { var gn = parseLocaleNum(g); if (!isNaN(gn)) tot._generelt += gn; }
+    });
+    tot.total = TIMER_DAY_KEYS.reduce(function(a, k) { return a + tot[k]; }, 0) + tot._generelt;
+    return tot;
+}
+
+function updateTimerChip() {
+    var chip = document.getElementById('timer-overview-chip');
+    if (!chip) return;
+    var val = chip.querySelector('.timer-chip-value');
+    if (val) val.textContent = _fmtHours(_weekTimerTotals().total) + ' t';
+}
+window.updateTimerChip = updateTimerChip;
+
+// Sum timer for ÉN bestilling (alle dager + Annet).
+function _orderHoursSum(tm) {
+    var s = 0;
+    TIMER_DAY_KEYS.forEach(function(k) {
+        var n = parseLocaleNum(tm[k]);
+        if (!isNaN(n)) s += n;
+    });
+    var g = (tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt
+        : ((tm._total != null && String(tm._total).trim() !== '') ? tm._total : null);
+    if (g != null) { var gn = parseLocaleNum(g); if (!isNaN(gn)) s += gn; }
+    return s;
+}
+function _orderDayPlansObj(card) {
+    try { return JSON.parse(card.getAttribute('data-day-plans') || '{}') || {}; }
+    catch (e) { return {}; }
+}
+// Dag-fordeling for en bestilling, inkl. etasjer/plan per dag. Returnerer
+// strukturerte deler {day, hours, plan} (rå verdier) — visningen bygges som
+// egne ikke-brytbare «chips» i openTimerOverview for bedre lesbarhet. En dag
+// tas med hvis den har timer ELLER plan.
+function _orderDayBreakdown(tm, dp) {
+    dp = dp || {};
+    var shortMap = (typeof dagShortMap === 'object' && dagShortMap) ? dagShortMap : {
+        ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø'
+    };
+    function _hasVal(v) { return v != null && String(v).trim() !== ''; }
+    var parts = [];
+    TIMER_DAY_KEYS.forEach(function(k) {
+        if (_hasVal(tm[k]) || _hasVal(dp[k])) {
+            parts.push({
+                day: shortMap[k] || k,
+                hours: _hasVal(tm[k]) ? String(tm[k]).replace('.', ',') + 't' : '',
+                plan: _hasVal(dp[k]) ? String(dp[k]).trim() : ''
+            });
+        }
+    });
+    var g = _hasVal(tm._generelt) ? tm._generelt : (_hasVal(tm._total) ? tm._total : '');
+    var gPlan = dp._generelt;
+    if (_hasVal(g) || _hasVal(gPlan)) {
+        parts.push({
+            day: t('timer_overview_other'),
+            hours: _hasVal(g) ? String(g).replace('.', ',') + 't' : '',
+            plan: _hasVal(gPlan) ? String(gPlan).trim() : ''
+        });
+    }
+    return parts;
+}
+// Etikett som ordrekort-tittelen: "N. <beskrivelse>" når Beskrivelse er
+// fylt ut (både nummer OG innhold), ellers bare "Bestilling N".
+function _orderRowLabel(card, idx) {
+    var d = card.querySelector('.mobile-order-desc');
+    var txt = d ? String(d.value || '').trim() : '';
+    if (txt) {
+        // Slå sammen linjeskift/whitespace til mellomrom — CSS klipper til
+        // maks 2 linjer (kompakt + skannbart, men nok kontekst).
+        txt = txt.replace(/\s+/g, ' ').trim();
+        return (idx + 1) + '. ' + txt;
+    }
+    return t('order_title') + ' ' + (idx + 1);
+}
+
+function openTimerOverview() {
+    var modal = document.getElementById('timer-overview-modal');
+    if (!modal) return;
+    var list = document.getElementById('timer-overview-list');
+    if (!list) return;
+    list.innerHTML = '';
+    var cards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+
+    if (!cards.length) {
+        var empty = document.createElement('div');
+        empty.className = 'timer-overview-empty';
+        empty.textContent = t('timer_overview_empty');
+        list.appendChild(empty);
+    }
+
+    var total = 0;
+    cards.forEach(function(card, idx) {
+        var tm = _orderTimerObj(card);
+        var dp = _orderDayPlansObj(card);
+        var sum = _orderHoursSum(tm);
+        total += sum;
+        var breakdown = _orderDayBreakdown(tm, dp);
+
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'timer-overview-row timer-overview-row--order';
+
+        var main = document.createElement('div');
+        main.className = 'timer-ov-main';
+        var label = document.createElement('span');
+        label.className = 'timer-overview-label';
+        label.textContent = _orderRowLabel(card, idx);
+        var value = document.createElement('span');
+        value.className = 'timer-overview-value';
+        value.textContent = sum > 0 ? _fmtHours(sum) + ' t' : '–';
+        if (!(sum > 0)) value.classList.add('timer-overview-value--empty');
+        var chev = document.createElement('span');
+        chev.className = 'fakturaadresse-chevron';
+        chev.textContent = '›';
+        main.appendChild(label);
+        main.appendChild(value);
+        main.appendChild(chev);
+        row.appendChild(main);
+
+        var sub = document.createElement('div');
+        sub.className = 'timer-ov-sub';
+        if (!breakdown.length) {
+            sub.classList.add('timer-ov-sub--empty');
+            sub.textContent = t('timer_overview_no_hours');
+        } else {
+            breakdown.forEach(function(p) {
+                // Hver dag-del er én ikke-brytbar chip (wrapper som helhet
+                // til neste linje — aldri midt i «Fr 1t (6)»). Ingen tekst-
+                // separator: avstand mellom chips + fet dag er skillet, så
+                // ingenting henger dinglende på starten av en brutt linje.
+                var part = document.createElement('span');
+                part.className = 'timer-ov-part';
+                var d = document.createElement('b');
+                d.className = 'timer-ov-day';
+                d.textContent = p.day;
+                part.appendChild(d);
+                if (p.hours) part.appendChild(document.createTextNode(' ' + p.hours));
+                if (p.plan) {
+                    var pl = document.createElement('span');
+                    pl.className = 'timer-ov-plan';
+                    pl.textContent = ' (' + p.plan + ')';
+                    part.appendChild(pl);
+                }
+                sub.appendChild(part);
+            });
+        }
+        row.appendChild(sub);
+
+        // Rediger = åpne bestillingens egen Arbeidstid-popup (håndterer
+        // fler-dagers korrekt). Lukk oversikten så de ikke stables, men sett
+        // retur-flagg så closeDagTimerModal åpner oversikten igjen (oppdatert)
+        // ved både OK og Avbryt — bruker blir værende i flyten.
+        row.addEventListener('click', function() {
+            window._timerOverviewReturn = true;
+            closeTimerOverview();
+            if (typeof openDagTimerModal === 'function') openDagTimerModal(card);
+        });
+
+        list.appendChild(row);
+    });
+
+    var totalEl = document.getElementById('timer-overview-total-value');
+    if (totalEl) totalEl.textContent = _fmtHours(total) + ' t';
+
+    modal.classList.add('active');
+    if (typeof applyTranslations === 'function') applyTranslations();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+window.openTimerOverview = openTimerOverview;
+
+function closeTimerOverview() {
+    var modal = document.getElementById('timer-overview-modal');
+    if (modal) modal.classList.remove('active');
+    updateTimerChip();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+window.closeTimerOverview = closeTimerOverview;
 
 function _createKappeKappRow(kappData) {
     var d = kappData || {};

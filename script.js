@@ -581,15 +581,60 @@ function calcKappePlateCount(material) {
     if (!wn || !wn.langs || !wn.langs.length) return 0;
     // Bruk RÅ flyttall (antall meter / meter per plate) i stedet for antallStk/stripes,
     // siden antallStk allerede er ceil'd. Det vil ellers gi heltall og miste halv-plate.
-    var platesPerOrient = wn.langs.map(function(o) {
-        if (!o.stripes || o.stripes < 1 || !o.stripLengde) return 0;
+    // Behold orienteringen (stripLengdeMm) så bruker kan velge kappe-retning.
+    var perOrient = wn.langs.map(function(o) {
+        if (!o.stripes || o.stripes < 1 || !o.stripLengde) return null;
         var metersPerPlate = o.stripes * o.stripLengde;
-        return metersPerPlate > 0 ? antall / metersPerPlate : 0;
-    }).filter(function(n) { return n > 0; });
-    if (!platesPerOrient.length) return 0;
-    // Konservativ: bruk retningen som krever flest plater (mest svinn).
-    // Beskytter mot under-fakturering hvis montør var mindre effektiv enn optimalt.
-    return _ceilToHalf(Math.max.apply(null, platesPerOrient));
+        return metersPerPlate > 0
+            ? { slm: o.stripLengdeMm, plates: antall / metersPerPlate }
+            : null;
+    }).filter(function(x) { return x && x.plates > 0; });
+    if (!perOrient.length) return 0;
+    var orient = String(material.kappeOrient || '').trim();
+    // 'L' = strimler langs platelengden, 'W' = langs platebredden.
+    if (orient === 'L' || orient === 'W') {
+        var wantSlm = (orient === 'L') ? pL : pW;
+        var hit = null;
+        for (var i = 0; i < perOrient.length; i++) {
+            if (Math.abs(perOrient[i].slm - wantSlm) < 0.5) { hit = perOrient[i]; break; }
+        }
+        if (hit) return _ceilToHalf(hit.plates);
+    }
+    // Default 'auto': konservativ — retningen som krever flest plater (mest
+    // svinn). Beskytter mot under-fakturering hvis montøren var mindre
+    // effektiv enn optimalt.
+    return _ceilToHalf(Math.max.apply(null, perOrient.map(function(x) { return x.plates; })));
+}
+
+// Begge kappe-retninger for UI: { auto, L:{slm,plates}, W:{slm,plates} }.
+// L = strimler langs platelengden, W = langs platebredden. Brukes til å
+// vise begge tall i Isolering-popupen så bruker kan velge retning per rad.
+function calcKappePlateOrientations(material) {
+    var res = { auto: 0, L: null, W: null };
+    if (!material) return res;
+    var antall = parseFloat(String(material.antall || '0').replace(',', '.'));
+    if (!antall || antall <= 0) return res;
+    if (material.specMode !== 'bredde' || !material.bredde || !material.plate) return res;
+    var bredde = String(material.bredde).replace(/mm$/i, '');
+    var pL = parseFloat(String(material.plate.length || '').replace(',', '.'));
+    var pW = parseFloat(String(material.plate.width || '').replace(',', '.'));
+    if (!pL || !pW || typeof _calcKappeWN630 !== 'function') return res;
+    var wn = _calcKappeWN630(bredde, antall, '1', pL, pW, getKappeKerf(), '1', '1');
+    if (!wn || !wn.langs || !wn.langs.length) return res;
+    var all = [];
+    wn.langs.forEach(function(o) {
+        if (!o.stripes || o.stripes < 1 || !o.stripLengde) return;
+        var mpp = o.stripes * o.stripLengde;
+        if (mpp <= 0) return;
+        var p = _ceilToHalf(antall / mpp);
+        all.push(p);
+        if (Math.abs(o.stripLengdeMm - pL) < 0.5) res.L = { slm: pL, plates: p };
+        if (Math.abs(o.stripLengdeMm - pW) < 0.5) res.W = { slm: pW, plates: p };
+    });
+    if (all.length) res.auto = _ceilToHalf(Math.max.apply(null, wn.langs.map(function(o) {
+        return (o.stripes >= 1 && o.stripLengde) ? antall / (o.stripes * o.stripLengde) : 0;
+    })));
+    return res;
 }
 
 // Formaterer plate-antall for visning: alltid én desimal for visuell konsistens
@@ -2095,6 +2140,7 @@ function createMaterialSummaryRow(m, groupBaseName) {
     if (m.lmPerSide) div.setAttribute('data-mat-lm-per-side', m.lmPerSide);
     if (m.antallObjekter) div.setAttribute('data-mat-antall-objekter', m.antallObjekter);
     if (m.sider) div.setAttribute('data-mat-sider', m.sider);
+    if (m.kappeOrient) div.setAttribute('data-mat-kappe-orient', m.kappeOrient);
     var nameFormatted;
     if (groupBaseName) {
         // Grouped sub-row: show just the spec/variant part
@@ -2249,6 +2295,21 @@ function renderMaterialSummary(matContainer, materials) {
             }
         }
     });
+    _updateAddMatBtnState(matContainer);
+}
+
+// Når materialer er lagt til skal "+ Materialer"-knappen vise det tydelig
+// (egen stil + endret tekst), så den ikke ser identisk ut tom vs. utfylt.
+function _updateAddMatBtnState(matContainer) {
+    if (!matContainer) return;
+    var section = matContainer.closest('.mobile-order-materials-section');
+    var btn = section ? section.querySelector('.mobile-add-mat-btn') : null;
+    if (!btn) return;
+    var hasMat = !!matContainer.querySelector('.mobile-material-row');
+    btn.classList.toggle('has-materials', hasMat);
+    btn.textContent = hasMat
+        ? t('order_edit_material')
+        : '+ ' + t('order_add_material');
 }
 
 function getMaterialsFromContainer(matContainer) {
@@ -2269,6 +2330,7 @@ function getMaterialsFromContainer(matContainer) {
         const lmPerSide = row.getAttribute('data-mat-lm-per-side') || '';
         const antallObjekter = row.getAttribute('data-mat-antall-objekter') || '';
         const sider = row.getAttribute('data-mat-sider') || '';
+        const kappeOrient = row.getAttribute('data-mat-kappe-orient') || '';
         if (name || antall || enhet) {
             var mat = { name, antall, enhet };
             if (source) mat.source = source;
@@ -2279,6 +2341,7 @@ function getMaterialsFromContainer(matContainer) {
             if (lmPerSide) mat.lmPerSide = lmPerSide;
             if (antallObjekter) mat.antallObjekter = antallObjekter;
             if (sider) mat.sider = sider;
+            if (kappeOrient) mat.kappeOrient = kappeOrient;
             materials.push(mat);
         }
     });
@@ -2452,6 +2515,7 @@ function openMaterialPicker(btn, onConfirm) {
             if (m.lmPerSide) materialState.lmPerSide = m.lmPerSide;
             if (m.antallObjekter) materialState.antallObjekter = m.antallObjekter;
             if (m.sider) materialState.sider = m.sider;
+            if (m.kappeOrient) materialState.kappeOrient = m.kappeOrient;
             if (pickerState[storageKey]) {
                 if (!dupCounters[storageKey]) dupCounters[storageKey] = 1;
                 dupCounters[storageKey]++;
@@ -2629,6 +2693,7 @@ function openMaterialPicker(btn, onConfirm) {
             if (usage.lmPerSide) pickerState[addedKey].lmPerSide = usage.lmPerSide;
             if (usage.antallObjekter) pickerState[addedKey].antallObjekter = usage.antallObjekter;
             if (usage.sider) pickerState[addedKey].sider = usage.sider;
+            if (usage.kappeOrient) pickerState[addedKey].kappeOrient = usage.kappeOrient;
         }
         return addedKey;
     }
@@ -2664,7 +2729,8 @@ function openMaterialPicker(btn, onConfirm) {
                 lmPerSide: selection.lmPerSide || '',
                 antallObjekter: selection.antallObjekter || '',
                 sider: selection.sider || '',
-                computedTotalLm: selection.computedTotalLm || ''
+                computedTotalLm: selection.computedTotalLm || '',
+                kappeOrient: selection.kappeOrient || ''
             });
         // Festemiddel: antall fylles nå i popupen (selection.antall) — analogt med
         // computedTotalLm for isolasjon. Vinner over bevart rad-verdi.
@@ -2714,7 +2780,8 @@ function openMaterialPicker(btn, onConfirm) {
                     bredde: st.bredde || '',
                     lmPerSide: st.lmPerSide || '',
                     antallObjekter: st.antallObjekter || '',
-                    sider: st.sider || ''
+                    sider: st.sider || '',
+                    kappeOrient: st.kappeOrient || ''
                 });
             }
         });
@@ -3765,6 +3832,7 @@ function pickerOverlayConfirm() {
                 if (state.lmPerSide) material.lmPerSide = state.lmPerSide;
                 if (state.antallObjekter) material.antallObjekter = state.antallObjekter;
                 if (state.sider) material.sider = state.sider;
+                if (state.kappeOrient) material.kappeOrient = state.kappeOrient;
             }
             materials.push(material);
         }
@@ -4072,13 +4140,20 @@ function openDagTimerModal(btn) {
         inp.type = 'text';
         inp.className = 'dag-timer-modal-input';
         inp.inputMode = 'decimal';
-        inp.placeholder = 'Timer';
+        inp.placeholder = '0';
         inp.dataset.dag = dag;
         inp.value = timer[dag] || '';
+        var inpWrap = document.createElement('div');
+        inpWrap.className = 'dag-timer-input-wrap';
+        var unit = document.createElement('span');
+        unit.className = 'dag-timer-unit';
+        unit.textContent = 't';
+        inpWrap.appendChild(inp);
+        inpWrap.appendChild(unit);
         var planUi = makePlanUi(dag, dayPlans[dag] || '');
         topRow.appendChild(label);
         topRow.appendChild(planUi.trigger);
-        topRow.appendChild(inp);
+        topRow.appendChild(inpWrap);
         row.appendChild(topRow);
         row.appendChild(planUi.values);
         list.appendChild(row);
@@ -4098,12 +4173,20 @@ function openDagTimerModal(btn) {
     genInp.inputMode = 'decimal';
     genInp.placeholder = 'Timer';
     genInp.id = 'dag-timer-generelt-input';
+    genInp.placeholder = '0';
     genInp.value = timer._generelt || timer._total || '';
+    var genInpWrap = document.createElement('div');
+    genInpWrap.className = 'dag-timer-input-wrap';
+    var genUnit = document.createElement('span');
+    genUnit.className = 'dag-timer-unit';
+    genUnit.textContent = 't';
+    genInpWrap.appendChild(genInp);
+    genInpWrap.appendChild(genUnit);
     var genPlanVal = dayPlans._generelt || (legacyPlan && Object.keys(dayPlans).length === 0 ? legacyPlan : '');
     var genPlanUi = makePlanUi('_generelt', genPlanVal);
     genTopRow.appendChild(genLabel);
     genTopRow.appendChild(genPlanUi.trigger);
-    genTopRow.appendChild(genInp);
+    genTopRow.appendChild(genInpWrap);
     genRow.appendChild(genTopRow);
     genRow.appendChild(genPlanUi.values);
     list.appendChild(genRow);
@@ -4131,6 +4214,7 @@ function closeDagTimerModal(confirmed) {
         modal.removeEventListener('touchmove', dagTimerBlockScroll);
         modal.removeEventListener('wheel', dagTimerBlockScroll);
         dagTimerActiveCard = null;
+        _maybeReturnToTimerOverview();
         return;
     }
     const list = document.getElementById('dag-timer-modal-list');
@@ -4194,6 +4278,16 @@ function closeDagTimerModal(confirmed) {
     }
     updateDagTimerSummary(dagTimerActiveCard);
     dagTimerActiveCard = null;
+    if (typeof updateTimerChip === 'function') updateTimerChip();
+    _maybeReturnToTimerOverview();
+}
+
+// Åpnet Dager & tid fra Timer-oversikten? Gå tilbake dit (oppdatert) ved
+// både OK og Avbryt, så brukeren blir værende i oversikts-flyten.
+function _maybeReturnToTimerOverview() {
+    if (!window._timerOverviewReturn) return;
+    window._timerOverviewReturn = false;
+    if (typeof openTimerOverview === 'function') openTimerOverview();
 }
 
 function scrollCardToTop(card, smooth) {
@@ -4239,6 +4333,7 @@ function renumberOrders() {
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach((card) => {
         updateOrderTitle(card);
     });
+    if (typeof updateTimerChip === 'function') updateTimerChip();
 }
 
 function addOrder() {
