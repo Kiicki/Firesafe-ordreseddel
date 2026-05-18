@@ -9230,8 +9230,8 @@ function _createIsoCardBlock(sel) {
         '<div class="iso-block-kapp-rows"></div>' +
         '<div class="iso-block-plate-rows"></div>' +
         '<div class="kappe-add-row-buttons">' +
-            '<button type="button" class="kappe-add-kapp-btn" onclick="_isoCardAddRow(this)">+ <span data-i18n="kappe_add_kapp">Legg til kapp</span></button>' +
-            '<button type="button" class="kappe-add-kapp-btn" onclick="_isoCardAddPlateRow(this)">+ <span data-i18n="kappe_add_plate">Legg til plate</span></button>' +
+            '<button type="button" class="kappe-add-kapp-btn" onpointerdown="event.preventDefault()" onclick="_isoCardAddRow(this)">+ <span data-i18n="kappe_add_kapp">Legg til kapp</span></button>' +
+            '<button type="button" class="kappe-add-kapp-btn" onpointerdown="event.preventDefault()" onclick="_isoCardAddPlateRow(this)">+ <span data-i18n="kappe_add_plate">Legg til plate</span></button>' +
         '</div>';
     return block;
 }
@@ -9280,7 +9280,12 @@ function _isoCardAddRow(btn) {
     var block = _isoCardBlockOf(btn);
     var container = block ? block.querySelector('.iso-block-kapp-rows') : null;
     if (!container) return;
-    container.appendChild(_createIsoCardRow({}));
+    var newRow = _createIsoCardRow({});
+    container.appendChild(newRow);
+    // Fokus den nye radens første felt SYNKRONT i samme tap-gest, så
+    // skjermtastaturet forblir åpent (slipper å trykke på feltet igjen).
+    var firstInp = newRow.querySelector('.isc-bredde');
+    if (firstInp) { try { firstInp.focus({ preventScroll: true }); } catch (e) { firstInp.focus(); } }
     _updateIsoCardTotal();
     if (typeof applyTranslations === 'function') applyTranslations();
     _anchorIsoCardTop();
@@ -9322,7 +9327,10 @@ function _isoCardAddPlateRow(btn) {
     var block = _isoCardBlockOf(btn);
     var c = block ? block.querySelector('.iso-block-plate-rows') : null;
     if (!c) return;
-    c.appendChild(_createIsoCardPlateRow({}));
+    var newRow = _createIsoCardPlateRow({});
+    c.appendChild(newRow);
+    var firstInp = newRow.querySelector('.isc-plate-antall');
+    if (firstInp) { try { firstInp.focus({ preventScroll: true }); } catch (e) { firstInp.focus(); } }
     _updateIsoCardModeIndicators();
     if (typeof applyTranslations === 'function') applyTranslations();
     _anchorIsoCardTop();
