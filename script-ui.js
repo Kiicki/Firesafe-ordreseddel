@@ -6148,12 +6148,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 && typeof isKeyboardOpeningElement === 'function'
                 && isKeyboardOpeningElement(document.activeElement));
             ensureContentObserver(s, isActive, keyboardOpen);
-            if ((!keyboardOpen && !focusInPopup) || !isActive) {
+            // Sticky: når popupen FØRST er tastatur-posisjonert, behold den
+            // posisjonert så lenge backdropen er aktiv. Kortvarig fokus-tap
+            // (trykk på Stk/Meter-knapp, feltbytte med display:none) skal
+            // IKKE trigge reset → ellers animerer den ned og opp igjen
+            // («lukker/åpner kjapt»). Reset KUN når popupen faktisk lukkes.
+            if (!isActive) {
+                if (backdrop) delete backdrop.dataset.specKbd;
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
                 return;
             }
+            var stickyKbd = !!(backdrop && backdrop.dataset.specKbd === '1');
+            if (!keyboardOpen && !focusInPopup && !stickyKbd) {
+                // Aktiv popup uten tastatur og aldri posisjonert → normal.
+                s.style.removeProperty('max-height');
+                s.style.transform = '';
+                s.style.transition = '';
+                return;
+            }
+            if (backdrop) backdrop.dataset.specKbd = '1';
             // Fjern ev. topp-forankrings-marginTop som ellers offset'er
             // posisjonen — transform-en under eier nå plasseringen helt.
             if (backdrop) backdrop.classList.remove('popup-top-anchored');
@@ -9135,8 +9150,15 @@ function _applyPopupTopAnchor(popupId, tallestH) {
     if (!p || !p.classList.contains('active')) return;
     var sheet = p.querySelector('.spec-popup-sheet');
     if (!sheet) return;
-    if (document.body.classList.contains('keyboard-open')) {
-        // Tastatur åpent: la applyKeyboardLayout eie posisjonen.
+    // La applyKeyboardLayout eie posisjonen når tastatur/fokus er aktivt
+    // (keyboard-open ELLER sticky tastatur-modus ELLER et felt i popupen
+    // har fokus) — ellers setter denne en konkurrerende marginTop som gir
+    // «hopp» ved åpning og Stk/Meter-bytte.
+    var focusedInside = p.contains(document.activeElement)
+        && typeof isKeyboardOpeningElement === 'function'
+        && isKeyboardOpeningElement(document.activeElement);
+    if (document.body.classList.contains('keyboard-open')
+        || p.dataset.specKbd === '1' || focusedInside) {
         p.classList.remove('popup-top-anchored');
         sheet.style.marginTop = '';
         sheet.style.minHeight = '';
@@ -9156,8 +9178,15 @@ function _clearPopupTopAnchor(popupId) {
     var p = document.getElementById(popupId);
     if (!p) return;
     p.classList.remove('popup-top-anchored');
+    delete p.dataset.specKbd;
     var sheet = p.querySelector('.spec-popup-sheet');
-    if (sheet) { sheet.style.marginTop = ''; sheet.style.minHeight = ''; }
+    if (sheet) {
+        sheet.style.marginTop = '';
+        sheet.style.minHeight = '';
+        sheet.style.removeProperty('max-height');
+        sheet.style.transform = '';
+        sheet.style.transition = '';
+    }
 }
 window._clearPopupTopAnchor = _clearPopupTopAnchor;
 
@@ -9170,7 +9199,12 @@ function _reconcileTopAnchorsForKeyboard(keyboardOpen) {
         if (!p || !p.classList.contains('active')) return;
         var sheet = p.querySelector('.spec-popup-sheet');
         if (!sheet) return;
-        if (keyboardOpen) {
+        var focusedInside = p.contains(document.activeElement)
+            && typeof isKeyboardOpeningElement === 'function'
+            && isKeyboardOpeningElement(document.activeElement);
+        if (keyboardOpen || p.dataset.specKbd === '1' || focusedInside) {
+            // applyKeyboardLayout eier posisjonen — ikke sett konkurrerende
+            // marginTop (ga «hopp» ved åpning/Stk-Meter-bytte).
             p.classList.remove('popup-top-anchored');
             sheet.style.marginTop = '';
             sheet.style.minHeight = '';

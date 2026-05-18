@@ -3608,7 +3608,10 @@ function openSpecPopup(baseName, callback, matType, prefill) {
         // Prefill av meter-rad: åpne i meter-modus.
         toggleSpecMeterMode();
     } else {
-        setTimeout(function() { input.focus(); }, 100);
+        // Fokuser synkront i samme gest: da er fokus i popupen FØR første
+        // applyKeyboardLayout-apply, så popupen posisjoneres rett (ingen
+        // «anker → snap til topp»-hopp ved åpning).
+        try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
     }
     requestAnimationFrame(_anchorSpecPopupTop);
 }
