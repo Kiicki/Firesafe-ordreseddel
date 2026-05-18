@@ -6003,6 +6003,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // keyboard-open brukes fortsatt til modal/overlay-height.
         document.body.classList.toggle('keyboard-open', keyboardOpen);
 
+        // Topp-forankrede popuper (spec/FSC/FSW/kabelhylse, iso-kort): suspender
+        // marginTop mens tastatur er åpent (den regnes fra full skjermhøyde og
+        // ville dyttet inputs/knapper bak tastaturet); re-forankres ved lukking.
+        // Må skje FØR popup-cap-en under, så cap/translate ser ren posisjon.
+        if (typeof _reconcileTopAnchorsForKeyboard === 'function') {
+            _reconcileTopAnchorsForKeyboard(keyboardOpen);
+        }
+
         // --- Modal-views: krymp til synlig viewport ---
         MODAL_VIEW_IDS.forEach(function(id) {
             var view = document.getElementById(id);
@@ -9050,11 +9058,28 @@ function _unlockPopupSheetHeight(popupId) {
 // flytter seg ikke når man bytter modus; boksen krymper/vokser nedenfra, ingen
 // tomrom. Offset ≥16px så `applyKeyboardLayout` (live getBoundingClientRect)
 // beholder headroom til å løfte popupen over tastaturet.
+// Topp-forankring (Apple-mønster: toppen/toggle står fast ved modus-bytte).
+// Husker ønsket tallestH pr. popup, så den kan re-forankres når tastaturet
+// lukkes. KRITISK: marginTop regnes fra FULL skjermhøyde. Når tastaturet er
+// åpent ville den dyttet inputs/knapper bak tastaturet — derfor suspenderes
+// forankringen mens tastaturet er åpent, og applyKeyboardLayout sin piksel-
+// cap + translate eier posisjonen (eksakt som de fungerende confirm-modal-
+// popupene). Reaktiveres automatisk når tastaturet lukkes.
+var _pendingTopAnchors = {};
+
 function _applyPopupTopAnchor(popupId, tallestH) {
+    if (tallestH > 0) _pendingTopAnchors[popupId] = tallestH;
     var p = document.getElementById(popupId);
     if (!p || !p.classList.contains('active')) return;
     var sheet = p.querySelector('.spec-popup-sheet');
     if (!sheet) return;
+    if (document.body.classList.contains('keyboard-open')) {
+        // Tastatur åpent: la applyKeyboardLayout eie posisjonen.
+        p.classList.remove('popup-top-anchored');
+        sheet.style.marginTop = '';
+        sheet.style.minHeight = '';
+        return;
+    }
     var vh = window.innerHeight || 800;
     var off = Math.round((vh - tallestH) / 2);
     if (off < 16) off = 16;
@@ -9065,6 +9090,7 @@ function _applyPopupTopAnchor(popupId, tallestH) {
 window._applyPopupTopAnchor = _applyPopupTopAnchor;
 
 function _clearPopupTopAnchor(popupId) {
+    delete _pendingTopAnchors[popupId];
     var p = document.getElementById(popupId);
     if (!p) return;
     p.classList.remove('popup-top-anchored');
@@ -9072,6 +9098,31 @@ function _clearPopupTopAnchor(popupId) {
     if (sheet) { sheet.style.marginTop = ''; sheet.style.minHeight = ''; }
 }
 window._clearPopupTopAnchor = _clearPopupTopAnchor;
+
+// Kalt fra applyKeyboardLayout ved hver tastatur-tilstandsendring: når
+// tastaturet er åpent fjernes topp-forankringens marginTop (cap/translate
+// overtar); når det lukkes re-forankres aktive popuper fra husket høyde.
+function _reconcileTopAnchorsForKeyboard(keyboardOpen) {
+    Object.keys(_pendingTopAnchors).forEach(function(popupId) {
+        var p = document.getElementById(popupId);
+        if (!p || !p.classList.contains('active')) return;
+        var sheet = p.querySelector('.spec-popup-sheet');
+        if (!sheet) return;
+        if (keyboardOpen) {
+            p.classList.remove('popup-top-anchored');
+            sheet.style.marginTop = '';
+            sheet.style.minHeight = '';
+        } else {
+            var vh = window.innerHeight || 800;
+            var off = Math.round((vh - _pendingTopAnchors[popupId]) / 2);
+            if (off < 16) off = 16;
+            p.classList.add('popup-top-anchored');
+            sheet.style.minHeight = '';
+            sheet.style.marginTop = off + 'px';
+        }
+    });
+}
+window._reconcileTopAnchorsForKeyboard = _reconcileTopAnchorsForKeyboard;
 
 // "Fjern produkt"-knapp i produkt-velgeren: nullstiller linjens produkt.
 function clearKappeLineProductFromPicker() {

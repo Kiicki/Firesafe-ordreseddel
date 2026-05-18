@@ -3682,6 +3682,10 @@ label.settings-default-label.field-required > span::after {
     flex-direction: column;
     box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     transition: transform 0.15s ease-out;
+    /* Kun .spec-popup-body scroller internt; selve sheeten klipper så
+       header + Avbryt/OK aldri dyttes ut når max-height cappes (av 80vh
+       eller applyKeyboardLayout sin tastatur-piksel-cap). */
+    overflow: hidden;
 }
 .spec-popup-header {
     font-weight: 600;
@@ -3689,6 +3693,7 @@ label.settings-default-label.field-required > span::after {
     margin-bottom: 12px;
     text-align: center;
     color: #333;
+    flex-shrink: 0;
 }
 .spec-popup-body {
     display: flex;
@@ -3732,6 +3737,7 @@ label.settings-default-label.field-required > span::after {
     display: flex;
     gap: 8px;
     margin-top: 16px;
+    flex-shrink: 0;
 }
 .spec-popup-cancel, .spec-popup-ok, .spec-popup-confirm {
     flex: 1;
@@ -7460,17 +7466,6 @@ body.kappe-view-open #view-form { display: none; }
 }
 #iso-card-popup .spec-popup-sheet {
     gap: 10px;
-}
-/* Sikkerhetsnett: når tastaturet er åpent skal Avbryt/Velg ALLTID kunne
-   nås. Bakgrunnen blir scrollbar og toppstilt, så selv om tastatur-
-   deteksjonen bommer på enheten, kan brukeren alltid scrolle til
-   footeren (i stedet for å bli fanget uten tilgang). Den ordinære
-   piksel-cap-en i applyKeyboardLayout virker fortsatt når den treffer. */
-body.keyboard-open #iso-card-popup.spec-popup-backdrop {
-    align-items: flex-start;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 8px 0 12px;
 }
 #iso-card-popup .spec-popup-header {
     margin-bottom: 0;
