@@ -5965,6 +5965,19 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll(POPUP_BACKDROP_SELECTOR).forEach(function(b) {
             if (b.classList.contains('active')) activePopupSig += b.id + ',';
         });
+        // Fokus i et redigerbart felt inni en aktiv popup må være en del av
+        // state-signaturen — ellers deduper state-memo'en bort apply'en når
+        // tastatur-deteksjonen bommer (keyboardOpen uendret), og den fokus-
+        // baserte popup-cap-en ville aldri kjørt.
+        var popupFocusSig = '';
+        (function() {
+            var ae = document.activeElement;
+            if (ae && typeof isKeyboardOpeningElement === 'function' && isKeyboardOpeningElement(ae)
+                && ae.closest) {
+                var bd = ae.closest(POPUP_BACKDROP_SELECTOR);
+                if (bd && bd.classList.contains('active')) popupFocusSig = bd.id || '1';
+            }
+        })();
         var activeOverlaySig = '';
         FULLSCREEN_OVERLAY_IDS.forEach(function(id) {
             var o = document.getElementById(id);
@@ -5992,6 +6005,7 @@ document.addEventListener('DOMContentLoaded', function() {
             (activeId || '') + '|' +
             activeModalBodySig + '|' +
             activePopupSig + '|' +
+            popupFocusSig + '|' +
             activeOverlaySig + '|' +
             inntakMode;
         if (stateKey === lastAppliedState && !forceNextApply) return;
@@ -6111,21 +6125,39 @@ document.addEventListener('DOMContentLoaded', function() {
         // synlig viewport. Dette må baseres på getBoundingClientRect(), ikke
         // window.innerHeight/2, fordi noen popups ligger i backdrops som selv
         // krympes når tastaturet er åpent.
+        // Tilgjengelig høyde = den MINSTE av visualViewport.height og
+        // window.innerHeight. Robust på tvers av nettlesere: Chrome/Safari
+        // krymper visualViewport når tastaturet åpnes, Firefox Android
+        // krymper ofte window.innerHeight i stedet. Å bruke kun vv.height
+        // (som før) gjorde at cap-en ikke virket på Firefox Android.
+        var _vvH = window.visualViewport ? window.visualViewport.height : (window.innerHeight || 0);
+        var _vvTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
+        var visH = Math.min(_vvH, window.innerHeight || _vvH);
+        var visBottom = _vvTop + visH;
+
         var allContents = document.querySelectorAll(POPUP_CONTENT_SELECTOR);
         allContents.forEach(function(s) {
             var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
             var isActive = !!(backdrop && backdrop.classList.contains('active'));
+            // Fokus i en popup er et 100% pålitelig signal — uavhengig av
+            // flaky viewport-deteksjon. Cap også når et redigerbart felt
+            // inni popupen har fokus, så footeren aldri havner bak
+            // tastaturet selv om keyboardOpen ikke ble detektert.
+            var focusInPopup = !!(backdrop && isActive
+                && backdrop.contains(document.activeElement)
+                && typeof isKeyboardOpeningElement === 'function'
+                && isKeyboardOpeningElement(document.activeElement));
             ensureContentObserver(s, isActive, keyboardOpen);
-            if (!keyboardOpen || !isActive) {
+            if ((!keyboardOpen && !focusInPopup) || !isActive) {
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 return;
             }
-            var maxH = Math.max(180, vv.height - KEYBOARD_MARGIN * 2);
+            var maxH = Math.max(180, visH - KEYBOARD_MARGIN * 2);
             s.style.setProperty('max-height', maxH + 'px', 'important');
             s.style.transform = '';
 
-            var desiredBottom = fullHeight - KEYBOARD_MARGIN;
+            var desiredBottom = visBottom - KEYBOARD_MARGIN;
             var rect = s.getBoundingClientRect();
             var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
             var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
