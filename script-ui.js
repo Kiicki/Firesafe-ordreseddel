@@ -9290,6 +9290,21 @@ function _isoCardAddRow(btn) {
     if (typeof applyTranslations === 'function') applyTranslations();
     _anchorIsoCardTop();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    _isoCardScrollRowIntoView(newRow);
+}
+
+// Scroll den nye/aktive raden inn i synlig område i #iso-card-scroll.
+// preventScroll på focus() hindrer browserens auto-scroll (unngår hopp),
+// så vi scroller eksplisitt etter at layout/applyKeyboardLayout har satt
+// seg (neste frame), slik at raden + «+ Legg til»-knappene er synlige.
+function _isoCardScrollRowIntoView(row) {
+    if (!row || !row.scrollIntoView) return;
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            try { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+            catch (e) { row.scrollIntoView(false); }
+        });
+    });
 }
 window._isoCardAddRow = _isoCardAddRow;
 
@@ -9335,6 +9350,7 @@ function _isoCardAddPlateRow(btn) {
     if (typeof applyTranslations === 'function') applyTranslations();
     _anchorIsoCardTop();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    _isoCardScrollRowIntoView(newRow);
 }
 window._isoCardAddPlateRow = _isoCardAddPlateRow;
 function _isoCardRemovePlateRow(btn) {
