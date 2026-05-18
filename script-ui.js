@@ -6153,15 +6153,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 s.style.transform = '';
                 return;
             }
-            var maxH = Math.max(180, visH - KEYBOARD_MARGIN * 2);
-            s.style.setProperty('max-height', maxH + 'px', 'important');
-            s.style.transform = '';
+            // Fjern ev. topp-forankrings-marginTop som ellers offset'er
+            // posisjonen — transform-en under eier nå plasseringen helt.
+            if (backdrop) backdrop.classList.remove('popup-top-anchored');
+            s.style.marginTop = '';
 
-            var desiredBottom = visBottom - KEYBOARD_MARGIN;
-            var rect = s.getBoundingClientRect();
-            var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
-            var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
-            s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
+            var innerH = window.innerHeight || visH;
+            // Krympte viewporten REELT? (Chrome-fane: visualViewport krymper
+            // når tastaturet åpnes → vi har presise tall.) I en installert
+            // PWA OVERLAPPER tastaturet uten å krympe noe — da finnes ingen
+            // pålitelig høyde, og vi må topp-forankre med en trygg cap.
+            var viewportShrank = visH < (innerH * 0.85);
+            if (viewportShrank) {
+                var maxH = Math.max(180, visH - KEYBOARD_MARGIN * 2);
+                s.style.setProperty('max-height', maxH + 'px', 'important');
+                s.style.transform = '';
+                var desiredBottom = visBottom - KEYBOARD_MARGIN;
+                var rect = s.getBoundingClientRect();
+                var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
+                var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
+                s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
+            } else {
+                // PWA-overlay: topp-forankre popupen i øvre del av skjermen
+                // (et Android-tastatur ligger alltid i nedre ~halvdel), cap
+                // høyden trygt, og la .spec-popup-body scrolle internt med
+                // header + Avbryt/OK låst.
+                var safeH = Math.max(200, Math.round(innerH * 0.46));
+                s.style.setProperty('max-height', safeH + 'px', 'important');
+                s.style.transform = '';
+                var rect2 = s.getBoundingClientRect();
+                var lift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
+                s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
+            }
         });
 
         // Confirm-modal padding-bottom håndteres nå via CSS-regelen
