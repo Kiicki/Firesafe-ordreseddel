@@ -7501,6 +7501,11 @@ body.keyboard-open #iso-card-popup.spec-popup-backdrop {
     /* Luft mellom slett-knappene og scrollbaren (ellers ligger de helt
        inntil scroll-kanten). */
     padding-right: 8px;
+    /* Pusterom nederst så «+ Legg til isolasjonsprodukt» / Festemidler
+       ikke ligger helt inntil (og delvis bak) den faste footeren når
+       man scroller til bunns. */
+    padding-bottom: 14px;
+    scroll-padding-bottom: 14px;
 }
 /* Rad-containere flyter normalt inni scroll-wrapperen (ingen egen scroll).
    Avstand mellom rader via margin-bottom på raden (ikke container-gap), så
