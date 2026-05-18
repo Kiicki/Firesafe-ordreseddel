@@ -9239,11 +9239,13 @@ function _createIsoCardBlock(sel) {
 function _isoCardAddProductBlock() {
     var c = document.getElementById('iso-card-blocks');
     if (!c) return;
-    c.appendChild(_createIsoCardBlock(null));
+    var newBlock = _createIsoCardBlock(null);
+    c.appendChild(newBlock);
     _updateIsoCardBlockRemoveStates();
     if (typeof applyTranslations === 'function') applyTranslations();
     _anchorIsoCardTop();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    _isoCardScrollRowIntoView(newBlock);
 }
 window._isoCardAddProductBlock = _isoCardAddProductBlock;
 
@@ -9298,11 +9300,32 @@ function _isoCardAddRow(btn) {
 // så vi scroller eksplisitt etter at layout/applyKeyboardLayout har satt
 // seg (neste frame), slik at raden + «+ Legg til»-knappene er synlige.
 function _isoCardScrollRowIntoView(row) {
-    if (!row || !row.scrollIntoView) return;
+    if (!row) return;
+    var scroller = document.getElementById('iso-card-scroll');
+    function doScroll() {
+        if (!row || !row.isConnected) return;
+        if (scroller && scroller.contains(row)) {
+            // Eksplisitt scroll av selve den interne containeren. getBounding-
+            // ClientRect-delta er upåvirket av popup-transform (begge i samme
+            // transformerte popup), så dette er robust med tastatur åpent.
+            var elRect = row.getBoundingClientRect();
+            var scRect = scroller.getBoundingClientRect();
+            var delta = (elRect.top - scRect.top);
+            var target = scroller.scrollTop + delta
+                - Math.max(0, (scroller.clientHeight - row.offsetHeight) / 2);
+            var maxScroll = scroller.scrollHeight - scroller.clientHeight;
+            scroller.scrollTop = Math.max(0, Math.min(target, maxScroll));
+        } else if (row.scrollIntoView) {
+            try { row.scrollIntoView({ block: 'center' }); } catch (e) {}
+        }
+    }
+    // To rAF: etter layout/applyKeyboardLayout. + settle-fallback (350ms)
+    // fordi applyKeyboardLayout har en 250ms settle-timer som kan re-
+    // translere popupen etter tastatur-animasjon.
     requestAnimationFrame(function() {
         requestAnimationFrame(function() {
-            try { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
-            catch (e) { row.scrollIntoView(false); }
+            doScroll();
+            setTimeout(doScroll, 350);
         });
     });
 }
@@ -9477,6 +9500,10 @@ function _isoCardOpenFastenerPicker() {
             if (typeof applyTranslations === 'function') applyTranslations();
             _anchorIsoCardTop();
             if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+            var fRows = c.querySelectorAll('.iso-card-fast-row');
+            _isoCardScrollRowIntoView(
+                fRows.length ? fRows[fRows.length - 1] : document.querySelector('.iso-card-fast-section')
+            );
         }
     });
 }
