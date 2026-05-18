@@ -1239,8 +1239,8 @@
             </div>
             <div class="spec-popup-body">
                 <div class="kappe-picker-mode-toggle spec-popup-mode-toggle" id="spec-popup-mode-toggle" style="display:none">
-                    <button type="button" class="kappe-picker-mode-btn active" data-mode="stk" onclick="_setSpecPopupMode('stk')">Stk</button>
-                    <button type="button" class="kappe-picker-mode-btn" data-mode="meter" onclick="_setSpecPopupMode('meter')">Meter</button>
+                    <button type="button" class="kappe-picker-mode-btn active" data-mode="stk" onpointerdown="event.preventDefault()" onclick="_setSpecPopupMode('stk')">Stk</button>
+                    <button type="button" class="kappe-picker-mode-btn" data-mode="meter" onpointerdown="event.preventDefault()" onclick="_setSpecPopupMode('meter')">Meter</button>
                 </div>
                 <div class="spec-popup-field">
                     <label id="spec-popup-label1" class="spec-popup-label"><span class="spec-required-star">*</span></label>
@@ -1672,7 +1672,7 @@
     </div>
 
     <script src="lang.js?v=242"></script>
-    <script src="script.js?v=436"></script>
+    <script src="script.js?v=437"></script>
     <script src="script-ui.js?v=778"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

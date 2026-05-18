@@ -3671,23 +3671,28 @@ function _setSpecPopupMode(mode) {
     var meterInput = document.getElementById('spec-popup-meter-input');
     var toggle = document.getElementById('spec-popup-mode-toggle');
 
+    // KRITISK rekkefølge: vis MÅL-feltet og flytt fokus dit SYNKRONT FØR vi
+    // skjuler det gamle. Skjuler vi det fokuserte feltet (display:none) mens
+    // det har fokus, blurrer browseren det → Android lukker tastaturet og
+    // åpner det igjen ved re-fokus («lukk/åpne et splittsekund»). Ved å
+    // flytte fokus først forblir tastaturet åpent kontinuerlig.
     if (specMeterMode) {
-        // Meter-modus: skjul dim-feltene, vis meter-input så bruker skriver meter direkte.
+        // Meter-modus: vis + fokuser meter-input, DERETTER skjul dim-feltene.
+        if (meterField) meterField.style.display = '';
+        if (meterInput) { try { meterInput.focus({ preventScroll: true }); } catch (e) { meterInput.focus(); } }
         if (field1) field1.style.display = 'none';
         if (field2) field2.style.display = 'none';
         if (field3) field3.style.display = 'none';
-        if (meterField) meterField.style.display = '';
-        if (meterInput) setTimeout(function() { meterInput.focus(); }, 50);
     } else {
-        // Stk-modus: vis dim-felter (field3 skjult for mansjett), skjul meter-input.
-        if (meterField) meterField.style.display = 'none';
+        // Stk-modus: vis + fokuser dim-felt, DERETTER skjul meter-input.
         if (field1) field1.style.display = '';
         if (field2) field2.style.display = '';
         if (field3) field3.style.display = (specPopupMatType === 'mansjett') ? 'none' : '';
         input1.disabled = false;
         input2.disabled = false;
         input3.disabled = false;
-        setTimeout(function() { input1.focus(); }, 50);
+        try { input1.focus({ preventScroll: true }); } catch (e) { input1.focus(); }
+        if (meterField) meterField.style.display = 'none';
     }
     if (toggle) {
         toggle.querySelectorAll('.kappe-picker-mode-btn').forEach(function(btn) {
