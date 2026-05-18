@@ -7460,6 +7460,9 @@ body.kappe-view-open #view-form { display: none; }
 }
 #iso-card-popup .spec-popup-sheet {
     gap: 10px;
+    /* Kun #iso-card-scroll scroller; sheet selv klipper så header/footer
+       (tittel, sum, Avbryt/Velg) aldri dyttes utenfor synlig område. */
+    overflow: hidden;
 }
 #iso-card-popup .spec-popup-header {
     margin-bottom: 0;

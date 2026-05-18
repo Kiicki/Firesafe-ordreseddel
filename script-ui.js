@@ -9661,15 +9661,15 @@ function _applyIsoCardProductType() {}
 // til en kortere modus IKKE flytter toppen (boksen krymper nedenfra, ingen
 // hopp). Vokser innhold (flere rader / Stk) → ratchet opp.
 var _isoCardMaxH = 0;
+// Iso-card-popupen har INGEN modus-toggle lenger (ingen Stk/Plate-bytte),
+// så topp-forankringen (som skulle hindre toggle-«hopp») er ikke lenger
+// nødvendig — og den kranglet med tastatur-håndteringen (margin-top regnet
+// fra full skjermhøyde dyttet Avbryt/Velg bak tastaturet). Popupen
+// sentreres nå normalt med max-height:80vh + intern scroll; applyKeyboard-
+// Layout eier piksel-cap + løft over tastatur, så footer alltid er synlig.
 function _anchorIsoCardTop() {
-    var popup = document.getElementById('iso-card-popup');
-    if (!popup || !popup.classList.contains('active')) return;
-    var sheet = popup.querySelector('.spec-popup-sheet');
-    if (!sheet) return;
-    sheet.style.minHeight = '';
-    var h = sheet.offsetHeight;
-    if (h > _isoCardMaxH) _isoCardMaxH = h;
-    if (_isoCardMaxH > 0) _applyPopupTopAnchor('iso-card-popup', _isoCardMaxH);
+    _isoCardMaxH = 0;
+    _clearPopupTopAnchor('iso-card-popup');
 }
 
 function _applyIsoCardMode() {
