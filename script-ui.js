@@ -6120,11 +6120,23 @@ document.addEventListener('DOMContentLoaded', function() {
             var overlay = document.getElementById(id);
             if (!overlay) return;
             var isOverlayActive = overlay.classList.contains('active');
-            if (kbdActive && isOverlayActive) {
+            // Krymp KUN når viewporten faktisk krympet (ekte tastatur-geometri).
+            // I installert PWA krymper ikke vv → vv.height = full skjerm; å
+            // sette height=full MENS CSS har bottom:0 over-constrainer fixed-
+            // posisjonering (Chrome-bug: fixed + top/bottom + height krever
+            // bottom:auto) → backdropen kollapser til en stripe og dekker ikke
+            // skjemaet bak (dim borte + bakgrunn scrollbar). Da: ikke rør
+            // overlayet — CSS inset:0 gir full backdrop, og bakgrunns-scroll-
+            // låsen (body:has(...)+#view-form overflow:hidden) griper. bottom:
+            // auto settes når vi FAKTISK krymper (unngår samme over-constraint).
+            var _realShrink = viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed;
+            if (kbdActive && isOverlayActive && _realShrink) {
                 overlay.style.top = vv.offsetTop + 'px';
+                overlay.style.bottom = 'auto';
                 overlay.style.height = vv.height + 'px';
             } else {
                 overlay.style.top = '';
+                overlay.style.bottom = '';
                 overlay.style.height = '';
             }
         });
