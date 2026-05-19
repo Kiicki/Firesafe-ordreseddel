@@ -5743,20 +5743,18 @@ document.addEventListener('DOMContentLoaded', function() {
         var toolbar = document.querySelector('.toolbar');
         if (!toolbar) return;
 
+        // REDESIGN: toolbaren reparenteres ALDRI for skjema-views. Den blir
+        // værende i <body> som siste element. Når skjemaet skrives i (CSS:
+        // body.kbd-editing / keyboard-focus) blir den aktive form-viewen
+        // position:static og toolbaren position:static → den havner naturlig
+        // som siste element i side-scrollen (scroll helt ned for å se den).
+        // Ingen flex-host / margin-top:auto-pinning som dyttet den over
+        // tastaturet. Her holder vi bare body-klassene + rydder defensivt.
         if (active) {
             if (isFormKeyboardTarget(focusedEl)) {
                 lastFormKeyboardTarget = focusedEl;
             }
-            var formHost = findFormToolbarHost(lastFormKeyboardTarget || focusedEl || document.activeElement);
-            if (!formHost) return;
-            stopToolbarGuard();
-            prepareKeyboardToolbarHost(formHost);
-            toolbar.classList.remove('toolbar--inflow');
-            toolbar.classList.add('toolbar--keyboard-form');
             document.body.classList.add('keyboard-open', 'keyboard-focus');
-            if (toolbar.parentNode !== formHost) {
-                formHost.appendChild(toolbar);
-            }
             return;
         }
 
@@ -5934,6 +5932,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // verdi. Dette unngår toolbar-bouncing når input kortvarig mister
         // fokus under scroll og browser midlertidig viser tastatur som lukket.
         var keyboardOpen = updateKeyboardState();
+        // EFFEKTIV tastatur-tilstand for ALL layout (modal/overlay/popup/
+        // toolbar). Viewport-deteksjon feiler i installert PWA (tastaturet
+        // overlapper uten å krympe viewport). Fokus på et tastatur-felt er
+        // derimot 100% pålitelig. IS_TOUCH-gating: på desktop åpnes ikke
+        // noe skjermtastatur ved fokus → kbdActive forblir false der.
+        var kbdActive = keyboardOpen
+            || (IS_TOUCH_DEVICE && typeof isKeyboardOpeningElement === 'function'
+                && isKeyboardOpeningElement(document.activeElement));
         var fullHeight = vv.offsetTop + vv.height;
         var activeView = document.querySelector('.view.active');
         var activeId = activeView ? activeView.id : null;
@@ -6001,6 +6007,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var inntakMode = document.body.classList.contains('servicebil-inntak-mode') ? '1' : '0';
         var stateKey =
             (keyboardOpen ? '1' : '0') + '|' +
+            (kbdActive ? '1' : '0') + '|' +
             (keyboardFocusActive ? '1' : '0') + '|' +
             (activeId || '') + '|' +
             activeModalBodySig + '|' +
@@ -6015,14 +6022,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- Toggle body.keyboard-open for physical keyboard state ---
         // Form-layout styres av body.keyboard-focus, ikke keyboard-open.
         // keyboard-open brukes fortsatt til modal/overlay-height.
-        document.body.classList.toggle('keyboard-open', keyboardOpen);
+        document.body.classList.toggle('keyboard-open', kbdActive);
 
         // Topp-forankrede popuper (spec/FSC/FSW/kabelhylse, iso-kort): suspender
         // marginTop mens tastatur er åpent (den regnes fra full skjermhøyde og
         // ville dyttet inputs/knapper bak tastaturet); re-forankres ved lukking.
         // Må skje FØR popup-cap-en under, så cap/translate ser ren posisjon.
         if (typeof _reconcileTopAnchorsForKeyboard === 'function') {
-            _reconcileTopAnchorsForKeyboard(keyboardOpen);
+            _reconcileTopAnchorsForKeyboard(kbdActive);
         }
 
         // --- Modal-views: krymp til synlig viewport ---
@@ -6030,7 +6037,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var view = document.getElementById(id);
             if (!view) return;
             var isModalActive = view.classList.contains('active');
-            if (keyboardOpen && isModalActive) {
+            if (kbdActive && isModalActive) {
                 view.style.top = vv.offsetTop + 'px';
                 view.style.bottom = 'auto';
                 view.style.height = vv.height + 'px';
@@ -6064,8 +6071,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // ødelegger den under re-rendering.
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
-            var formHost = formKeyboardMode ? findFormToolbarHost(lastFormKeyboardTarget) : null;
-            var modalHost = findToolbarScrollHost(keyboardOpen, activeId);
+            // REDESIGN: skjema-views reparenterer ALDRI toolbaren (formHost
+            // alltid null). Den blir i <body> og styres rent av CSS
+            // (body.kbd-editing/keyboard-focus → static, siste i scroll).
+            // Modal-views beholder sin --inflow-reparenting (modalHost).
+            var formHost = null;
+            var modalHost = findToolbarScrollHost(kbdActive, activeId);
             if (formHost) {
                 stopToolbarGuard();
                 prepareKeyboardToolbarHost(formHost);
@@ -6109,7 +6120,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var overlay = document.getElementById(id);
             if (!overlay) return;
             var isOverlayActive = overlay.classList.contains('active');
-            if (keyboardOpen && isOverlayActive) {
+            if (kbdActive && isOverlayActive) {
                 overlay.style.top = vv.offsetTop + 'px';
                 overlay.style.height = vv.height + 'px';
             } else {
@@ -6139,11 +6150,10 @@ document.addEventListener('DOMContentLoaded', function() {
         allContents.forEach(function(s) {
             var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
             var isActive = !!(backdrop && backdrop.classList.contains('active'));
-            ensureContentObserver(s, isActive, keyboardOpen);
-            // keyboardOpen er nå AUTORITATIVT (VirtualKeyboard API når det
-            // finnes, ellers viewport-krymp). Ingen fokus-/touch-gjetting:
-            // posisjoner KUN når tastaturet faktisk er åpent.
-            if (!isActive || !keyboardOpen) {
+            ensureContentObserver(s, isActive, kbdActive);
+            // Posisjoner når tastaturet er aktivt (kbdActive = viewport-krymp
+            // ELLER touch+fokus-felt → deterministisk, virker i PWA).
+            if (!isActive || !kbdActive) {
                 if (backdrop) backdrop.classList.remove('popup-top-anchored');
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
@@ -6151,27 +6161,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 s.style.marginTop = '';
                 return;
             }
-            // Tastatur åpent → applyKeyboardLayout eier posisjonen helt.
             if (backdrop) backdrop.classList.remove('popup-top-anchored');
             s.style.marginTop = '';
-            // Skru av transform-transition mens vi posisjonerer: ellers er
-            // sheeten midt i en 0.15s-animasjon når vi måler rect rett etter
-            // transform='' → feil løft → oscillasjon. Uten transition blir
-            // målingen eksakt og plasseringen idempotent.
+            // Transition av mens vi posisjonerer: ellers måles rect midt i
+            // en 0.15s-animasjon → feil løft → oscillasjon. Uten transition
+            // blir målingen eksakt og plasseringen idempotent.
             s.style.transition = 'none';
 
-            // Synlig bunn = visualViewport (krymper med tastatur i den
-            // dokumenterte resizes-visual-modellen). keyboardOpen er allerede
-            // verifisert sant her, så visBottom er det reelle synlige området.
-            var availBottom = visBottom;
-            var maxH = Math.max(180, availBottom - KEYBOARD_MARGIN * 2);
-            s.style.setProperty('max-height', maxH + 'px', 'important');
+            var innerH = window.innerHeight || visH;
+            // Krympte viewporten REELT? (Chrome-fane: visualViewport krymper
+            // når tastaturet åpnes → vi har presise tall.) I installert PWA
+            // overlapper tastaturet uten å krympe noe — da finnes ingen
+            // pålitelig tastaturhøyde; topp-forankre med trygg cap.
+            var viewportShrank = visH < (innerH * 0.85);
             s.style.transform = '';
-            var desiredBottom = availBottom - KEYBOARD_MARGIN;
-            var rect = s.getBoundingClientRect();
-            var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
-            var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
-            s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
+            if (viewportShrank) {
+                var maxH = Math.max(180, visBottom - KEYBOARD_MARGIN * 2);
+                s.style.setProperty('max-height', maxH + 'px', 'important');
+                var desiredBottom = visBottom - KEYBOARD_MARGIN;
+                var rect = s.getBoundingClientRect();
+                var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
+                var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
+                s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
+            } else {
+                // PWA-overlay: tastaturet ligger alltid i nedre ~halvdel.
+                // Topp-forankre popupen i øvre del + cap til trygg høyde;
+                // .spec-popup-body/innhold scroller internt, footer låst.
+                var safeH = Math.max(200, Math.round(innerH * 0.46));
+                s.style.setProperty('max-height', safeH + 'px', 'important');
+                var rect2 = s.getBoundingClientRect();
+                var lift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
+                s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
+            }
         });
 
         // Confirm-modal padding-bottom håndteres nå via CSS-regelen
@@ -6338,7 +6359,37 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() { ensureKeyboardTargetVisible(el); }, 280);
     }
 
+    // === Fokus-drevet skjema-tastatur (DETERMINISTISK) ===
+    // Tastatur-deteksjon via viewport feiler i installert PWA (tastaturet
+    // overlapper uten å krympe viewport). Fokus er derimot 100% pålitelig.
+    // body.kbd-editing settes når et skjema-tekstfelt på en touch-enhet får
+    // fokus → CSS gjør skjemaet til ett normalt scroll-dokument og toolbaren
+    // til siste statiske element (scroll helt ned for å se den). Lukkes
+    // tastaturet (fokus forlater feltet) → klassen fjernes → toolbar fixed.
+    var _kbdEditClearTimer = null;
+    function _isFormKbdField(el) {
+        return !!(IS_TOUCH_DEVICE && el && typeof isFormKeyboardTarget === 'function'
+            && isFormKeyboardTarget(el));
+    }
+    function _setKbdEditing(on) {
+        if (on) {
+            if (_kbdEditClearTimer) { clearTimeout(_kbdEditClearTimer); _kbdEditClearTimer = null; }
+            document.body.classList.add('kbd-editing');
+        } else {
+            // Grace: felt→felt-bytte blurrer kort før neste fokus. Ikke
+            // fjern umiddelbart — sjekk på nytt etter 150ms.
+            if (_kbdEditClearTimer) clearTimeout(_kbdEditClearTimer);
+            _kbdEditClearTimer = setTimeout(function() {
+                _kbdEditClearTimer = null;
+                if (!_isFormKbdField(document.activeElement)) {
+                    document.body.classList.remove('kbd-editing');
+                }
+            }, 150);
+        }
+    }
+
     document.addEventListener('focusin', function(e) {
+        if (_isFormKbdField(e.target)) _setKbdEditing(true);
         if (isKeyboardOpeningElement(e.target)) {
             keyboardBaselineInnerHeight = Math.max(keyboardBaselineInnerHeight || 0, window.innerHeight || 0);
             // Preemptiv keyboard-layout-setting: bare gjør dette hvis vi vet at
@@ -6361,6 +6412,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     document.addEventListener('focusout', function(e) {
+        if (_isFormKbdField(e.target)) _setKbdEditing(false);
         if (isKeyboardOpeningElement(e.target)) {
             scheduleForcedApply();
         }

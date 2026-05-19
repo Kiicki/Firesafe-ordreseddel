@@ -1125,7 +1125,8 @@ body.template-modal-open:not(.keyboard-open) #template-modal.view.active .modal-
 }
 
 
-#service-header {
+#service-header,
+#kappe-header {
     position: sticky;
     top: 0;
     z-index: 10;
@@ -1393,7 +1394,8 @@ body.keyboard-open #settings-modal.view.active .modal-body {
 /* Keyboard focus in form-views: formene flyter i dokumentet slik at toolbar
    blir siste del av scrollbart innhold. body.keyboard-open er global og må
    ikke styre toolbar/form-layout for søkefelt i #hent. */
-body.keyboard-focus {
+body.keyboard-focus,
+body.kbd-editing {
     padding-bottom: 0;
 }
 /* Confirm-modal-backdrop har padding-bottom: var(--toolbar-h, 60px) for å gi
@@ -1405,9 +1407,18 @@ body.keyboard-focus .confirm-modal {
     padding-bottom: 0;
 }
 
+/* Skjema-skriving: gjør den aktive form-viewen til et normalt dokument
+   (ikke egen fixed scroll-container) så hele body scroller som ett, og
+   toolbaren (siste element i <body>) blir det siste statiske elementet —
+   du scroller helt ned for å se den. Drives av body.kbd-editing (fokus-
+   basert, pålitelig i PWA) ELLER body.keyboard-focus (viewport-basert,
+   for nettlesere der viewporten faktisk krymper). */
 body.keyboard-focus #view-form.view.active,
 body.keyboard-focus #service-view.view.active,
-body.keyboard-focus #kappe-view.view.active {
+body.keyboard-focus #kappe-view.view.active,
+body.kbd-editing #view-form.view.active,
+body.kbd-editing #service-view.view.active,
+body.kbd-editing #kappe-view.view.active {
     position: static;
     top: auto;
     left: auto;
@@ -1420,11 +1431,15 @@ body.keyboard-focus #kappe-view.view.active {
 
 body.keyboard-focus .container.form-view,
 body.keyboard-focus .container.service-view,
-body.keyboard-focus .container.kappe-view {
+body.keyboard-focus .container.kappe-view,
+body.kbd-editing .container.form-view,
+body.kbd-editing .container.service-view,
+body.kbd-editing .container.kappe-view {
     overflow-y: visible;
 }
 
-body.keyboard-focus .toolbar:not(.toolbar--inflow) {
+body.keyboard-focus .toolbar:not(.toolbar--inflow),
+body.kbd-editing .toolbar:not(.toolbar--inflow) {
     position: static;
     left: auto;
     right: auto;
@@ -1442,14 +1457,9 @@ body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     flex-shrink: 0;
 }
 
-/* Mens du skriver i et skjema-felt (tastatur åpent) skal toolbaren IKKE
-   flyte over tastaturet eller dukke opp midt i skjemaet. Skjul den under
-   skriving — den kommer tilbake straks tastaturet lukkes. Gjelder KUN
-   form-tastatur (.toolbar--keyboard-form). Modal-views beholder sin
-   synlige toolbar nederst i scrollen (.toolbar--inflow, ikke berørt). */
-body.keyboard-focus .toolbar.toolbar--keyboard-form {
-    display: none !important;
-}
+/* (Tidligere skjulte vi toolbaren under skjema-skriving — fjernet.
+   Nå er toolbaren synlig som siste statiske element i side-scrollen:
+   fixed når tastatur lukket, static-på-slutten når man skriver.) */
 
 .toolbar-keyboard-host {
     display: flex !important;
@@ -5999,7 +6009,8 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     #saved-modal.view.active,
     #settings-modal.view.active,
     #view-form.view.active,
-    #service-view.view.active {
+    #service-view.view.active,
+    #kappe-view.view.active {
         position: static;
         bottom: auto;
         height: auto;
@@ -6017,7 +6028,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         overflow-y: visible;
         flex: none;
     }
-    .container.form-view {
+    .container.form-view,
+    .container.service-view,
+    .container.kappe-view {
         overflow-y: visible;
     }
 
