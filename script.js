@@ -787,6 +787,26 @@ function aggregateExportMaterials(materials) {
             ordered.push(m);
             return;
         }
+        // Kappe-isolasjon må IKKE forhåndsaggregeres: platebehovet er ikke-
+        // lineært (per-rad opprunding til halv plate + per-rad valgt
+        // kutteretning). Å summere løpemeter først og regne én gang gir feil
+        // tall vs. ordrekortet. Behold hver rad separat med ALLE felt (inkl.
+        // kappeOrient) — eksportens iso-aggregering summerer da
+        // calcKappePlateCount per rad, identisk med ordrekortet.
+        if (m.source === 'kappe-products') {
+            var kc = { name: m.name, antall: m.antall || '', enhet: m.enhet || '' };
+            if (m.source) kc.source = m.source;
+            if (m.quantityUnit) kc.quantityUnit = m.quantityUnit;
+            if (m.bredde) kc.bredde = m.bredde;
+            if (m.specMode) kc.specMode = m.specMode;
+            if (m.plate && (m.plate.length || m.plate.width)) kc.plate = m.plate;
+            if (m.lmPerSide) kc.lmPerSide = m.lmPerSide;
+            if (m.antallObjekter) kc.antallObjekter = m.antallObjekter;
+            if (m.sider) kc.sider = m.sider;
+            if (m.kappeOrient) kc.kappeOrient = m.kappeOrient;
+            ordered.push(kc);
+            return;
+        }
         var source = m.source || '';
         var quantityUnit = m.quantityUnit || '';
         var bredde = m.bredde || '';
