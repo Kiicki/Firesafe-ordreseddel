@@ -6176,40 +6176,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Confirm-modal padding-bottom håndteres nå via CSS-regelen
         // body.keyboard-open .confirm-modal { padding-bottom: 0 }
-
-        // Midlertidig diagnose-overlay (endrer INGEN oppførsel). Slås på med
-        // localStorage 'firesafe_kbd_debug'='1'. Viser sanntids tastatur-
-        // tilstand så feilsøking er datadrevet, ikke gjetting.
-        try {
-            if (localStorage.getItem('firesafe_kbd_debug') === '1') {
-                var dbg = document.getElementById('_kbd_dbg');
-                if (!dbg) {
-                    dbg = document.createElement('div');
-                    dbg.id = '_kbd_dbg';
-                    dbg.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;'
-                        + 'background:rgba(0,0,0,.82);color:#0f0;font:11px/1.35 monospace;'
-                        + 'padding:6px 8px;max-width:62vw;white-space:pre;pointer-events:none;'
-                        + 'border-bottom-right-radius:8px';
-                    document.body.appendChild(dbg);
-                }
-                var tb = document.querySelector('.toolbar');
-                var ae = document.activeElement;
-                var pn = tb && tb.parentNode;
-                dbg.textContent =
-                    'kbdOpen=' + keyboardOpen
-                    + ' formKbd=' + formKeyboardMode
-                    + '\nbody=' + (document.body.className || '-')
-                    + '\nvv.h=' + Math.round(vv.height)
-                    + ' inner=' + (window.innerHeight || 0)
-                    + ' vv.top=' + Math.round(vv.offsetTop || 0)
-                    + '\ntbParent=' + (pn ? (pn.tagName + (pn.id ? '#' + pn.id : '') + (pn.className ? '.' + String(pn.className).split(' ')[0] : '')) : '-')
-                    + '\ntbCls=' + (tb ? (tb.className || '-') : '-')
-                    + '\nae=' + (ae ? (ae.tagName + (ae.id ? '#' + ae.id : '')) : '-');
-            } else {
-                var old = document.getElementById('_kbd_dbg');
-                if (old) old.remove();
-            }
-        } catch (e) {}
     }
 
     // Eksponer globalt — bruk i edge cases der man trenger å trigge eksplisitt.

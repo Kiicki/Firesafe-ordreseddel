@@ -1442,6 +1442,15 @@ body.keyboard-focus .toolbar:not(.toolbar--inflow) {
     flex-shrink: 0;
 }
 
+/* Mens du skriver i et skjema-felt (tastatur åpent) skal toolbaren IKKE
+   flyte over tastaturet eller dukke opp midt i skjemaet. Skjul den under
+   skriving — den kommer tilbake straks tastaturet lukkes. Gjelder KUN
+   form-tastatur (.toolbar--keyboard-form). Modal-views beholder sin
+   synlige toolbar nederst i scrollen (.toolbar--inflow, ikke berørt). */
+body.keyboard-focus .toolbar.toolbar--keyboard-form {
+    display: none !important;
+}
+
 .toolbar-keyboard-host {
     display: flex !important;
     flex-direction: column;
