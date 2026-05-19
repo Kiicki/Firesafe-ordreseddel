@@ -6161,14 +6161,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             var stickyKbd = !!(backdrop && backdrop.dataset.specKbd === '1');
-            if (!keyboardOpen && !focusInPopup && !stickyKbd) {
-                // Aktiv popup uten tastatur og aldri posisjonert → normal.
+            // KUN popuper der et felt i NETTOPP denne popupen har fokus skal
+            // tastatur-posisjoneres. Ikke styr på globalt `keyboardOpen` —
+            // det kan henge igjen (400ms lukke-hysterese) fra en annen popup
+            // som nettopp lukket, og ville feilaktig satt en felt-løs lese-
+            // popup (Timer-oversikt) i tastatur-modus. Sticky settes derfor
+            // bare når focusInPopup er sann (overlever kortvarig fokus-tap).
+            if (!focusInPopup && !stickyKbd) {
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
                 return;
             }
-            if (backdrop) backdrop.dataset.specKbd = '1';
+            if (focusInPopup && backdrop) backdrop.dataset.specKbd = '1';
             // Fjern ev. topp-forankrings-marginTop som ellers offset'er
             // posisjonen — transform-en under eier nå plasseringen helt.
             if (backdrop) backdrop.classList.remove('popup-top-anchored');

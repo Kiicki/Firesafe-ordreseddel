@@ -124,9 +124,13 @@ body.keyboard-open {
     z-index: 1;
 }
 
-body:has(#confirm-modal.active) .toolbar::before,
-body:has(#input-modal.active) .toolbar::before,
-body:has(#dag-timer-modal.active) .toolbar::before,
+/* Dim toolbaren når EN HVILKEN SOM HELST popup er åpen. Klasse-basert
+   (ikke hardkodede ID-er) så nye popuper — timer-oversikt, fakturaadresse,
+   spec/FSC/FSW/kabelhylse, iso-kort, variant, produkt-/mal-velger — også
+   dekkes automatisk i stedet for å la toolbaren stå lys/uthevet. */
+body:has(.confirm-modal.active) .toolbar::before,
+body:has(.spec-popup-backdrop.active) .toolbar::before,
+body:has(.fakturaadresse-popup-backdrop.active) .toolbar::before,
 body:has(#action-popup.active) .toolbar::before,
 body:has(#template-editor-overlay.active) .toolbar::before {
     opacity: 1;
