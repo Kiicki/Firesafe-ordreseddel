@@ -124,12 +124,14 @@ body.keyboard-open {
     z-index: 1;
 }
 
-/* Dim toolbaren når EN HVILKEN SOM HELST popup er åpen. Klasse-basert
-   (ikke hardkodede ID-er) så nye popuper — timer-oversikt, fakturaadresse,
-   spec/FSC/FSW/kabelhylse, iso-kort, variant, produkt-/mal-velger — også
-   dekkes automatisk i stedet for å la toolbaren stå lys/uthevet. */
+/* Dim toolbaren KUN for popuper hvis backdrop ligger UNDER toolbaren
+   (z-index < .toolbar=40): .confirm-modal (z20, inkl. timer-oversikt) og
+   .fakturaadresse-popup-backdrop (z25). Disse dekker ikke toolbaren selv,
+   så vi legger en mørk ::before over den.
+   .spec-popup-backdrop (z60) ligger OVER toolbaren og dimmer den allerede
+   via sin egen backdrop — å legge ::before der dobbel-dimmer (stygt mørkt
+   felt). Derfor IKKE inkludert her. */
 body:has(.confirm-modal.active) .toolbar::before,
-body:has(.spec-popup-backdrop.active) .toolbar::before,
 body:has(.fakturaadresse-popup-backdrop.active) .toolbar::before,
 body:has(#action-popup.active) .toolbar::before,
 body:has(#template-editor-overlay.active) .toolbar::before {
@@ -3675,14 +3677,15 @@ label.settings-default-label.field-required > span::after {
 .spec-popup-backdrop.popup-top-anchored {
     align-items: flex-start;
 }
-/* #spec-popup (FSC/FSW/Kabelhylse/mansjett) auto-fokuserer alltid et felt
-   ved åpning → tastatur kommer alltid opp. Åpne derfor ALLTID toppstilt,
-   slik at åpne-posisjonen er IDENTISK med tastatur-posisjonen. Da er det
-   ingen «sentrert → snap til topp»-blink når tastaturet glir opp. */
-#spec-popup.spec-popup-backdrop {
+/* #spec-popup (FSC/FSW/Kabelhylse/mansjett): KUN når tastaturet faktisk er
+   åpent (body.keyboard-open er nå autoritativt via VirtualKeyboard API)
+   åpnes den toppstilt — da er åpne-posisjonen identisk med tastatur-
+   posisjonen (ingen «sentrert → snap»-blink). Uten tastatur (desktop)
+   sentreres den normalt. */
+body.keyboard-open #spec-popup.spec-popup-backdrop {
     align-items: flex-start;
 }
-#spec-popup .spec-popup-sheet {
+body.keyboard-open #spec-popup .spec-popup-sheet {
     margin-top: 16px;
 }
 .spec-popup-sheet {

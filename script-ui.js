@@ -5970,14 +5970,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // tastatur-deteksjonen bommer (keyboardOpen uendret), og den fokus-
         // baserte popup-cap-en ville aldri kjørt.
         var popupFocusSig = '';
-        (function() {
-            var ae = document.activeElement;
-            if (ae && typeof isKeyboardOpeningElement === 'function' && isKeyboardOpeningElement(ae)
-                && ae.closest) {
-                var bd = ae.closest(POPUP_BACKDROP_SELECTOR);
-                if (bd && bd.classList.contains('active')) popupFocusSig = bd.id || '1';
+        if (IS_TOUCH_DEVICE) {
+            var _ae = document.activeElement;
+            if (_ae && typeof isKeyboardOpeningElement === 'function' && isKeyboardOpeningElement(_ae)
+                && _ae.closest) {
+                var _bd = _ae.closest(POPUP_BACKDROP_SELECTOR);
+                if (_bd && _bd.classList.contains('active')) popupFocusSig = _bd.id || '1';
             }
-        })();
+        }
         var activeOverlaySig = '';
         FULLSCREEN_OVERLAY_IDS.forEach(function(id) {
             var o = document.getElementById(id);
@@ -6139,79 +6139,39 @@ document.addEventListener('DOMContentLoaded', function() {
         allContents.forEach(function(s) {
             var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
             var isActive = !!(backdrop && backdrop.classList.contains('active'));
-            // Fokus i en popup er et 100% pålitelig signal — uavhengig av
-            // flaky viewport-deteksjon. Cap også når et redigerbart felt
-            // inni popupen har fokus, så footeren aldri havner bak
-            // tastaturet selv om keyboardOpen ikke ble detektert.
-            var focusInPopup = !!(backdrop && isActive
-                && backdrop.contains(document.activeElement)
-                && typeof isKeyboardOpeningElement === 'function'
-                && isKeyboardOpeningElement(document.activeElement));
             ensureContentObserver(s, isActive, keyboardOpen);
-            // Sticky: når popupen FØRST er tastatur-posisjonert, behold den
-            // posisjonert så lenge backdropen er aktiv. Kortvarig fokus-tap
-            // (trykk på Stk/Meter-knapp, feltbytte med display:none) skal
-            // IKKE trigge reset → ellers animerer den ned og opp igjen
-            // («lukker/åpner kjapt»). Reset KUN når popupen faktisk lukkes.
-            if (!isActive) {
-                if (backdrop) delete backdrop.dataset.specKbd;
+            // keyboardOpen er nå AUTORITATIVT (VirtualKeyboard API når det
+            // finnes, ellers viewport-krymp). Ingen fokus-/touch-gjetting:
+            // posisjoner KUN når tastaturet faktisk er åpent.
+            if (!isActive || !keyboardOpen) {
+                if (backdrop) backdrop.classList.remove('popup-top-anchored');
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
+                s.style.marginTop = '';
                 return;
             }
-            var stickyKbd = !!(backdrop && backdrop.dataset.specKbd === '1');
-            // KUN popuper der et felt i NETTOPP denne popupen har fokus skal
-            // tastatur-posisjoneres. Ikke styr på globalt `keyboardOpen` —
-            // det kan henge igjen (400ms lukke-hysterese) fra en annen popup
-            // som nettopp lukket, og ville feilaktig satt en felt-løs lese-
-            // popup (Timer-oversikt) i tastatur-modus. Sticky settes derfor
-            // bare når focusInPopup er sann (overlever kortvarig fokus-tap).
-            if (!focusInPopup && !stickyKbd) {
-                s.style.removeProperty('max-height');
-                s.style.transform = '';
-                s.style.transition = '';
-                return;
-            }
-            if (focusInPopup && backdrop) backdrop.dataset.specKbd = '1';
-            // Fjern ev. topp-forankrings-marginTop som ellers offset'er
-            // posisjonen — transform-en under eier nå plasseringen helt.
+            // Tastatur åpent → applyKeyboardLayout eier posisjonen helt.
             if (backdrop) backdrop.classList.remove('popup-top-anchored');
             s.style.marginTop = '';
-            // KRITISK: skru av transform-transition mens vi posisjonerer.
-            // Ellers er sheeten midt i en 0.15s-animasjon når vi måler
-            // getBoundingClientRect rett etter transform='' → feil løft →
-            // ny transform → ny animasjon → opp/ned-oscillasjon. Uten
-            // transition blir målingen eksakt og plasseringen idempotent.
+            // Skru av transform-transition mens vi posisjonerer: ellers er
+            // sheeten midt i en 0.15s-animasjon når vi måler rect rett etter
+            // transform='' → feil løft → oscillasjon. Uten transition blir
+            // målingen eksakt og plasseringen idempotent.
             s.style.transition = 'none';
 
-            var innerH = window.innerHeight || visH;
-            // Krympte viewporten REELT? (Chrome-fane: visualViewport krymper
-            // når tastaturet åpnes → vi har presise tall.) I en installert
-            // PWA OVERLAPPER tastaturet uten å krympe noe — da finnes ingen
-            // pålitelig høyde, og vi må topp-forankre med en trygg cap.
-            var viewportShrank = visH < (innerH * 0.85);
-            if (viewportShrank) {
-                var maxH = Math.max(180, visH - KEYBOARD_MARGIN * 2);
-                s.style.setProperty('max-height', maxH + 'px', 'important');
-                s.style.transform = '';
-                var desiredBottom = visBottom - KEYBOARD_MARGIN;
-                var rect = s.getBoundingClientRect();
-                var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
-                var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
-                s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
-            } else {
-                // PWA-overlay: topp-forankre popupen i øvre del av skjermen
-                // (et Android-tastatur ligger alltid i nedre ~halvdel), cap
-                // høyden trygt, og la .spec-popup-body scrolle internt med
-                // header + Avbryt/OK låst.
-                var safeH = Math.max(200, Math.round(innerH * 0.46));
-                s.style.setProperty('max-height', safeH + 'px', 'important');
-                s.style.transform = '';
-                var rect2 = s.getBoundingClientRect();
-                var lift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
-                s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
-            }
+            // Synlig bunn = visualViewport (krymper med tastatur i den
+            // dokumenterte resizes-visual-modellen). keyboardOpen er allerede
+            // verifisert sant her, så visBottom er det reelle synlige området.
+            var availBottom = visBottom;
+            var maxH = Math.max(180, availBottom - KEYBOARD_MARGIN * 2);
+            s.style.setProperty('max-height', maxH + 'px', 'important');
+            s.style.transform = '';
+            var desiredBottom = availBottom - KEYBOARD_MARGIN;
+            var rect = s.getBoundingClientRect();
+            var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
+            var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
+            s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
         });
 
         // Confirm-modal padding-bottom håndteres nå via CSS-regelen
@@ -9155,15 +9115,10 @@ function _applyPopupTopAnchor(popupId, tallestH) {
     if (!p || !p.classList.contains('active')) return;
     var sheet = p.querySelector('.spec-popup-sheet');
     if (!sheet) return;
-    // La applyKeyboardLayout eie posisjonen når tastatur/fokus er aktivt
-    // (keyboard-open ELLER sticky tastatur-modus ELLER et felt i popupen
-    // har fokus) — ellers setter denne en konkurrerende marginTop som gir
-    // «hopp» ved åpning og Stk/Meter-bytte.
-    var focusedInside = p.contains(document.activeElement)
-        && typeof isKeyboardOpeningElement === 'function'
-        && isKeyboardOpeningElement(document.activeElement);
-    if (document.body.classList.contains('keyboard-open')
-        || p.dataset.specKbd === '1' || focusedInside) {
+    // Tastatur åpent (autoritativt via VirtualKeyboard API / viewport):
+    // applyKeyboardLayout eier posisjonen — ikke sett konkurrerende
+    // marginTop. body.keyboard-open er nå presis (ingen gjetting).
+    if (document.body.classList.contains('keyboard-open')) {
         p.classList.remove('popup-top-anchored');
         sheet.style.marginTop = '';
         sheet.style.minHeight = '';
@@ -9204,10 +9159,7 @@ function _reconcileTopAnchorsForKeyboard(keyboardOpen) {
         if (!p || !p.classList.contains('active')) return;
         var sheet = p.querySelector('.spec-popup-sheet');
         if (!sheet) return;
-        var focusedInside = p.contains(document.activeElement)
-            && typeof isKeyboardOpeningElement === 'function'
-            && isKeyboardOpeningElement(document.activeElement);
-        if (keyboardOpen || p.dataset.specKbd === '1' || focusedInside) {
+        if (keyboardOpen) {
             // applyKeyboardLayout eier posisjonen — ikke sett konkurrerende
             // marginTop (ga «hopp» ved åpning/Stk-Meter-bytte).
             p.classList.remove('popup-top-anchored');
