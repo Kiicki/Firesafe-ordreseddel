@@ -6583,6 +6583,27 @@ document.addEventListener('DOMContentLoaded', function() {
         _kbdDismissBlur();
     });
 
+    // === Idiotsikker bakgrunns-scroll-lås for popuper ===
+    // Browser-agnostisk: uavhengig av :has()-støtte (Firefox), CSS position-
+    // quirks, service-worker-cache og tastatur-state. Når en popup/overlay er
+    // åpen blokkeres touch-scroll for ALT som ikke er popupens egen scroll-
+    // flate. Standard modal-oppførsel. Påvirker ikke tapping (touchmove ≠ tap;
+    // ingen stopPropagation) og ikke scroll inni popup-innholdet (de har alt
+    // overscroll-behavior:contain så de chainer ikke ut). Egen condition fra
+    // tastatur-dismiss-lytteren (den krever fokus i #view-form-felt + ingen
+    // popup) → ingen konflikt.
+    var _POPUP_ACTIVE_SELECTOR = '.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active, .picker-overlay.active';
+    var _POPUP_SCROLLABLE_SELECTOR = POPUP_CONTENT_SELECTOR + ', .picker-overlay-list';
+    document.addEventListener('touchmove', function(e) {
+        if (!document.querySelector(_POPUP_ACTIVE_SELECTOR)) return;
+        var tgt = e.target;
+        // Scroll inni popupens egen scrollflate (liste/innhold) → tillat.
+        if (tgt && tgt.closest && tgt.closest(_POPUP_SCROLLABLE_SELECTOR)) return;
+        // Alt annet (backdrop-dim, skjema bak, toolbar) → blokker bakgrunns-
+        // scroll fullstendig.
+        if (e.cancelable) e.preventDefault();
+    }, { passive: false, capture: true });
+
     // Initial sync — håndterer edge case der tastatur allerede er åpent ved
     // sidelasting (f.eks. retur til PWA der state ikke er nullstilt)
     scheduleApply();
