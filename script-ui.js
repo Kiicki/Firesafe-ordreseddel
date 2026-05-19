@@ -6309,6 +6309,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ensureKeyboardTargetVisible(el) {
         if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
+        // Uten bekreftet viewport-krymp har vi INGEN ekte tastatur-geometri.
+        // I den installerte PWA-en krymper aldri viewporten → delta-beregningen
+        // under blir ren gjetting og gir en uønsket autoscroll på åpning. Kun
+        // for form-felt: scroll kun når tastaturets effekt faktisk er målbar.
+        if (typeof isFormKeyboardTarget === 'function' && isFormKeyboardTarget(el)
+            && !(viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed)) {
+            return;
+        }
 
         var rect = el.getBoundingClientRect();
         var vv = window.visualViewport;
@@ -6371,10 +6379,42 @@ document.addEventListener('DOMContentLoaded', function() {
         return !!(IS_TOUCH_DEVICE && el && typeof isFormKeyboardTarget === 'function'
             && isFormKeyboardTarget(el));
     }
+    // Scroll-posisjon-overføring over container↔dokument-byttet. Form-viewen er
+    // ÉN node som er sin egen interne scroller (position:fixed + overflow:auto)
+    // normalt, men blir position:static/overflow:visible (dokumentet scroller)
+    // under body.kbd-editing. De to scroll-posisjonene er uavhengige og
+    // overføres ingen andre steder → uten dette hopper innholdet ved bytte.
+    // Helperen eier selve classList-mutasjonen så lesning/mutasjon/skriving
+    // skjer i SAMME tick (ingen rAF — en frame ville male upairet posisjon).
+    function _handoffKbdScroll(direction) {
+        var el = document.querySelector('#view-form.view.active, #service-view.view.active, #kappe-view.view.active');
+        if (!el) {
+            if (direction === 'toBody') document.body.classList.add('kbd-editing');
+            else document.body.classList.remove('kbd-editing');
+            return;
+        }
+        var doc = document.scrollingElement || document.documentElement;
+        function clamp(v, max) { return Math.max(0, Math.min(v, max || 0)); }
+        if (direction === 'toBody') {
+            var src = el.scrollTop;                                  // pre-swap intern scroll
+            document.body.classList.add('kbd-editing');              // → static, body scroller
+            var offset = el.getBoundingClientRect().top + window.scrollY; // synkron reflow
+            window.scrollTo(0, clamp(src + offset, doc.scrollHeight - doc.clientHeight));
+        } else {
+            var srcY = doc.scrollTop;
+            var off = el.getBoundingClientRect().top + window.scrollY;
+            document.body.classList.remove('kbd-editing');          // → fixed, intern scroller
+            el.scrollTop = clamp(srcY - off, el.scrollHeight - el.clientHeight);
+            window.scrollTo(0, 0);                                   // defensiv normalisering
+        }
+    }
     function _setKbdEditing(on) {
         if (on) {
             if (_kbdEditClearTimer) { clearTimeout(_kbdEditClearTimer); _kbdEditClearTimer = null; }
-            document.body.classList.add('kbd-editing');
+            // Allerede i kbd-editing (rask felt→felt-bytte) = ingen swap →
+            // ingen handoff, ellers ville vi nullstilt scroll uten grunn.
+            if (document.body.classList.contains('kbd-editing')) return;
+            _handoffKbdScroll('toBody');
         } else {
             // Grace: felt→felt-bytte blurrer kort før neste fokus. Ikke
             // fjern umiddelbart — sjekk på nytt etter 150ms.
@@ -6382,7 +6422,7 @@ document.addEventListener('DOMContentLoaded', function() {
             _kbdEditClearTimer = setTimeout(function() {
                 _kbdEditClearTimer = null;
                 if (!_isFormKbdField(document.activeElement)) {
-                    document.body.classList.remove('kbd-editing');
+                    _handoffKbdScroll('toContainer');
                 }
             }, 150);
         }
