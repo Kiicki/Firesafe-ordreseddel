@@ -6389,7 +6389,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.addEventListener('focusin', function(e) {
-        if (_isFormKbdField(e.target)) _setKbdEditing(true);
+        if (_isFormKbdField(e.target)) {
+            _setKbdEditing(true);
+            // Undertrykk scroll/tapp-til-lukk i 350ms: rett etter fokus kjører
+            // programmatisk scroll-into-view (scrollKeyboardTargetIntoView /
+            // _isoCardScrollRowIntoView) som ellers ville utløst en umiddelbar
+            // blur → tastatur åpner/lukker (blink).
+            _kbdDismissGuardUntil = Date.now() + 350;
+        }
         if (isKeyboardOpeningElement(e.target)) {
             keyboardBaselineInnerHeight = Math.max(keyboardBaselineInnerHeight || 0, window.innerHeight || 0);
             // Preemptiv keyboard-layout-setting: bare gjør dette hvis vi vet at
@@ -6416,6 +6423,64 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isKeyboardOpeningElement(e.target)) {
             scheduleForcedApply();
         }
+    });
+
+    // === Enkel tastatur-lukking i tette skjemaer ===
+    // I PWA krymper ikke viewporten når tastaturet åpnes → eneste pålitelige
+    // lukke-signal er at det fokuserte feltet får blur (focusout →
+    // _setKbdEditing(false) → body.kbd-editing fjernes → .toolbar fixed igjen).
+    // Skjemaene er så input-tette at det er vanskelig å treffe «tom plass» for
+    // å blurre. To native mønstre gjør et rent blur trivielt; begge gjenbruker
+    // den beviste focusout-stien (kaller bare blur()).
+    var _kbdDismissGuardUntil = 0;
+    var _kbdTouchStartY = 0;
+    var _kbdScrollBlurred = false;
+    function _kbdDismissArmed() {
+        // Felles tidlig-utgang. body.kbd-editing settes kun for de tre form-
+        // viewene (isFormKeyboardTarget krever closest('#view-form,
+        // #service-view, #kappe-view')) → popups/spec-popup/teksteditor er
+        // inerte. IS_TOUCH_DEVICE-gate → desktop aldri aktiv.
+        if (!IS_TOUCH_DEVICE) return false;
+        if (!document.body.classList.contains('kbd-editing')) return false;
+        if (!_isFormKbdField(document.activeElement)) return false;
+        if (Date.now() < _kbdDismissGuardUntil) return false;
+        return true;
+    }
+    function _kbdDismissBlur() {
+        if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+        }
+    }
+
+    // Mekanisme A: bruker-initiert scroll lukker tastatur (native iOS/Android-
+    // mønster). touchmove (ikke scroll-event) er per definisjon bruker-initiert
+    // — programmatisk scroll-into-view utløser scroll men ikke touchmove.
+    document.addEventListener('touchstart', function(e) {
+        if (e.touches && e.touches.length) _kbdTouchStartY = e.touches[0].clientY;
+        _kbdScrollBlurred = false;
+    }, { passive: true });
+    document.addEventListener('touchmove', function(e) {
+        if (_kbdScrollBlurred) return;
+        if (!e.touches || !e.touches.length) return;
+        if (!_kbdDismissArmed()) return;
+        if (Math.abs(e.touches[0].clientY - _kbdTouchStartY) <= 12) return;
+        // Ekte scroll-gest: blur én gang per gest (ikke per frame — derfor
+        // lytter koden bevisst ikke på visualViewport.scroll).
+        _kbdScrollBlurred = true;
+        _kbdDismissBlur();
+    }, { passive: true });
+
+    // Mekanisme B: tapp på hva som helst som ikke er et tekstfelt lukker
+    // tastatur. pointerdown (ikke click) så lukking starter ved berøring.
+    // Ingen preventDefault/stopPropagation — den tappede knappen/checkboxen
+    // utfører fortsatt sin handling (blur av et annet element avbryter ikke
+    // pointer/click-sekvensen).
+    document.addEventListener('pointerdown', function(e) {
+        if (!_kbdDismissArmed()) return;
+        // Tappet et annet tekstfelt → ikke gjør noe; la native fokus-flytt +
+        // focusin/focusout håndtere det (unngår blur→refokus-blink).
+        if (isKeyboardOpeningElement(e.target)) return;
+        _kbdDismissBlur();
     });
 
     // Initial sync — håndterer edge case der tastatur allerede er åpent ved
