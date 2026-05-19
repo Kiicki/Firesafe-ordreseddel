@@ -6408,23 +6408,71 @@ document.addEventListener('DOMContentLoaded', function() {
             window.scrollTo(0, 0);                                   // defensiv normalisering
         }
     }
+    // Scroll-utløst lukking: scroller-byttet (position:static→fixed) dreper en
+    // pågående momentum-fling. Derfor utsettes handoff til scrollingen har
+    // stilnet (debounce på scroll-stillhet) i stedet for en fast timer som
+    // lander midt i flingen. blur()/tastatur-skjul skjer uansett umiddelbart;
+    // kun det visuelle scroller-byttet ventes.
+    var _kbdScrollSettleTimer = null;
+    var _kbdScrollHandoffMaxTimer = null;
+    var _kbdScrollHandoffPending = false;
+    var _KBD_SCROLL_SETTLE_MS = 140;
+    function _cancelPendingScrollHandoff() {
+        _kbdScrollHandoffPending = false;
+        if (_kbdScrollSettleTimer) { clearTimeout(_kbdScrollSettleTimer); _kbdScrollSettleTimer = null; }
+        if (_kbdScrollHandoffMaxTimer) { clearTimeout(_kbdScrollHandoffMaxTimer); _kbdScrollHandoffMaxTimer = null; }
+    }
+    function _commitScrollHandoff() {
+        if (!_kbdScrollHandoffPending) return;
+        _cancelPendingScrollHandoff();
+        // Re-fokusert et felt mens vi ventet → bruker skriver igjen, ingen swap.
+        if (!_isFormKbdField(document.activeElement)) {
+            _handoffKbdScroll('toContainer');
+        }
+    }
+    function _scheduleScrollSettledHandoff() {
+        _kbdScrollHandoffPending = true;
+        if (_kbdScrollSettleTimer) clearTimeout(_kbdScrollSettleTimer);
+        _kbdScrollSettleTimer = setTimeout(_commitScrollHandoff, _KBD_SCROLL_SETTLE_MS);
+        // Sikkerhetstak: aldri heng i påvente av scroll-stillhet for alltid.
+        if (!_kbdScrollHandoffMaxTimer) {
+            _kbdScrollHandoffMaxTimer = setTimeout(_commitScrollHandoff, 2500);
+        }
+    }
+    document.addEventListener('scroll', function() {
+        if (!_kbdScrollHandoffPending) return;
+        // Fortsatt scroll/momentum → skyv settle-timeren ut.
+        if (_kbdScrollSettleTimer) clearTimeout(_kbdScrollSettleTimer);
+        _kbdScrollSettleTimer = setTimeout(_commitScrollHandoff, _KBD_SCROLL_SETTLE_MS);
+    }, { passive: true, capture: true });
+
     function _setKbdEditing(on) {
         if (on) {
             if (_kbdEditClearTimer) { clearTimeout(_kbdEditClearTimer); _kbdEditClearTimer = null; }
+            // Bruker fokuserer felt igjen → avbryt evt. ventende scroll-handoff
+            // (skal IKKE bytte scroller; brukeren skriver videre).
+            _cancelPendingScrollHandoff();
             // Allerede i kbd-editing (rask felt→felt-bytte) = ingen swap →
             // ingen handoff, ellers ville vi nullstilt scroll uten grunn.
             if (document.body.classList.contains('kbd-editing')) return;
             _handoffKbdScroll('toBody');
         } else {
-            // Grace: felt→felt-bytte blurrer kort før neste fokus. Ikke
-            // fjern umiddelbart — sjekk på nytt etter 150ms.
             if (_kbdEditClearTimer) clearTimeout(_kbdEditClearTimer);
-            _kbdEditClearTimer = setTimeout(function() {
-                _kbdEditClearTimer = null;
-                if (!_isFormKbdField(document.activeElement)) {
-                    _handoffKbdScroll('toContainer');
-                }
-            }, 150);
+            if (_kbdScrollBlurred) {
+                // Scroll utløste lukkingen: hold kbd-editing (dokumentet
+                // forblir scroller) til flingen har stilnet, så gjør handoff.
+                _scheduleScrollSettledHandoff();
+            } else {
+                // Tapp/annet blur: ingen momentum å bevare → rask grace.
+                // Felt→felt-bytte blurrer kort før neste fokus; sjekk på nytt
+                // etter 150ms.
+                _kbdEditClearTimer = setTimeout(function() {
+                    _kbdEditClearTimer = null;
+                    if (!_isFormKbdField(document.activeElement)) {
+                        _handoffKbdScroll('toContainer');
+                    }
+                }, 150);
+            }
         }
     }
 
