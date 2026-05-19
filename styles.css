@@ -604,6 +604,24 @@ body:has(#login-view.active) {
     padding-bottom: 0;
     overflow: hidden;
 }
+/* Bakgrunns-scroll-lås når en popup er åpen. Uten dette scroll-kjeder
+   touch-bevegelser (i popup-lister ved kant, eller på selve backdropen) ut
+   til skjemaet bak popupen — skjemaet scroller mens popupen står stille.
+   Speiler login-mønsteret over + den sentraliserte .toolbar::before-regelen
+   (samme tre backdrop-klasser = POPUP_BACKDROP_SELECTOR). Form-viewen er en
+   egen position:fixed/overflow:auto-scroller, så body{overflow:hidden} alene
+   stopper den ikke — den må fryses eksplisitt (!important slår
+   body.kbd-editing overflow:visible-regelen). CSS-only: ingen JS-timing. */
+body:has(.confirm-modal.active),
+body:has(.spec-popup-backdrop.active),
+body:has(.fakturaadresse-popup-backdrop.active) {
+    overflow: hidden;
+}
+body:has(.confirm-modal.active) :is(#view-form, #service-view, #kappe-view).view.active,
+body:has(.spec-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view).view.active,
+body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view).view.active {
+    overflow: hidden !important;
+}
 .login-screen {
     display: flex;
     flex-direction: column;
