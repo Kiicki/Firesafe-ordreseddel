@@ -5594,6 +5594,25 @@ document.addEventListener('DOMContentLoaded', function() {
     // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
+
+    // Bytter viewport-meta sin interactive-widget mellom resizes-visual
+    // (normalt, best for skjema-scroll til fokusert felt) og overlays-content
+    // (mens popup er åpen — eliminerer visual-viewport-panorering som ellers
+    // lar Chrome PWA scrolle skjemaet bak popupen. Se applyKeyboardLayout-
+    // kommentaren for detaljer). Idempotent diff-set — ingen reflow når
+    // uendret.
+    function _syncViewportMetaForPopup(popupActive) {
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) return;
+        var cur = meta.getAttribute('content') || '';
+        var target = popupActive ? 'overlays-content' : 'resizes-visual';
+        var other = popupActive ? 'resizes-visual' : 'overlays-content';
+        if (cur.indexOf('interactive-widget=' + target) !== -1) return;
+        var next = cur.indexOf('interactive-widget=' + other) !== -1
+            ? cur.replace('interactive-widget=' + other, 'interactive-widget=' + target)
+            : (cur.replace(/,?\s*interactive-widget=[^,]*/g, '') + ', interactive-widget=' + target);
+        meta.setAttribute('content', next);
+    }
     // Felles toolbar-regel:
     // - Tastatur lukket: toolbar eies av body og er fixed i bunn.
     // - Tastatur åpent: toolbar flyttes til aktiv scroll-host som siste element.
@@ -6018,6 +6037,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (stateKey === lastAppliedState && !forceNextApply) return;
         lastAppliedState = stateKey;
         forceNextApply = false;
+
+        // === Viewport meta: kritisk fiks for popup-scroll-lås i PWA ===
+        // `interactive-widget=resizes-visual` lar Chrome PWA panorere VISUAL
+        // viewport med touch-drag når tastaturet er åpent (skjemaet bak blir
+        // synlig fordi visual viewport viser et annet utsnitt av layout
+        // viewport). Den panoreringen er en browser-native feature som omgår
+        // CSS touch-action OG JS preventDefault på touchmove. Eneste måten
+        // å hindre det på er å fjerne separasjonen mellom visual og layout
+        // viewport — bytte til `overlays-content` (tastatur overlay'er,
+        // ingen viewport-separasjon, ingen panorering mulig). Skjemaet
+        // beholder `resizes-visual` (best for scroll til fokusert felt) når
+        // popup IKKE er åpen.
+        if (typeof _syncViewportMetaForPopup === 'function') {
+            _syncViewportMetaForPopup(!!activePopupSig);
+        }
 
         // --- Toggle body.keyboard-open for physical keyboard state ---
         // Form-layout styres av body.keyboard-focus, ikke keyboard-open.
