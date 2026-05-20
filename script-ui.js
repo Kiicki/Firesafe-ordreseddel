@@ -11174,10 +11174,10 @@ function createKappeLineCard(lineData, expanded) {
     var merknadEl = card.querySelector('.kappe-line-merknad');
     if (merknadEl) {
         merknadEl.addEventListener('focus', function() {
-            // Re-kalkuler høyde ved focus — fanger opp stale inline height
-            autoResizeTextarea(this);
-            var scroller = _findScrollableAncestor(this);
-            this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
+            // Re-kalkuler høyde ved focus — fanger opp stale inline height.
+            // Kompenserer for intern scroll-redistribusjon så tappet linje
+            // står stille (se _focusResizeWithoutShift i script.js).
+            _focusResizeWithoutShift(this);
         });
         merknadEl.addEventListener('input', function() {
             _autoResizeMerknadAndScroll(this);

@@ -1729,6 +1729,25 @@ function _findScrollableAncestor(el) {
 
 // Sikrer at textareaens bunn er synlig over toolbar/tastatur.
 // Bruker visualViewport når tilgjengelig for å håndtere åpent tastatur korrekt.
+// Fokuser-resize uten å flytte tappet linje. Tekstarea med `overflow:hidden`
+// kan ha vist deler av innholdet via intern scrollTop (resterende linjer
+// «skjult» over/under). autoResizeTextarea ekspanderer textareaen til å
+// vise ALT innhold (og nullstiller textarea.scrollTop). Det «åpenbarer»
+// tidligere skjulte linjer over den tappede posisjonen — visuelt hopper
+// den tappede linja nedover på skjermen. For å holde den tappede linja
+// på samme skjerm-Y kompenserer vi ved å scrolle siden ned med eksakt
+// det antallet piksler som var skjult over (= textarea.scrollTop før
+// resize). Brukes site-wide for alle multilinje-felt med auto-resize.
+function _focusResizeWithoutShift(textarea) {
+    var scroller = _findScrollableAncestor(textarea);
+    var preTextareaScrollTop = textarea.scrollTop || 0;
+    autoResizeTextarea(textarea);
+    if (preTextareaScrollTop > 0 && scroller) {
+        scroller.scrollTop += preTextareaScrollTop;
+    }
+    textarea._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
+}
+
 function _ensureTextareaBottomVisible(textarea) {
     if (!textarea || !document.body.contains(textarea)) return;
     var rect = textarea.getBoundingClientRect();
@@ -2026,9 +2045,7 @@ function createOrderCard(orderData, expanded) {
     const descInput = card.querySelector('.mobile-order-desc');
     descInput.value = desc;
     descInput.addEventListener('focus', function() {
-        autoResizeTextarea(this);
-        var scroller = _findScrollableAncestor(this);
-        this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
+        _focusResizeWithoutShift(this);
     });
     descInput.addEventListener('input', function() {
         _autoResizeMerknadAndScroll(this);
@@ -2072,9 +2089,8 @@ function createOrderCard(orderData, expanded) {
     merknadEl.addEventListener('focus', function() {
         // Re-kalkuler høyde ved focus — fanger opp tilfeller hvor textarea har stale
         // inline height fra tidligere innhold (f.eks. etter navigasjon tilbake til skjema).
-        autoResizeTextarea(this);
-        var scroller = _findScrollableAncestor(this);
-        this._initialScrollOnFocus = scroller ? scroller.scrollTop : 0;
+        // Kompenserer for intern scroll-redistribusjon så tappet linje står stille.
+        _focusResizeWithoutShift(this);
     });
     merknadEl.addEventListener('input', function() {
         _autoResizeMerknadAndScroll(this);
