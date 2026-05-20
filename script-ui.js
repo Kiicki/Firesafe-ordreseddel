@@ -6119,26 +6119,15 @@ document.addEventListener('DOMContentLoaded', function() {
         FULLSCREEN_OVERLAY_IDS.forEach(function(id) {
             var overlay = document.getElementById(id);
             if (!overlay) return;
-            var isOverlayActive = overlay.classList.contains('active');
-            // Krymp KUN når viewporten faktisk krympet (ekte tastatur-geometri).
-            // I installert PWA krymper ikke vv → vv.height = full skjerm; å
-            // sette height=full MENS CSS har bottom:0 over-constrainer fixed-
-            // posisjonering (Chrome-bug: fixed + top/bottom + height krever
-            // bottom:auto) → backdropen kollapser til en stripe og dekker ikke
-            // skjemaet bak (dim borte + bakgrunn scrollbar). Da: ikke rør
-            // overlayet — CSS inset:0 gir full backdrop, og bakgrunns-scroll-
-            // låsen (body:has(...)+#view-form overflow:hidden) griper. bottom:
-            // auto settes når vi FAKTISK krymper (unngår samme over-constraint).
-            var _realShrink = viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed;
-            if (kbdActive && isOverlayActive && _realShrink) {
-                overlay.style.top = vv.offsetTop + 'px';
-                overlay.style.bottom = 'auto';
-                overlay.style.height = vv.height + 'px';
-            } else {
-                overlay.style.top = '';
-                overlay.style.bottom = '';
-                overlay.style.height = '';
-            }
+            // Backdropen SKAL alltid være full skjerm (CSS inset:0) når aktiv.
+            // Den tidligere krympingen til vv.height gjorde at backdropen ble
+            // en kort stripe øverst → skjemaet bak ble synlig/lyst og «blødde
+            // gjennom». Popupens innhold cappes separat i popup-cap-grenen
+            // (max-height + translateY); backdropen trenger aldri krympes.
+            // Vi nullstiller defensivt for å rydde evt. stale inline-styles.
+            overlay.style.top = '';
+            overlay.style.bottom = '';
+            overlay.style.height = '';
         });
 
         // --- Popups: max-height piksel-cap + translateY-ankring over tastatur ---
