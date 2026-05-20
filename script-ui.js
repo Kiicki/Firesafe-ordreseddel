@@ -6112,6 +6112,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // keyboard-open brukes fortsatt til modal/overlay-height.
         document.body.classList.toggle('keyboard-open', kbdActive);
 
+        // Reset keyboard-spacer padding på alle scrollere som ble paddet
+        // mens tastaturet var åpent. Etter reset oppfører sidene seg som
+        // før tastaturet åpnet — ingen permanent padding eller scroll-rest.
+        if (!kbdActive) {
+            _resetAllKbdSpacers();
+        }
+
         // Topp-forankrede popuper (spec/FSC/FSW/kabelhylse, iso-kort): suspender
         // marginTop mens tastatur er åpent (den regnes fra full skjermhøyde og
         // ville dyttet inputs/knapper bak tastaturet); re-forankres ved lukking.
@@ -6444,6 +6451,39 @@ document.addEventListener('DOMContentLoaded', function() {
         return document.scrollingElement || document.documentElement;
     }
 
+    // === Keyboard spacer ===
+    // Når et input er HELT NEDERST på en scroll-container, er det ikke noe
+    // mer innhold under det å scrolle til → maxScroll er allerede nådd →
+    // window.scrollBy() kan ikke løfte feltet over tastaturet. Standard
+    // løsning (iOS UIKit keyboardLayoutGuide / Android adjustResize):
+    // utvid scroll-rangen midlertidig ved å gi scrolleren padding-bottom
+    // lik tastatur-høyden. Da fins det "tom plass" nederst å scrolle inn
+    // i, og auto-scrollen kan løfte input over tastaturet.
+    var _kbdSpacedScrollers = new Set();
+    var _kbdSpacerOriginal = new WeakMap();
+    function _applyKbdSpacer(scroller, paddingPx) {
+        if (!scroller || !(paddingPx > 0)) return;
+        if (!_kbdSpacedScrollers.has(scroller)) {
+            // Lagre original inline-padding så vi kan restaurere den nøyaktig.
+            _kbdSpacerOriginal.set(scroller, scroller.style.paddingBottom || '');
+            _kbdSpacedScrollers.add(scroller);
+        }
+        // !important slår CSS-regler som body.kbd-editing { padding-bottom: 0 }.
+        scroller.style.setProperty('padding-bottom', paddingPx + 'px', 'important');
+    }
+    function _resetAllKbdSpacers() {
+        _kbdSpacedScrollers.forEach(function(scroller) {
+            var orig = _kbdSpacerOriginal.get(scroller);
+            if (orig) {
+                scroller.style.paddingBottom = orig;
+            } else {
+                scroller.style.removeProperty('padding-bottom');
+            }
+            _kbdSpacerOriginal.delete(scroller);
+        });
+        _kbdSpacedScrollers.clear();
+    }
+
     function ensureKeyboardTargetVisible(el) {
         if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
         // Site-wide standard-oppførsel: når brukeren fokuserer et tekstfelt
@@ -6505,9 +6545,24 @@ document.addEventListener('DOMContentLoaded', function() {
             delta = rect.top - minTop;
         }
 
+        var scroller = findKeyboardScrollContainer(el);
+
+        // Keyboard spacer: hvis input er nær slutten av scroll-rangen er det
+        // ikke nok room til å scrolle videre. Utvid scroll-rangen med
+        // padding-bottom lik tastaturhøyden + buffer, så autoscrollet kan
+        // løfte input over tastaturet selv på siste rad. Site-wide for ALLE
+        // scrollere (form, modal, popup-body, picker-list). Reset gjøres
+        // sentralt i applyKeyboardLayout når kbdActive=false.
+        if (scroller && kbdTop !== null) {
+            var _innerH = window.innerHeight || 0;
+            var _kbdH = _innerH > 0 ? _innerH - kbdTop : 0;
+            if (_kbdH > 0) {
+                _applyKbdSpacer(scroller, _kbdH + bottomPadding);
+            }
+        }
+
         if (Math.abs(delta) < 1) return;
 
-        var scroller = findKeyboardScrollContainer(el);
         if (!scroller) return;
         if (scroller === document.scrollingElement || scroller === document.documentElement || scroller === document.body) {
             window.scrollBy(0, delta);
