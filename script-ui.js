@@ -6188,12 +6188,22 @@ document.addEventListener('DOMContentLoaded', function() {
             ensureContentObserver(s, isActive, kbdActive);
             // Posisjoner når tastaturet er aktivt (kbdActive = viewport-krymp
             // ELLER touch+fokus-felt → deterministisk, virker i PWA).
-            if (!isActive || !kbdActive) {
+            if (!isActive) {
+                // Popup lukket → full rens. Neste åpning starter friskt.
                 if (backdrop) backdrop.classList.remove('popup-top-anchored');
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
                 s.style.marginTop = '';
+                return;
+            }
+            if (!kbdActive) {
+                // Popup ÅPEN men tastatur LUKKET: behold eksisterende lift/cap
+                // (satt forrige gang tastaturet var åpent) så popupen IKKE
+                // hopper tilbake til midten når brukeren scroller for å lukke
+                // tastaturet — listas scroll og popupens flytting samtidig er
+                // forvirrende UX. Reset skjer kun ved popup-close (over).
+                // Neste tastatur-åpning re-beregner uten å nullstille mellom.
                 return;
             }
             if (backdrop) backdrop.classList.remove('popup-top-anchored');
