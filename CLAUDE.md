@@ -3,6 +3,26 @@
 ## Prosjektoversikt
 Dette er en PWA (Progressive Web App) for å lage og administrere ordresedler for Firesafe AS. Appen bruker Firebase for synkronisering mellom enheter.
 
+## **GRUNNPRINSIPP: Atferds-endringer gjelder HELE nettsiden**
+
+Når vi blir enige om hvordan en interaksjon skal oppføre seg — **tastatur (åpen/lukket), scroll-for-å-lukke, tapp-utenfor-for-å-lukke, popup-låsing av bakgrunn, fokus-håndtering, modal-oppførsel, layout under tastatur**, eller en hvilken som helst annen «slik fungerer appen»-regel — gjelder den oppførselen **konsekvent overalt** i appen. Ikke bare i konteksten vi tilfeldigvis snakket om.
+
+**Dette betyr konkret:**
+- Implementer atferden generisk (gate på *typen* situasjon, ikke spesifikke view-IDs/komponenter med mindre det er en bevisst, dokumentert begrensning).
+- Når du legger til en ny gate eller et nytt unntak, beskriv hvorfor i kommentaren — ellers er det halvveis arbeid.
+- Når brukeren beskriver et problem i én del av siden, anta at oppførselen som forventes (eller det de er enige om) skal være lik i alle andre deler som har samme situasjon (samme type input/scroll/popup/layout).
+- Når du foreslår en fiks: nevn eksplisitt hvor ellers i appen samme oppførsel gjelder, og bekreft at fiksen dekker dem alle.
+- Brukeren skal IKKE måtte be deg om å «utvide» en oppførsel til andre views/popuper/modaler — det er underforstått at den gjelder hele appen fra start.
+
+**Eksempler på regler som gjelder site-wide (ikke bare ett view):**
+- Scroll-for-å-lukke-tastatur → enhver scroll med åpent tastatur i hele appen.
+- Tapp-utenfor-input-for-å-lukke-tastatur → enhver tapp på ikke-input i hele appen.
+- Popup-bakgrunn er låst → enhver popup overalt, ikke bare den vi nettopp så på.
+- Tastaturet skal aldri dekke fokusert input → gjelder skjemaer, popuper, modaler, picker-overlays — alle steder.
+- `body.kbd-editing`-styrt static-layout → alle form-views, ikke bare ett.
+
+**Hvis du i unntakstilfelle MÅ scope smalt** (fordi en spesifikk komponent har genuint annerledes oppførsel): dokumenter det i koden OG nevn det eksplisitt i svaret ditt, slik at brukeren kan godkjenne unntaket. Aldri scope smalt uten å si fra.
+
 ## VIKTIG: Firebase-kode som IKKE skal endres
 
 ### I `script.js` - Ikke endre disse delene:

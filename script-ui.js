@@ -6533,13 +6533,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('focusin', function(e) {
         if (_isFormKbdField(e.target)) {
             _setKbdEditing(true);
-            // Undertrykk scroll/tapp-til-lukk i 350ms: rett etter fokus kjører
-            // programmatisk scroll-into-view (scrollKeyboardTargetIntoView /
-            // _isoCardScrollRowIntoView) som ellers ville utløst en umiddelbar
-            // blur → tastatur åpner/lukker (blink).
-            _kbdDismissGuardUntil = Date.now() + 350;
         }
         if (isKeyboardOpeningElement(e.target)) {
+            // Undertrykk scroll/tapp-til-lukk i 350ms etter ENHVER tastatur-
+            // fokus (ikke kun skjema): rett etter fokus kjører programmatisk
+            // scroll-into-view og evt. popup-cap-layout som ellers ville utløst
+            // en umiddelbar blur → tastatur åpner/lukker (blink).
+            _kbdDismissGuardUntil = Date.now() + 350;
             keyboardBaselineInnerHeight = Math.max(keyboardBaselineInnerHeight || 0, window.innerHeight || 0);
             // Preemptiv keyboard-layout-setting: bare gjør dette hvis vi vet at
             // viewport faktisk krymper på denne enheten (ekte mobil/touch). På
@@ -6578,14 +6578,16 @@ document.addEventListener('DOMContentLoaded', function() {
     var _kbdTouchStartY = 0;
     var _kbdScrollBlurred = false;
     function _kbdDismissArmed() {
-        // Felles tidlig-utgang. body.kbd-editing settes kun for de tre form-
-        // viewene (isFormKeyboardTarget krever closest('#view-form,
-        // #service-view, #kappe-view')) → popups/spec-popup/teksteditor er
-        // inerte. IS_TOUCH_DEVICE-gate → desktop aldri aktiv.
+        // Site-wide: scroll/tapp lukker tastatur uansett HVOR fokuset er
+        // (skjema-felt, popup-input, modal-input, picker-search, osv.).
+        // Tidligere var dette gated på form-felt + kbd-editing — det var
+        // halvveis. iOS-native mønster (keyboardDismissMode=.onDrag) gjelder
+        // for all scroll med åpent tastatur. IS_TOUCH-gate → desktop aldri.
         if (!IS_TOUCH_DEVICE) return false;
-        if (!document.body.classList.contains('kbd-editing')) return false;
-        if (!_isFormKbdField(document.activeElement)) return false;
         if (Date.now() < _kbdDismissGuardUntil) return false;
+        var ae = document.activeElement;
+        if (!ae || typeof isKeyboardOpeningElement !== 'function') return false;
+        if (!isKeyboardOpeningElement(ae)) return false;
         return true;
     }
     function _kbdDismissBlur() {
