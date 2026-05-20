@@ -6503,6 +6503,43 @@ document.addEventListener('DOMContentLoaded', function() {
         _kbdSpacedScrollers.clear();
     }
 
+    // Returnerer y-koordinaten (viewport-koord) av BUNNEN av cursor-linjen
+    // i et multilinje-felt — eller null hvis ikke aktuelt/mulig. Brukes så
+    // autoscroll håndterer caret-posisjon, ikke hele textarea-rect (et tall
+    // textarea kan ha topp synlig mens cursoren er bak tastaturet).
+    function _effectiveCaretBottom(el) {
+        if (!el) return null;
+        if (el.tagName === 'TEXTAREA') {
+            try {
+                var value = el.value || '';
+                var pos = (typeof el.selectionStart === 'number') ? el.selectionStart : value.length;
+                var linesBefore = value.substring(0, pos).split('\n').length;
+                var cs = getComputedStyle(el);
+                var lineHeight = parseFloat(cs.lineHeight);
+                if (!lineHeight || isNaN(lineHeight)) {
+                    lineHeight = (parseFloat(cs.fontSize) || 14) * 1.4;
+                }
+                var paddingTop = parseFloat(cs.paddingTop) || 0;
+                var rect = el.getBoundingClientRect();
+                // Bunnen av cursorens linje, justert for evt. intern scroll.
+                return rect.top + paddingTop + linesBefore * lineHeight - (el.scrollTop || 0);
+            } catch (e) { return null; }
+        }
+        if (el.isContentEditable) {
+            try {
+                var sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                    var range = sel.getRangeAt(0);
+                    var rects = range.getClientRects();
+                    if (rects && rects.length) return rects[rects.length - 1].bottom;
+                    var r = range.getBoundingClientRect();
+                    if (r && r.bottom) return r.bottom;
+                }
+            } catch (e) { return null; }
+        }
+        return null;
+    }
+
     function ensureKeyboardTargetVisible(el) {
         if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
         // Site-wide standard-oppførsel: når brukeren fokuserer et tekstfelt
@@ -6535,12 +6572,23 @@ document.addEventListener('DOMContentLoaded', function() {
         var maxBottom = viewportBottom - bottomPadding;
         var delta = 0;
 
-        if (rect.height >= (maxBottom - minTop)) {
-            if (rect.top < minTop || rect.top > maxBottom) delta = rect.top - minTop;
-        } else if (rect.bottom > maxBottom) {
-            delta = rect.bottom - maxBottom;
+        // For multilinje-felt (textarea/contenteditable) bruk CURSOR-POSISJON
+        // som "bunn", ikke hele elementets rect. En lang textarea kan ha
+        // topp synlig mens cursoren (på en lav linje) er bak tastaturet —
+        // uten denne ville auto-scrollet feilaktig konkludert at "topp er
+        // synlig → ingen scroll trengs". Faller tilbake til rect.bottom for
+        // korte inputs eller når caret-måling ikke er tilgjengelig.
+        var caretBottom = _effectiveCaretBottom(el);
+        var effBottom = (caretBottom !== null && caretBottom > 0) ? caretBottom : rect.bottom;
+
+        if (effBottom > maxBottom) {
+            delta = effBottom - maxBottom;
         } else if (rect.top < minTop) {
-            delta = rect.top - minTop;
+            // Topp av elementet over visible-topp → scroll ned (bring topp i syne).
+            // Bruker rect.top her (ikke caret) fordi en tall textarea med caret
+            // i nederste del skal IKKE scrolles ned bare fordi rect.top er over
+            // skjermen — caret er allerede synlig.
+            if (effBottom < minTop) delta = rect.top - minTop;
         }
 
         var scroller = findKeyboardScrollContainer(el);
@@ -6579,6 +6627,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         setTimeout(function() { ensureKeyboardTargetVisible(el); }, 280);
     }
+
+    // Når brukeren tapper en annen linje i et multilinje-felt uten å bytte
+    // fokus (cursor flyttes innenfor textarea/contenteditable), fyrer
+    // `selectionchange` på document. Vi re-sjekker synlighet så cursoren
+    // alltid er synlig over tastaturet — ikke bare ved første fokus.
+    // rAF-debouncing forhindrer over-aggressiv scroll under typing.
+    var _selChangeRaf = 0;
+    document.addEventListener('selectionchange', function() {
+        if (_selChangeRaf) return;
+        _selChangeRaf = requestAnimationFrame(function() {
+            _selChangeRaf = 0;
+            var ae = document.activeElement;
+            if (!ae) return;
+            if (ae.tagName !== 'TEXTAREA' && !ae.isContentEditable) return;
+            ensureKeyboardTargetVisible(ae);
+        });
+    });
 
     // Multilinje-felt (textarea, contenteditable) vokser/krymper når
     // brukeren skriver eller sletter linjer. ResizeObserver gir oss et
