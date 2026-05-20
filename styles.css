@@ -623,27 +623,15 @@ body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #
     overflow: hidden !important;
 }
 
-/* Touch-action lås: når tastatur åpnes med popup åpen aktiverer Chrome PWA
-   (med interactive-widget=resizes-visual) visual viewport-panorering ved
-   touch-drag — dette er en browser-native feature som omgår BÅDE CSS
-   overflow:hidden OG JS touchmove preventDefault. Eneste autoritative måten
-   å blokkere det på er touch-action: none på popupen. De faktiske interne
-   scrollerne overstyres med pan-y så liste-scroll fortsatt virker. Plassert
-   på .active-tilstand så desktop/lukket popup ikke påvirkes. */
-.confirm-modal.active,
-.spec-popup-backdrop.active,
-.fakturaadresse-popup-backdrop.active,
-.picker-overlay.active {
-    touch-action: none;
-}
-.confirm-modal.active .confirm-modal-content,
-.confirm-modal.active .modal-body,
-.spec-popup-backdrop.active .spec-popup-body,
-.spec-popup-backdrop.active .modal-body,
-.fakturaadresse-popup-backdrop.active .fakturaadresse-popup-body,
-.picker-overlay.active .picker-overlay-list {
-    touch-action: pan-y;
-}
+/* Tidligere var det en touch-action:none-regel på backdropene for å hindre
+   visual-viewport-panorering. Det opprettet en cascade-konflikt: per W3C er
+   effektiv touch-action snittet av self+ancestors → `none` på backdrop ∩
+   `pan-y` på .spec-popup-body = effektivt none → første scroll på lista
+   feilet (andre virket fordi viewport-meta-byttet hadde stabilisert seg).
+   Visual-viewport-panoreringen håndteres nå ved roten av `interactive-widget`
+   meta-byttet til `overlays-content` (script-ui.js _syncViewportMetaForPopup)
+   mens popup er åpen. Bakgrunns-scroll utenfor popup-sheeten dekkes av JS
+   touch-låsen. touch-action-laget er derfor redundant og fjernet. */
 .login-screen {
     display: flex;
     flex-direction: column;
