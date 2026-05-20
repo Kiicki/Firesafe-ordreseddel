@@ -6915,17 +6915,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }, { passive: true });
 
     // Mekanisme B: tapp på hva som helst som ikke er et tekstfelt lukker
-    // tastatur. pointerdown (ikke click) så lukking starter ved berøring.
-    // Ingen preventDefault/stopPropagation — den tappede knappen/checkboxen
-    // utfører fortsatt sin handling (blur av et annet element avbryter ikke
-    // pointer/click-sekvensen).
+    // tastatur. Detekterer tap vs drag via bevegelse mellom pointerdown og
+    // pointerup. Blur fires KUN ved pointerup hvis bevegelsen var liten
+    // (= ekte tap, ikke drag). Hvis brukeren drar fingeren, lar vi
+    // touchmove-handleren (scroll-dismiss) ta over — uten denne distinksjonen
+    // ville pointerdown blurre umiddelbart og 30ms-grace-timeren ville fjerne
+    // kbd-editing mid-drag → scroller bytter mid-touch → Android avbryter
+    // scroll-gesten (= "knapp kan ikke brukes til å scrolle"-buggen).
+    var _pdArmed = false;
+    var _pdStartX = 0, _pdStartY = 0;
     document.addEventListener('pointerdown', function(e) {
+        _pdArmed = false;
         if (!_kbdDismissArmed()) return;
         // Tappet et annet tekstfelt → ikke gjør noe; la native fokus-flytt +
         // focusin/focusout håndtere det (unngår blur→refokus-blink).
         if (isKeyboardOpeningElement(e.target)) return;
-        _kbdDismissBlur();
+        _pdArmed = true;
+        _pdStartX = (typeof e.clientX === 'number') ? e.clientX : 0;
+        _pdStartY = (typeof e.clientY === 'number') ? e.clientY : 0;
     });
+    document.addEventListener('pointerup', function(e) {
+        if (!_pdArmed) return;
+        _pdArmed = false;
+        var dx = Math.abs(((typeof e.clientX === 'number') ? e.clientX : 0) - _pdStartX);
+        var dy = Math.abs(((typeof e.clientY === 'number') ? e.clientY : 0) - _pdStartY);
+        // Bevegelse < 12px = ekte tap. Større = drag → scroll-dismiss-pathen
+        // (via touchmove) har allerede tatt over (eller brukeren ville bare
+        // scrolle uten å dismiss-e tastaturet).
+        if (dx < 12 && dy < 12) {
+            _kbdDismissBlur();
+        }
+    });
+    document.addEventListener('pointercancel', function() { _pdArmed = false; });
 
     // === Idiotsikker bakgrunns-scroll-lås for popuper ===
     // Browser-agnostisk: uavhengig av :has()-støtte (Firefox), CSS position-
