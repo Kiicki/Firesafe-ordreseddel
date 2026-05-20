@@ -5411,7 +5411,6 @@ function buildDesktopWorkLines() {
         // Aggreger duplikater for eksport (samme name + enhet → sum antall)
         const aggregatedMats = aggregateExportMaterials(filledMats);
         if (aggregatedMats.length > 0) {
-            addRow('Materiell:', '', '', { bold: true, alignRight: true });
             // Helper to add a single material row to export
             function addExportMatRow(m, displayNameOverride) {
                 var capName;
@@ -5479,6 +5478,16 @@ function buildDesktopWorkLines() {
                     exportGroups[festIdx] = mergedGroup;
                 }
             })();
+            // «Materiell:»-header vises kun når det finnes løse varer (uten
+            // gruppering — typisk standard-produkter som GPG, FSB1). Når
+            // alle varer er i sub-grupper (FSC/FSW/Kabelhylse/Isolering) gir
+            // headeren ingen mening — sub-headere identifiserer alt.
+            var _hasLooseItems = exportGroups.some(function(g) {
+                return !g.isSpecGroup && !g.isIsolationGroup && !g.isStiftGroup;
+            });
+            if (_hasLooseItems) {
+                addRow('Materiell:', '', '', { bold: true, alignRight: true });
+            }
             exportGroups.forEach(function(group) {
                 if (!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) {
                     group.items.forEach(function(gm) { addExportMatRow(gm); });
