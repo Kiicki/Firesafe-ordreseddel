@@ -3970,11 +3970,29 @@ function _bulkFilename(ext, type) {
 //   service:     prosjektnavn (fra første entry) → "skjema_N"
 function _filenameForForm(data, fallbackIdx, type, ext) {
     var prefix = _typePrefix(type);
-    var name = _formProsjektId(data, type);
-    if (!name) {
-        if (type === 'service') name = 'skjema_' + (fallbackIdx + 1);
-        else if (type === 'kappe') name = 'skjema_' + (fallbackIdx + 1);
-        else name = (data && data.ordreseddelNr) ? data.ordreseddelNr : 'skjema_' + (fallbackIdx + 1);
+    // For ordreseddel kombineres prosjektnr + ordreseddelnr (begge når de
+    // finnes) for å gi unik identifikasjon — samme prosjekt kan motta flere
+    // ordresedler i samme uke, og bare prosjektnr ville gitt filnavn-
+    // kollisjon. Lageruttak og kappeskjema bruker bare prosjektnr (de har
+    // ingen ordrenummer-ekvivalent på form-nivå). Manglende type → ordreseddel.
+    var isOrdreseddel = !type || type === 'ordreseddel';
+    var name;
+    if (isOrdreseddel) {
+        var parts = [];
+        var pnr = (data && data.prosjektnr) ? String(data.prosjektnr).trim() : '';
+        var oNr = (data && data.ordreseddelNr) ? String(data.ordreseddelNr).trim() : '';
+        if (pnr) parts.push(pnr);
+        if (oNr) parts.push(oNr);
+        if (parts.length) {
+            name = parts.join('_');
+        } else if (data && data.prosjektnavn) {
+            name = data.prosjektnavn;
+        } else {
+            name = 'skjema_' + (fallbackIdx + 1);
+        }
+    } else {
+        name = _formProsjektId(data, type);
+        if (!name) name = 'skjema_' + (fallbackIdx + 1);
     }
     var uke = _ukeYearForFormByType(data, type);
     return prefix + '_' + _sanitizeFilenamePart(name) + '_' + uke + '.' + ext;
@@ -6286,50 +6304,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Neste tastatur-åpning re-beregner uten å nullstille mellom.
                 return;
             }
-            if (backdrop) backdrop.classList.remove('popup-top-anchored');
-            s.style.marginTop = '';
-            // Transition av mens vi posisjonerer: ellers måles rect midt i
-            // en 0.15s-animasjon → feil løft → oscillasjon. Uten transition
-            // blir målingen eksakt og plasseringen idempotent.
-            s.style.transition = 'none';
-
-            var innerH = window.innerHeight || visH;
-            s.style.transform = '';
-
-            // === Unified posisjonering: best tilgjengelige signal vinner ===
-            // _getKeyboardTop() prøver VirtualKeyboard API → visualViewport
-            // → null. Hvis vi får tall, bruk dem direkte (eksakt, fungerer på
-            // alle tastaturer/nettlesere/OS). Hvis null → bruk input-type-%
-            // som siste fallback (kun når ingen browser-signal eksisterer,
-            // f.eks. eldre Android WebView). Cap (safeH) bruker samme
-            // beregning: faktisk plass over tastatur når kjent, ellers %.
+            // Krev EKTE tastatur-signal før vi kapper popupen. På PC (også i
+            // dev-mode touch-emulering) er kbdActive true ved fokus på input
+            // selv om det ikke finnes noe skjermtastatur — uten denne gaten
+            // ville popup-cap krympet sheeten unødvendig. Ingen signal →
+            // ingen cap, popup beholder naturlig størrelse (CSS max-height:
+            // 80vh håndterer overdimensjonering). Samme kontrakt som i
+            // ensureKeyboardTargetVisible.
             var kbdTop = _getKeyboardTop();
-            var safeH, desiredBottom;
-            if (kbdTop !== null) {
-                // Eksakt tastatur-topp (Chromium boundingRect ELLER iOS/FF vv-krymp)
-                safeH = Math.max(180, kbdTop - KEYBOARD_MARGIN * 2);
-                desiredBottom = kbdTop - KEYBOARD_MARGIN;
-            } else {
-                // Fallback: input-type-% (siste utvei, eldre browsere uten signaler)
-                var _ae = document.activeElement;
-                var _kbdFrac = 0.45;
-                if (_ae) {
-                    var _im = ((_ae.inputMode || '') + '').toLowerCase();
-                    var _t = ((_ae.type || '') + '').toLowerCase();
-                    if (_im === 'numeric' || _im === 'decimal' || _im === 'tel'
-                        || _t === 'number' || _t === 'tel') {
-                        _kbdFrac = 0.33;
-                    } else if (_t === 'date' || _t === 'time'
-                            || _t === 'datetime-local' || _t === 'month'
-                            || _t === 'week') {
-                        _kbdFrac = 0.30;
-                    }
-                }
-                safeH = Math.max(200, Math.round(innerH * 0.46));
-                var assumedKbdTop = _vvTop + Math.round(innerH * (1 - _kbdFrac));
-                desiredBottom = assumedKbdTop - KEYBOARD_MARGIN;
+            if (kbdTop === null) {
+                if (backdrop) backdrop.classList.remove('popup-top-anchored');
+                s.style.removeProperty('max-height');
+                s.style.transform = '';
+                s.style.transition = '';
+                s.style.marginTop = '';
+                return;
             }
 
+            if (backdrop) backdrop.classList.remove('popup-top-anchored');
+            s.style.marginTop = '';
+            s.style.transition = 'none';
+            s.style.transform = '';
+
+            var safeH = Math.max(180, kbdTop - KEYBOARD_MARGIN * 2);
+            var desiredBottom = kbdTop - KEYBOARD_MARGIN;
             s.style.setProperty('max-height', safeH + 'px', 'important');
             var rect2 = s.getBoundingClientRect();
             var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
@@ -10818,36 +10816,58 @@ function _orderHoursSum(tm) {
     return s;
 }
 function _orderDayPlansObj(card) {
-    try { return JSON.parse(card.getAttribute('data-day-plans') || '{}') || {}; }
-    catch (e) { return {}; }
+    // Backward-compat: gamle lesere forventer {[dag]: planStr}. Etasjer er nå
+    // bestilling-nivå; vi gjenskaper per-dag-formatet ved å gi alle dager med
+    // timer hele plan-listen. Foretrekker data-plans, faller tilbake til
+    // legacy data-day-plans.
+    if (!card) return {};
+    var plans = [];
+    try { plans = JSON.parse(card.getAttribute('data-plans') || '[]') || []; } catch (e) {}
+    if (!plans.length) {
+        try { return JSON.parse(card.getAttribute('data-day-plans') || '{}') || {}; }
+        catch (e) { return {}; }
+    }
+    var planStr = plans.join(', ');
+    var out = {};
+    try {
+        var tm = JSON.parse(card.getAttribute('data-timer') || '{}') || {};
+        Object.keys(tm).forEach(function(d) { out[d] = planStr; });
+    } catch (e) {}
+    return out;
 }
-// Dag-fordeling for en bestilling, inkl. etasjer/plan per dag. Returnerer
-// strukturerte deler {day, hours, plan} (rå verdier) — visningen bygges som
-// egne ikke-brytbare «chips» i openTimerOverview for bedre lesbarhet. En dag
-// tas med hvis den har timer ELLER plan.
-function _orderDayBreakdown(tm, dp) {
-    dp = dp || {};
+// Dag-fordeling for en bestilling. Etasjer er nå BESTILLING-nivå (én flat
+// liste), ikke per-dag — derfor returnerer dette dag-deler (timer per dag)
+// + én ekstra «chip» for Etasjer på slutten hvis bestillingen har plans.
+function _orderDayBreakdown(tm, plans) {
     var shortMap = (typeof dagShortMap === 'object' && dagShortMap) ? dagShortMap : {
         ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø'
     };
     function _hasVal(v) { return v != null && String(v).trim() !== ''; }
     var parts = [];
     TIMER_DAY_KEYS.forEach(function(k) {
-        if (_hasVal(tm[k]) || _hasVal(dp[k])) {
+        if (_hasVal(tm[k])) {
             parts.push({
                 day: shortMap[k] || k,
-                hours: _hasVal(tm[k]) ? String(tm[k]).replace('.', ',') + 't' : '',
-                plan: _hasVal(dp[k]) ? String(dp[k]).trim() : ''
+                hours: String(tm[k]).replace('.', ',') + 't',
+                plan: ''
             });
         }
     });
     var g = _hasVal(tm._generelt) ? tm._generelt : (_hasVal(tm._total) ? tm._total : '');
-    var gPlan = dp._generelt;
-    if (_hasVal(g) || _hasVal(gPlan)) {
+    if (_hasVal(g)) {
         parts.push({
             day: t('timer_overview_other'),
-            hours: _hasVal(g) ? String(g).replace('.', ',') + 't' : '',
-            plan: _hasVal(gPlan) ? String(gPlan).trim() : ''
+            hours: String(g).replace('.', ',') + 't',
+            plan: ''
+        });
+    }
+    if (plans && plans.length) {
+        // Samme stil som dag-delene: fet prefix + verdier inline.
+        parts.push({
+            isPlans: true,
+            day: 'Etasje',
+            hours: '',
+            plan: plans.join(', ')
         });
     }
     return parts;
@@ -10884,10 +10904,10 @@ function openTimerOverview() {
     var total = 0;
     cards.forEach(function(card, idx) {
         var tm = _orderTimerObj(card);
-        var dp = _orderDayPlansObj(card);
+        var plans = (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
         var sum = _orderHoursSum(tm);
         total += sum;
-        var breakdown = _orderDayBreakdown(tm, dp);
+        var breakdown = _orderDayBreakdown(tm, plans);
 
         var row = document.createElement('button');
         row.type = 'button';
@@ -10917,23 +10937,17 @@ function openTimerOverview() {
             sub.textContent = t('timer_overview_no_hours');
         } else {
             breakdown.forEach(function(p) {
-                // Hver dag-del er én ikke-brytbar chip (wrapper som helhet
-                // til neste linje — aldri midt i «Fr 1t (6)»). Ingen tekst-
-                // separator: avstand mellom chips + fet dag er skillet, så
-                // ingenting henger dinglende på starten av en brutt linje.
+                // Hver del er én ikke-brytbar «chip» (wrapper som helhet til
+                // neste linje). Etasjer er bestilling-nivå og rendres som
+                // egen chip på slutten (isPlans).
                 var part = document.createElement('span');
-                part.className = 'timer-ov-part';
+                part.className = 'timer-ov-part' + (p.isPlans ? ' timer-ov-part-plans' : '');
                 var d = document.createElement('b');
                 d.className = 'timer-ov-day';
                 d.textContent = p.day;
                 part.appendChild(d);
                 if (p.hours) part.appendChild(document.createTextNode(' ' + p.hours));
-                if (p.plan) {
-                    var pl = document.createElement('span');
-                    pl.className = 'timer-ov-plan';
-                    pl.textContent = ' (' + p.plan + ')';
-                    part.appendChild(pl);
-                }
+                if (p.plan) part.appendChild(document.createTextNode(' ' + p.plan));
                 sub.appendChild(part);
             });
         }

@@ -2448,6 +2448,50 @@ label.settings-default-label.field-required > span::after {
     touch-action: pan-y;
 }
 
+/* === Etasjer-rad (bestilling-nivå) på toppen av Dager & tid ===
+   Inline-format: «Etasje U3, U2, U1 [Endre]». Samme stil som ordrekort-
+   sammendraget — fet prefix + verdier i ren tekst + kompakt «Endre»-knapp. */
+.dag-timer-plans-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 2px 2px;
+    margin-bottom: 2px;
+    font-size: 14px;
+}
+.dag-timer-plans-label {
+    font-weight: 600;
+    color: #1c1c1e;
+}
+.dag-timer-plans-values {
+    color: #1c1c1e;
+    font-weight: 400;
+    margin-right: 6px;
+}
+/* «Endre» / «+ Velg»-knapp som kompakt pill. */
+.dag-timer-plan-chip-add {
+    display: inline-flex;
+    align-items: center;
+    background: transparent;
+    border: 1px dashed #c89a7a;
+    color: #8a4a22;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+}
+.dag-timer-plan-chip-add:active {
+    background: rgba(232,80,26,0.08);
+    color: #E8501A;
+    border-color: #E8501A;
+}
+.dag-timer-plan-chip-name {
+    line-height: 1.15;
+}
+
 /* Hver dag = et eget mykt kort (ingen hårfine streker / rammer). */
 .dag-timer-modal-row {
     display: flex;

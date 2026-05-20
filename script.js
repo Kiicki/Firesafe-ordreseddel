@@ -2013,6 +2013,10 @@ function createOrderCard(orderData, expanded) {
                 <label data-i18n="order_description">${t('order_description')}</label>
                 <textarea class="mobile-order-desc" rows="1" autocapitalize="sentences"></textarea>
             </div>
+            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
+                <label data-i18n="order_merknad">${t('order_merknad')}</label>
+                <textarea class="mobile-order-merknad" rows="1" autocapitalize="sentences"></textarea>
+            </div>
             <div class="mobile-order-materials-section${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' field-required' : ''}">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
                 <div class="mobile-order-materials"></div>
@@ -2033,10 +2037,6 @@ function createOrderCard(orderData, expanded) {
                     <span class="dag-timer-display-text"></span>
                     <span class="fakturaadresse-chevron">›</span>
                 </div>
-            </div>
-            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">
-                <label data-i18n="order_merknad">${t('order_merknad')}</label>
-                <textarea class="mobile-order-merknad" rows="1" autocapitalize="sentences"></textarea>
             </div>
         </div>
         </div>`;
@@ -2061,13 +2061,19 @@ function createOrderCard(orderData, expanded) {
     // Update order title from description
     updateOrderTitle(card);
 
-    // Set dager, timer, og per-dag plans på kortet
+    // Set dager, timer og etasjer på kortet.
+    // Etasjer er nå BESTILLING-nivå (en flat liste), ikke per-dag. For
+    // bakoverkompatibilitet: hvis orderData.plans finnes → bruk det; ellers
+    // dedupliser fra gammel per-dag-format (orderData.dayPlans).
     const dager = orderData.dager || [];
     const timerData = orderData.timer || {};
     const dayPlansData = orderData.dayPlans || {};
+    var plansData = Array.isArray(orderData.plans) ? orderData.plans.slice()
+        : _migrateFromDayPlans(dayPlansData);
     card.setAttribute('data-dager', JSON.stringify(dager));
     card.setAttribute('data-timer', JSON.stringify(typeof timerData === 'object' ? timerData : {}));
     card.setAttribute('data-day-plans', JSON.stringify(typeof dayPlansData === 'object' ? dayPlansData : {}));
+    card.setAttribute('data-plans', JSON.stringify(plansData));
     updateDagTimerSummary(card);
 
     // Set plan
@@ -4009,6 +4015,15 @@ function confirmPlanPicker() {
     });
     var val = selected.join(', ');
     _planPickerDisplay.setAttribute('data-plan', val);
+    if (_planPickerDisplay.classList.contains('dag-timer-bestilling-plans-trigger')) {
+        // Bestilling-nivå etasjer (Dager & tid-modal): oppdater chip-listen.
+        _dagTimerSelectedPlans = selected.slice();
+        _renderDagTimerPlanChips();
+        document.getElementById('plan-popup').classList.remove('active');
+        var modal = document.getElementById('dag-timer-modal');
+        if (modal) modal.classList.remove('dag-timer-modal--hidden');
+        return;
+    }
     if (_planPickerDisplay.classList.contains('dag-timer-plan-btn')) {
         // Per-dag plan-trigger i Dager & tid-modal: oppdater trigger + sibling values-display
         _planPickerDisplay.textContent = val ? 'Endre' : '+ Plan';
@@ -4071,6 +4086,36 @@ var dagTimerActiveCard = null;
 var dagNameMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
 var dagShortMap = { ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø' };
 
+// Etasjer (plans) er nå en attributt på BESTILLINGEN, ikke per dag. Helper
+// dedupliserer eldre per-dag-format til en flat liste for migrering.
+function _migrateFromDayPlans(dayPlans) {
+    if (!dayPlans || typeof dayPlans !== 'object') return [];
+    var set = {};
+    var order = [];
+    Object.keys(dayPlans).forEach(function(k) {
+        var v = dayPlans[k];
+        String(v || '').split(',').map(function(s) { return s.trim(); })
+            .filter(Boolean).forEach(function(p) {
+                if (!set[p]) { set[p] = true; order.push(p); }
+            });
+    });
+    return order;
+}
+
+// Henter bestillingens etasjer (plans-array). Foretrekker nytt format
+// (data-plans), faller tilbake til legacy data-day-plans hvis nytt er tomt.
+function _getCardPlans(card) {
+    if (!card) return [];
+    var arr = [];
+    try { arr = JSON.parse(card.getAttribute('data-plans') || '[]') || []; } catch (e) {}
+    if (Array.isArray(arr) && arr.length) return arr;
+    try {
+        var dp = JSON.parse(card.getAttribute('data-day-plans') || '{}') || {};
+        return _migrateFromDayPlans(dp);
+    } catch (e) {}
+    return [];
+}
+
 // Skjul bullet-separator hvis prev og next dag-del er på forskjellige linjer
 // (dvs. separatoren ville være "dangling" på en linje-grense).
 function _hideEdgeSeparators(container) {
@@ -4093,24 +4138,28 @@ function updateDagTimerSummary(card) {
     const textEl = display.querySelector('.dag-timer-display-text');
     const btn = card.querySelector('.mobile-arbeidstid-btn');
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
-    const dayPlans = JSON.parse(card.getAttribute('data-day-plans') || '{}');
+    const plans = _getCardPlans(card);
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
-    function _formatDayPart(label, hours, plans) {
+    function _formatDayPart(label, hours) {
         var hoursStr = hours ? escapeHtml(String(hours).replace('.', ',')) + 't' : '';
-        var planStr = plans ? '(' + escapeHtml(plans) + ')' : '';
         var inner = '<b class="dt-day">' + escapeHtml(label) + '</b>';
         if (hoursStr) inner += ' ' + hoursStr;
-        if (planStr) inner += ' <span class="dt-plans">' + planStr + '</span>';
-        // Pakk hele dagens del i et inline-block så den ikke brytes midt-i ved word-wrap
         return '<span class="dt-part">' + inner + '</span>';
     }
-    const parts = dagOrder.filter(d => timer[d] || dayPlans[d]).map(d => {
-        return _formatDayPart(dagShortMap[d] || d, timer[d], dayPlans[d]);
+    const parts = dagOrder.filter(d => timer[d]).map(d => {
+        return _formatDayPart(dagShortMap[d] || d, timer[d]);
     });
     var genVal = timer._generelt || timer._total;
-    var genPlan = dayPlans._generelt;
-    if (genVal || genPlan) {
-        parts.push(_formatDayPart('Annet', genVal, genPlan));
+    if (genVal) {
+        parts.push(_formatDayPart('Annet', genVal));
+    }
+    if (plans.length) {
+        // Etasjer er nå bestilling-nivå — vises inline med samme stil som
+        // dag-delene ("Ma 1t"-mønster): fet prefix + verdier i ren tekst.
+        var plansStr = plans.join(', ');
+        parts.push('<span class="dt-part">'
+            + '<b class="dt-day">Etasje</b> ' + escapeHtml(plansStr)
+            + '</span>');
     }
     var summary = parts.join('<span class="dt-sep">•</span>');
     textEl.innerHTML = summary;
@@ -4125,62 +4174,82 @@ function updateDagTimerSummary(card) {
     }
 }
 
+// Transient state for Etasjer-chips inne i Dager & tid-modalen.
+var _dagTimerSelectedPlans = [];
+
+function _renderDagTimerPlanChips() {
+    var el = document.getElementById('dag-timer-plans-chips');
+    if (!el) return;
+    el.innerHTML = '';
+    // Inline-format som matcher ordrekort-sammendraget: «Etasje U3, U2, U1»
+    // — fet prefix + verdier i ren tekst. «Endre»-knapp åpner plan-picker
+    // for å legge til/fjerne. Konsistent stil over hele appen.
+    var prefix = document.createElement('b');
+    prefix.className = 'dag-timer-plans-label';
+    prefix.textContent = 'Etasje';
+    el.appendChild(prefix);
+    if (_dagTimerSelectedPlans.length) {
+        var values = document.createElement('span');
+        values.className = 'dag-timer-plans-values';
+        values.textContent = ' ' + _dagTimerSelectedPlans.join(', ');
+        el.appendChild(values);
+    }
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dag-timer-plan-chip dag-timer-plan-chip-add dag-timer-bestilling-plans-trigger';
+    btn.setAttribute('data-plan', _dagTimerSelectedPlans.join(', '));
+    var btnLabel = _dagTimerSelectedPlans.length ? 'Endre' : '+ Velg';
+    btn.innerHTML = '<span class="dag-timer-plan-chip-name">' + btnLabel + '</span>';
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var modal = document.getElementById('dag-timer-modal');
+        if (modal) modal.classList.add('dag-timer-modal--hidden');
+        openPlanPicker(btn);
+    });
+    el.appendChild(btn);
+}
+
 function openDagTimerModal(btn) {
     const card = btn.closest('.mobile-order-card');
     dagTimerActiveCard = card;
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
-    const dayPlans = JSON.parse(card.getAttribute('data-day-plans') || '{}');
-    // Migrasjon: hvis kun globalt data-plan finnes (legacy), bruk det som "Uspesifisert dag"-fallback
-    var legacyPlan = '';
-    var planDisp = card.querySelector('.plan-display');
-    if (planDisp) legacyPlan = (planDisp.getAttribute('data-plan') || '').trim();
+    // Etasjer er nå bestilling-nivå — last via helper (prioriterer nytt format,
+    // dedupliserer fra eldre per-dag-format som migrering). Legacy .plan-display
+    // verdi brukes som siste fallback.
+    _dagTimerSelectedPlans = _getCardPlans(card);
+    if (!_dagTimerSelectedPlans.length) {
+        var planDisp = card.querySelector('.plan-display');
+        if (planDisp) {
+            var legacy = (planDisp.getAttribute('data-plan') || '').trim();
+            if (legacy) {
+                _dagTimerSelectedPlans = legacy.split(',')
+                    .map(function(s) { return s.trim(); }).filter(Boolean);
+            }
+        }
+    }
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
     const list = document.getElementById('dag-timer-modal-list');
     list.innerHTML = '';
-    function makePlanUi(dag, initialVal) {
-        // Trigger-knapp (alltid i topraden, kompakt)
-        var trigger = document.createElement('button');
-        trigger.type = 'button';
-        trigger.className = 'dag-timer-plan-btn';
-        trigger.dataset.dag = dag;
-        trigger.setAttribute('data-plan', initialVal);
-        trigger.textContent = initialVal ? 'Endre' : '+ Plan';
-        trigger.classList.toggle('dag-timer-plan-btn--empty', !initialVal);
-        function openPlan() {
-            // Skjul dag-timer-modal mens plan-popup er åpen, så de ikke stables visuelt
-            var modal = document.getElementById('dag-timer-modal');
-            if (modal) modal.classList.add('dag-timer-modal--hidden');
-            openPlanPicker(trigger);
-        }
-        trigger.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            openPlan();
-        });
-        // Verdi-display (kun synlig når etasjer er valgt)
-        var values = document.createElement('div');
-        values.className = 'dag-timer-plan-values';
-        values.dataset.dag = dag;
-        values.style.display = initialVal ? '' : 'none';
-        values.textContent = initialVal;
-        values.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            openPlan();
-        });
-        return { trigger: trigger, values: values };
-    }
-    dagOrder.forEach(dag => {
-        const row = document.createElement('div');
+
+    // === Etasjer-rad (kompakt, inline label + chips) på toppen ===
+    var plansSection = document.createElement('div');
+    plansSection.className = 'dag-timer-plans-section';
+    plansSection.id = 'dag-timer-plans-chips';
+    list.appendChild(plansSection);
+    _renderDagTimerPlanChips();
+
+    // === Dag-rader (kun timer, ingen plan per dag lenger) ===
+    dagOrder.forEach(function(dag) {
+        var row = document.createElement('div');
         row.className = 'dag-timer-modal-row';
         row.dataset.dag = dag;
-        // Top sub-row: dagnavn + plan-trigger + timer
-        const topRow = document.createElement('div');
+        var topRow = document.createElement('div');
         topRow.className = 'dag-timer-modal-row-top';
-        const label = document.createElement('span');
+        var label = document.createElement('span');
         label.className = 'dag-timer-modal-name';
         label.textContent = dagNameMap[dag];
-        const inp = document.createElement('input');
+        var inp = document.createElement('input');
         inp.type = 'text';
         inp.className = 'dag-timer-modal-input';
         inp.inputMode = 'decimal';
@@ -4194,15 +4263,13 @@ function openDagTimerModal(btn) {
         unit.textContent = 't';
         inpWrap.appendChild(inp);
         inpWrap.appendChild(unit);
-        var planUi = makePlanUi(dag, dayPlans[dag] || '');
         topRow.appendChild(label);
-        topRow.appendChild(planUi.trigger);
         topRow.appendChild(inpWrap);
         row.appendChild(topRow);
-        row.appendChild(planUi.values);
         list.appendChild(row);
     });
-    // Generelt-rad nederst — additiv ekstra timer + plan for "uspesifisert"
+
+    // Annet-rad (additiv timer for uspesifisert dag, kun timer).
     var genRow = document.createElement('div');
     genRow.className = 'dag-timer-modal-row dag-timer-total-row';
     genRow.dataset.dag = '_generelt';
@@ -4215,9 +4282,8 @@ function openDagTimerModal(btn) {
     genInp.type = 'text';
     genInp.className = 'dag-timer-modal-input';
     genInp.inputMode = 'decimal';
-    genInp.placeholder = 'Timer';
-    genInp.id = 'dag-timer-generelt-input';
     genInp.placeholder = '0';
+    genInp.id = 'dag-timer-generelt-input';
     genInp.value = timer._generelt || timer._total || '';
     var genInpWrap = document.createElement('div');
     genInpWrap.className = 'dag-timer-input-wrap';
@@ -4226,22 +4292,15 @@ function openDagTimerModal(btn) {
     genUnit.textContent = 't';
     genInpWrap.appendChild(genInp);
     genInpWrap.appendChild(genUnit);
-    var genPlanVal = dayPlans._generelt || (legacyPlan && Object.keys(dayPlans).length === 0 ? legacyPlan : '');
-    var genPlanUi = makePlanUi('_generelt', genPlanVal);
     genTopRow.appendChild(genLabel);
-    genTopRow.appendChild(genPlanUi.trigger);
     genTopRow.appendChild(genInpWrap);
     genRow.appendChild(genTopRow);
-    genRow.appendChild(genPlanUi.values);
     list.appendChild(genRow);
+
     var modal = document.getElementById('dag-timer-modal');
     modal.classList.add('active');
-    // Blokkér touch-scroll på overlayet, tillat kun inni listen
     modal.addEventListener('touchmove', dagTimerBlockScroll, { passive: false });
     modal.addEventListener('wheel', dagTimerBlockScroll, { passive: false });
-    // Tastatur-håndtering eies nå av den unified applyKeyboardLayout() i
-    // script-ui.js — den observerer .active-klasse-endringer og lytter på
-    // visualViewport.resize/scroll, så ingen lokal viewport-håndtering trengs.
 }
 
 function dagTimerBlockScroll(e) {
@@ -4264,56 +4323,44 @@ function closeDagTimerModal(confirmed) {
     const list = document.getElementById('dag-timer-modal-list');
     const dager = [];
     const timer = {};
-    const dayPlans = {};
-    // Først: valider at hvis en dag har plan, må den også ha timer (og omvendt).
-    // Forhindrer at brukeren lagrer "Ma (2)" uten timer eller "Ma 4t" uten plan.
-    var incompleteDay = null;
-    list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row)').forEach(row => {
-        if (incompleteDay) return;
-        var dag = row.dataset.dag;
-        var inp = row.querySelector('.dag-timer-modal-input');
-        var planBtn = row.querySelector('.dag-timer-plan-btn');
-        var hasT = !!(inp && inp.value.trim());
-        var hasP = !!(planBtn && (planBtn.getAttribute('data-plan') || '').trim());
-        if (hasT !== hasP) incompleteDay = dagNameMap[dag] || dag;
-    });
-    var genInput = document.getElementById('dag-timer-generelt-input');
-    var genVal = genInput ? genInput.value.trim() : '';
-    var genRow = list.querySelector('.dag-timer-modal-row.dag-timer-total-row');
-    var genPlanBtn = genRow ? genRow.querySelector('.dag-timer-plan-btn') : null;
-    var genPlanVal = genPlanBtn ? (genPlanBtn.getAttribute('data-plan') || '').trim() : '';
-    if (!incompleteDay && (!!genVal !== !!genPlanVal)) incompleteDay = 'Annet';
-    if (incompleteDay) {
-        showNotificationModal(incompleteDay + ': både timer og plan må fylles ut');
-        return;
-    }
-    // Lukker modalen først nå (etter validering passerte)
+    var plans = (_dagTimerSelectedPlans || []).slice();
+
+    // Lukker modalen nå (ingen per-dag-plan-validering lenger — etasjer er
+    // bestilling-nivå og uavhengige av timer).
     modal.classList.remove('active');
     modal.removeEventListener('touchmove', dagTimerBlockScroll);
     modal.removeEventListener('wheel', dagTimerBlockScroll);
-    list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row)').forEach(row => {
+
+    list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row)').forEach(function(row) {
         var dag = row.dataset.dag;
         var inp = row.querySelector('.dag-timer-modal-input');
         if (inp && inp.value.trim()) {
             dager.push(dag);
             timer[dag] = inp.value.trim();
         }
-        var planBtn = row.querySelector('.dag-timer-plan-btn');
-        var planVal = planBtn ? (planBtn.getAttribute('data-plan') || '').trim() : '';
-        if (planVal) dayPlans[dag] = planVal;
     });
+    var genInput = document.getElementById('dag-timer-generelt-input');
+    var genVal = genInput ? genInput.value.trim() : '';
     if (genVal) timer._generelt = genVal;
-    if (genPlanVal) dayPlans._generelt = genPlanVal;
+
     dagTimerActiveCard.setAttribute('data-dager', JSON.stringify(dager));
     dagTimerActiveCard.setAttribute('data-timer', JSON.stringify(timer));
-    dagTimerActiveCard.setAttribute('data-day-plans', JSON.stringify(dayPlans));
-    // Oppdater også global plan-display (union av alle dager) for backward-compat med
-    // eksport/validering som leser fra .plan-display.
-    var allPlans = {};
-    Object.keys(dayPlans).forEach(function(d) {
-        (dayPlans[d] || '').split(',').map(s => s.trim()).filter(s => s).forEach(function(p) { allPlans[p] = true; });
-    });
-    var unionPlan = Object.keys(allPlans).join(', ');
+    dagTimerActiveCard.setAttribute('data-plans', JSON.stringify(plans));
+
+    // For bakoverkompatibilitet med eldre lesere (eksport/timer-oversikt som
+    // ikke er oppdatert ennå): bygg data-day-plans der hver dag med timer
+    // får hele plan-listen som komma-separert streng. Etasjer er nå én
+    // logisk enhet per bestilling, men replikering per dag holder gamle
+    // konsumenter funksjonelle.
+    var dayPlansLegacy = {};
+    if (plans.length) {
+        var planStr = plans.join(', ');
+        Object.keys(timer).forEach(function(d) { dayPlansLegacy[d] = planStr; });
+    }
+    dagTimerActiveCard.setAttribute('data-day-plans', JSON.stringify(dayPlansLegacy));
+
+    // Legacy .plan-display (eksport/validering) — speil etasjene.
+    var unionPlan = plans.join(', ');
     var planDisp = dagTimerActiveCard.querySelector('.plan-display');
     if (planDisp) {
         planDisp.setAttribute('data-plan', unionPlan);
@@ -4322,6 +4369,7 @@ function closeDagTimerModal(confirmed) {
     }
     updateDagTimerSummary(dagTimerActiveCard);
     dagTimerActiveCard = null;
+    _dagTimerSelectedPlans = [];
     if (typeof updateTimerChip === 'function') updateTimerChip();
     _maybeReturnToTimerOverview();
 }
@@ -4658,12 +4706,17 @@ function getOrdersData() {
         const plan = card.querySelector('.plan-display').getAttribute('data-plan') || '';
         const dayPlansObj = JSON.parse(card.getAttribute('data-day-plans') || '{}');
         const dayPlans = Object.keys(dayPlansObj).length > 0 ? dayPlansObj : '';
+        // Nytt: etasjer som bestilling-nivå-liste. Backward-kompatibel —
+        // gamle lesere som kun ser dayPlans får fortsatt utfylt struktur.
+        var plansArr = [];
+        try { plansArr = JSON.parse(card.getAttribute('data-plans') || '[]') || []; } catch (e) {}
+        const plans = plansArr.length ? plansArr : '';
         const merknad = card.querySelector('.mobile-order-merknad').value;
         const timerObj = JSON.parse(card.getAttribute('data-timer') || '{}');
         const timer = Object.keys(timerObj).length > 0 ? timerObj : '';
         const matContainer = card.querySelector('.mobile-order-materials');
         const materials = getMaterialsFromContainer(matContainer);
-        orders.push({ description, dager, plan, dayPlans, merknad, materials, timer });
+        orders.push({ description, dager, plan, dayPlans, plans, merknad, materials, timer });
     });
     return orders;
 }
@@ -5731,22 +5784,21 @@ function validateRequiredFields() {
         }
     }
 
-    // Validate dager (Arbeidstid) — krever BÅDE timer og plan på minst én dag.
-    // Plan er per-dag inne i Dager & tid-modalen (data-day-plans), så ingen separat plan-toggle.
+    // Validate dager (Arbeidstid) — krever BÅDE minst én dag med timer OG
+    // minst én etasje på bestilling-nivå. Etasjer er nå bestilling-attributt
+    // (data-plans), ikke per-dag — derfor uavhengige sjekker.
     if (saveReqs.dager) {
         const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
         for (let i = 0; i < orderCards.length; i++) {
             const card = orderCards[i];
             const cardTimer = JSON.parse(card.getAttribute('data-timer') || '{}');
-            const cardDayPlans = JSON.parse(card.getAttribute('data-day-plans') || '{}');
-            // Sjekk at minst én dag har BÅDE timer og plan satt
+            var cardPlans = _getCardPlans(card);
             var dagOrder = ['ma','ti','on','to','fr','lo','so','_generelt'];
-            var hasComplete = dagOrder.some(function(d) {
-                var hasT = !!(cardTimer[d] && String(cardTimer[d]).trim());
-                var hasP = !!(cardDayPlans[d] && String(cardDayPlans[d]).trim());
-                return hasT && hasP;
+            var hasTimer = dagOrder.some(function(d) {
+                return !!(cardTimer[d] && String(cardTimer[d]).trim());
             });
-            if (!hasComplete) {
+            var hasPlan = cardPlans.length > 0;
+            if (!hasTimer || !hasPlan) {
                 showNotificationModal(t('required_field', t('order_days')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
