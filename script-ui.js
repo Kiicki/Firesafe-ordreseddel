@@ -6582,14 +6582,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // tastatur-dismiss-lytteren (den krever fokus i #view-form-felt + ingen
     // popup) → ingen konflikt.
     var _POPUP_ACTIVE_SELECTOR = '.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active, .picker-overlay.active';
-    var _POPUP_SCROLLABLE_SELECTOR = POPUP_CONTENT_SELECTOR + ', .picker-overlay-list';
+    // KUN faktiske interne scrollere — IKKE hele sheet-elementene (.spec-popup-
+    // sheet o.l.). Hvis vi tillot native scroll på hele sheeten ville touch på
+    // header/padding/knapp-området (som ikke har overflow:auto) la browseren
+    // finne noe annet å scrolle (visual viewport / sheet-transform) → popupen
+    // ble dratt opp og bort. Disse interne scrollerne har overscroll-behavior:
+    // contain så de chainer aldri ut.
+    var _POPUP_SCROLLABLE_SELECTOR = '.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .picker-overlay-list, .modal-body';
     document.addEventListener('touchmove', function(e) {
         if (!document.querySelector(_POPUP_ACTIVE_SELECTOR)) return;
         var tgt = e.target;
         // Scroll inni popupens egen scrollflate (liste/innhold) → tillat.
         if (tgt && tgt.closest && tgt.closest(_POPUP_SCROLLABLE_SELECTOR)) return;
-        // Alt annet (backdrop-dim, skjema bak, toolbar) → blokker bakgrunns-
-        // scroll fullstendig.
+        // Alt annet (sheet-header/padding/knapper, backdrop-dim, skjema bak,
+        // toolbar) → blokker fullstendig.
         if (e.cancelable) e.preventDefault();
     }, { passive: false, capture: true });
 
