@@ -6446,19 +6446,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ensureKeyboardTargetVisible(el) {
         if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
-        // Uten bekreftet viewport-krymp har vi INGEN ekte tastatur-geometri.
-        // I den installerte PWA-en krymper aldri viewporten → delta-beregningen
-        // under blir ren gjetting og gir en uønsket autoscroll på åpning. Kun
-        // for form-felt: scroll kun når tastaturets effekt faktisk er målbar.
-        if (typeof isFormKeyboardTarget === 'function' && isFormKeyboardTarget(el)
-            && !(viewportKeyboardDetectionConfirmed || layoutKeyboardDetectionConfirmed)) {
-            return;
-        }
+        // Site-wide standard-oppførsel: når brukeren fokuserer et tekstfelt
+        // skal feltet bli synlig over tastaturet. Hvis det allerede er
+        // synlig (delta=0 i logikken under) → ingen scroll. Hvis det vil
+        // havne bak tastaturet → scroll opp så det vises. Gjelder skjema,
+        // popuper, modaler, pickers — alt med tekst-input.
 
         var rect = el.getBoundingClientRect();
         var vv = window.visualViewport;
         var viewportTop = vv ? vv.offsetTop : 0;
-        var viewportBottom = vv ? (vv.offsetTop + vv.height) : window.innerHeight;
+        // Hent FAKTISK tastatur-topp (VirtualKeyboard API → vv-shrink →
+        // input-type-% som siste fallback). Den brukes som «bunnen av
+        // synlig område» — over den ligger tastaturet. Uten ekte data
+        // ville beregningen vært gjetting (= autoscroll-bugs som før).
+        var kbdTop = _getKeyboardTop();
+        if (kbdTop === null) {
+            // Siste fallback: input-type-% estimat (eldre browsere uten
+            // signaler). Konsistent med popup-cap-logikken.
+            var innerH = window.innerHeight || 0;
+            if (innerH) {
+                var _frac = 0.45;
+                var _im = ((el.inputMode || '') + '').toLowerCase();
+                var _t = ((el.type || '') + '').toLowerCase();
+                if (_im === 'numeric' || _im === 'decimal' || _im === 'tel'
+                    || _t === 'number' || _t === 'tel') {
+                    _frac = 0.33;
+                } else if (_t === 'date' || _t === 'time'
+                        || _t === 'datetime-local' || _t === 'month'
+                        || _t === 'week') {
+                    _frac = 0.30;
+                }
+                kbdTop = Math.round(innerH * (1 - _frac));
+            }
+        }
+        var viewportBottom = kbdTop !== null
+            ? kbdTop
+            : (vv ? (vv.offsetTop + vv.height) : window.innerHeight);
         var topPadding = 56;
         var bottomPadding = 16;
 
