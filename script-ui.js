@@ -5640,18 +5640,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Returnerer tastaturets topp-kant i layout-viewport-koordinater, eller
     // null hvis ingen pålitelig måling er tilgjengelig. Tre-lags fallback:
-    //   1) VirtualKeyboard API (Chromium): eksakt pikseltall
-    //   2) visualViewport-krymp (iOS Safari, Firefox): kbdTop = vv.bottom
-    //   3) null → caller bruker input-type-% som siste utvei
+    //   1) VirtualKeyboard API (Chromium): bruk br.HEIGHT for å regne topp,
+    //      ikke br.top — Chrome har rapportert top=0 mens height er korrekt
+    //      i visse versjoner (kjent quirk). Tastaturet er ALLTID forankret
+    //      mot bunnen av layout-viewport, så innerH - height er entydig.
+    //   2) visualViewport-krymp (iOS Safari, Firefox).
+    //   3) null → caller bruker input-type-% som siste utvei.
+    // Sanity: avviser urealistiske verdier (kbd > 85% av skjerm) → faller
+    // pent til neste lag.
     function _getKeyboardTop() {
+        var innerH = window.innerHeight || 0;
+        if (!innerH) return null;
         if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
             var br = navigator.virtualKeyboard.boundingRect;
-            if (br && br.height > 0) return br.top;
+            if (br && br.height > 0 && br.height < innerH * 0.85) {
+                return innerH - br.height;
+            }
         }
         if (window.visualViewport) {
             var vv = window.visualViewport;
-            var shrunk = (window.innerHeight - vv.height - vv.offsetTop);
-            if (shrunk > 50) return vv.offsetTop + vv.height;
+            var shrunk = (innerH - vv.height - vv.offsetTop);
+            if (shrunk > 50 && shrunk < innerH * 0.85) {
+                return vv.offsetTop + vv.height;
+            }
         }
         return null;
     }
