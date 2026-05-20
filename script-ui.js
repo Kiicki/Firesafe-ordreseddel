@@ -6229,13 +6229,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
                 s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
             } else {
-                // PWA-overlay: tastaturet ligger alltid i nedre ~halvdel.
-                // Topp-forankre popupen i øvre del + cap til trygg høyde;
-                // .spec-popup-body/innhold scroller internt, footer låst.
+                // PWA-overlay: vi har ingen ekte tastaturhøyde (vv krymper
+                // ikke). Cap til trygg høyde + LØFT KUN SÅ MYE SOM TRENGS
+                // for at popupens bunn ligger like over antatt tastatur-
+                // topp — IKKE pinne til toppen av skjermen (etterlater stort
+                // tomrom under popupen, dårlig UX). Antar tastatur ~45% av
+                // innerH (typisk Android portrait); KEYBOARD_MARGIN gir
+                // buffer for variasjon (forslagsrad, landskapsmodus). Små
+                // popuper blir nær sentrum (lift=0); større løftes minimalt.
                 var safeH = Math.max(200, Math.round(innerH * 0.46));
                 s.style.setProperty('max-height', safeH + 'px', 'important');
                 var rect2 = s.getBoundingClientRect();
-                var lift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
+                var assumedKbdTop = _vvTop + Math.round(innerH * 0.55);
+                var desiredBottom = assumedKbdTop - KEYBOARD_MARGIN;
+                var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
+                // Tak: ikke løft popupens topp under KEYBOARD_MARGIN fra topp.
+                var maxLift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
+                lift = Math.min(lift, maxLift);
                 s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
             }
 
