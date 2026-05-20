@@ -381,10 +381,14 @@ function loadFormDirect(formData) {
     if (!formData) return;
     setFormData(formData);
 
-    // Regel: alltid dagens dato/uke, unntatt for sendte skjema (bevar historisk).
+    // Signering-dato: alltid dagens for draft (system-styrt, ikke editerbart),
+    // bevares historisk kun for sendte skjema.
+    // Uke: bevares ALLTID slik den ble lagret (representerer når jobben ble
+    // utført — ikke når skjemaet sist ble åpnet). Uke settes bare ved
+    // oppretting (nytt skjema/duplisering/clearForm) og kan endres manuelt
+    // av brukeren før lagring.
     if (!formData._isSent) {
         _setSigneringDatoToday();
-        _setUkeToToday();
     }
 
     updateFormTypeChip();
@@ -5521,12 +5525,18 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {}
     }
     // Tøm kundens underskrift ved oppstart (session-spesifikk — må signeres på nytt).
-    // Regel: alltid dagens dato, unntatt for sendte skjemaer (bevar historisk).
+    // Signering-dato: alltid dagens for draft (system-styrt), bevares for sendt.
+    // Uke: settes bare hvis dette er en HELT FRISK start (ingen session-data).
+    // Hvis vi gjenoppretter en draft fra forrige økt, bevares lagret uke
+    // (uka representerer NÅR jobben ble utført, ikke når skjemaet ble åpnet).
     document.getElementById('kundens-underskrift').value = '';
     document.getElementById('mobile-kundens-underskrift').value = '';
     const _wasSentOnStartup = sessionStorage.getItem('firesafe_current_sent') === '1';
     if (!_wasSentOnStartup) {
         _setSigneringDatoToday();
+    }
+    if (!current) {
+        // Helt frisk start (ingen lagret session) → nytt skjema får dagens uke.
         _setUkeToToday();
     }
 
