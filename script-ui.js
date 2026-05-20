@@ -6506,41 +6506,20 @@ document.addEventListener('DOMContentLoaded', function() {
     function ensureKeyboardTargetVisible(el) {
         if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
         // Site-wide standard-oppførsel: når brukeren fokuserer et tekstfelt
-        // skal feltet bli synlig over tastaturet. Hvis det allerede er
-        // synlig (delta=0 i logikken under) → ingen scroll. Hvis det vil
-        // havne bak tastaturet → scroll opp så det vises. Gjelder skjema,
-        // popuper, modaler, pickers — alt med tekst-input.
+        // OG et reelt skjermtastatur er åpent → scroll feltet over tastaturet
+        // hvis det vil havne bak. Hvis allerede synlig → ingen scroll.
+        // KREVER ekte tastatur-signal (VirtualKeyboard API ELLER vv-krymp).
+        // På PC (desktop, ingen skjermtastatur) gir begge null → vi gjør
+        // INGENTING (browseren har sin egen native focus-scroll uansett).
+        // Dette gjelder mobil, nettbrett, PC, hybrid-enheter: kun reagér på
+        // bekreftet tastatur-tilstedeværelse, aldri gjett.
+        var kbdTop = _getKeyboardTop();
+        if (kbdTop === null) return;
 
         var rect = el.getBoundingClientRect();
         var vv = window.visualViewport;
         var viewportTop = vv ? vv.offsetTop : 0;
-        // Hent FAKTISK tastatur-topp (VirtualKeyboard API → vv-shrink →
-        // input-type-% som siste fallback). Den brukes som «bunnen av
-        // synlig område» — over den ligger tastaturet. Uten ekte data
-        // ville beregningen vært gjetting (= autoscroll-bugs som før).
-        var kbdTop = _getKeyboardTop();
-        if (kbdTop === null) {
-            // Siste fallback: input-type-% estimat (eldre browsere uten
-            // signaler). Konsistent med popup-cap-logikken.
-            var innerH = window.innerHeight || 0;
-            if (innerH) {
-                var _frac = 0.45;
-                var _im = ((el.inputMode || '') + '').toLowerCase();
-                var _t = ((el.type || '') + '').toLowerCase();
-                if (_im === 'numeric' || _im === 'decimal' || _im === 'tel'
-                    || _t === 'number' || _t === 'tel') {
-                    _frac = 0.33;
-                } else if (_t === 'date' || _t === 'time'
-                        || _t === 'datetime-local' || _t === 'month'
-                        || _t === 'week') {
-                    _frac = 0.30;
-                }
-                kbdTop = Math.round(innerH * (1 - _frac));
-            }
-        }
-        var viewportBottom = kbdTop !== null
-            ? kbdTop
-            : (vv ? (vv.offsetTop + vv.height) : window.innerHeight);
+        var viewportBottom = kbdTop;
         var topPadding = 56;
         var bottomPadding = 16;
 
@@ -6599,6 +6578,41 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         setTimeout(function() { ensureKeyboardTargetVisible(el); }, 280);
+    }
+
+    // Multilinje-felt (textarea, contenteditable) vokser/krymper når
+    // brukeren skriver eller sletter linjer. ResizeObserver gir oss et
+    // pålitelig signal hver gang feltet endrer høyde → kjør visibility-
+    // sjekk på nytt så autoscrollet løfter nye linjer over tastaturet
+    // (og reverse-scroller når linjer slettes). Site-wide for ALLE
+    // multilinje-felt: Beskrivelse, Merknad, kappe-kommentarer,
+    // popup-tekstfelt — uansett hvor i appen.
+    var _multilineRO = null;
+    var _multilineEl = null;
+    function _isMultilineField(el) {
+        if (!el || el.nodeType !== 1) return false;
+        return el.tagName === 'TEXTAREA' || el.isContentEditable === true;
+    }
+    function _attachMultilineWatcher(el) {
+        _detachMultilineWatcher();
+        if (!_isMultilineField(el)) return;
+        if (typeof ResizeObserver !== 'function') return;
+        _multilineEl = el;
+        _multilineRO = new ResizeObserver(function() {
+            // Ingen autoscroll uten ekte tastatur-signal — gaten i
+            // ensureKeyboardTargetVisible håndterer PC-tilfellet.
+            if (_multilineEl && document.body.contains(_multilineEl)) {
+                ensureKeyboardTargetVisible(_multilineEl);
+            }
+        });
+        try { _multilineRO.observe(el); } catch (e) { _detachMultilineWatcher(); }
+    }
+    function _detachMultilineWatcher() {
+        if (_multilineRO) {
+            try { _multilineRO.disconnect(); } catch (e) {}
+            _multilineRO = null;
+        }
+        _multilineEl = null;
     }
 
     // === Fokus-drevet skjema-tastatur (DETERMINISTISK) ===
@@ -6739,12 +6753,16 @@ document.addEventListener('DOMContentLoaded', function() {
             scheduleKeyboardTargetVisibilityCheck(e.target);
             scheduleApply();
         }
+        // Multilinje-felt: følg høyde-endringer mens fokusert (ny linje
+        // lagt til/slettet) så autoscrollet løfter ny linje over tastaturet.
+        if (_isMultilineField(e.target)) _attachMultilineWatcher(e.target);
     });
     document.addEventListener('focusout', function(e) {
         if (_isFormKbdField(e.target)) _setKbdEditing(false);
         if (isKeyboardOpeningElement(e.target)) {
             scheduleForcedApply();
         }
+        if (_isMultilineField(e.target)) _detachMultilineWatcher();
     });
 
     // === Enkel tastatur-lukking i tette skjemaer ===
