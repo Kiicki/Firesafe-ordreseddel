@@ -6704,7 +6704,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // overføres ingen andre steder → uten dette hopper innholdet ved bytte.
     // Helperen eier selve classList-mutasjonen så lesning/mutasjon/skriving
     // skjer i SAMME tick (ingen rAF — en frame ville male upairet posisjon).
-    function _handoffKbdScroll(direction) {
+    function _handoffKbdScroll(direction, opts) {
+        opts = opts || {};
+        var fromScrollDismiss = !!opts.fromScrollDismiss;
         var el = document.querySelector('#view-form.view.active, #service-view.view.active, #kappe-view.view.active');
         if (!el) {
             if (direction === 'toBody') document.body.classList.add('kbd-editing');
@@ -6725,12 +6727,12 @@ document.addEventListener('DOMContentLoaded', function() {
             el.scrollTop = clamp(srcY - off, el.scrollHeight - el.clientHeight);
             window.scrollTo(0, 0);                                   // defensiv normalisering
 
-            // Hvis siste fokuserte tastatur-felt nå er klemt utenfor synlig
-            // område av el (kan skje når doc-scroll-range > el-scroll-range
-            // pga. keyboard-spacer + autoscroll-etter-multiline-grow), bring
-            // det tilbake i syne. Bevarer «stay where user was»-UX i stedet
-            // for å hoppe til slutten av skjemaet.
-            if (_lastKbdFocusedEl && el.contains(_lastKbdFocusedEl)) {
+            // Yank-back til siste fokuserte felt — KUN ved tap-utenfor-dismiss
+            // (recovery fra clamp etter spacer-fjerning). Ved scroll-dismiss
+            // har brukeren bevisst flyttet seg vekk; honorér den intensjonen
+            // (matcher iOS keyboardDismissMode=.onDrag-oppførsel).
+            if (!fromScrollDismiss
+                && _lastKbdFocusedEl && el.contains(_lastKbdFocusedEl)) {
                 var r = _lastKbdFocusedEl.getBoundingClientRect();
                 var elRect = el.getBoundingClientRect();
                 if (r.bottom < elRect.top || r.top > elRect.bottom) {
@@ -6758,7 +6760,9 @@ document.addEventListener('DOMContentLoaded', function() {
         _cancelPendingScrollHandoff();
         // Re-fokusert et felt mens vi ventet → bruker skriver igjen, ingen swap.
         if (!_isFormKbdField(document.activeElement)) {
-            _handoffKbdScroll('toContainer');
+            // fromScrollDismiss=true: ikke yank-tilbake til fokusert felt.
+            // Brukeren har bevisst scrollet vekk; honorér posisjonen.
+            _handoffKbdScroll('toContainer', { fromScrollDismiss: true });
         }
     }
     function _scheduleScrollSettledHandoff() {
