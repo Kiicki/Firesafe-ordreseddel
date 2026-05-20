@@ -6593,6 +6593,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!el || el.nodeType !== 1) return false;
         return el.tagName === 'TEXTAREA' || el.isContentEditable === true;
     }
+    // Husk siste keyboard-felt som hadde fokus så vi kan bringe det tilbake
+    // i syne etter handoff (når scroll-clamp kunne ha "hoppet" oss langt
+    // bort, typisk etter at multiline-textarea har vokst og dokumentet ble
+    // scrollet ned for å holde bunnen over tastatur).
+    var _lastKbdFocusedEl = null;
     function _attachMultilineWatcher(el) {
         _detachMultilineWatcher();
         if (!_isMultilineField(el)) return;
@@ -6654,6 +6659,19 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.classList.remove('kbd-editing');          // → fixed, intern scroller
             el.scrollTop = clamp(srcY - off, el.scrollHeight - el.clientHeight);
             window.scrollTo(0, 0);                                   // defensiv normalisering
+
+            // Hvis siste fokuserte tastatur-felt nå er klemt utenfor synlig
+            // område av el (kan skje når doc-scroll-range > el-scroll-range
+            // pga. keyboard-spacer + autoscroll-etter-multiline-grow), bring
+            // det tilbake i syne. Bevarer «stay where user was»-UX i stedet
+            // for å hoppe til slutten av skjemaet.
+            if (_lastKbdFocusedEl && el.contains(_lastKbdFocusedEl)) {
+                var r = _lastKbdFocusedEl.getBoundingClientRect();
+                var elRect = el.getBoundingClientRect();
+                if (r.bottom < elRect.top || r.top > elRect.bottom) {
+                    try { _lastKbdFocusedEl.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+                }
+            }
         }
     }
     // Scroll-utløst lukking: scroller-byttet (position:static→fixed) dreper en
@@ -6729,6 +6747,10 @@ document.addEventListener('DOMContentLoaded', function() {
             _setKbdEditing(true);
         }
         if (isKeyboardOpeningElement(e.target)) {
+            // Husk siste keyboard-felt så handoff kan bringe det tilbake i
+            // syne etter dismiss (forhindrer clamp-til-bunn-hopp etter at
+            // multiline-textarea har vokst).
+            _lastKbdFocusedEl = e.target;
             // Undertrykk scroll/tapp-til-lukk i 350ms etter ENHVER tastatur-
             // fokus (ikke kun skjema): rett etter fokus kjører programmatisk
             // scroll-into-view og evt. popup-cap-layout som ellers ville utløst
