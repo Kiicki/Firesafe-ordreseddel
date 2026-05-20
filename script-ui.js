@@ -6794,15 +6794,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 // forblir scroller) til flingen har stilnet, så gjør handoff.
                 _scheduleScrollSettledHandoff();
             } else {
-                // Tapp/annet blur: ingen momentum å bevare → rask grace.
-                // Felt→felt-bytte blurrer kort før neste fokus; sjekk på nytt
-                // etter 150ms.
+                // Tapp/annet ekte blur: ingen momentum å bevare → rask
+                // grace. focusout har allerede sjekket relatedTarget — vi
+                // vet det IKKE er felt→felt-bytte. Kort grace dekker
+                // kanttilfeller hvor relatedTarget mangler men en
+                // programmatisk fokus-flytt følger umiddelbart.
                 _kbdEditClearTimer = setTimeout(function() {
                     _kbdEditClearTimer = null;
                     if (!_isFormKbdField(document.activeElement)) {
                         _handoffKbdScroll('toContainer');
                     }
-                }, 150);
+                }, 30);
             }
         }
     }
@@ -6845,7 +6847,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (_isMultilineField(e.target)) _attachMultilineWatcher(e.target);
     });
     document.addEventListener('focusout', function(e) {
-        if (_isFormKbdField(e.target)) _setKbdEditing(false);
+        if (_isFormKbdField(e.target)) {
+            // Felt→felt-bytte: relatedTarget = neste fokuserte element. Hvis
+            // det også er et form-felt, hopp over removal helt — kbd-editing
+            // forblir og toolbar trenger ikke flytte seg. Sparer både flicker
+            // OG den synlige forsinkelsen fra grace-timeren.
+            if (e.relatedTarget && _isFormKbdField(e.relatedTarget)) {
+                return;
+            }
+            _setKbdEditing(false);
+        }
         if (isKeyboardOpeningElement(e.target)) {
             scheduleForcedApply();
         }
