@@ -2493,7 +2493,16 @@ function _loadLagerInline() {
     LAGER_FIELDS.forEach(function(f) {
         var el = document.getElementById('lager-inline-' + f);
         if (!el) return;
-        el.addEventListener('blur', _saveLagerInline);
+        // Dirty-check: lagre kun hvis verdien faktisk endret seg mellom
+        // focus og blur. Uten dette skrives det til Firebase ved hver
+        // tilfeldig tap-inn-tap-ut, og senere kunne en suksess-toast feilaktig
+        // dukke opp uten endring. Site-wide mønster (se mininfo nedenfor).
+        var _initialValue = '';
+        el.addEventListener('focus', function() { _initialValue = el.value; });
+        el.addEventListener('blur', function() {
+            if (el.value === _initialValue) return;
+            _saveLagerInline();
+        });
     });
 }
 
@@ -13364,19 +13373,25 @@ function _loadMinInfoSettings() {
     });
     if (_minInfoInitialized) return;
     _minInfoInitialized = true;
-    MIN_INFO_FIELDS.forEach(function(f) {
-        var el = document.getElementById('mininfo-' + f);
-        if (el) el.addEventListener('blur', function() {
+    // Dirty-check: bare lagre + vis suksess-toast hvis verdien faktisk
+    // endret seg mellom focus og blur. Uten dette utløser et hvilket som
+    // helst tap-inn-tap-ut (f.eks. etter tastatur-åpning/-lukking uten
+    // skriving) en feilaktig "Lagret"-toast. Site-wide mønster.
+    function _attachDirtyBlurSave(el) {
+        if (!el) return;
+        var _initialValue = '';
+        el.addEventListener('focus', function() { _initialValue = el.value; });
+        el.addEventListener('blur', function() {
+            if (el.value === _initialValue) return;
             _saveMinInfo();
             showNotificationModal(t('settings_defaults_saved'), true);
         });
+    }
+    MIN_INFO_FIELDS.forEach(function(f) {
+        _attachDirtyBlurSave(document.getElementById('mininfo-' + f));
     });
     ['fornavn', 'etternavn'].forEach(function(f) {
-        var el = document.getElementById('mininfo-' + f);
-        if (el) el.addEventListener('blur', function() {
-            _saveMinInfo();
-            showNotificationModal(t('settings_defaults_saved'), true);
-        });
+        _attachDirtyBlurSave(document.getElementById('mininfo-' + f));
     });
     MIN_INFO_TOGGLES.forEach(function(k) {
         var cb = document.getElementById('mininfo-autofill-' + k);
