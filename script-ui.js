@@ -6228,6 +6228,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 var lift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
                 s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
             }
+
+            // Vekk Chromes compositor sin scroll-state: etter at sheet-
+            // størrelsen endres (max-height + transform) vet ikke gesture-
+            // detector ennå at den interne scrolleren plutselig kan scrolle
+            // → første touchmove tolkes som «ikke-scrollbar» og scroll skjer
+            // ikke; andre touch virker fordi compositor har oppdatert seg.
+            // Tvinger synkron reflow (offsetHeight-lesning) + no-op scrollTop-
+            // skriv på interne scrollere som faktisk har overflow → Chrome
+            // re-evaluerer scrollability før neste touch.
+            var _scrollers = s.querySelectorAll('.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .modal-body, .picker-overlay-list');
+            for (var _si = 0; _si < _scrollers.length; _si++) {
+                var _scEl = _scrollers[_si];
+                void _scEl.offsetHeight;
+                if (_scEl.scrollHeight > _scEl.clientHeight) {
+                    var _scSt = _scEl.scrollTop;
+                    _scEl.scrollTop = _scSt + 1;
+                    _scEl.scrollTop = _scSt;
+                }
+            }
         });
 
         // Confirm-modal padding-bottom håndteres nå via CSS-regelen
