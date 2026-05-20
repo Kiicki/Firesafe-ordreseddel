@@ -5613,6 +5613,49 @@ document.addEventListener('DOMContentLoaded', function() {
             : (cur.replace(/,?\s*interactive-widget=[^,]*/g, '') + ', interactive-widget=' + target);
         meta.setAttribute('content', next);
     }
+
+    // === VirtualKeyboard API: eksakt tastatur-geometri ===
+    // Chromium (Android Chrome PWA, Edge): aktivering av overlaysContent=true
+    // gjør at browseren rapporterer faktisk tastatur-rect via boundingRect og
+    // fyrer geometrychange ved endringer. Erstatter %-gjetning med målinger
+    // som er korrekte uansett tastatur (Gboard/Samsung/SwiftKey/numerisk/
+    // emoji-bar/landskap). Ikke-Chromium-browsere (iOS Safari, Firefox)
+    // mangler API → faller naturlig tilbake til visualViewport-krymping.
+    var _HAS_VKBD_API = !!(typeof navigator !== 'undefined' && navigator.virtualKeyboard
+        && typeof navigator.virtualKeyboard.overlaysContent === 'boolean');
+    if (_HAS_VKBD_API) {
+        try {
+            navigator.virtualKeyboard.overlaysContent = true;
+            navigator.virtualKeyboard.addEventListener('geometrychange', function() {
+                var br = navigator.virtualKeyboard.boundingRect;
+                if (br && br.height > 0) {
+                    // Konfirmerer at vi har pålitelig tastatur-signal → form-
+                    // view-paths som er gated på dette flagget aktiveres.
+                    viewportKeyboardDetectionConfirmed = true;
+                }
+                scheduleForcedApply();
+            });
+        } catch (e) { /* feature ikke støttet eller blokkert — ignorer */ }
+    }
+
+    // Returnerer tastaturets topp-kant i layout-viewport-koordinater, eller
+    // null hvis ingen pålitelig måling er tilgjengelig. Tre-lags fallback:
+    //   1) VirtualKeyboard API (Chromium): eksakt pikseltall
+    //   2) visualViewport-krymp (iOS Safari, Firefox): kbdTop = vv.bottom
+    //   3) null → caller bruker input-type-% som siste utvei
+    function _getKeyboardTop() {
+        if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
+            var br = navigator.virtualKeyboard.boundingRect;
+            if (br && br.height > 0) return br.top;
+        }
+        if (window.visualViewport) {
+            var vv = window.visualViewport;
+            var shrunk = (window.innerHeight - vv.height - vv.offsetTop);
+            if (shrunk > 50) return vv.offsetTop + vv.height;
+        }
+        return null;
+    }
+
     // Felles toolbar-regel:
     // - Tastatur lukket: toolbar eies av body og er fixed i bunn.
     // - Tastatur åpent: toolbar flyttes til aktiv scroll-host som siste element.
@@ -6214,40 +6257,49 @@ document.addEventListener('DOMContentLoaded', function() {
             s.style.transition = 'none';
 
             var innerH = window.innerHeight || visH;
-            // Krympte viewporten REELT? (Chrome-fane: visualViewport krymper
-            // når tastaturet åpnes → vi har presise tall.) I installert PWA
-            // overlapper tastaturet uten å krympe noe — da finnes ingen
-            // pålitelig tastaturhøyde; topp-forankre med trygg cap.
-            var viewportShrank = visH < (innerH * 0.85);
             s.style.transform = '';
-            if (viewportShrank) {
-                var maxH = Math.max(180, visBottom - KEYBOARD_MARGIN * 2);
-                s.style.setProperty('max-height', maxH + 'px', 'important');
-                var desiredBottom = visBottom - KEYBOARD_MARGIN;
-                var rect = s.getBoundingClientRect();
-                var maxTranslate = Math.max(0, rect.top - KEYBOARD_MARGIN);
-                var translate = Math.min(Math.max(0, rect.bottom - desiredBottom), maxTranslate);
-                s.style.transform = translate ? 'translateY(-' + translate + 'px)' : '';
+
+            // === Unified posisjonering: best tilgjengelige signal vinner ===
+            // _getKeyboardTop() prøver VirtualKeyboard API → visualViewport
+            // → null. Hvis vi får tall, bruk dem direkte (eksakt, fungerer på
+            // alle tastaturer/nettlesere/OS). Hvis null → bruk input-type-%
+            // som siste fallback (kun når ingen browser-signal eksisterer,
+            // f.eks. eldre Android WebView). Cap (safeH) bruker samme
+            // beregning: faktisk plass over tastatur når kjent, ellers %.
+            var kbdTop = _getKeyboardTop();
+            var safeH, desiredBottom;
+            if (kbdTop !== null) {
+                // Eksakt tastatur-topp (Chromium boundingRect ELLER iOS/FF vv-krymp)
+                safeH = Math.max(180, kbdTop - KEYBOARD_MARGIN * 2);
+                desiredBottom = kbdTop - KEYBOARD_MARGIN;
             } else {
-                // PWA-overlay: vi har ingen ekte tastaturhøyde (vv krymper
-                // ikke). Cap til trygg høyde + LØFT KUN SÅ MYE SOM TRENGS
-                // for at popupens bunn ligger like over antatt tastatur-
-                // topp — IKKE pinne til toppen av skjermen (etterlater stort
-                // tomrom under popupen, dårlig UX). Antar tastatur ~45% av
-                // innerH (typisk Android portrait); KEYBOARD_MARGIN gir
-                // buffer for variasjon (forslagsrad, landskapsmodus). Små
-                // popuper blir nær sentrum (lift=0); større løftes minimalt.
-                var safeH = Math.max(200, Math.round(innerH * 0.46));
-                s.style.setProperty('max-height', safeH + 'px', 'important');
-                var rect2 = s.getBoundingClientRect();
-                var assumedKbdTop = _vvTop + Math.round(innerH * 0.55);
-                var desiredBottom = assumedKbdTop - KEYBOARD_MARGIN;
-                var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
-                // Tak: ikke løft popupens topp under KEYBOARD_MARGIN fra topp.
-                var maxLift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
-                lift = Math.min(lift, maxLift);
-                s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
+                // Fallback: input-type-% (siste utvei, eldre browsere uten signaler)
+                var _ae = document.activeElement;
+                var _kbdFrac = 0.45;
+                if (_ae) {
+                    var _im = ((_ae.inputMode || '') + '').toLowerCase();
+                    var _t = ((_ae.type || '') + '').toLowerCase();
+                    if (_im === 'numeric' || _im === 'decimal' || _im === 'tel'
+                        || _t === 'number' || _t === 'tel') {
+                        _kbdFrac = 0.33;
+                    } else if (_t === 'date' || _t === 'time'
+                            || _t === 'datetime-local' || _t === 'month'
+                            || _t === 'week') {
+                        _kbdFrac = 0.30;
+                    }
+                }
+                safeH = Math.max(200, Math.round(innerH * 0.46));
+                var assumedKbdTop = _vvTop + Math.round(innerH * (1 - _kbdFrac));
+                desiredBottom = assumedKbdTop - KEYBOARD_MARGIN;
             }
+
+            s.style.setProperty('max-height', safeH + 'px', 'important');
+            var rect2 = s.getBoundingClientRect();
+            var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
+            // Tak: ikke løft popupens topp under KEYBOARD_MARGIN fra skjerm-topp.
+            var maxLift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
+            lift = Math.min(lift, maxLift);
+            s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
 
             // Vekk Chromes compositor sin scroll-state: etter at sheet-
             // størrelsen endres (max-height + transform) vet ikke gesture-
