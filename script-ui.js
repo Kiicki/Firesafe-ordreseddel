@@ -6313,6 +6313,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 s.style.transform = '';
                 s.style.transition = '';
                 s.style.marginTop = '';
+                // Clear list-cap også (satt under når popup-cap er aktiv).
+                var _clrListSelectors = ['.dag-timer-modal-list', '.spec-popup-body',
+                                         '.fakturaadresse-popup-body', '.picker-overlay-list',
+                                         '.modal-body'];
+                for (var _clsi = 0; _clsi < _clrListSelectors.length; _clsi++) {
+                    var _clrEl = s.querySelector(_clrListSelectors[_clsi]);
+                    if (_clrEl) _clrEl.style.removeProperty('max-height');
+                }
                 return;
             }
             if (!kbdActive) {
@@ -6338,6 +6346,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 s.style.transform = '';
                 s.style.transition = '';
                 s.style.marginTop = '';
+                // Clear list-cap også.
+                var _clrListSel2 = ['.dag-timer-modal-list', '.spec-popup-body',
+                                    '.fakturaadresse-popup-body', '.picker-overlay-list',
+                                    '.modal-body'];
+                for (var _csi = 0; _csi < _clrListSel2.length; _csi++) {
+                    var _clEl = s.querySelector(_clrListSel2[_csi]);
+                    if (_clEl) _clEl.style.removeProperty('max-height');
+                }
                 return;
             }
 
@@ -6355,6 +6371,55 @@ document.addEventListener('DOMContentLoaded', function() {
             var safeH = Math.max(180, capTop - KEYBOARD_MARGIN * 2);
             var desiredBottom = kbdTop - KEYBOARD_MARGIN;
             s.style.setProperty('max-height', safeH + 'px', 'important');
+
+            // Eksplisitt cap PÅ DEN INTERNE LISTA. Sheet har overflow:hidden
+            // og max-height satt over. Hvis listas flex:1+min-height:0 ikke
+            // krymper riktig (Chromium-quirk), kan knappene bli klippet av
+            // sheet-overflow. Ved å sette list-max direkte = safeH minus
+            // ikke-list-søsken (tittel + knapper) + sheet-padding, garanterer
+            // vi at lista alltid krymper og knappene alltid får plass innenfor
+            // sheet-kanten.
+            var _listSelectors = ['.dag-timer-modal-list', '.spec-popup-body',
+                                  '.fakturaadresse-popup-body', '.picker-overlay-list',
+                                  '.modal-body'];
+            var _innerList = null;
+            for (var _lsi = 0; _lsi < _listSelectors.length; _lsi++) {
+                _innerList = s.querySelector(_listSelectors[_lsi]);
+                if (_innerList && s.contains(_innerList)) break;
+                _innerList = null;
+            }
+            if (_innerList) {
+                var _sheetCS = getComputedStyle(s);
+                var _padV = (parseFloat(_sheetCS.paddingTop) || 0)
+                          + (parseFloat(_sheetCS.paddingBottom) || 0);
+                var _nonListH = 0;
+                for (var _ci = 0; _ci < s.children.length; _ci++) {
+                    var _child = s.children[_ci];
+                    if (_child !== _innerList && !_innerList.contains(_child)
+                        && !_child.contains(_innerList)) {
+                        _nonListH += _child.offsetHeight || 0;
+                    }
+                }
+                // Hvis lista er nestet (f.eks. .spec-popup-body inni
+                // .spec-popup-sheet), iterér fra lista oppover og summer
+                // søsken-høyder. _child.contains-sjekken ovenfor håndterer
+                // den enkle saken; for nestet struktur går vi via parents.
+                var _parent = _innerList.parentElement;
+                while (_parent && _parent !== s) {
+                    var _siblings = _parent.children;
+                    for (var _si = 0; _si < _siblings.length; _si++) {
+                        var _sib = _siblings[_si];
+                        if (_sib !== _innerList && !_sib.contains(_innerList)
+                            && !_innerList.contains(_sib)) {
+                            _nonListH += _sib.offsetHeight || 0;
+                        }
+                    }
+                    _parent = _parent.parentElement;
+                    if (_parent === s) break;
+                }
+                var _listMax = Math.max(60, safeH - _nonListH - _padV);
+                _innerList.style.setProperty('max-height', _listMax + 'px', 'important');
+            }
             var rect2 = s.getBoundingClientRect();
             var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
             // Tak: ikke løft popupens topp under KEYBOARD_MARGIN fra skjerm-topp.
