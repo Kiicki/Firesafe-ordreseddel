@@ -6362,7 +6362,8 @@ document.addEventListener('DOMContentLoaded', function() {
             s.style.transition = 'none';
             s.style.transform = '';
 
-            var safeH = Math.max(180, kbdTop - KEYBOARD_MARGIN * 2);
+            var kbdCapTop = _getKeyboardCapTop() || kbdTop;
+            var safeH = Math.max(180, kbdCapTop - KEYBOARD_MARGIN * 2);
             var desiredBottom = kbdTop - KEYBOARD_MARGIN;
 
             // KRITISK MÅLE-REKKEFØLGE: vi MÅ måle ikke-list-barn (tittel,
@@ -6398,11 +6399,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 var _padV = (parseFloat(_sheetCS.paddingTop) || 0)
                           + (parseFloat(_sheetCS.paddingBottom) || 0);
                 var _nonListH = 0;
+                function _outerBlockHeight(el) {
+                    if (!el) return 0;
+                    var cs = getComputedStyle(el);
+                    return (el.offsetHeight || 0)
+                        + (parseFloat(cs.marginTop) || 0)
+                        + (parseFloat(cs.marginBottom) || 0);
+                }
                 for (var _ci = 0; _ci < s.children.length; _ci++) {
                     var _child = s.children[_ci];
                     if (_child !== _innerList && !_innerList.contains(_child)
                         && !_child.contains(_innerList)) {
-                        _nonListH += _child.offsetHeight || 0;
+                        _nonListH += _outerBlockHeight(_child);
                     }
                 }
                 // Nestet struktur (f.eks. .spec-popup-body inni .spec-popup-sheet).
@@ -6413,7 +6421,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         var _sib = _siblings[_si];
                         if (_sib !== _innerList && !_sib.contains(_innerList)
                             && !_innerList.contains(_sib)) {
-                            _nonListH += _sib.offsetHeight || 0;
+                            _nonListH += _outerBlockHeight(_sib);
                         }
                     }
                     _parent = _parent.parentElement;
@@ -6444,7 +6452,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Tvinger synkron reflow (offsetHeight-lesning) + no-op scrollTop-
             // skriv på interne scrollere som faktisk har overflow → Chrome
             // re-evaluerer scrollability før neste touch.
-            var _scrollers = s.querySelectorAll('.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .modal-body, .picker-overlay-list');
+            var _scrollers = s.querySelectorAll('.dag-timer-modal-list, .spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .modal-body, .picker-overlay-list');
             for (var _si = 0; _si < _scrollers.length; _si++) {
                 var _scEl = _scrollers[_si];
                 void _scEl.offsetHeight;
