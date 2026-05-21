@@ -6362,13 +6362,14 @@ document.addEventListener('DOMContentLoaded', function() {
             s.style.transition = 'none';
             s.style.transform = '';
 
-            // safeH bruker «cap-top» (over keys, uten buffer) så sheet har nok
-            // plass til at list-elementet kan krympe og knapper IKKE blir
-            // klippet av sheet-overflow:hidden. desiredBottom bruker den
-            // «accessory-aware» kbdTop (med buffer) så popup-bunnen plasseres
-            // over accessory-baren, ikke bak den.
-            var capTop = _getKeyboardCapTop() || kbdTop;
-            var safeH = Math.max(180, capTop - KEYBOARD_MARGIN * 2);
+            // Både safeH og desiredBottom bruker ACCESSORY-AWARE kbdTop. Sheet
+            // skal få plass over accessory-baren — ikke bare over keys. Hvis
+            // safeH var basert på over-keys-pos (mer rom), ville sheet vært
+            // for høy → lift kunne ikke flytte den nok pga maxLift-cap →
+            // sheet-bunn havner inni accessory-baren → knapper visuelt skjult.
+            // Det interne list-cap'et (under) sørger for at knappene alltid
+            // får plass innenfor sheet-kanten selv om listen er lang.
+            var safeH = Math.max(180, kbdTop - KEYBOARD_MARGIN * 2);
             var desiredBottom = kbdTop - KEYBOARD_MARGIN;
             s.style.setProperty('max-height', safeH + 'px', 'important');
 
