@@ -6351,7 +6351,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // ELLER touch+fokus-felt → deterministisk, virker i PWA).
             if (!isActive) {
                 // Popup lukket → full rens. Neste åpning starter friskt.
-                if (backdrop) backdrop.classList.remove('popup-top-anchored');
+                if (backdrop) {
+                    backdrop.classList.remove('popup-top-anchored');
+                    backdrop.classList.remove('kbd-focus-anchor');
+                }
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
@@ -6375,37 +6378,47 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Neste tastatur-åpning re-beregner uten å nullstille mellom.
                 return;
             }
-            // Krev EKTE tastatur-signal før vi kapper popupen. På PC (også i
-            // dev-mode touch-emulering) er kbdActive true ved fokus på input
-            // selv om det ikke finnes noe skjermtastatur — uten denne gaten
-            // ville popup-cap krympet sheeten unødvendig. Ingen signal →
-            // ingen cap, popup beholder naturlig størrelse (CSS max-height:
-            // 80vh håndterer overdimensjonering). Samme kontrakt som i
-            // ensureKeyboardTargetVisible.
-            var kbdTop = _getKeyboardTop();
-            var kbdCapTopMeasured = _getKeyboardCapTop();
-            // SAFETY-NET: hvis et tastatur-åpnende felt er fokusert INNE i denne
-            // popupen på en touch-enhet, vet vi at tastaturet er (eller skal
-            // være) åpent — selv om VkbdAPI/vv-målinger akkurat nå returnerer
-            // null. Uten denne fallbacken ville popup-cap forsvinne hver gang
-            // boundingRect.height momentant er 0 (mellom keyboard-bytter, ved
-            // tastatur-åpning, eller i nettlesere/PWA-konfigurasjoner der
-            // overlays-content-modus gjør at ingen viewport-måling reagerer).
-            // Da skled bunnen av popupen (Avbryt/OK-knapper) bak tastaturet.
-            // Konservativ estimat (45% av layout viewport-høyden) garanterer
-            // at cap alltid anvendes når popupen har fokus — bedre med litt
-            // for kort popup enn skjulte knapper.
+            // === Popup-positioning når tastatur er åpent ===
+            // To-stegs strategi:
+            //   1) Hvis et tastatur-åpnende felt er fokusert INNE i denne popupen
+            //      på touch-enhet → forankre popupen til toppen via flex-start
+            //      + margin-top. Da er bunnen (knapper) garantert over tastaturet
+            //      uavhengig av om VkbdAPI/vv-målinger fungerer.
+            //   2) Ellers (popup uten fokus eller fokus utenfor): bruk eksisterende
+            //      translateY-lift basert på målt kbdTop.
+            // Bakgrunn: i overlays-content-modus krymper hverken vv eller
+            // innerHeight. VkbdAPI's boundingRect kan returnere 0 (mellom
+            // keyboard-bytter, oppstart) eller være utilgjengelig. Translate-
+            // basert lift krever målt kbdTop og er sårbar for målefeil — popup
+            // forblir da i naturlig høyde med bunnen bak tastaturet. Top-anchor
+            // er robust mot dette: popupen er ALLTID ved skjermtopp så lenge et
+            // felt i den har fokus, og piksel-cap garanterer at den ikke
+            // strekker seg ned i tastatur-området.
             // Site-wide: gjelder alle popups som passer POPUP_CONTENT_SELECTOR.
             var _focusInPopup = IS_TOUCH_DEVICE && document.activeElement
                 && isKeyboardOpeningElement(document.activeElement)
                 && s.contains(document.activeElement);
-            if (kbdTop === null && _focusInPopup) {
-                var _innerHFallback = window.innerHeight || 600;
-                kbdTop = Math.floor(_innerHFallback * 0.55);
-                kbdCapTopMeasured = kbdTop;
+
+            var kbdTop = _getKeyboardTop();
+            var kbdCapTopMeasured = _getKeyboardCapTop();
+            // Heuristisk fallback når målinger feiler: konservativ kbdTop ≈ 55%
+            // av layout viewport-høyden. Brukes bare når målt verdi mangler eller
+            // åpenbart er feil (overskygger ikke korrekt målinger).
+            if (_focusInPopup) {
+                var _innerH = window.innerHeight || 720;
+                var _heuristicKbdTop = Math.floor(_innerH * 0.55);
+                if (kbdTop === null) kbdTop = _heuristicKbdTop;
+                if (kbdCapTopMeasured === null) kbdCapTopMeasured = _heuristicKbdTop;
             }
             if (kbdTop === null) {
-                if (backdrop) backdrop.classList.remove('popup-top-anchored');
+                // Ingen fokus i popup OG ingen måling: ingen tastatur-signal vi kan
+                // stole på (PC dev-mode med touch-emulering). Rydd cap så popupen
+                // beholder naturlig størrelse — CSS max-height: 80vh klarer
+                // overdimensjonering selv.
+                if (backdrop) {
+                    backdrop.classList.remove('popup-top-anchored');
+                    backdrop.classList.remove('kbd-focus-anchor');
+                }
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
@@ -6422,11 +6435,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (backdrop) backdrop.classList.remove('popup-top-anchored');
-            s.style.marginTop = '';
             s.style.transition = 'none';
-            s.style.transform = '';
+
+            // TOP-ANCHOR: når popup eier fokuset → flex-start + margin-top.
+            // Da blir popupens topp eksakt ved KEYBOARD_MARGIN fra skjerm-topp.
+            // Bunnen styres av max-height (satt under). Ingen translate brukes
+            // her — det ville bare flyttet en allerede ankret popup ut av syne.
+            if (_focusInPopup && backdrop) {
+                backdrop.classList.add('kbd-focus-anchor');
+                s.style.marginTop = KEYBOARD_MARGIN + 'px';
+                s.style.transform = '';
+            } else {
+                if (backdrop) backdrop.classList.remove('kbd-focus-anchor');
+                s.style.marginTop = '';
+                s.style.transform = '';
+            }
 
             var kbdCapTop = kbdCapTopMeasured || kbdTop;
+            // safeH = tilgjengelig vertikal høyde for popupen.
+            //   - Top-anchored: popup starter ved KEYBOARD_MARGIN. Bunn skal være
+            //     KEYBOARD_MARGIN over tastaturet → safeH = kbdCapTop - 2*margin.
+            //   - Centered+translate: samme matte — sentert popup løftes så bunn
+            //     er KEYBOARD_MARGIN over tastatur; safeH styrer høyden.
             var safeH = Math.max(180, kbdCapTop - KEYBOARD_MARGIN * 2);
             var desiredBottom = kbdTop - KEYBOARD_MARGIN;
 
@@ -6501,12 +6531,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Ingen intern liste — bare cap sheet direkte.
                 s.style.setProperty('max-height', safeH + 'px', 'important');
             }
-            var rect2 = s.getBoundingClientRect();
-            var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
-            // Tak: ikke løft popupens topp under KEYBOARD_MARGIN fra skjerm-topp.
-            var maxLift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
-            lift = Math.min(lift, maxLift);
-            s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
+            // Translate-lift kun når popup IKKE er top-anchored. Top-anchor-
+            // grenen plasserer allerede popupen ved skjerm-toppen via marginTop
+            // + flex-start, så translate ville bare flyttet den ut av syne.
+            if (!_focusInPopup) {
+                var rect2 = s.getBoundingClientRect();
+                var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
+                // Tak: ikke løft popupens topp under KEYBOARD_MARGIN fra skjerm-topp.
+                var maxLift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
+                lift = Math.min(lift, maxLift);
+                s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
+            }
 
             // Vekk Chromes compositor sin scroll-state: etter at sheet-
             // størrelsen endres (max-height + transform) vet ikke gesture-

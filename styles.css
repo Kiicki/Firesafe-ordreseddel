@@ -3768,6 +3768,17 @@ label.settings-default-label.field-required > span::after {
 .spec-popup-backdrop.popup-top-anchored {
     align-items: flex-start;
 }
+/* kbd-focus-anchor: settes av applyKeyboardLayout når et tastatur-åpnende
+   felt er fokusert inne i popupen. Forankrer popupen til skjerm-toppen
+   (via flex-start) — JS setter margin-top: KEYBOARD_MARGIN på sheeten +
+   piksel-cap på max-height. Garanterer at popup-bunnen (knapper) alltid
+   er over tastaturet uavhengig av om VkbdAPI/vv-målinger fungerer.
+   Site-wide: gjelder ALLE popup-backdrops (confirm, spec, fakturaadresse). */
+.confirm-modal.kbd-focus-anchor,
+.spec-popup-backdrop.kbd-focus-anchor,
+.fakturaadresse-popup-backdrop.kbd-focus-anchor {
+    align-items: flex-start;
+}
 /* #spec-popup (FSC/FSW/Kabelhylse/mansjett): KUN når tastaturet faktisk er
    åpent (body.keyboard-open er nå autoritativt via VirtualKeyboard API)
    åpnes den toppstilt — da er åpne-posisjonen identisk med tastatur-
