@@ -6354,11 +6354,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (backdrop) {
                     backdrop.classList.remove('popup-top-anchored');
                     backdrop.classList.remove('kbd-focus-anchor');
+                    backdrop.style.alignItems = '';
                 }
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
                 s.style.marginTop = '';
+                // Rydd nuclear top-anchor inline styles om de var satt.
+                s.style.position = '';
+                s.style.top = '';
+                s.style.left = '';
+                s.style.margin = '';
+                s.style.zIndex = '';
                 // Clear list-cap også (satt under når popup-cap er aktiv).
                 var _clrListSelectors = ['.dag-timer-modal-list', '.spec-popup-body',
                                          '.fakturaadresse-popup-body', '.picker-overlay-list',
@@ -6401,14 +6408,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var kbdTop = _getKeyboardTop();
             var kbdCapTopMeasured = _getKeyboardCapTop();
-            // Heuristisk fallback når målinger feiler: konservativ kbdTop ≈ 55%
-            // av layout viewport-høyden. Brukes bare når målt verdi mangler eller
-            // åpenbart er feil (overskygger ikke korrekt målinger).
+            // Konservativ heuristikk når et popup-felt har fokus: bruk MIN av
+            // målt og innerH*0.55. Hvis VkbdAPI/vv rapporterer en for høy
+            // kbdTop (= keyboard mindre enn det egentlig er), ville cap-en blitt
+            // for romslig og popup-bunnen havnet bak tastaturet. Heuristikken
+            // setter et harde tak — bedre med litt for kort popup enn skjulte
+            // knapper. Site-wide for alle popups som matcher selector.
             if (_focusInPopup) {
                 var _innerH = window.innerHeight || 720;
                 var _heuristicKbdTop = Math.floor(_innerH * 0.55);
-                if (kbdTop === null) kbdTop = _heuristicKbdTop;
-                if (kbdCapTopMeasured === null) kbdCapTopMeasured = _heuristicKbdTop;
+                kbdTop = (kbdTop === null)
+                    ? _heuristicKbdTop
+                    : Math.min(kbdTop, _heuristicKbdTop);
+                kbdCapTopMeasured = (kbdCapTopMeasured === null)
+                    ? _heuristicKbdTop
+                    : Math.min(kbdCapTopMeasured, _heuristicKbdTop);
             }
             if (kbdTop === null) {
                 // Ingen fokus i popup OG ingen måling: ingen tastatur-signal vi kan
@@ -6418,11 +6432,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (backdrop) {
                     backdrop.classList.remove('popup-top-anchored');
                     backdrop.classList.remove('kbd-focus-anchor');
+                    backdrop.style.alignItems = '';
                 }
                 s.style.removeProperty('max-height');
                 s.style.transform = '';
                 s.style.transition = '';
                 s.style.marginTop = '';
+                // Rydd nuclear top-anchor inline styles om de var satt.
+                s.style.position = '';
+                s.style.top = '';
+                s.style.left = '';
+                s.style.margin = '';
+                s.style.zIndex = '';
                 // Clear list-cap også.
                 var _clrListSel2 = ['.dag-timer-modal-list', '.spec-popup-body',
                                     '.fakturaadresse-popup-body', '.picker-overlay-list',
@@ -6437,18 +6458,37 @@ document.addEventListener('DOMContentLoaded', function() {
             if (backdrop) backdrop.classList.remove('popup-top-anchored');
             s.style.transition = 'none';
 
-            // TOP-ANCHOR: når popup eier fokuset → flex-start + margin-top.
-            // Da blir popupens topp eksakt ved KEYBOARD_MARGIN fra skjerm-topp.
-            // Bunnen styres av max-height (satt under). Ingen translate brukes
-            // her — det ville bare flyttet en allerede ankret popup ut av syne.
+            // TOP-ANCHOR (nuclear option): når popup eier fokuset → position:fixed
+            // direkte på popup-content. Bypass ALLE CSS-mekanismer (flex-sentrering
+            // i .confirm-modal, max-height: calc(100% - 40px) !important,
+            // transitions, transforms). Inline position:fixed med top/left + en
+            // hard max-height piksel-verdi er det eneste vi trenger — alt annet
+            // CSS-ene gjør, blir overkjørt av denne inline-stilen.
+            // Site-wide for alle popups som matcher POPUP_CONTENT_SELECTOR.
             if (_focusInPopup && backdrop) {
                 backdrop.classList.add('kbd-focus-anchor');
-                s.style.marginTop = KEYBOARD_MARGIN + 'px';
-                s.style.transform = '';
+                // Forankre popupen direkte i viewport. position:fixed gjør at
+                // den ikke lenger styres av .confirm-modal sin align-items:center.
+                // z-index settes høyere enn backdroppen (z=20) så popupen
+                // forblir oppe på toppen av sin egen backdrop.
+                s.style.position = 'fixed';
+                s.style.top = KEYBOARD_MARGIN + 'px';
+                s.style.left = '50%';
+                s.style.transform = 'translateX(-50%)';
+                s.style.margin = '0';
+                s.style.zIndex = '100';
             } else {
-                if (backdrop) backdrop.classList.remove('kbd-focus-anchor');
-                s.style.marginTop = '';
+                if (backdrop) {
+                    backdrop.classList.remove('kbd-focus-anchor');
+                    backdrop.style.alignItems = '';
+                }
+                s.style.position = '';
+                s.style.top = '';
+                s.style.left = '';
                 s.style.transform = '';
+                s.style.margin = '';
+                s.style.marginTop = '';
+                s.style.zIndex = '';
             }
 
             var kbdCapTop = kbdCapTopMeasured || kbdTop;
