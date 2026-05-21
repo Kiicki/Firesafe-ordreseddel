@@ -5676,27 +5676,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Returnerer tastaturets topp-kant i layout-viewport-koordinater, eller
-    // null hvis ingen pålitelig måling er tilgjengelig. To-lags fallback:
+    // null hvis ingen pålitelig måling er tilgjengelig.
     //   1) VirtualKeyboard API (Chromium): bruk br.HEIGHT for å regne topp.
-    //      Chrome's boundingRect inkluderer ofte IKKE accessory-baren
-    //      (GIF/sticker/emoji-strip over keys). Vi trekker en generøs fast
-    //      buffer (~60px) som dekker worst-case accessory-bar — også på
-    //      numerisk-tastatur som beholder baren (Gboard). Vi prøvde å
-    //      variere bufferen per inputMode, men Gboard m.fl. viser accessory
-    //      uansett. Generøs fast verdi er mer robust enn smart heuristikk.
-    //   2) visualViewport-krymp (iOS Safari, Firefox): inkluderer alt —
-    //      ingen buffer nødvendig.
+    //   2) visualViewport-krymp (iOS Safari, Firefox): inkluderer alt.
     //   3) null → caller skip'er evt. cap/scroll.
-    // Sanity: avviser urealistiske verdier (kbd > 85% av skjerm) → faller
-    // pent til neste lag.
-    var KEYBOARD_API_ACCESSORY_BUFFER = 60;
+    // Sanity: avviser urealistiske verdier (kbd > 85% av skjerm).
+    //
+    // KJENT LIMITATION: Chromium's boundingRect inkluderer ofte ikke
+    // accessory-baren (GIF/sticker-strip over keys). Vi tried buffer-fix
+    // men det kappet sheet-bunnen og kliper knappene. Foreløpig akseptert
+    // limitasjon: popup-bunn kan ligge bak accessory-baren (knapper delvis
+    // synlige). Tap-treff fungerer fortsatt. Riktig fiks krever omtenking
+    // av sheet-strukturen så list-elementet alltid krymper og knapper
+    // alltid er innenfor sheet-kanten.
     function _getKeyboardTop() {
         var innerH = window.innerHeight || 0;
         if (!innerH) return null;
         if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
             var br = navigator.virtualKeyboard.boundingRect;
             if (br && br.height > 0 && br.height < innerH * 0.85) {
-                return innerH - br.height - KEYBOARD_API_ACCESSORY_BUFFER;
+                return innerH - br.height;
             }
         }
         if (window.visualViewport) {
