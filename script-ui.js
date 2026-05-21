@@ -5660,6 +5660,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // mangler API → faller naturlig tilbake til visualViewport-krymping.
     var _HAS_VKBD_API = !!(typeof navigator !== 'undefined' && navigator.virtualKeyboard
         && typeof navigator.virtualKeyboard.overlaysContent === 'boolean');
+    // Cache siste gyldige tastatur-måling så popup-cap forblir konsistent
+    // selv når måle-API-et momentant returnerer 0. KRITISK i overlays-content
+    // -modus (popups + Chrome PWA): visualViewport krymper IKKE i denne modusen,
+    // så VirtualKeyboard API er ENESTE signal. Mellom keyboard-bytter, ved
+    // oppstart, og noen ganger mellom tastetrykk kan boundingRect.height
+    // kortvarig være 0. Uten cache ville cap-en fjernes hver gang det skjer,
+    // og popup-bunnen (Avbryt/OK-knapper) ville hoppe ut av syne — nøyaktig
+    // det "appears for 1 second then disappears"-bug-mønsteret.
+    // Site-wide: gjelder alle popups som er gated på _getKeyboardTop().
+    var _lastValidKbdTop = null;
+    var _lastValidKbdCapTop = null;
+    function _invalidateKbdCache() {
+        _lastValidKbdTop = null;
+        _lastValidKbdCapTop = null;
+    }
     if (_HAS_VKBD_API) {
         try {
             navigator.virtualKeyboard.overlaysContent = true;
@@ -5669,6 +5684,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Konfirmerer at vi har pålitelig tastatur-signal → form-
                     // view-paths som er gated på dette flagget aktiveres.
                     viewportKeyboardDetectionConfirmed = true;
+                } else {
+                    // Ekte lukke-signal fra API-et → invalider cache så vi ikke
+                    // holder stale verdier etter at tastaturet faktisk lukkes.
+                    _invalidateKbdCache();
                 }
                 scheduleForcedApply();
             });
@@ -5681,7 +5700,10 @@ document.addEventListener('DOMContentLoaded', function() {
     //      bare keys (ikke accessory-bar). Trekker en buffer slik at
     //      posisjoneringen er over accessory også.
     //   2) visualViewport-krymp (iOS/Firefox): inkluderer alt — ingen buffer.
-    //   3) null → ingen signal.
+    //   3) Cache-fallback: siste gyldige måling mens et tastatur-felt fortsatt
+    //      har fokus på touch-enhet. Hindrer cap-flicker i overlays-content-
+    //      modus når API-et momentant returnerer height=0.
+    //   4) null → ingen signal.
     var KEYBOARD_API_ACCESSORY_BUFFER = 40;
     function _getKeyboardTop() {
         var innerH = window.innerHeight || 0;
@@ -5689,15 +5711,28 @@ document.addEventListener('DOMContentLoaded', function() {
         if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
             var br = navigator.virtualKeyboard.boundingRect;
             if (br && br.height > 0 && br.height < innerH * 0.85) {
-                return innerH - br.height - KEYBOARD_API_ACCESSORY_BUFFER;
+                _lastValidKbdTop = innerH - br.height - KEYBOARD_API_ACCESSORY_BUFFER;
+                _lastValidKbdCapTop = innerH - br.height;
+                return _lastValidKbdTop;
             }
         }
         if (window.visualViewport) {
             var vv = window.visualViewport;
             var shrunk = (innerH - vv.height - vv.offsetTop);
             if (shrunk > 50 && shrunk < innerH * 0.85) {
-                return vv.offsetTop + vv.height;
+                _lastValidKbdTop = vv.offsetTop + vv.height;
+                _lastValidKbdCapTop = _lastValidKbdTop;
+                return _lastValidKbdTop;
             }
+        }
+        // Cache-fallback gated på VkbdAPI: i overlays-content + Chromium er
+        // boundingRect eneste signal og kan momentant være 0 (mellom keyboard-
+        // bytter / oppstart / iblant mellom tastetrykk). På vv-only-nettlesere
+        // (Firefox/iOS) er vv-shrink-fraværet et ekte lukke-signal, så cache-
+        // fallback ville feilaktig kunne maskere lukket tastatur.
+        if (_lastValidKbdTop !== null && _HAS_VKBD_API && IS_TOUCH_DEVICE
+            && isKeyboardOpeningElement(document.activeElement)) {
+            return _lastValidKbdTop;
         }
         return null;
     }
@@ -5711,15 +5746,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
             var br = navigator.virtualKeyboard.boundingRect;
             if (br && br.height > 0 && br.height < innerH * 0.85) {
-                return innerH - br.height;
+                _lastValidKbdCapTop = innerH - br.height;
+                return _lastValidKbdCapTop;
             }
         }
         if (window.visualViewport) {
             var vv = window.visualViewport;
             var shrunk = (innerH - vv.height - vv.offsetTop);
             if (shrunk > 50 && shrunk < innerH * 0.85) {
-                return vv.offsetTop + vv.height;
+                _lastValidKbdCapTop = vv.offsetTop + vv.height;
+                return _lastValidKbdCapTop;
             }
+        }
+        // Samme gate som _getKeyboardTop — kun cache-fallback på VkbdAPI-
+        // nettlesere der momentane height=0-målinger ellers ville fjernet cap.
+        if (_lastValidKbdCapTop !== null && _HAS_VKBD_API && IS_TOUCH_DEVICE
+            && isKeyboardOpeningElement(document.activeElement)) {
+            return _lastValidKbdCapTop;
         }
         return null;
     }
