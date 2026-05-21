@@ -6383,6 +6383,27 @@ document.addEventListener('DOMContentLoaded', function() {
             // 80vh håndterer overdimensjonering). Samme kontrakt som i
             // ensureKeyboardTargetVisible.
             var kbdTop = _getKeyboardTop();
+            var kbdCapTopMeasured = _getKeyboardCapTop();
+            // SAFETY-NET: hvis et tastatur-åpnende felt er fokusert INNE i denne
+            // popupen på en touch-enhet, vet vi at tastaturet er (eller skal
+            // være) åpent — selv om VkbdAPI/vv-målinger akkurat nå returnerer
+            // null. Uten denne fallbacken ville popup-cap forsvinne hver gang
+            // boundingRect.height momentant er 0 (mellom keyboard-bytter, ved
+            // tastatur-åpning, eller i nettlesere/PWA-konfigurasjoner der
+            // overlays-content-modus gjør at ingen viewport-måling reagerer).
+            // Da skled bunnen av popupen (Avbryt/OK-knapper) bak tastaturet.
+            // Konservativ estimat (45% av layout viewport-høyden) garanterer
+            // at cap alltid anvendes når popupen har fokus — bedre med litt
+            // for kort popup enn skjulte knapper.
+            // Site-wide: gjelder alle popups som passer POPUP_CONTENT_SELECTOR.
+            var _focusInPopup = IS_TOUCH_DEVICE && document.activeElement
+                && isKeyboardOpeningElement(document.activeElement)
+                && s.contains(document.activeElement);
+            if (kbdTop === null && _focusInPopup) {
+                var _innerHFallback = window.innerHeight || 600;
+                kbdTop = Math.floor(_innerHFallback * 0.55);
+                kbdCapTopMeasured = kbdTop;
+            }
             if (kbdTop === null) {
                 if (backdrop) backdrop.classList.remove('popup-top-anchored');
                 s.style.removeProperty('max-height');
@@ -6405,7 +6426,7 @@ document.addEventListener('DOMContentLoaded', function() {
             s.style.transition = 'none';
             s.style.transform = '';
 
-            var kbdCapTop = _getKeyboardCapTop() || kbdTop;
+            var kbdCapTop = kbdCapTopMeasured || kbdTop;
             var safeH = Math.max(180, kbdCapTop - KEYBOARD_MARGIN * 2);
             var desiredBottom = kbdTop - KEYBOARD_MARGIN;
 
