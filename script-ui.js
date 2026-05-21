@@ -5675,21 +5675,37 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) { /* feature ikke støttet eller blokkert — ignorer */ }
     }
 
-    // Returnerer tastaturets topp-kant i layout-viewport-koordinater, eller
-    // null hvis ingen pålitelig måling er tilgjengelig.
-    //   1) VirtualKeyboard API (Chromium): bruk br.HEIGHT for å regne topp.
-    //   2) visualViewport-krymp (iOS Safari, Firefox): inkluderer alt.
-    //   3) null → caller skip'er evt. cap/scroll.
-    // Sanity: avviser urealistiske verdier (kbd > 85% av skjerm).
-    //
-    // KJENT LIMITATION: Chromium's boundingRect inkluderer ofte ikke
-    // accessory-baren (GIF/sticker-strip over keys). Vi tried buffer-fix
-    // men det kappet sheet-bunnen og kliper knappene. Foreløpig akseptert
-    // limitasjon: popup-bunn kan ligge bak accessory-baren (knapper delvis
-    // synlige). Tap-treff fungerer fortsatt. Riktig fiks krever omtenking
-    // av sheet-strukturen så list-elementet alltid krymper og knapper
-    // alltid er innenfor sheet-kanten.
+    // Returnerer tastaturets «posisjonerings-topp» (visuelle topp inkl.
+    // accessory-bar) — brukt til å plassere popup-bunnen over tastatur:
+    //   1) VirtualKeyboard API (Chromium): boundingRect.top dekker ofte
+    //      bare keys (ikke accessory-bar). Trekker en buffer slik at
+    //      posisjoneringen er over accessory også.
+    //   2) visualViewport-krymp (iOS/Firefox): inkluderer alt — ingen buffer.
+    //   3) null → ingen signal.
+    var KEYBOARD_API_ACCESSORY_BUFFER = 40;
     function _getKeyboardTop() {
+        var innerH = window.innerHeight || 0;
+        if (!innerH) return null;
+        if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
+            var br = navigator.virtualKeyboard.boundingRect;
+            if (br && br.height > 0 && br.height < innerH * 0.85) {
+                return innerH - br.height - KEYBOARD_API_ACCESSORY_BUFFER;
+            }
+        }
+        if (window.visualViewport) {
+            var vv = window.visualViewport;
+            var shrunk = (innerH - vv.height - vv.offsetTop);
+            if (shrunk > 50 && shrunk < innerH * 0.85) {
+                return vv.offsetTop + vv.height;
+            }
+        }
+        return null;
+    }
+    // Returnerer ROM-tilgjengelig over tastaturet for maks sheet-høyde —
+    // basert på API kbdTop UTEN accessory-buffer (= over keys). Da har sheet
+    // nok plass slik at listen krymper og knapper IKKE klippes av
+    // sheet-overflow. iOS/Firefox vv-pathen er allerede inkluderende.
+    function _getKeyboardCapTop() {
         var innerH = window.innerHeight || 0;
         if (!innerH) return null;
         if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
@@ -6330,7 +6346,13 @@ document.addEventListener('DOMContentLoaded', function() {
             s.style.transition = 'none';
             s.style.transform = '';
 
-            var safeH = Math.max(180, kbdTop - KEYBOARD_MARGIN * 2);
+            // safeH bruker «cap-top» (over keys, uten buffer) så sheet har nok
+            // plass til at list-elementet kan krympe og knapper IKKE blir
+            // klippet av sheet-overflow:hidden. desiredBottom bruker den
+            // «accessory-aware» kbdTop (med buffer) så popup-bunnen plasseres
+            // over accessory-baren, ikke bak den.
+            var capTop = _getKeyboardCapTop() || kbdTop;
+            var safeH = Math.max(180, capTop - KEYBOARD_MARGIN * 2);
             var desiredBottom = kbdTop - KEYBOARD_MARGIN;
             s.style.setProperty('max-height', safeH + 'px', 'important');
             var rect2 = s.getBoundingClientRect();
