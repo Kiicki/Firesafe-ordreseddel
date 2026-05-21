@@ -5676,22 +5676,41 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Returnerer tastaturets topp-kant i layout-viewport-koordinater, eller
-    // null hvis ingen pålitelig måling er tilgjengelig. Tre-lags fallback:
-    //   1) VirtualKeyboard API (Chromium): bruk br.HEIGHT for å regne topp,
-    //      ikke br.top — Chrome har rapportert top=0 mens height er korrekt
-    //      i visse versjoner (kjent quirk). Tastaturet er ALLTID forankret
-    //      mot bunnen av layout-viewport, så innerH - height er entydig.
-    //   2) visualViewport-krymp (iOS Safari, Firefox).
-    //   3) null → caller bruker input-type-% som siste utvei.
-    // Sanity: avviser urealistiske verdier (kbd > 85% av skjerm) → faller
-    // pent til neste lag.
+    // null hvis ingen pålitelig måling er tilgjengelig. To-lags fallback:
+    //   1) VirtualKeyboard API (Chromium): bruk br.HEIGHT for å regne topp.
+    //      Chrome's boundingRect inkluderer ofte IKKE accessory-baren
+    //      (GIF/sticker/emoji-strip over keys). Vi trekker en buffer.
+    //   2) visualViewport-krymp (iOS Safari, Firefox): inkluderer alt —
+    //      ingen buffer nødvendig.
+    //   3) null → caller skip'er evt. cap/scroll.
+    // Bufferen er adaptiv basert på fokus-feltets inputMode/type:
+    //   - Numerisk/tlf/dato (tastatur = siffer-grid, ingen accessory) → 8px.
+    //   - Tekst/email/etc. (QWERTY-tastatur har typisk accessory-bar) → 36px.
+    // Web-plattformen eksponerer ikke faktisk accessory-bar-tilstedeværelse,
+    // så dette er en heuristikk per tastatur-type. Mer pålitelig enn én fast
+    // verdi, ikke perfekt for alle eksotiske tastatur-konfigurasjoner.
+    function _accessoryBufferForActiveInput() {
+        var ae = document.activeElement;
+        if (!ae) return 36;
+        var im = ((ae.inputMode || '') + '').toLowerCase();
+        var t = ((ae.type || '') + '').toLowerCase();
+        if (im === 'numeric' || im === 'decimal' || im === 'tel'
+            || t === 'number' || t === 'tel') {
+            return 8;
+        }
+        if (t === 'date' || t === 'time' || t === 'datetime-local'
+            || t === 'month' || t === 'week') {
+            return 8;
+        }
+        return 36;
+    }
     function _getKeyboardTop() {
         var innerH = window.innerHeight || 0;
         if (!innerH) return null;
         if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
             var br = navigator.virtualKeyboard.boundingRect;
             if (br && br.height > 0 && br.height < innerH * 0.85) {
-                return innerH - br.height;
+                return innerH - br.height - _accessoryBufferForActiveInput();
             }
         }
         if (window.visualViewport) {
