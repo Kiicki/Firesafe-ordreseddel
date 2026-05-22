@@ -5675,9 +5675,17 @@ document.addEventListener('DOMContentLoaded', function() {
         _lastValidKbdTop = null;
         _lastValidKbdCapTop = null;
     }
+    // _VKBD_ENV_OK: true når VirtualKeyboard API er aktivert OG overlaysContent
+    // faktisk ble satt. Da eksponerer nettleseren env(keyboard-inset-height) i
+    // CSS, og popup-sizing håndteres 100% av CSS (backdrop-bottom: env(...)).
+    // JS skal da IKKE røre popup-content sine inline styles — det ville bare
+    // kjempe mot CSS-en. Når dette er false (iOS Safari, Firefox, eldre
+    // Chromium) faller vi tilbake til JS-måling av tastaturet.
+    var _VKBD_ENV_OK = false;
     if (_HAS_VKBD_API) {
         try {
             navigator.virtualKeyboard.overlaysContent = true;
+            _VKBD_ENV_OK = (navigator.virtualKeyboard.overlaysContent === true);
             navigator.virtualKeyboard.addEventListener('geometrychange', function() {
                 var br = navigator.virtualKeyboard.boundingRect;
                 if (br && br.height > 0) {
@@ -6346,6 +6354,39 @@ document.addEventListener('DOMContentLoaded', function() {
         allContents.forEach(function(s) {
             var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
             var isActive = !!(backdrop && backdrop.classList.contains('active'));
+            // === CSS env(keyboard-inset-height) eier popup-sizing ===
+            // Når VirtualKeyboard API er aktivt krymper backdroppen automatisk
+            // over tastaturet via CSS (bottom: env(keyboard-inset-height)).
+            // Popupen sentreres og cappes da av CSS alene. JS MÅ holde seg unna
+            // — enhver inline style her ville kjempe mot CSS-en og gi nettopp
+            // "knapper forsvinner"-buggen. Vi rydder defensivt vekk eventuelle
+            // gamle inline styles (fra tidligere cachede script-versjoner) og
+            // hopper over resten.
+            if (_VKBD_ENV_OK) {
+                ensureContentObserver(s, false, false);
+                if (backdrop) {
+                    backdrop.classList.remove('popup-top-anchored');
+                    backdrop.classList.remove('kbd-focus-anchor');
+                    backdrop.style.alignItems = '';
+                }
+                s.style.removeProperty('max-height');
+                s.style.transform = '';
+                s.style.transition = '';
+                s.style.marginTop = '';
+                s.style.position = '';
+                s.style.top = '';
+                s.style.left = '';
+                s.style.margin = '';
+                s.style.zIndex = '';
+                var _envClrSel = ['.dag-timer-modal-list', '.spec-popup-body',
+                                  '.fakturaadresse-popup-body', '.picker-overlay-list',
+                                  '.modal-body'];
+                for (var _envI = 0; _envI < _envClrSel.length; _envI++) {
+                    var _envEl = s.querySelector(_envClrSel[_envI]);
+                    if (_envEl) _envEl.style.removeProperty('max-height');
+                }
+                return;
+            }
             ensureContentObserver(s, isActive, kbdActive);
             // Posisjoner når tastaturet er aktivt (kbdActive = viewport-krymp
             // ELLER touch+fokus-felt → deterministisk, virker i PWA).
