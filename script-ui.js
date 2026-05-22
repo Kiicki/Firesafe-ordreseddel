@@ -5639,16 +5639,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // kommentaren for detaljer). Idempotent diff-set — ingen reflow når
     // uendret.
     function _syncViewportMetaForPopup(popupActive) {
-        var meta = document.querySelector('meta[name="viewport"]');
-        if (!meta) return;
-        var cur = meta.getAttribute('content') || '';
-        var target = popupActive ? 'overlays-content' : 'resizes-visual';
-        var other = popupActive ? 'resizes-visual' : 'overlays-content';
-        if (cur.indexOf('interactive-widget=' + target) !== -1) return;
-        var next = cur.indexOf('interactive-widget=' + other) !== -1
-            ? cur.replace('interactive-widget=' + other, 'interactive-widget=' + target)
-            : (cur.replace(/,?\s*interactive-widget=[^,]*/g, '') + ', interactive-widget=' + target);
-        meta.setAttribute('content', next);
+        // NO-OP. Popup-tastatur håndteres nå av den dedikerte vv-baserte
+        // handleren (_popupKbdActivate/_popupKbdSync lenger ned) som slår AV
+        // overlaysContent slik at visualViewport krymper når tastaturet
+        // åpnes. Å bytte interactive-widget-meta her ville bare skapt
+        // konkurrerende viewport-state og hindret vv i å krympe.
     }
 
     // === VirtualKeyboard API: eksakt tastatur-geometri ===
@@ -6352,16 +6347,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var allContents = document.querySelectorAll(POPUP_CONTENT_SELECTOR);
         allContents.forEach(function(s) {
+            // === Popup-sizing eies nå 100% av _popupKbdSync ===
+            // Den dedikerte vv-baserte handleren (definert nedenfor) er den
+            // ENESTE eieren av popup-content sin posisjon/størrelse når
+            // tastaturet er åpent. applyKeyboardLayout skal IKKE røre den —
+            // konkurrerende inline styles var nettopp årsaken til at Avbryt/OK
+            // forsvant. Derfor: tidlig retur. Resten av denne callbacken er
+            // bevisst død kode (beholdt for git-diff-lesbarhet).
+            return;
             var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
             var isActive = !!(backdrop && backdrop.classList.contains('active'));
-            // === CSS env(keyboard-inset-height) eier popup-sizing ===
-            // Når VirtualKeyboard API er aktivt krymper backdroppen automatisk
-            // over tastaturet via CSS (bottom: env(keyboard-inset-height)).
-            // Popupen sentreres og cappes da av CSS alene. JS MÅ holde seg unna
-            // — enhver inline style her ville kjempe mot CSS-en og gi nettopp
-            // "knapper forsvinner"-buggen. Vi rydder defensivt vekk eventuelle
-            // gamle inline styles (fra tidligere cachede script-versjoner) og
-            // hopper over resten.
             if (_VKBD_ENV_OK) {
                 ensureContentObserver(s, false, false);
                 if (backdrop) {
@@ -6651,6 +6646,146 @@ document.addEventListener('DOMContentLoaded', function() {
     // Eksponer globalt — bruk i edge cases der man trenger å trigge eksplisitt.
     // I 99% av tilfellene er dette ikke nødvendig (alle triggers er automatiske).
     window.applyKeyboardLayout = scheduleApply;
+
+    // ====================================================================
+    // === DEDIKERT POPUP-TASTATUR-HANDLER ================================
+    // ====================================================================
+    // Holder popup-knapper (Avbryt/OK) synlige over tastaturet i ALLE
+    // nettlesere. Tidligere forsøk feilet fordi de var avhengige av enten
+    // VirtualKeyboard API sin boundingRect (Chromium, upålitelig — kan
+    // returnere 0) eller env(keyboard-inset-height) (kun Chromium). Begge
+    // krever overlaysContent-modus der visualViewport IKKE krymper.
+    //
+    // Denne handleren gjør det motsatte: når en popup åpnes slås
+    // overlaysContent AV → da krymper window.visualViewport når tastaturet
+    // åpnes. visualViewport er universelt støttet (Chrome/Firefox/Safari).
+    // Vi størrelse-setter popup-content direkte til den synlige
+    // visualViewporten via position:fixed. Popupens interne flex-layout
+    // (tittel + scrollende liste (flex:1) + knapper (flex-shrink:0)) holder
+    // da knappene låst synlig nederst.
+    var _popupKbdActive = false;
+    var _popupKbdVVHandler = null;
+
+    function _popupKbdAnyActive() {
+        var any = false;
+        document.querySelectorAll(POPUP_BACKDROP_SELECTOR).forEach(function(bd) {
+            if (bd.classList.contains('active')) any = true;
+        });
+        return any;
+    }
+
+    function _popupKbdClearContent(content) {
+        if (!content) return;
+        content.style.removeProperty('position');
+        content.style.removeProperty('left');
+        content.style.removeProperty('right');
+        content.style.removeProperty('top');
+        content.style.removeProperty('transform');
+        content.style.removeProperty('max-height');
+        content.style.removeProperty('margin');
+        content.style.removeProperty('z-index');
+        content.style.removeProperty('transition');
+    }
+
+    function _popupKbdSync() {
+        var vv = window.visualViewport;
+        var innerH = window.innerHeight || 0;
+        // Tastatur regnes som åpent når visualViewport er merkbart kortere
+        // enn layout-viewporten (krever at overlaysContent er AV, som
+        // _popupKbdActivate sørger for).
+        var kbdOpen = !!(vv && innerH && (innerH - vv.height - vv.offsetTop) > 100);
+        document.querySelectorAll(POPUP_BACKDROP_SELECTOR).forEach(function(bd) {
+            var content = bd.querySelector(POPUP_CONTENT_SELECTOR);
+            if (!content) return;
+            if (bd.classList.contains('active') && kbdOpen) {
+                // Plasser popupen direkte i den synlige visualViewporten.
+                // position:fixed er forankret til layout-viewporten; vv.offsetTop
+                // gir toppen av det synlige området. ALLE properties settes med
+                // !important — flere popup-content-regler i CSS bruker
+                // !important (bl.a. max-height på dag-timer-modal-content), og
+                // uten !important ville CSS-en vunnet og buggen kommet tilbake.
+                var m = 8;
+                content.style.setProperty('transition', 'none', 'important');
+                content.style.setProperty('position', 'fixed', 'important');
+                content.style.setProperty('left', '50%', 'important');
+                content.style.setProperty('right', 'auto', 'important');
+                content.style.setProperty('transform', 'translateX(-50%)', 'important');
+                content.style.setProperty('top', (vv.offsetTop + m) + 'px', 'important');
+                content.style.setProperty('max-height', (vv.height - m * 2) + 'px', 'important');
+                content.style.setProperty('margin', '0', 'important');
+                content.style.setProperty('z-index', '101', 'important');
+            } else {
+                // Popup lukket ELLER tastatur lukket → la CSS sentrere normalt.
+                _popupKbdClearContent(content);
+            }
+        });
+    }
+    window._popupKbdSync = _popupKbdSync;
+
+    function _popupKbdActivate() {
+        if (_popupKbdActive) { _popupKbdSync(); return; }
+        _popupKbdActive = true;
+        // Slå AV overlaysContent så visualViewport krymper når tastaturet
+        // åpnes. Dette er nøkkelen — uten dette ville vv aldri krympe og vi
+        // hadde ingen pålitelig måling.
+        if (_HAS_VKBD_API) {
+            try { navigator.virtualKeyboard.overlaysContent = false; } catch (e) {}
+        }
+        _popupKbdVVHandler = function() { _popupKbdSync(); };
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', _popupKbdVVHandler);
+            window.visualViewport.addEventListener('scroll', _popupKbdVVHandler);
+        }
+        // Sync nå + flere ganger så tastatur-åpne-animasjonen fanges.
+        _popupKbdSync();
+        requestAnimationFrame(_popupKbdSync);
+        setTimeout(_popupKbdSync, 120);
+        setTimeout(_popupKbdSync, 350);
+        setTimeout(_popupKbdSync, 700);
+    }
+
+    function _popupKbdDeactivate() {
+        if (!_popupKbdActive) return;
+        _popupKbdActive = false;
+        if (window.visualViewport && _popupKbdVVHandler) {
+            window.visualViewport.removeEventListener('resize', _popupKbdVVHandler);
+            window.visualViewport.removeEventListener('scroll', _popupKbdVVHandler);
+        }
+        _popupKbdVVHandler = null;
+        document.querySelectorAll(POPUP_CONTENT_SELECTOR).forEach(_popupKbdClearContent);
+        // Restaurer overlaysContent — form-views er bygget rundt at det er på.
+        if (_HAS_VKBD_API) {
+            try { navigator.virtualKeyboard.overlaysContent = true; } catch (e) {}
+        }
+    }
+
+    // Auto-detekter popup åpne/lukke ved å overvåke .active-klassen på
+    // backdrops. Slik trenger ingen open/close-funksjoner egne hooks.
+    (function _popupKbdInstallObserver() {
+        var obs = new MutationObserver(function(muts) {
+            var relevant = false;
+            for (var i = 0; i < muts.length; i++) {
+                var t = muts[i].target;
+                if (t && t.nodeType === 1 && t.matches
+                    && t.matches(POPUP_BACKDROP_SELECTOR)) {
+                    relevant = true;
+                    break;
+                }
+            }
+            if (!relevant) return;
+            if (_popupKbdAnyActive()) {
+                _popupKbdActivate();
+                _popupKbdSync();
+            } else {
+                _popupKbdDeactivate();
+            }
+        });
+        obs.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class'],
+            subtree: true
+        });
+    })();
 
     // === Trigger-registrering ===
 
