@@ -6562,10 +6562,9 @@ document.addEventListener('DOMContentLoaded', function() {
         var viewportTop = vv ? vv.offsetTop : 0;
         var viewportBottom = kbdTop;
         var topPadding = 56;
-        // Look-ahead bottom-padding: scroll så feltet UNDER det fokuserte også
-        // er synlig. Gjør utfylling raskere — brukeren ser umiddelbart hvor
-        // neste tap-mål er og kan navigere uten å scrolle manuelt. Bruker
-        // neste søsken-felts høyde (capped 100px) som buffer.
+        // Look-ahead bottom-padding: scroll så neste navigasjons-element
+        // (felt eller seksjonstittel) er synlig. Fast 60px gir nok plass til
+        // å se "hva er neste" uten å scrolle for aggressivt.
         var bottomPadding = 16;
         var _focusedField = el.closest && el.closest('.mobile-field');
         if (_focusedField) {
@@ -6574,14 +6573,15 @@ document.addEventListener('DOMContentLoaded', function() {
             while (_sib && (!_sib.offsetHeight || _sib.offsetHeight < 5)) {
                 _sib = _sib.nextElementSibling;
             }
-            if (_sib && _sib.classList && (
-                _sib.classList.contains('mobile-field')
-                || _sib.classList.contains('mobile-order-materials-section')
-            )) {
-                // Cap'er på 100px så svært høye seksjoner (f.eks. materialer
-                // med mange rader) ikke gir absurd lange autoscrolls.
-                bottomPadding = Math.max(bottomPadding,
-                    Math.min(100, (_sib.offsetHeight || 0) + 12));
+            if (_sib) {
+                bottomPadding = 60;
+            } else {
+                // Siste felt i seksjonen — sjekk om neste seksjon finnes så vi
+                // viser dens første element (typisk seksjonstittel).
+                var section = _focusedField.closest && _focusedField.closest('.mobile-section');
+                if (section && section.nextElementSibling) {
+                    bottomPadding = 60;
+                }
             }
         }
 
