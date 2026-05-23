@@ -6880,8 +6880,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!e.touches || !e.touches.length) return;
         if (!_kbdDismissArmed()) return;
         if (Math.abs(e.touches[0].clientY - _kbdTouchStartY) <= 12) return;
-        // Ekte scroll-gest: blur én gang per gest (ikke per frame — derfor
-        // lytter koden bevisst ikke på visualViewport.scroll).
+        // Scroll inni en aktiv popups scrollbare område → behold tastaturet.
+        // Samme regel som tap-til-lukk-handleren (linje ~6911) bruker. Når en
+        // popup eier brukerens oppmerksomhet og hen scroller en intern liste
+        // (dag-timer-list, picker-resultater, iso-card-scroll), er det å
+        // lukke tastaturet en bug — brukeren bruker fortsatt input-feltet i
+        // popupen og trenger bare å bla i lista.
+        var tgt = e.target;
+        if (tgt && tgt.closest
+            && document.querySelector(_POPUP_ACTIVE_SELECTOR)
+            && tgt.closest(_POPUP_SCROLLABLE_SELECTOR)) {
+            return;
+        }
+        // Ekte scroll-gest utenfor popup-scroll-context: blur én gang per
+        // gest (ikke per frame — derfor lytter koden bevisst ikke på
+        // visualViewport.scroll).
         _kbdScrollBlurred = true;
         _kbdDismissBlur();
     }, { passive: true });
