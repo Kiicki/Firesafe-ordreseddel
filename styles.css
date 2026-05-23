@@ -16,7 +16,7 @@ html {
        env(keyboard-inset-height) er Chromium VkbdAPI; faller til 0px på
        iOS/Firefox der visualViewport krymper og handles native. */
     scroll-padding-top: 60px;
-    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 80px);
+    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 50px);
 }
 
 body {
@@ -31,7 +31,7 @@ body {
     /* Speil scroll-padding så native focus-scroll respekterer tastatur +
        look-ahead uansett hvilken container som faktisk scroller. */
     scroll-padding-top: 60px;
-    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 80px);
+    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 50px);
 }
 
 /* Form-views og modal-views: hvis disse scroller (overflow:auto), gjelder
@@ -39,7 +39,7 @@ body {
 .view,
 .mobile-form {
     scroll-padding-top: 60px;
-    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 80px);
+    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 50px);
 }
 
 body.keyboard-open {

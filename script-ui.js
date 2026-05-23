@@ -6566,26 +6566,28 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Be browseren scrolle input til sikker sone definert av scroll-padding.
-        // 'nearest' = minimal scroll så input blir synlig innenfor den paddede
-        // viewporten. Hvis allerede synlig: ingen scroll. Hvis under tastatur
-        // (per scroll-padding-bottom): scroll opp så den passer.
-        if (typeof el.scrollIntoView === 'function') {
-            el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-        }
-
-        // Spacer: når input er på siste rad og scroll-rangen ikke har plass
-        // til å scrolle videre, utvid scroll-rangen midlertidig med padding-
-        // bottom på scrolleren. Dette er separat fra scroll-padding (som er
-        // bare en grense for hva som regnes som "synlig"; spacer er FAKTISK
-        // ekstra scrollbar plass).
+        // KRITISK REKKEFØLGE: spacer FØR scrollIntoView.
+        // Spacer utvider scroll-rangen på scrolleren med tastatur-høyde +
+        // 50px, så det er plass å scrolle inn for siste felter (Sted,
+        // Signering). Hvis scrollIntoView kjører FØR spacer er på plass,
+        // har browseren ikke nok rom → siste felter blir værende under
+        // tastaturet. Spacer kjører først; så scrollIntoView bruker den
+        // utvidede rangen.
         var scroller = findKeyboardScrollContainer(el);
         if (scroller) {
             var _innerH = window.innerHeight || 0;
             var _kbdH = _innerH > 0 ? _innerH - kbdTop : 0;
             if (_kbdH > 0) {
-                _applyKbdSpacer(scroller, _kbdH + 80);
+                _applyKbdSpacer(scroller, _kbdH + 50);
             }
+        }
+
+        // Be browseren scrolle input til sikker sone definert av scroll-padding.
+        // 'nearest' = minimal scroll så input blir synlig innenfor den paddede
+        // viewporten. Med spacer'en over har scrolleren nok rom til å plassere
+        // selv siste felt korrekt.
+        if (typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
         }
     }
 
