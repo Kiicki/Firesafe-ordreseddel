@@ -6562,7 +6562,28 @@ document.addEventListener('DOMContentLoaded', function() {
         var viewportTop = vv ? vv.offsetTop : 0;
         var viewportBottom = kbdTop;
         var topPadding = 56;
+        // Look-ahead bottom-padding: scroll så feltet UNDER det fokuserte også
+        // er synlig. Gjør utfylling raskere — brukeren ser umiddelbart hvor
+        // neste tap-mål er og kan navigere uten å scrolle manuelt. Bruker
+        // neste søsken-felts høyde (capped 100px) som buffer.
         var bottomPadding = 16;
+        var _focusedField = el.closest && el.closest('.mobile-field');
+        if (_focusedField) {
+            var _sib = _focusedField.nextElementSibling;
+            // Hopp over usynlige naboer (display:none, f.eks. legacy plan-field).
+            while (_sib && (!_sib.offsetHeight || _sib.offsetHeight < 5)) {
+                _sib = _sib.nextElementSibling;
+            }
+            if (_sib && _sib.classList && (
+                _sib.classList.contains('mobile-field')
+                || _sib.classList.contains('mobile-order-materials-section')
+            )) {
+                // Cap'er på 100px så svært høye seksjoner (f.eks. materialer
+                // med mange rader) ikke gir absurd lange autoscrolls.
+                bottomPadding = Math.max(bottomPadding,
+                    Math.min(100, (_sib.offsetHeight || 0) + 12));
+            }
+        }
 
         var toolbar = document.querySelector('.toolbar');
         if (toolbar) {
@@ -10833,40 +10854,33 @@ function _orderHoursSum(tm) {
     return s;
 }
 function _orderDayPlansObj(card) {
-    // Backward-compat: gamle lesere forventer {[dag]: planStr}. Etasjer er nå
-    // bestilling-nivå; vi gjenskaper per-dag-formatet ved å gi alle dager med
-    // timer hele plan-listen. Foretrekker data-plans, faller tilbake til
-    // legacy data-day-plans.
-    if (!card) return {};
-    var plans = [];
-    try { plans = JSON.parse(card.getAttribute('data-plans') || '[]') || []; } catch (e) {}
-    if (!plans.length) {
+    // Per-dag etasje-objekt: {ma: 'U3, U2', ti: 'U1'}. data-day-plans er nå
+    // primær (per dag); faller tilbake til bestilling-nivå data-plans med
+    // replikering til dager med timer (auto-migrering for eldre data).
+    if (!card || typeof _getCardDayPlans !== 'function') {
         try { return JSON.parse(card.getAttribute('data-day-plans') || '{}') || {}; }
         catch (e) { return {}; }
     }
-    var planStr = plans.join(', ');
-    var out = {};
-    try {
-        var tm = JSON.parse(card.getAttribute('data-timer') || '{}') || {};
-        Object.keys(tm).forEach(function(d) { out[d] = planStr; });
-    } catch (e) {}
-    return out;
+    return _getCardDayPlans(card);
 }
-// Dag-fordeling for en bestilling. Etasjer er nå BESTILLING-nivå (én flat
-// liste), ikke per-dag — derfor returnerer dette dag-deler (timer per dag)
-// + én ekstra «chip» for Etasjer på slutten hvis bestillingen har plans.
-function _orderDayBreakdown(tm, plans) {
+// Dag-fordeling for en bestilling. Etasjer er nå PER-DAG (data-day-plans).
+// Hver dag-del viser timer + sin egen etasje. "Annet" (_generelt) har kun
+// timer, ingen etasje (per design).
+function _orderDayBreakdown(tm, plans, dayPlans) {
     var shortMap = (typeof dagShortMap === 'object' && dagShortMap) ? dagShortMap : {
         ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø'
     };
     function _hasVal(v) { return v != null && String(v).trim() !== ''; }
     var parts = [];
+    var dp = dayPlans || {};
     TIMER_DAY_KEYS.forEach(function(k) {
-        if (_hasVal(tm[k])) {
+        var hasT = _hasVal(tm[k]);
+        var hasP = _hasVal(dp[k]);
+        if (hasT || hasP) {
             parts.push({
                 day: shortMap[k] || k,
-                hours: String(tm[k]).replace('.', ',') + 't',
-                plan: ''
+                hours: hasT ? (String(tm[k]).replace('.', ',') + 't') : '',
+                plan: hasP ? String(dp[k]).trim() : ''
             });
         }
     });
@@ -10878,8 +10892,10 @@ function _orderDayBreakdown(tm, plans) {
             plan: ''
         });
     }
-    if (plans && plans.length) {
-        // Samme stil som dag-delene: fet prefix + verdier inline.
+    // Fallback til bestilling-nivå union for ekstremt gamle data uten
+    // dayPlans-info OG uten timer (kun union-array). Sjelden; vis som siste
+    // del slik den eksisterende UI viste tidligere.
+    if (parts.length === 0 && plans && plans.length) {
         parts.push({
             isPlans: true,
             day: 'Etasje',
@@ -10922,9 +10938,10 @@ function openTimerOverview() {
     cards.forEach(function(card, idx) {
         var tm = _orderTimerObj(card);
         var plans = (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
+        var dayPlans = _orderDayPlansObj(card);
         var sum = _orderHoursSum(tm);
         total += sum;
-        var breakdown = _orderDayBreakdown(tm, plans);
+        var breakdown = _orderDayBreakdown(tm, plans, dayPlans);
 
         var row = document.createElement('button');
         row.type = 'button';

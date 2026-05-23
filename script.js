@@ -2021,6 +2021,12 @@ function createOrderCard(orderData, expanded) {
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
                 <div class="mobile-order-materials"></div>
                 <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
+                <button type="button" class="section-skip-link" onclick="toggleOrderSkip(this, 'materier')" data-i18n="order_skip_materialer">${t('order_skip_materialer')}</button>
+                <div class="section-skip-status" hidden>
+                    <span class="section-skip-icon">✓</span>
+                    <span class="section-skip-text" data-i18n="order_skipped_materialer">${t('order_skipped_materialer')}</span>
+                    <button type="button" class="section-skip-undo" onclick="toggleOrderSkip(this, 'materier')" data-i18n="btn_undo">${t('btn_undo')}</button>
+                </div>
             </div>
             <div class="mobile-field mobile-field--plan-hidden" style="display:none">
                 <label data-i18n="order_plan">${t('order_plan')}</label>
@@ -2030,12 +2036,18 @@ function createOrderCard(orderData, expanded) {
                     <span class="fakturaadresse-chevron">›</span>
                 </div>
             </div>
-            <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
+            <div class="mobile-field mobile-order-arbeidstid-section${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
                 <label data-i18n="order_days">${t('order_days')}</label>
                 <button type="button" class="mobile-arbeidstid-btn" onclick="openDagTimerModal(this)">+ ${t('order_days')}</button>
                 <div class="dag-timer-display" onclick="openDagTimerModal(this)">
                     <span class="dag-timer-display-text"></span>
                     <span class="fakturaadresse-chevron">›</span>
+                </div>
+                <button type="button" class="section-skip-link" onclick="toggleOrderSkip(this, 'dager')" data-i18n="order_skip_arbeidstid">${t('order_skip_arbeidstid')}</button>
+                <div class="section-skip-status" hidden>
+                    <span class="section-skip-icon">✓</span>
+                    <span class="section-skip-text" data-i18n="order_skipped_arbeidstid">${t('order_skipped_arbeidstid')}</span>
+                    <button type="button" class="section-skip-undo" onclick="toggleOrderSkip(this, 'dager')" data-i18n="btn_undo">${t('btn_undo')}</button>
                 </div>
             </div>
         </div>
@@ -2062,17 +2074,16 @@ function createOrderCard(orderData, expanded) {
     updateOrderTitle(card);
 
     // Set dager, timer og etasjer på kortet.
-    // Etasjer er nå BESTILLING-nivå (en flat liste), ikke per-dag. For
-    // bakoverkompatibilitet: hvis orderData.plans finnes → bruk det; ellers
-    // dedupliser fra gammel per-dag-format (orderData.dayPlans).
+    // Per-dag etasjer er primær (orderData.dayPlans = {ma: 'U3, U2', ti: 'U1'}).
+    // Bestilling-nivå (orderData.plans) støttes kun for bakoverkompatibilitet —
+    // _getCardDayPlans replikerer plans til dager med timer ved første lesning.
     const dager = orderData.dager || [];
     const timerData = orderData.timer || {};
-    const dayPlansData = orderData.dayPlans || {};
-    var plansData = Array.isArray(orderData.plans) ? orderData.plans.slice()
-        : _migrateFromDayPlans(dayPlansData);
+    const dayPlansData = (orderData.dayPlans && typeof orderData.dayPlans === 'object') ? orderData.dayPlans : {};
+    var plansData = Array.isArray(orderData.plans) ? orderData.plans.slice() : [];
     card.setAttribute('data-dager', JSON.stringify(dager));
     card.setAttribute('data-timer', JSON.stringify(typeof timerData === 'object' ? timerData : {}));
-    card.setAttribute('data-day-plans', JSON.stringify(typeof dayPlansData === 'object' ? dayPlansData : {}));
+    card.setAttribute('data-day-plans', JSON.stringify(dayPlansData));
     card.setAttribute('data-plans', JSON.stringify(plansData));
     updateDagTimerSummary(card);
 
@@ -2113,8 +2124,106 @@ function createOrderCard(orderData, expanded) {
     const mats = orderData.materials && orderData.materials.length > 0 ? orderData.materials : [];
     renderMaterialSummary(matContainer, mats);
 
+    // "Ikke aktuelt"-flagg per seksjon. Lar brukeren bekrefte at bestillingen
+    // bevisst ikke har materialer eller arbeidstid uten å miste required-
+    // validering på tilfeller hvor det glemmes. Lagres som data-attributter
+    // på kortet og persisteres via getOrdersData (materierSkipped/dagerSkipped).
+    if (orderData.materierSkipped === true) card.setAttribute('data-skip-materier', 'true');
+    if (orderData.dagerSkipped === true) card.setAttribute('data-skip-dager', 'true');
+    _updateOrderSkipUI(card);
+
     return card;
 }
+
+// Oppdaterer UI-tilstanden for "Ikke aktuelt"-knapp/-status i en ordre-kort
+// (eller service-entry). Tre tilstander pr seksjon:
+//   1. FILLED  — innhold finnes → skjul skip-link + skip-status (skip-flagget
+//                fjernes implisitt siden brukeren har fylt ut)
+//   2. EMPTY   — ingen innhold, ikke markert som "ikke aktuelt" → vis
+//                "+ Add"-knapp og skip-link, skjul status
+//   3. SKIPPED — ingen innhold, men eksplisitt markert "ikke aktuelt" → skjul
+//                "+ Add"-knapp og skip-link, vis status-pille
+// Kalles fra createOrderCard, etter renderMaterialSummary, etter
+// updateDagTimerSummary, og fra toggleOrderSkip selv.
+function _updateOrderSkipUI(card) {
+    if (!card) return;
+    // Materialer-seksjon (gjelder også service-entry-card)
+    var matSection = card.querySelector('.mobile-order-materials-section');
+    if (matSection) {
+        var matRows = matSection.querySelectorAll('.mobile-material-row');
+        var matLink = matSection.querySelector('.section-skip-link');
+        var matStatus = matSection.querySelector('.section-skip-status');
+        var matBtn = matSection.querySelector('.mobile-add-mat-btn');
+        var matSkipped = card.getAttribute('data-skip-materier') === 'true';
+        if (matRows.length > 0) {
+            // FILLED — implisitt fjern stale skip-flagg
+            card.removeAttribute('data-skip-materier');
+            matSkipped = false;
+        }
+        if (matBtn) matBtn.style.display = matSkipped ? 'none' : '';
+        if (matLink) matLink.hidden = matSkipped || matRows.length > 0;
+        if (matStatus) matStatus.hidden = !matSkipped;
+    }
+    // Arbeidstid-seksjon (kun på .mobile-order-card, ikke service-entry)
+    var dagSection = card.querySelector('.mobile-order-arbeidstid-section');
+    if (dagSection) {
+        var timer = {};
+        try { timer = JSON.parse(card.getAttribute('data-timer') || '{}') || {}; } catch (e) {}
+        var plans = (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
+        var dagOrder = ['ma','ti','on','to','fr','lo','so','_generelt'];
+        var hasTimer = dagOrder.some(function(d) {
+            return !!(timer[d] && String(timer[d]).trim());
+        });
+        var hasContent = hasTimer || plans.length > 0;
+        var dagLink = dagSection.querySelector('.section-skip-link');
+        var dagStatus = dagSection.querySelector('.section-skip-status');
+        var dagBtn = dagSection.querySelector('.mobile-arbeidstid-btn');
+        var dagDisplay = dagSection.querySelector('.dag-timer-display');
+        var dagSkipped = card.getAttribute('data-skip-dager') === 'true';
+        if (hasContent) {
+            // FILLED — implisitt fjern stale skip-flagg
+            card.removeAttribute('data-skip-dager');
+            dagSkipped = false;
+        }
+        // Tre tilstander for knapp + display:
+        //   SKIPPED       → skjul begge (status-pillen tar plassen)
+        //   FILLED        → skjul knapp, vis display
+        //   EMPTY         → vis knapp, skjul display
+        // Speiler logikken i updateDagTimerSummary uten å kalle den (ville gitt
+        // gjensidig rekursjon siden den kaller _updateOrderSkipUI).
+        if (dagSkipped) {
+            if (dagBtn) dagBtn.style.display = 'none';
+            if (dagDisplay) dagDisplay.style.display = 'none';
+        } else {
+            if (dagBtn) dagBtn.style.display = hasContent ? 'none' : '';
+            if (dagDisplay) dagDisplay.style.display = hasContent ? '' : 'none';
+        }
+        if (dagLink) dagLink.hidden = dagSkipped || hasContent;
+        if (dagStatus) dagStatus.hidden = !dagSkipped;
+    }
+}
+
+// Toggle "Ikke aktuelt"-flagget for en seksjon. Kalt fra både skip-link og
+// "Angre"-knapp (samme handler — toggler current state).
+function toggleOrderSkip(btn, kind) {
+    var card = btn.closest('.mobile-order-card') || btn.closest('.service-entry-card');
+    if (!card) return;
+    var attr = (kind === 'dager') ? 'data-skip-dager' : 'data-skip-materier';
+    if (card.getAttribute(attr) === 'true') {
+        card.removeAttribute(attr);
+    } else {
+        card.setAttribute(attr, 'true');
+    }
+    _updateOrderSkipUI(card);
+    // Persisterer state via samme debounced session-save som annen input.
+    if (typeof debouncedSessionSave === 'function') debouncedSessionSave();
+    if (typeof debouncedServiceSessionSave === 'function'
+        && card.closest('#service-entries')) {
+        debouncedServiceSessionSave();
+    }
+}
+window.toggleOrderSkip = toggleOrderSkip;
+window._updateOrderSkipUI = _updateOrderSkipUI;
 
 // Pipe sealant helpers
 function getRunningMeterInfo(matName) {
@@ -3897,6 +4006,7 @@ function pickerOverlayConfirm() {
 
     const matContainer = pickerOrderCard.querySelector('.mobile-order-materials');
     renderMaterialSummary(matContainer, materials);
+    if (typeof _updateOrderSkipUI === 'function') _updateOrderSkipUI(pickerOrderCard);
     if (pickerOrderCard.closest('#service-entries')) {
         sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
     } else {
@@ -4015,18 +4125,10 @@ function confirmPlanPicker() {
     });
     var val = selected.join(', ');
     _planPickerDisplay.setAttribute('data-plan', val);
-    if (_planPickerDisplay.classList.contains('dag-timer-bestilling-plans-trigger')) {
-        // Bestilling-nivå etasjer (Dager & tid-modal): oppdater chip-listen.
-        _dagTimerSelectedPlans = selected.slice();
-        _renderDagTimerPlanChips();
-        document.getElementById('plan-popup').classList.remove('active');
-        var modal = document.getElementById('dag-timer-modal');
-        if (modal) modal.classList.remove('dag-timer-modal--hidden');
-        return;
-    }
     if (_planPickerDisplay.classList.contains('dag-timer-plan-btn')) {
-        // Per-dag plan-trigger i Dager & tid-modal: oppdater trigger + sibling values-display
-        _planPickerDisplay.textContent = val ? 'Endre' : '+ Plan';
+        // Per-dag plan-trigger i Dager & tid-modal: oppdater trigger + values-display.
+        // dag-timer-modalen ble skjult når picker åpnet — vis den igjen.
+        _planPickerDisplay.textContent = val ? 'Endre' : '+ Etasje';
         _planPickerDisplay.classList.toggle('dag-timer-plan-btn--empty', !val);
         var dayRow = _planPickerDisplay.closest('.dag-timer-modal-row');
         if (dayRow) {
@@ -4036,6 +4138,10 @@ function confirmPlanPicker() {
                 valuesEl.textContent = val;
             }
         }
+        document.getElementById('plan-popup').classList.remove('active');
+        var modal = document.getElementById('dag-timer-modal');
+        if (modal) modal.classList.remove('dag-timer-modal--hidden');
+        return;
     } else {
         var dispText = _planPickerDisplay.querySelector('.plan-display-text');
         if (dispText) dispText.textContent = val;
@@ -4102,18 +4208,44 @@ function _migrateFromDayPlans(dayPlans) {
     return order;
 }
 
-// Henter bestillingens etasjer (plans-array). Foretrekker nytt format
-// (data-plans), faller tilbake til legacy data-day-plans hvis nytt er tomt.
+// Henter bestillingens etasjer som UNION-array på tvers av dager. Brukes til
+// summary/eksport som viser én flat liste. Foretrekker data-day-plans
+// (primær), faller tilbake til data-plans (eldre bestilling-nivå).
 function _getCardPlans(card) {
     if (!card) return [];
+    var dp = _getCardDayPlans(card);
+    if (Object.keys(dp).length) return _migrateFromDayPlans(dp);
     var arr = [];
     try { arr = JSON.parse(card.getAttribute('data-plans') || '[]') || []; } catch (e) {}
-    if (Array.isArray(arr) && arr.length) return arr;
-    try {
-        var dp = JSON.parse(card.getAttribute('data-day-plans') || '{}') || {};
-        return _migrateFromDayPlans(dp);
-    } catch (e) {}
-    return [];
+    return Array.isArray(arr) ? arr : [];
+}
+
+// Henter PER-DAG etasje-objekt: { ma: 'U3, U2', ti: 'U1' }. Primær kilde er
+// data-day-plans (det er nå hovedformatet). Hvis tomt og kortet har eldre
+// bestilling-nivå data-plans → repliker plans-strengen til alle dager med
+// timer (auto-migrering ved første lasting).
+function _getCardDayPlans(card) {
+    if (!card) return {};
+    var dp = {};
+    try { dp = JSON.parse(card.getAttribute('data-day-plans') || '{}') || {}; } catch (e) {}
+    // Sjekk om dp har minst én ikke-tom verdi
+    var hasAny = Object.keys(dp).some(function(k) {
+        return dp[k] != null && String(dp[k]).trim();
+    });
+    if (hasAny) return dp;
+    // Auto-migrer fra bestilling-nivå data-plans + data-timer: hver dag som
+    // har timer arver hele plan-listen som komma-streng.
+    var plans = [];
+    try { plans = JSON.parse(card.getAttribute('data-plans') || '[]') || []; } catch (e) {}
+    if (!Array.isArray(plans) || !plans.length) return {};
+    var planStr = plans.join(', ');
+    var timer = {};
+    try { timer = JSON.parse(card.getAttribute('data-timer') || '{}') || {}; } catch (e) {}
+    var out = {};
+    ['ma','ti','on','to','fr','lo','so'].forEach(function(d) {
+        if (timer[d] && String(timer[d]).trim()) out[d] = planStr;
+    });
+    return out;
 }
 
 // Skjul bullet-separator hvis prev og next dag-del er på forskjellige linjer
@@ -4138,28 +4270,22 @@ function updateDagTimerSummary(card) {
     const textEl = display.querySelector('.dag-timer-display-text');
     const btn = card.querySelector('.mobile-arbeidstid-btn');
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
-    const plans = _getCardPlans(card);
+    const dayPlans = _getCardDayPlans(card);
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
-    function _formatDayPart(label, hours) {
+    function _formatDayPart(label, hours, plan) {
         var hoursStr = hours ? escapeHtml(String(hours).replace('.', ',')) + 't' : '';
         var inner = '<b class="dt-day">' + escapeHtml(label) + '</b>';
         if (hoursStr) inner += ' ' + hoursStr;
+        if (plan) inner += ' <span class="dt-plan">' + escapeHtml(plan) + '</span>';
         return '<span class="dt-part">' + inner + '</span>';
     }
-    const parts = dagOrder.filter(d => timer[d]).map(d => {
-        return _formatDayPart(dagShortMap[d] || d, timer[d]);
+    const parts = dagOrder.filter(d => timer[d] || dayPlans[d]).map(d => {
+        return _formatDayPart(dagShortMap[d] || d, timer[d] || '', dayPlans[d] || '');
     });
     var genVal = timer._generelt || timer._total;
     if (genVal) {
-        parts.push(_formatDayPart('Annet', genVal));
-    }
-    if (plans.length) {
-        // Etasjer er nå bestilling-nivå — vises inline med samme stil som
-        // dag-delene ("Ma 1t"-mønster): fet prefix + verdier i ren tekst.
-        var plansStr = plans.join(', ');
-        parts.push('<span class="dt-part">'
-            + '<b class="dt-day">Etasje</b> ' + escapeHtml(plansStr)
-            + '</span>');
+        // Annet — kun timer, ingen etasje.
+        parts.push(_formatDayPart('Annet', genVal, ''));
     }
     var summary = parts.join('<span class="dt-sep">•</span>');
     textEl.innerHTML = summary;
@@ -4172,74 +4298,23 @@ function updateDagTimerSummary(card) {
         display.style.display = 'none';
         if (btn) btn.style.display = '';
     }
-}
-
-// Transient state for Etasjer-chips inne i Dager & tid-modalen.
-var _dagTimerSelectedPlans = [];
-
-function _renderDagTimerPlanChips() {
-    var el = document.getElementById('dag-timer-plans-chips');
-    if (!el) return;
-    el.innerHTML = '';
-    // Inline-format som matcher ordrekort-sammendraget: «Etasje U3, U2, U1»
-    // — fet prefix + verdier i ren tekst. «Endre»-knapp åpner plan-picker
-    // for å legge til/fjerne. Konsistent stil over hele appen.
-    var prefix = document.createElement('b');
-    prefix.className = 'dag-timer-plans-label';
-    prefix.textContent = 'Etasje';
-    el.appendChild(prefix);
-    if (_dagTimerSelectedPlans.length) {
-        var values = document.createElement('span');
-        values.className = 'dag-timer-plans-values';
-        values.textContent = ' ' + _dagTimerSelectedPlans.join(', ');
-        el.appendChild(values);
-    }
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'dag-timer-plan-chip dag-timer-plan-chip-add dag-timer-bestilling-plans-trigger';
-    btn.setAttribute('data-plan', _dagTimerSelectedPlans.join(', '));
-    var btnLabel = _dagTimerSelectedPlans.length ? 'Endre' : '+ Velg';
-    btn.innerHTML = '<span class="dag-timer-plan-chip-name">' + btnLabel + '</span>';
-    btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var modal = document.getElementById('dag-timer-modal');
-        if (modal) modal.classList.add('dag-timer-modal--hidden');
-        openPlanPicker(btn);
-    });
-    el.appendChild(btn);
+    // Synkroniser skip-UI så "Ikke aktuelt"-status/lenke matcher ny innhold.
+    if (typeof _updateOrderSkipUI === 'function') _updateOrderSkipUI(card);
 }
 
 function openDagTimerModal(btn) {
     const card = btn.closest('.mobile-order-card');
     dagTimerActiveCard = card;
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
-    // Etasjer er nå bestilling-nivå — last via helper (prioriterer nytt format,
-    // dedupliserer fra eldre per-dag-format som migrering). Legacy .plan-display
-    // verdi brukes som siste fallback.
-    _dagTimerSelectedPlans = _getCardPlans(card);
-    if (!_dagTimerSelectedPlans.length) {
-        var planDisp = card.querySelector('.plan-display');
-        if (planDisp) {
-            var legacy = (planDisp.getAttribute('data-plan') || '').trim();
-            if (legacy) {
-                _dagTimerSelectedPlans = legacy.split(',')
-                    .map(function(s) { return s.trim(); }).filter(Boolean);
-            }
-        }
-    }
+    // Per-dag etasjer: data-day-plans er nå primær. Hvis tomt, faller vi
+    // tilbake til bestilling-nivå data-plans og repliker til alle dager som
+    // har timer (auto-migrering av eldre data).
+    var dayPlans = _getCardDayPlans(card);
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
     const list = document.getElementById('dag-timer-modal-list');
     list.innerHTML = '';
 
-    // === Etasjer-rad (kompakt, inline label + chips) på toppen ===
-    var plansSection = document.createElement('div');
-    plansSection.className = 'dag-timer-plans-section';
-    plansSection.id = 'dag-timer-plans-chips';
-    list.appendChild(plansSection);
-    _renderDagTimerPlanChips();
-
-    // === Dag-rader (kun timer, ingen plan per dag lenger) ===
+    // === Dag-rader: timer + per-dag etasje-picker ===
     dagOrder.forEach(function(dag) {
         var row = document.createElement('div');
         row.className = 'dag-timer-modal-row';
@@ -4265,7 +4340,40 @@ function openDagTimerModal(btn) {
         inpWrap.appendChild(unit);
         topRow.appendChild(label);
         topRow.appendChild(inpWrap);
+        // Etasje-picker for denne dagen. data-plan persisterer state mellom
+        // åpninger av picker; confirmPlanPicker leser/skriver dette attributtet.
+        // Picker'ens onclick-handler er gjenbruk av openPlanPicker som allerede
+        // har kode-path for klassen 'dag-timer-plan-btn' (linje ~4138).
+        var planVal = (dayPlans[dag] || '').trim();
+        var planBtn = document.createElement('button');
+        planBtn.type = 'button';
+        planBtn.className = 'dag-timer-plan-btn' + (planVal ? '' : ' dag-timer-plan-btn--empty');
+        planBtn.dataset.dag = dag;
+        planBtn.setAttribute('data-plan', planVal);
+        planBtn.textContent = planVal ? 'Endre' : '+ Etasje';
+        planBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var modal = document.getElementById('dag-timer-modal');
+            if (modal) modal.classList.add('dag-timer-modal--hidden');
+            openPlanPicker(planBtn);
+        });
+        topRow.appendChild(planBtn);
         row.appendChild(topRow);
+        // Verdier-visning under top-row når etasje(r) er valgt for dagen.
+        var planValues = document.createElement('div');
+        planValues.className = 'dag-timer-plan-values';
+        planValues.dataset.dag = dag;
+        planValues.style.display = planVal ? '' : 'none';
+        planValues.textContent = planVal;
+        planValues.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var modal = document.getElementById('dag-timer-modal');
+            if (modal) modal.classList.add('dag-timer-modal--hidden');
+            openPlanPicker(planBtn);
+        });
+        row.appendChild(planValues);
         list.appendChild(row);
     });
 
@@ -4323,44 +4431,61 @@ function closeDagTimerModal(confirmed) {
     const list = document.getElementById('dag-timer-modal-list');
     const dager = [];
     const timer = {};
-    var plans = (_dagTimerSelectedPlans || []).slice();
+    const dayPlans = {};
 
-    // Lukker modalen nå (ingen per-dag-plan-validering lenger — etasjer er
-    // bestilling-nivå og uavhengige av timer).
-    modal.classList.remove('active');
-    modal.removeEventListener('touchmove', dagTimerBlockScroll);
-    modal.removeEventListener('wheel', dagTimerBlockScroll);
-
+    // === Per-dag validering: hvis EN av {timer, etasje} er fylt for en dag,
+    // må BÅDE være fylt. "Annet" er unntatt (kun timer). ===
+    var validationFail = null;
     list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row)').forEach(function(row) {
+        if (validationFail) return;
         var dag = row.dataset.dag;
         var inp = row.querySelector('.dag-timer-modal-input');
-        if (inp && inp.value.trim()) {
-            dager.push(dag);
-            timer[dag] = inp.value.trim();
+        var planBtn = row.querySelector('.dag-timer-plan-btn');
+        var timerVal = inp ? inp.value.trim() : '';
+        var planVal = planBtn ? (planBtn.getAttribute('data-plan') || '').trim() : '';
+        if (timerVal && !planVal) {
+            validationFail = { dag: dag, missing: 'etasje' };
+        } else if (!timerVal && planVal) {
+            validationFail = { dag: dag, missing: 'timer' };
         }
+        if (timerVal) { dager.push(dag); timer[dag] = timerVal; }
+        if (planVal) { dayPlans[dag] = planVal; }
     });
+    if (validationFail) {
+        var dayName = dagNameMap[validationFail.dag] || validationFail.dag;
+        var msgKey = validationFail.missing === 'etasje'
+            ? 'validation_day_missing_etasje'
+            : 'validation_day_missing_timer';
+        showNotificationModal(t(msgKey, dayName));
+        return;  // Hold modalen åpen så bruker kan fikse
+    }
     var genInput = document.getElementById('dag-timer-generelt-input');
     var genVal = genInput ? genInput.value.trim() : '';
     if (genVal) timer._generelt = genVal;
 
+    // Først nå (validering OK) lukker vi modalen.
+    modal.classList.remove('active');
+    modal.removeEventListener('touchmove', dagTimerBlockScroll);
+    modal.removeEventListener('wheel', dagTimerBlockScroll);
+
     dagTimerActiveCard.setAttribute('data-dager', JSON.stringify(dager));
     dagTimerActiveCard.setAttribute('data-timer', JSON.stringify(timer));
-    dagTimerActiveCard.setAttribute('data-plans', JSON.stringify(plans));
+    dagTimerActiveCard.setAttribute('data-day-plans', JSON.stringify(dayPlans));
 
-    // For bakoverkompatibilitet med eldre lesere (eksport/timer-oversikt som
-    // ikke er oppdatert ennå): bygg data-day-plans der hver dag med timer
-    // får hele plan-listen som komma-separert streng. Etasjer er nå én
-    // logisk enhet per bestilling, men replikering per dag holder gamle
-    // konsumenter funksjonelle.
-    var dayPlansLegacy = {};
-    if (plans.length) {
-        var planStr = plans.join(', ');
-        Object.keys(timer).forEach(function(d) { dayPlansLegacy[d] = planStr; });
-    }
-    dagTimerActiveCard.setAttribute('data-day-plans', JSON.stringify(dayPlansLegacy));
+    // Bestilling-nivå union for eldre lesere (eksport, timer-oversikt som
+    // viser samlet etasje-liste). Bygges fra alle dager med plans.
+    var unionSet = {};
+    Object.keys(dayPlans).forEach(function(d) {
+        (dayPlans[d] || '').split(',').forEach(function(p) {
+            var s = p.trim();
+            if (s) unionSet[s] = true;
+        });
+    });
+    var unionArr = Object.keys(unionSet);
+    dagTimerActiveCard.setAttribute('data-plans', JSON.stringify(unionArr));
 
-    // Legacy .plan-display (eksport/validering) — speil etasjene.
-    var unionPlan = plans.join(', ');
+    // Legacy .plan-display (eksport/validering) — speil samlet union.
+    var unionPlan = unionArr.join(', ');
     var planDisp = dagTimerActiveCard.querySelector('.plan-display');
     if (planDisp) {
         planDisp.setAttribute('data-plan', unionPlan);
@@ -4369,7 +4494,6 @@ function closeDagTimerModal(confirmed) {
     }
     updateDagTimerSummary(dagTimerActiveCard);
     dagTimerActiveCard = null;
-    _dagTimerSelectedPlans = [];
     if (typeof updateTimerChip === 'function') updateTimerChip();
     _maybeReturnToTimerOverview();
 }
@@ -4495,6 +4619,12 @@ function createServiceEntryCard(entryData, expanded) {
                 '<label class="mobile-order-sublabel" data-i18n="order_materials_label">' + t('order_materials_label') + '</label>' +
                 '<div class="mobile-order-materials"></div>' +
                 '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
+                '<button type="button" class="section-skip-link" onclick="toggleOrderSkip(this, \'materier\')" data-i18n="order_skip_materialer">' + t('order_skip_materialer') + '</button>' +
+                '<div class="section-skip-status" hidden>' +
+                    '<span class="section-skip-icon">✓</span>' +
+                    '<span class="section-skip-text" data-i18n="order_skipped_materialer">' + t('order_skipped_materialer') + '</span>' +
+                    '<button type="button" class="section-skip-undo" onclick="toggleOrderSkip(this, \'materier\')" data-i18n="btn_undo">' + t('btn_undo') + '</button>' +
+                '</div>' +
             '</div>' +
         '</div>' +
         '</div>';
@@ -4503,6 +4633,11 @@ function createServiceEntryCard(entryData, expanded) {
     var matContainer = card.querySelector('.mobile-order-materials');
     var mats = data.materials && data.materials.length > 0 ? data.materials : [];
     renderMaterialSummary(matContainer, mats);
+
+    // "Ikke aktuelt"-flagg for materialer på service-entry. Samme mønster som
+    // ordreseddel; serviceentries har ikke arbeidstid-seksjon.
+    if (data.materierSkipped === true) card.setAttribute('data-skip-materier', 'true');
+    if (typeof _updateOrderSkipUI === 'function') _updateOrderSkipUI(card);
 
     // Update header live when prosjektnavn changes
     card.querySelector('.service-entry-prosjektnavn').addEventListener('input', renumberServiceEntries);
@@ -4580,11 +4715,15 @@ function getServiceFormData() {
     document.querySelectorAll('#service-entries .service-entry-card').forEach(function(card) {
         var matContainer = card.querySelector('.mobile-order-materials');
         var mats = matContainer ? getMaterialsFromContainer(matContainer) : [];
+        // "Ikke aktuelt"-flagg, kun lagret når true OG tomt (samme regel som
+        // ordreseddel).
+        var materierSkipped = card.getAttribute('data-skip-materier') === 'true' && mats.length === 0;
         entries.push({
             dato: card.querySelector('.service-entry-dato').value,
             prosjektnr: card.querySelector('.service-entry-prosjektnr').value,
             prosjektnavn: card.querySelector('.service-entry-prosjektnavn').value,
-            materials: mats
+            materials: mats,
+            materierSkipped: materierSkipped
         });
     });
     return {
@@ -4716,7 +4855,15 @@ function getOrdersData() {
         const timer = Object.keys(timerObj).length > 0 ? timerObj : '';
         const matContainer = card.querySelector('.mobile-order-materials');
         const materials = getMaterialsFromContainer(matContainer);
-        orders.push({ description, dager, plan, dayPlans, plans, merknad, materials, timer });
+        // "Ikke aktuelt"-flagg. Kun lagret når true OG seksjonen er tom (ellers
+        // er flagget irrelevant; FILLED-state fjerner det implisitt i UI).
+        const materierSkipped = card.getAttribute('data-skip-materier') === 'true' && materials.length === 0;
+        const dagerSkipped = card.getAttribute('data-skip-dager') === 'true' && !timer && !plans;
+        // Per-dag etasjer er nå primær. data-day-plans inneholder allerede den
+        // riktige formen ({ma: 'U3, U2', ti: 'U1'}).
+        const dayPlansPrimary = _getCardDayPlans(card);
+        const dayPlansOut = Object.keys(dayPlansPrimary).length ? dayPlansPrimary : (typeof dayPlans === 'object' ? dayPlans : '');
+        orders.push({ description, dager, plan, dayPlans: dayPlansOut, plans, merknad, materials, timer, materierSkipped, dagerSkipped });
     });
     return orders;
 }
@@ -5793,21 +5940,43 @@ function validateRequiredFields() {
         }
     }
 
-    // Validate dager (Arbeidstid) — krever BÅDE minst én dag med timer OG
-    // minst én etasje på bestilling-nivå. Etasjer er nå bestilling-attributt
-    // (data-plans), ikke per-dag — derfor uavhengige sjekker.
+    // Validate dager (Arbeidstid) — krever at hver bestilling har minst ÉN
+    // dag med både timer OG etasje (eller "Annet"-timer). Per-dag-paret er
+    // også sjekket av modal-OK, men her validerer vi at det er angitt INNHOLD
+    // i det hele tatt. Skip-flagg overstyrer.
     if (saveReqs.dager) {
         const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
+        const dagOrder = ['ma','ti','on','to','fr','lo','so'];
         for (let i = 0; i < orderCards.length; i++) {
             const card = orderCards[i];
+            if (card.getAttribute('data-skip-dager') === 'true') continue;
             const cardTimer = JSON.parse(card.getAttribute('data-timer') || '{}');
-            var cardPlans = _getCardPlans(card);
-            var dagOrder = ['ma','ti','on','to','fr','lo','so','_generelt'];
-            var hasTimer = dagOrder.some(function(d) {
-                return !!(cardTimer[d] && String(cardTimer[d]).trim());
+            const cardDayPlans = _getCardDayPlans(card);
+            // Hver dag (Ma-Sø): hvis enten timer ELLER etasje er fylt, MÅ
+            // begge være fylt. Per-dag-bindingen.
+            var pairFail = null;
+            for (var di = 0; di < dagOrder.length; di++) {
+                var d = dagOrder[di];
+                var hasT = !!(cardTimer[d] && String(cardTimer[d]).trim());
+                var hasP = !!(cardDayPlans[d] && String(cardDayPlans[d]).trim());
+                if (hasT !== hasP) { pairFail = { dag: d, missing: hasT ? 'etasje' : 'timer' }; break; }
+            }
+            if (pairFail) {
+                var dayName = dagNameMap[pairFail.dag] || pairFail.dag;
+                var msgKey = pairFail.missing === 'etasje'
+                    ? 'validation_day_missing_etasje'
+                    : 'validation_day_missing_timer';
+                showNotificationModal(t(msgKey, dayName) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
+                return false;
+            }
+            // Bestillingen må ha minst ÉN dag med timer (inkl. "Annet") eller
+            // etasje. Tom dager-seksjon når den er obligatorisk er ikke OK.
+            var anyDayHasContent = dagOrder.some(function(d) {
+                return !!(cardTimer[d] && String(cardTimer[d]).trim())
+                    || !!(cardDayPlans[d] && String(cardDayPlans[d]).trim());
             });
-            var hasPlan = cardPlans.length > 0;
-            if (!hasTimer || !hasPlan) {
+            var genVal = cardTimer._generelt || cardTimer._total;
+            if (!anyDayHasContent && !genVal) {
                 showNotificationModal(t('required_field', t('order_days')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
             }
@@ -5826,10 +5995,12 @@ function validateRequiredFields() {
         }
     }
 
-    // Validate materialer
+    // Validate materialer. Hopp over bestillinger der brukeren eksplisitt
+    // har markert "Ingen materialer for denne bestillingen" (data-skip-materier).
     if (saveReqs.materialer) {
         const orderCards = document.querySelectorAll('#mobile-orders .mobile-order-card');
         for (let i = 0; i < orderCards.length; i++) {
+            if (orderCards[i].getAttribute('data-skip-materier') === 'true') continue;
             const matContainer = orderCards[i].querySelector('.mobile-order-materials');
             const mats = matContainer ? matContainer.querySelectorAll('.mobile-material-row') : [];
             if (mats.length === 0) {
@@ -5894,7 +6065,9 @@ function validateServiceRequiredFields() {
                 return false;
             }
         }
-        if (req.materialer !== false) {
+        // Materialer-validering hopper over service-entries der brukeren har
+        // markert "Ingen materialer" eksplisitt.
+        if (req.materialer !== false && cards[i].getAttribute('data-skip-materier') !== 'true') {
             var matContainer = cards[i].querySelector('.mobile-order-materials');
             var matItems = matContainer ? matContainer.querySelectorAll('.mobile-material-row') : [];
             if (matItems.length === 0) {

@@ -72,6 +72,11 @@ const TRANSLATIONS = {
         material_isolation: 'Isolasjon',
         material_kappe: 'Isolering',
         order_days: 'Arbeidstid',
+        order_skip_materialer: 'Ingen materialer for denne bestillingen',
+        order_skipped_materialer: 'Ingen materialer',
+        order_skip_arbeidstid: 'Ingen arbeidstid for denne bestillingen',
+        order_skipped_arbeidstid: 'Ingen arbeidstid',
+        btn_undo: 'Angre',
         order_merknad: 'Merknad',
         order_merknad_placeholder: 'Valgfri merknad...',
         order_plan: 'Plan',
@@ -311,6 +316,8 @@ const TRANSLATIONS = {
 
         // Validation
         required_field: 'Du må fylle inn {0}',
+        validation_day_missing_etasje: '{0} mangler etasje. Når en dag har timer, må også etasje fylles ut.',
+        validation_day_missing_timer: '{0} mangler timer. Når en dag har etasje, må også timer fylles ut.',
         required_order: 'Du må legge til minst én bestilling',
         required_description: 'Beskrivelse mangler for bestilling {0}',
         validation_ordreseddel_nr: 'Ordreseddel nr.',
@@ -653,6 +660,11 @@ const TRANSLATIONS = {
         material_isolation: 'Insulation',
         material_kappe: 'Insulation',
         order_days: 'Work hours',
+        order_skip_materialer: 'No materials for this entry',
+        order_skipped_materialer: 'No materials',
+        order_skip_arbeidstid: 'No work hours for this entry',
+        order_skipped_arbeidstid: 'No work hours',
+        btn_undo: 'Undo',
         order_merknad: 'Note',
         order_merknad_placeholder: 'Optional note...',
         order_plan: 'Floor plan',
@@ -892,6 +904,8 @@ const TRANSLATIONS = {
 
         // Validation
         required_field: 'You must fill in {0}',
+        validation_day_missing_etasje: '{0} is missing floor. When a day has hours, floor must also be set.',
+        validation_day_missing_timer: '{0} is missing hours. When a day has floor, hours must also be set.',
         required_order: 'You must add at least one order',
         required_description: 'Description missing for order {0}',
         validation_ordreseddel_nr: 'Order no.',
