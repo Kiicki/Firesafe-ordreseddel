@@ -7,6 +7,16 @@ html {
     /* Reserver alltid plass til scrollbar så content ikke skifter sideveis
        når man bytter mellom sider/modi der scrollbar dukker opp/forsvinner. */
     scrollbar-gutter: stable;
+    /* === Browser-native auto-scroll for fokuserte inputs ===
+       Når et input får fokus, scroll'er browseren det inn i sikt og
+       respekterer scroll-padding som "reservert" plass.
+       - Topp: 60px reservert for sticky form-header
+       - Bunn: tastatur-høyde (live fra VkbdAPI via env()) + 80px look-ahead
+         for at neste felt også skal være synlig
+       env(keyboard-inset-height) er Chromium VkbdAPI; faller til 0px på
+       iOS/Firefox der visualViewport krymper og handles native. */
+    scroll-padding-top: 60px;
+    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 80px);
 }
 
 body {
@@ -18,6 +28,18 @@ body {
     font-size: 12px;
     min-height: 100vh;
     min-height: 100dvh;
+    /* Speil scroll-padding så native focus-scroll respekterer tastatur +
+       look-ahead uansett hvilken container som faktisk scroller. */
+    scroll-padding-top: 60px;
+    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 80px);
+}
+
+/* Form-views og modal-views: hvis disse scroller (overflow:auto), gjelder
+   samme scroll-padding-regler. */
+.view,
+.mobile-form {
+    scroll-padding-top: 60px;
+    scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 80px);
 }
 
 body.keyboard-open {

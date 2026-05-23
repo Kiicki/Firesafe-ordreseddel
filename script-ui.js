@@ -6542,103 +6542,50 @@ document.addEventListener('DOMContentLoaded', function() {
     function ensureKeyboardTargetVisible(el) {
         if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
         // Popup-inputs eies av _popupKbdSync — popupen er allerede løftet
-        // og størrelse-satt over tastaturet, og inputen er garantert synlig.
-        // _applyKbdSpacer-en under ville lagt til padding-bottom på lista som
-        // skaper et stort tomrom mellom siste rad og knappene. Hopp over.
+        // og størrelse-satt over tastaturet. Spacer-en under ville lagt til
+        // padding-bottom på popup-lista som skaper et stort tomrom.
         if (el.closest && el.closest(POPUP_BACKDROP_SELECTOR)) return;
-        // Site-wide standard-oppførsel: når brukeren fokuserer et tekstfelt
-        // OG et reelt skjermtastatur er åpent → scroll feltet over tastaturet
-        // hvis det vil havne bak. Hvis allerede synlig → ingen scroll.
-        // KREVER ekte tastatur-signal (VirtualKeyboard API ELLER vv-krymp).
-        // På PC (desktop, ingen skjermtastatur) gir begge null → vi gjør
-        // INGENTING (browseren har sin egen native focus-scroll uansett).
-        // Dette gjelder mobil, nettbrett, PC, hybrid-enheter: kun reagér på
-        // bekreftet tastatur-tilstedeværelse, aldri gjett.
+
+        // === Native browser scroll-into-view eier posisjoneringen ===
+        // CSS scroll-padding-bottom = env(keyboard-inset-height) + 80px på
+        // body/html/.view/.mobile-form reserverer plass for tastatur + look-
+        // ahead. scrollIntoView({block:'nearest'}) lar browseren regne ut
+        // minimal scroll for å plassere input i den sikre sonen. Dette er
+        // mer robust enn å regne ut delta selv: browseren kjenner sin egen
+        // viewport, scroll-tilstand, og tastatur-geometri.
+        // Browseren gjør IKKE re-scroll automatisk når tastaturet endrer
+        // størrelse (mode-bytter, accessory-bar) i overlays-content-modus,
+        // så vi trigges fortsatt fra geometrychange/resize for å re-trigge.
         var kbdTop = _getKeyboardTop();
-        if (kbdTop === null) return;
-
-        var rect = el.getBoundingClientRect();
-        var vv = window.visualViewport;
-        var viewportTop = vv ? vv.offsetTop : 0;
-        var viewportBottom = kbdTop;
-        var topPadding = 56;
-        // Look-ahead bottom-padding: scroll så neste navigasjons-element
-        // (felt eller seksjonstittel) er synlig. Fast 60px gir nok plass til
-        // å se "hva er neste" uten å scrolle for aggressivt.
-        var bottomPadding = 16;
-        var _focusedField = el.closest && el.closest('.mobile-field');
-        if (_focusedField) {
-            var _sib = _focusedField.nextElementSibling;
-            // Hopp over usynlige naboer (display:none, f.eks. legacy plan-field).
-            while (_sib && (!_sib.offsetHeight || _sib.offsetHeight < 5)) {
-                _sib = _sib.nextElementSibling;
+        if (kbdTop === null) {
+            // Ingen tastatur-signal (PC desktop e.l.) → la browseren håndtere
+            // native fokus-scroll uansett.
+            if (typeof el.scrollIntoView === 'function') {
+                el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
             }
-            if (_sib) {
-                bottomPadding = 60;
-            } else {
-                // Siste felt i seksjonen — sjekk om neste seksjon finnes så vi
-                // viser dens første element (typisk seksjonstittel).
-                var section = _focusedField.closest && _focusedField.closest('.mobile-section');
-                if (section && section.nextElementSibling) {
-                    bottomPadding = 60;
-                }
-            }
+            return;
         }
 
-        var toolbar = document.querySelector('.toolbar');
-        if (toolbar) {
-            var toolbarStyle = getComputedStyle(toolbar);
-            if (toolbarStyle.position === 'fixed' && toolbarStyle.display !== 'none') {
-                bottomPadding += toolbar.offsetHeight || 0;
-            }
+        // Be browseren scrolle input til sikker sone definert av scroll-padding.
+        // 'nearest' = minimal scroll så input blir synlig innenfor den paddede
+        // viewporten. Hvis allerede synlig: ingen scroll. Hvis under tastatur
+        // (per scroll-padding-bottom): scroll opp så den passer.
+        if (typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
         }
 
-        var minTop = viewportTop + topPadding;
-        var maxBottom = viewportBottom - bottomPadding;
-        var delta = 0;
-
-        // For multilinje-felt (textarea/contenteditable) bruk CURSOR-POSISJON
-        // som "bunn", ikke hele elementets rect. En lang textarea kan ha
-        // topp synlig mens cursoren (på en lav linje) er bak tastaturet —
-        // uten denne ville auto-scrollet feilaktig konkludert at "topp er
-        // synlig → ingen scroll trengs". Faller tilbake til rect.bottom for
-        // korte inputs eller når caret-måling ikke er tilgjengelig.
-        var caretBottom = _effectiveCaretBottom(el);
-        var effBottom = (caretBottom !== null && caretBottom > 0) ? caretBottom : rect.bottom;
-
-        if (effBottom > maxBottom) {
-            delta = effBottom - maxBottom;
-        } else if (rect.top < minTop) {
-            // Topp av elementet over visible-topp → scroll ned (bring topp i syne).
-            // Bruker rect.top her (ikke caret) fordi en tall textarea med caret
-            // i nederste del skal IKKE scrolles ned bare fordi rect.top er over
-            // skjermen — caret er allerede synlig.
-            if (effBottom < minTop) delta = rect.top - minTop;
-        }
-
+        // Spacer: når input er på siste rad og scroll-rangen ikke har plass
+        // til å scrolle videre, utvid scroll-rangen midlertidig med padding-
+        // bottom på scrolleren. Dette er separat fra scroll-padding (som er
+        // bare en grense for hva som regnes som "synlig"; spacer er FAKTISK
+        // ekstra scrollbar plass).
         var scroller = findKeyboardScrollContainer(el);
-
-        // Keyboard spacer: hvis input er nær slutten av scroll-rangen er det
-        // ikke nok room til å scrolle videre. Utvid scroll-rangen med
-        // padding-bottom lik tastaturhøyden + buffer, så autoscrollet kan
-        // løfte input over tastaturet selv på siste rad. Site-wide for ALLE
-        // scrollere (form, modal, popup-body, picker-list). Reset gjøres
-        // sentralt i applyKeyboardLayout når kbdActive=false.
-        if (scroller && kbdTop !== null) {
+        if (scroller) {
             var _innerH = window.innerHeight || 0;
             var _kbdH = _innerH > 0 ? _innerH - kbdTop : 0;
             if (_kbdH > 0) {
-                _applyKbdSpacer(scroller, _kbdH + bottomPadding);
+                _applyKbdSpacer(scroller, _kbdH + 80);
             }
-        }
-
-        if (Math.abs(delta) < 1) return;
-
-        if (!scroller) return;
-        if (scroller === document.scrollingElement || scroller === document.documentElement || scroller === document.body) {
-            window.scrollBy(0, delta);
-        } else {
-            scroller.scrollTop += delta;
         }
     }
 
