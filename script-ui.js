@@ -6934,6 +6934,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // Tappet et annet tekstfelt → ikke gjør noe; la native fokus-flytt +
         // focusin/focusout håndtere det (unngår blur→refokus-blink).
         if (isKeyboardOpeningElement(e.target)) return;
+        // Knapper inni popups bruker onpointerdown="event.preventDefault()"
+        // for å beholde input-fokus mens de utfører handlinger (f.eks. "+ Legg
+        // til kapp" som legger til ny rad uten å lukke tastaturet). Når
+        // defaultPrevented er satt på pointerdown skal vi IKKE dismisse —
+        // det ville gitt nettopp "tastaturet flickrer"-buggen brukeren så.
+        if (e.defaultPrevented) return;
+        // Tapp inni en aktiv popup → ikke dismiss. Popupens egne knapper
+        // (Avbryt/Velg) lukker popupen, som naturlig blurrer input via
+        // DOM-fjerning. Andre tap inni popupen skal beholde tastaturet åpent.
+        var _bd = e.target && e.target.closest && e.target.closest(POPUP_BACKDROP_SELECTOR);
+        if (_bd && _bd.classList.contains('active')) return;
         _pdArmed = true;
         _pdStartX = (typeof e.clientX === 'number') ? e.clientX : 0;
         _pdStartY = (typeof e.clientY === 'number') ? e.clientY : 0;
@@ -6968,7 +6979,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // finne noe annet å scrolle (visual viewport / sheet-transform) → popupen
     // ble dratt opp og bort. Disse interne scrollerne har overscroll-behavior:
     // contain så de chainer aldri ut.
-    var _POPUP_SCROLLABLE_SELECTOR = '.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .picker-overlay-list, .modal-body';
+    var _POPUP_SCROLLABLE_SELECTOR = '.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .picker-overlay-list, .modal-body, #iso-card-scroll';
     document.addEventListener('touchmove', function(e) {
         if (!document.querySelector(_POPUP_ACTIVE_SELECTOR)) return;
         var tgt = e.target;
