@@ -6971,6 +6971,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ensureKeyboardTargetVisible(el) {
         if (!isKeyboardOpeningElement(el) || !document.body.contains(el)) return;
+        // Popup-inputs eies av _popupKbdSync — popupen er allerede løftet
+        // og størrelse-satt over tastaturet, og inputen er garantert synlig.
+        // _applyKbdSpacer-en under ville lagt til padding-bottom på lista som
+        // skaper et stort tomrom mellom siste rad og knappene. Hopp over.
+        if (el.closest && el.closest(POPUP_BACKDROP_SELECTOR)) return;
         // Site-wide standard-oppførsel: når brukeren fokuserer et tekstfelt
         // OG et reelt skjermtastatur er åpent → scroll feltet over tastaturet
         // hvis det vil havne bak. Hvis allerede synlig → ingen scroll.

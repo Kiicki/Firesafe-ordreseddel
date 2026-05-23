@@ -2387,7 +2387,9 @@ label.settings-default-label.field-required > span::after {
     overflow-y: hidden !important;
     max-height: calc(100% - 40px) !important;
     overscroll-behavior: contain;
-    padding: 20px 18px 18px;
+    /* Padding-bottom (28px) gir tydelig luft under Avbryt/OK-knappene
+       inni popupen. Tidligere 18px føltes som om knappene "satt mot kanten". */
+    padding: 20px 18px 28px;
     border-radius: 20px;
 }
 
