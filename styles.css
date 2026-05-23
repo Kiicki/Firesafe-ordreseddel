@@ -2387,9 +2387,10 @@ label.settings-default-label.field-required > span::after {
     overflow-y: hidden !important;
     max-height: calc(100% - 40px) !important;
     overscroll-behavior: contain;
-    /* Padding-bottom (28px) gir tydelig luft under Avbryt/OK-knappene
-       inni popupen. Tidligere 18px føltes som om knappene "satt mot kanten". */
-    padding: 20px 18px 28px;
+    /* Padding-bottom (20px) — knappene har egen breathing room via mBot
+       (popup-til-tastatur-gap), så internal padding trenger bare å være
+       litt over original 18px. */
+    padding: 20px 18px 20px;
     border-radius: 20px;
 }
 
