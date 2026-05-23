@@ -5573,78 +5573,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply saved language
     applyTranslations();
 
-    // === UNIFIED TASTATUR-HÅNDTERING ===
+    // === TASTATUR-HÅNDTERING ===
     //
-    // Med viewport-meta `interactive-widget=resizes-visual`:
-    // - Layout viewport (window.innerHeight) forblir full skjerm når tastatur åpnes
-    // - Visual viewport (window.visualViewport) krymper til synlig område over tastaturet
-    // - position:fixed-element ankres mot layout viewport og dekker fortsatt hele skjermen
+    // To uavhengige systemer:
     //
-    // applyKeyboardLayout() er den ENESTE JS-eieren av tastatur-respons.
-    // To-lags arkitektur:
+    // (1) applyKeyboardLayout (denne funksjonen) — eier form-views,
+    //     modal-views, toolbar-reparenting og fullscreen-overlays.
+    //     Driver disse basert på viewport/VkbdAPI-målinger og focus.
+    //     Idempotent (state-memo) og rAF-debounced.
     //
-    // LAG 1 (CSS-drevet via body.keyboard-focus-klasse):
-    //   - Form-views (view-form, service-view, kappe-view): position: static,
-    //     overflow: visible, body scroller naturlig, toolbar i flow på slutten
-    //   - Sticky-headers (#form-header, #service-header) holder seg på topp
-    //   - body padding-bottom: 0 (toolbar ikke fixed lenger)
-    //   - .confirm-modal padding-bottom: 0
+    // (2) _popupKbdSync (definert etter applyKeyboardLayout) — eier ALLE
+    //     popuper (.confirm-modal-content, .spec-popup-sheet,
+    //     .fakturaadresse-popup-sheet) sin sizing/posisjon over tastaturet.
+    //     Slår av overlaysContent ved popup-åpning så visualViewport krymper
+    //     pålitelig, og setter popup-content med position:fixed i den synlige
+    //     visualViewporten. applyKeyboardLayout rører IKKE popup-content.
     //
-    // LAG 2 (JS — for elementer som ikke kan flyte naturlig):
-    //   - Modal-views (saved-modal, template-modal, settings-modal):
-    //     krympes til synlig viewport (fixed-positioned, height: vv.height,
-    //     min-height: 0). Toolbar reparentes til aktiv modal-body så den
-    //     scroller med listeitems. MutationObserver-vakt re-appender toolbar
-    //     hvis innerHTML-replacements ødelegger den.
-    //   - Fullscreen-overlays (#picker-overlay etc.): krympes til synlig
-    //     viewport (top: vv.offsetTop, height: vv.height) så scroll i intern
-    //     liste fungerer (ellers mister browseren touch-events bak tastatur).
-    //   - Popups (.confirm-modal-content, .spec-popup-sheet,
-    //     .fakturaadresse-popup-sheet): piksel-cap på max-height +
-    //     translateY-ankring rett over tastatur.
+    // applyKeyboardLayout sine triggers:
+    //   1. visualViewport.resize (+ 250ms settle-timer)
+    //   2. document.body subtree MutationObserver (class-endringer på popup-
+    //      backdrops og .view, childList for dynamisk innsatte popups)
+    //   3. focusin/focusout (filtrert til text-input/textarea/contenteditable)
+    //   4. Initial scheduleApply() ved DOMContentLoaded
     //
-    // Funksjonen er idempotent (state-memo skip'er hvis logisk state uendret)
-    // og trygg å kalle gjentatte ganger.
+    // visualViewport.scroll lyttes IKKE på her — fyrer per frame under scroll
+    // når URL-bar beveger seg, ville avbryte momentum. Final vv-verdier hentes
+    // via settle-timer i stedet.
     //
-    // Robusthet — fem trigger-mekanismer:
-    //   1. visualViewport.resize (umiddelbar apply + 250ms settle for å
-    //      fange final vv-verdier etter tastatur-animasjon/URL-bar-settle)
-    //   2. document.body subtree MutationObserver — class-endringer på
-    //      popup-backdrops OG .view (view-bytter), pluss childList for
-    //      dynamisk innsatte popups
-    //   3. ResizeObserver per aktiv popup-content (re-kalkulerer translate
-    //      når content vokser/krymper)
-    //   4. focusin/focusout — filtrert til kun text-inputs/textarea/
-    //      contenteditable så scroll-momentum ikke avbrytes ved tap på
-    //      ikke-keyboard-åpnende elementer (knapper, checkboxer)
-    //   5. Initial scheduleApply() ved DOMContentLoaded
-    //
-    // visualViewport.scroll lyttes IKKE på — fyrer per frame under scroll
-    // når URL-bar beveger seg, ville avbryte momentum. Final vv-verdier
-    // hentes via settle-timer i stedet.
-    //
-    // Tab-switch i modal-views (switchHentTab etc.) endrer modal-body
-    // display via inline-style, ikke class. Disse må eksplisitt kalle
+    // Tab-switch i modal-views (switchHentTab etc.) endrer modal-body display
+    // via inline-style, ikke class. Disse må eksplisitt kalle
     // window.applyKeyboardLayout() for å trigge re-evaluering.
-    //
-    // requestAnimationFrame-debouncing: alle triggers ruter gjennom scheduleApply()
-    // som garanterer maks ÉN apply per frame, uavhengig av hvor mange events fyrer.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
     var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
-
-    // Bytter viewport-meta sin interactive-widget mellom resizes-visual
-    // (normalt, best for skjema-scroll til fokusert felt) og overlays-content
-    // (mens popup er åpen — eliminerer visual-viewport-panorering som ellers
-    // lar Chrome PWA scrolle skjemaet bak popupen. Se applyKeyboardLayout-
-    // kommentaren for detaljer). Idempotent diff-set — ingen reflow når
-    // uendret.
-    function _syncViewportMetaForPopup(popupActive) {
-        // NO-OP. Popup-tastatur håndteres nå av den dedikerte vv-baserte
-        // handleren (_popupKbdActivate/_popupKbdSync lenger ned) som slår AV
-        // overlaysContent slik at visualViewport krymper når tastaturet
-        // åpnes. Å bytte interactive-widget-meta her ville bare skapt
-        // konkurrerende viewport-state og hindret vv i å krympe.
-    }
 
     // === VirtualKeyboard API: eksakt tastatur-geometri ===
     // Chromium (Android Chrome PWA, Edge): aktivering av overlaysContent=true
@@ -5655,32 +5615,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // mangler API → faller naturlig tilbake til visualViewport-krymping.
     var _HAS_VKBD_API = !!(typeof navigator !== 'undefined' && navigator.virtualKeyboard
         && typeof navigator.virtualKeyboard.overlaysContent === 'boolean');
-    // Cache siste gyldige tastatur-måling så popup-cap forblir konsistent
-    // selv når måle-API-et momentant returnerer 0. KRITISK i overlays-content
-    // -modus (popups + Chrome PWA): visualViewport krymper IKKE i denne modusen,
-    // så VirtualKeyboard API er ENESTE signal. Mellom keyboard-bytter, ved
-    // oppstart, og noen ganger mellom tastetrykk kan boundingRect.height
-    // kortvarig være 0. Uten cache ville cap-en fjernes hver gang det skjer,
-    // og popup-bunnen (Avbryt/OK-knapper) ville hoppe ut av syne — nøyaktig
-    // det "appears for 1 second then disappears"-bug-mønsteret.
-    // Site-wide: gjelder alle popups som er gated på _getKeyboardTop().
+    // Cache siste gyldige tastatur-måling så ensureKeyboardTargetVisible
+    // forblir konsistent når VkbdAPI boundingRect momentant returnerer 0
+    // (mellom keyboard-bytter / oppstart / iblant mellom tastetrykk i
+    // overlays-content-modus). Brukes kun av form-input-scrollingen — popuper
+    // har sin egen vv-baserte handler (_popupKbdSync).
     var _lastValidKbdTop = null;
-    var _lastValidKbdCapTop = null;
     function _invalidateKbdCache() {
         _lastValidKbdTop = null;
-        _lastValidKbdCapTop = null;
     }
-    // _VKBD_ENV_OK: true når VirtualKeyboard API er aktivert OG overlaysContent
-    // faktisk ble satt. Da eksponerer nettleseren env(keyboard-inset-height) i
-    // CSS, og popup-sizing håndteres 100% av CSS (backdrop-bottom: env(...)).
-    // JS skal da IKKE røre popup-content sine inline styles — det ville bare
-    // kjempe mot CSS-en. Når dette er false (iOS Safari, Firefox, eldre
-    // Chromium) faller vi tilbake til JS-måling av tastaturet.
-    var _VKBD_ENV_OK = false;
     if (_HAS_VKBD_API) {
         try {
             navigator.virtualKeyboard.overlaysContent = true;
-            _VKBD_ENV_OK = (navigator.virtualKeyboard.overlaysContent === true);
             navigator.virtualKeyboard.addEventListener('geometrychange', function() {
                 var br = navigator.virtualKeyboard.boundingRect;
                 if (br && br.height > 0) {
@@ -5698,14 +5644,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Returnerer tastaturets «posisjonerings-topp» (visuelle topp inkl.
-    // accessory-bar) — brukt til å plassere popup-bunnen over tastatur:
+    // accessory-bar) — brukes av ensureKeyboardTargetVisible for å scrolle
+    // form-felt over tastaturet:
     //   1) VirtualKeyboard API (Chromium): boundingRect.top dekker ofte
     //      bare keys (ikke accessory-bar). Trekker en buffer slik at
     //      posisjoneringen er over accessory også.
     //   2) visualViewport-krymp (iOS/Firefox): inkluderer alt — ingen buffer.
     //   3) Cache-fallback: siste gyldige måling mens et tastatur-felt fortsatt
-    //      har fokus på touch-enhet. Hindrer cap-flicker i overlays-content-
-    //      modus når API-et momentant returnerer height=0.
+    //      har fokus på touch-enhet. Hindrer flicker når VkbdAPI momentant
+    //      returnerer height=0 i overlays-content-modus.
     //   4) null → ingen signal.
     var KEYBOARD_API_ACCESSORY_BUFFER = 40;
     function _getKeyboardTop() {
@@ -5715,7 +5662,6 @@ document.addEventListener('DOMContentLoaded', function() {
             var br = navigator.virtualKeyboard.boundingRect;
             if (br && br.height > 0 && br.height < innerH * 0.85) {
                 _lastValidKbdTop = innerH - br.height - KEYBOARD_API_ACCESSORY_BUFFER;
-                _lastValidKbdCapTop = innerH - br.height;
                 return _lastValidKbdTop;
             }
         }
@@ -5724,48 +5670,17 @@ document.addEventListener('DOMContentLoaded', function() {
             var shrunk = (innerH - vv.height - vv.offsetTop);
             if (shrunk > 50 && shrunk < innerH * 0.85) {
                 _lastValidKbdTop = vv.offsetTop + vv.height;
-                _lastValidKbdCapTop = _lastValidKbdTop;
                 return _lastValidKbdTop;
             }
         }
-        // Cache-fallback gated på VkbdAPI: i overlays-content + Chromium er
-        // boundingRect eneste signal og kan momentant være 0 (mellom keyboard-
-        // bytter / oppstart / iblant mellom tastetrykk). På vv-only-nettlesere
-        // (Firefox/iOS) er vv-shrink-fraværet et ekte lukke-signal, så cache-
-        // fallback ville feilaktig kunne maskere lukket tastatur.
+        // Cache-fallback: i overlays-content + Chromium kan boundingRect
+        // momentant være 0 (mellom keyboard-bytter / oppstart / iblant mellom
+        // tastetrykk). Bruker siste gyldige verdi mens et tastatur-felt fortsatt
+        // har fokus så ensureKeyboardTargetVisible ikke "mister" tastatur-state
+        // i den korte glippen.
         if (_lastValidKbdTop !== null && _HAS_VKBD_API && IS_TOUCH_DEVICE
             && isKeyboardOpeningElement(document.activeElement)) {
             return _lastValidKbdTop;
-        }
-        return null;
-    }
-    // Returnerer ROM-tilgjengelig over tastaturet for maks sheet-høyde —
-    // basert på API kbdTop UTEN accessory-buffer (= over keys). Da har sheet
-    // nok plass slik at listen krymper og knapper IKKE klippes av
-    // sheet-overflow. iOS/Firefox vv-pathen er allerede inkluderende.
-    function _getKeyboardCapTop() {
-        var innerH = window.innerHeight || 0;
-        if (!innerH) return null;
-        if (_HAS_VKBD_API && navigator.virtualKeyboard.boundingRect) {
-            var br = navigator.virtualKeyboard.boundingRect;
-            if (br && br.height > 0 && br.height < innerH * 0.85) {
-                _lastValidKbdCapTop = innerH - br.height;
-                return _lastValidKbdCapTop;
-            }
-        }
-        if (window.visualViewport) {
-            var vv = window.visualViewport;
-            var shrunk = (innerH - vv.height - vv.offsetTop);
-            if (shrunk > 50 && shrunk < innerH * 0.85) {
-                _lastValidKbdCapTop = vv.offsetTop + vv.height;
-                return _lastValidKbdCapTop;
-            }
-        }
-        // Samme gate som _getKeyboardTop — kun cache-fallback på VkbdAPI-
-        // nettlesere der momentane height=0-målinger ellers ville fjernet cap.
-        if (_lastValidKbdCapTop !== null && _HAS_VKBD_API && IS_TOUCH_DEVICE
-            && isKeyboardOpeningElement(document.activeElement)) {
-            return _lastValidKbdCapTop;
         }
         return null;
     }
@@ -5790,9 +5705,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var KEYBOARD_THRESHOLD = 100;
     var KEYBOARD_MARGIN = 16;
 
-    // ResizeObservers per popup-content — kobles inn når popup blir aktiv,
-    // kobles ut når popup deaktiveres. Map for iteration + lookup.
-    var contentResizeObservers = new Map();
     var rafScheduled = false;
     // State-memoisering: skip apply hvis tilstand er materielt uendret.
     // KRITISK for scroll-momentum: under scroll kan URL-bar bevege seg og
@@ -6083,25 +5995,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return formView.querySelector('.mobile-form') || formView;
     }
 
-    function ensureContentObserver(content, isActive, keyboardOpen) {
-        // Koble ResizeObserver til når popup er aktiv OG tastatur åpent.
-        // Når content endrer størrelse (f.eks. tekst-ekspansjon, dynamisk
-        // innhold), trigges ny apply så translate forblir riktig.
-        // Bruker scheduleForcedApply slik at content-vekst bypasser
-        // state-memoisering (stateKey ville ellers vise "uendret").
-        var hasObs = contentResizeObservers.has(content);
-        if (isActive && keyboardOpen) {
-            if (!hasObs && typeof ResizeObserver === 'function') {
-                var ro = new ResizeObserver(scheduleForcedApply);
-                ro.observe(content);
-                contentResizeObservers.set(content, ro);
-            }
-        } else if (hasObs) {
-            contentResizeObservers.get(content).disconnect();
-            contentResizeObservers.delete(content);
-        }
-    }
-
     function applyKeyboardLayout() {
         var vv = window.visualViewport || { offsetTop: 0, height: window.innerHeight };
         // Bruker stable (hysteresis-applied) keyboardOpen — ikke rå momentan
@@ -6194,21 +6087,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (stateKey === lastAppliedState && !forceNextApply) return;
         lastAppliedState = stateKey;
         forceNextApply = false;
-
-        // === Viewport meta: kritisk fiks for popup-scroll-lås i PWA ===
-        // `interactive-widget=resizes-visual` lar Chrome PWA panorere VISUAL
-        // viewport med touch-drag når tastaturet er åpent (skjemaet bak blir
-        // synlig fordi visual viewport viser et annet utsnitt av layout
-        // viewport). Den panoreringen er en browser-native feature som omgår
-        // CSS touch-action OG JS preventDefault på touchmove. Eneste måten
-        // å hindre det på er å fjerne separasjonen mellom visual og layout
-        // viewport — bytte til `overlays-content` (tastatur overlay'er,
-        // ingen viewport-separasjon, ingen panorering mulig). Skjemaet
-        // beholder `resizes-visual` (best for scroll til fokusert felt) når
-        // popup IKKE er åpen.
-        if (typeof _syncViewportMetaForPopup === 'function') {
-            _syncViewportMetaForPopup(!!activePopupSig);
-        }
 
         // --- Toggle body.keyboard-open for physical keyboard state ---
         // Form-layout styres av body.keyboard-focus, ikke keyboard-open.
@@ -6328,319 +6206,11 @@ document.addEventListener('DOMContentLoaded', function() {
             overlay.style.height = '';
         });
 
-        // --- Popups: max-height piksel-cap + translateY-ankring over tastatur ---
-        // Targeter alle popup-content under aktive backdrops. Cap'er max-height
-        // så content ikke kan bli større enn synlig område. Deretter måles
-        // faktisk posisjon i DOM og flyttes bare hvis bunnen ligger under
-        // synlig viewport. Dette må baseres på getBoundingClientRect(), ikke
-        // window.innerHeight/2, fordi noen popups ligger i backdrops som selv
-        // krympes når tastaturet er åpent.
-        // Tilgjengelig høyde = den MINSTE av visualViewport.height og
-        // window.innerHeight. Robust på tvers av nettlesere: Chrome/Safari
-        // krymper visualViewport når tastaturet åpnes, Firefox Android
-        // krymper ofte window.innerHeight i stedet. Å bruke kun vv.height
-        // (som før) gjorde at cap-en ikke virket på Firefox Android.
-        var _vvH = window.visualViewport ? window.visualViewport.height : (window.innerHeight || 0);
-        var _vvTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
-        var visH = Math.min(_vvH, window.innerHeight || _vvH);
-        var visBottom = _vvTop + visH;
-
-        var allContents = document.querySelectorAll(POPUP_CONTENT_SELECTOR);
-        allContents.forEach(function(s) {
-            // === Popup-sizing eies nå 100% av _popupKbdSync ===
-            // Den dedikerte vv-baserte handleren (definert nedenfor) er den
-            // ENESTE eieren av popup-content sin posisjon/størrelse når
-            // tastaturet er åpent. applyKeyboardLayout skal IKKE røre den —
-            // konkurrerende inline styles var nettopp årsaken til at Avbryt/OK
-            // forsvant. Derfor: tidlig retur. Resten av denne callbacken er
-            // bevisst død kode (beholdt for git-diff-lesbarhet).
-            return;
-            var backdrop = s.closest(POPUP_BACKDROP_SELECTOR);
-            var isActive = !!(backdrop && backdrop.classList.contains('active'));
-            if (_VKBD_ENV_OK) {
-                ensureContentObserver(s, false, false);
-                if (backdrop) {
-                    backdrop.classList.remove('popup-top-anchored');
-                    backdrop.classList.remove('kbd-focus-anchor');
-                    backdrop.style.alignItems = '';
-                }
-                s.style.removeProperty('max-height');
-                s.style.transform = '';
-                s.style.transition = '';
-                s.style.marginTop = '';
-                s.style.position = '';
-                s.style.top = '';
-                s.style.left = '';
-                s.style.margin = '';
-                s.style.zIndex = '';
-                var _envClrSel = ['.dag-timer-modal-list', '.spec-popup-body',
-                                  '.fakturaadresse-popup-body', '.picker-overlay-list',
-                                  '.modal-body'];
-                for (var _envI = 0; _envI < _envClrSel.length; _envI++) {
-                    var _envEl = s.querySelector(_envClrSel[_envI]);
-                    if (_envEl) _envEl.style.removeProperty('max-height');
-                }
-                return;
-            }
-            ensureContentObserver(s, isActive, kbdActive);
-            // Posisjoner når tastaturet er aktivt (kbdActive = viewport-krymp
-            // ELLER touch+fokus-felt → deterministisk, virker i PWA).
-            if (!isActive) {
-                // Popup lukket → full rens. Neste åpning starter friskt.
-                if (backdrop) {
-                    backdrop.classList.remove('popup-top-anchored');
-                    backdrop.classList.remove('kbd-focus-anchor');
-                    backdrop.style.alignItems = '';
-                }
-                s.style.removeProperty('max-height');
-                s.style.transform = '';
-                s.style.transition = '';
-                s.style.marginTop = '';
-                // Rydd nuclear top-anchor inline styles om de var satt.
-                s.style.position = '';
-                s.style.top = '';
-                s.style.left = '';
-                s.style.margin = '';
-                s.style.zIndex = '';
-                // Clear list-cap også (satt under når popup-cap er aktiv).
-                var _clrListSelectors = ['.dag-timer-modal-list', '.spec-popup-body',
-                                         '.fakturaadresse-popup-body', '.picker-overlay-list',
-                                         '.modal-body'];
-                for (var _clsi = 0; _clsi < _clrListSelectors.length; _clsi++) {
-                    var _clrEl = s.querySelector(_clrListSelectors[_clsi]);
-                    if (_clrEl) _clrEl.style.removeProperty('max-height');
-                }
-                return;
-            }
-            if (!kbdActive) {
-                // Popup ÅPEN men tastatur LUKKET: behold eksisterende lift/cap
-                // (satt forrige gang tastaturet var åpent) så popupen IKKE
-                // hopper tilbake til midten når brukeren scroller for å lukke
-                // tastaturet — listas scroll og popupens flytting samtidig er
-                // forvirrende UX. Reset skjer kun ved popup-close (over).
-                // Neste tastatur-åpning re-beregner uten å nullstille mellom.
-                return;
-            }
-            // === Popup-positioning når tastatur er åpent ===
-            // To-stegs strategi:
-            //   1) Hvis et tastatur-åpnende felt er fokusert INNE i denne popupen
-            //      på touch-enhet → forankre popupen til toppen via flex-start
-            //      + margin-top. Da er bunnen (knapper) garantert over tastaturet
-            //      uavhengig av om VkbdAPI/vv-målinger fungerer.
-            //   2) Ellers (popup uten fokus eller fokus utenfor): bruk eksisterende
-            //      translateY-lift basert på målt kbdTop.
-            // Bakgrunn: i overlays-content-modus krymper hverken vv eller
-            // innerHeight. VkbdAPI's boundingRect kan returnere 0 (mellom
-            // keyboard-bytter, oppstart) eller være utilgjengelig. Translate-
-            // basert lift krever målt kbdTop og er sårbar for målefeil — popup
-            // forblir da i naturlig høyde med bunnen bak tastaturet. Top-anchor
-            // er robust mot dette: popupen er ALLTID ved skjermtopp så lenge et
-            // felt i den har fokus, og piksel-cap garanterer at den ikke
-            // strekker seg ned i tastatur-området.
-            // Site-wide: gjelder alle popups som passer POPUP_CONTENT_SELECTOR.
-            var _focusInPopup = IS_TOUCH_DEVICE && document.activeElement
-                && isKeyboardOpeningElement(document.activeElement)
-                && s.contains(document.activeElement);
-
-            var kbdTop = _getKeyboardTop();
-            var kbdCapTopMeasured = _getKeyboardCapTop();
-            // Konservativ heuristikk når et popup-felt har fokus: bruk MIN av
-            // målt og innerH*0.55. Hvis VkbdAPI/vv rapporterer en for høy
-            // kbdTop (= keyboard mindre enn det egentlig er), ville cap-en blitt
-            // for romslig og popup-bunnen havnet bak tastaturet. Heuristikken
-            // setter et harde tak — bedre med litt for kort popup enn skjulte
-            // knapper. Site-wide for alle popups som matcher selector.
-            if (_focusInPopup) {
-                var _innerH = window.innerHeight || 720;
-                var _heuristicKbdTop = Math.floor(_innerH * 0.55);
-                kbdTop = (kbdTop === null)
-                    ? _heuristicKbdTop
-                    : Math.min(kbdTop, _heuristicKbdTop);
-                kbdCapTopMeasured = (kbdCapTopMeasured === null)
-                    ? _heuristicKbdTop
-                    : Math.min(kbdCapTopMeasured, _heuristicKbdTop);
-            }
-            if (kbdTop === null) {
-                // Ingen fokus i popup OG ingen måling: ingen tastatur-signal vi kan
-                // stole på (PC dev-mode med touch-emulering). Rydd cap så popupen
-                // beholder naturlig størrelse — CSS max-height: 80vh klarer
-                // overdimensjonering selv.
-                if (backdrop) {
-                    backdrop.classList.remove('popup-top-anchored');
-                    backdrop.classList.remove('kbd-focus-anchor');
-                    backdrop.style.alignItems = '';
-                }
-                s.style.removeProperty('max-height');
-                s.style.transform = '';
-                s.style.transition = '';
-                s.style.marginTop = '';
-                // Rydd nuclear top-anchor inline styles om de var satt.
-                s.style.position = '';
-                s.style.top = '';
-                s.style.left = '';
-                s.style.margin = '';
-                s.style.zIndex = '';
-                // Clear list-cap også.
-                var _clrListSel2 = ['.dag-timer-modal-list', '.spec-popup-body',
-                                    '.fakturaadresse-popup-body', '.picker-overlay-list',
-                                    '.modal-body'];
-                for (var _csi = 0; _csi < _clrListSel2.length; _csi++) {
-                    var _clEl = s.querySelector(_clrListSel2[_csi]);
-                    if (_clEl) _clEl.style.removeProperty('max-height');
-                }
-                return;
-            }
-
-            if (backdrop) backdrop.classList.remove('popup-top-anchored');
-            s.style.transition = 'none';
-
-            // TOP-ANCHOR (nuclear option): når popup eier fokuset → position:fixed
-            // direkte på popup-content. Bypass ALLE CSS-mekanismer (flex-sentrering
-            // i .confirm-modal, max-height: calc(100% - 40px) !important,
-            // transitions, transforms). Inline position:fixed med top/left + en
-            // hard max-height piksel-verdi er det eneste vi trenger — alt annet
-            // CSS-ene gjør, blir overkjørt av denne inline-stilen.
-            // Site-wide for alle popups som matcher POPUP_CONTENT_SELECTOR.
-            if (_focusInPopup && backdrop) {
-                backdrop.classList.add('kbd-focus-anchor');
-                // Forankre popupen direkte i viewport. position:fixed gjør at
-                // den ikke lenger styres av .confirm-modal sin align-items:center.
-                // z-index settes høyere enn backdroppen (z=20) så popupen
-                // forblir oppe på toppen av sin egen backdrop.
-                s.style.position = 'fixed';
-                s.style.top = KEYBOARD_MARGIN + 'px';
-                s.style.left = '50%';
-                s.style.transform = 'translateX(-50%)';
-                s.style.margin = '0';
-                s.style.zIndex = '100';
-            } else {
-                if (backdrop) {
-                    backdrop.classList.remove('kbd-focus-anchor');
-                    backdrop.style.alignItems = '';
-                }
-                s.style.position = '';
-                s.style.top = '';
-                s.style.left = '';
-                s.style.transform = '';
-                s.style.margin = '';
-                s.style.marginTop = '';
-                s.style.zIndex = '';
-            }
-
-            var kbdCapTop = kbdCapTopMeasured || kbdTop;
-            // safeH = tilgjengelig vertikal høyde for popupen.
-            //   - Top-anchored: popup starter ved KEYBOARD_MARGIN. Bunn skal være
-            //     KEYBOARD_MARGIN over tastaturet → safeH = kbdCapTop - 2*margin.
-            //   - Centered+translate: samme matte — sentert popup løftes så bunn
-            //     er KEYBOARD_MARGIN over tastatur; safeH styrer høyden.
-            var safeH = Math.max(180, kbdCapTop - KEYBOARD_MARGIN * 2);
-            var desiredBottom = kbdTop - KEYBOARD_MARGIN;
-
-            // KRITISK MÅLE-REKKEFØLGE: vi MÅ måle ikke-list-barn (tittel,
-            // knapper) på naturlig størrelse FØR vi setter sheet-max-height.
-            // Hvis vi måler etter, har overflow:hidden på sheeten kanskje
-            // allerede klippet bunnen av knappene → offsetHeight blir for
-            // liten → nonListH for liten → listMax for stor → listen tar
-            // for mye plass → knappene presses ut og klippes. Sjekkliste:
-            //   1. Fjern eksisterende max-height på sheet OG liste (rens).
-            //   2. Tving reflow.
-            //   3. Mål barn (sann naturlig størrelse).
-            //   4. Beregn listMax = safeH - nonListH - padding.
-            //   5. Applisér max-height på liste FØR sheet (rekkefølge for
-            //      å hindre interim-clipping).
-            //   6. Applisér sheet max-height.
-            var _listSelectors = ['.dag-timer-modal-list', '.spec-popup-body',
-                                  '.fakturaadresse-popup-body', '.picker-overlay-list',
-                                  '.modal-body'];
-            var _innerList = null;
-            for (var _lsi = 0; _lsi < _listSelectors.length; _lsi++) {
-                _innerList = s.querySelector(_listSelectors[_lsi]);
-                if (_innerList && s.contains(_innerList)) break;
-                _innerList = null;
-            }
-            if (_innerList) {
-                // 1. Rens evt. tidligere max-heights så målingen blir ekte.
-                s.style.removeProperty('max-height');
-                _innerList.style.removeProperty('max-height');
-                // 2. Tving reflow så naturlige høyder beregnes på nytt.
-                void s.offsetHeight;
-                // 3. Mål barn ved naturlig størrelse.
-                var _sheetCS = getComputedStyle(s);
-                var _padV = (parseFloat(_sheetCS.paddingTop) || 0)
-                          + (parseFloat(_sheetCS.paddingBottom) || 0);
-                var _nonListH = 0;
-                function _outerBlockHeight(el) {
-                    if (!el) return 0;
-                    var cs = getComputedStyle(el);
-                    return (el.offsetHeight || 0)
-                        + (parseFloat(cs.marginTop) || 0)
-                        + (parseFloat(cs.marginBottom) || 0);
-                }
-                for (var _ci = 0; _ci < s.children.length; _ci++) {
-                    var _child = s.children[_ci];
-                    if (_child !== _innerList && !_innerList.contains(_child)
-                        && !_child.contains(_innerList)) {
-                        _nonListH += _outerBlockHeight(_child);
-                    }
-                }
-                // Nestet struktur (f.eks. .spec-popup-body inni .spec-popup-sheet).
-                var _parent = _innerList.parentElement;
-                while (_parent && _parent !== s) {
-                    var _siblings = _parent.children;
-                    for (var _si = 0; _si < _siblings.length; _si++) {
-                        var _sib = _siblings[_si];
-                        if (_sib !== _innerList && !_sib.contains(_innerList)
-                            && !_innerList.contains(_sib)) {
-                            _nonListH += _outerBlockHeight(_sib);
-                        }
-                    }
-                    _parent = _parent.parentElement;
-                    if (_parent === s) break;
-                }
-                // 4. Beregn listMax.
-                var _listMax = Math.max(60, safeH - _nonListH - _padV);
-                // 5+6. Applisér caps. Liste først så den krymper synkront
-                // med reflowen før sheet får sin max-height.
-                _innerList.style.setProperty('max-height', _listMax + 'px', 'important');
-                s.style.setProperty('max-height', safeH + 'px', 'important');
-            } else {
-                // Ingen intern liste — bare cap sheet direkte.
-                s.style.setProperty('max-height', safeH + 'px', 'important');
-            }
-            // Translate-lift kun når popup IKKE er top-anchored. Top-anchor-
-            // grenen plasserer allerede popupen ved skjerm-toppen via marginTop
-            // + flex-start, så translate ville bare flyttet den ut av syne.
-            if (!_focusInPopup) {
-                var rect2 = s.getBoundingClientRect();
-                var lift = Math.max(0, Math.round(rect2.bottom - desiredBottom));
-                // Tak: ikke løft popupens topp under KEYBOARD_MARGIN fra skjerm-topp.
-                var maxLift = Math.max(0, Math.round(rect2.top - (_vvTop + KEYBOARD_MARGIN)));
-                lift = Math.min(lift, maxLift);
-                s.style.transform = lift ? 'translateY(-' + lift + 'px)' : '';
-            }
-
-            // Vekk Chromes compositor sin scroll-state: etter at sheet-
-            // størrelsen endres (max-height + transform) vet ikke gesture-
-            // detector ennå at den interne scrolleren plutselig kan scrolle
-            // → første touchmove tolkes som «ikke-scrollbar» og scroll skjer
-            // ikke; andre touch virker fordi compositor har oppdatert seg.
-            // Tvinger synkron reflow (offsetHeight-lesning) + no-op scrollTop-
-            // skriv på interne scrollere som faktisk har overflow → Chrome
-            // re-evaluerer scrollability før neste touch.
-            var _scrollers = s.querySelectorAll('.dag-timer-modal-list, .spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .modal-body, .picker-overlay-list');
-            for (var _si = 0; _si < _scrollers.length; _si++) {
-                var _scEl = _scrollers[_si];
-                void _scEl.offsetHeight;
-                if (_scEl.scrollHeight > _scEl.clientHeight) {
-                    var _scSt = _scEl.scrollTop;
-                    _scEl.scrollTop = _scSt + 1;
-                    _scEl.scrollTop = _scSt;
-                }
-            }
-        });
-
-        // Confirm-modal padding-bottom håndteres nå via CSS-regelen
-        // body.keyboard-open .confirm-modal { padding-bottom: 0 }
+        // Popups (.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-
+        // popup-sheet): sizing/posisjon eies 100% av _popupKbdSync nedenfor
+        // (dedikert vv-basert handler). applyKeyboardLayout rører ikke
+        // popup-content her — konkurrerende inline styles var årsaken til
+        // den tidligere "Avbryt/OK forsvinner"-buggen.
     }
 
     // Eksponer globalt — bruk i edge cases der man trenger å trigge eksplisitt.

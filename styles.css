@@ -628,10 +628,11 @@ body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #
    effektiv touch-action snittet av self+ancestors → `none` på backdrop ∩
    `pan-y` på .spec-popup-body = effektivt none → første scroll på lista
    feilet (andre virket fordi viewport-meta-byttet hadde stabilisert seg).
-   Visual-viewport-panoreringen håndteres nå ved roten av `interactive-widget`
-   meta-byttet til `overlays-content` (script-ui.js _syncViewportMetaForPopup)
-   mens popup er åpen. Bakgrunns-scroll utenfor popup-sheeten dekkes av JS
-   touch-låsen. touch-action-laget er derfor redundant og fjernet. */
+   Visual-viewport-panoreringen håndteres nå ved at popup-tastatur-handleren
+   (script-ui.js _popupKbdSync) slår av overlaysContent og setter popup-content
+   med position:fixed direkte i synlig visualViewport. Bakgrunns-scroll utenfor
+   popup-sheeten dekkes av JS touch-låsen. touch-action-laget er derfor
+   redundant og fjernet. */
 .login-screen {
     display: flex;
     flex-direction: column;
@@ -3756,9 +3757,7 @@ label.settings-default-label.field-required > span::after {
 .spec-popup-backdrop {
     display: none;
     position: fixed;
-    top: 0; left: 0; right: 0;
-    /* Krymper over tastaturet — se kommentar ved .confirm-modal. */
-    bottom: env(keyboard-inset-height, 0px);
+    top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5);
     z-index: 60;
     justify-content: center;
@@ -3771,17 +3770,6 @@ label.settings-default-label.field-required > span::after {
    margin-top (tallest-sentrert Y) i stedet for å sentreres — toppen/toggle
    står fast, boksen følger innholdet. */
 .spec-popup-backdrop.popup-top-anchored {
-    align-items: flex-start;
-}
-/* kbd-focus-anchor: settes av applyKeyboardLayout når et tastatur-åpnende
-   felt er fokusert inne i popupen. Forankrer popupen til skjerm-toppen
-   (via flex-start) — JS setter margin-top: KEYBOARD_MARGIN på sheeten +
-   piksel-cap på max-height. Garanterer at popup-bunnen (knapper) alltid
-   er over tastaturet uavhengig av om VkbdAPI/vv-målinger fungerer.
-   Site-wide: gjelder ALLE popup-backdrops (confirm, spec, fakturaadresse). */
-.confirm-modal.kbd-focus-anchor,
-.spec-popup-backdrop.kbd-focus-anchor,
-.fakturaadresse-popup-backdrop.kbd-focus-anchor {
     align-items: flex-start;
 }
 /* #spec-popup (FSC/FSW/Kabelhylse/mansjett): KUN når tastaturet faktisk er
@@ -4075,36 +4063,23 @@ body.keyboard-open #spec-popup .spec-popup-sheet {
 }
 
 
-/* Confirmation modal */
+/* Confirmation modal.
+   Tastatur-håndtering: når en popup er åpen aktiverer _popupKbdSync
+   (script-ui.js) sin vv-baserte handler som setter popup-content med
+   position:fixed direkte i den synlige visualViewporten. Backdroppen
+   selv forblir fullskjerm-fixed; den fungerer kun som dimmet bakgrunn. */
 .confirm-modal {
     display: none;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    /* === Tastatur-håndtering for popuper (env(keyboard-inset-height)) ===
-       Når VirtualKeyboard API er aktivert (navigator.virtualKeyboard.
-       overlaysContent = true — settes i script-ui.js) eksponerer
-       nettleseren tastaturets geometri som CSS-miljøvariabler. Ved å
-       ankre backdroppens BUNN til env(keyboard-inset-height) krymper
-       backdroppen automatisk til området OVER tastaturet:
-         - Tastatur lukket → env = 0px → bottom: 0 (normal fullskjerm)
-         - Tastatur åpent  → env = tastaturhøyde → backdrop slutter ved
-           tastaturets topp
-       Den flex-sentrerte popupen havner da automatisk i området over
-       tastaturet, og max-height: calc(100% - 40px) på popup-content
-       løses mot den krympede backdroppen → popupen kan ALDRI bli høyere
-       enn synlig område. Avbryt/OK er garantert synlige.
-       Dette er ren CSS — ingen JS-måling, ingen race conditions, ingen
-       avhengighet av at applyKeyboardLayout treffer riktig. */
-    bottom: env(keyboard-inset-height, 0px);
+    bottom: 0;
     background: rgba(0,0,0,0.5);
     z-index: 20;
     justify-content: center;
     align-items: center;
-    /* Toolbar-plass reserveres kun når tastaturet er lukket. Når
-       env(keyboard-inset-height) > 0 trekkes paddingen automatisk bort. */
-    padding-bottom: max(0px, calc(var(--toolbar-h, 60px) - env(keyboard-inset-height, 0px)));
+    padding-bottom: var(--toolbar-h, 60px);
     box-sizing: border-box;
 }
 
@@ -6189,9 +6164,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .fakturaadresse-popup-backdrop {
     display: none;
     position: fixed;
-    top: 0; left: 0; right: 0;
-    /* Krymper over tastaturet — se kommentar ved .confirm-modal. */
-    bottom: env(keyboard-inset-height, 0px);
+    top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5);
     z-index: 25;
     justify-content: center;
