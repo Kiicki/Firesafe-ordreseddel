@@ -6566,29 +6566,81 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // KRITISK REKKEFØLGE: spacer FØR scrollIntoView.
-        // Spacer utvider scroll-rangen på scrolleren med tastatur-høyde +
-        // 50px, så det er plass å scrolle inn for siste felter (Sted,
-        // Signering). Hvis scrollIntoView kjører FØR spacer er på plass,
-        // har browseren ikke nok rom → siste felter blir værende under
-        // tastaturet. Spacer kjører først; så scrollIntoView bruker den
-        // utvidede rangen.
+        // Spacer FØRST — utvider scroll-rangen så siste felter (Sted,
+        // Signering) har rom å scrolle inn til.
         var scroller = findKeyboardScrollContainer(el);
-        if (scroller) {
-            var _innerH = window.innerHeight || 0;
-            var _kbdH = _innerH > 0 ? _innerH - kbdTop : 0;
-            if (_kbdH > 0) {
-                _applyKbdSpacer(scroller, _kbdH + 50);
-            }
+        var _innerH = window.innerHeight || 0;
+        var _kbdH = _innerH > 0 ? _innerH - kbdTop : 0;
+        if (scroller && _kbdH > 0) {
+            _applyKbdSpacer(scroller, _kbdH + 120);
         }
 
-        // Be browseren scrolle input til sikker sone definert av scroll-padding.
-        // 'nearest' = minimal scroll så input blir synlig innenfor den paddede
-        // viewporten. Med spacer'en over har scrolleren nok rom til å plassere
-        // selv siste felt korrekt.
-        if (typeof el.scrollIntoView === 'function') {
-            el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        // === Dynamisk look-ahead scroll: posisjoner fokusert input slik at
+        // NESTE felts bunn lander 4px over tastatur-toppen. Da er presis
+        // én "blokk" synlig under fokus — ikke mer, ikke mindre. Måler
+        // faktisk pixel-distanse, så ulike felt-størrelser (textareas,
+        // disabled inputs, normale inputs) håndteres riktig.
+        var nextEl = _findNextNavigableElement(el);
+        if (nextEl) {
+            var nextRect = nextEl.getBoundingClientRect();
+            var elRect = el.getBoundingClientRect();
+            var diff = nextRect.bottom - elRect.bottom;
+            if (diff > 0) {
+                var targetBottom = kbdTop - 4 - diff;
+                var delta = elRect.bottom - targetBottom;
+                // Scroller BÅDE opp (focused under target → flytt opp) OG
+                // ned (focused over target → flytt ned for å avsløre neste).
+                // Tidligere bare opp-scroll — derfor satt siste felter
+                // (Sted) for høyt med neste felt skjult.
+                if (Math.abs(delta) >= 1) {
+                    if (!scroller || scroller === document.scrollingElement
+                        || scroller === document.documentElement
+                        || scroller === document.body) {
+                        window.scrollBy(0, delta);
+                    } else {
+                        scroller.scrollTop += delta;
+                    }
+                }
+            }
+        } else {
+            // Siste felt i hele skjemaet (ingen neste navigerbar) — bruk
+            // native scrollIntoView med CSS scroll-padding som fallback.
+            if (typeof el.scrollIntoView === 'function') {
+                el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+            }
         }
+    }
+
+    // Finn neste navigerbare element etter et fokusert felt. Brukes for
+    // look-ahead-scroll: vi vil avsløre PRESIS ett element under fokus.
+    // Returnerer null hvis fokus er på siste element i skjemaet.
+    function _findNextNavigableElement(el) {
+        var field = el.closest && el.closest('.mobile-field');
+        if (!field) return null;
+        // 1) Søsken-felt i samme seksjon
+        var sib = field.nextElementSibling;
+        while (sib && (!sib.offsetHeight || sib.offsetHeight < 5)) {
+            sib = sib.nextElementSibling;
+        }
+        if (sib && sib.matches && (sib.matches('.mobile-field')
+            || sib.matches('.mobile-order-materials-section'))) {
+            return sib;
+        }
+        // 2) Første navigerbare element i neste seksjon
+        var section = field.closest('.mobile-section');
+        if (section) {
+            var nextSec = section.nextElementSibling;
+            while (nextSec && (!nextSec.offsetHeight || nextSec.offsetHeight < 5)) {
+                nextSec = nextSec.nextElementSibling;
+            }
+            if (nextSec) {
+                var first = nextSec.querySelector(
+                    '.mobile-section-title, .mobile-field, .mobile-add-line-btn, .timer-overview-chip'
+                );
+                if (first) return first;
+            }
+        }
+        return null;
     }
 
     function scheduleKeyboardTargetVisibilityCheck(el) {
