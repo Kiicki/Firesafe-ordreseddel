@@ -6706,13 +6706,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // uten !important ville CSS-en vunnet og buggen kommet tilbake.
                 //
                 // Asymmetriske marginer: toppen trenger bare litt klaring (8px),
-                // mens bunnen trenger MER luft (24px) over tastaturet. Grunnen:
-                // noen Android-tastaturer rapporterer visualViewport.height
-                // litt for stort (suggestion/emoji-bar over taste-radene blir
-                // ikke alltid telt med) — uten ekstra bunn-margin ville bunnen
-                // av popupen klippet inn i accessory-baren. 24px gir trygg luft.
+                // mens bunnen trenger noe ekstra (12px) over tastaturet.
+                // Grunnen: noen Android-tastaturer rapporterer visualViewport.
+                // height litt for stort (suggestion/emoji-bar telles ikke alltid
+                // med). 12px klarerer accessory-baren uten å la for mye av
+                // skjemaet bak vises gjennom gapet.
                 var mTop = 8;
-                var mBot = 24;
+                var mBot = 12;
                 content.style.setProperty('transition', 'none', 'important');
                 content.style.setProperty('position', 'fixed', 'important');
                 content.style.setProperty('left', '50%', 'important');
