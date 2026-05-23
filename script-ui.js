@@ -5643,18 +5643,20 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) { /* feature ikke støttet eller blokkert — ignorer */ }
     }
 
-    // Returnerer tastaturets «posisjonerings-topp» (visuelle topp inkl.
-    // accessory-bar) — brukes av ensureKeyboardTargetVisible for å scrolle
-    // form-felt over tastaturet:
-    //   1) VirtualKeyboard API (Chromium): boundingRect.top dekker ofte
-    //      bare keys (ikke accessory-bar). Trekker en buffer slik at
-    //      posisjoneringen er over accessory også.
-    //   2) visualViewport-krymp (iOS/Firefox): inkluderer alt — ingen buffer.
-    //   3) Cache-fallback: siste gyldige måling mens et tastatur-felt fortsatt
-    //      har fokus på touch-enhet. Hindrer flicker når VkbdAPI momentant
-    //      returnerer height=0 i overlays-content-modus.
+    // Returnerer tastaturets «posisjonerings-topp» — brukes av
+    // ensureKeyboardTargetVisible for å scrolle form-felt over tastaturet:
+    //   1) VirtualKeyboard API (Chromium): boundingRect.height inkluderer
+    //      hele tastatur-widgeten (keys + accessory-bar) på moderne Chrome.
+    //      innerH - height = direkte top av tastatur-widgeten.
+    //   2) visualViewport-krymp (iOS/Firefox): vv.height + vv.offsetTop =
+    //      bunn av synlig viewport = top av tastatur.
+    //   3) Cache-fallback når VkbdAPI momentant returnerer height=0.
     //   4) null → ingen signal.
-    var KEYBOARD_API_ACCESSORY_BUFFER = 40;
+    // Buffer var tidligere 40px — antok at accessory-bar IKKE var inkludert
+    // i br.height, men det er den på moderne Chromium. Buffer = 0 nå; hvis
+    // en eldre/uvanlig keyboard rapporterer kun keys (ikke accessory), kan
+    // verdien økes til 10-15px for liten klaring.
+    var KEYBOARD_API_ACCESSORY_BUFFER = 0;
     function _getKeyboardTop() {
         var innerH = window.innerHeight || 0;
         if (!innerH) return null;
