@@ -6560,16 +6560,28 @@ document.addEventListener('DOMContentLoaded', function() {
         // så vi trigges fortsatt fra geometrychange/resize for å re-trigge.
         var kbdTop = _getKeyboardTop();
         if (kbdTop === null) {
-            // Ingen tastatur-signal (PC desktop e.l.) → la browseren håndtere
-            // native fokus-scroll uansett.
-            if (typeof el.scrollIntoView === 'function') {
-                el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-            }
+            // Ingen tastatur-signal — ikke autoscroll. Browseren har sin
+            // egen native fokus-scroll (uten tastatur er det ingen grunn
+            // til at vi skal overstyre).
             return;
         }
 
-        // Spacer FØRST — utvider scroll-rangen så siste felter (Sted,
-        // Signering) har rom å scrolle inn til.
+        var elRect = el.getBoundingClientRect();
+
+        // === GATE: scroll bare hvis fokusert input ville vært skjult av
+        // tastaturet. Hvis input allerede er komfortabelt over keyboard-
+        // toppen, gjør INGENTING — uansett om neste felt er synlig eller ei.
+        // Brukerens regel: "input vi trykte på er uansett over tastatur" →
+        // ingen scroll. Kun inputer som havner UNDER tastaturet trenger
+        // scroll.
+        var SAFE_BUFFER = 4;  // input.bottom må være minst 4px over kbdTop
+        if (elRect.bottom <= kbdTop - SAFE_BUFFER) {
+            return;
+        }
+
+        // === Fokusert ER eller VILLE bli skjult av tastaturet — scroll opp.
+        // Spacer utvider scroll-rangen så siste felter (Sted, Signering) har
+        // rom å scrolle inn til.
         var scroller = findKeyboardScrollContainer(el);
         var _innerH = window.innerHeight || 0;
         var _kbdH = _innerH > 0 ? _innerH - kbdTop : 0;
@@ -6577,38 +6589,31 @@ document.addEventListener('DOMContentLoaded', function() {
             _applyKbdSpacer(scroller, _kbdH + 120);
         }
 
-        // === Dynamisk look-ahead scroll: posisjoner fokusert input slik at
-        // NESTE felts bunn lander 4px over tastatur-toppen. Da er presis
-        // én "blokk" synlig under fokus — ikke mer, ikke mindre. Måler
-        // faktisk pixel-distanse, så ulike felt-størrelser (textareas,
-        // disabled inputs, normale inputs) håndteres riktig.
+        // Beregn scroll-target med look-ahead: når vi ALLEREDE må scrolle
+        // for å unngå tastaturet, posisjoner vi slik at neste felt også er
+        // synlig. Look-ahead er en bonus — hovedsaken er at fokusert input
+        // ikke er skjult.
         var nextEl = _findNextNavigableElement(el);
+        var targetBottom = kbdTop - SAFE_BUFFER;
         if (nextEl) {
             var nextRect = nextEl.getBoundingClientRect();
-            var elRect = el.getBoundingClientRect();
             var diff = nextRect.bottom - elRect.bottom;
             if (diff > 0) {
-                var targetBottom = kbdTop - 4 - diff;
-                var delta = elRect.bottom - targetBottom;
-                // Scroller BÅDE opp (focused under target → flytt opp) OG
-                // ned (focused over target → flytt ned for å avsløre neste).
-                // Tidligere bare opp-scroll — derfor satt siste felter
-                // (Sted) for høyt med neste felt skjult.
-                if (Math.abs(delta) >= 1) {
-                    if (!scroller || scroller === document.scrollingElement
-                        || scroller === document.documentElement
-                        || scroller === document.body) {
-                        window.scrollBy(0, delta);
-                    } else {
-                        scroller.scrollTop += delta;
-                    }
-                }
+                // Plasser fokusert slik at neste felts bunn er 4px over kbd.
+                targetBottom = kbdTop - 4 - diff;
             }
-        } else {
-            // Siste felt i hele skjemaet (ingen neste navigerbar) — bruk
-            // native scrollIntoView med CSS scroll-padding som fallback.
-            if (typeof el.scrollIntoView === 'function') {
-                el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        }
+
+        var delta = elRect.bottom - targetBottom;
+        if (delta > 0) {
+            // Kun scroll OPP (delta > 0). Vi har allerede sjekket at fokus er
+            // under safe zone, så delta er alltid positiv her.
+            if (!scroller || scroller === document.scrollingElement
+                || scroller === document.documentElement
+                || scroller === document.body) {
+                window.scrollBy(0, delta);
+            } else {
+                scroller.scrollTop += delta;
             }
         }
     }
@@ -9960,7 +9965,7 @@ function _createIsoCardRow(data) {
                 '<div class="mobile-field field-required"><label data-i18n="iso_sider">Sider</label>' +
                     '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '') + '" oninput="_updateIsoCardTotal()"></div>' +
             '</div>' +
-            '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>' +
+            '<button type="button" class="kappe-kapp-remove-btn" onpointerdown="event.preventDefault()" onclick="_isoCardRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>' +
         '</div>' +
         '<div class="iso-card-row-plates"></div>';
     return row;
@@ -9989,7 +9994,7 @@ function _createIsoCardBlock(sel) {
     block.innerHTML =
         '<div class="iso-card-block-head">' +
             '<label class="iso-card-label" data-i18n="kappe_col_produkt">Produkt</label>' +
-            '<button type="button" class="iso-card-block-remove" onclick="_isoCardRemoveProductBlock(this)" title="Fjern produkt">' + deleteIcon + '</button>' +
+            '<button type="button" class="iso-card-block-remove" onpointerdown="event.preventDefault()" onclick="_isoCardRemoveProductBlock(this)" title="Fjern produkt">' + deleteIcon + '</button>' +
         '</div>' +
         '<div class="iso-block-product-slot">' + slotHtml + '</div>' +
         '<div class="iso-block-kapp-rows"></div>' +
@@ -10018,6 +10023,13 @@ function _isoCardRemoveProductBlock(btn) {
     var c = document.getElementById('iso-card-blocks');
     var block = _isoCardBlockOf(btn);
     if (!c || !block) return;
+    // Hvis fokus er inne i blokken vi skal slette, flytt fokus før fjerning
+    // så tastaturet ikke lukkes pga DOM-fjerning av fokusert element.
+    var active = document.activeElement;
+    if (active && block.contains(active)) {
+        var fallback = _findFallbackIsoCardInput(block);
+        if (fallback) fallback.focus({ preventScroll: true });
+    }
     block.remove();
     // Hold alltid minst én blokk (produkt-velgeren skal alltid være synlig).
     if (c.querySelectorAll('.iso-card-block').length === 0) {
@@ -10099,12 +10111,64 @@ window._isoCardAddRow = _isoCardAddRow;
 function _isoCardRemoveRow(btn) {
     // Kapp-rader er valgfrie (on-demand som kappeskjema) — fjern ned til 0.
     var row = btn.closest('.iso-card-row');
-    if (row) row.remove();
+    if (!row) return;
+    // Hvis fokus er inne i raden vi skal slette, flytt fokus til nabo-input
+    // FØR fjerning — ellers blurer browseren det fokuserte inputet automatisk
+    // når det fjernes fra DOM, og tastaturet lukkes.
+    var active = document.activeElement;
+    if (active && row.contains(active)) {
+        var fallback = _findFallbackIsoCardInput(row);
+        if (fallback) fallback.focus({ preventScroll: true });
+    }
+    row.remove();
     _updateIsoCardTotal();
     _anchorIsoCardTop();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 window._isoCardRemoveRow = _isoCardRemoveRow;
+
+// Finn en input vi kan flytte fokus til når en rad fjernes — slik at
+// tastaturet ikke lukkes automatisk pga DOM-fjerning av fokusert element.
+// Prioriterer forrige rad, så neste, så hvilken som helst input i popupen.
+function _findFallbackIsoCardInput(excludeContainer) {
+    function _firstInput(el) {
+        if (!el || !el.querySelector) return null;
+        var inps = el.querySelectorAll('input:not([disabled])');
+        for (var i = 0; i < inps.length; i++) {
+            if (inps[i].offsetHeight > 0) return inps[i];
+        }
+        return null;
+    }
+    // Forrige .iso-card-row
+    var prev = excludeContainer.previousElementSibling;
+    while (prev) {
+        if (prev.matches && prev.matches('.iso-card-row')) {
+            var p = _firstInput(prev);
+            if (p) return p;
+        }
+        prev = prev.previousElementSibling;
+    }
+    // Neste .iso-card-row
+    var next = excludeContainer.nextElementSibling;
+    while (next) {
+        if (next.matches && next.matches('.iso-card-row')) {
+            var n = _firstInput(next);
+            if (n) return n;
+        }
+        next = next.nextElementSibling;
+    }
+    // Hvilken som helst annen input i popupen
+    var popup = excludeContainer.closest('.spec-popup-backdrop, .confirm-modal, .fakturaadresse-popup-backdrop');
+    if (popup) {
+        var all = popup.querySelectorAll('input:not([disabled])');
+        for (var j = 0; j < all.length; j++) {
+            if (!excludeContainer.contains(all[j]) && all[j].offsetHeight > 0) {
+                return all[j];
+            }
+        }
+    }
+    return null;
+}
 
 // Beholdt som no-op — rad-fjerning er alltid tillatt (ingen min-grense).
 function _updateIsoCardRemoveStates() {}
