@@ -6568,20 +6568,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var elRect = el.getBoundingClientRect();
 
-        // === GATE: scroll bare hvis fokusert input ville vært skjult av
-        // tastaturet. Hvis input allerede er komfortabelt over keyboard-
-        // toppen, gjør INGENTING — uansett om neste felt er synlig eller ei.
-        // Brukerens regel: "input vi trykte på er uansett over tastatur" →
-        // ingen scroll. Kun inputer som havner UNDER tastaturet trenger
-        // scroll.
-        var SAFE_BUFFER = 4;  // input.bottom må være minst 4px over kbdTop
-        if (elRect.bottom <= kbdTop - SAFE_BUFFER) {
-            return;
-        }
-
-        // === Fokusert ER eller VILLE bli skjult av tastaturet — scroll opp.
         // Spacer utvider scroll-rangen så siste felter (Sted, Signering) har
-        // rom å scrolle inn til.
+        // rom å scrolle inn til hvis vi trenger å scrolle.
         var scroller = findKeyboardScrollContainer(el);
         var _innerH = window.innerHeight || 0;
         var _kbdH = _innerH > 0 ? _innerH - kbdTop : 0;
@@ -6589,25 +6577,24 @@ document.addEventListener('DOMContentLoaded', function() {
             _applyKbdSpacer(scroller, _kbdH + 120);
         }
 
-        // Beregn scroll-target med look-ahead: når vi ALLEREDE må scrolle
-        // for å unngå tastaturet, posisjoner vi slik at neste felt også er
-        // synlig. Look-ahead er en bonus — hovedsaken er at fokusert input
-        // ikke er skjult.
+        // Beregn scroll-target med look-ahead: posisjoner fokusert slik at
+        // NESTE felts bunn lander 4px over tastatur-toppen.
         var nextEl = _findNextNavigableElement(el);
-        var targetBottom = kbdTop - SAFE_BUFFER;
+        var targetBottom = kbdTop - 4;
         if (nextEl) {
             var nextRect = nextEl.getBoundingClientRect();
             var diff = nextRect.bottom - elRect.bottom;
             if (diff > 0) {
-                // Plasser fokusert slik at neste felts bunn er 4px over kbd.
                 targetBottom = kbdTop - 4 - diff;
             }
         }
 
         var delta = elRect.bottom - targetBottom;
+        // KUN scroll opp når trengs (delta > 0). Hvis delta <= 0 betyr det at
+        // fokusert allerede er høyt nok til at neste felt er synlig under
+        // tastaturet — ingen scroll, ingen unødig bevegelse.
+        // Brukerens regel: "ikke scroll hvis input/neste-felt allerede synlig".
         if (delta > 0) {
-            // Kun scroll OPP (delta > 0). Vi har allerede sjekket at fokus er
-            // under safe zone, så delta er alltid positiv her.
             if (!scroller || scroller === document.scrollingElement
                 || scroller === document.documentElement
                 || scroller === document.body) {
