@@ -237,12 +237,15 @@ async function loadMoreSavedForms() {
     renderSavedFormsList(newForms, true, _savedHasMore || _sentHasMore);
 }
 
-function showSavedForms() {
+function showSavedForms(tab) {
+    // tab er valgfri: settes ved tilbake-navigasjon fra et skjema så vi lander på
+    // fanen man kom fra (Ordreseddel/Servicebil/Kappeskjema). Uten arg = 'own'
+    // (fersk åpning fra verktøylinja). _showSavedFormsDirectly defaulter til 'own'.
     if (isOnFormPage() && hasUnsavedChanges()) {
-        showConfirmModal(t('unsaved_warning'), _showSavedFormsDirectly, t('btn_continue'), '#E8501A');
+        showConfirmModal(t('unsaved_warning'), function() { _showSavedFormsDirectly(tab); }, t('btn_continue'), '#E8501A');
         return;
     }
-    _showSavedFormsDirectly();
+    _showSavedFormsDirectly(tab);
 }
 
 function _mergeAndDedup(saved, sent) {
@@ -690,9 +693,11 @@ function navigateBack() {
     var currentId = current ? current.id : '';
     var prev = _previousViewId;
 
-    // From form view: check unsaved changes, then go to previous
+    // From form view: check unsaved changes, then go to previous.
+    // Naviger DIREKTE (_showSavedFormsDirectly) — navigateBack har alt guardet, og
+    // showSavedForms ville guardet på nytt → dobbel popup ("Fortsett" virker ikke).
     if (currentId === 'view-form') {
-        var target = (prev === 'saved-modal') ? showSavedForms : showTemplateModal;
+        var target = (prev === 'saved-modal') ? function() { _showSavedFormsDirectly(); } : showTemplateModal;
         if (isOnFormPage() && hasUnsavedChanges()) {
             showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
         } else {
@@ -702,8 +707,10 @@ function navigateBack() {
     }
     // From service view: honor previous view, then go back
     if (currentId === 'service-view') {
+        // Husk fanen vi kom fra (settes når skjemaet åpnes; ryddes ikke lenger).
+        var serviceBackTab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
         var target = (prev === 'saved-modal')
-            ? function() { closeServiceView(); showSavedForms(); }
+            ? function() { closeServiceView(); _showSavedFormsDirectly(serviceBackTab); }
             : function() { closeServiceView(); showTemplateModal(); };
         if (isOnFormPage() && hasUnsavedChanges()) {
             showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
@@ -714,8 +721,10 @@ function navigateBack() {
     }
     // From kappe view: honor previous view, then go back (samme mønster som service)
     if (currentId === 'kappe-view') {
+        // Husk fanen vi kom fra (settes når skjemaet åpnes; ryddes ikke lenger).
+        var kappeBackTab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
         var target = (prev === 'saved-modal')
-            ? function() { closeKappeView(); showSavedForms(); }
+            ? function() { closeKappeView(); _showSavedFormsDirectly(kappeBackTab); }
             : function() { closeKappeView(); showTemplateModal(); };
         if (isOnFormPage() && hasUnsavedChanges()) {
             showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
@@ -4760,9 +4769,9 @@ function renderServiceFormsList(forms) {
 function loadServiceFormDirect(formData) {
     if (!formData) return;
 
-    // Close saved modal
+    // Close saved modal. firesafe_hent_tab beholdes så tilbake-navigasjon lander
+    // på Servicebil-fanen vi kom fra (ryddes ved hjem/ny via closeAllModals/closeModal).
     document.body.classList.remove('saved-modal-open');
-    sessionStorage.removeItem('firesafe_hent_tab');
 
     // Set data
     _serviceCurrentId = formData.id || null;
@@ -4811,9 +4820,8 @@ function duplicateServiceForm(formData) {
     _serviceCurrentId = null;
     setServiceFormData(copy);
 
-    // Close modal and show service view
+    // Close modal and show service view. firesafe_hent_tab beholdes for tilbake-navigasjon.
     document.body.classList.remove('saved-modal-open');
-    sessionStorage.removeItem('firesafe_hent_tab');
     showView('service-view');
     document.body.classList.add('service-view-open');
     window.location.hash = 'service';
@@ -7116,7 +7124,14 @@ document.addEventListener('DOMContentLoaded', function() {
             renumberKappeLines();
             updateKappeDeleteStates();
         }
-        renderKappeStiftRows();
+        // Render tomme festemidler KUN hvis ingen alt er rendret (fersk state / recovery).
+        // Uten guarden ville et argumentløst kall WIPE festemidlene setKappeFormData nettopp
+        // rendret — det skjulte dem OG ga falsk "ulagrede endringer" (snapshot på 7116 ble
+        // tatt FØR wipen, så baseline hadde festemidler mens live DOM ikke hadde).
+        var stiftEl = document.getElementById('kappe-stift');
+        if (stiftEl && stiftEl.children.length === 0) {
+            renderKappeStiftRows();
+        }
     } else if (hash === 'service') {
         // Show service view
         showView('service-view');
@@ -9063,7 +9078,10 @@ function openNewKappeForm() {
 function closeKappeView() {
     document.body.classList.remove('kappe-view-open');
     _kappeCurrentId = null;
-    _kappeLastSavedData = null;
+    // Ikke nullstill _kappeLastSavedData her. Baseline = "lagret tilstand for skjemaet
+    // som er åpent". Hver skjema-åpning (loadKappeFormDirect/openNewKappeForm/duplikat/
+    // init) re-setter den, så nulling her er unødvendig — og forårsaker falsk
+    // "ulagrede endringer" hvis closeKappeView kjører før en dirty-sjekk (race).
     sessionStorage.removeItem('firesafe_kappe_current');
     sessionStorage.removeItem('firesafe_kappe_sent');
 }
@@ -11968,8 +11986,9 @@ function renderKappeFormsList(forms) {
 
 function loadKappeFormDirect(formData) {
     if (!formData) return;
+    // firesafe_hent_tab beholdes så tilbake-navigasjon lander på Kappeskjema-fanen
+    // vi kom fra (ryddes ved hjem/ny via closeAllModals/closeModal).
     document.body.classList.remove('saved-modal-open');
-    sessionStorage.removeItem('firesafe_hent_tab');
 
     _kappeCurrentId = formData.id || null;
     setKappeFormData(formData);
@@ -12000,8 +12019,8 @@ function duplicateKappeForm(formData) {
     setKappeFormData(copy);
     _setKappeDatoToday();
 
+    // firesafe_hent_tab beholdes for tilbake-navigasjon (Kappeskjema-fanen).
     document.body.classList.remove('saved-modal-open');
-    sessionStorage.removeItem('firesafe_hent_tab');
     showView('kappe-view');
     document.body.classList.add('kappe-view-open');
     window.location.hash = 'kappe';
