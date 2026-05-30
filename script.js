@@ -643,6 +643,27 @@ function formatKappePlateCount(value) {
     return value.toFixed(1).replace('.', ',');
 }
 
+// Svinn-påslag på kappe-isolasjon i m² (ordreseddel/servicebil). 10% på toppen
+// av plate-arealet — samme svinn-prinsipp som kappeskjemaets "Veil. m²"-kolonne.
+var KAPPE_M2_SVINN_FACTOR = 1.10;
+
+// Materialforbruk i m² for kappe-isolasjon: antall plater × plate-areal × svinn-påslag.
+// Gjelder begge moduser (kapp/bredde og hele plater) siden begge sender plateCount hit.
+// Plate-mål hentes fra produktets egen plate (material.plate), ellers standard 1200×1000.
+function calcKappeAreaM2(material, plateCount) {
+    if (!plateCount || plateCount <= 0) return 0;
+    var pL = material && material.plate ? parseFloat(String(material.plate.length || '').replace(',', '.')) : 0;
+    var pW = material && material.plate ? parseFloat(String(material.plate.width || '').replace(',', '.')) : 0;
+    if (!pL || pL <= 0) pL = KAPPE_DEFAULT_PLATE.lengde;
+    if (!pW || pW <= 0) pW = KAPPE_DEFAULT_PLATE.bredde;
+    return plateCount * (pL * pW) / 1000000 * KAPPE_M2_SVINN_FACTOR;
+}
+
+// Formaterer m²-verdi: én desimal, norsk komma. "16,2".
+function formatKappeArea(value) {
+    return value.toFixed(1).replace('.', ',');
+}
+
 function formatKappeStiftName(enhet, name, quantityUnit) {
     var productName = _stripPickerSuffix(name || '') || getMaterialStiftLabel();
     var dim = _formatKappeMaterialSize(enhet || '');
@@ -2345,12 +2366,13 @@ function createMaterialSummaryRow(m, groupBaseName) {
     } else if (pipeInfo && m.antall) {
         detailParts.push(escapeHtml(m.antall) + ' stk');
     } else if (m.source === 'kappe-products') {
-        // Kappe-isolasjon: vis plate-antall som primær metrikk (konsistent for både bredde- og plate-modus).
-        // Avrundes opp til nærmeste halve plate; meter/stk vises ikke — det er plater brukeren bestiller.
+        // Kappe-isolasjon i ordreseddel-faktura: vis materialforbruk i m² (= lik eksporten).
+        // m² = antall plater × plate-areal; plate-antallet beholdes på kappeskjemaet der montøren kapper.
         // Pre-aggregert rad (samme produkt+tykkelse slått sammen): bruk summen.
         var kappePlateCount = (m.__plateSum != null) ? m.__plateSum : calcKappePlateCount(m);
         if (kappePlateCount > 0) {
-            detailParts.push(formatKappePlateCount(kappePlateCount) + ' ' + (kappePlateCount === 1 ? 'plate' : 'plater'));
+            var kappeM2 = (typeof calcKappeAreaM2 === 'function') ? calcKappeAreaM2(m, kappePlateCount) : 0;
+            detailParts.push(((typeof formatKappeArea === 'function') ? formatKappeArea(kappeM2) : String(kappeM2)) + ' m²');
         } else if (m.antall) {
             // Fallback hvis bredde/plate-info mangler: fall tilbake til antall + enhet
             var qUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
@@ -2413,7 +2435,8 @@ function renderMaterialSummary(matContainer, materials) {
                     if (isoMap[key]) {
                         isoMap[key].__plateSum += pc;
                     } else {
-                        isoMap[key] = { name: gm.name, enhet: gm.enhet, source: gm.source, __plateSum: pc };
+                        // plate bæres med så m²-beregningen får riktig plate-areal (samme produkt+tykkelse → samme plate).
+                        isoMap[key] = { name: gm.name, enhet: gm.enhet, source: gm.source, plate: gm.plate, __plateSum: pc };
                         isoAgg.push(isoMap[key]);
                     }
                 });
@@ -5583,11 +5606,13 @@ function buildDesktopWorkLines() {
                         : baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
                     addRow(formatDisplayForBreak(nameWithStk), formatRunningMeters(lm), 'meter', { alignRight: true });
                 } else if (m.source === 'kappe-products') {
-                    // Kappe-isolasjon: vis plate-antall + "plater" i stedet for meter/stk.
+                    // Kappe-isolasjon på ordreseddel: vis materialforbruk i m² (antall plater × plate-areal).
+                    // Plater beholdes på kappeskjemaet der det er montørens praktiske enhet.
                     var plateCount = (typeof calcKappePlateCount === 'function') ? calcKappePlateCount(m) : 0;
                     if (plateCount > 0) {
-                        var plateLabel = (typeof formatKappePlateCount === 'function') ? formatKappePlateCount(plateCount) : String(plateCount);
-                        addRow(capName, plateLabel, plateCount === 1 ? 'plate' : 'plater', { alignRight: true });
+                        var areaM2 = (typeof calcKappeAreaM2 === 'function') ? calcKappeAreaM2(m, plateCount) : 0;
+                        var areaLabel = (typeof formatKappeArea === 'function') ? formatKappeArea(areaM2) : String(areaM2);
+                        addRow(capName, areaLabel, 'm²', { alignRight: true });
                     } else if (m.antall) {
                         // Fallback hvis bredde/plate-info mangler
                         var fallbackUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
@@ -5665,7 +5690,8 @@ function buildDesktopWorkLines() {
                             if (isoMap[key]) {
                                 isoMap[key].__plateSum += gmPC;
                             } else {
-                                isoMap[key] = { name: gm.name, enhet: gm.enhet, source: gm.source, __plateSum: gmPC };
+                                // plate bæres med så m²-beregningen får riktig plate-areal (samme produkt+tykkelse → samme plate).
+                                isoMap[key] = { name: gm.name, enhet: gm.enhet, source: gm.source, plate: gm.plate, __plateSum: gmPC };
                                 isoAgg.push(isoMap[key]);
                             }
                         });
@@ -5683,9 +5709,10 @@ function buildDesktopWorkLines() {
                         subName = subName.charAt(0).toUpperCase() + subName.slice(1);
                         subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
                         if (gm.__plateSum != null) {
-                            // Pre-aggregert isolasjon-rad: bruk summen direkte.
-                            var pcLabel = (typeof formatKappePlateCount === 'function') ? formatKappePlateCount(gm.__plateSum) : String(gm.__plateSum);
-                            addRow('    ' + subName, pcLabel, gm.__plateSum === 1 ? 'plate' : 'plater', { alignRight: true });
+                            // Pre-aggregert isolasjon-rad: vis materialforbruk i m² (summert plater × plate-areal).
+                            var aggM2 = (typeof calcKappeAreaM2 === 'function') ? calcKappeAreaM2(gm, gm.__plateSum) : 0;
+                            var aggLabel = (typeof formatKappeArea === 'function') ? formatKappeArea(aggM2) : String(aggM2);
+                            addRow('    ' + subName, aggLabel, 'm²', { alignRight: true });
                             groupTotalPlater += gm.__plateSum;
                             groupHasPlater = true;
                             return;

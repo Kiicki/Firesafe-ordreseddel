@@ -4983,8 +4983,9 @@ function buildServiceExportTable(cols) {
                 // antall+enhet hvis kalkuleringen mangler nødvendig data.
                 var pc = (typeof calcKappePlateCount === 'function') ? calcKappePlateCount(m) : 0;
                 if (pc > 0) {
-                    var pcLabel = (typeof formatKappePlateCount === 'function') ? formatKappePlateCount(pc) : String(pc);
-                    lineText += ' ' + pcLabel + ' ' + (pc === 1 ? 'plate' : 'plater');
+                    // m² (= lik ordreseddelen): antall plater × plate-areal. Plater beholdes kun på kappeskjemaet.
+                    var svcM2 = (typeof calcKappeAreaM2 === 'function') ? calcKappeAreaM2(m, pc) : 0;
+                    lineText += ' ' + ((typeof formatKappeArea === 'function') ? formatKappeArea(svcM2) : String(svcM2)) + ' m²';
                 } else if (m.antall) {
                     var unit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
                     var unitLabel = unit === 'meter' ? ' meter' : ' ' + unit;
