@@ -3572,25 +3572,12 @@ label.settings-default-label.field-required > span::after {
     transition: all 0.15s ease;
     color: #333;
 }
-/* «+ Ny dimensjon» nederst i dim-kolonnen + inline-input ved redigering. */
+/* «+ Ny dimensjon»-rad øverst i dim-kolonnen (åpner input-popup ved tap). */
 .kappe-picker-add-dim {
     border-style: dashed;
     border-color: #d6d6db;
     color: #E8501A;
     font-weight: 600;
-}
-.kappe-picker-add-dim-edit {
-    border-color: #E8501A;
-    padding: 4px;
-}
-.kappe-picker-add-dim-input {
-    width: 100%;
-    border: none;
-    outline: none;
-    text-align: center;
-    font-size: 15px;
-    background: transparent;
-    color: #1c1c1e;
 }
 .kappe-product-picker-row:active {
     background: #fff5f0;
@@ -3599,6 +3586,66 @@ label.settings-default-label.field-required > span::after {
     background: #E8501A;
     color: #fff;
     border-color: #E8501A;
+}
+/* Festemiddel: valgt dimensjon stables vertikalt i tre linjer (navn / stk-eske /
+   antall) så ALT er fullt synlig i den smale kolonnen. */
+.kappe-product-picker-row.kappe-picker-fast-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+}
+/* Navnet skal vises i sin helhet (ikke avkortes til «1…») når raden er valgt. */
+.kappe-picker-fast-row .kappe-product-picker-name {
+    flex: 0 0 auto;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    font-weight: 700;
+}
+.kappe-picker-fast-antall {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1.5px solid #cfcfd6;
+    border-radius: 8px;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.kappe-picker-fast-antall:focus {
+    outline: none;
+    border-color: #E8501A;
+}
+/* Stk/eske deler bredden 50/50 → store, tydelige tap-mål på egen linje. */
+.kappe-picker-unit-seg {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+}
+.kappe-picker-unit-btn {
+    flex: 1 1 0;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 4px;
+    border-radius: 8px;
+    border: 1.5px solid #cfcfd6;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+    text-transform: lowercase;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: all 0.12s ease;
+}
+.kappe-picker-unit-btn.active {
+    background: #E8501A;
+    border-color: #E8501A;
+    color: #fff;
 }
 /* Antall-valgte-badge på produkt-rad (multi-modus festemiddel). Forankret
    til høyre kant så det sentrerte produktnavnet ikke klemmes/forskyves. */
@@ -3622,6 +3669,17 @@ label.settings-default-label.field-required > span::after {
 .kappe-product-picker-row-selected .kappe-picker-sel-badge {
     background: #fff;
     color: #E8501A;
+}
+/* Valgt-produkt-merke (fler-valg): «N ✓» til høyre, som dimensjons-haken. */
+.kappe-picker-brand-check {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #E8501A;
+    font-weight: 700;
+    font-size: 14px;
+    white-space: nowrap;
 }
 .kappe-product-picker-name {
     font-size: 15px;
@@ -4690,6 +4748,13 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 13px;
     font-weight: 400;
     color: #888;
+}
+/* Header som skal holde seg på ÉN rad (tittel + teller wrapper ikke). */
+.settings-header-1line > span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 /* List style for materials/units */
@@ -7896,6 +7961,186 @@ body.kappe-view-open #view-form { display: none; }
     padding-bottom: 14px;
     scroll-padding-bottom: 14px;
 }
+/* ── Festemiddel-popup (kort-stil som Isolering) ───────────────────────────── */
+#fastener-popup .spec-popup-sheet { max-width: 440px; gap: 10px; }
+#fastener-popup .spec-popup-header { margin-bottom: 0; }
+#fastener-popup .spec-popup-buttons { margin-top: 0; }
+#fastener-popup .spec-popup-sheet > *:not(#fastener-popup-scroll) { flex-shrink: 0; }
+/* Identisk struktur med iso-kort-festemidler: «Velg produkt» på hvitt (full
+   bredde), grått kort KUN rundt radene (delt `.fastener-rows`-regel over). */
+#fastener-popup-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+#fastener-popup-add-product { margin: 0; align-self: stretch; }
+.fast-pop-block {
+    border: 1px solid #ececf0;
+    border-radius: 12px;
+    padding: 10px 10px 8px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.fast-pop-block-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.fast-pop-block-name { font-weight: 700; font-size: 15px; color: #1d1d1f; }
+.fast-pop-block-remove {
+    border: none;
+    background: transparent;
+    color: #E8501A;
+    cursor: pointer;
+    padding: 2px;
+    display: inline-flex;
+    align-items: center;
+}
+.fast-pop-block-remove svg { width: 18px; height: 18px; }
+.fast-pop-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+}
+.fast-pop-dim-cell {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.fast-pop-dim-cell > label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8e8e93;
+    text-transform: lowercase;
+}
+.fast-pop-dim {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    border: 1.5px solid #d4d4da;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1d1d1f;
+    height: 40px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    text-align: left;
+}
+.fast-pop-dim > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.fast-pop-dim--empty > span:first-child { color: #9b9ba1; }
+.fast-pop-dim-caret { color: #8e8e93; flex: 0 0 auto; font-size: 11px; }
+.fast-pop-qty-cell {
+    flex: 0 0 54px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.fast-pop-qty-cell label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8e8e93;
+    text-align: center;
+    text-transform: lowercase;
+}
+.fast-pop-qty {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 4px;
+    border: 1.5px solid #d4d4da;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    text-align: center;
+    height: 40px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.fast-pop-dim:focus, .fast-pop-qty:focus { outline: none; border-color: #E8501A; }
+.fast-pop-row-remove { flex: 0 0 auto; margin-bottom: 0; }
+.fast-pop-add-row { margin: 2px 0 0 !important; align-self: flex-start; }
+
+/* Produkt-/dimensjons-velger (oppå festemiddel-popupen). */
+#fastener-product-popup, #fastener-dim-popup { z-index: 65; }
+/* Dimensjoner som rutenett av chips (korte verdier → fyller bredden, ikke tomt). */
+#fastener-dim-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    max-height: 55vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 2px 2px;
+}
+.fastener-dim-chip {
+    box-sizing: border-box;
+    padding: 13px 6px;
+    border: 1.5px solid #d4d4da;
+    border-radius: 10px;
+    background: #fff;
+    color: #1d1d1f;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.fastener-dim-chip:active { background: #fff5f0; }
+.fastener-dim-chip.selected {
+    background: #E8501A;
+    border-color: #E8501A;
+    color: #fff;
+}
+.fastener-dim-chip--add {
+    grid-column: 1 / -1;
+    border-style: dashed;
+    border-color: #E8501A;
+    color: #E8501A;
+}
+/* «+ Ny dimensjon» (showInputModal/confirm-modal) må over festemiddel-popupene. */
+body:has(#fastener-popup.active) .confirm-modal,
+body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
+/* Skjul festemiddel-popupen helt mens produkt-/dimensjons-velgeren er åpen. */
+#fastener-popup.fastener-popup--hidden { display: none !important; }
+.fastener-product-sheet { max-width: 360px; }
+#fastener-product-list { max-height: 55vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.fastener-product-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.fastener-product-row:last-child { border-bottom: none; }
+.fastener-product-row.checked { background: #fff5f0; }
+.fastener-product-name { font-size: 15px; color: #1d1d1f; font-weight: 500; }
+.fastener-product-row.checked .fastener-product-name { color: #E8501A; font-weight: 700; }
+.fastener-product-check { color: #E8501A; font-weight: 700; font-size: 16px; }
+
 /* Rad-containere flyter normalt inni scroll-wrapperen (ingen egen scroll).
    Avstand mellom rader via margin-bottom på raden (ikke container-gap), så
    spacingen er identisk OGSÅ på tvers av container-grensen kapp↔plate. */
@@ -7926,13 +8171,15 @@ body.kappe-view-open #view-form { display: none; }
 /* iOS-stil på input-feltene i Isolering-popupen — mykt, avrundet, ingen
    harde rammer; samme språk som «Dager & tid». Scoped til popupen så
    kappeskjemaet er uberørt. */
-#iso-card-popup .mobile-field input {
+#iso-card-popup .mobile-field input,
+#fastener-popup .mobile-field input {
     border: none;
     background: #fff;
     border-radius: 10px;
     padding: 11px 6px;
 }
-#iso-card-popup .mobile-field input:focus {
+#iso-card-popup .mobile-field input:focus,
+#fastener-popup .mobile-field input:focus {
     outline: none;
     border: none;
     box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
@@ -7954,6 +8201,21 @@ body.kappe-view-open #view-form { display: none; }
     text-transform: uppercase;
     letter-spacing: .04em;
     color: #888;
+}
+/* Produktnavn + dimensjon som blokk-header (erstatter dropdown — produkter
+   velges via «Velg produkt»-fler-velgeren). */
+.iso-card-block-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 700;
+    font-size: 15px;
+    color: #1d1d1f;
+}
+.iso-card-block-plate-hint {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8e8e93;
 }
 /* Slett-produkt: rød, som alle slett-knapper ellers på nettsiden. */
 .iso-card-block-remove {
@@ -7985,15 +8247,37 @@ body.kappe-view-open #view-form { display: none; }
 }
 /* Festemidler er en egen del — eget kort med tydelig overskrift og god
    luft over, så det ikke klistrer seg til isolasjons-blokkene. */
+/* Festemiddel-seksjonen er en GJENNOMSIKTIG seksjon (header + full-bredde «Velg
+   produkt» på hvitt) — IDENTISK med isolasjons-seksjonen. Det grå kortet ligger
+   på selve rad-innholdet (#iso-card-fastener-rows), slik isolasjon har grå
+   blokk-kort. Slik blir begge seksjonene konsistente. */
 .iso-card-fast-section {
     margin-top: 18px;
-    background: #fafafa;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+/* Grått kort rundt festemiddel-radene (kun når de finnes) — gir hvite Stk/Eske-
+   felt kontrast, som isolasjons-blokkenes grå bakgrunn. Delt klasse `.fastener-rows`
+   brukes av BÅDE iso-kortet og den frittstående Festemidler-popupen, så styling
+   deles (ikke duplisert pr. ID). */
+.fastener-rows:not(:empty) {
+    background: #f5f5f7;
+    border-radius: 14px;
+    padding: 12px;
+}
+/* Festemiddel-rad-feltene er borderless-hvite (som i popupene) overalt der
+   `.fastener-rows` brukes — også i kappeskjemaet (full side). */
+.fastener-rows .mobile-field input {
+    border: none;
+    background: #fff;
+    border-radius: 10px;
+    padding: 11px 6px;
+}
+.fastener-rows .mobile-field input:focus {
+    outline: none;
+    border: none;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
 }
 /* Seksjons-overskrift (f.eks. «Festemidler»). */
 .iso-card-section-head {
@@ -8398,6 +8682,35 @@ body.kappe-view-open #view-form { display: none; }
     -webkit-overflow-scrolling: touch;
 }
 
+/* Festemiddel-velger (antall + stk/eske pr. dimensjon): dimensjons-kolonnen
+   trenger mye mer plass enn standard 36% → 50/50. Font reduseres siden hver
+   rad har mye info (navn + antall-felt + stk/eske). Hindrer horisontal scroll. */
+.kappe-picker-unit-choice .kappe-picker-brands {
+    flex-basis: 50%;
+}
+.kappe-picker-unit-choice .kappe-picker-dimensions {
+    flex-basis: 50%;
+}
+.kappe-picker-unit-choice .kappe-picker-brands .kappe-product-picker-row {
+    padding-right: 26px;
+}
+.kappe-picker-unit-choice .kappe-picker-dimensions .kappe-product-picker-row {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+.kappe-picker-unit-choice .kappe-picker-brands .kappe-product-picker-row .kappe-product-picker-name,
+.kappe-picker-unit-choice .kappe-picker-dimensions .kappe-product-picker-row .kappe-product-picker-name {
+    font-size: 13px;
+}
+.kappe-picker-unit-choice .kappe-picker-fast-antall {
+    padding: 6px 8px;
+    font-size: 13px;
+}
+.kappe-picker-unit-choice .kappe-picker-unit-btn {
+    padding: 5px 9px;
+    font-size: 11px;
+}
+
 /* Felles list-row-styling for begge kolonner */
 .kappe-picker-brands .kappe-product-picker-row,
 .kappe-picker-dimensions .kappe-product-picker-row {
@@ -8446,13 +8759,23 @@ body.kappe-view-open #view-form { display: none; }
     background: #fff5f0;
 }
 
-/* Selected state — samme behandling i begge kolonner */
+/* Valgt-state — lik behandling i begge kolonner (bakgrunn + navn-farge).
+   Produkt-kolonnen kan ha FLERE valgte samtidig (fler-valg som dimensjoner). */
 .kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-selected,
 .kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected {
     background: #fff5f0;
+}
+/* Venstre-kant: markerer valgt dimensjon, OG det AKTIVE produktet (det hvis
+   dimensjoner vises til høyre) — så man ser hvilket produkt man redigerer. */
+.kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected,
+.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-active {
     border-left-color: #E8501A;
 }
+.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-active {
+    background: #fff5f0;
+}
 .kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-selected .kappe-product-picker-name,
+.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-active .kappe-product-picker-name,
 .kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected .kappe-product-picker-name {
     color: #E8501A;
     font-weight: 700;
@@ -8470,6 +8793,11 @@ body.kappe-view-open #view-form { display: none; }
     color: #E8501A;
     font-weight: 700;
     font-size: 16px;
+}
+/* Festemiddel-rader: stk/eske-velgeren er selve valg-indikatoren, så skjul
+   ✓-merket (ellers overlapper det enhets-knappene til høyre). */
+.kappe-picker-dimensions .kappe-product-picker-row.kappe-picker-fast-row::after {
+    content: none;
 }
 .picker-mat-row[data-mat-type="kappe-isolation"] .picker-mat-antall,
 .picker-mat-row[data-mat-type="kappe-stift"] .picker-mat-antall {
@@ -8574,37 +8902,9 @@ body.kappe-view-open #view-form { display: none; }
 }
 
 /* Stift-seksjon — dynamiske rader med legg-til-knapp */
-#kappe-stift { display: flex; flex-direction: column; gap: 6px; }
-/* Festemiddel-rad: samme oppsett som kapp-rad (felt-label over input via
-   .kappe-quad-row/.mobile-field) for konsistent stil. */
-.kappe-stift-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    margin-bottom: 6px;
-}
-.kappe-stift-label {
-    flex: 1 1 auto;
-    min-width: 0;
-    font-weight: 600;
-    font-size: 14px;
-    color: #333;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    /* Linjer opp med input-baseline (raden er flex-end). */
-    padding-bottom: 11px;
-}
-.kappe-stift-fields {
-    flex: 0 0 156px;
-}
-#kappe-stift-add {
-    margin-top: 10px;
-}
-#kappe-stift-add:disabled {
-    opacity: 0.4;
-    cursor: default;
-}
+/* Festemiddel-lista i kappeskjemaet bruker delt `.fastener-rows` + `.iso-card-fast-row`
+   (samme som material-picker/iso-kort). Rad-stil arves derfra. */
+#kappe-stift { display: flex; flex-direction: column; gap: 0; }
 
 /* Stift-picker (multi-select med antall-input per rad) */
 .kappe-stift-picker-list {

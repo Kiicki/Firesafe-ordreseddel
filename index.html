@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=726">
+    <link rel="stylesheet" href="styles.css?v=751">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -850,7 +850,7 @@
 
                     <!-- Kappe-dimensjoner (flyttet hit fra Kappeskjema). Brukes av isolasjon/
                          festemiddel-produkter i kappeskjemaet og Isolering-popupen. -->
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-dimensions')" style="margin-top: 16px;">
+                    <div class="settings-collapsible-header settings-header-1line" onclick="toggleSettingsSection('kappe-dimensions')" style="margin-top: 16px;">
                         <span><span data-i18n="kappe_settings_dimensions">Dimensjoner</span> <span class="settings-collapsible-count" id="settings-count-kappe-dimensions"></span></span>
                         <span class="settings-collapsible-arrow" id="settings-arrow-kappe-dimensions">&rsaquo;</span>
                     </div>
@@ -1069,8 +1069,16 @@
                 </div>
                 <div class="mobile-section">
                     <div class="mobile-section-title" data-i18n="kappe_section_fasteners">Festemidler</div>
-                    <div id="kappe-stift"></div>
-                    <button type="button" class="mobile-add-line-btn" id="kappe-stift-add" onclick="openKappeStiftPicker()" data-i18n="kappe_fastener_add">+ Legg til festemiddel</button>
+                    <div id="kappe-stift-empty" class="spec-multi-empty"></div>
+                    <div class="iso-block-product-slot">
+                        <button type="button" class="kappe-line-product-btn" id="kappe-stift-add" onclick="openKappeStiftPicker()">
+                            <span class="kappe-line-product-info">
+                                <span class="kappe-line-product-text kappe-line-product-text-placeholder">Velg produkt</span>
+                            </span>
+                            <span class="kappe-line-product-arrow">▾</span>
+                        </button>
+                    </div>
+                    <div id="kappe-stift" class="fastener-rows"></div>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="form-action-btn" onclick="openKappePreview()">
@@ -1178,12 +1186,29 @@
         <div class="spec-popup-sheet">
             <div class="spec-popup-header" id="iso-card-title">Isolering</div>
             <div id="iso-card-scroll">
+                <div class="iso-card-section-head" data-i18n="material_isolation">Isolasjon</div>
+                <div id="iso-card-iso-empty" class="spec-multi-empty"></div>
+                <div class="iso-block-product-slot">
+                    <button type="button" class="kappe-line-product-btn" id="iso-card-iso-product-btn" onclick="_isoCardOpenIsolationPicker()">
+                        <span class="kappe-line-product-info">
+                            <span class="kappe-line-product-text kappe-line-product-text-placeholder">Velg produkt</span>
+                        </span>
+                        <span class="kappe-line-product-arrow">▾</span>
+                    </button>
+                </div>
                 <div id="iso-card-blocks"></div>
-                <button type="button" class="kappe-add-kapp-btn" id="iso-card-add-product" onclick="_isoCardAddProductBlock()">+ <span data-i18n="iso_add_product">Legg til isolasjonsprodukt</span></button>
                 <div class="iso-card-fast-section">
                     <div class="iso-card-section-head" data-i18n="kappe_section_fasteners">Festemidler</div>
-                    <div class="kappe-kapp-rows" id="iso-card-fastener-rows"></div>
-                    <button type="button" class="kappe-add-kapp-btn" id="iso-card-add-fastener" onclick="_isoCardOpenFastenerPicker()">+ <span data-i18n="kappe_add_fastener">Legg til festemiddel</span></button>
+                    <div id="iso-card-fastener-empty" class="spec-multi-empty"></div>
+                    <div class="iso-block-product-slot">
+                        <button type="button" class="kappe-line-product-btn" id="iso-card-add-fastener" onclick="_isoCardOpenFastenerPicker()">
+                            <span class="kappe-line-product-info">
+                                <span class="kappe-line-product-text kappe-line-product-text-placeholder">Velg produkt</span>
+                            </span>
+                            <span class="kappe-line-product-arrow">▾</span>
+                        </button>
+                    </div>
+                    <div class="kappe-kapp-rows fastener-rows" id="iso-card-fastener-rows"></div>
                 </div>
             </div>
             <div id="iso-card-sum" style="display:none"></div>
@@ -1211,6 +1236,31 @@
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecMultiPopup()" data-i18n="btn_cancel">Avbryt</button>
                 <button type="button" class="spec-popup-confirm" onclick="confirmSpecMultiPopup()" data-i18n="btn_select">Velg</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Festemiddel-popup (frittstående launcher): SAMME UX som iso-kort-festemidler
+         — «Velg produkt» åpner to-kolonne-velger (produkt venstre, dimensjon høyre),
+         valgte vises som rader med Stk/Eske under. -->
+    <div class="spec-popup-backdrop iso-card-backdrop" id="fastener-popup" onclick="if(event.target===this)closeFastenerPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header" data-i18n="kappe_section_fasteners">Festemidler</div>
+            <div id="fastener-popup-scroll">
+                <div id="fastener-popup-empty" class="spec-multi-empty"></div>
+                <div class="iso-block-product-slot">
+                    <button type="button" class="kappe-line-product-btn" id="fastener-popup-product-btn" onclick="_fastenerPopupOpenPicker()">
+                        <span class="kappe-line-product-info">
+                            <span class="kappe-line-product-text kappe-line-product-text-placeholder">Velg produkt</span>
+                        </span>
+                        <span class="kappe-line-product-arrow">▾</span>
+                    </button>
+                </div>
+                <div class="kappe-kapp-rows fastener-rows" id="fastener-popup-rows"></div>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeFastenerPopup()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-confirm" onclick="confirmFastenerPopup()" data-i18n="btn_select">Velg</button>
             </div>
         </div>
     </div>
@@ -1673,9 +1723,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=245"></script>
-    <script src="script.js?v=458"></script>
-    <script src="script-ui.js?v=864"></script>
+    <script src="lang.js?v=250"></script>
+    <script src="script.js?v=465"></script>
+    <script src="script-ui.js?v=893"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
