@@ -2980,6 +2980,51 @@ function openMaterialPicker(btn, onConfirm) {
         }, g.entries.length ? { entries: g.entries } : undefined);
     }
 
+    // Spec (mansjett/brannpakning/kabelhylse): åpne multi-add-popupen forhåndsfylt
+    // med basens eksisterende poster. "Velg" erstatter hele settet (slett gamle,
+    // legg til nye med antall fra popupen) — samme replace-mønster som isolering.
+    function _openSpecMultiForBase(baseName, matType) {
+        var keys = [];
+        var prefill = [];
+        Object.keys(pickerState).forEach(function(key) {
+            var st = pickerState[key];
+            if (!st) return;
+            var parsed = parsePickerStorageKey(key);
+            if (parsed.isMeterEntry && parsed.baseName === baseName) {
+                keys.push(key);
+                prefill.push({ isMeter: true, antall: st.antall || '' });
+                return;
+            }
+            var deduped = key.replace(/__(\d+)$/, '');
+            if (deduped.toLowerCase().indexOf(baseName.toLowerCase() + ' ') === 0) {
+                var dims = _parseSpecFromName(deduped, baseName);
+                if (dims && !dims.isMeter) {
+                    keys.push(key);
+                    prefill.push({ width: dims.width, height: dims.height, depth: dims.depth, rounds: dims.rounds, antall: st.antall || '' });
+                }
+            }
+        });
+        openSpecMultiPopup(baseName, matType, function(selections) {
+            keys.forEach(function(k) { delete pickerState[k]; });
+            var lastKey = '';
+            selections.forEach(function(s) {
+                var key;
+                if (s.isMeter) {
+                    key = baseName + '__meter';
+                    if (pickerState[key]) key = nextPickerDuplicateKey(key);
+                    pickerState[key] = { checked: true, antall: s.antall || '', enhet: 'meter' };
+                } else {
+                    var full = baseName + ' ' + s.spec;
+                    key = pickerState[full] ? nextPickerDuplicateKey(full) : full;
+                    pickerState[key] = { checked: true, antall: s.antall || '', enhet: 'stk' };
+                }
+                lastKey = key;
+            });
+            renderPickerList();
+            if (lastKey) _scrollPickerToRow(lastKey);
+        }, prefill);
+    }
+
     function renderPickerList() {
         pickerRenderFn = renderPickerList;
         // Build list: configured materials + checked spec-derived entries + checked custom entries
@@ -3132,6 +3177,50 @@ function openMaterialPicker(btn, onConfirm) {
 
         let html = '';
         pickerGroups.forEach(function(group) {
+            // Isolering: bold header + KUN-VISNING underrader for hvert valg (produkt/
+            // festemiddel + dimensjon), som specs/ordrekort. Tap på header eller underrad
+            // åpner Isolering-popupen (mengde settes der). Uten valg faller den tilbake
+            // til en flat launcher-rad (som en tom spec).
+            if (group.isIsolationGroup) {
+                var _isoData = (typeof _gatherKappeMaterialEntries === 'function') ? _gatherKappeMaterialEntries() : { entries: [], keys: [] };
+                if (_isoData.entries.length) {
+                    html += '<div class="picker-mat-group-header" data-mat-name="' + escapeHtml(group.baseName) + '" data-mat-type="kappe-isolation">'
+                        + '<span class="picker-mat-name">' + escapeHtml(getMaterialIsolationLabel()) + '</span>'
+                        + '<span class="picker-mat-dot picker-mat-dot-isolation"></span></div>';
+                    var _isoDupIcon = duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"');
+                    var _isoDelIcon = deleteIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"');
+                    _isoData.entries.forEach(function(e, _i) {
+                        var _key = _isoData.keys[_i];
+                        var _isStift = isKappeStiftMaterial(e.name, e.source, e.enhet);
+                        var _lbl, _pill = '', _val = '';
+                        if (_isStift) {
+                            // Festemiddel: navn + enhet-merke (eske/stk); REDIGERBART antall som spec-rader.
+                            _lbl = formatKappeStiftName(e.enhet, e.name, e.specMode);
+                            _pill = (e.specMode === 'eske' || e.quantityUnit === 'eske') ? t('kappe_unit_eske') : t('kappe_unit_stk');
+                        } else {
+                            // Isolasjon (eneste unntak): navn + kapp-bredde/plate-merke; m² KUN VISNING
+                            // (= antall plater × plate-areal, inkl. svinn) — redigeres i popupen.
+                            _lbl = formatKappeIsolationName(e.name, e.enhet);
+                            _pill = (e.specMode === 'plate') ? 'plate' : (e.bredde ? (String(e.bredde).replace(/mm$/i, '') + 'mm') : '');
+                            var _pc = (typeof calcKappePlateCount === 'function') ? calcKappePlateCount(e) : 0;
+                            var _m2 = (_pc > 0 && typeof calcKappeAreaM2 === 'function') ? calcKappeAreaM2(e, _pc) : 0;
+                            _val = _m2 > 0 ? ((typeof formatKappeArea === 'function' ? formatKappeArea(_m2) : _m2) + ' m²') : '';
+                        }
+                        var _pillHtml = _pill ? '<span class="picker-mat-unit-pill">' + escapeHtml(_pill) + '</span>' : '';
+                        var _valCell = _isStift
+                            ? '<input type="text" class="picker-mat-antall picker-iso-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(e.antall ? String(e.antall) : '') + '" placeholder="Antall">'
+                            : '<span class="picker-iso-value">' + escapeHtml(_val) + '</span>';
+                        html += '<div class="picker-mat-row picker-mat-grouped picker-mat-selected picker-iso-subrow" data-iso-key="' + escapeHtml(_key || '') + '">'
+                            + '<div class="picker-mat-check"><span class="picker-mat-name">' + escapeHtml(_lbl) + '</span>' + _pillHtml + '</div>'
+                            + _valCell
+                            + '<button type="button" class="picker-mat-dup-btn picker-iso-dup" title="Dupliser">' + _isoDupIcon + '</button>'
+                            + '<button type="button" class="picker-mat-delete-btn picker-iso-del" title="Fjern">' + _isoDelIcon + '</button>'
+                            + '</div>';
+                    });
+                    return;
+                }
+                // ingen valg → fall gjennom til launcher-rad nedenfor
+            }
             var isLauncherOnly = (group.isSpecGroup || group.isIsolationGroup || group.isStiftGroup) && group.items.length === 1 && group.items[0].name === group.baseName;
             if ((!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) || isLauncherOnly) {
                 group.items.forEach(function(e) {
@@ -3186,11 +3275,48 @@ function openMaterialPicker(btn, onConfirm) {
             html = '<div style="padding:16px;color:#999;text-align:center;">' + t('settings_no_materials') + '</div>';
         }
 
+        // Admin kan legge til nye materialer direkte fra pickeren (samme funksjon
+        // som i Innstillinger). Skjemaet ligger nederst i lista og bygges på nytt
+        // ved hver render (state-drevet) — input fylles bare når brukeren er i det.
+        if (isAdmin && typeof _pickerAddMaterialFormHtml === 'function') {
+            html += _pickerAddMaterialFormHtml();
+        }
+
         list.innerHTML = html;
         attachRowListeners();
     }
 
     function attachRowListeners() {
+        // Isolering-underrader: tap på raden åpner Isolering-popupen (rediger mengde).
+        // Dupliser kloner posten; slett fjerner den ene posten — som spec-rader.
+        list.querySelectorAll('.picker-iso-subrow').forEach(function(row) {
+            var isoKey = row.getAttribute('data-iso-key');
+            row.addEventListener('click', function() { _openIsoMaterialPopup(); });
+            // Festemiddel-rader har redigerbart antall (kun visning på isolasjon). Tap på
+            // input redigerer (stopp propagasjon så raden ikke åpner popupen).
+            var antEl = row.querySelector('.picker-iso-antall');
+            if (antEl) {
+                antEl.addEventListener('click', function(e) { e.stopPropagation(); });
+                antEl.addEventListener('input', function() {
+                    if (isoKey && pickerState[isoKey]) pickerState[isoKey].antall = this.value;
+                });
+            }
+            var isoDup = row.querySelector('.picker-iso-dup');
+            if (isoDup) isoDup.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                if (!isoKey || !pickerState[isoKey]) return;
+                var baseName = isoKey.replace(/__(\d+)$/, '');
+                var newKey = baseName, n = 2;
+                while (pickerState[newKey]) { newKey = baseName + '__' + n; n++; }
+                pickerState[newKey] = JSON.parse(JSON.stringify(pickerState[isoKey]));
+                renderPickerList();
+            });
+            var isoDel = row.querySelector('.picker-iso-del');
+            if (isoDel) isoDel.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                if (isoKey) { delete pickerState[isoKey]; renderPickerList(); }
+            });
+        });
         // Group header click handlers
         list.querySelectorAll('.picker-mat-group-header').forEach(function(header) {
             header.addEventListener('click', function() {
@@ -3199,27 +3325,8 @@ function openMaterialPicker(btn, onConfirm) {
                 if (headerType === 'kappe-isolation') {
                     _openIsoMaterialPopup();
                 } else if (headerType === 'mansjett' || headerType === 'brannpakning' || headerType === 'kabelhylse') {
-                    // Spec material header: open spec popup
-                    openSpecPopup(headerName, function(spec, meterValue) {
-                        var addedKey;
-                        if (meterValue !== undefined) {
-                            addedKey = headerName + '__meter';
-                            if (pickerState[addedKey]) addedKey = nextPickerDuplicateKey(addedKey);
-                            pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
-                        } else {
-                            var fullName = headerName + ' ' + spec;
-                            // Tillat duplikater: hvis spec-entry allerede finnes, bruk __N suffix
-                            addedKey = fullName;
-                            if (pickerState[addedKey]) {
-                                var n = 2;
-                                while (pickerState[fullName + '__' + n]) n++;
-                                addedKey = fullName + '__' + n;
-                            }
-                            pickerState[addedKey] = { checked: true, antall: '', enhet: 'stk' };
-                        }
-                        renderPickerList();
-                        _scrollPickerToRow(addedKey);
-                    }, headerType);
+                    // Spec material header: åpne multi-add-popup (dimensjoner + antall).
+                    _openSpecMultiForBase(headerName, headerType);
                 } else {
                     // Standard material with variants: toggle with default variant
                     var stdMatObj = allMaterials.find(function(m) { return m.name === headerName; });
@@ -3240,6 +3347,10 @@ function openMaterialPicker(btn, onConfirm) {
         });
 
         list.querySelectorAll('.picker-mat-row').forEach(row => {
+            // Isolering-underrader er kun visning og har egen klikk-handler (åpner popup).
+            // De mangler data-mat-name/-type og Antall-input, så den generiske rad-logikken
+            // skal IKKE røre dem (ellers null-navn/dobbel-handler).
+            if (row.classList.contains('picker-iso-subrow')) return;
             const nameDiv = row.querySelector('.picker-mat-check');
             const antallInput = row.querySelector('.picker-mat-antall');
             const name = row.getAttribute('data-mat-name');
@@ -3259,29 +3370,8 @@ function openMaterialPicker(btn, onConfirm) {
                     return;
                 }
                 if (matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse') {
-                    // Spec-launcher: åpne spec-popup. Highlighting er knyttet til om
-                    // popup blir fylt (spec-derived entry opprettes), ikke selve klikket.
-                    const baseMat = allMaterials.find(m => m.name === name);
-                    openSpecPopup(name, function(spec, meterValue) {
-                        var addedKey;
-                        if (meterValue !== undefined) {
-                            addedKey = name + '__meter';
-                            if (pickerState[addedKey]) addedKey = nextPickerDuplicateKey(addedKey);
-                            pickerState[addedKey] = { checked: true, antall: meterValue, enhet: 'meter' };
-                        } else {
-                            var fullName = name + ' ' + spec;
-                            // Tillat duplikater: hvis spec-entry allerede finnes, bruk __N suffix
-                            addedKey = fullName;
-                            if (pickerState[addedKey]) {
-                                var n = 2;
-                                while (pickerState[fullName + '__' + n]) n++;
-                                addedKey = fullName + '__' + n;
-                            }
-                            pickerState[addedKey] = { checked: true, antall: '', enhet: 'stk' };
-                        }
-                        renderPickerList();
-                        _scrollPickerToRow(addedKey);
-                    }, matType);
+                    // Spec-launcher: åpne multi-add-popup (dimensjoner + antall i samme operasjon).
+                    _openSpecMultiForBase(name, matType);
                     return;
                 }
                 var isolationState = pickerState[name];
@@ -3337,31 +3427,9 @@ function openMaterialPicker(btn, onConfirm) {
                     derivedBase = findBaseMaterial(name);
                 }
                 if (derivedBase) {
-                    var oldName = name;
-                    var oldState = pickerState[oldName] ? Object.assign({}, pickerState[oldName]) : {};
-                    var prefill = _parseSpecFromName(oldName, derivedBase.name);
-                    if (prefill && prefill.isMeter) prefill.meter = oldState.antall || '';
-                    openSpecPopup(derivedBase.name, function(spec, meterValue) {
-                        var targetKey;
-                        delete pickerState[oldName];
-                        if (meterValue !== undefined) {
-                            var meterKey = parsedNameKey.isMeterEntry ? oldName : derivedBase.name + '__meter';
-                            if (!parsedNameKey.isMeterEntry && pickerState[meterKey]) meterKey = nextPickerDuplicateKey(meterKey);
-                            // Meter skrives nå direkte i popupen; bruk den verdien.
-                            // Fallback til gammel antall kun hvis tom (skal ikke skje pga. validering).
-                            var preservedAntall = meterValue || (parsedNameKey.isMeterEntry ? (oldState.antall || '') : '');
-                            pickerState[meterKey] = { checked: true, antall: preservedAntall, enhet: 'meter' };
-                            targetKey = meterKey;
-                        } else {
-                            var newName = derivedBase.name + ' ' + spec;
-                            // Bevar Antall fra gammel entry (men bare hvis dimensjons-modus,
-                            // siden meter-modus erstatter Antall med meter-verdi)
-                            pickerState[newName] = { checked: true, antall: oldState.antall || '', enhet: oldState.enhet || 'stk' };
-                            targetKey = newName;
-                        }
-                        renderPickerList();
-                        _scrollPickerToRow(targetKey);
-                    }, derivedBase.type, prefill);
+                    // Tap på spec-underrad åpner multi-add-popupen forhåndsfylt med ALLE
+                    // basens poster (rediger/legg til; "Velg" erstatter hele settet).
+                    _openSpecMultiForBase(derivedBase.name, derivedBase.type);
                     return;
                 }
                 // Standard-materialer med varianter: klikk på navn åpner variant-popup
@@ -3695,6 +3763,27 @@ function _parseSpecFromName(name, baseName) {
         return null;
     }
     return result;
+}
+
+// Bygger spec-streng fra dimensjons-tall (delt av enkelt- og multi-popup).
+// Returnerer streng (f.eks. "Ø111x2222mm", "111x222mm", "Ø111mm 2 lag"), eller
+// null hvis type-spesifikt påkrevd felt mangler (dybde for kabelhylse, runder for
+// brannpakning). num1 antas allerede validert > 0.
+function _buildSpecString(matType, num1, num2, num3) {
+    var isSquare = num2 > 0;
+    if (matType === 'mansjett') {
+        return isSquare ? (num1 + 'x' + num2 + 'mm') : ('Ø' + num1 + 'mm');
+    }
+    if (matType === 'brannpakning') {
+        if (!num3 || num3 <= 0) return null;
+        var s = isSquare ? (num1 + 'x' + num2) : ('Ø' + num1);
+        s += 'mm';
+        if (num3 > 1) s += ' ' + num3 + ' lag';
+        return s;
+    }
+    // kabelhylse
+    if (!num3 || num3 <= 0) return null;
+    return isSquare ? (num1 + 'x' + num2 + 'x' + num3 + 'mm') : ('Ø' + num1 + 'x' + num3 + 'mm');
 }
 
 function openSpecPopup(baseName, callback, matType, prefill) {

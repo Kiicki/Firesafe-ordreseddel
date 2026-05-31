@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=713">
+    <link rel="stylesheet" href="styles.css?v=726">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -771,44 +771,9 @@
                         </div>
                     </div>
 
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-products')" style="margin-top: 16px;">
-                        <span><span data-i18n="kappe_settings_section_products">Produkter</span> <span class="settings-collapsible-count" id="settings-count-kappe-brands"></span></span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-products">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-kappe-products">
-                        <div id="settings-kappe-brand-items" class="settings-list-container"></div>
-                        <div class="settings-add-material-row">
-                            <div class="settings-add-material-row-top">
-                                <div class="settings-add-material-field">
-                                    <label class="settings-add-label" data-i18n="kappe_settings_product_name">Produkt</label>
-                                    <input type="text" id="settings-new-kappe-brand" autocapitalize="sentences" data-i18n-placeholder="kappe_settings_new_brand_placeholder" placeholder="f.eks. Fireprotect" onkeydown="if(event.key==='Enter'){event.preventDefault();addKappeProduct()}">
-                                </div>
-                            </div>
-                            <div class="settings-add-material-row-bottom">
-                                <div class="settings-add-material-field">
-                                    <label class="settings-add-label" data-i18n="kappe_settings_product_type">Type</label>
-                                    <button type="button" id="settings-new-kappe-type-btn" class="settings-material-type-btn" data-value="isolasjon" data-i18n="kappe_product_type_isolasjon" onclick="event.stopPropagation();openNewKappeProductTypePicker()">Isolasjon</button>
-                                    <select id="settings-new-kappe-type" style="display:none">
-                                        <option value="isolasjon">Isolasjon</option>
-                                        <option value="festemiddel">Festemiddel</option>
-                                    </select>
-                                </div>
-                                <button type="button" class="settings-add-btn" onclick="addKappeProduct()" data-i18n="btn_add">Legg til</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-dimensions')" style="margin-top: 16px;">
-                        <span><span data-i18n="kappe_settings_dimensions">Dimensjoner</span> <span class="settings-collapsible-count" id="settings-count-kappe-dimensions"></span></span>
-                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-dimensions">&rsaquo;</span>
-                    </div>
-                    <div class="settings-collapsible-body" id="settings-body-kappe-dimensions">
-                        <div id="settings-kappe-dim-items" class="settings-list-container"></div>
-                        <div class="settings-add-row">
-                            <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 25" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
-                            <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension()" data-i18n="btn_add">Legg til</button>
-                        </div>
-                    </div>
+                    <!-- Produkter + Dimensjoner er flyttet til Materialer-innstillinger
+                         (samlet ett sted). Kappe-produkter legges til via "Nytt materiale"-
+                         skjemaet (Type=Isolasjon/Festemiddel); dimensjoner i egen seksjon der. -->
 
                     <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-kerf')" style="margin-top: 16px;">
                         <span data-i18n="kappe_settings_kerf">Bladbredde (mm)</span>
@@ -871,6 +836,8 @@
                                     <option value="mansjett">Mansjett</option>
                                     <option value="brannpakning">Brannpakning</option>
                                     <option value="kabelhylse">Kabelhylse</option>
+                                    <option value="isolasjon">Isolasjon</option>
+                                    <option value="festemiddel">Festemiddel</option>
                                 </select>
                             </div>
                             <div class="settings-add-unit-fields">
@@ -878,6 +845,20 @@
                                 <input type="text" id="settings-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron, plate">
                             </div>
                             <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                    </div>
+
+                    <!-- Kappe-dimensjoner (flyttet hit fra Kappeskjema). Brukes av isolasjon/
+                         festemiddel-produkter i kappeskjemaet og Isolering-popupen. -->
+                    <div class="settings-collapsible-header" onclick="toggleSettingsSection('kappe-dimensions')" style="margin-top: 16px;">
+                        <span><span data-i18n="kappe_settings_dimensions">Dimensjoner</span> <span class="settings-collapsible-count" id="settings-count-kappe-dimensions"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-kappe-dimensions">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-kappe-dimensions">
+                        <div id="settings-kappe-dim-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 25" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
+                            <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension()" data-i18n="btn_add">Legg til</button>
                         </div>
                     </div>
                 </div>
@@ -1209,6 +1190,27 @@
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeIsoCardPopup()" data-i18n="btn_cancel">Avbryt</button>
                 <button type="button" class="spec-popup-confirm" onclick="confirmIsoCardPopup()" data-i18n="btn_select">Velg</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-add spec-popup (mansjett/brannpakning/kabelhylse): flere dimensjons-rader
+         m/antall + ev. løpende-meter-rader, modellert på Isolering-popupen. -->
+    <div class="spec-popup-backdrop iso-card-backdrop" id="spec-multi-popup" onclick="if(event.target===this)closeSpecMultiPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header" id="spec-multi-title"></div>
+            <div id="spec-multi-scroll">
+                <div id="spec-multi-empty" class="spec-multi-empty"></div>
+                <div id="spec-multi-rows"></div>
+                <div id="spec-multi-meter-rows"></div>
+                <div class="kappe-add-row-buttons" id="spec-multi-add-buttons">
+                    <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add" onclick="_specMultiAddRow()">+ Dimensjon</button>
+                    <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add-meter" onclick="_specMultiAddMeterRow()">+ Løpende meter</button>
+                </div>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeSpecMultiPopup()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-confirm" onclick="confirmSpecMultiPopup()" data-i18n="btn_select">Velg</button>
             </div>
         </div>
     </div>
@@ -1671,9 +1673,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=244"></script>
-    <script src="script.js?v=450"></script>
-    <script src="script-ui.js?v=856"></script>
+    <script src="lang.js?v=245"></script>
+    <script src="script.js?v=458"></script>
+    <script src="script-ui.js?v=864"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

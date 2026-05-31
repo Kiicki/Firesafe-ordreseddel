@@ -3572,6 +3572,26 @@ label.settings-default-label.field-required > span::after {
     transition: all 0.15s ease;
     color: #333;
 }
+/* «+ Ny dimensjon» nederst i dim-kolonnen + inline-input ved redigering. */
+.kappe-picker-add-dim {
+    border-style: dashed;
+    border-color: #d6d6db;
+    color: #E8501A;
+    font-weight: 600;
+}
+.kappe-picker-add-dim-edit {
+    border-color: #E8501A;
+    padding: 4px;
+}
+.kappe-picker-add-dim-input {
+    width: 100%;
+    border: none;
+    outline: none;
+    text-align: center;
+    font-size: 15px;
+    background: transparent;
+    color: #1c1c1e;
+}
 .kappe-product-picker-row:active {
     background: #fff5f0;
 }
@@ -3635,6 +3655,21 @@ label.settings-default-label.field-required > span::after {
 .picker-mat-row.picker-mat-selected {
     background: #f8fff8;
     border-left: 4px solid #E8501A;
+}
+
+/* Isolering-underrader: viser valgt post (navn + m²/antall) + dupliser/slett som specs.
+   Verdien er kun visning (mengde settes i Isolering-popupen). Hele raden klikkbar. */
+.picker-iso-subrow {
+    cursor: pointer;
+}
+.picker-iso-value {
+    flex-shrink: 0;
+    min-width: 64px;
+    text-align: right;
+    font-size: 13px;
+    color: #666;
+    padding: 0 8px;
+    white-space: nowrap;
 }
 
 .picker-mat-check {
@@ -5433,6 +5468,28 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     cursor: pointer;
     white-space: nowrap;
     margin-right: 10px;
+}
+
+/* Legg-til-materiale-skjema nederst i material-pickeren. Gjenbruker
+   settings-add-material-row-stilen; her kun separator + native select-styling. */
+.picker-add-material {
+    margin-top: 8px;
+    background: #fff;
+}
+.picker-add-material select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+    height: 32px;
+    background: #fff;
+    color: #333;
+    outline: none;
+}
+.picker-add-material select:focus {
+    border-color: #E8501A;
 }
 
 .settings-add-btn:active {
@@ -7667,6 +7724,118 @@ body.kappe-view-open #view-form { display: none; }
    den vises over kort-popupen. */
 #iso-card-popup.iso-card-backdrop {
     z-index: 55;
+}
+/* Multi-add spec-popup: kompakt, innholds-tilpasset (vokser IKKE → ikke tomrom),
+   og flat — begge seksjoner (dimensjon + løpende meter) ser like ut. */
+#spec-multi-popup.iso-card-backdrop { z-index: 55; }
+#spec-multi-popup .spec-popup-sheet { gap: 8px; }
+#spec-multi-popup .spec-popup-sheet > *:not(#spec-multi-scroll) { flex-shrink: 0; }
+#spec-multi-scroll {
+    flex: 0 1 auto;            /* innholds-tilpasset; scroller kun hvis høyere enn max-height */
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-right: 4px;
+    padding-bottom: 2px;
+}
+/* Felt + slett-knapp på ÉN linje (som iso-card-row-main): quad-row tar all plass,
+   slett-knappen krymper ikke. Liten horisontal padding så 4 felt får plass. */
+.spec-multi-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 4px 2px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.spec-multi-row .kappe-quad-row {
+    flex: 1;
+    min-width: 0;
+}
+/* «+ Dimensjon» / «+ Løpende meter» side ved side (.kappe-add-row-buttons),
+   med litt luft over så de skilles fra radene. */
+#spec-multi-popup .kappe-add-row-buttons {
+    margin-top: 2px;
+}
+/* Dempet hint når popupen er tom (ingen rader ennå) — fyller tomrommet. */
+.spec-multi-empty {
+    text-align: center;
+    color: #9b9ba1;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 14px 8px 6px;
+}
+/* ── Moderne/profesjonell polish for spec-multi-popupen ────────────────────── */
+#spec-multi-popup .spec-popup-header {
+    font-size: 17px;
+    letter-spacing: .01em;
+    margin-bottom: 2px;
+}
+/* Små, dempede uppercase-etiketter (iOS/SaaS-stil). */
+#spec-multi-popup .kappe-quad-row .mobile-field label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #8e8e93;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    margin-bottom: 5px;
+}
+/* Rene, fylte inputs som blir hvite m/oransje fokus-ring. */
+#spec-multi-popup .kappe-quad-row .mobile-field input {
+    height: 42px;
+    padding: 0 6px;
+    border: 1px solid #d4d4da;
+    border-radius: 10px;
+    background: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+    color: #1c1c1e;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+#spec-multi-popup .kappe-quad-row .mobile-field input:focus {
+    border-color: #E8501A;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(232,80,26,.12);
+    outline: none;
+}
+#spec-multi-popup .kappe-quad-row .mobile-field input::placeholder {
+    color: #b8b8be;
+    font-weight: 400;
+}
+/* Slett-ikon vertikalt sentrert på input-nivå. Rødt = aktiv handling (grå er
+   reservert for deaktivert, jf. prosjektreglene). */
+#spec-multi-popup .spec-multi-row .kappe-kapp-remove-btn {
+    height: 42px;
+    align-items: center;
+    padding: 0 0 0 4px;
+    color: #e74c3c;
+}
+/* Diskré «+ Legg til»-knapper. Mindre font + smal horisontal padding så lengre
+   etikett ("+ Løpende meter") får luft på begge sider og sentreres tydelig. */
+#spec-multi-popup .kappe-add-kapp-btn {
+    margin: 0;
+    padding: 11px 6px;
+    border: 1px dashed #d6d6db;
+    border-radius: 10px;
+    background: #fff;
+    font-size: 13px;
+    text-align: center;
+}
+#spec-multi-popup .kappe-add-kapp-btn:active {
+    background: #fff4f0;
+    border-color: #E8501A;
+}
+/* Avrundede, moderne footer-knapper. */
+#spec-multi-popup .spec-popup-buttons { gap: 10px; }
+#spec-multi-popup .spec-popup-cancel,
+#spec-multi-popup .spec-popup-confirm {
+    border-radius: 12px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
 }
 /* Skjul iso-kort-popupen helt mens produkt-/festemiddel-undervelgeren er
    åpen oppå den (samme mønster som dag-timer ↔ plan), så man ikke ser

@@ -1461,7 +1461,7 @@ function showSettingsPage(page) {
         if (newDimEl) newDimEl.value = '';
         if (newKappeUnitsEl) newKappeUnitsEl.value = '';
         updateKappeNewProductUnitPlaceholder();
-        renderKappeProductSettings();
+        // Produkter + Dimensjoner forvaltes nå på Materialer-siden (ikke her).
         _loadKappeKerfSetting();
         _loadKappePlateSetting();
         renderKappePlateSettings();
@@ -1492,8 +1492,11 @@ function showSettingsPage(page) {
         document.getElementById('settings-new-material').value = '';
         document.getElementById('settings-new-material-type').value = 'standard';
         document.getElementById('settings-new-material-variant').value = '';
+        var newKappeDimEl = document.getElementById('settings-new-kappe-dim');
+        if (newKappeDimEl) newKappeDimEl.value = '';
         updateSettingsUnitFields();
         renderMaterialSettingsItems();
+        _renderKappeDimensions();
         // Refresh from Firebase
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
@@ -1622,10 +1625,7 @@ function saveMaterialSettings() {
 
 function renderMaterialSettingsItems() {
     const container = document.getElementById('settings-material-items');
-    if (settingsMaterials.length === 0) {
-        container.innerHTML = '';
-        return;
-    }
+    if (!container) return;
     // Remember which groups were expanded
     const expandedSet = new Set();
     container.querySelectorAll('.settings-material-group.expanded').forEach(el => {
@@ -1634,7 +1634,7 @@ function renderMaterialSettingsItems() {
             expandedSet.add(name.textContent);
         }
     });
-    container.innerHTML = settingsMaterials.map((item, idx) => {
+    var materialsHtml = settingsMaterials.map((item, idx) => {
         const unitLocked = item.type !== 'standard';
         const variants = unitLocked ? [] : (item.allowedUnits || []);
         const variantsHtml = variants.map((u, ui) => {
@@ -1666,6 +1666,13 @@ function renderMaterialSettingsItems() {
             <div class="settings-material-body">${bodyContent}</div>
         </div>`;
     }).join('');
+    // Kappe-produkter (isolasjon/festemiddel) vises i SAMME liste, men ligger i et
+    // eget datasystem (kappe-katalogen). Hver rad har egne edit/slett/type-handlere.
+    var kappeProducts = (typeof getKappeCatalogProducts === 'function') ? getKappeCatalogProducts() : [];
+    var kappeHtml = (kappeProducts.length && typeof _kappeProductSettingsItemHtml === 'function')
+        ? kappeProducts.map(function(p, i) { return _kappeProductSettingsItemHtml(p, i); }).join('')
+        : '';
+    container.innerHTML = materialsHtml + kappeHtml;
 }
 
 
@@ -1833,6 +1840,18 @@ async function addSettingsMaterial() {
         }, 1500);
         return;
     }
+    // Kappe-produkt (isolasjon/festemiddel) → kappe-katalogen, ikke materialliste.
+    if (type === 'isolasjon' || type === 'festemiddel') {
+        var rk = _addKappeProduct(val, type);
+        if (!rk.ok) { showNotificationModal(t('kappe_settings_duplicate')); return; }
+        input.value = '';
+        variantInput.value = '';
+        typeSelect.value = 'standard';
+        updateSettingsUnitFields();
+        renderMaterialSettingsItems();
+        showNotificationModal(t('settings_material_added'), true);
+        return;
+    }
     if (settingsMaterials.some(m => m.name.toLowerCase() === val.toLowerCase())) {
         showNotificationModal(t('settings_material_exists'));
         return;
@@ -1853,6 +1872,157 @@ async function addSettingsMaterial() {
     updateSettingsUnitFields();
     renderMaterialSettingsItems();
     await saveMaterialSettings();
+    showNotificationModal(t('settings_material_added'), true);
+}
+
+// ── Legg til materiale direkte fra material-pickeren ─────────────────────────
+// Speiler "Nytt materiale"-skjemaet i Innstillinger, men jobber mot
+// cachedMaterialOptions (alltid lastet når pickeren er åpen) i stedet for
+// settingsMaterials (som kun fylles når Innstillinger-siden åpnes). Begge skriver
+// til SAMME kilde: localStorage 'firesafe_materials' + Firestore settings/materials.
+
+// Delt persist for materialliste (samme dokument/format som saveMaterialSettings).
+function _persistMaterialsDoc(materials) {
+    var data = {
+        materials: materials.map(function(m) {
+            return { name: m.name, type: m.type || 'standard', defaultUnit: m.defaultUnit || '', allowedUnits: m.allowedUnits || [] };
+        }),
+        units: []
+    };
+    safeSetItem(MATERIALS_KEY, JSON.stringify(data));
+    if (currentUser && db) {
+        db.collection('settings').doc('materials').set(data)
+            .catch(function(e) { console.error('Persist materials error:', e); });
+    }
+}
+
+// Legger til et kappe-produkt (type isolasjon/festemiddel) i kappe-katalogen.
+// Samme logikk som addKappeProduct i kappe-innstillinger, men kallbar fra de
+// felles "Nytt materiale"-skjemaene (picker + Materialer-innstillinger).
+// Returnerer { ok:true } eller { ok:false, error:'dup' }.
+function _addKappeProduct(name, type) {
+    var val = (name || '').trim();
+    var products = getKappeCatalogProducts();
+    if (products.some(function(p) { return (p.name || '').toLowerCase() === val.toLowerCase(); })) {
+        return { ok: false, error: 'dup' };
+    }
+    var units = type === 'festemiddel' ? ['stk', 'eske'] : ['meter', 'stk'];
+    products.push({ name: val, type: type, units: units, defaultUnit: units[0], usesDimensions: true });
+    _saveKappeProducts(products, getKappeDimensions());
+    return { ok: true };
+}
+
+// HTML for add-skjemaet nederst i pickeren (gjenbruker settings-klasser for stil).
+function _pickerAddMaterialFormHtml() {
+    return '<div class="settings-add-material-row picker-add-material">' +
+        '<div class="settings-add-material-row-top">' +
+            '<div class="settings-add-material-field">' +
+                '<label class="settings-add-label">Nytt materiale <span class="spec-required-star">*</span></label>' +
+                '<input type="text" id="picker-new-material" autocapitalize="sentences">' +
+            '</div>' +
+        '</div>' +
+        '<div class="settings-add-material-row-bottom">' +
+            '<div class="settings-add-material-field">' +
+                '<label class="settings-add-label">Type <span class="spec-required-star">*</span></label>' +
+                // Samme egendefinerte type-velger som Innstillinger (knapp + skjult select).
+                '<button type="button" id="picker-new-material-type-btn" class="settings-material-type-btn" data-value="standard" onclick="event.stopPropagation();openPickerMatTypePicker()">' + t('material_type_standard') + '</button>' +
+                '<select id="picker-new-material-type" style="display:none" onchange="_updatePickerVariantField()">' +
+                    '<option value="standard">' + t('material_type_standard') + '</option>' +
+                    '<option value="mansjett">' + t('material_type_mansjett') + '</option>' +
+                    '<option value="brannpakning">' + t('material_type_brannpakning') + '</option>' +
+                    '<option value="kabelhylse">' + t('material_type_kabelhylse') + '</option>' +
+                    '<option value="isolasjon">' + t('kappe_product_type_isolasjon') + '</option>' +
+                    '<option value="festemiddel">' + t('kappe_product_type_festemiddel') + '</option>' +
+                '</select>' +
+            '</div>' +
+            '<div class="settings-add-unit-fields" id="picker-variant-field">' +
+                '<label class="settings-add-label">Variant (valgfri)</label>' +
+                '<input type="text" id="picker-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron, plate">' +
+            '</div>' +
+            '<button type="button" class="settings-add-btn" onclick="addPickerMaterial()">' + t('btn_add') + '</button>' +
+        '</div>' +
+    '</div>';
+}
+
+// Åpner den egendefinerte type-velgeren (samme som Innstillinger) for picker-skjemaet.
+// includeKappe=true → isolasjon/festemiddel er med. Oppdaterer skjult select + knapp-label.
+function openPickerMatTypePicker() {
+    var sel = document.getElementById('picker-new-material-type');
+    if (!sel || typeof _renderMatTypePicker !== 'function') return;
+    _renderMatTypePicker(sel.value, function(newValue) {
+        sel.value = newValue;
+        var btn = document.getElementById('picker-new-material-type-btn');
+        if (btn) {
+            var lblKey = (newValue === 'isolasjon' || newValue === 'festemiddel')
+                ? ('kappe_product_type_' + newValue)
+                : ('material_type_' + newValue);
+            btn.dataset.value = newValue;
+            btn.textContent = t(lblKey);
+        }
+        if (typeof _updatePickerVariantField === 'function') _updatePickerVariantField();
+    }, true);
+}
+
+// Variant-feltet gjelder kun for type 'standard' (som i Innstillinger).
+function _updatePickerVariantField() {
+    var typeEl = document.getElementById('picker-new-material-type');
+    var field = document.getElementById('picker-variant-field');
+    if (!typeEl || !field) return;
+    var isStandard = typeEl.value === 'standard';
+    field.style.display = isStandard ? '' : 'none';
+    if (!isStandard) {
+        var v = document.getElementById('picker-new-material-variant');
+        if (v) v.value = '';
+    }
+}
+
+async function addPickerMaterial() {
+    if (!isAdmin) return;
+    var nameEl = document.getElementById('picker-new-material');
+    var typeEl = document.getElementById('picker-new-material-type');
+    var variantEl = document.getElementById('picker-new-material-variant');
+    if (!nameEl || !typeEl) return;
+    var val = (nameEl.value || '').trim();
+    var type = typeEl.value || 'standard';
+    var variant = variantEl ? (variantEl.value || '').trim() : '';
+    if (!val) {
+        nameEl.classList.add('settings-input-error');
+        setTimeout(function() { nameEl.classList.remove('settings-input-error'); }, 1500);
+        return;
+    }
+    // Kappe-produkt (isolasjon/festemiddel) → kappe-katalogen, ikke materialliste.
+    if (type === 'isolasjon' || type === 'festemiddel') {
+        var rk = _addKappeProduct(val, type);
+        if (!rk.ok) { showNotificationModal(t('kappe_settings_duplicate')); return; }
+        nameEl.value = '';
+        if (variantEl) variantEl.value = '';
+        typeEl.value = 'standard';
+        if (typeof pickerRenderFn === 'function') pickerRenderFn();
+        showNotificationModal(t('settings_material_added'), true);
+        return;
+    }
+    var current = Array.isArray(cachedMaterialOptions) ? cachedMaterialOptions : [];
+    if (current.some(function(m) { return (m.name || '').toLowerCase() === val.toLowerCase(); })) {
+        showNotificationModal(t('settings_material_exists'));
+        return;
+    }
+    var allowedUnits = [];
+    if (type === 'standard' && variant) allowedUnits.push(variant);
+    var newMat = { name: val, type: type, defaultUnit: 'stk', allowedUnits: allowedUnits };
+    var updated = current.slice();
+    updated.push(newMat);
+    updated.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+    cachedMaterialOptions = updated;
+    // Hold settings-arrayet i synk hvis det finnes (Innstillinger reloader uansett ved åpning).
+    if (typeof settingsMaterials !== 'undefined' && Array.isArray(settingsMaterials)) {
+        settingsMaterials = updated.slice();
+    }
+    _persistMaterialsDoc(updated);
+    nameEl.value = '';
+    if (variantEl) variantEl.value = '';
+    typeEl.value = 'standard';
+    // Bygg pickeren på nytt så det nye materialet vises (state/quantities bevares).
+    if (typeof pickerRenderFn === 'function') pickerRenderFn();
     showNotificationModal(t('settings_material_added'), true);
 }
 
@@ -1914,7 +2084,7 @@ function editSettingsMaterial(idx) {
 
 // Felles popup-renderer for type-velger. Brukes både for eksisterende materiale
 // (changeMaterialType) og for nytt materiale (oppdaterer skjult select + button-label).
-function _renderMatTypePicker(currentValue, onSelect) {
+function _renderMatTypePicker(currentValue, onSelect, includeKappe) {
     const existing = document.querySelector('.mat-type-backdrop');
     if (existing) { closeMatTypeDropdown(); return; }
 
@@ -1924,6 +2094,12 @@ function _renderMatTypePicker(currentValue, onSelect) {
         { value: 'brannpakning', icon: '◎', desc: t('material_type_brannpakning_desc'), lm: true },
         { value: 'kabelhylse', icon: '⬡', desc: t('material_type_kabelhylse_desc'), lm: false }
     ];
+    // Kappe-typer tas kun med i ADD-skjemaet (ikke ved type-bytte på et eksisterende
+    // materiale — de tilhører et annet datasystem og kan ikke "byttes til").
+    if (includeKappe) {
+        types.push({ value: 'isolasjon', icon: '▤', desc: _getKappeProductTypeDesc('isolasjon'), lm: false, label: _getKappeProductTypeLabel('isolasjon') });
+        types.push({ value: 'festemiddel', icon: '⌗', desc: _getKappeProductTypeDesc('festemiddel'), lm: false, label: _getKappeProductTypeLabel('festemiddel') });
+    }
 
     const backdrop = document.createElement('div');
     backdrop.className = 'mat-type-backdrop';
@@ -1932,7 +2108,7 @@ function _renderMatTypePicker(currentValue, onSelect) {
     const dropdown = document.createElement('div');
     dropdown.className = 'mat-type-dropdown';
 
-    types.forEach(({ value, icon, desc, lm }) => {
+    types.forEach(({ value, icon, desc, lm, label }) => {
         const isActive = value === currentValue;
         const item = document.createElement('div');
         item.className = 'mat-type-dropdown-item' + (isActive ? ' active' : '');
@@ -1940,7 +2116,7 @@ function _renderMatTypePicker(currentValue, onSelect) {
         item.innerHTML = `
             <div class="mat-type-icon">${icon}</div>
             <div class="mat-type-text">
-                <div class="mat-type-label">${t('material_type_' + value)}${lmBadge}</div>
+                <div class="mat-type-label">${label || t('material_type_' + value)}${lmBadge}</div>
                 <div class="mat-type-desc">${desc.split(' — ')[1] || desc}</div>
             </div>
             <div class="mat-type-check">${isActive ? '✓' : ''}</div>
@@ -1972,17 +2148,21 @@ function openMatTypeDropdown(btn, idx) {
 function openNewMatTypePicker() {
     var sel = document.getElementById('settings-new-material-type');
     if (!sel) return;
+    // includeKappe=true: add-skjemaet kan også opprette kappe-produkter (isolasjon/festemiddel).
     _renderMatTypePicker(sel.value, function(newValue) {
         sel.value = newValue;
         var btn = document.getElementById('settings-new-material-type-btn');
         if (btn) {
+            var lblKey = (newValue === 'isolasjon' || newValue === 'festemiddel')
+                ? ('kappe_product_type_' + newValue)
+                : ('material_type_' + newValue);
             btn.dataset.value = newValue;
-            btn.textContent = t('material_type_' + newValue);
+            btn.textContent = t(lblKey);
             // Oppdater data-i18n så applyTranslations beholder riktig label ved språk-bytte
-            btn.setAttribute('data-i18n', 'material_type_' + newValue);
+            btn.setAttribute('data-i18n', lblKey);
         }
         if (typeof updateSettingsUnitFields === 'function') updateSettingsUnitFields();
-    });
+    }, true);
 }
 
 function closeMatTypeDropdown() {
@@ -9569,12 +9749,7 @@ function _renderKappePickerDimensions(products) {
 
     var dims = _getProductDimensionPickerDimensionsForBrand(_kappePickerSelectedBrand);
 
-    if (!dims.length) {
-        listEl.innerHTML = '<div class="kappe-product-picker-empty">' + t('kappe_settings_no_dimensions') + '</div>';
-        return;
-    }
-
-    listEl.innerHTML = dims.map(function(dim) {
+    var html = dims.length ? dims.map(function(dim) {
         var isSel = _productDimensionPickerMultiDim
             ? (_kappePickerPairIndex(_kappePickerSelectedBrand, dim) !== -1)
             : (dim === _kappePickerSelectedDim);
@@ -9584,7 +9759,67 @@ function _renderKappePickerDimensions(products) {
         return '<div class="kappe-product-picker-row' + sel + '" onclick="' + fn + '(\'' + safe + '\')">' +
             '<span class="kappe-product-picker-name">' + escapeHtml(_formatDimMm(dim)) + '</span>' +
             '</div>';
-    }).join('');
+    }).join('') : '<div class="kappe-product-picker-empty">' + t('kappe_settings_no_dimensions') + '</div>';
+
+    // Legg til ny dimensjon RETT her (delt liste) — slipper å gå til Innstillinger.
+    // Vises kun når dim-lista er global (ikke per-produkt-getter).
+    if (!_productDimensionPickerGetDimensionsForProduct) {
+        html += '<div class="kappe-product-picker-row kappe-picker-add-dim" onclick="_kappePickerStartAddDim()">+ Ny dimensjon</div>';
+    }
+    listEl.innerHTML = html;
+}
+
+// «+ Ny dimensjon»: gjør rad-en om til et inline-input (uten å forlate pickeren).
+function _kappePickerStartAddDim() {
+    var listEl = document.getElementById('kappe-product-picker-list');
+    if (!listEl) return;
+    var addRow = listEl.querySelector('.kappe-picker-add-dim');
+    if (!addRow || listEl.querySelector('.kappe-picker-add-dim-input')) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'kappe-product-picker-row kappe-picker-add-dim-edit';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'kappe-picker-add-dim-input';
+    input.inputMode = 'numeric';
+    input.setAttribute('pattern', '[0-9]*');
+    input.placeholder = 'mm';
+    input.onclick = function(e) { e.stopPropagation(); };
+    var committed = false;
+    function commit() { if (committed) return; committed = true; _kappePickerCommitAddDim(input.value); }
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'Escape') { committed = true; _renderKappePickerDimensions(); }
+    });
+    input.addEventListener('blur', commit);
+    wrap.appendChild(input);
+    addRow.replaceWith(wrap);
+    input.focus();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+
+// Lagrer ny dimensjon til den DELTE kappe-dim-lista (samme som Innstillinger) og
+// velger den automatisk. Tom/duplikat → bare velg/avbryt uten å lagre dobbelt.
+function _kappePickerCommitAddDim(value) {
+    var dim = String(value || '').trim().replace(/mm$/i, '').trim();
+    if (!dim) { _renderKappePickerDimensions(); return; }
+    var dimensions = (typeof getKappeDimensions === 'function') ? getKappeDimensions().slice() : [];
+    var exists = dimensions.some(function(d) { return d.toLowerCase() === dim.toLowerCase(); });
+    if (!exists) {
+        dimensions.push(dim);
+        if (typeof _sortKappeNumeric === 'function') _sortKappeNumeric(dimensions);
+        _saveKappeProducts(getKappeCatalogProducts(), dimensions);
+        _productDimensionPickerDimensions = dimensions;
+    }
+    // Velg den nye (gjenbruk eksisterende velg-handler → setter state + re-render).
+    if (_productDimensionPickerMultiDim) {
+        if (_kappePickerSelectedBrand && _kappePickerPairIndex(_kappePickerSelectedBrand, dim) === -1) {
+            _toggleKappePickerDim(dim);
+        } else {
+            _renderKappePickerDimensions();
+        }
+    } else {
+        _selectKappePickerDim(dim);
+    }
 }
 
 // Indeks for {name,dim}-par i multi-utvalget (-1 = ikke valgt).
@@ -10445,6 +10680,160 @@ function _isoCardEnsureActiveRow() {
         c.appendChild(_createIsoCardFastenerRow({}));
         _updateRowsRemoveStates('iso-card-fastener-rows');
     }
+}
+
+// ── Multi-add spec-popup (mansjett/brannpakning/kabelhylse) ──────────────────
+// Speiler isolering-popupen: flere dimensjons-rader (m/antall) + ev. løpende-
+// meter-rader i én operasjon. callback(selections) kalles ÉN gang med hele
+// listen; hver selection er { spec, antall, enhet:'stk' } eller { isMeter, antall, enhet:'meter' }.
+var _specMultiCallback = null;
+var _specMultiMatType = 'kabelhylse';
+
+function openSpecMultiPopup(baseName, matType, callback, prefillEntries) {
+    var popup = document.getElementById('spec-multi-popup');
+    if (!popup) return;
+    _specMultiCallback = callback || null;
+    _specMultiMatType = matType || 'kabelhylse';
+    var title = document.getElementById('spec-multi-title');
+    if (title) title.textContent = baseName || '';
+    var rowsC = document.getElementById('spec-multi-rows');
+    var meterC = document.getElementById('spec-multi-meter-rows');
+    if (rowsC) rowsC.innerHTML = '';
+    if (meterC) meterC.innerHTML = '';
+    // Løpende-meter-knappen kun for mansjett/brannpakning (ikke kabelhylse).
+    var hasMeter = (_specMultiMatType === 'mansjett' || _specMultiMatType === 'brannpakning');
+    var meterBtn = document.getElementById('spec-multi-add-meter');
+    if (meterBtn) meterBtn.style.display = hasMeter ? '' : 'none';
+
+    // INGEN default-rad — bruker velger selv (dimensjon eller løpende meter), som
+    // isolering der man velger kapp/plate. Kun forhåndsfylte poster vises.
+    var dimEntries = [], meterEntries = [];
+    (prefillEntries || []).forEach(function(e) {
+        if (e && e.isMeter) meterEntries.push(e); else if (e) dimEntries.push(e);
+    });
+    if (rowsC) dimEntries.forEach(function(e) { rowsC.appendChild(_createSpecRow(_specMultiMatType, e)); });
+    if (meterC) meterEntries.forEach(function(e) { meterC.appendChild(_createSpecMeterRow(e)); });
+    var emptyEl = document.getElementById('spec-multi-empty');
+    if (emptyEl) emptyEl.textContent = hasMeter
+        ? 'Legg til dimensjoner eller løpende meter nedenfor.'
+        : 'Legg til en eller flere dimensjoner nedenfor.';
+    _specMultiUpdateEmptyState();
+    if (typeof applyTranslations === 'function') applyTranslations();
+    popup.classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+
+function closeSpecMultiPopup() {
+    var popup = document.getElementById('spec-multi-popup');
+    if (popup) popup.classList.remove('active');
+    _specMultiCallback = null;
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+
+// Dimensjon-rad: type-feltene + Antall. Felt 3 = Dybde (kabelhylse) / Lag (brannpakning) / skjult (mansjett).
+function _createSpecRow(matType, data) {
+    var d = data || {};
+    var row = document.createElement('div');
+    row.className = 'spec-multi-row';
+    var f3 = '';
+    if (matType === 'brannpakning') {
+        f3 = '<div class="mobile-field field-required"><label>Lag</label>' +
+            '<input type="text" class="spm-f3" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.rounds != null ? String(d.rounds) : '') + '"></div>';
+    } else if (matType !== 'mansjett') {
+        f3 = '<div class="mobile-field field-required"><label>Dybde</label>' +
+            '<input type="text" class="spm-f3" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.depth != null ? String(d.depth) : '') + '"></div>';
+    }
+    row.innerHTML =
+        '<div class="kappe-quad-row">' +
+            '<div class="mobile-field field-required"><label>Bredde</label>' +
+                '<input type="text" class="spm-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
+            '<div class="mobile-field"><label>Høyde</label>' +
+                '<input type="text" class="spm-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>' +
+            f3 +
+            '<div class="mobile-field field-required"><label>Antall</label>' +
+                '<input type="text" class="spm-antall" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall != null ? String(d.antall) : '') + '"></div>' +
+        '</div>' +
+        '<button type="button" class="kappe-kapp-remove-btn" onclick="_specMultiRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
+    return row;
+}
+
+function _createSpecMeterRow(data) {
+    var d = data || {};
+    var row = document.createElement('div');
+    row.className = 'spec-multi-row spec-multi-meter-row';
+    row.innerHTML =
+        '<div class="kappe-quad-row">' +
+            '<div class="mobile-field field-required"><label>Meter</label>' +
+                '<input type="text" class="spm-meter" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(d.antall != null ? String(d.antall) : '') + '"></div>' +
+        '</div>' +
+        '<button type="button" class="kappe-kapp-remove-btn" onclick="_specMultiRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
+    return row;
+}
+
+// Vis hint-teksten kun når ingen rader er lagt til (tom popup ser ikke bar ut).
+function _specMultiUpdateEmptyState() {
+    var emptyEl = document.getElementById('spec-multi-empty');
+    if (!emptyEl) return;
+    var rows = document.querySelectorAll('#spec-multi-rows .spec-multi-row, #spec-multi-meter-rows .spec-multi-row');
+    emptyEl.style.display = rows.length ? 'none' : '';
+}
+
+function _specMultiAddRow() {
+    var c = document.getElementById('spec-multi-rows');
+    if (!c) return;
+    c.appendChild(_createSpecRow(_specMultiMatType, null));
+    _specMultiUpdateEmptyState();
+    if (typeof applyTranslations === 'function') applyTranslations();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+
+function _specMultiAddMeterRow() {
+    var c = document.getElementById('spec-multi-meter-rows');
+    if (!c) return;
+    c.appendChild(_createSpecMeterRow(null));
+    _specMultiUpdateEmptyState();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+
+function _specMultiRemoveRow(btn) {
+    var row = btn.closest('.spec-multi-row');
+    if (row) row.remove();
+    _specMultiUpdateEmptyState();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+
+function confirmSpecMultiPopup() {
+    var selections = [];
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#spec-multi-rows .spec-multi-row'));
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var v1 = (r.querySelector('.spm-f1') || {}).value; v1 = v1 ? String(v1).trim() : '';
+        var v2 = (r.querySelector('.spm-f2') || {}).value; v2 = v2 ? String(v2).trim() : '';
+        var f3El = r.querySelector('.spm-f3');
+        var v3 = f3El ? String(f3El.value || '').trim() : '';
+        var av = (r.querySelector('.spm-antall') || {}).value; av = av ? String(av).trim() : '';
+        if (!v1 && !v2 && !v3 && !av) continue; // tom rad
+        var n1 = parseInt(v1, 10);
+        if (!v1 || isNaN(n1) || n1 <= 0) { showNotificationModal(t('dim_invalid_diameter')); return; }
+        var n2 = v2 ? parseInt(v2, 10) : 0;
+        var n3 = v3 ? parseInt(v3, 10) : 0;
+        var spec = (typeof _buildSpecString === 'function') ? _buildSpecString(_specMultiMatType, n1, n2, n3) : null;
+        if (spec === null) { showNotificationModal(t('dim_invalid_diameter')); return; }
+        selections.push({ spec: spec, antall: av, enhet: 'stk' });
+    }
+    var meterRows = Array.prototype.slice.call(document.querySelectorAll('#spec-multi-meter-rows .spec-multi-row'));
+    for (var j = 0; j < meterRows.length; j++) {
+        var mv = (meterRows[j].querySelector('.spm-meter') || {}).value;
+        mv = mv ? String(mv).trim() : '';
+        if (!mv) continue;
+        var mn = parseFloat(mv.replace(',', '.'));
+        if (isNaN(mn) || mn <= 0) { showNotificationModal('Fyll inn gyldig meter, eller fjern tomme.'); return; }
+        selections.push({ isMeter: true, antall: mv, enhet: 'meter' });
+    }
+    if (!selections.length) { showNotificationModal('Fyll inn minst én dimensjon eller løpende meter.'); return; }
+    var cb = _specMultiCallback;
+    closeSpecMultiPopup();
+    if (cb) cb(selections);
 }
 
 function openIsoCardPopup(callback, prefill) {
@@ -13234,33 +13623,21 @@ function saveKappePlateAssign() {
     renderKappePlateSettings();
 }
 
+// Kappe-produkter forvaltes nå i den samlede materiallista (Materialer-innstillinger
+// + picker), og dimensjoner i en egen seksjon på Materialer-siden. Denne funksjonen
+// beholdes som felles refresh-inngang for alle kappe-handlere (add/edit/slett/type).
 function renderKappeProductSettings() {
-    var brandContainer = document.getElementById('settings-kappe-brand-items');
-    var dimContainer = document.getElementById('settings-kappe-dim-items');
-    if (!brandContainer || !dimContainer) return;
+    if (typeof renderMaterialSettingsItems === 'function') renderMaterialSettingsItems();
+    _renderKappeDimensions();
+}
 
-    var expandedSet = new Set();
-    brandContainer.querySelectorAll('.kappe-product-settings-group.expanded').forEach(function(el) {
-        var name = el.querySelector('.settings-kappe-product-name-display');
-        if (name) expandedSet.add(name.textContent);
-    });
-    var products = getKappeCatalogProducts();
+function _renderKappeDimensions() {
+    var dimContainer = document.getElementById('settings-kappe-dim-items');
+    if (!dimContainer) return;
     var dimensions = getKappeDimensions().slice();
     _sortKappeNumeric(dimensions);
-
-    var brandCount = document.getElementById('settings-count-kappe-brands');
-    if (brandCount) brandCount.textContent = products.length ? '(' + products.length + ')' : '';
     var dimCount = document.getElementById('settings-count-kappe-dimensions');
     if (dimCount) dimCount.textContent = dimensions.length ? '(' + dimensions.length + ')' : '';
-
-    brandContainer.innerHTML = products.map(function(p, i) {
-        var html = _kappeProductSettingsItemHtml(p, i);
-        if (expandedSet.has(p.name)) {
-            html = html.replace('kappe-product-settings-group', 'kappe-product-settings-group expanded');
-        }
-        return html;
-    }).join('');
-
     dimContainer.innerHTML = dimensions.map(function(d, i) {
         return _kappeSettingsItemHtml(d, i, 'editGlobalKappeDimension', 'removeGlobalKappeDimension');
     }).join('');
@@ -13291,8 +13668,11 @@ function editKappeProduct(idx) {
     var products = getKappeCatalogProducts();
     var p = products[idx];
     if (!p) return;
-    var container = document.getElementById('settings-kappe-brand-items');
-    var item = container ? container.children[idx] : null;
+    // Kappe-produkter rendres nå i den samlede materiallista; finn rad nr. idx blant
+    // kappe-radene der (robust uavhengig av hvor mange materialer som ligger foran).
+    var matContainer = document.getElementById('settings-material-items');
+    var kappeItems = matContainer ? matContainer.querySelectorAll('.kappe-product-settings-group') : [];
+    var item = kappeItems[idx] || null;
     var span = item ? item.querySelector('.settings-kappe-product-name-display') : null;
     if (!span) return;
     var oldName = p.name;
