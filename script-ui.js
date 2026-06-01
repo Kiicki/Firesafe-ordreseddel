@@ -5938,18 +5938,39 @@ document.addEventListener('DOMContentLoaded', function() {
     var formKeyboardSawViewportShrink = false;
     var lastFormKeyboardTarget = null;
     var maxObservedViewportHeight = window.innerHeight || 0;
-    var IS_TOUCH_DEVICE = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
-        || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    // IS_TOUCH_DEVICE styrer KUN skjermtastatur-relatert layout (kbd-editing,
+    // toolbar-reflow, scroll-dismiss). Et skjermtastatur finnes bare på EKTE
+    // mobil/nettbrett. Firefox «responsive design mode» på PC emulerer touch
+    // (pointer: coarse) men har INTET skjermtastatur (hardware-tastatur), så
+    // touch-signal alene gir falsk tastatur-layout ved fokus. Krev derfor også
+    // mobil-UA: Android PWA matcher; desktop (inkl. RDM uten device-preset) gjør
+    // ikke. iPadOS rapporterer Mac-UA → fang via maxTouchPoints.
+    var _UA = navigator.userAgent || '';
+    var _IS_MOBILE_UA = /Android|iPhone|iPad|iPod|Mobi|Tablet|BlackBerry|Opera Mini|IEMobile|Windows Phone/i.test(_UA)
+        || (navigator.maxTouchPoints > 1 && /Macintosh|Mac OS X/i.test(_UA));
+    var IS_TOUCH_DEVICE = _IS_MOBILE_UA
+        && (('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+            || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
     // Sporer hvilke keyboard-målinger som faktisk fungerer på enheten.
     // Noen Android/PWA-varianter krymper visualViewport, andre krymper
     // window.innerHeight. Fokus brukes bare som fallback før en målemetode
     // har bekreftet at den kan se keyboardet.
     var viewportKeyboardDetectionConfirmed = false;
     var layoutKeyboardDetectionConfirmed = false;
+    // Hvile-gap mellom layout-viewport (innerHeight) og visuelt viewport. Normalt
+    // ~0. I Firefox responsive mode (PC) emuleres IKKE visualViewport → den
+    // rapporterer det ekte vinduet, så gapet er en KONSTANT artefakt (ofte > 100)
+    // selv uten tastatur. Et ekte tastatur krymper viewporten UNDER hvile — vi
+    // måler derfor relativt til minste observerte gap, ikke absolutt. Da slår
+    // RDM-artefakten aldri ut, mens ekte tastatur fortsatt detekteres.
+    var _minViewportGap = Infinity;
     function _isKeyboardOpenByViewport() {
         if (!window.visualViewport) return false;
         var vv = window.visualViewport;
-        return (window.innerHeight - vv.height - vv.offsetTop) > KEYBOARD_THRESHOLD;
+        var gap = window.innerHeight - vv.height - vv.offsetTop;
+        if (gap >= 0 && gap < _minViewportGap) _minViewportGap = gap;  // hvile-gap = minste observerte
+        var base = (_minViewportGap === Infinity) ? 0 : _minViewportGap;
+        return (gap - base) > KEYBOARD_THRESHOLD;
     }
     function _isKeyboardOpenByLayoutResize() {
         return (keyboardBaselineInnerHeight - window.innerHeight) > KEYBOARD_THRESHOLD;
@@ -6209,11 +6230,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // verdi. Dette unngår toolbar-bouncing når input kortvarig mister
         // fokus under scroll og browser midlertidig viser tastatur som lukket.
         var keyboardOpen = updateKeyboardState();
-        // EFFEKTIV tastatur-tilstand for ALL layout (modal/overlay/popup/
-        // toolbar). Viewport-deteksjon feiler i installert PWA (tastaturet
-        // overlapper uten å krympe viewport). Fokus på et tastatur-felt er
-        // derimot 100% pålitelig. IS_TOUCH-gating: på desktop åpnes ikke
-        // noe skjermtastatur ved fokus → kbdActive forblir false der.
+        // EFFEKTIV tastatur-tilstand for ALL layout (modal/overlay/popup/toolbar).
+        // Viewport-deteksjon feiler i installert PWA (tastaturet overlapper uten å
+        // krympe viewport). Fokus på et tastatur-felt er derimot pålitelig — men
+        // KUN på ekte mobil/nettbrett (IS_TOUCH_DEVICE er nå UA-gated, så desktop /
+        // Firefox RDM med emulert touch men uten skjermtastatur gir false her).
         var kbdActive = keyboardOpen
             || (IS_TOUCH_DEVICE && typeof isKeyboardOpeningElement === 'function'
                 && isKeyboardOpeningElement(document.activeElement));
@@ -6360,7 +6381,15 @@ document.addEventListener('DOMContentLoaded', function() {
             // (body.kbd-editing/keyboard-focus → static, siste i scroll).
             // Modal-views beholder sin --inflow-reparenting (modalHost).
             var formHost = null;
-            var modalHost = findToolbarScrollHost(kbdActive, activeId);
+            // Et tastatur kan ikke være åpent uten et fokusert tekstfelt. Krev at
+            // et slikt FAKTISK er fokusert før toolbaren reparenteres til modal-body
+            // — ellers gir falske «tastatur åpent»-signaler (f.eks. Firefox
+            // responsive mode på PC, der visualViewport ikke emuleres og rapporterer
+            // feil høyde) en feilplassert (ikke-fixed) toolbar. På ekte PWA er et
+            // felt alltid fokusert når tastaturet er oppe, så oppførselen er uendret.
+            var _kbdFieldFocused = (typeof isKeyboardOpeningElement === 'function')
+                && isKeyboardOpeningElement(document.activeElement);
+            var modalHost = findToolbarScrollHost(kbdActive && _kbdFieldFocused, activeId);
             if (formHost) {
                 stopToolbarGuard();
                 prepareKeyboardToolbarHost(formHost);
