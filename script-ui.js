@@ -7605,7 +7605,7 @@ function _showCalculatorDirectly() {
     document.querySelector('.calc-section').style.display = '';
     document.querySelectorAll('.calc-page').forEach(function(p) { p.style.display = 'none'; });
     var mb = document.querySelector('#calculator-modal .modal-body');
-    if (mb) mb.style.overflow = '';
+    if (mb) { mb.style.overflow = ''; mb.classList.remove('calc-body-fixed'); }
     if (typeof _swStopTicker === 'function') _swStopTicker();
     updateToolbarState();
 }
@@ -7616,11 +7616,12 @@ function showCalcPage(page) {
     var pageEl = document.getElementById('calc-page-' + page);
     if (pageEl) pageEl.style.display = '';
     var _calcMb = document.querySelector('#calculator-modal .modal-body');
-    if (_calcMb) _calcMb.style.overflow = '';
+    if (_calcMb) { _calcMb.style.overflow = ''; _calcMb.classList.remove('calc-body-fixed'); }
     // Update header
     var header = document.querySelector('#calculator-modal .modal-header span');
     if (page === 'multicollar') {
         header.textContent = 'Multicollar';
+        if (_calcMb) _calcMb.classList.add('calc-body-fixed');
         var input = document.getElementById('calc-mc-diameter');
         if (input) { input.value = ''; input.focus(); }
         document.getElementById('calc-mc-result').style.display = 'none';
@@ -8451,44 +8452,48 @@ function calcMulticollar() {
     var resultEl = document.getElementById('calc-mc-result');
     var val = parseInt(input.value, 10);
 
-    // Clear table highlights
-    document.querySelectorAll('#calc-page-multicollar .calc-table-highlight').forEach(function(r) {
-        r.classList.remove('calc-table-highlight');
-    });
-
     if (!val || val < 1) {
         resultEl.style.display = 'none';
         return;
     }
 
-    var segments = mcCalcSegments(val);
-    var cutLength = segments * MC_SEGMENT_PITCH;
-
-    document.getElementById('calc-mc-seg-value').textContent = segments;
-    document.getElementById('calc-mc-cut-length').textContent = cutLength;
-    document.getElementById('calc-mc-diameter-echo').textContent = val;
-    document.getElementById('calc-mc-clips').innerHTML = mcCalcClips(val);
-
-    // Check if this diameter matches a table row exactly
+    // Find a matching table row (first row is the 16–40 range, the rest exact).
     var rows = document.querySelectorAll('#calc-page-multicollar .calc-table tbody tr:not(.calc-table-result)');
-    var exactMatch = false;
+    var matchRow = null;
     for (var i = 0; i < rows.length; i++) {
         var rowD = parseInt(rows[i].getAttribute('data-mc-d'), 10);
         if ((i === 0 && val >= 16 && val <= rowD) || (i > 0 && val === rowD)) {
-            rows[i].classList.add('calc-table-highlight');
-            rows[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
-            exactMatch = true;
+            matchRow = rows[i];
             break;
         }
     }
 
-    // Show calculated result row only for custom diameters not in table
-    if (exactMatch) {
-        resultEl.style.display = 'none';
+    document.getElementById('calc-mc-diameter-echo').textContent = val;
+    if (matchRow) {
+        // The table is the authoritative source — its values can differ from the
+        // formula (e.g. 315 clips: table says +6L, formula gives +7L). Copy the
+        // matched row's cells verbatim instead of recomputing.
+        var cells = matchRow.children;
+        document.getElementById('calc-mc-seg-value').textContent = cells[1].textContent;
+        document.getElementById('calc-mc-cut-length').textContent = cells[2].textContent;
+        document.getElementById('calc-mc-clips').innerHTML = cells[3].innerHTML;
+        // Don't also highlight the row in the list — it would show the same
+        // diameter twice. The pinned top row is the single source of truth.
     } else {
-        resultEl.style.display = 'table-row';
-        resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var segments = mcCalcSegments(val);
+        document.getElementById('calc-mc-seg-value').textContent = segments;
+        document.getElementById('calc-mc-cut-length').textContent = segments * MC_SEGMENT_PITCH;
+        document.getElementById('calc-mc-clips').innerHTML = mcCalcClips(val);
     }
+
+    // Search result is ALWAYS shown at the top — easy to see, and it never ends
+    // up behind the keyboard low in a long list. Same rule whether the diameter
+    // is in the table or a custom value.
+    resultEl.style.display = 'table-row';
+    // The table is the scroll container (input stays pinned). Scroll it to top so
+    // the result row — first in the tbody — is visible right under the header.
+    var tableScroll = document.querySelector('#calc-page-multicollar .calc-table');
+    if (tableScroll) tableScroll.scrollTop = 0;
 }
 
 function onCalcTableRowClick(row) {
@@ -8496,9 +8501,7 @@ function onCalcTableRowClick(row) {
     if (!d) return;
     var input = document.getElementById('calc-mc-diameter');
     input.value = d;
-    calcMulticollar();
-    // Scroll to top to see result
-    document.querySelector('#calculator-modal .modal-content').scrollTop = 0;
+    calcMulticollar(); // scrolls to top + shows the result row itself
 }
 
 // ===== Brannpakning calculator =====

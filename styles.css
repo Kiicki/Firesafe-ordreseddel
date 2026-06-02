@@ -6563,6 +6563,36 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     padding: 0 0 20px;
 }
 
+/* Multicollar: input is pinned and only the reference table scrolls internally —
+   no page scroll, no dead space below the table. The modal-body gets
+   .calc-body-fixed from showCalcPage() so this is scoped to this page only. */
+#calculator-modal .modal-body.calc-body-fixed {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* page itself never scrolls; the table does */
+}
+#calculator-modal .modal-body.calc-body-fixed > .calc-page {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0; /* no dead space under the table */
+}
+#calculator-modal .modal-body.calc-body-fixed .calc-input-group {
+    flex-shrink: 0; /* search input always visible */
+}
+#calculator-modal .modal-body.calc-body-fixed .calc-table {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto; /* only the table scrolls, and only when it doesn't fit */
+}
+#calculator-modal .modal-body.calc-body-fixed .calc-table thead th {
+    position: sticky; /* keep column headers visible while the table scrolls */
+    top: 0;
+    background: #fff;
+    z-index: 1;
+}
+
 /* Input section */
 .calc-input-group {
     margin-bottom: 16px;
@@ -6612,6 +6642,13 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     min-width: 0;
 }
 
+/* Placeholder must read as a hint, not a real (bold) value */
+.calc-input-wrap input::placeholder {
+    color: #ccc;
+    font-weight: 400;
+    opacity: 1;
+}
+
 .calc-input-suffix {
     padding: 10px 12px 10px 0;
     font-size: 12px;
@@ -6620,16 +6657,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     user-select: none;
 }
 
-/* Multicollar calculated result row */
+/* Multicollar search result row (pinned at top) — same look as an in-table highlight */
 .calc-table-result td {
-    background: #E8501A !important;
-    color: #fff !important;
+    background: #FFF3EE !important;
+    color: #E8501A !important;
     font-weight: 700 !important;
-    border-bottom: 2px solid #d44615 !important;
+}
+
+.calc-table-result td:first-child {
+    box-shadow: inset 3px 0 0 #E8501A;
 }
 
 .calc-table-result .calc-clip-large {
-    color: rgba(255,255,255,0.7);
+    color: #d4845e;
 }
 
 /* Reference table */
