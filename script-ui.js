@@ -5951,6 +5951,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var IS_TOUCH_DEVICE = _IS_MOBILE_UA
         && (('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
             || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
+    // NB: enhetstype-klassen `html.device-pc` (som styrer PC-bredde-låsen i CSS) settes
+    // i en inline-snutt i <head> (index.html) FØR siden tegnes — samme UA-logikk som
+    // IS_TOUCH_DEVICE her, men kjørt tidlig så det ikke blinker. Ikke sett den herfra.
     // Sporer hvilke keyboard-målinger som faktisk fungerer på enheten.
     // Noen Android/PWA-varianter krymper visualViewport, andre krymper
     // window.innerHeight. Fokus brukes bare som fallback før en målemetode

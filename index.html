@@ -8,7 +8,26 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <meta name="theme-color" content="#E8501A">
     <meta name="google" content="notranslate">
-    <link rel="stylesheet" href="styles.css?v=774">
+    <script>
+    /* Enhetstype-gate for layout — ÉN regel for PC-bredde-låsen: ER dette en PC?
+       Leses fra User-Agent (samme info deviceinfo.me viser: "Desktop or Laptop" vs
+       "Mobile Phone"), IKKE fra mus/hover. Et nettbrett er et nettbrett enten det
+       brukes med mus eller ikke. Kjører i <head> FØR siden tegnes → ingen blink.
+       Setter .device-pc kun på ekte PC; mobil/nettbrett (også iPad m/ trackpad) får
+       den ikke → full bredde. Fail-safe: feiler dette, ingen klasse → mobil-layout.
+       Speiler IS_TOUCH_DEVICE i script-ui.js (holde regex i sync). */
+    (function () {
+        try {
+            var ua = navigator.userAgent || '';
+            var mobileUA = /Android|iPhone|iPad|iPod|Mobi|Tablet|BlackBerry|Opera Mini|IEMobile|Windows Phone/i.test(ua)
+                || (navigator.maxTouchPoints > 1 && /Macintosh|Mac OS X/i.test(ua));
+            var touchSignal = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+                || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+            if (!(mobileUA && touchSignal)) document.documentElement.classList.add('device-pc');
+        } catch (e) {}
+    })();
+    </script>
+    <link rel="stylesheet" href="styles.css?v=777">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -1766,7 +1785,7 @@
 
     <script src="lang.js?v=255"></script>
     <script src="script.js?v=465"></script>
-    <script src="script-ui.js?v=925"></script>
+    <script src="script-ui.js?v=927"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

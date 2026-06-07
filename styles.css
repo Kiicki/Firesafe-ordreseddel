@@ -6244,53 +6244,56 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     overflow: hidden;
 }
 
-/* PC: Constrain overlays to match form width.
-   Krever bred skjerm (≥1400px, over iPad Pro landscape 1366px) PLUSS mus + hover
-   for å unngå at nettbrett (også store i landscape) får 800px-låsen ment for ekte PC-skjermer.
-   Doble sjekk: width catches DevTools simulering, hover/pointer catches faktiske enheter. */
-@media screen and (min-width: 1400px) and (hover: hover) and (pointer: fine) {
+/* PC: Constrain innhold til 800px (sentrert) så det ikke strekkes ut.
+   ÉN regel: ER dette en PC? `html.device-pc` settes i en inline-snutt i <head>
+   (index.html) fra User-Agent — IKKE fra mus/hover. Et nettbrett er et nettbrett
+   enten det brukes med mus eller ikke; iPad m/ trackpad (pointer:fine) får derfor
+   IKKE låsen. min-width: 800px = bare en gulvverdi (låsen er uansett usynlig under
+   cap-bredden), så en PC med smalt vindu (50% av en 27") får fortsatt låsen.
+   Mobil/nettbrett mangler .device-pc → ingen av disse reglene → full bredde. */
+@media screen and (min-width: 800px) {
     /* All views - consistent grey background on desktop */
-    #template-modal,
-    #saved-modal,
-    #settings-modal {
+    html.device-pc #template-modal,
+    html.device-pc #saved-modal,
+    html.device-pc #settings-modal {
         background: #f0f0f0;
     }
     /* Constrain alle containers (form-view, service-view, kappe-view, etc.) til 800px på desktop */
-    .container {
+    html.device-pc .container {
         max-width: 800px;
         margin: 0 auto;
     }
-    .container.form-view {
+    html.device-pc .container.form-view {
         max-width: 800px;
         margin: 0 auto;
     }
     /* Preview overlay header også constrained på desktop */
-    .preview-overlay-header {
+    html.device-pc .preview-overlay-header {
         max-width: 800px;
     }
-    .modal-content {
+    html.device-pc .modal-content {
         max-width: 800px;
         margin: 0 auto;
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
-    #template-modal .modal-content {
+    html.device-pc #template-modal .modal-content {
         border-radius: 0 0 8px 8px; /* Only bottom corners rounded */
     }
 
     /* Signature overlay - constrain to same width as preview on desktop */
-    .signature-overlay {
+    html.device-pc .signature-overlay {
         background: #f0f0f0;
         align-items: center;
     }
-    .signature-overlay-content {
+    html.device-pc .signature-overlay-content {
         max-width: 800px;
         width: 100%;
     }
-    .signature-overlay-header {
+    html.device-pc .signature-overlay-header {
         max-width: 800px;
         width: 100%;
     }
-    #signature-canvas {
+    html.device-pc #signature-canvas {
         max-width: 800px;
         max-height: 500px;
         width: 100%;
@@ -6299,60 +6302,60 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     }
 
     /* Toolbar - constrain on desktop */
-    .toolbar {
+    html.device-pc .toolbar {
         max-width: 800px;
         margin: 0 auto;
     }
 
     /* Bulk action bar - samme constraint som toolbar på desktop */
-    .bulk-action-bar {
+    html.device-pc .bulk-action-bar {
         max-width: 800px;
         margin: 0 auto;
     }
 
     /* Top bar (login button) - constrain on desktop */
-    .top-bar {
+    html.device-pc .top-bar {
         max-width: 800px;
     }
 
     /* Sent banner - constrain on desktop */
-    .sent-banner {
+    html.device-pc .sent-banner {
         max-width: 800px;
     }
 
     /* Desktop: views i normal dokumentflyt — body scroller, scrollbar ved viewport-kanten */
-    #template-modal.view.active,
-    #saved-modal.view.active,
-    #settings-modal.view.active,
-    #view-form.view.active,
-    #service-view.view.active,
-    #kappe-view.view.active {
+    html.device-pc #template-modal.view.active,
+    html.device-pc #saved-modal.view.active,
+    html.device-pc #settings-modal.view.active,
+    html.device-pc #view-form.view.active,
+    html.device-pc #service-view.view.active,
+    html.device-pc #kappe-view.view.active {
         position: static;
         bottom: auto;
         height: auto;
         min-height: calc(100vh - 60px);
         overflow: visible;
     }
-    #template-modal.view.active > .modal-content,
-    #saved-modal.view.active > .modal-content,
-    #settings-modal.view.active > .modal-content {
+    html.device-pc #template-modal.view.active > .modal-content,
+    html.device-pc #saved-modal.view.active > .modal-content,
+    html.device-pc #settings-modal.view.active > .modal-content {
         overflow: visible;
     }
-    #template-modal.view.active .modal-body,
-    #saved-modal.view.active .modal-body,
-    #settings-modal.view.active .modal-body {
+    html.device-pc #template-modal.view.active .modal-body,
+    html.device-pc #saved-modal.view.active .modal-body,
+    html.device-pc #settings-modal.view.active .modal-body {
         overflow-y: visible;
         flex: none;
     }
-    .container.form-view,
-    .container.service-view,
-    .container.kappe-view {
+    html.device-pc .container.form-view,
+    html.device-pc .container.service-view,
+    html.device-pc .container.kappe-view {
         overflow-y: visible;
     }
 
     /* Service- og Kappe-view: skygge rundt sentrert 800px-kort, samme som modaler. */
-    .container.service-view,
-    .container.kappe-view {
+    html.device-pc .container.service-view,
+    html.device-pc .container.kappe-view {
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
 }
