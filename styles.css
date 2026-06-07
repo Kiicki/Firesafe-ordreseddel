@@ -8099,26 +8099,26 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-steel-group {
     border: 1px solid #e6e6ea;
     border-left: 3px solid #E8501A;
-    border-radius: 10px;
+    border-radius: 9px;
     background: #fff;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
     overflow: hidden;                        /* header-bg respekterer rundede hjørner */
-    box-shadow: 0 1px 3px rgba(20, 20, 30, .05);
+    box-shadow: 0 1px 2px rgba(20, 20, 30, .04);
 }
 .kappe-steel-head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    background: #f5f5f8;                      /* tydelig header-stripe */
-    border-bottom: 1px solid #e6e6ea;
+    gap: 10px;
+    padding: 8px 8px 8px 12px;
+    background: #f6f6f8;                      /* subtil header-stripe */
+    border-bottom: 1px solid #ececef;
 }
 /* Radene får egen padding (gruppen har ikke padding lenger). */
 .kappe-steel-rows {
-    padding: 11px 12px 5px;
+    padding: 7px 12px 2px;
 }
-/* Tittel = målene som REN, fet overskrift (ingen bokser → ikke til å forveksle
-   med input-feltene). Dempet × som skille. */
+/* Tittel = stålets mål som REN, fet overskrift (DISTINKTE mål, dempet × mellom),
+   f.eks. «240 × 260». Les-bar; målene redigeres i radene. */
 .kappe-steel-title {
     flex: 1;
     min-width: 0;
@@ -8131,7 +8131,7 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-steel-dim {
     flex-shrink: 0;
     font-weight: 700;
-    font-size: 16px;
+    font-size: 15px;
     letter-spacing: .01em;
     color: #1c1c1e;
 }
@@ -8139,16 +8139,14 @@ body.kappe-view-open #view-form { display: none; }
     flex-shrink: 0;
     color: #b0b0b8;
     font-weight: 400;
-    font-size: 14px;
+    font-size: 13px;
 }
 .kappe-steel-title-empty {
     font-weight: 600;
-    font-size: 15px;
+    font-size: 14px;
     color: #E8501A;
 }
-/* Rediger- (blyant) og slett-ikon: like ikon-knapper i samme størrelse/stil.
-   Rediger = oransje (merkevare, som blyant ellers på siden), slett = rød. */
-.kappe-steel-edit,
+/* Slett-stål = rødt søppel-ikon (samme stil som ellers på siden). */
 .kappe-steel-remove {
     flex-shrink: 0;
     background: none;
@@ -8158,27 +8156,37 @@ body.kappe-view-open #view-form { display: none; }
     display: flex;
     align-items: center;
     border-radius: 6px;
+    color: #e74c3c;
 }
-.kappe-steel-edit { color: #E8501A; }
-.kappe-steel-edit:active { background: #fff4f0; }
-.kappe-steel-remove { color: #e74c3c; }
 .kappe-steel-remove:active { background: #fdecec; }
-.kappe-steel-edit svg,
-.kappe-steel-remove svg { width: 20px; height: 20px; }
-/* Kolonne-etiketter (Mål/LM/Antall/Sider) vises kun på FØRSTE kapp-rad i hvert
+.kappe-steel-remove svg { width: 19px; height: 19px; }
+/* Kolonne-etiketter (LM/Antall/Sider) vises kun på FØRSTE lengde-rad i hvert
    stål — resten viser bare feltene (kompakt, etiketter ikke gjentatt per rad). */
 .kappe-steel-rows .kappe-kapp-row:not(:first-child) .mobile-field > label { display: none; }
-/* LM + Antall er FELLES for stålet → settes på FØRSTE kapp; på de øvrige kappene
-   er de bare SPEIL: dempet og ikke redigerbare (tydeliggjør at de er felles). */
-.kappe-cut-mirror .kappe-lm-field-btn,
-.kappe-cut-mirror .kappe-line-antall {
-    background: #f5f5f7;
-    color: #9b9ba1;
-    border-color: #ececef;
-    cursor: default;
-    pointer-events: none;
+/* KOMPAKTE lengde-rader: fjern den ekstra min-høyden (56px-en var for å aligne
+   add-knappen på tvers av kapp/plate/fast-moduser — ikke relevant inni et stål,
+   der den bare gir luftige rader). Stram inn margin + felt-padding. Tap-mål
+   forblir ~36px (greit på mobil). */
+.kappe-steel-rows .kappe-kapp-row {
+    min-height: 0;
+    margin-bottom: 4px;
 }
-.kappe-cut-mirror .kappe-lm-field-btn::after { display: none; } /* skjul › (ikke klikkbar) */
+.kappe-steel-rows .kappe-quad-row .mobile-field label {
+    margin-bottom: 2px;
+    font-size: 12px;
+}
+.kappe-steel-rows .kappe-quad-row .mobile-field input,
+.kappe-steel-rows .kappe-lm-field-btn {
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+/* «+ Legg til lengde» inne i stål-kortet: samme stiplede knapp, men inntrukket
+   fra kortkanten (radene har egen padding) og uten dobbel topp-margin. */
+.kappe-add-lengde-btn {
+    display: block;
+    width: auto;
+    margin: 2px 12px 12px;
+}
 
 /* Skjul iso-kort-popupen helt mens produkt-/festemiddel-undervelgeren er
    åpen oppå den (samme mønster som dag-timer ↔ plan), så man ikke ser

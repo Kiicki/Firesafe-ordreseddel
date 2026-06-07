@@ -11848,19 +11848,19 @@ function closeTimerOverview() {
 }
 window.closeTimerOverview = closeTimerOverview;
 
-// Kapp-rad = ÉN kapp: ryddig 4-kolonne-rad Mål · LM · Antall · Sider. Mål kan
-// redigeres INLINE her ELLER via gruppe-headerens Mål-popup (legg til/slett mål).
-// LM + Antall synkes på tvers av stålets rader (endre én → alle). INGEN rad-slett
-// — bare stålet har slett. LM-knappen åpner ∑-popupen.
+// Kapp-rad = ÉN kapp: Mål · LM · Antall · Sider, ALLE felt HELT uavhengige
+// (ingen syncing). Ett stål kan ha flere rader med ULIKE mål (f.eks. en bjelke
+// isolert på sider med forskjellig bredde). Per-rad slett. LM-knappen åpner
+// ∑-popupen. Målet endrer headerens oppsummering live (_onKappeRowMaalInput).
 function _createKappeCutRow(cut) {
     cut = cut || {};
     var row = document.createElement('div');
-    row.className = 'kappe-kapp-row kappe-cut-row';
+    row.className = 'kappe-kapp-row';
     row.innerHTML =
         '<div class="kappe-quad-row">' +
             '<div class="mobile-field field-required">' +
                 '<label data-i18n="kappe_col_maal">Mål</label>' +
-                '<input type="text" class="kappe-line-bredde" inputmode="decimal" pattern="[0-9,.]*" placeholder="mm" value="' + escapeHtml(cut.bredde || '') + '">' +
+                '<input type="text" class="kappe-line-bredde" inputmode="decimal" pattern="[0-9,.]*" placeholder="mm" oninput="_onKappeRowMaalInput(this)" value="' + escapeHtml(cut.bredde || '') + '">' +
             '</div>' +
             '<div class="mobile-field field-required">' +
                 '<label data-i18n="kappe_col_lopemeter">LM</label>' +
@@ -11869,46 +11869,76 @@ function _createKappeCutRow(cut) {
             '</div>' +
             '<div class="mobile-field field-required">' +
                 '<label data-i18n="kappe_col_antall">Antall</label>' +
-                '<input type="text" class="kappe-line-antall" inputmode="numeric" pattern="[0-9]*" oninput="_syncKappeSteelSharedFromInput(this, \'antall\')" value="' + escapeHtml(cut.antall || '') + '">' +
+                '<input type="text" class="kappe-line-antall" inputmode="numeric" pattern="[0-9]*" oninput="renumberKappeLines()" value="' + escapeHtml(cut.antall || '') + '">' +
             '</div>' +
             '<div class="mobile-field field-required">' +
                 '<label data-i18n="kappe_col_antall_sider">Sider</label>' +
                 '<input type="text" class="kappe-line-antall-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(cut.antallSider || '') + '">' +
             '</div>' +
-        '</div>';
-    // Inline-endring av målet → oppdater headerens mål-sammendrag live.
-    row.querySelector('.kappe-line-bredde').addEventListener('input', renumberKappeLines);
+        '</div>' +
+        '<button type="button" class="kappe-kapp-remove-btn" onclick="removeKappeKappRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
     _setKappeLmDisplay(row.querySelector('.kappe-line-lopemeter'));
     return row;
 }
 
-// Sett kapp-radens mål (Mål-input). Brukes når Mål-popupen reconcilerer rader.
-function _setKappeCutMaal(row, val) {
-    if (!row) return;
-    var inp = row.querySelector('.kappe-line-bredde');
-    if (inp) inp.value = val || '';
+// Mål endret inline → oppdater stål-headerens oppsummering + tittel-telling.
+function _onKappeRowMaalInput(inp) {
+    var group = inp.closest('.kappe-steel-group');
+    if (group) _updateKappeSteelHead(group);
+    renumberKappeLines();
+}
+window._onKappeRowMaalInput = _onKappeRowMaalInput;
+
+// Les en rads fire felt (for kopiering ved «+ Legg til rad»).
+function _readKappeCutRow(row) {
+    if (!row) return {};
+    return {
+        bredde: (row.querySelector('.kappe-line-bredde') || {}).value || '',
+        lopemeter: (row.querySelector('.kappe-line-lopemeter') || {}).value || '',
+        antall: (row.querySelector('.kappe-line-antall') || {}).value || '',
+        antallSider: (row.querySelector('.kappe-line-antall-sider') || {}).value || ''
+    };
 }
 
-// Synk LM/Antall til alle kapp-rader i samme stål (felles for stålet).
-function _syncKappeSteelShared(srcRow, which) {
-    if (!srcRow) return;
-    var group = srcRow.closest('.kappe-steel-group');
+// Legg til en kapp-rad i et stål. KOPIERER forrige rad som utgangspunkt → du
+// endrer bare det som er forskjellig (målet for en bjelke-side, lengde/antall
+// for en søyle-batch). Fokuserer Mål-feltet (vanligste første endring).
+function addKappeKappRow(btn) {
+    var group = btn.closest('.kappe-steel-group');
     if (!group) return;
-    var sel = (which === 'lm') ? '.kappe-line-lopemeter' : '.kappe-line-antall';
-    var val = (srcRow.querySelector(sel) || {}).value || '';
-    group.querySelectorAll('.kappe-steel-rows .kappe-kapp-row').forEach(function(row) {
-        if (row === srcRow) return;
-        var inp = row.querySelector(sel);
-        if (inp && inp.value !== val) {
-            inp.value = val;
-            if (which === 'lm') _setKappeLmDisplay(inp);
+    var rowsC = group.querySelector('.kappe-steel-rows');
+    var prev = rowsC.querySelector('.kappe-kapp-row:last-child');
+    var row = _createKappeCutRow(prev ? _readKappeCutRow(prev) : {});
+    rowsC.appendChild(row);
+    var card = group.closest('.kappe-line-card');
+    if (card) _updateKappeKappRemoveStates(card);
+    _updateKappeSteelHead(group);
+    if (typeof applyTranslations === 'function') applyTranslations();
+    renumberKappeLines();
+    var maalInp = row.querySelector('.kappe-line-bredde');
+    if (maalInp) { try { maalInp.focus({ preventScroll: true }); if (maalInp.select) maalInp.select(); } catch (e) { maalInp.focus(); } }
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    requestAnimationFrame(function() {
+        if (row && row.isConnected && row.scrollIntoView) {
+            try { row.scrollIntoView({ block: 'nearest' }); } catch (e) {}
         }
     });
 }
-function _syncKappeSteelSharedFromInput(inp, which) {
-    if (inp && inp.closest) _syncKappeSteelShared(inp.closest('.kappe-kapp-row'), which);
+window.addKappeKappRow = addKappeKappRow;
+
+// Fjern en kapp-rad. 0 rader er gyldig (stålet beholdes; bruk «+ Legg til rad»
+// for ny rad, eller slett hele stålet).
+function removeKappeKappRow(btn) {
+    var row = btn.closest('.kappe-kapp-row');
+    var group = row ? row.closest('.kappe-steel-group') : null;
+    var card = row ? row.closest('.kappe-line-card') : null;
+    if (row) row.remove();
+    if (group) _updateKappeSteelHead(group);
+    if (card) _updateKappeKappRemoveStates(card);
+    renumberKappeLines();
+    sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
 }
-window._syncKappeSteelSharedFromInput = _syncKappeSteelSharedFromInput;
+window.removeKappeKappRow = removeKappeKappRow;
 
 // Oppdater LM-knappens visningstekst fra den skjulte inputen: vis summen
 // (formatert), eller «—» dempet når tom (så required-* leses som ufylt).
@@ -11937,15 +11967,15 @@ function _updateKappeKappRemoveStates(card) {
 }
 
 // ── Stål-grupper ─────────────────────────────────────────────────────────────
-// Kapp-radene grupperes i «stål» (ett stål = ett fysisk profil/objekt som
-// isoleres). Hvert stål-kort har en header (Stål N + dimensjons-sammendrag +
-// «+ kapp» + slett) og én eller flere kapp-rader (Bredde·LM·Antall·Sider). Gjør
-// det tydelig hvilke kapp som hører sammen. Bak kulissene flates det fortsatt ut
-// til en flat kapp[]-array (m/ `steel`-indeks per rad) → eksport uendret.
+// Et «stål» = ett fysisk objekt (bjelke/søyle/batch) med én eller flere kapp-
+// rader (Mål · LM · Antall · Sider), alle uavhengige. Et stål kan ha rader med
+// ULIKE mål (bjelke isolert på flere sider) ELLER lik mål / ulik lengde (søyle-
+// batch). Headeren oppsummerer målene. Bak kulissene flates det ut til flat
+// kapp[] m/ `steel`-indeks per rad → eksport uendret.
 
 // Grupper en flat kapp[]-array til stål. Med eksplisitt `steel`-felt: grupper på
-// det. Eldre data uten felt: grupper PÅFØLGENDE rader med lik (lopemeter, antall)
-// — rydder gamle flate skjemaer automatisk til stål.
+// det (bevarer brukerens stål-inndeling, inkl. flere ulike mål i samme stål).
+// Eldre data uten felt: grupper PÅFØLGENDE rader med lik (lopemeter, antall).
 function _kappeGroupKappToSteels(kappArr) {
     var arr = kappArr || [];
     if (!arr.length) return [];
@@ -11969,6 +11999,30 @@ function _kappeGroupKappToSteels(kappArr) {
     return steels;
 }
 
+// Stål-headeren oppsummerer målene i stålet: DISTINKTE mål-verdier (rekkefølge
+// = første forekomst), f.eks. «240 × 260» for en bjelke, «120» for en søyle.
+// Tomt stål → dempet plassholder. Ren tekst (ingen bokser → ikke til å forveksle
+// med input-feltene).
+function _updateKappeSteelHead(group) {
+    if (!group) return;
+    var title = group.querySelector('.kappe-steel-title');
+    if (!title) return;
+    var seen = {}, dims = [];
+    group.querySelectorAll('.kappe-steel-rows .kappe-line-bredde').forEach(function(inp) {
+        var v = String(inp.value || '').trim();
+        if (v && !seen[v]) { seen[v] = true; dims.push(v); }
+    });
+    if (dims.length) {
+        title.innerHTML = dims.map(function(d) {
+            return '<span class="kappe-steel-dim">' + escapeHtml(d) + '</span>';
+        }).join('<span class="kappe-steel-x">×</span>');
+        title.classList.remove('kappe-steel-title-empty');
+    } else {
+        title.textContent = t('kappe_steel_new');
+        title.classList.add('kappe-steel-title-empty');
+    }
+}
+
 function _createKappeSteelGroup(steel) {
     steel = steel || {};
     var rows = (steel.rows && steel.rows.length) ? steel.rows : [];
@@ -11976,223 +12030,65 @@ function _createKappeSteelGroup(steel) {
     group.className = 'kappe-steel-group';
     group.innerHTML =
         '<div class="kappe-steel-head">' +
-            // Navnet (målene) er ren tekst. Rediger via BLYANTEN (konsistent med
-            // resten av siden: ikon = handling, etikett = tekst). Slett = søppel.
+            // Tittelen oppsummerer målene (les-bare). Slett = fjern hele stålet.
             '<span class="kappe-steel-title"></span>' +
-            '<button type="button" class="kappe-steel-edit" onclick="openKappeMaalPopup(this)" title="Endre mål">' + editIcon + '</button>' +
             '<button type="button" class="kappe-steel-remove" onclick="removeKappeSteel(this)" title="Fjern stål">' + deleteIcon + '</button>' +
         '</div>' +
-        '<div class="kappe-steel-rows"></div>';
+        '<div class="kappe-steel-rows"></div>' +
+        '<button type="button" class="kappe-add-kapp-btn kappe-add-lengde-btn" onclick="addKappeKappRow(this)">+ <span data-i18n="kappe_add_rad">Legg til rad</span></button>';
     var rowsC = group.querySelector('.kappe-steel-rows');
     rows.forEach(function(r) { rowsC.appendChild(_createKappeCutRow(r)); });
-    _updateKappeCutMirrorStates(group);
+    _updateKappeSteelHead(group);
     return group;
-}
-
-// LM + Antall er FELLES for stålet → redigerbare KUN på FØRSTE kapp (kilden).
-// Øvrige kapp speiler verdien: LM-knapp disabled, Antall readonly, rad dempes
-// (.kappe-cut-mirror). Synken (se _syncKappeSteelShared) oppdaterer dem fortsatt
-// programmatisk. Robust: kalles på nytt ved hver strukturendring, så «første
-// kapp» (kilden) flyttes riktig om mål legges til/slettes.
-function _updateKappeCutMirrorStates(group) {
-    if (!group) return;
-    group.querySelectorAll('.kappe-steel-rows .kappe-kapp-row').forEach(function(row, i) {
-        var mirror = i > 0;
-        var lmBtn = row.querySelector('.kappe-lm-field-btn');
-        var antInp = row.querySelector('.kappe-line-antall');
-        if (lmBtn) lmBtn.disabled = mirror;
-        if (antInp) antInp.readOnly = mirror;
-        row.classList.toggle('kappe-cut-mirror', mirror);
-    });
-}
-
-// Stål-headeren er navngitt av MÅLENE (skjulte bredde-verdier per rad), f.eks.
-// «200 × 220». Ett mål → «120». Ingen «Stål N». Tomt stål → dempet plassholder.
-function _updateKappeSteelHeads(card) {
-    if (!card) return;
-    card.querySelectorAll('.kappe-steel-group').forEach(function(group) {
-        var title = group.querySelector('.kappe-steel-title');
-        if (!title) return;
-        var dims = [];
-        group.querySelectorAll('.kappe-steel-rows .kappe-line-bredde').forEach(function(inp) {
-            var v = String(inp.value || '').trim();
-            if (v) dims.push(v);
-        });
-        if (dims.length) {
-            // Vis hvert mål som en «chip» med en dempet × mellom.
-            title.innerHTML = dims.map(function(d) {
-                return '<span class="kappe-steel-dim">' + escapeHtml(d) + '</span>';
-            }).join('<span class="kappe-steel-x">×</span>');
-            title.classList.remove('kappe-steel-title-empty');
-        } else {
-            title.textContent = t('kappe_steel_new');
-            title.classList.add('kappe-steel-title-empty');
-        }
-    });
 }
 
 function addKappeSteel(btn) {
     var card = btn.closest('.kappe-line-card');
     var container = card.querySelector('.kappe-steel-groups');
     if (!container) return;
-    var group = _createKappeSteelGroup({ rows: [] });
+    // Nytt stål: én tom kapp-rad klar til utfylling.
+    var group = _createKappeSteelGroup({ rows: [{}] });
     container.appendChild(group);
-    _updateKappeSteelHeads(card);
+    _updateKappeKappRemoveStates(card);
     if (typeof applyTranslations === 'function') applyTranslations();
     renumberKappeLines();
-    // Nytt stål → åpne Mål-popupen med en gang så brukeren registrerer målene.
-    var titleBtn = group.querySelector('.kappe-steel-title');
-    if (titleBtn) openKappeMaalPopup(titleBtn);
+    // Fokus Mål-feltet i den nye raden → klar til å skrive målet.
+    var maalInp = group.querySelector('.kappe-steel-rows .kappe-line-bredde');
+    if (maalInp) { try { maalInp.focus({ preventScroll: true }); } catch (e) { maalInp.focus(); } }
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
 }
 window.addKappeSteel = addKappeSteel;
 
+// Har stålet faktisk data? (en rad med Mål/LM/Antall/Sider). Brukes til å
+// bekrefte sletting kun når noe vil gå tapt — et nytt, tomt stål slettes uten mas.
+function _kappeSteelHasData(group) {
+    if (!group) return false;
+    var has = false;
+    group.querySelectorAll('.kappe-steel-rows .kappe-kapp-row').forEach(function(row) {
+        ['.kappe-line-bredde', '.kappe-line-lopemeter', '.kappe-line-antall', '.kappe-line-antall-sider'].forEach(function(sel) {
+            if (String((row.querySelector(sel) || {}).value || '').trim()) has = true;
+        });
+    });
+    return has;
+}
+
 function removeKappeSteel(btn) {
     var group = btn.closest('.kappe-steel-group');
-    var card = group.closest('.kappe-line-card');
-    group.remove();
-    _updateKappeSteelHeads(card);
-    renumberKappeLines();
+    if (!group) return;
+    var doRemove = function() {
+        group.remove();
+        renumberKappeLines();
+        sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
+    };
+    // Stål kan inneholde flere lengder → bekreft sletting når noe vil gå tapt.
+    if (_kappeSteelHasData(group)) {
+        showConfirmModal(t('kappe_steel_delete_confirm'), doRemove, t('btn_remove'), '#e74c3c');
+    } else {
+        doRemove();
+    }
 }
 window.removeKappeSteel = removeKappeSteel;
-
-// ── Mål-popup (gruppens kontroll: legg til / endre / slett mål) ───────────────
-// Klikkbar stål-header åpner denne. Hvert mål = én kapp-rad; rad-elementene
-// gjenbrukes (via dataset.src) så LM/Antall/Sider bevares når mål endres.
-var _kappeMaalGroup = null;
-var _kappeMaalSnapshotRows = null;
-
-function openKappeMaalPopup(el) {
-    var popup = document.getElementById('kappe-maal-popup');
-    if (!popup) return;
-    _kappeMaalGroup = el.closest('.kappe-steel-group');
-    _kappeMaalSnapshotRows = _kappeMaalGroup
-        ? Array.prototype.slice.call(_kappeMaalGroup.querySelectorAll('.kappe-steel-rows .kappe-kapp-row'))
-        : [];
-    var rowsC = document.getElementById('kappe-maal-rows');
-    if (rowsC) {
-        rowsC.innerHTML = '';
-        // Vis eksisterende mål + pad med tomme rader (2-kolonne-rutenett).
-        // «+ Legg til mål» finnes om man trenger enda flere.
-        var PREFILL = 4;
-        var n = 0;
-        _kappeMaalSnapshotRows.forEach(function(r, i) {
-            var b = (r.querySelector('.kappe-line-bredde') || {}).value || '';
-            rowsC.appendChild(_createKappeMaalInputRow(b, i)); n++;
-        });
-        while (n < PREFILL) { rowsC.appendChild(_createKappeMaalInputRow('', -1)); n++; }
-    }
-    _updateKappeMaalEmpty();
-    if (typeof applyTranslations === 'function') applyTranslations();
-    popup.classList.add('active');
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    // Auto-fokus første tomme mål-felt → klart for skriving.
-    var maalInputs = document.querySelectorAll('#kappe-maal-rows .kappe-maal-input');
-    for (var mi = 0; mi < maalInputs.length; mi++) {
-        if (!String(maalInputs[mi].value || '').trim()) {
-            try { maalInputs[mi].focus({ preventScroll: true }); } catch (e) { maalInputs[mi].focus(); }
-            break;
-        }
-    }
-}
-window.openKappeMaalPopup = openKappeMaalPopup;
-
-function closeKappeMaalPopup() {
-    var popup = document.getElementById('kappe-maal-popup');
-    if (popup) popup.classList.remove('active');
-    // Forlatt nytt stål uten mål → fjern den tomme gruppen.
-    if (_kappeMaalGroup) {
-        var rc = _kappeMaalGroup.querySelector('.kappe-steel-rows');
-        if (rc && rc.querySelectorAll('.kappe-kapp-row').length === 0) {
-            var card = _kappeMaalGroup.closest('.kappe-line-card');
-            _kappeMaalGroup.remove();
-            if (card) { _updateKappeSteelHeads(card); renumberKappeLines(); }
-        }
-    }
-    _kappeMaalGroup = null;
-    _kappeMaalSnapshotRows = null;
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-}
-window.closeKappeMaalPopup = closeKappeMaalPopup;
-
-function _createKappeMaalInputRow(value, srcIndex) {
-    var row = document.createElement('div');
-    row.className = 'kappe-length-row';
-    if (srcIndex != null) row.dataset.src = String(srcIndex);
-    row.innerHTML =
-        '<div class="kappe-quad-row">' +
-            '<div class="mobile-field field-required"><label data-i18n="kappe_col_maal">Mål</label>' +
-                '<input type="text" class="kappe-maal-input" inputmode="decimal" pattern="[0-9,.]*" placeholder="mm" value="' + escapeHtml(value != null ? String(value) : '') + '"></div>' +
-        '</div>' +
-        '<button type="button" class="kappe-kapp-remove-btn" onclick="removeKappeMaalRow(this)" title="Fjern mål">' + deleteIcon + '</button>';
-    return row;
-}
-
-function addKappeMaalRow() {
-    var c = document.getElementById('kappe-maal-rows');
-    if (!c) return;
-    var row = _createKappeMaalInputRow('', -1);
-    c.appendChild(row);
-    var inp = row.querySelector('.kappe-maal-input');
-    if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }
-    _updateKappeMaalEmpty();
-    if (typeof applyTranslations === 'function') applyTranslations();
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    requestAnimationFrame(function() {
-        if (row && row.isConnected && row.scrollIntoView) {
-            try { row.scrollIntoView({ block: 'nearest' }); } catch (e) {}
-        }
-    });
-}
-window.addKappeMaalRow = addKappeMaalRow;
-
-function removeKappeMaalRow(btn) {
-    var row = btn.closest('.kappe-length-row');
-    if (row) row.remove();
-    _updateKappeMaalEmpty();
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-}
-window.removeKappeMaalRow = removeKappeMaalRow;
-
-function _updateKappeMaalEmpty() {
-    var emptyEl = document.getElementById('kappe-maal-empty');
-    var rows = document.querySelectorAll('#kappe-maal-rows .kappe-length-row');
-    if (emptyEl) emptyEl.style.display = rows.length ? 'none' : '';
-}
-
-function confirmKappeMaalPopup() {
-    if (!_kappeMaalGroup) { closeKappeMaalPopup(); return; }
-    var card = _kappeMaalGroup.closest('.kappe-line-card');
-    var rowsC = _kappeMaalGroup.querySelector('.kappe-steel-rows');
-    var snapshot = _kappeMaalSnapshotRows || [];
-    // Felles LM/Antall (fra en eksisterende rad) → arves av NYE mål-rader.
-    var sharedLm = '', sharedAntall = '';
-    if (snapshot[0]) {
-        sharedLm = (snapshot[0].querySelector('.kappe-line-lopemeter') || {}).value || '';
-        sharedAntall = (snapshot[0].querySelector('.kappe-line-antall') || {}).value || '';
-    }
-    var entries = Array.prototype.slice.call(document.querySelectorAll('#kappe-maal-rows .kappe-length-row'));
-    var newRows = [];
-    entries.forEach(function(entry) {
-        var val = String(((entry.querySelector('.kappe-maal-input') || {}).value) || '').trim();
-        if (!val) return; // hopp over tomt mål
-        var src = (entry.dataset.src != null) ? parseInt(entry.dataset.src, 10) : -1;
-        var rowEl = (src >= 0 && snapshot[src]) ? snapshot[src]
-            : _createKappeCutRow({ lopemeter: sharedLm, antall: sharedAntall });
-        _setKappeCutMaal(rowEl, val);
-        newRows.push(rowEl);
-    });
-    if (rowsC) {
-        while (rowsC.firstChild) rowsC.removeChild(rowsC.firstChild);
-        newRows.forEach(function(r) { rowsC.appendChild(r); });
-    }
-    _updateKappeCutMirrorStates(_kappeMaalGroup);
-    closeKappeMaalPopup();
-    _updateKappeSteelHeads(card);
-    renumberKappeLines();
-    if (typeof applyTranslations === 'function') applyTranslations();
-    sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
-}
-window.confirmKappeMaalPopup = confirmKappeMaalPopup;
 
 // ── LM-popup (summer flere løpemeter) ────────────────────────────────────────
 // ∑-knappen i et LM-felt åpner en popup der du legger inn flere løpemeter i
@@ -12307,9 +12203,6 @@ function confirmKappeLmPopup() {
     if (_kappeLmInput) {
         _kappeLmInput.value = s.count ? formatLocaleNum(Math.round(s.total * 100) / 100, 2) : '';
         _setKappeLmDisplay(_kappeLmInput);
-        // LM er felles for stålet → synk til de andre kapp-radene.
-        var lmRow = _kappeLmInput.closest('.kappe-kapp-row');
-        if (lmRow) _syncKappeSteelShared(lmRow, 'lm');
     }
     closeKappeLmPopup();
     renumberKappeLines();
@@ -12362,10 +12255,9 @@ function _updateKappePlateRemoveStates(card) {
     });
 }
 
-// Flat-ut: iterer stål-grupper; LM + Antall er FELLES (fra stål-headeren) og
-// kopieres til hver kapp-rad; Bredde + Sider er per kapp. Hver kapp → én flat
-// kapp-rad m/ `steel`-indeks. Flat-formen {bredde,lopemeter,antall,antallSider}
-// er identisk → eksport uendret.
+// Flat-ut: iterer stål-grupper; hver kapp-rad har sitt EGET mål (bredde). Hver
+// rad → én flat kapp-rad m/ `steel`-indeks (gruppe). Flat-formen
+// {bredde,lopemeter,antall,antallSider} er identisk → eksport uendret.
 function _getKappeLineKappData(card) {
     var kapp = [];
     card.querySelectorAll('.kappe-steel-group').forEach(function(group, gi) {
@@ -12472,7 +12364,6 @@ function createKappeLineCard(lineData, expanded) {
         steelContainer.appendChild(_createKappeSteelGroup(s));
     });
     _updateKappeKappRemoveStates(card);
-    _updateKappeSteelHeads(card);
 
     var plateContainer = card.querySelector('.kappe-plate-rows');
     plateList.forEach(function(p) {
@@ -12580,11 +12471,12 @@ function renumberKappeLines() {
         card.querySelectorAll('.kappe-steel-rows .kappe-kapp-row').forEach(function(row) {
             var b = row.querySelector('.kappe-line-bredde');
             var lm = row.querySelector('.kappe-line-lopemeter');
+            var ant = row.querySelector('.kappe-line-antall');
             if ((b && String(b.value || '').trim() !== '') ||
-                (lm && String(lm.value || '').trim() !== '')) kappWithData++;
+                (lm && String(lm.value || '').trim() !== '') ||
+                (ant && String(ant.value || '').trim() !== '')) kappWithData++;
         });
         if (kappWithData > 0) bits.push(kappWithData + ' kapp');
-        _updateKappeSteelHeads(card);
         var pSum = 0;
         card.querySelectorAll('.kappe-plate-rows .kappe-line-plate-antall').forEach(function(inp) {
             var v = parseLocaleNum(inp.value);
@@ -12838,12 +12730,14 @@ function validateKappeRequiredFields() {
             var card = lines[j];
             var prod = card.querySelector('.kappe-line-product').value;
             if (prod) { anyLine = true; break; }
-            var kappRows = card.querySelectorAll('.kappe-steel-rows .kappe-kapp-row');
-            for (var kr = 0; kr < kappRows.length; kr++) {
-                var bredde = (kappRows[kr].querySelector('.kappe-line-bredde') || {}).value || '';
-                var lm = (kappRows[kr].querySelector('.kappe-line-lopemeter') || {}).value || '';
-                var sider = (kappRows[kr].querySelector('.kappe-line-antall-sider') || {}).value || '';
-                if (bredde || lm || sider) { anyLine = true; break; }
+            {
+                var kappRows = card.querySelectorAll('.kappe-steel-rows .kappe-kapp-row');
+                for (var kr = 0; kr < kappRows.length; kr++) {
+                    var bredde = (kappRows[kr].querySelector('.kappe-line-bredde') || {}).value || '';
+                    var lm = (kappRows[kr].querySelector('.kappe-line-lopemeter') || {}).value || '';
+                    var sider = (kappRows[kr].querySelector('.kappe-line-antall-sider') || {}).value || '';
+                    if (bredde || lm || sider) { anyLine = true; break; }
+                }
             }
             if (anyLine) break;
         }
