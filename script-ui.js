@@ -13039,11 +13039,12 @@ function loadKappeTab() {
 function _buildKappeItemHtml(item, index) {
     var title = item.prosjektnavn || item.prosjektnr || '';
     var savedAtStr = formatDateWithTime(item.savedAt);
-    // Prosjektnavnet er ofte langt → gi det HELE topplinjen alene; dato (og
-    // prosjektnr) flyttes til undertittel. «x produkter» droppes (bare rot).
+    // Prosjektnavnet er ofte langt → gi det HELE topplinjen alene; dato + prosjektnr
+    // på undertittel. DATO FØR prosjektnr (samme rekkefølge som ordreseddel, der
+    // dato står før prosjektnr). «x produkter» droppes (bare rot).
     var parts = [];
-    if (item.prosjektnr && item.prosjektnavn) parts.push(escapeHtml(item.prosjektnr));
     if (savedAtStr) parts.push(escapeHtml(savedAtStr));
+    if (item.prosjektnr && item.prosjektnavn) parts.push(escapeHtml(item.prosjektnr));
     var subtitle = parts.length
         ? '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>'
         : '';
