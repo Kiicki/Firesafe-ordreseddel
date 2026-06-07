@@ -1111,7 +1111,9 @@ body.settings-modal-open #view-form {
 body.preview-active .view,
 body.preview-active .top-bar,
 body.signature-active .view,
-body.signature-active .top-bar,
+body.signature-active .top-bar {
+    display: none;
+}
 /* På mobil (<768px) skjules view bak picker-overlay siden picker er fullscreen.
    På tablet/PC (>=768px) er picker en sentrert popup, så view skal forbli synlig
    bak en dimmet bakgrunn — ellers ser bruker bare grå/hvit body. */
@@ -1795,9 +1797,15 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
 
 
 .saved-item-row1 {
+    flex: 1;
+    min-width: 0;
     font-weight: 600;
     font-size: 14px;
     color: #222;
+    /* Aldri brekk tittelen til to linjer — for lang tittel → ellipsis. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .saved-item-header {
@@ -4957,6 +4965,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     cursor: pointer;
     outline: none;
     -webkit-appearance: auto;
+    appearance: auto;
 }
 .settings-material-type-select:focus {
     border-color: #E8501A;
@@ -6817,11 +6826,13 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .bp-table input[type="number"]::-webkit-inner-spin-button,
 .bp-table input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
+    appearance: none;
     margin: 0;
 }
 
 .bp-table input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 
@@ -7115,6 +7126,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #222;
     background: #fff;
     -webkit-appearance: none;
+    appearance: none;
     min-width: 0;
     width: 100%;
     box-sizing: border-box;
@@ -7942,6 +7954,229 @@ body.kappe-view-open #view-form { display: none; }
     font-size: 15px;
     font-weight: 600;
 }
+/* ── LM-felt = stor trykkflate som åpner løpemeter-popupen ─────────────────────
+   Ikke et skrivefelt: hele cella er én knapp (lett å treffe på mobil) som viser
+   summen. Stylet likt input-cellene i raden så den passer inn. */
+.kappe-lm-field-btn {
+    width: 100%;
+    padding: 10px 4px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    color: #000;
+    cursor: pointer;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+.kappe-lm-field-btn:active { border-color: #E8501A; }
+.kappe-lm-field-btn::after {
+    content: '\203A';                 /* › — hint om at den åpner noe */
+    color: #b8b8be;
+    font-size: 14px;
+    line-height: 1;
+}
+.kappe-lm-field-btn.kappe-lm-empty .kappe-lm-value { color: #b8b8be; }
+
+/* ── LM-popup (summer flere løpemeter) ────────────────────────────────────────
+   Speiler spec-multi-popupen. Hver rad = LM × Antall, intern scroll + live sum. */
+.kappe-length-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 2px 0;
+}
+.kappe-length-row .kappe-quad-row { flex: 1; min-width: 0; }
+/* 2 kolonner: hver rad er bare ett smalt tallfelt → utnytt bredden, flere rader
+   synlig samtidig. Gjelder både LM- og Mål-popupen. */
+#kappe-lm-rows,
+#kappe-maal-rows {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+    row-gap: 4px;
+}
+/* Intern scroll: innholds-tilpasset, scroller kun hvis høyere enn max-height
+   (samme mønster som #spec-multi-scroll). Header + footer-knapper står fast. */
+#kappe-lm-popup .spec-popup-sheet,
+#kappe-maal-popup .spec-popup-sheet { gap: 8px; }
+#kappe-lm-popup .spec-popup-sheet > *:not(#kappe-lm-scroll) { flex-shrink: 0; }
+#kappe-maal-popup .spec-popup-sheet > *:not(#kappe-maal-scroll) { flex-shrink: 0; }
+#kappe-lm-scroll,
+#kappe-maal-scroll {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-right: 4px;
+    padding-bottom: 2px;
+}
+#kappe-lm-popup .kappe-add-row-buttons,
+#kappe-maal-popup .kappe-add-row-buttons { margin-top: 2px; }
+#kappe-lm-popup .spec-popup-header,
+#kappe-maal-popup .spec-popup-header {
+    font-size: 17px;
+    letter-spacing: .01em;
+    margin-bottom: 2px;
+}
+#kappe-lm-popup .kappe-quad-row .mobile-field label,
+#kappe-maal-popup .kappe-quad-row .mobile-field label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #8e8e93;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    margin-bottom: 5px;
+}
+#kappe-lm-popup .kappe-quad-row .mobile-field input,
+#kappe-maal-popup .kappe-quad-row .mobile-field input {
+    height: 42px;
+    padding: 0 6px;
+    border: 1px solid #d4d4da;
+    border-radius: 10px;
+    background: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    text-align: center;
+    color: #1c1c1e;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+#kappe-lm-popup .kappe-quad-row .mobile-field input:focus,
+#kappe-maal-popup .kappe-quad-row .mobile-field input:focus {
+    border-color: #E8501A;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(232,80,26,.12);
+    outline: none;
+}
+#kappe-lm-popup .kappe-length-row .kappe-kapp-remove-btn,
+#kappe-maal-popup .kappe-length-row .kappe-kapp-remove-btn {
+    height: 42px;
+    align-items: center;
+    padding: 0 0 0 4px;
+    color: #e74c3c;
+}
+#kappe-lm-popup .kappe-add-kapp-btn,
+#kappe-maal-popup .kappe-add-kapp-btn {
+    margin: 0;
+    padding: 11px 6px;
+    border: 1px dashed #d6d6db;
+    border-radius: 10px;
+    background: #fff;
+    font-size: 13px;
+    text-align: center;
+}
+#kappe-lm-popup .kappe-add-kapp-btn:active,
+#kappe-maal-popup .kappe-add-kapp-btn:active {
+    background: #fff4f0;
+    border-color: #E8501A;
+}
+#kappe-lm-popup .spec-popup-buttons,
+#kappe-maal-popup .spec-popup-buttons { gap: 10px; }
+#kappe-lm-popup .spec-popup-cancel,
+#kappe-lm-popup .spec-popup-confirm,
+#kappe-maal-popup .spec-popup-cancel,
+#kappe-maal-popup .spec-popup-confirm {
+    border-radius: 12px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* ── Stål-grupper (kappeskjema) ───────────────────────────────────────────────
+   Hvert stål = et moderne kort: lett skygge + ramme, oransje merkevare-aksent,
+   og en distinkt header-stripe (subtil bakgrunn + skillelinje) der målene vises
+   som rene dimensjons-«chips». Redigering via blyant-ikon i headeren. */
+.kappe-steel-group {
+    border: 1px solid #e6e6ea;
+    border-left: 3px solid #E8501A;
+    border-radius: 10px;
+    background: #fff;
+    margin-bottom: 14px;
+    overflow: hidden;                        /* header-bg respekterer rundede hjørner */
+    box-shadow: 0 1px 3px rgba(20, 20, 30, .05);
+}
+.kappe-steel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #f5f5f8;                      /* tydelig header-stripe */
+    border-bottom: 1px solid #e6e6ea;
+}
+/* Radene får egen padding (gruppen har ikke padding lenger). */
+.kappe-steel-rows {
+    padding: 11px 12px 5px;
+}
+/* Tittel = målene som REN, fet overskrift (ingen bokser → ikke til å forveksle
+   med input-feltene). Dempet × som skille. */
+.kappe-steel-title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.kappe-steel-dim {
+    flex-shrink: 0;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: .01em;
+    color: #1c1c1e;
+}
+.kappe-steel-x {
+    flex-shrink: 0;
+    color: #b0b0b8;
+    font-weight: 400;
+    font-size: 14px;
+}
+.kappe-steel-title-empty {
+    font-weight: 600;
+    font-size: 15px;
+    color: #E8501A;
+}
+/* Rediger- (blyant) og slett-ikon: like ikon-knapper i samme størrelse/stil.
+   Rediger = oransje (merkevare, som blyant ellers på siden), slett = rød. */
+.kappe-steel-edit,
+.kappe-steel-remove {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    border-radius: 6px;
+}
+.kappe-steel-edit { color: #E8501A; }
+.kappe-steel-edit:active { background: #fff4f0; }
+.kappe-steel-remove { color: #e74c3c; }
+.kappe-steel-remove:active { background: #fdecec; }
+.kappe-steel-edit svg,
+.kappe-steel-remove svg { width: 20px; height: 20px; }
+/* Kolonne-etiketter (Mål/LM/Antall/Sider) vises kun på FØRSTE kapp-rad i hvert
+   stål — resten viser bare feltene (kompakt, etiketter ikke gjentatt per rad). */
+.kappe-steel-rows .kappe-kapp-row:not(:first-child) .mobile-field > label { display: none; }
+/* LM + Antall er FELLES for stålet → settes på FØRSTE kapp; på de øvrige kappene
+   er de bare SPEIL: dempet og ikke redigerbare (tydeliggjør at de er felles). */
+.kappe-cut-mirror .kappe-lm-field-btn,
+.kappe-cut-mirror .kappe-line-antall {
+    background: #f5f5f7;
+    color: #9b9ba1;
+    border-color: #ececef;
+    cursor: default;
+    pointer-events: none;
+}
+.kappe-cut-mirror .kappe-lm-field-btn::after { display: none; } /* skjul › (ikke klikkbar) */
+
 /* Skjul iso-kort-popupen helt mens produkt-/festemiddel-undervelgeren er
    åpen oppå den (samme mønster som dag-timer ↔ plan), så man ikke ser
    «Isolering» bak undervelgeren. */
