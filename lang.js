@@ -7,7 +7,11 @@ const TRANSLATIONS = {
         toolbar_export: 'Eksport',
         toolbar_service: 'Lageruttak',
         toolbar_settings: 'Meny',
-        btn_mark_sent: 'Ferdig',
+        btn_mark_sent: 'Merk sendt',
+        btn_mark_ferdig: 'Merk ferdig',
+        mark_sent_confirm: 'Merk dette skjemaet som sendt?',
+        mark_ferdig_confirm: 'Merk dette skjemaet som ferdig (signert)?',
+        marked_as_ferdig: 'Skjema markert som ferdig!',
 
         // Login
         login: 'Logg inn',
@@ -109,7 +113,7 @@ const TRANSLATIONS = {
         // Export menu
         export_title: 'Eksporter som',
         export_only_label: 'Kun eksporter',
-        export_and_mark_label: 'Marker som ferdig',
+        export_and_mark_label: 'Marker som sendt',
         btn_cancel: 'Avbryt',
         btn_clear: 'Fjern',
         btn_preview: 'Vis',
@@ -160,7 +164,7 @@ const TRANSLATIONS = {
         delete_sent_confirm: 'Er du sikker på at du vil slette dette skjemaet permanent?',
         move_to_saved_confirm: 'Vil du flytte dette skjemaet til lagrede?',
         move_to_saved_success: 'Skjema flyttet til lagrede!',
-        marked_as_sent: 'Skjema markert som ferdig!',
+        marked_as_sent: 'Skjema markert som sendt!',
         btn_ferdig: 'Marker som ferdig',
         btn_move: 'Flytt',
         duplicate_confirm: 'Vil du duplisere dette skjemaet?',
@@ -613,7 +617,11 @@ const TRANSLATIONS = {
         toolbar_export: 'Export',
         toolbar_service: 'Withdrawal',
         toolbar_settings: 'Menu',
-        btn_mark_sent: 'Done',
+        btn_mark_sent: 'Mark sent',
+        btn_mark_ferdig: 'Mark done',
+        mark_sent_confirm: 'Mark this form as sent?',
+        mark_ferdig_confirm: 'Mark this form as done (signed)?',
+        marked_as_ferdig: 'Form marked as done!',
 
         // Login
         login: 'Log in',
@@ -715,7 +723,7 @@ const TRANSLATIONS = {
         // Export menu
         export_title: 'Export as',
         export_only_label: 'Export only',
-        export_and_mark_label: 'Mark as done',
+        export_and_mark_label: 'Mark as sent',
         btn_cancel: 'Cancel',
         btn_clear: 'Clear',
         btn_preview: 'Preview',
@@ -766,7 +774,7 @@ const TRANSLATIONS = {
         delete_sent_confirm: 'Are you sure you want to permanently delete this form?',
         move_to_saved_confirm: 'Do you want to move this form to saved?',
         move_to_saved_success: 'Form moved to saved!',
-        marked_as_sent: 'Form marked as done!',
+        marked_as_sent: 'Form marked as sent!',
         btn_ferdig: 'Mark as done',
         btn_move: 'Move',
         duplicate_confirm: 'Do you want to duplicate this form?',

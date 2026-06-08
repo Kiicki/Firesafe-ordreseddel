@@ -890,6 +890,10 @@ body:has(:is(
     border-color: #E8501A;
     color: #E8501A;
 }
+.btn-form-ferdig {
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
 
 /* Service entry cards */
 .service-entry-card {
@@ -3101,6 +3105,13 @@ label.settings-default-label.field-required > span::after {
 }
 .status-dot.saved { background: #E8501A; }
 .status-dot.sent { background: #4CAF50; }
+/* Tre-tilstands status (ordreseddel): utkast (oransje) → sendt (blå) → ferdig (grønn). */
+.status-dot.s-draft { background: #E8501A; }
+.status-dot.s-sent { background: #2D7FF9; }
+.status-dot.s-done { background: #4CAF50; }
+/* «Merk neste status»-knapp i lista: blå (merk sendt) / grønn (merk ferdig). */
+.saved-item-action-btn.mark-sent { color: #2D7FF9; }
+.saved-item-action-btn.mark-ferdig { color: #4CAF50; }
 
 
 .mobile-add-line-btn {

@@ -149,11 +149,28 @@ function updateToolbarState() {
     // No toolbar buttons need disabling anymore — save/export are in the form view itself
 }
 
+// Status-prikk-klasse for et lagret skjema. Tre tilstander:
+//  s-draft (oransje) = utkast (i forms-samlingen, ikke sendt)
+//  s-sent  (blå)     = sendt, venter på signatur (i archive, status='sendt')
+//  s-done  (grønn)   = ferdig/signert (i archive, status != 'sendt' — inkl. eldre
+//                      arkiverte uten status-felt, så gammel data forblir grønn)
+function _statusDotClass(item) {
+    if (!item || !item._isSent) return 's-draft';
+    return (item.status === 'sendt') ? 's-sent' : 's-done';
+}
+// Ikoner for «marker neste status» i lista.
+var _statusSendIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
+var _statusCheckIcon = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
 function _buildSavedItemHtml(item, index) {
     var ordrenr = item.ordreseddelNr || '';
     var dato = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
-    var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+    var dotCls = _statusDotClass(item);
+    var dot = '<span class="status-dot ' + dotCls + '"></span>';
+    // Ingen status-knapp i lista — status vises kun via prikken (oransje/blå/grønn).
+    // Markering skjer i skjemaet (Merk sendt / Merk ferdig).
+    var statusBtn = '';
     var clipBtn = '<button class="saved-item-action-btn clipboard" title="' + t('copy_btn') + '">' + copyIcon + '</button>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
@@ -173,7 +190,7 @@ function _buildSavedItemHtml(item, index) {
             '</div>' +
             subtitle +
         '</div>' +
-        '<div class="saved-item-buttons">' + clipBtn + dupBtn + deleteBtn + '</div>' +
+        '<div class="saved-item-buttons">' + statusBtn + clipBtn + dupBtn + deleteBtn + '</div>' +
     '</div>';
 }
 
@@ -399,9 +416,9 @@ function loadFormDirect(formData) {
     const isSent = !!formData._isSent;
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
-    var btnFormSent = document.getElementById('btn-form-sent');
-    if (btnFormSent) btnFormSent.style.display = isSent ? 'none' : '';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
+    sessionStorage.setItem('firesafe_current_status', (isSent ? (formData.status || 'ferdig') : ''));
+    _updateFormStatusButtons();
     closeModal();
     // Set hash based on form type
     window.location.hash = 'skjema';
@@ -1130,6 +1147,7 @@ function clearSearchInput(inputId, listId) {
 function markCurrentFormAsSent() {
     try {
         var data = getFormData();
+        data.status = 'sendt';   // sendt, venter på signatur → blå prikk
         var formsCollection = 'forms';
         var archiveCollection = 'archive';
 
@@ -1154,9 +1172,9 @@ function markCurrentFormAsSent() {
         // Update UI state
         sessionStorage.setItem('firesafe_current_sent', '1');
         lastSavedData = getFormDataSnapshot();
+        sessionStorage.setItem('firesafe_current_status', 'sendt');
         document.getElementById('sent-banner').style.display = 'block';
-        var btnFormSent = document.getElementById('btn-form-sent');
-        if (btnFormSent) btnFormSent.style.display = 'none';
+        _updateFormStatusButtons();
         showNotificationModal(t('marked_as_sent'), true);
         _lastLocalSaveTs = Date.now();
         loadedForms = [];
@@ -1167,6 +1185,116 @@ function markCurrentFormAsSent() {
         console.error('Mark as sent error:', e);
     }
 }
+
+// Sentralt: oppdater status-knappene (Merk sendt / Merk ferdig) ut fra det åpne
+// skjemaets tilstand (sessionStorage `firesafe_current_sent`/`firesafe_current_status`):
+//   Utkast  → begge knapper (kan sendes ELLER ferdigstilles direkte ved signering på stedet)
+//   Sendt   → kun «Merk ferdig»
+//   Ferdig  → ingen (hele status-raden skjules)
+function _updateFormStatusButtons() {
+    var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+    var status = sessionStorage.getItem('firesafe_current_status') || '';
+    var isFerdig = isSent && status === 'ferdig';
+    var bs = document.getElementById('btn-form-sent');
+    var bf = document.getElementById('btn-form-ferdig');
+    var row = document.getElementById('form-status-actions');
+    if (bs) bs.style.display = isSent ? 'none' : '';
+    if (bf) bf.style.display = isFerdig ? 'none' : '';
+    if (row) row.style.display = isFerdig ? 'none' : '';
+}
+window._updateFormStatusButtons = _updateFormStatusButtons;
+
+// Marker det ÅPNE (sendte) skjemaet som FERDIG (grønn): sett status='ferdig' i
+// archive. Skjemaet ligger allerede i archive (det er sendt), så ingen flytting.
+function markCurrentFormAsFerdig() {
+    try {
+        var data = getFormData();
+        data.status = 'ferdig';
+        // Var skjemaet allerede sendt (i archive) eller er det et utkast (i forms)?
+        // Utkast → flytt forms→archive (signert på stedet, hopper over «sendt»).
+        var wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+        var saved = safeParseJSON(STORAGE_KEY, []);
+        var archived = safeParseJSON(ARCHIVE_KEY, []);
+        var aIdx = archived.findIndex(function(f) { return f.ordreseddelNr === data.ordreseddelNr; });
+        var sIdx = saved.findIndex(function(f) { return f.ordreseddelNr === data.ordreseddelNr; });
+        data.id = (aIdx !== -1) ? archived[aIdx].id : ((sIdx !== -1) ? saved[sIdx].id : Date.now().toString());
+        if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+        if (sIdx !== -1) { saved.splice(sIdx, 1); safeSetItem(STORAGE_KEY, JSON.stringify(saved)); }
+        addToOrderNumberIndex(data.ordreseddelNr);
+        if (wasSent || aIdx !== -1) {
+            enqueueUserDocSet('archive', data.id, data, 'Mark ferdig (var sendt)');
+        } else {
+            enqueueUserDocMove('archive', 'forms', data.id, data, 'Mark ferdig (fra utkast)');
+        }
+        sessionStorage.setItem('firesafe_current_sent', '1');
+        sessionStorage.setItem('firesafe_current_status', 'ferdig');
+        _updateFormStatusButtons();
+        showNotificationModal(t('marked_as_ferdig'), true);
+        _lastLocalSaveTs = Date.now();
+        loadedForms = [];
+        _showSavedFormsDirectly();
+    } catch (e) { console.error('Mark ferdig (form) error:', e); }
+}
+window.markCurrentFormAsFerdig = markCurrentFormAsFerdig;
+
+// ── Status fra lista: utkast → sendt → ferdig ────────────────────────────────
+// Marker et lagret skjema (fra #hent-lista) som SENDT (blå): flytt forms→archive
+// og sett status='sendt'. Speiler markCurrentFormAsSent, men på data fra lista
+// (skjemaet trenger ikke være åpent).
+function _markFormSent(form) {
+    try {
+        var data = Object.assign({}, form);
+        delete data._isSent;
+        data.status = 'sendt';
+        if (!data.id) data.id = Date.now().toString();
+        // localStorage: flytt fra saved til archive.
+        var saved = safeParseJSON(STORAGE_KEY, []);
+        var sIdx = saved.findIndex(function(f) { return f.id === data.id; });
+        if (sIdx !== -1) { saved.splice(sIdx, 1); safeSetItem(STORAGE_KEY, JSON.stringify(saved)); }
+        var archived = safeParseJSON(ARCHIVE_KEY, []);
+        var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
+        if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+        addToOrderNumberIndex(data.ordreseddelNr);
+        enqueueUserDocMove('archive', 'forms', data.id, data, 'Mark sent (list)');
+        _lastLocalSaveTs = Date.now();
+        loadedForms = [];
+        _showSavedFormsDirectly();
+        showNotificationModal(t('marked_as_sent'), true);
+    } catch (e) { console.error('Mark sent (list) error:', e); }
+}
+
+// Marker et SENDT skjema som FERDIG (grønn): sett status='ferdig' i archive
+// (ingen samlings-flytting — den ligger allerede i archive).
+function _markFormFerdig(form) {
+    try {
+        var data = Object.assign({}, form);
+        delete data._isSent;
+        data.status = 'ferdig';
+        if (!data.id) data.id = Date.now().toString();
+        var archived = safeParseJSON(ARCHIVE_KEY, []);
+        var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
+        if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+        enqueueUserDocSet('archive', data.id, data, 'Mark ferdig (list)');
+        _lastLocalSaveTs = Date.now();
+        loadedForms = [];
+        _showSavedFormsDirectly();
+        showNotificationModal(t('marked_as_ferdig'), true);
+    } catch (e) { console.error('Mark ferdig error:', e); }
+}
+
+// Ett trykk på status-knappen i lista flytter til NESTE tilstand (med bekreftelse).
+function advanceSavedFormStatus(form) {
+    if (!form) return;
+    if (!form._isSent) {
+        showConfirmModal(t('mark_sent_confirm'), function() { _markFormSent(form); }, t('btn_mark_sent'), '#2D7FF9');
+    } else if (form.status === 'sendt') {
+        showConfirmModal(t('mark_ferdig_confirm'), function() { _markFormFerdig(form); }, t('btn_mark_ferdig'), '#4CAF50');
+    }
+}
+window.advanceSavedFormStatus = advanceSavedFormStatus;
 
 // ============================================
 // PROSJEKTMALER
@@ -3488,9 +3616,9 @@ function clearForm() {
 
     sessionStorage.removeItem('firesafe_current');
     sessionStorage.removeItem('firesafe_current_sent');
+    sessionStorage.removeItem('firesafe_current_status');
     document.getElementById('sent-banner').style.display = 'none';
-    var btnFormSent = document.getElementById('btn-form-sent');
-    if (btnFormSent) btnFormSent.style.display = '';
+    _updateFormStatusButtons();
     lastSavedData = null;
     updateFakturaadresseDisplay('fakturaadresse-display-text', '');
 
@@ -4924,7 +5052,7 @@ function _buildServiceItemHtml(item, index) {
     }
     var savedAtStr = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
-    var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+    var dot = '<span class="status-dot ' + _statusDotClass(item) + '"></span>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
@@ -5602,6 +5730,8 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
             showConfirmModal(t('duplicate_confirm'), function() {
                 duplicateFormDirect(savedItem._formData);
             }, t('duplicate_btn'));
+        } else if (btn.classList.contains('mark-status')) {
+            advanceSavedFormStatus(savedItem._formData);
         } else if (btn.classList.contains('delete')) {
             deleteFormDirect(savedItem._formData);
         }
@@ -7307,9 +7437,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         if (wasSent) {
             document.getElementById('sent-banner').style.display = 'block';
-            var btnFormSent = document.getElementById('btn-form-sent');
-            if (btnFormSent) btnFormSent.style.display = 'none';
         }
+        _updateFormStatusButtons();
         updateToolbarState();
     } else if (hash === 'hent') {
         // Trigger background Firestore refresh for saved forms list
@@ -12946,7 +13075,7 @@ function _buildKappeItemHtml(item, index) {
         ? '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>'
         : '';
     var isSent = item._isSent;
-    var dot = '<span class="status-dot ' + (isSent ? 'sent' : 'saved') + '"></span>';
+    var dot = '<span class="status-dot ' + _statusDotClass(item) + '"></span>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'

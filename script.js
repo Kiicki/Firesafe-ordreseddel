@@ -6323,9 +6323,9 @@ function validateServiceRequiredFields() {
 function _clearSentStateAfterSave() {
     if (sessionStorage.getItem('firesafe_current_sent') === '1') {
         sessionStorage.removeItem('firesafe_current_sent');
+        sessionStorage.removeItem('firesafe_current_status');
         document.getElementById('sent-banner').style.display = 'none';
-        var btnFormSent = document.getElementById('btn-form-sent');
-        if (btnFormSent) btnFormSent.style.display = '';
+        if (window._updateFormStatusButtons) window._updateFormStatusButtons();
     }
 }
 
