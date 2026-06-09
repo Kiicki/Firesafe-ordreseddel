@@ -3729,6 +3729,14 @@ function updateSelectionUI() {
     var exportBtn = document.getElementById('bulk-export-btn');
     if (exportBtn) exportBtn.disabled = count === 0;
 
+    // «Merk som»-menyen gjelder KUN ordreseddel (3-tilstands-status). Skjul på
+    // service/kappe. Deaktiver når ingenting er valgt.
+    var markBtn = document.getElementById('bulk-mark-btn');
+    if (markBtn) {
+        markBtn.style.display = (_selectTab === 'own') ? '' : 'none';
+        markBtn.disabled = count === 0;
+    }
+
     var selectAllBtn = document.getElementById('bulk-select-all-btn');
     if (selectAllBtn) {
         var items = _getSelectableItems();
@@ -3748,6 +3756,73 @@ function updateSelectionUI() {
         selectAllBtn.disabled = idxList.length === 0;
     }
 }
+
+// Anvend en status på ÉN form i de gitte localStorage-arrayene + enqueue Firestore.
+// target: 'lagret' (oransje, i forms) | 'sendt' (blå, archive) | 'ferdig' (grønn, archive).
+function _applyFormStatus(form, target, saved, archived) {
+    var data = Object.assign({}, form);
+    delete data._isSent;
+    if (!data.id) data.id = Date.now().toString();
+    var inArchive = !!form._isSent;
+    var sIdx = saved.findIndex(function(f) { return f.id === data.id; });
+    var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
+    if (target === 'lagret') {
+        delete data.status;                                   // tilbake til utkast
+        if (aIdx !== -1) archived.splice(aIdx, 1);
+        if (sIdx !== -1) saved[sIdx] = data; else saved.unshift(data);
+        if (inArchive) enqueueUserDocMove('forms', 'archive', data.id, data, 'Bulk → lagret');
+        else enqueueUserDocSet('forms', data.id, data, 'Bulk → lagret');
+    } else {
+        data.status = (target === 'ferdig') ? 'ferdig' : 'sendt';
+        if (sIdx !== -1) saved.splice(sIdx, 1);
+        if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
+        if (!inArchive) enqueueUserDocMove('archive', 'forms', data.id, data, 'Bulk → ' + target);
+        else enqueueUserDocSet('archive', data.id, data, 'Bulk → ' + target);
+    }
+    addToOrderNumberIndex(data.ordreseddelNr);
+}
+
+// «Merk som»-meny: tre status-valg med fargeprikk (i action-popup). Valget i
+// menyen ER handlingen → ingen ekstra bekreftelse (reversibelt + toast).
+function showBulkStatusMenu() {
+    if (!_selectMode || _selectTab !== 'own' || _selectedSet.size === 0) return;
+    var titleEl = document.getElementById('action-popup-title');
+    if (titleEl) titleEl.textContent = t('bulk_mark_btn');
+    function opt(target, color, key) {
+        return '<button class="bulk-status-option" onclick="closeActionPopup(); bulkSetStatus(\'' + target + '\')">' +
+            '<span class="bulk-status-option-dot" style="background:' + color + '"></span>' + t(key) + '</button>';
+    }
+    document.getElementById('action-popup-buttons').innerHTML =
+        '<div class="bulk-status-menu">' +
+            opt('lagret', '#E8501A', 'status_lagret') +
+            opt('sendt', '#2D7FF9', 'status_sendt') +
+            opt('ferdig', '#4CAF50', 'status_ferdig') +
+        '</div>';
+    document.getElementById('action-popup').classList.add('active');
+}
+window.showBulkStatusMenu = showBulkStatusMenu;
+
+// Sett valgt status på ALLE markerte ordresedler. Batch: oppdater localStorage
+// én gang, enqueue Firestore per form, så ÉN re-render.
+function bulkSetStatus(target) {
+    if (!_selectMode || _selectTab !== 'own') return;
+    var forms = [];
+    _selectedSet.forEach(function(i) { var f = window.loadedForms[i]; if (f) forms.push(f); });
+    if (!forms.length) return;
+    var label = (target === 'sendt') ? t('status_sendt') : (target === 'ferdig') ? t('status_ferdig') : t('status_lagret');
+    var saved = safeParseJSON(STORAGE_KEY, []);
+    var archived = safeParseJSON(ARCHIVE_KEY, []);
+    forms.forEach(function(f) { try { _applyFormStatus(f, target, saved, archived); } catch (e) { console.error('Bulk status:', e); } });
+    safeSetItem(STORAGE_KEY, JSON.stringify(saved));
+    safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+    _lastLocalSaveTs = Date.now();
+    var n = forms.length;
+    toggleSelectMode();                                       // ut av fler-valg
+    loadedForms = [];
+    _showSavedFormsDirectly();
+    showNotificationModal(t('bulk_marked', n, label.toLowerCase()), true);
+}
+window.bulkSetStatus = bulkSetStatus;
 
 function toggleSelectAllVisible() {
     if (!_selectMode) return;

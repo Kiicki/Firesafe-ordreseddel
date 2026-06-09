@@ -7511,12 +7511,12 @@ body.stopwatch-running .toolbar .btn-calc::after {
     z-index: 200;
     background: #f8f9fa;
     border-top: 2px solid #E8501A;
-    padding: 8px 12px;
+    padding: 8px 10px;
     padding-bottom: max(8px, env(safe-area-inset-bottom));
     display: none;
     align-items: center;
-    gap: 12px;
-    min-height: 67px;
+    gap: 6px;
+    min-height: 58px;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.10);
 }
 body.bulk-select-active .bulk-action-bar {
@@ -7527,42 +7527,97 @@ body.bulk-select-active .toolbar {
 }
 .bulk-count {
     font-weight: 600;
-    font-size: 15px;
-    color: #222;
+    font-size: 12px;
+    color: #4a4a4f;
     flex-shrink: 0;
+    white-space: nowrap;
+    /* Fast min-bredde så «1 valgt» vs «100 valgt» ikke flytter resten. */
+    min-width: 52px;
 }
 .bulk-buttons {
     margin-left: auto;
     display: flex;
-    gap: 8px;
+    align-items: center;
+    gap: 6px;
 }
+/* Felles knappe-grunnform: rolig, jevn, profesjonell. Kompakt så alt (telling +
+   Velg alle + Merk som + Eksporter) får plass i én rad også på smale telefoner. */
 .bulk-buttons button {
-    min-height: 42px;
-    padding: 8px 18px;
+    min-height: 36px;
+    padding: 7px 10px;
     border-radius: 8px;
-    border: none;
+    border: 1px solid #d7d7dd;
     font-weight: 600;
-    font-size: 14px;
-    background: #E8501A;
-    color: #fff;
+    font-size: 13px;
+    background: #fff;
+    color: #3a3a40;
     cursor: pointer;
+    white-space: nowrap;
 }
 .bulk-buttons button:active {
-    opacity: 0.75;
+    background: #f2f2f4;
 }
-.bulk-buttons .bulk-cancel {
-    background: #eee;
-    color: #333;
+/* Fast bredde så «Velg alle» og «Fjern alle» (ulik lengde) ikke endrer
+   knappens bredde → resten av knappene står stille når man veksler. */
+.bulk-select-all {
+    min-width: 86px;
+    text-align: center;
 }
-.bulk-buttons .bulk-select-all {
-    background: #fff;
-    color: #E8501A;
-    border: 1.5px solid #E8501A;
-    padding: 6.5px 14px;
+/* «Merk som»-knappen: nøytral + liten caret som hint om at den åpner en meny. */
+.bulk-mark-trigger::after {
+    content: '▾';
+    margin-left: 4px;
+    color: #9a9aa0;
+    font-size: 11px;
+}
+/* Eksporter = eneste primær-handling (fylt oransje). Ikon-knapp (kompakt) så hele
+   baren får plass i én rad. */
+#bulk-export-btn {
+    background: #E8501A;
+    border-color: #E8501A;
+    color: #fff;
+}
+#bulk-export-btn:active {
+    background: #cf4716;
+}
+.bulk-export-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 11px;
 }
 .bulk-buttons button:disabled {
-    opacity: 0.4;
+    opacity: 0.45;
     cursor: default;
+}
+/* «Merk som»-meny (i action-popup): nøytrale rader med fargeprikk = status. */
+.bulk-status-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.bulk-status-option {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 13px 14px;
+    border: 1px solid #d7d7dd;
+    border-radius: 9px;
+    background: #fff;
+    color: #2a2a2e;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.bulk-status-option:active {
+    background: #f2f2f4;
+}
+.bulk-status-option-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 
 /* ============================================================================
