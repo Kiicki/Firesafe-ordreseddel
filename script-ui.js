@@ -1017,7 +1017,9 @@ function showExportMenu() {
     var shareBtnPNG = canShare
         ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
-    let html = checkboxHtml +
+    // «Marker som sendt»-avhuking fjernet: deling markerer nå automatisk som sendt
+    // (kun ved fullført deling, ikke nedlasting). Manuell merking via knappene i skjemaet.
+    let html =
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
@@ -1237,6 +1239,15 @@ function markCurrentFormAsFerdig() {
     } catch (e) { console.error('Mark ferdig (form) error:', e); }
 }
 window.markCurrentFormAsFerdig = markCurrentFormAsFerdig;
+
+// Kalt når en DELING er fullført: løft LAGRET (utkast) til sendt. Sendt forblir
+// sendt, ferdig forblir ferdig — aldri nedgrader (en ferdig/signert liste som
+// deles er fortsatt ferdig). Nedlasting kaller IKKE denne (last ned ≠ sendt).
+function _promoteFormToSent() {
+    if (sessionStorage.getItem('firesafe_current_sent') === '1') return; // sendt el. ferdig → ikke rør
+    markCurrentFormAsSent();
+}
+window._promoteFormToSent = _promoteFormToSent;
 
 // ── Status fra lista: utkast → sendt → ferdig ────────────────────────────────
 // Marker et lagret skjema (fra #hent-lista) som SENDT (blå): flytt forms→archive
@@ -3958,7 +3969,7 @@ async function doExportPDF(markSent) {
         const canvas = await renderFormToCanvas();
         const pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
         pdf.save(getExportFilename('pdf'));
-        if (markSent) markCurrentFormAsSent();
+        // Last ned ≠ sendt — ingen status-endring.
     } catch (error) {
         showNotificationModal(t('export_pdf_error') + error.message);
     } finally {
@@ -3976,7 +3987,7 @@ async function doExportPNG(markSent) {
         link.download = getExportFilename('png');
         link.href = canvas.toDataURL('image/png');
         link.click();
-        if (markSent) markCurrentFormAsSent();
+        // Last ned ≠ sendt — ingen status-endring.
     } catch (error) {
         showNotificationModal(t('export_png_error') + error.message);
     } finally {
@@ -4030,7 +4041,7 @@ async function doSharePDF(markSent) {
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
         var result = await _safeShare([file]);
-        if (result === 'shared' && markSent) markCurrentFormAsSent();
+        if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -4050,7 +4061,7 @@ async function doSharePNG(markSent) {
         var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
         var result = await _safeShare([file]);
-        if (result === 'shared' && markSent) markCurrentFormAsSent();
+        if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -4554,12 +4565,15 @@ function _markOwnFormDataAsSent(sourceData) {
         var data = JSON.parse(JSON.stringify(sourceData));
         // Strip internal flags som ikke skal lagres
         delete data._isSent;
+        data.status = 'sendt';   // → blå (sendt), ikke grønn
         data.savedAt = new Date().toISOString();
 
         var saved = safeParseJSON(STORAGE_KEY, []);
         var idx = saved.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (idx !== -1 && !data.id) data.id = saved[idx].id;
         if (!data.id) data.id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+        // Fjern fra forms-cachen (flyttes til archive).
+        if (idx !== -1) { saved.splice(idx, 1); safeSetItem(STORAGE_KEY, JSON.stringify(saved)); }
         var archived = safeParseJSON(ARCHIVE_KEY, []);
         var archIdx = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
         if (archIdx !== -1) archived[archIdx] = data;
@@ -4668,7 +4682,9 @@ function showBulkExportMenu() {
         ? '<button class="confirm-btn-ok bulk-png-btn" style="background:#E8501A" onclick="' + pngShare + '; closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok bulk-png-btn" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
 
-    var html = checkboxHtml + combinedCheckboxHtml +
+    // «Marker som sendt»-avhuking fjernet: deling markerer automatisk (fullført
+    // deling → sendt; nedlasting endrer ikke status; ferdig forblir ferdig).
+    var html = combinedCheckboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="' + pdfDl + '; closeActionPopup()">' + dlIcon + ' PDF</button>' +
@@ -4727,7 +4743,7 @@ async function doBulkExportPDF(markSent) {
     try {
         var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : (_selectTab === 'kappe' ? await _bulkBuildKappePDF() : await _bulkBuildOwnPDF());
         if (pdf) pdf.save(_bulkFilename('pdf', _selectTab));
-        await _bulkFinishAfterExport(markSent);
+        await _bulkFinishAfterExport(false);   // last ned ≠ sendt
     } catch (e) {
         showNotificationModal(t('export_pdf_error') + e.message);
     } finally {
@@ -4753,7 +4769,7 @@ async function doBulkExportPNG(markSent) {
             // Small delay between downloads so browsers don't coalesce or block
             await new Promise(function(r) { setTimeout(r, 150); });
         }
-        await _bulkFinishAfterExport(markSent);
+        await _bulkFinishAfterExport(false);   // last ned ≠ sendt
     } catch (e) {
         showNotificationModal(t('export_png_error') + e.message);
     } finally {
@@ -4780,7 +4796,7 @@ async function doBulkSharePDF(markSent) {
         }
         loading.classList.remove('active');
         var result = await _safeShare([file]);
-        if (result === 'shared') await _bulkFinishAfterExport(markSent);
+        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -4805,7 +4821,7 @@ async function doBulkSharePNG(markSent) {
         }
         loading.classList.remove('active');
         var result = await _safeShare(files);
-        if (result === 'shared') await _bulkFinishAfterExport(markSent);
+        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -4831,7 +4847,7 @@ async function doBulkExportPDFSeparate(markSent) {
             setTimeout(function(u) { return function() { URL.revokeObjectURL(u); }; }(url), 2000);
             await new Promise(function(r) { setTimeout(r, 150); });
         }
-        await _bulkFinishAfterExport(markSent);
+        await _bulkFinishAfterExport(false);   // last ned ≠ sendt
     } catch (e) {
         showNotificationModal(t('export_pdf_error') + e.message);
     } finally {
@@ -4856,7 +4872,7 @@ async function doBulkSharePDFSeparate(markSent) {
         }
         loading.classList.remove('active');
         var result = await _safeShare(files);
-        if (result === 'shared') await _bulkFinishAfterExport(markSent);
+        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
