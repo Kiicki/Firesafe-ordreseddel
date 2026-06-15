@@ -3171,37 +3171,42 @@ label.settings-default-label.field-required > span::after {
 .kappe-add-row-buttons .iso-add-group-btn {
     flex: 1 1 100%;
 }
-/* Vises før produkt er valgt (ingen rader/knapper ennå). */
-/* Identisk med ordreseddelens .iso-group-pick-hint (venstrejustert, ikke kursiv). */
-.kappe-line-pick-hint {
-    font-size: 13px;
-    color: #999;
-    text-align: left;
-    padding: 4px 2px 2px;
-}
-
-/* ── Kappeskjema-grupper: grått sammenleggbart kort (header + body) ───────────
-   Beholder ekspander/kollaps og tittel øverst. Seksjons-innholdet i body deler
-   stil med ordreseddel-Isolering. */
-#kappe-lines .kappe-line-card.mobile-order-card {
+/* ── Gruppe-kort: grått sammenleggbart kort (header + body) ───────────────────
+   ÉN regel for BEGGE kontekster. Begge kort bygges av _createIsoGroupCard og har
+   .iso-group-card.mobile-order-card + .iso-group-header/.iso-group-body. Grått
+   kort, ingen oransje aksent. Ingen container-scoping = ingen divergens. */
+.iso-group-card.mobile-order-card {
     background: #f5f5f7;
     border: 1px solid #e0e0e6;
     border-left: 1px solid #e0e0e6;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    margin-bottom: 0;
 }
-#kappe-lines .kappe-line-card.mobile-order-card:has(.mobile-order-body-wrap.expanded) {
+.iso-group-card.mobile-order-card:has(.mobile-order-body-wrap.expanded) {
     border-left-color: #e0e0e6;
 }
-#kappe-lines .kappe-line-header,
-#kappe-lines .kappe-line-card:has(.mobile-order-body-wrap.expanded) .kappe-line-header,
-#kappe-lines .kappe-line-body {
+.iso-group-card .iso-group-header,
+.iso-group-card .iso-group-body {
     background: #f5f5f7;
 }
-/* Produkt-velger: samme font/størrelse som ordreseddel-launcheren (13px). */
-#kappe-lines .kappe-line-product-btn {
+/* Body: jevn avstand mellom produkt-velger, hint, seksjoner og merknad. */
+.iso-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.iso-group-body .mobile-field { margin-bottom: 0; }
+/* Produkt-velger fyller hode-raden, samme font begge steder (13px). */
+.iso-group-head .kappe-line-product-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.iso-group-card .kappe-line-product-btn {
     font-size: 13px;
     padding: 8px 10px;
 }
+/* Skjul merknad-feltet før produkt er valgt (samme som hint/seksjoner). */
+.iso-group-card--no-product .kappe-merknad-field { display: none; }
 /* «+ Legg til gruppe» (kappeskjema): oransje stiplet, identisk med ordreseddel. */
 #kappe-form .mobile-add-line-btn {
     width: 100%;
@@ -8590,14 +8595,10 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     flex: 1 1 auto;
     min-width: 0;
 }
+/* Sammenleggbart kort — layout styres nå av .mobile-order-card/-header/-body
+   (samme som kappeskjema-gruppen). #iso-card-blocks gir avstand via gap. */
 .iso-card-block {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    background: #f5f5f7;
-    border: none;
-    border-radius: 12px;
-    padding: 10px;
+    margin-bottom: 0;
 }
 /* iOS-stil på input-feltene i Isolering-popupen — mykt, avrundet, ingen
    harde rammer; samme språk som «Dager & tid». Scoped til popupen så
@@ -8692,25 +8693,37 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     justify-content: space-between;
     gap: 6px;
 }
-/* Redigerbart gruppenavn — ser ut som en overskrift, men er et input-felt.
-   Ingen ramme/bakgrunn før fokus, så det leses som tittel. */
+/* Redigerbart gruppenavn — dempet, profesjonell redigér-affordans: blyant-ikon
+   til høyre + lett avrundet felt. Ingen hard understrek/hvit boks. */
 .iso-group-name {
-    flex: 1 1 auto;
+    flex: 1;
     min-width: 0;
-    font-weight: 700;
-    font-size: 13px;
-    color: #1d1d1f;
-    border: none;
-    background: transparent;
-    padding: 2px 4px;
-    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+    border: 1px solid transparent;
+    background-color: transparent;
+    padding: 4px 24px 4px 8px;
+    border-radius: 8px;
     font-family: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Blyant-ikon (grå) til høyre = «trykk for å redigere navn». */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a0a0a8'%3E%3Cpath d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 14px 14px;
+    transition: background-color 0.15s ease-out, border-color 0.15s ease-out;
 }
-.iso-group-name::placeholder { color: #b0b0b5; font-weight: 700; }
+/* Placeholder = nøytralt navne-hint («Gruppe 1»). Nedtonet så det er tydelig at
+   feltet er TOMT og kan navngis manuelt (ikke en fast produkt-tittel). */
+.iso-group-name::placeholder { color: #999; font-weight: 500; opacity: 1; }
+/* Fokus: myk, lett oransje-tonet boks (ingen stark hvit/understrek). */
 .iso-group-name:focus {
     outline: none;
-    background: #fff;
-    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
+    background-color: rgba(232, 80, 26, 0.06);
+    border-color: rgba(232, 80, 26, 0.35);
 }
 .iso-group-remove {
     flex: 0 0 auto;

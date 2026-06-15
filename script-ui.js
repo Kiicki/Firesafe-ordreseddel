@@ -9619,22 +9619,8 @@ function _formatDimMm(d) {
     return /mm$/i.test(d) ? d : d + 'mm';
 }
 
-function _kappeProductPickerHtml(selectedName, plateLen, plateWid) {
-    var displayText = selectedName || t('kappe_product_placeholder');
-    var placeholderClass = selectedName ? '' : ' kappe-line-product-text-placeholder';
-    var plateHint = '';
-    if (selectedName && plateLen && plateWid) {
-        plateHint = '<span class="kappe-line-product-plate-hint">' + escapeHtml(plateLen + '×' + plateWid) + '</span>';
-    }
-    return '<button type="button" class="kappe-line-product-btn" onclick="openKappeProductPicker(this)">' +
-        '<span class="kappe-line-product-info">' +
-            '<span class="kappe-line-product-text' + placeholderClass + '">' + escapeHtml(displayText) + '</span>' +
-            plateHint +
-        '</span>' +
-        '<span class="kappe-line-product-arrow">▾</span>' +
-    '</button>' +
-    '<input type="hidden" class="kappe-line-product" value="' + escapeHtml(selectedName || '') + '">';
-}
+// Produkt-velger-knappen bygges nå av den DELTE _isoGroupProductBtnHtml (samme
+// som ordreseddel-gruppen). Den gamle kappe-spesifikke byggeren er fjernet.
 
 // Returnerer global default plate-størrelse fra innstillinger.
 function _getDefaultPlate() {
@@ -10026,13 +10012,8 @@ function _clearKappeLineProduct(btn) {
     if (!card) return;
     var hidden = card.querySelector('.kappe-line-product');
     if (hidden) { hidden.value = ''; hidden.dispatchEvent(new Event('change', { bubbles: true })); }
-    var textSpan = card.querySelector('.kappe-line-product-text');
-    if (textSpan) {
-        textSpan.textContent = t('kappe_product_placeholder');
-        textSpan.classList.add('kappe-line-product-text-placeholder');
-    }
-    var hint = card.querySelector('.kappe-line-product-plate-hint');
-    if (hint) hint.remove();
+    // Tilbakestill knapp-tekst/plate-hint via delt setter (placeholder-state).
+    _isoGroupSetProductBtn(card.querySelector('.iso-group-product-btn'), '', '', null);
     // Tøm seksjonene (én tom seksjon klar) så ingen skjult data henger igjen.
     var sectionsEl = card.querySelector('.iso-group-sections');
     if (sectionsEl) {
@@ -10040,10 +10021,7 @@ function _clearKappeLineProduct(btn) {
         sectionsEl.appendChild(_createIsoSection({}));
         _updateIsoSectionRemoveStates(sectionsEl);
     }
-    var pickHint = card.querySelector('.kappe-line-pick-hint');
-    if (pickHint) pickHint.style.display = '';
-    var isoSec = card.querySelector('.kappe-iso-sections');
-    if (isoSec) isoSec.style.display = 'none';
+    card.classList.add('iso-group-card--no-product');
     renumberKappeLines();
     if (typeof updateKappeRequiredIndicators === 'function') updateKappeRequiredIndicators();
     sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
@@ -10638,14 +10616,9 @@ function selectKappeProduct(value, selection) {
     if (!_currentKappeProductBtn) return;
     var wrap = _currentKappeProductBtn.parentElement;
     var hiddenInput = wrap.querySelector('.kappe-line-product');
-    var textSpan = _currentKappeProductBtn.querySelector('.kappe-line-product-text');
     if (hiddenInput) {
         hiddenInput.value = value;
         hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    if (textSpan) {
-        textSpan.textContent = value;
-        textSpan.classList.remove('kappe-line-product-text-placeholder');
     }
     // Lagre plate-verdier fra picker-popup til linjens skjulte plate-felter
     var card = _currentKappeProductBtn.closest('.kappe-line-card');
@@ -10662,29 +10635,13 @@ function selectKappeProduct(value, selection) {
         if (plateLenEl) plateLenEl.value = newLen;
         if (plateWidEl) plateWidEl.value = newWid;
     }
-    // Oppdater plate-hint-span inne i info-wrapperen (legg til hvis mangler)
-    var btn = _currentKappeProductBtn;
-    var infoWrap = btn.querySelector('.kappe-line-product-info');
-    var existingHint = btn.querySelector('.kappe-line-product-plate-hint');
-    if (newLen && newWid) {
-        var hintText = newLen + '×' + newWid;
-        if (existingHint) {
-            existingHint.textContent = hintText;
-        } else if (infoWrap) {
-            var hintEl = document.createElement('span');
-            hintEl.className = 'kappe-line-product-plate-hint';
-            hintEl.textContent = hintText;
-            infoWrap.appendChild(hintEl);
-        }
-    } else if (existingHint) {
-        existingHint.remove();
-    }
+    // Oppdater knapp-tekst + plate-hint via den DELTE setteren (samme som ordreseddel).
+    _isoGroupSetProductBtn(_currentKappeProductBtn, value, '',
+        (newLen || newWid) ? { length: newLen, width: newWid } : null);
     // Produkt valgt → skjul "velg produkt"-hinten, vis kapp/plate-seksjonene.
+    // Samme klasse-mekanisme som ordreseddel (.iso-group-card--no-product).
     if (card) {
-        var pickHint = card.querySelector('.kappe-line-pick-hint');
-        if (pickHint) pickHint.style.display = 'none';
-        var isoSec = card.querySelector('.kappe-iso-sections');
-        if (isoSec) isoSec.style.display = '';
+        card.classList.remove('iso-group-card--no-product');
         renumberKappeLines();
     }
     closeKappeProductPicker();
@@ -10903,26 +10860,111 @@ function _createIsoSection(data) {
 // data = { sel:{produkt}, sections:[{breddes, lengths, plates}] }.
 // «+ Legg til seksjon» legger til en seksjon (samme produkt); «+ Legg til gruppe»
 // (topp-nivå) lager ny gruppe med eget produkt.
-function _createIsoCardBlock(data) {
+// ── ÉN delt gruppe-kort-bygger (ordreseddel-Isolering OG kappeskjema) ────────
+// Bygger det sammenleggbare kort-SKALLET som er IDENTISK for begge: header
+// (pil + redigerbar tittel + slett), body-wrap, body, produkt-slot, pick-hint,
+// seksjons-container og valgfritt Merknad-felt. Kontekst-forskjellene sendes inn
+// via opts. Endrer du skallet HER, endres BEGGE steder samtidig — ingen parallell
+// duplisering (se CLAUDE.md / feedback_unified_structure_over_parallel).
+//   opts.cardClass   – ekstra klasse(r) på kortet ('iso-card-block' / 'kappe-line-card')
+//   opts.title       – tittel-verdi (tom = auto-sammendrag vises som placeholder)
+//   opts.expanded    – start utvidet (default true)
+//   opts.hasProduct  – om produkt er valgt (styrer .iso-group-card--no-product)
+//   opts.productHtml – markup for produkt-velger-slot (kontekst-spesifikk)
+//   opts.removeCall  – JS i slett-knappen (f.eks. 'removeKappeLine(this)')
+//   opts.withMerknad – inkluder Merknad-felt (kun kappeskjema)
+//   opts.merknad     – merknad-verdi
+function _createIsoGroupCard(opts) {
+    opts = opts || {};
+    var expanded = opts.expanded !== false;
+    var card = document.createElement('div');
+    card.className = ('iso-group-card mobile-order-card ' + (opts.cardClass || '')).trim();
+    if (!opts.hasProduct) card.classList.add('iso-group-card--no-product');
+    var merknadHtml = opts.withMerknad
+        ? '<div class="mobile-field kappe-merknad-field">' +
+              '<label data-i18n="kappe_col_merknad">' + t('kappe_col_merknad') + '</label>' +
+              '<textarea class="kappe-line-merknad" rows="1" autocapitalize="sentences">' + escapeHtml(opts.merknad || '') + '</textarea>' +
+          '</div>'
+        : '';
+    card.innerHTML =
+        '<div class="mobile-order-header iso-group-header" onclick="_toggleGroupCard(this)">' +
+            '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
+            '<input type="text" class="iso-group-name" placeholder="" value="' + escapeHtml(opts.title || '') + '" onclick="event.stopPropagation()" onkeydown="if(event.key===\'Enter\'){this.blur();}" oninput="_isoGroupTitleInput(this)">' +
+            '<button type="button" class="mobile-order-header-delete" onpointerdown="event.preventDefault()" onclick="event.stopPropagation(); ' + (opts.removeCall || '') + '" title="Fjern gruppe">' + deleteIcon + '</button>' +
+        '</div>' +
+        '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
+        '<div class="mobile-order-body iso-group-body">' +
+            (opts.productHtml || '') +
+            '<div class="iso-group-pick-hint" data-i18n="kappe_pick_product_hint">' + t('kappe_pick_product_hint') + '</div>' +
+            '<div class="iso-group-sections"></div>' +
+            merknadHtml +
+        '</div>' +
+        '</div>';
+    return card;
+}
+
+// ── Delt produkt-velger-knapp for gruppe-kort (ordreseddel + kappeskjema) ─────
+// IDENTISK markup/placeholder/format begge steder; eneste forskjell er HVILKEN
+// picker som åpnes (onclick). Filt tekst = navn (+ dim hvis satt) + plate-hint.
+function _isoGroupProductBtnHtml(onclick, name, dim, plate) {
+    var label = name ? (dim ? (name + ' ' + _formatDimMm(dim)) : name) : t('kappe_product_placeholder');
+    var phClass = name ? '' : ' kappe-line-product-text-placeholder';
+    var plateHint = (name && plate && (plate.length || plate.width))
+        ? '<span class="kappe-line-product-plate-hint">' + escapeHtml((plate.length || '') + '×' + (plate.width || '')) + '</span>'
+        : '';
+    return '<button type="button" class="kappe-line-product-btn iso-group-product-btn" onclick="' + onclick + '">' +
+        '<span class="kappe-line-product-info">' +
+            '<span class="kappe-line-product-text' + phClass + '">' + escapeHtml(label) + '</span>' +
+            plateHint +
+        '</span>' +
+        '<span class="kappe-line-product-arrow">▾</span>' +
+    '</button>';
+}
+
+// Delt oppdatering av produkt-knappens tekst + plate-hint (begge kontekster).
+function _isoGroupSetProductBtn(btn, name, dim, plate) {
+    if (!btn) return;
+    var info = btn.querySelector('.kappe-line-product-info');
+    var textEl = btn.querySelector('.kappe-line-product-text');
+    if (!textEl) return;
+    var label = name ? (dim ? (name + ' ' + _formatDimMm(dim)) : name) : t('kappe_product_placeholder');
+    textEl.textContent = label;
+    textEl.classList.toggle('kappe-line-product-text-placeholder', !name);
+    var hint = btn.querySelector('.kappe-line-product-plate-hint');
+    if (name && plate && (plate.length || plate.width)) {
+        if (!hint && info) { hint = document.createElement('span'); hint.className = 'kappe-line-product-plate-hint'; info.appendChild(hint); }
+        if (hint) hint.textContent = (plate.length || '') + '×' + (plate.width || '');
+    } else if (hint) { hint.remove(); }
+}
+
+function _createIsoCardBlock(data, expanded) {
     data = data || {};
+    if (expanded === undefined) expanded = true;
     var sel = data.sel || null;
-    var block = document.createElement('div');
-    block.className = 'iso-card-block iso-group-card';
-    block._sel = (sel && sel.name) ? {
+    var hasProduct = !!(sel && sel.name);
+    // Forskjell fra kappe: produkt-velger åpner gruppens egen produkt/dimensjon-
+    // velger (block._sel-lagring), og INGEN merknad. Knappen bygges av samme
+    // delte helper som kappeskjema.
+    var productHtml =
+        '<div class="iso-group-head">' +
+            _isoGroupProductBtnHtml('_isoGroupOpenProductPicker(this)',
+                hasProduct ? sel.name : '', hasProduct ? (sel.dim || sel.enhet || '') : '',
+                hasProduct ? (sel.plate || null) : null) +
+        '</div>';
+    var block = _createIsoGroupCard({
+        cardClass: 'iso-card-block',
+        title: data.title || '',
+        expanded: expanded,
+        hasProduct: hasProduct,
+        productHtml: productHtml,
+        removeCall: '_isoRemoveGroup(this)',
+        withMerknad: false
+    });
+    block._sel = hasProduct ? {
         name: sel.name || '', enhet: sel.enhet || '',
         dim: sel.dim || sel.enhet || '',
         plate: sel.plate || null, source: 'kappe-products', isFastener: false
     } : null;
-    block.innerHTML =
-        '<div class="iso-group-head">' +
-            '<button type="button" class="kappe-line-product-btn iso-group-product-btn" onclick="_isoGroupOpenProductPicker(this)">' +
-                '<span class="kappe-line-product-info"><span class="kappe-line-product-text kappe-line-product-text-placeholder"></span></span>' +
-                '<span class="kappe-line-product-arrow">▾</span>' +
-            '</button>' +
-            '<button type="button" class="iso-group-remove" onpointerdown="event.preventDefault()" onclick="_isoRemoveGroup(this)" title="Fjern gruppe">' + deleteIcon + '</button>' +
-        '</div>' +
-        '<div class="iso-group-pick-hint" data-i18n="kappe_pick_product_hint">' + t('kappe_pick_product_hint') + '</div>' +
-        '<div class="iso-group-sections"></div>';
     var sectionsEl = block.querySelector('.iso-group-sections');
     var sections = (data.sections && data.sections.length) ? data.sections : [{}];
     sections.forEach(function(s) { sectionsEl.appendChild(_createIsoSection(s)); });
@@ -10950,16 +10992,8 @@ function _isoGroupUpdateProductBtn(block) {
     if (!block) return;
     var btn = block.querySelector('.iso-group-product-btn');
     if (!btn) return;
-    var textEl = btn.querySelector('.kappe-line-product-text');
-    if (!textEl) return;
     var s = block._sel || {};
-    var label = '';
-    if (s.name) {
-        label = s.enhet ? (s.name + ' ' + _formatDimMm(s.enhet)) : s.name;
-        if (s.plate && (s.plate.length || s.plate.width)) label += ' · ' + (s.plate.length || '') + '×' + (s.plate.width || '');
-    }
-    textEl.textContent = label || t('fastener_choose_product');
-    textEl.classList.toggle('kappe-line-product-text-placeholder', !s.name);
+    _isoGroupSetProductBtn(btn, s.name || '', s.enhet || '', s.plate || null);
     // Skjul seksjonene (Bredde/LM/Antall/Sider + knapper) til et produkt er valgt.
     block.classList.toggle('iso-group-card--no-product', !s.name);
 }
@@ -10993,6 +11027,7 @@ function _isoGroupOpenProductPicker(btn) {
                 plate: p.plate || null, source: 'kappe-products', isFastener: false
             } : null;
             _isoGroupUpdateProductBtn(block);
+            _isoRefreshGroupTitles(document.querySelectorAll('#iso-card-blocks .iso-card-block'));
             _updateIsoCardTotal();
             if (typeof applyTranslations === 'function') applyTranslations();
             if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
@@ -11068,10 +11103,58 @@ function _isoAfterChange(el) {
         if (typeof renumberKappeLines === 'function') renumberKappeLines();
         try { sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData())); } catch (e) {}
     } else {
+        _isoRefreshGroupTitles(document.querySelectorAll('#iso-card-blocks .iso-card-block'));
         _updateIsoCardTotal();
     }
 }
 window._isoAfterChange = _isoAfterChange;
+
+// ── Redigerbar gruppe-tittel (DELT av ordreseddel-popup og kappeskjema) ───────
+// Hver gruppe har en tittel i header. Tom = auto-sammendrag (#n · produkt · N
+// kapp · M plater) vises som placeholder. Skriver bruker noe, blir DET tittelen.
+// Persisteres: kappe via line.tittel; ordreseddel via entry.kappeIsoGroupName
+// (eksisterende felt). Auto-sammendraget beregnes likt for begge kontekster, så
+// titlene oppfører seg identisk begge steder.
+// Gruppe-tittelen er et MANUELT navnefelt. Standard (tom) viser bare et nøytralt
+// nummerert navne-hint («Gruppe 1», «Gruppe 2» …) som placeholder — IKKE en kopi
+// av produktet (det vises allerede i produkt-knappen under). Skriver bruker noe,
+// blir DET gruppenavnet.
+function _isoGroupAutoTitle(card, idx) {
+    return t('iso_group_name_ph') + ' ' + (idx + 1);
+}
+
+// Oppdater placeholder (nummerert navne-hint) på alle gruppe-titler i en kort-liste.
+function _isoRefreshGroupTitles(cards) {
+    Array.prototype.forEach.call(cards || [], function(card, idx) {
+        var inp = card.querySelector('.iso-group-name');
+        if (inp) inp.placeholder = _isoGroupAutoTitle(card, idx);
+    });
+}
+
+// oninput på tittel-feltet: lagre i riktig kontekst (kappe vs popup).
+function _isoGroupTitleInput(inp) { _isoAfterChange(inp); }
+window._isoGroupTitleInput = _isoGroupTitleInput;
+
+// Toggle ekspander/kollaps for et gruppe-kort (DELT av begge kontekster).
+// Tittel-input og slett-knapp stopper propagering, så bare «resten» av headeren
+// (pil/luft) toggler — man kan redigere tittelen uten å kollapse kortet.
+function _toggleGroupCard(headerEl) {
+    if (document.activeElement) document.activeElement.blur();
+    var card = headerEl.parentElement;
+    if (!card) return;
+    var wrap = card.querySelector('.mobile-order-body-wrap');
+    var arrow = headerEl.querySelector('.mobile-order-arrow');
+    if (!wrap) return;
+    var open = !wrap.classList.contains('expanded');
+    wrap.classList.toggle('expanded', open);
+    if (arrow) arrow.innerHTML = open ? '&#9650;' : '&#9660;';
+    // Scroll kortet til toppen kun i form-kontekst (kappeskjema). I popupen eier
+    // popup-laget scroll-posisjonen.
+    if (open && card.closest('#kappe-lines') && typeof scrollCardToTop === 'function') {
+        requestAnimationFrame(function() { scrollCardToTop(card, true); });
+    }
+}
+window._toggleGroupCard = _toggleGroupCard;
 
 // Felles etterbehandling etter at en rad/seksjon er lagt til: fokus første felt
 // (tastaturet forblir åpent), oppdater, oversettelser. Popup-spesifikt anker/
@@ -11102,8 +11185,15 @@ function _isoCardAddGroupTop() {
         name: prev._sel.name, enhet: prev._sel.enhet || '', dim: prev._sel.dim || '',
         plate: prev._sel.plate || null
     } : null;
-    var block = _createIsoCardBlock({ sel: prevSel });
+    // Kollaps eksisterende grupper (som kappeskjema) før ny legges til.
+    c.querySelectorAll('.iso-card-block .mobile-order-body-wrap.expanded').forEach(function(wrap) {
+        wrap.classList.remove('expanded');
+        var arrow = wrap.parentElement.querySelector('.mobile-order-arrow');
+        if (arrow) arrow.innerHTML = '&#9660;';
+    });
+    var block = _createIsoCardBlock({ sel: prevSel }, true);
     c.appendChild(block);
+    _isoRefreshGroupTitles(c.querySelectorAll('.iso-card-block'));
     _isoAfterAddRow(block, '.isc-bredde');
 }
 window._isoCardAddGroupTop = _isoCardAddGroupTop;
@@ -11214,7 +11304,20 @@ function _isoRemoveSection(btn) {
 window._isoRemoveSection = _isoRemoveSection;
 
 // Fjern hele gruppen (produkt + alle seksjoner).
-function _isoRemoveGroup(btn) { _isoRemoveEl(btn.closest('.iso-card-block')); }
+function _isoRemoveGroup(btn) {
+    var block = btn.closest('.iso-card-block');
+    var c = document.getElementById('iso-card-blocks');
+    // Siste gruppe: nullstill til én tom gruppe (samme som kappeskjema) i stedet
+    // for å etterlate en tom popup.
+    if (block && c && c.querySelectorAll('.iso-card-block').length <= 1) {
+        var fresh = _createIsoCardBlock({});
+        block.replaceWith(fresh);
+        _isoRefreshGroupTitles(c.querySelectorAll('.iso-card-block'));
+        _isoAfterChange(fresh);
+        return;
+    }
+    _isoRemoveEl(block);
+}
 window._isoRemoveGroup = _isoRemoveGroup;
 
 // Finn en input vi kan flytte fokus til når en rad fjernes — slik at
@@ -11404,10 +11507,13 @@ function _isoCardBuildFromEntries(entries) {
         if (!g) {
             g = gmap[groupKey] = {
                 sel: { name: e.name || '', enhet: e.enhet || '', dim: e.enhet || '', plate: plate },
-                sections: [], smap: {}
+                sections: [], smap: {}, title: ''
             };
             groups.push(g);
         }
+        // Egendefinert gruppetittel bæres på hver entry (kappeIsoGroupName) — første
+        // ikke-tomme vinner for gruppen.
+        if (!g.title && e.kappeIsoGroupName) g.title = e.kappeIsoGroupName;
         var sec = g.smap[sectionKey];
         if (!sec) {
             sec = g.smap[sectionKey] = { breddes: [], bk: {}, lengths: [], lk: {}, plates: [] };
@@ -11444,10 +11550,11 @@ function _isoCardBuildFromEntries(entries) {
                     plates: sec.plates
                 };
             });
-            blocksC.appendChild(_createIsoCardBlock({ sel: g.sel, sections: sections }));
+            blocksC.appendChild(_createIsoCardBlock({ sel: g.sel, sections: sections, title: g.title || '' }, groups.length === 1));
         });
         // Ingen isolasjons-grupper (f.eks. kun festemidler) → vis én tom gruppe.
         if (!blocksC.querySelector('.iso-card-block')) blocksC.appendChild(_createIsoCardBlock({}));
+        _isoRefreshGroupTitles(blocksC.querySelectorAll('.iso-card-block'));
     }
 
     fastEntries.forEach(function(e) {
@@ -12049,6 +12156,9 @@ function confirmIsoCardPopup() {
         var sel = block._sel || {};
         var hasProduct = !!sel.name;
         var blockSel = [];
+        // Egendefinert gruppetittel (tom = auto) lagres på hver entry i gruppen.
+        var titleEl = block.querySelector('.iso-group-name');
+        var blockTitle = titleEl ? String(titleEl.value || '').trim() : '';
         // En blokk = én gruppe (produkt) med én eller flere SEKSJONER. Hver seksjon
         // har FELLES LM/Antall-linjer (section._isoLengths) delt av sine bredder.
         // Hver kombinasjon bredde×lengde blir ett entry, tagget med id «gruppe-seksjon»
@@ -12083,7 +12193,8 @@ function confirmIsoCardPopup() {
                         bredde: bVal, lmPerSide: L.lm, antallObjekter: L.antall, sider: sVal,
                         computedTotalLm: ctl,
                         kappeOrient: orient,
-                        kappeIsoGroup: groupId
+                        kappeIsoGroup: groupId,
+                        kappeIsoGroupName: blockTitle
                     });
                 }
             }
@@ -12098,7 +12209,8 @@ function confirmIsoCardPopup() {
                     name: sel.name, enhet: sel.enhet || '', source: 'kappe-products',
                     plate: sel.plate || null, quantityUnit: 'stk', specMode: 'plate',
                     computedTotalLm: pVal.replace('.', ','),
-                    kappeIsoGroup: groupId
+                    kappeIsoGroup: groupId,
+                    kappeIsoGroupName: blockTitle
                 });
             }
         }
@@ -13077,42 +13189,28 @@ function createKappeLineCard(lineData, expanded) {
         bredde: data.plateBredde || def.bredde
     };
 
-    var card = document.createElement('div');
-    card.className = 'kappe-line-card mobile-order-card';
-
-    // UI avhenger av produkt. Før produkt er valgt: vis kun en hint, ingen
-    // rader/knapper. Etter valg: kapp/plate-knapper (ingen rader by default).
+    // SAMME delte skall-bygger som ordreseddelen (_createIsoGroupCard). Forskjell
+    // fra ordreseddel: produkt-velger åpner kappeskjemaets egen produkt-popup
+    // (skjult .kappe-line-product + plate-felt), OG kortet har Merknad-felt.
     var hasProduct = !!(data.produkt && String(data.produkt).trim());
-    var hintDisp = hasProduct ? ' style="display:none"' : '';
-    var isoDisp = hasProduct ? '' : ' style="display:none"';
-    // Sammenleggbart kort (header med tittel + pil + slett) over en body med
-    // produkt-velger og DELTE iso-seksjoner. Seksjon-strukturen (gruppe →
-    // seksjoner → bredde-rader + felles LM/Antall) deles med ordreseddelens
-    // Isolering; «+ Stk / Plate / Seksjon» ligger i seksjonens knapperad.
-    // Eneste tillegg her er Merknad-feltet (kun kappeskjema).
-    card.innerHTML =
-        '<div class="mobile-order-header kappe-line-header" onclick="toggleKappeLine(this)">' +
-            '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
-            '<span class="kappe-line-title"></span>' +
-            '<button type="button" class="mobile-order-header-delete" onclick="event.stopPropagation(); removeKappeLine(this)">' + deleteIcon + '</button>' +
+    var kappePlate = hasProduct ? { length: initialPlate.lengde, width: initialPlate.bredde } : null;
+    var productHtml =
+        '<div class="iso-group-head">' +
+            _isoGroupProductBtnHtml('openKappeProductPicker(this)', data.produkt || '', '', kappePlate) +
+            '<input type="hidden" class="kappe-line-product" value="' + escapeHtml(data.produkt || '') + '">' +
         '</div>' +
-        '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
-        '<div class="mobile-order-body kappe-line-body">' +
-            '<div class="mobile-field field-required kappe-line-product-field">' +
-                _kappeProductPickerHtml(data.produkt || '', initialPlate.lengde, initialPlate.bredde) +
-            '</div>' +
-            '<input type="hidden" class="kappe-line-plate-length" value="' + escapeHtml(initialPlate.lengde) + '">' +
-            '<input type="hidden" class="kappe-line-plate-width" value="' + escapeHtml(initialPlate.bredde) + '">' +
-            '<div class="kappe-line-pick-hint" data-i18n="kappe_pick_product_hint"' + hintDisp + '>' + t('kappe_pick_product_hint') + '</div>' +
-            '<div class="kappe-iso-sections"' + isoDisp + '>' +
-                '<div class="iso-group-sections"></div>' +
-            '</div>' +
-            '<div class="mobile-field">' +
-                '<label data-i18n="kappe_col_merknad">' + t('kappe_col_merknad') + '</label>' +
-                '<textarea class="kappe-line-merknad" rows="1" autocapitalize="sentences">' + escapeHtml(data.merknad || '') + '</textarea>' +
-            '</div>' +
-        '</div>' +
-        '</div>';
+        '<input type="hidden" class="kappe-line-plate-length" value="' + escapeHtml(initialPlate.lengde) + '">' +
+        '<input type="hidden" class="kappe-line-plate-width" value="' + escapeHtml(initialPlate.bredde) + '">';
+    var card = _createIsoGroupCard({
+        cardClass: 'kappe-line-card',
+        title: data.tittel || '',
+        expanded: expanded,
+        hasProduct: hasProduct,
+        productHtml: productHtml,
+        removeCall: 'removeKappeLine(this)',
+        withMerknad: true,
+        merknad: data.merknad || ''
+    });
 
     // Bygg iso-seksjoner fra kapp[] (gruppert på steel-indeks). Hele plater
     // legges i første seksjon. Minst én seksjon alltid (klar for utfylling).
@@ -13184,9 +13282,14 @@ window.addKappeLine = addKappeLine;
 function removeKappeLine(btn) {
     var card = btn.closest('.kappe-line-card');
     var container = document.getElementById('kappe-lines');
-    if (container.querySelectorAll('.kappe-line-card').length <= 1) return;
     showConfirmModal(t('kappe_line_delete_confirm'), function() {
-        card.remove();
+        if (container.querySelectorAll('.kappe-line-card').length <= 1) {
+            // Siste gruppe: nullstill til én tom gruppe (samme som ordreseddel).
+            container.innerHTML = '';
+            container.appendChild(createKappeLineCard({}, true));
+        } else {
+            card.remove();
+        }
         updateKappeDeleteStates();
         renumberKappeLines();
         sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData()));
@@ -13209,39 +13312,17 @@ function toggleKappeLine(headerEl) {
 }
 
 function renumberKappeLines() {
-    document.querySelectorAll('#kappe-lines .kappe-line-card').forEach(function(card, idx) {
-        var prod = card.querySelector('.kappe-line-product');
-        var plateLen = card.querySelector('.kappe-line-plate-length');
-        var plateWid = card.querySelector('.kappe-line-plate-width');
-        // Begge modi kan ha data samtidig — vis begge i tittelen, uavhengig
-        // av hvilken toggle-fane som er aktiv.
-        var bits = ['#' + (idx + 1)];
-        if (prod && prod.value) bits.push(prod.value);
-        // Plate-dim er kun relevant for isolasjon MED valgt produkt.
-        if (prod && prod.value && plateLen && plateWid && plateLen.value && plateWid.value) {
-            bits.push(plateLen.value + '×' + plateWid.value);
-        }
-        // Tell utfylte bredde-rader (iso-seksjoner) + hele plater.
-        var kappWithData = 0;
-        card.querySelectorAll('.iso-group-sections .iso-bredde-row').forEach(function(row) {
-            if (String((row.querySelector('.isc-bredde') || {}).value || '').trim() !== '') kappWithData++;
-        });
-        if (kappWithData > 0) bits.push(kappWithData + ' kapp');
-        var pSum = 0;
-        card.querySelectorAll('.iso-group-sections .isc-plate-antall').forEach(function(inp) {
-            var v = parseLocaleNum(inp.value);
-            if (!isNaN(v) && v > 0) pSum += v;
-        });
-        if (pSum > 0) bits.push((Math.round(pSum * 100) / 100) + ' hele plater');
-        var titleEl = card.querySelector('.kappe-line-title');
-        if (titleEl) titleEl.textContent = bits.join(' · ');
-    });
+    // Tittelen er nå et redigerbart felt (.iso-group-name); auto-sammendraget
+    // vises som placeholder via den delte helperen (samme som ordreseddel).
+    _isoRefreshGroupTitles(document.querySelectorAll('#kappe-lines .kappe-line-card'));
 }
 
 function updateKappeDeleteStates() {
-    var cards = document.querySelectorAll('#kappe-lines .kappe-line-card');
-    var delBtns = document.querySelectorAll('#kappe-lines .kappe-line-card .mobile-order-header-delete');
-    delBtns.forEach(function(btn) { btn.disabled = cards.length <= 1; });
+    // Slett-knappen er ALLTID aktiv/rød (se feedback_red_delete_standard) — samme
+    // som ordreseddel-gruppen. Å slette den siste gruppen nullstiller den til en
+    // tom gruppe (håndteres i removeKappeLine).
+    document.querySelectorAll('#kappe-lines .kappe-line-card .mobile-order-header-delete')
+        .forEach(function(btn) { btn.disabled = false; });
 }
 
 // Samme mønster som kapp-rader (.kappe-quad-row + .mobile-field label over
@@ -13288,7 +13369,8 @@ function getKappeFormData() {
             plateLengde: (card.querySelector('.kappe-line-plate-length') || {}).value || '1200',
             plateBredde: (card.querySelector('.kappe-line-plate-width') || {}).value || '1000',
             specMode: 'bredde',
-            merknad: (card.querySelector('.kappe-line-merknad') || {}).value || ''
+            merknad: (card.querySelector('.kappe-line-merknad') || {}).value || '',
+            tittel: ((card.querySelector('.iso-group-name') || {}).value || '').trim()
         };
         base.plateRader = _getKappeLinePlateData(card);
         base.kapp = _getKappeLineKappData(card);
