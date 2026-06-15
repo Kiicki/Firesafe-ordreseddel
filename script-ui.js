@@ -7279,8 +7279,20 @@ document.addEventListener('DOMContentLoaded', function() {
             var srcY = doc.scrollTop;
             var off = el.getBoundingClientRect().top + window.scrollY;
             document.body.classList.remove('kbd-editing');          // → fixed, intern scroller
-            el.scrollTop = clamp(srcY - off, el.scrollHeight - el.clientHeight);
+            var wantTop = Math.max(0, srcY - off);                  // ønsket intern scroll-pos
+            el.scrollTop = clamp(wantTop, el.scrollHeight - el.clientHeight);
             window.scrollTo(0, 0);                                   // defensiv normalisering
+
+            // Layouten rett etter scroller-byttet (fixed + ev. toolbar-reparent
+            // via applyKeyboardLayout på neste frame) kan ennå ikke ha satt seg
+            // → el.scrollHeight var for liten og clampet posisjonen mot 0 (= det
+            // synlige «hoppet til toppen» ved scroll-for-å-lukke). Re-assertér
+            // ønsket posisjon når layouten har stilnet. Re-assert av SAMME verdi
+            // er en no-op når posisjonen allerede satt seg riktig.
+            requestAnimationFrame(function() {
+                var c = clamp(wantTop, el.scrollHeight - el.clientHeight);
+                if (Math.abs(el.scrollTop - c) > 1) el.scrollTop = c;
+            });
 
             // Yank-back til siste fokuserte felt — KUN ved tap-utenfor-dismiss
             // (recovery fra clamp etter spacer-fjerning). Ved scroll-dismiss
