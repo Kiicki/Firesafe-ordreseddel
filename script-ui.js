@@ -149,14 +149,17 @@ function updateToolbarState() {
     // No toolbar buttons need disabling anymore — save/export are in the form view itself
 }
 
-// Status-prikk-klasse for et lagret skjema. Tre tilstander:
-//  s-draft (oransje) = utkast (i forms-samlingen, ikke sendt)
-//  s-sent  (blå)     = sendt, venter på signatur (i archive, status='sendt')
-//  s-done  (grønn)   = ferdig/signert (i archive, status != 'sendt' — inkl. eldre
-//                      arkiverte uten status-felt, så gammel data forblir grønn)
+// Status-prikk-klasse for et lagret skjema. Fire tilstander:
+//  s-draft    (oransje) = utkast (i forms-samlingen, ikke sendt)
+//  s-sent     (blå)     = sendt, venter på signatur (i archive, status='sendt')
+//  s-rejected (rød)     = ikke godkjent (i archive, status='ikke_godkjent')
+//  s-done     (grønn)   = godkjent/signert (i archive, status='ferdig' ELLER eldre
+//                         arkiverte uten status-felt, så gammel data forblir grønn)
 function _statusDotClass(item) {
     if (!item || !item._isSent) return 's-draft';
-    return (item.status === 'sendt') ? 's-sent' : 's-done';
+    if (item.status === 'sendt') return 's-sent';
+    if (item.status === 'ikke_godkjent') return 's-rejected';
+    return 's-done';   // 'ferdig' (= Godkjent) + eldre arkiverte uten status
 }
 // Ikoner for «marker neste status» i lista.
 var _statusSendIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
@@ -1194,26 +1197,63 @@ function markCurrentFormAsSent() {
 //   Sendt   → kun «Merk ferdig»
 //   Ferdig  → ingen (hele status-raden skjules)
 function _updateFormStatusButtons() {
+    // Én «Merk som ▾»-knapp er alltid synlig; popupen tilpasser valgene til
+    // gjeldende status (se showFormStatusMenu). Tidligere skjulte vi knapper
+    // per status — nå eier menyen den logikken.
+    var row = document.getElementById('form-status-actions');
+    if (row) row.style.display = '';
+}
+
+// In-form status-meny: gjenbruker bulk-popup-mønsteret (#action-popup +
+// .bulk-status-option). Valgene avhenger av gjeldende status: forover +
+// bytte mellom slutt-tilstandene Godkjent↔Ikke godkjent.
+var _FORM_STATUS_META = {
+    sendt:         { color: '#2D7FF9', key: 'btn_mark_sent' },
+    ferdig:        { color: '#34C759', key: 'btn_mark_ferdig' },        // = Godkjent
+    ikke_godkjent: { color: '#E53935', key: 'btn_mark_ikke_godkjent' }
+};
+function showFormStatusMenu() {
     var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
     var status = sessionStorage.getItem('firesafe_current_status') || '';
-    var isFerdig = isSent && status === 'ferdig';
-    var bs = document.getElementById('btn-form-sent');
-    var bf = document.getElementById('btn-form-ferdig');
-    var row = document.getElementById('form-status-actions');
-    if (bs) bs.style.display = isSent ? 'none' : '';
-    if (bf) bf.style.display = isFerdig ? 'none' : '';
-    if (row) row.style.display = isFerdig ? 'none' : '';
+    var cur = !isSent ? 'utkast' : (status || 'ferdig');   // archive uten status = godkjent
+    var opts;
+    if (cur === 'utkast') opts = ['sendt', 'ferdig', 'ikke_godkjent'];
+    else if (cur === 'sendt') opts = ['ferdig', 'ikke_godkjent'];
+    else if (cur === 'ikke_godkjent') opts = ['ferdig'];
+    else opts = ['ikke_godkjent'];                          // ferdig (godkjent) → bytt til ikke godkjent
+    var titleEl = document.getElementById('action-popup-title');
+    if (titleEl) titleEl.textContent = t('form_mark_btn');
+    document.getElementById('action-popup-buttons').innerHTML =
+        '<div class="bulk-status-menu">' +
+        opts.map(function(o) {
+            var m = _FORM_STATUS_META[o];
+            return '<button class="bulk-status-option" onclick="closeActionPopup(); _formMarkStatus(\'' + o + '\')">' +
+                '<span class="bulk-status-option-dot" style="background:' + m.color + '"></span>' + t(m.key) + '</button>';
+        }).join('') +
+        '</div>';
+    document.getElementById('action-popup').classList.add('active');
 }
+window.showFormStatusMenu = showFormStatusMenu;
+
+function _formMarkStatus(target) {
+    if (!validateRequiredFields()) return;
+    if (target === 'sendt') markCurrentFormAsSent();
+    else if (target === 'ferdig') markCurrentFormAsFerdig();
+    else if (target === 'ikke_godkjent') markCurrentFormAsIkkeGodkjent();
+}
+window._formMarkStatus = _formMarkStatus;
 window._updateFormStatusButtons = _updateFormStatusButtons;
 
 // Marker det ÅPNE (sendte) skjemaet som FERDIG (grønn): sett status='ferdig' i
 // archive. Skjemaet ligger allerede i archive (det er sendt), så ingen flytting.
-function markCurrentFormAsFerdig() {
+// Slutt-tilstand (Godkjent='ferdig' eller Ikke godkjent='ikke_godkjent') — begge
+// havner i archive. Delt logikk: håndterer BÅDE allerede-sendt (i archive → set)
+// OG direkte fra utkast (forms→archive move). Eneste forskjell er status-verdi +
+// toast.
+function _markCurrentFormTerminal(statusVal, toastKey) {
     try {
         var data = getFormData();
-        data.status = 'ferdig';
-        // Var skjemaet allerede sendt (i archive) eller er det et utkast (i forms)?
-        // Utkast → flytt forms→archive (signert på stedet, hopper over «sendt»).
+        data.status = statusVal;
         var wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
         var saved = safeParseJSON(STORAGE_KEY, []);
         var archived = safeParseJSON(ARCHIVE_KEY, []);
@@ -1225,19 +1265,22 @@ function markCurrentFormAsFerdig() {
         if (sIdx !== -1) { saved.splice(sIdx, 1); safeSetItem(STORAGE_KEY, JSON.stringify(saved)); }
         addToOrderNumberIndex(data.ordreseddelNr);
         if (wasSent || aIdx !== -1) {
-            enqueueUserDocSet('archive', data.id, data, 'Mark ferdig (var sendt)');
+            enqueueUserDocSet('archive', data.id, data, 'Mark ' + statusVal + ' (var i archive)');
         } else {
-            enqueueUserDocMove('archive', 'forms', data.id, data, 'Mark ferdig (fra utkast)');
+            enqueueUserDocMove('archive', 'forms', data.id, data, 'Mark ' + statusVal + ' (fra utkast)');
         }
         sessionStorage.setItem('firesafe_current_sent', '1');
-        sessionStorage.setItem('firesafe_current_status', 'ferdig');
+        sessionStorage.setItem('firesafe_current_status', statusVal);
         _updateFormStatusButtons();
-        showNotificationModal(t('marked_as_ferdig'), true);
+        showNotificationModal(t(toastKey), true);
         _lastLocalSaveTs = Date.now();
         loadedForms = [];
         _showSavedFormsDirectly();
-    } catch (e) { console.error('Mark ferdig (form) error:', e); }
+    } catch (e) { console.error('Mark terminal (' + statusVal + ') error:', e); }
 }
+function markCurrentFormAsFerdig() { _markCurrentFormTerminal('ferdig', 'marked_as_ferdig'); }
+function markCurrentFormAsIkkeGodkjent() { _markCurrentFormTerminal('ikke_godkjent', 'marked_as_ikke_godkjent'); }
+window.markCurrentFormAsIkkeGodkjent = markCurrentFormAsIkkeGodkjent;
 window.markCurrentFormAsFerdig = markCurrentFormAsFerdig;
 
 // Kalt når en DELING er fullført: løft LAGRET (utkast) til sendt. Sendt forblir
@@ -3830,7 +3873,8 @@ function _applyFormStatus(form, target, saved, archived) {
         if (inArchive) enqueueUserDocMove('forms', 'archive', data.id, data, 'Bulk → lagret');
         else enqueueUserDocSet('forms', data.id, data, 'Bulk → lagret');
     } else {
-        data.status = (target === 'ferdig') ? 'ferdig' : 'sendt';
+        // target = 'sendt' | 'ferdig' (Godkjent) | 'ikke_godkjent' → alle i archive.
+        data.status = target;
         if (sIdx !== -1) saved.splice(sIdx, 1);
         if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
         if (!inArchive) enqueueUserDocMove('archive', 'forms', data.id, data, 'Bulk → ' + target);
@@ -3851,9 +3895,10 @@ function showBulkStatusMenu() {
     }
     document.getElementById('action-popup-buttons').innerHTML =
         '<div class="bulk-status-menu">' +
-            opt('lagret', '#E8501A', 'status_lagret') +
+            opt('lagret', '#8E8E93', 'status_lagret') +
             opt('sendt', '#2D7FF9', 'status_sendt') +
-            opt('ferdig', '#4CAF50', 'status_ferdig') +
+            opt('ferdig', '#34C759', 'status_ferdig') +
+            opt('ikke_godkjent', '#E53935', 'status_ikke_godkjent') +
         '</div>';
     document.getElementById('action-popup').classList.add('active');
 }
@@ -3866,7 +3911,10 @@ function bulkSetStatus(target) {
     var forms = [];
     _selectedSet.forEach(function(i) { var f = window.loadedForms[i]; if (f) forms.push(f); });
     if (!forms.length) return;
-    var label = (target === 'sendt') ? t('status_sendt') : (target === 'ferdig') ? t('status_ferdig') : t('status_lagret');
+    var label = (target === 'sendt') ? t('status_sendt')
+        : (target === 'ferdig') ? t('status_ferdig')
+        : (target === 'ikke_godkjent') ? t('status_ikke_godkjent')
+        : t('status_lagret');
     var saved = safeParseJSON(STORAGE_KEY, []);
     var archived = safeParseJSON(ARCHIVE_KEY, []);
     forms.forEach(function(f) { try { _applyFormStatus(f, target, saved, archived); } catch (e) { console.error('Bulk status:', e); } });

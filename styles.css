@@ -868,11 +868,13 @@ body:has(:is(
 
 .form-action-btn {
     flex: 1;
+    min-width: 0;
+    white-space: nowrap;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
-    padding: 11px 8px;
+    padding: 11px 6px;
     border: 1.5px solid #ddd;
     border-radius: 10px;
     background: #fff;
@@ -893,6 +895,12 @@ body:has(:is(
 .btn-form-ferdig {
     border-color: #4CAF50;
     color: #4CAF50;
+}
+/* «Merk som ▾» — nøytral knapp; status-fargene vises som prikker i popupen
+   (samme profesjonelle prinsipp som fler-valg-menyen). */
+.form-mark-caret {
+    font-size: 11px;
+    color: #888;
 }
 
 /* Service entry cards */
@@ -3131,9 +3139,13 @@ label.settings-default-label.field-required > span::after {
 .status-dot.saved { background: #E8501A; }
 .status-dot.sent { background: #4CAF50; }
 /* Tre-tilstands status (ordreseddel): utkast (oransje) → sendt (blå) → ferdig (grønn). */
-.status-dot.s-draft { background: #E8501A; }
+/* Maksimalt distinkt statuspalett (alle runde): grå · blå · grønn · rød. Tidligere
+   var utkast brand-oransje, som var for likt rød (ikke godkjent) på en liten prikk;
+   grått utkast fjerner kollisjonen og gir en konvensjonell, godt adskilt palett. */
+.status-dot.s-draft { background: #8E8E93; }
 .status-dot.s-sent { background: #2D7FF9; }
-.status-dot.s-done { background: #4CAF50; }
+.status-dot.s-done { background: #34C759; }
+.status-dot.s-rejected { background: #E53935; }
 /* «Merk neste status»-knapp i lista: blå (merk sendt) / grønn (merk ferdig). */
 .saved-item-action-btn.mark-sent { color: #2D7FF9; }
 .saved-item-action-btn.mark-ferdig { color: #4CAF50; }
