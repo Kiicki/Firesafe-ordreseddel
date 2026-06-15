@@ -7276,6 +7276,18 @@ document.addEventListener('DOMContentLoaded', function() {
             var offset = el.getBoundingClientRect().top + window.scrollY; // synkron reflow
             window.scrollTo(0, clamp(src + offset, doc.scrollHeight - doc.clientHeight));
         } else {
+            // ROT-ÅRSAK til «hopper til toppen ÉN gang»: ved aller første tastatur-
+            // åpning er tastatur-deteksjon ennå IKKE bekreftet, så `_isFormKbdField`
+            // er false i focusin → 'toBody' kjører ALDRI → body.kbd-editing settes
+            // aldri, og form-viewen forblir sin egen scroller (din scroll i
+            // el.scrollTop). Når tastaturet så lukkes er deteksjon bekreftet →
+            // denne 'toContainer'-grenen kjører UTEN en matchende 'toBody'. Da
+            // scrollet dokumentet aldri (doc.scrollTop = 0), så `srcY - off` ble
+            // negativt → el.scrollTop nullstilt til toppen. Fix: var vi aldri i
+            // kbd-editing, er el.scrollTop allerede riktig — IKKE rør den.
+            if (!document.body.classList.contains('kbd-editing')) {
+                return;
+            }
             var srcY = doc.scrollTop;
             var off = el.getBoundingClientRect().top + window.scrollY;
             document.body.classList.remove('kbd-editing');          // → fixed, intern scroller
