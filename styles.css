@@ -2263,6 +2263,31 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     margin-bottom: 4px;
 }
 
+/* Ledige ordrenummer-teller inni Ordreseddel nr.-feltet (høyrejustert,
+   rett til venstre for kopier-knappen). pointer-events:none så tapp
+   treffer input-feltet, ikke teksten. */
+.ordrenr-remaining {
+    position: absolute;
+    right: 44px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #999;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.ordrenr-remaining:empty {
+    display: none;
+}
+.ordrenr-remaining.low {
+    color: #E8501A;
+    font-weight: bold;
+}
+.ordrenr-remaining.empty {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
 input.date-invalid {
     border-color: #e74c3c !important;
     box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.25) !important;
@@ -3134,20 +3159,63 @@ label.settings-default-label.field-required > span::after {
 .kappe-add-row-buttons {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
 }
 .kappe-add-row-buttons .kappe-add-kapp-btn {
     flex: 1;
     min-width: 0;
     white-space: nowrap;
 }
+/* «Legg til gruppe» (isolasjon): full bredde på egen linje under stk/plate —
+   det er en større, strukturell handling (nytt stål-element). */
+.kappe-add-row-buttons .iso-add-group-btn {
+    flex: 1 1 100%;
+}
 /* Vises før produkt er valgt (ingen rader/knapper ennå). */
+/* Identisk med ordreseddelens .iso-group-pick-hint (venstrejustert, ikke kursiv). */
 .kappe-line-pick-hint {
     font-size: 13px;
     color: #999;
-    font-style: italic;
-    text-align: center;
-    padding: 10px 4px;
+    text-align: left;
+    padding: 4px 2px 2px;
 }
+
+/* ── Kappeskjema-grupper: grått sammenleggbart kort (header + body) ───────────
+   Beholder ekspander/kollaps og tittel øverst. Seksjons-innholdet i body deler
+   stil med ordreseddel-Isolering. */
+#kappe-lines .kappe-line-card.mobile-order-card {
+    background: #f5f5f7;
+    border: 1px solid #e0e0e6;
+    border-left: 1px solid #e0e0e6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+#kappe-lines .kappe-line-card.mobile-order-card:has(.mobile-order-body-wrap.expanded) {
+    border-left-color: #e0e0e6;
+}
+#kappe-lines .kappe-line-header,
+#kappe-lines .kappe-line-card:has(.mobile-order-body-wrap.expanded) .kappe-line-header,
+#kappe-lines .kappe-line-body {
+    background: #f5f5f7;
+}
+/* Produkt-velger: samme font/størrelse som ordreseddel-launcheren (13px). */
+#kappe-lines .kappe-line-product-btn {
+    font-size: 13px;
+    padding: 8px 10px;
+}
+/* «+ Legg til gruppe» (kappeskjema): oransje stiplet, identisk med ordreseddel. */
+#kappe-form .mobile-add-line-btn {
+    width: 100%;
+    background: none;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    color: #E8501A;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px;
+    text-align: center;
+    margin-top: 10px;
+}
+#kappe-form .mobile-add-line-btn:active { background: #fff5f0; }
 
 
 /* Order cards */
@@ -8509,16 +8577,27 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
 #iso-card-blocks {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 16px;
+}
+/* Hver gruppe (stål-element) = et tydelig avgrenset kort med eget produkt øverst.
+   Kraftigere skille mellom grupper: luft + ramme + lett skygge. */
+.iso-group-card {
+    border: 1px solid #e0e0e6;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+/* Gruppens produkt-velger fyller hode-raden ved siden av slett-knappen. */
+.iso-group-product-btn {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 .iso-card-block {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     background: #f5f5f7;
     border: none;
-    border-radius: 14px;
-    padding: 14px;
+    border-radius: 12px;
+    padding: 10px;
 }
 /* iOS-stil på input-feltene i Isolering-popupen — mykt, avrundet, ingen
    harde rammer; samme språk som «Dager & tid». Scoped til popupen så
@@ -8588,6 +8667,273 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     color: #ccc;
     cursor: default;
 }
+/* ─── Gruppe (stål-element) inni en produkt-blokk ───────────────────────────
+   Hver gruppe = ett tverrsnitt/profil. Lett innrammet boks så den leses som én
+   enhet. Bredder øverst (Bredde+Sider, m/ plate-chip), lengder under (LM+Antall).
+   Transparent bakgrunn så de hvite input-feltene beholder kontrast mot den grå
+   blokken (samme kontrast som før grupperingen). */
+.iso-block-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.iso-card-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid #e3e3e8;
+    border-radius: 10px;
+    padding: 8px;
+}
+.iso-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+/* Redigerbart gruppenavn — ser ut som en overskrift, men er et input-felt.
+   Ingen ramme/bakgrunn før fokus, så det leses som tittel. */
+.iso-group-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 700;
+    font-size: 13px;
+    color: #1d1d1f;
+    border: none;
+    background: transparent;
+    padding: 2px 4px;
+    border-radius: 6px;
+    font-family: inherit;
+}
+.iso-group-name::placeholder { color: #b0b0b5; font-weight: 700; }
+.iso-group-name:focus {
+    outline: none;
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
+}
+.iso-group-remove {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    color: #e74c3c;
+    display: flex;
+    align-items: center;
+}
+.iso-group-remove svg { width: 16px; height: 16px; }
+/* Før et produkt er valgt: skjul seksjonene, vis pick-hinten (samme som
+   kappeskjema). Etter valg: motsatt. */
+.iso-group-pick-hint {
+    display: none;
+    color: #999;
+    font-size: 13px;
+    padding: 4px 2px 2px;
+}
+.iso-group-card--no-product .iso-group-sections { display: none; }
+.iso-group-card--no-product .iso-group-pick-hint { display: block; }
+/* Seksjoner i en gruppe: stables med luft, andre+ får en tynn delelinje over. */
+.iso-group-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.iso-section + .iso-section {
+    border-top: 1px solid #e0e0e6;
+    padding-top: 10px;
+}
+.iso-section-bredder,
+.iso-section-plate-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+/* Kolonne-overskrift ÉN gang øverst i seksjonen — samme kolonne-flex som radene
+   (Bredde / LM-Antall flex2 / Sider) + en spacer som matcher slett-knappen, så
+   overskriftene står rett over feltene. Per-rad-etiketter er fjernet. */
+.iso-bredde-head {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+}
+.iso-bredde-head .kappe-quad-row { flex: 1; min-width: 0; }
+.iso-bredde-head-del { flex: 0 0 22px; }
+/* Bredde-radene har ikke lenger egne etiketter → lav rad (ingen 56px min-høyde). */
+.iso-section-bredder .iso-card-row { min-height: 0; }
+.iso-section-plate-rows:empty { display: none; }
+/* Seksjonens knapperad: «+ Stk» + «+ Plate» + «+ Seksjon» + fjern — alt på én
+   rad. Kompakte knapper (mindre font/padding) så de tre + slett-ikon får plass. */
+.iso-section-foot {
+    margin-top: 6px;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+}
+.iso-section-foot .kappe-add-kapp-btn {
+    font-size: 12px;
+    padding: 7px 4px;
+    margin: 0;
+    white-space: nowrap;
+}
+.iso-section-remove {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    color: #e74c3c;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.iso-section-remove svg { width: 18px; height: 18px; }
+/* Stram radavstand: nullstill arvet margin-bottom fra .iso-card-row. */
+.iso-section-bredder .iso-card-row { margin-bottom: 0; }
+.iso-section-bredder .iso-card-row--calc { gap: 0; }
+.iso-section-bredder .iso-card-row-plates { margin-top: 5px; margin-bottom: 0; }
+/* Tynn delelinje mellom bredder- og lengder-seksjonen (kompakt skille uten
+   store overskrifter). Ledetekst i feltene (Bredde/Sider vs LM/Antall) viser
+   hva hver seksjon er. */
+.iso-group-lengder--divider {
+    border-top: 1px solid #e3e3e8;
+    padding-top: 6px;
+    margin-top: 2px;
+}
+/* Rad i lengde-popupen: LM + Antall på én linje. */
+.iso-row-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+/* Flate input-felt (kun lengde-popupen bruker .iso-inp nå). */
+.iso-inp {
+    flex: 1 1 auto;
+    min-width: 0;
+    box-sizing: border-box;
+    height: 40px;
+    border: 1px solid #dcdce0;
+    background: #fff;
+    border-radius: 8px;
+    padding: 0 10px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #1d1d1f;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.iso-inp:focus {
+    outline: none;
+    border-color: #E8501A;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.25);
+}
+.iso-inp::placeholder { color: #b0b0b5; }
+.iso-row-del {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    color: #e74c3c;
+    padding: 2px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.iso-row-del svg { width: 18px; height: 18px; }
+/* LM/Antall-feltet (midt-kolonnen i bredde-raden) er dobbelt så bredt som
+   Bredde/Sider — får plassen til de gamle LM+Antall-kolonnene. */
+.kappe-quad-row .mobile-field.iso-lm-field { flex: 2; }
+/* LM/Antall-knappen ser ut som et input-felt (samme stil som mobile-field input):
+   hvit, avrundet, sentrert tekst. Åpner lengde-popupen. EKSPLISITT lik høyde som
+   Bredde/Sider-feltene — flex-sentrert så tom knapp ikke kollapser. */
+.iso-bredde-row .mobile-field input,
+.iso-bredde-row .iso-lm-btn {
+    box-sizing: border-box;
+    height: 40px;
+}
+.iso-lm-btn {
+    width: 100%;
+    background: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0 6px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #1d1d1f;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-tap-highlight-color: transparent;
+}
+.iso-lm-btn:active { background: #fff5f0; }
+/* Kappeskjemaet bruker den DELTE iso-seksjonen — gi Bredde/Sider-feltene samme
+   iOS-stil som i ordreseddel-popupen (hvit, avrundet, sentrert, ingen ramme). */
+#kappe-lines .iso-bredde-row .mobile-field input {
+    border: none;
+    background: #fff;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 15px;
+    padding: 0 6px;
+}
+#kappe-lines .iso-bredde-row .mobile-field input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
+}
+.iso-lm-btn-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.iso-lm-btn-text--empty { color: #b0b0b5; }
+/* Lengde-popup (LM/Antall-linjer). */
+#iso-length-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    padding: 4px 2px;
+}
+#iso-length-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+/* Hvite input-felt i lengde-popupen (samme språk som iso-kortets felt). */
+#iso-length-popup .iso-inp {
+    background: #f1f1f4;
+}
+#iso-length-popup .iso-inp:focus {
+    background: #fff;
+}
+/* Liten inline «+ bredde / + lengde / + plate» — kompakt, venstrejustert. */
+.iso-group-add {
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 3px 9px;
+    border: 1px dashed #d6d6db;
+    border-radius: 7px;
+    background: none;
+    color: #E8501A;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.iso-group-add:active { background: #fff5f0; }
+#iso-card-popup .iso-card-group .iso-card-row-plates,
+#iso-card-popup .iso-group-card .iso-card-row-plates {
+    margin-top: 2px;
+}
+/* Kompakt produkt-velger i gruppe-hodet. */
+#iso-card-popup .iso-group-product-btn {
+    padding: 8px 10px;
+    font-size: 13px;
+}
 /* «+ Legg til isolasjonsprodukt» er et nivå over rad-knappene: full bredde,
    stiplet ramme, så det leses som «nytt produkt», ikke «ny rad». */
 #iso-card-add-product {
@@ -8632,14 +8978,14 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
 }
 /* Seksjons-overskrift (f.eks. «Festemidler»). */
+/* Identisk med skjemaets .mobile-section-title (samme «Festemidler» begge steder). */
 .iso-card-section-head {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: #888;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #e5e5e5;
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ddd;
 }
 .iso-card-row {
     display: flex;
@@ -9111,24 +9457,40 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     background: #fff5f0;
 }
 
-/* Valgt-state — lik behandling i begge kolonner (bakgrunn + navn-farge).
-   Produkt-kolonnen kan ha FLERE valgte samtidig (fler-valg som dimensjoner). */
-.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-selected,
+/* === Valgt/aktiv-state: produkt-kolonne vs dimensjon-kolonne ===
+   Tydelig hierarki med KUN ÉN sterk highlight om gangen (ingen forvirrende
+   «to like highlights»):
+   • Dimensjon-kolonne: valgt dimensjon = full highlight (rosa fyll + kant + ✓).
+   • Produkt-kolonne, AKTIVT produkt (det du ser dimensjonene til) = rosa fyll +
+     venstre-kant. Kun én rad har dette.
+   • Produkt-kolonne, VALGT men IKKE aktivt (har en valgt dimensjon) = kun oransje
+     fet tekst — du ser hvilke produkter som er med, uten et konkurrerende fyll. */
+
+/* Dimensjon-kolonne: valgt dimensjon */
 .kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected {
     background: #fff5f0;
-}
-/* Venstre-kant: markerer valgt dimensjon, OG det AKTIVE produktet (det hvis
-   dimensjoner vises til høyre) — så man ser hvilket produkt man redigerer. */
-.kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected,
-.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-active {
     border-left-color: #E8501A;
 }
+.kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected .kappe-product-picker-name {
+    color: #E8501A;
+    font-weight: 700;
+}
+
+/* Produkt-kolonne: valgt (har dimensjon) men ikke aktivt — kun tekst-highlight.
+   Nøytraliser general-regelens (.kappe-product-picker-row-selected) solide
+   orange fyll/kant så bare det AKTIVE produktet har fyll. */
+.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-selected {
+    background: transparent;
+    border-color: #ddd;
+}
+/* Produkt-kolonne: AKTIVT produkt — sterk highlight (fyll + venstre-kant). Står
+   ETTER -selected så fyll/kant vinner når raden er både valgt og aktiv. */
 .kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-active {
     background: #fff5f0;
+    border-left-color: #E8501A;
 }
 .kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-selected .kappe-product-picker-name,
-.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-active .kappe-product-picker-name,
-.kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected .kappe-product-picker-name {
+.kappe-picker-brands .kappe-product-picker-row.kappe-product-picker-row-active .kappe-product-picker-name {
     color: #E8501A;
     font-weight: 700;
 }
@@ -9149,6 +9511,11 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
 /* Festemiddel-rader: stk/eske-velgeren er selve valg-indikatoren, så skjul
    ✓-merket (ellers overlapper det enhets-knappene til høyre). */
 .kappe-picker-dimensions .kappe-product-picker-row.kappe-picker-fast-row::after {
+    content: none;
+}
+/* Isolasjon (én dim pr. produkt): ✓ er overflødig — den valgte dimensjonen er
+   allerede highlightet (rosa fyll + kant + fet tekst). Highlight er nok. */
+.kappe-picker-single-dim .kappe-picker-dimensions .kappe-product-picker-row.kappe-product-picker-row-selected::after {
     content: none;
 }
 .picker-mat-row[data-mat-type="kappe-isolation"] .picker-mat-antall,

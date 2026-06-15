@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=791">
+    <link rel="stylesheet" href="styles.css?v=820">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- Firebase SDK -->
@@ -82,6 +82,7 @@
                     <label data-i18n="label_ordreseddel_nr">Ordreseddel nr.</label>
                     <div class="input-with-copy">
                         <input type="text" id="mobile-ordreseddel-nr" inputmode="numeric">
+                        <span class="ordrenr-remaining" id="ordrenr-remaining"></span>
                         <button type="button" class="copy-btn" onclick="copyOrderNumber()" title="Kopier"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
                     </div>
                 </div>
@@ -1090,7 +1091,7 @@
                 <div class="mobile-section">
                     <div class="mobile-section-title" data-i18n="kappe_section_products">Produkter</div>
                     <div id="kappe-lines"></div>
-                    <button type="button" class="mobile-add-line-btn" onclick="addKappeLine()" data-i18n="kappe_add_product">+ Legg til kappelinje</button>
+                    <button type="button" class="mobile-add-line-btn" onclick="addKappeLine()" data-i18n="kappe_add_product">+ Legg til gruppe</button>
                 </div>
                 <div class="mobile-section">
                     <div class="mobile-section-title" data-i18n="kappe_section_fasteners">Festemidler</div>
@@ -1212,16 +1213,8 @@
             <div class="spec-popup-header" id="iso-card-title">Isolering</div>
             <div id="iso-card-scroll">
                 <div class="iso-card-section-head" data-i18n="material_isolation">Isolasjon</div>
-                <div id="iso-card-iso-empty" class="spec-multi-empty"></div>
-                <div class="iso-block-product-slot">
-                    <button type="button" class="kappe-line-product-btn" id="iso-card-iso-product-btn" onclick="_isoCardOpenIsolationPicker()">
-                        <span class="kappe-line-product-info">
-                            <span class="kappe-line-product-text kappe-line-product-text-placeholder">Velg produkt</span>
-                        </span>
-                        <span class="kappe-line-product-arrow">▾</span>
-                    </button>
-                </div>
                 <div id="iso-card-blocks"></div>
+                <button type="button" class="kappe-add-kapp-btn iso-add-group-btn" id="iso-card-add-group" onclick="_isoCardAddGroupTop()">+ <span data-i18n="iso_add_group">Legg til gruppe</span></button>
                 <div class="iso-card-fast-section">
                     <div class="iso-card-section-head" data-i18n="kappe_section_fasteners">Festemidler</div>
                     <div id="iso-card-fastener-empty" class="spec-multi-empty"></div>
@@ -1240,6 +1233,20 @@
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeIsoCardPopup()" data-i18n="btn_cancel">Avbryt</button>
                 <button type="button" class="spec-popup-confirm" onclick="confirmIsoCardPopup()" data-i18n="btn_select">Velg</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LM/Antall-popup: liste av lengde-linjer (LM + Antall) for én bredde-rad. -->
+    <div class="spec-popup-backdrop iso-card-backdrop" id="iso-length-popup" onclick="if(event.target===this)closeIsoLengthPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header" data-i18n="iso_length_title">LM og antall</div>
+            <div id="iso-length-scroll">
+                <div id="iso-length-rows"></div>
+                <button type="button" class="iso-group-add" onpointerdown="event.preventDefault()" onclick="_isoLengthAddRow()">+ <span data-i18n="iso_length_add">legg til</span></button>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-confirm" onclick="closeIsoLengthPopup()" data-i18n="btn_ok">OK</button>
             </div>
         </div>
     </div>
@@ -1773,9 +1780,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=261"></script>
-    <script src="script.js?v=467"></script>
-    <script src="script-ui.js?v=937"></script>
+    <script src="lang.js?v=268"></script>
+    <script src="script.js?v=469"></script>
+    <script src="script-ui.js?v=971"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

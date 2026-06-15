@@ -838,6 +838,8 @@ function aggregateExportMaterials(materials) {
             if (m.antallObjekter) kc.antallObjekter = m.antallObjekter;
             if (m.sider) kc.sider = m.sider;
             if (m.kappeOrient) kc.kappeOrient = m.kappeOrient;
+            if (m.kappeIsoGroup) kc.kappeIsoGroup = m.kappeIsoGroup;
+            if (m.kappeIsoGroupName) kc.kappeIsoGroupName = m.kappeIsoGroupName;
             ordered.push(kc);
             return;
         }
@@ -2327,6 +2329,8 @@ function createMaterialSummaryRow(m, groupBaseName) {
     if (m.antallObjekter) div.setAttribute('data-mat-antall-objekter', m.antallObjekter);
     if (m.sider) div.setAttribute('data-mat-sider', m.sider);
     if (m.kappeOrient) div.setAttribute('data-mat-kappe-orient', m.kappeOrient);
+    if (m.kappeIsoGroup) div.setAttribute('data-mat-iso-group', m.kappeIsoGroup);
+    if (m.kappeIsoGroupName) div.setAttribute('data-mat-iso-group-name', m.kappeIsoGroupName);
     var nameFormatted;
     if (groupBaseName) {
         // Grouped sub-row: show just the spec/variant part
@@ -2520,6 +2524,8 @@ function getMaterialsFromContainer(matContainer) {
         const antallObjekter = row.getAttribute('data-mat-antall-objekter') || '';
         const sider = row.getAttribute('data-mat-sider') || '';
         const kappeOrient = row.getAttribute('data-mat-kappe-orient') || '';
+        const kappeIsoGroup = row.getAttribute('data-mat-iso-group') || '';
+        const kappeIsoGroupName = row.getAttribute('data-mat-iso-group-name') || '';
         if (name || antall || enhet) {
             var mat = { name, antall, enhet };
             if (source) mat.source = source;
@@ -2532,6 +2538,8 @@ function getMaterialsFromContainer(matContainer) {
             if (antallObjekter) mat.antallObjekter = antallObjekter;
             if (sider) mat.sider = sider;
             if (kappeOrient) mat.kappeOrient = kappeOrient;
+            if (kappeIsoGroup) mat.kappeIsoGroup = kappeIsoGroup;
+            if (kappeIsoGroupName) mat.kappeIsoGroupName = kappeIsoGroupName;
             materials.push(mat);
         }
     });
@@ -2707,6 +2715,8 @@ function openMaterialPicker(btn, onConfirm) {
             if (m.antallObjekter) materialState.antallObjekter = m.antallObjekter;
             if (m.sider) materialState.sider = m.sider;
             if (m.kappeOrient) materialState.kappeOrient = m.kappeOrient;
+            if (m.kappeIsoGroup) materialState.kappeIsoGroup = m.kappeIsoGroup;
+            if (m.kappeIsoGroupName) materialState.kappeIsoGroupName = m.kappeIsoGroupName;
             if (pickerState[storageKey]) {
                 if (!dupCounters[storageKey]) dupCounters[storageKey] = 1;
                 dupCounters[storageKey]++;
@@ -2885,6 +2895,8 @@ function openMaterialPicker(btn, onConfirm) {
             if (usage.antallObjekter) pickerState[addedKey].antallObjekter = usage.antallObjekter;
             if (usage.sider) pickerState[addedKey].sider = usage.sider;
             if (usage.kappeOrient) pickerState[addedKey].kappeOrient = usage.kappeOrient;
+            if (usage.kappeIsoGroup) pickerState[addedKey].kappeIsoGroup = usage.kappeIsoGroup;
+            if (usage.kappeIsoGroupName) pickerState[addedKey].kappeIsoGroupName = usage.kappeIsoGroupName;
         }
         return addedKey;
     }
@@ -2921,7 +2933,9 @@ function openMaterialPicker(btn, onConfirm) {
                 antallObjekter: selection.antallObjekter || '',
                 sider: selection.sider || '',
                 computedTotalLm: selection.computedTotalLm || '',
-                kappeOrient: selection.kappeOrient || ''
+                kappeOrient: selection.kappeOrient || '',
+                kappeIsoGroup: selection.kappeIsoGroup || '',
+                kappeIsoGroupName: selection.kappeIsoGroupName || ''
             });
         // Festemiddel: antall fylles nå i popupen (selection.antall) — analogt med
         // computedTotalLm for isolasjon. Vinner over bevart rad-verdi.
@@ -2976,7 +2990,9 @@ function openMaterialPicker(btn, onConfirm) {
                     lmPerSide: st.lmPerSide || '',
                     antallObjekter: st.antallObjekter || '',
                     sider: st.sider || '',
-                    kappeOrient: st.kappeOrient || ''
+                    kappeOrient: st.kappeOrient || '',
+                    kappeIsoGroup: st.kappeIsoGroup || '',
+                    kappeIsoGroupName: st.kappeIsoGroupName || ''
                 });
             }
         });
