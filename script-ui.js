@@ -7284,15 +7284,22 @@ document.addEventListener('DOMContentLoaded', function() {
             window.scrollTo(0, 0);                                   // defensiv normalisering
 
             // Layouten rett etter scroller-byttet (fixed + ev. toolbar-reparent
-            // via applyKeyboardLayout på neste frame) kan ennå ikke ha satt seg
-            // → el.scrollHeight var for liten og clampet posisjonen mot 0 (= det
-            // synlige «hoppet til toppen» ved scroll-for-å-lukke). Re-assertér
-            // ønsket posisjon når layouten har stilnet. Re-assert av SAMME verdi
-            // er en no-op når posisjonen allerede satt seg riktig.
-            requestAnimationFrame(function() {
+            // via applyKeyboardLayout, som har en settle-timer ~250ms) kan ennå
+            // ikke ha satt seg → el.scrollHeight var for liten og clampet
+            // posisjonen mot 0 (= «hoppet til toppen», typisk FØRSTE gang etter
+            // last før layouten er varm). Re-assertér ønsket posisjon gjentatte
+            // ganger over hele settle-vinduet. Avbrytes straks brukeren tar over
+            // med ny berøring (token), og re-assert av SAMME verdi er en no-op
+            // når posisjonen allerede satt seg riktig.
+            var _reassertToken = _kbdHandoffToken;
+            var _reassertScroll = function() {
+                if (_reassertToken !== _kbdHandoffToken) return;   // bruker tok over
                 var c = clamp(wantTop, el.scrollHeight - el.clientHeight);
                 if (Math.abs(el.scrollTop - c) > 1) el.scrollTop = c;
-            });
+            };
+            requestAnimationFrame(_reassertScroll);
+            setTimeout(_reassertScroll, 120);
+            setTimeout(_reassertScroll, 350);
 
             // Yank-back til siste fokuserte felt — KUN ved tap-utenfor-dismiss
             // (recovery fra clamp etter spacer-fjerning). Ved scroll-dismiss
@@ -7444,6 +7451,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var _kbdDismissGuardUntil = 0;
     var _kbdTouchStartY = 0;
     var _kbdScrollBlurred = false;
+    // Token som ugyldiggjør utsatte scroll-re-asserts så snart brukeren tar over
+    // med ny berøring (re-asserten skal aldri kjempe mot brukerens egen scroll).
+    var _kbdHandoffToken = 0;
     function _kbdDismissArmed() {
         // Site-wide: scroll/tapp lukker tastatur uansett HVOR fokuset er
         // (skjema-felt, popup-input, modal-input, picker-search, osv.).
@@ -7469,6 +7479,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('touchstart', function(e) {
         if (e.touches && e.touches.length) _kbdTouchStartY = e.touches[0].clientY;
         _kbdScrollBlurred = false;
+        _kbdHandoffToken++;   // ny berøring → avbryt evt. ventende re-assert
     }, { passive: true });
     document.addEventListener('touchmove', function(e) {
         if (_kbdScrollBlurred) return;
