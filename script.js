@@ -5054,29 +5054,34 @@ function getOrdersData() {
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(card => {
         const descInput = card.querySelector('.mobile-order-desc');
         const description = descInput.value;
-        const dager = JSON.parse(card.getAttribute('data-dager') || '[]');
-        const plan = card.querySelector('.plan-display').getAttribute('data-plan') || '';
-        const dayPlansObj = JSON.parse(card.getAttribute('data-day-plans') || '{}');
-        const dayPlans = Object.keys(dayPlansObj).length > 0 ? dayPlansObj : '';
-        // Nytt: etasjer som bestilling-nivå-liste. Backward-kompatibel —
-        // gamle lesere som kun ser dayPlans får fortsatt utfylt struktur.
-        var plansArr = [];
-        try { plansArr = JSON.parse(card.getAttribute('data-plans') || '[]') || []; } catch (e) {}
-        const plans = plansArr.length ? plansArr : '';
         const merknad = card.querySelector('.mobile-order-merknad').value;
+        // KANONISK serialisering — gjør «ulagret»-deteksjonen representasjons-
+        // uavhengig: like data gir ALLTID lik JSON, uansett intern nøkkel-
+        // rekkefølge eller avviklede felt. Dette er grunnen til at å åpne en
+        // popup og trykke OK uten å endre noe IKKE skal markere skjemaet ulagret.
         const timerObj = JSON.parse(card.getAttribute('data-timer') || '{}');
-        const timer = Object.keys(timerObj).length > 0 ? timerObj : '';
+        var timerCanon = {};
+        ['ma','ti','on','to','fr','lo','so','_generelt','_total'].forEach(function(k) {
+            if (timerObj[k] != null && String(timerObj[k]).trim()) timerCanon[k] = String(timerObj[k]).trim();
+        });
+        const timer = Object.keys(timerCanon).length > 0 ? timerCanon : '';
+        // Arbeidsdager = dager med timer (avledet, ikke stale data-dager).
+        const dager = ['ma','ti','on','to','fr','lo','so'].filter(function(d) { return timerCanon[d]; });
+        // Etasjer = bestilling-nivå union (kanonisk via _getCardPlans). dayPlans
+        // (per-dag) er avviklet → alltid tom, så representasjonen ikke gir drift.
+        var plansArr = (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
+        const plans = (Array.isArray(plansArr) && plansArr.length) ? plansArr : '';
+        const dayPlans = '';
+        // «Plan»-strengen (eksport-mirror) avledes fra de kanoniske etasjene, så
+        // den ikke driver fra .plan-display sin tekst-rekkefølge.
+        const plan = (Array.isArray(plansArr) && plansArr.length) ? plansArr.join(', ') : '';
         const matContainer = card.querySelector('.mobile-order-materials');
         const materials = getMaterialsFromContainer(matContainer);
         // "Ikke aktuelt"-flagg. Kun lagret når true OG seksjonen er tom (ellers
         // er flagget irrelevant; FILLED-state fjerner det implisitt i UI).
         const materierSkipped = card.getAttribute('data-skip-materier') === 'true' && materials.length === 0;
         const dagerSkipped = card.getAttribute('data-skip-dager') === 'true' && !timer && !plans;
-        // Per-dag etasjer er nå primær. data-day-plans inneholder allerede den
-        // riktige formen ({ma: 'U3, U2', ti: 'U1'}).
-        const dayPlansPrimary = _getCardDayPlans(card);
-        const dayPlansOut = Object.keys(dayPlansPrimary).length ? dayPlansPrimary : (typeof dayPlans === 'object' ? dayPlans : '');
-        orders.push({ description, dager, plan, dayPlans: dayPlansOut, plans, merknad, materials, timer, materierSkipped, dagerSkipped });
+        orders.push({ description, dager, plan, dayPlans, plans, merknad, materials, timer, materierSkipped, dagerSkipped });
     });
     return orders;
 }
