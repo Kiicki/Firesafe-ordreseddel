@@ -12590,15 +12590,13 @@ function _orderDayBreakdown(tm, plans, dayPlans) {
     };
     function _hasVal(v) { return v != null && String(v).trim() !== ''; }
     var parts = [];
-    var dp = dayPlans || {};
+    // Timer per dag (etasjer er bestilling-nivå og vises ÉN gang til slutt).
     TIMER_DAY_KEYS.forEach(function(k) {
-        var hasT = _hasVal(tm[k]);
-        var hasP = _hasVal(dp[k]);
-        if (hasT || hasP) {
+        if (_hasVal(tm[k])) {
             parts.push({
                 day: shortMap[k] || k,
-                hours: hasT ? (String(tm[k]).replace('.', ',') + 't') : '',
-                plan: hasP ? String(dp[k]).trim() : ''
+                hours: String(tm[k]).replace('.', ',') + 't',
+                plan: ''
             });
         }
     });
@@ -12610,10 +12608,8 @@ function _orderDayBreakdown(tm, plans, dayPlans) {
             plan: ''
         });
     }
-    // Fallback til bestilling-nivå union for ekstremt gamle data uten
-    // dayPlans-info OG uten timer (kun union-array). Sjelden; vis som siste
-    // del slik den eksisterende UI viste tidligere.
-    if (parts.length === 0 && plans && plans.length) {
+    // Etasjer — bestilling-nivå, vist som én egen del (ikke per dag).
+    if (plans && plans.length) {
         parts.push({
             isPlans: true,
             day: 'Etasje',
