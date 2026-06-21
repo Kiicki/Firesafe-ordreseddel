@@ -2931,18 +2931,17 @@ label.settings-default-label.field-required > span::after {
     flex: 1;
     min-width: 0;
     font-size: 13px;
-    font-weight: 600;
-    color: #1c1c1e;
-    /* Full beskrivelse vises (kan brytes) — bare kompakt font. */
+    font-weight: 400;            /* beskrivelse = brødtekst, ikke fet vegg */
+    color: #48484a;
     overflow-wrap: anywhere;
-    line-height: 1.3;
+    line-height: 1.45;
 }
-/* Timesum: ren verdi (iOS liste-celle), ikke en boks. */
+/* Timesum er metrikken → den fremhevede verdien (mørk, tydelig). */
 .timer-overview-value {
     flex-shrink: 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: #8a8a8e;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1c1c1e;
     white-space: nowrap;
 }
 .timer-overview-value--empty {
