@@ -165,6 +165,53 @@ function _statusDotClass(item) {
 var _statusSendIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
 var _statusCheckIcon = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
+// Kebab (tre vertikale prikker) — samler kopier/dupliser/slett i én meny.
+var kebabIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+
+// Delt knapperad for ALLE lagrede-lister (ordreseddel/service/kappe): de ekte
+// handling-knappene (kopier/dupliser/slett) skjules, og en kebab åpner menyen.
+// Menyvalg utløser den SKJULTE ekte knappen → eksisterende per-liste click-
+// delegering ruter handlingen (ingen duplisert logikk).
+function _savedItemActionsHtml(hiddenButtonsHtml) {
+    return '<div class="saved-item-buttons">' +
+        '<div class="saved-item-hidden-actions" hidden>' + hiddenButtonsHtml + '</div>' +
+        '<button class="saved-item-action-btn saved-item-menu-btn" title="' + t('more_actions') + '">' + kebabIcon + '</button>' +
+    '</div>';
+}
+
+// Åpne handlings-menyen for en lagret-rad (gjenbruker #action-popup).
+function showSavedItemMenu(savedItem) {
+    if (!savedItem) return;
+    var hidden = savedItem.querySelector('.saved-item-hidden-actions');
+    if (!hidden) return;
+    var labelMap = { clipboard: 'copy_btn', copy: 'duplicate_btn', delete: 'delete_btn' };
+    var iconMap = { clipboard: copyIcon, copy: duplicateIcon, delete: deleteIcon };
+    var btns = Array.prototype.slice.call(hidden.querySelectorAll('button'));
+    var rows = btns.filter(function(b) { return !b.classList.contains('disabled'); }).map(function(b) {
+        var type = b.classList.contains('clipboard') ? 'clipboard'
+            : b.classList.contains('copy') ? 'copy' : 'delete';
+        var danger = (type === 'delete') ? ' saved-item-menu-option--danger' : '';
+        return '<button class="saved-item-menu-option' + danger + '" data-type="' + type + '">' +
+            '<span class="saved-item-menu-option-icon">' + iconMap[type] + '</span>' +
+            '<span>' + t(labelMap[type]) + '</span>' +
+        '</button>';
+    }).join('');
+    var titleEl = document.getElementById('action-popup-title');
+    if (titleEl) titleEl.textContent = t('more_actions');
+    document.getElementById('action-popup-buttons').innerHTML = '<div class="saved-item-menu">' + rows + '</div>';
+    var popup = document.getElementById('action-popup');
+    popup.querySelectorAll('.saved-item-menu-option').forEach(function(opt) {
+        opt.addEventListener('click', function() {
+            var type = opt.getAttribute('data-type');
+            closeActionPopup();
+            var real = hidden.querySelector('.' + type);
+            if (real) real.click();   // utløser eksisterende per-liste delegering
+        });
+    });
+    popup.classList.add('active');
+}
+window.showSavedItemMenu = showSavedItemMenu;
+
 function _buildSavedItemHtml(item, index) {
     var ordrenr = item.ordreseddelNr || '';
     var dato = formatDateWithTime(item.savedAt);
@@ -179,21 +226,32 @@ function _buildSavedItemHtml(item, index) {
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
+    // Uke = arbeidsperioden lagret i ordreseddelen (item.dato). Bruker-persistent:
+    // satt ved oppretting, bevart ved åpning. Vises i FØRSTE rad (ved siden av nr
+    // og dato), så prosjektnr + prosjektnavn får hele andre rad for seg selv.
+    // Strip ev. ledende «Uke» fra eldre data så vi ikke får «Uke Uke 17».
+    var ukeVal = (item.dato != null) ? String(item.dato).trim().replace(/^uke\s*/i, '').trim() : '';
+    var ukeInline = ukeVal ? '<span class="saved-item-uke-inline">' + escapeHtml(t('label_uke') + ' ' + ukeVal) + '</span>' : '';
+    // Andre rad: kun prosjektnr + prosjektnavn (egen rad → trenger ikke wrappe).
     var subtitle = '';
-    if (item.prosjektnr || item.prosjektnavn) {
-        var parts = [];
-        if (item.prosjektnr) parts.push(escapeHtml(item.prosjektnr));
-        if (item.prosjektnavn) parts.push(escapeHtml(item.prosjektnavn));
+    var parts = [];
+    if (item.prosjektnr) parts.push(escapeHtml(item.prosjektnr));
+    if (item.prosjektnavn) parts.push(escapeHtml(item.prosjektnavn));
+    if (parts.length) {
         subtitle = '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>';
     }
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-header">' +
-                '<div class="saved-item-row1">' + dot + (escapeHtml(ordrenr) || t('no_name')) + (dato ? '<span class="saved-item-date-inline">' + escapeHtml(dato) + '</span>' : '') + '</div>' +
+                '<div class="saved-item-row1">' + dot +
+                    '<span class="saved-item-nr">' + (escapeHtml(ordrenr) || t('no_name')) + '</span>' +
+                    ukeInline +
+                    (dato ? '<span class="saved-item-date-inline">' + escapeHtml(dato) + '</span>' : '') +
+                '</div>' +
             '</div>' +
             subtitle +
         '</div>' +
-        '<div class="saved-item-buttons">' + statusBtn + clipBtn + dupBtn + deleteBtn + '</div>' +
+        _savedItemActionsHtml(statusBtn + clipBtn + dupBtn + deleteBtn) +
     '</div>';
 }
 
@@ -3895,7 +3953,7 @@ function showBulkStatusMenu() {
     }
     document.getElementById('action-popup-buttons').innerHTML =
         '<div class="bulk-status-menu">' +
-            opt('lagret', '#8E8E93', 'status_lagret') +
+            opt('lagret', '#F5A623', 'status_lagret') +
             opt('sendt', '#2D7FF9', 'status_sendt') +
             opt('ferdig', '#34C759', 'status_ferdig') +
             opt('ikke_godkjent', '#E53935', 'status_ikke_godkjent') +
@@ -5249,7 +5307,7 @@ function _buildServiceItemHtml(item, index) {
             '</div>' +
             serviceSubtitle +
         '</div>' +
-        '<div class="saved-item-buttons">' + dupBtn + deleteBtn + '</div>' +
+        _savedItemActionsHtml(dupBtn + deleteBtn) +
     '</div>';
 }
 
@@ -5901,6 +5959,7 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
     const btn = e.target.closest('button');
     if (btn) {
         e.stopPropagation();
+        if (btn.classList.contains('saved-item-menu-btn')) { showSavedItemMenu(savedItem); return; }
         if (btn.classList.contains('disabled')) return;
         if (btn.classList.contains('clipboard')) {
             var nr = savedItem._formData.ordreseddelNr || '';
@@ -5954,6 +6013,7 @@ document.getElementById('service-list').addEventListener('click', function(e) {
 
     var btn = e.target.closest('button');
     if (btn) {
+        if (btn.classList.contains('saved-item-menu-btn')) { e.stopPropagation(); showSavedItemMenu(savedItem); return; }
         if (btn.classList.contains('disabled')) return;
         e.stopPropagation();
         if (btn.classList.contains('clipboard')) {
@@ -13846,7 +13906,7 @@ function _buildKappeItemHtml(item, index) {
             '</div>' +
             subtitle +
         '</div>' +
-        '<div class="saved-item-buttons">' + dupBtn + deleteBtn + '</div>' +
+        _savedItemActionsHtml(dupBtn + deleteBtn) +
     '</div>';
 }
 
@@ -13960,6 +14020,7 @@ function deleteKappeForm(formData) {
         var btn = e.target.closest('button');
         if (btn) {
             e.stopPropagation();
+            if (btn.classList.contains('saved-item-menu-btn')) { showSavedItemMenu(item); return; }
             if (btn.classList.contains('disabled')) return;
             if (btn.classList.contains('copy')) {
                 showConfirmModal(t('duplicate_confirm'), function() {
