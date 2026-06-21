@@ -4441,6 +4441,41 @@ function updateOrderTitle(card) {
 }
 
 var dagTimerActiveCard = null;
+// Arbeidstid-editoren redigerer nå via en SESSION-abstraksjon, så samme editor
+// kan brukes på BÅDE den åpne ordreseddelens DOM-kort OG en lagret ordreseddels
+// data-objekt (uke-oversikten). En session = { getTimer(), getPlans(),
+// commit(timer,dager,plans), afterClose() }.
+var _dagTimerSession = null;
+
+// DOM-kort-session: leser/skriver kortets data-attributter (uendret oppførsel).
+function _dagTimerCardSession(card) {
+    return {
+        card: card,
+        getTimer: function() {
+            try { return JSON.parse(card.getAttribute('data-timer') || '{}') || {}; } catch (e) { return {}; }
+        },
+        getPlans: function() {
+            return (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
+        },
+        commit: function(timer, dager, plans) {
+            card.setAttribute('data-dager', JSON.stringify(dager));
+            card.setAttribute('data-timer', JSON.stringify(timer));
+            card.setAttribute('data-day-plans', '{}');
+            card.setAttribute('data-plans', JSON.stringify(plans));
+            var unionPlan = plans.join(', ');
+            var planDisp = card.querySelector('.plan-display');
+            if (planDisp) {
+                planDisp.setAttribute('data-plan', unionPlan);
+                var dispText = planDisp.querySelector('.plan-display-text');
+                if (dispText) dispText.textContent = unionPlan;
+            }
+            updateDagTimerSummary(card);
+            if (typeof updateTimerChip === 'function') updateTimerChip();
+        },
+        afterClose: function() { _maybeReturnToTimerOverview(); }
+    };
+}
+
 var dagNameMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
 var dagShortMap = { ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø' };
 
@@ -4545,17 +4580,22 @@ function updateDagTimerSummary(card) {
     if (typeof _updateOrderSkipUI === 'function') _updateOrderSkipUI(card);
 }
 
-function openDagTimerModal(btn) {
-    const card = btn.closest('.mobile-order-card');
-    dagTimerActiveCard = card;
-    const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
+function openDagTimerModal(arg) {
+    // arg = ferdig session (uke-oversikt for lagret ordreseddel) ELLER et DOM-
+    // element (bestilling-kortets knapp/visning) → bygg en DOM-kort-session.
+    var session = (arg && typeof arg.getTimer === 'function')
+        ? arg
+        : _dagTimerCardSession(arg.closest('.mobile-order-card'));
+    _dagTimerSession = session;
+    dagTimerActiveCard = session.card || null;   // bakoverkompat for ev. ekstern bruk
+    const timer = session.getTimer();
     const dagOrder = ['ma','ti','on','to','fr','lo','so'];
     const list = document.getElementById('dag-timer-modal-list');
     list.innerHTML = '';
 
     // === Etasjer — ÉN gang for HELE bestillingen (ikke per dag) ===
     // Bestilling-nivå: én picker øverst. Lagres som union i data-plans.
-    var floorsVal = ((typeof _getCardPlans === 'function') ? _getCardPlans(card) : []).join(', ');
+    var floorsVal = (session.getPlans() || []).join(', ');
     var etRow = document.createElement('div');
     etRow.className = 'dag-timer-etasje-row';
     var etLabel = document.createElement('span');
@@ -4650,12 +4690,14 @@ function dagTimerBlockScroll(e) {
 
 function closeDagTimerModal(confirmed) {
     var modal = document.getElementById('dag-timer-modal');
-    if (!confirmed || !dagTimerActiveCard) {
+    if (!confirmed || !_dagTimerSession) {
         modal.classList.remove('active');
         modal.removeEventListener('touchmove', dagTimerBlockScroll);
         modal.removeEventListener('wheel', dagTimerBlockScroll);
+        var sCancel = _dagTimerSession;
+        _dagTimerSession = null;
         dagTimerActiveCard = null;
-        _maybeReturnToTimerOverview();
+        if (sCancel && sCancel.afterClose) sCancel.afterClose();
         return;
     }
     const list = document.getElementById('dag-timer-modal-list');
@@ -4691,24 +4733,13 @@ function closeDagTimerModal(confirmed) {
     modal.removeEventListener('touchmove', dagTimerBlockScroll);
     modal.removeEventListener('wheel', dagTimerBlockScroll);
 
-    dagTimerActiveCard.setAttribute('data-dager', JSON.stringify(dager));
-    dagTimerActiveCard.setAttribute('data-timer', JSON.stringify(timer));
-    // Per-dag etasjer avvikles → tom. data-plans er nå primær (bestilling-nivå).
-    dagTimerActiveCard.setAttribute('data-day-plans', '{}');
-    dagTimerActiveCard.setAttribute('data-plans', JSON.stringify(unionArr));
-
-    // Legacy .plan-display (eksport «Plan:»/validering) — speil etasje-listen.
-    var unionPlan = unionArr.join(', ');
-    var planDisp = dagTimerActiveCard.querySelector('.plan-display');
-    if (planDisp) {
-        planDisp.setAttribute('data-plan', unionPlan);
-        var dispText = planDisp.querySelector('.plan-display-text');
-        if (dispText) dispText.textContent = unionPlan;
-    }
-    updateDagTimerSummary(dagTimerActiveCard);
+    // Persister via session (DOM-kort skriver attributter; lagret ordreseddel
+    // skriver til data-objekt + auto-lagrer). updateTimerChip kalles i commit.
+    var s = _dagTimerSession;
+    _dagTimerSession = null;
     dagTimerActiveCard = null;
-    if (typeof updateTimerChip === 'function') updateTimerChip();
-    _maybeReturnToTimerOverview();
+    s.commit(timer, dager, unionArr);
+    if (s.afterClose) s.afterClose();
 }
 
 // Åpnet Dager & tid fra Timer-oversikten? Gå tilbake dit (oppdatert) ved
