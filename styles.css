@@ -3164,7 +3164,7 @@ label.settings-default-label.field-required > span::after {
     box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
 }
 .dag-timer-modal-input {
-    width: 30px;
+    width: 56px;            /* rom for «100,5» o.l. uten klipping (var 30px) */
     padding: 0;
     border: none;
     background: transparent;
