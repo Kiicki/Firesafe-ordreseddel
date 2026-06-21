@@ -161,6 +161,27 @@ function _statusDotClass(item) {
     if (item.status === 'ikke_godkjent') return 's-rejected';
     return 's-done';   // 'ferdig' (= Godkjent) + eldre arkiverte uten status
 }
+
+// Sorterings-rang for status-gruppering i lista. Toppen = aktivt (utkast, så
+// sendt/venter på svar); bunnen = avsluttet (ikke godkjent, så godkjent/ferdig).
+// «Ikke godkjent» ligger nede ved de ferdige fordi den i praksis er en avsluttet
+// tilstand (blir ofte aldri godkjent) — skal ikke kludre til toppen permanent.
+function _statusSortRank(item) {
+    switch (_statusDotClass(item)) {
+        case 's-draft':    return 0;   // 🟡 Utkast
+        case 's-sent':     return 1;   // 🔵 Sendt
+        case 's-rejected': return 2;   // 🔴 Ikke godkjent
+        default:           return 3;   // 🟢 Godkjent (s-done)
+    }
+}
+
+// Delt sammenligner for lagrede ordresedler: status-gruppe først, nyeste først
+// innen gruppen. Brukt av både førstegangs-merge og «Last flere»-re-sortering.
+function _savedFormsStatusCompare(a, b) {
+    var ra = _statusSortRank(a), rb = _statusSortRank(b);
+    if (ra !== rb) return ra - rb;
+    return (b.savedAt || '').localeCompare(a.savedAt || '');
+}
 // Ikoner for «marker neste status» i lista.
 var _statusSendIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
 var _statusCheckIcon = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -269,10 +290,12 @@ function renderSavedFormsList(forms, append, hasMore) {
         window.loadedForms = forms;
         listEl.innerHTML = forms.map(function(item, i) { return _buildSavedItemHtml(item, i); }).join('');
     } else {
-        var startIndex = window.loadedForms.length;
-        window.loadedForms = window.loadedForms.concat(forms);
-        var html = forms.map(function(item, i) { return _buildSavedItemHtml(item, startIndex + i); }).join('');
-        listEl.insertAdjacentHTML('beforeend', html);
+        // «Last flere»: legg til ny side, men RE-SORTER hele lista så status-
+        // grupperingen (utkast→sendt→ikke godkjent→godkjent) holder på tvers av
+        // sider — ellers ville den nye siden bare blitt limt på slutten. Full
+        // re-render siden posisjoner kan endre seg.
+        window.loadedForms = window.loadedForms.concat(forms).sort(_savedFormsStatusCompare);
+        listEl.innerHTML = window.loadedForms.map(function(item, i) { return _buildSavedItemHtml(item, i); }).join('');
     }
 
     // Attach form data to DOM elements
@@ -338,10 +361,8 @@ function _mergeAndDedup(saved, sent) {
     }
     var result = [];
     for (var key in byNr) result.push(byNr[key]);
-    return result.sort(function(a, b) {
-        if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
-        return (b.savedAt || '').localeCompare(a.savedAt || '');
-    });
+    // Gruppér på status (utkast → sendt → ikke godkjent → godkjent); nyeste først.
+    return result.sort(_savedFormsStatusCompare);
 }
 
 function _showSavedFormsDirectly(tab) {
