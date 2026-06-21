@@ -12788,6 +12788,157 @@ function _orderRowLabel(card, idx) {
     return t('order_title') + ' ' + (idx + 1);
 }
 
+// ── Per-bestilling-entries for HELE uken (på tvers av ordresedler) ──────────
+// Brukt til per-dag-totaler og dag-bidragsyter-visningen. Den åpne ordreseddelen
+// leses LIVE fra DOM; øvrige fra localStorage (samme uke, dedup på nr).
+function _bestLabel(desc, idx) {
+    var d = String(desc || '').replace(/\s+/g, ' ').trim();
+    return d ? ((idx + 1) + '. ' + d) : (t('order_title') + ' ' + (idx + 1));
+}
+function _weekBestillingEntries() {
+    var uke = _currentFormUke();
+    var currentNr = String(((document.getElementById('mobile-ordreseddel-nr') || {}).value) || '').trim();
+    var currentNavn = ((document.getElementById('mobile-prosjektnavn') || {}).value) || '';
+    var entries = [];
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card, idx) {
+        var desc = card.querySelector('.mobile-order-desc');
+        entries.push({
+            isCurrent: true, card: card, form: null, orderIdx: idx,
+            ordrenr: currentNr, navn: currentNavn,
+            best: _bestLabel(desc ? desc.value : '', idx),
+            timer: _orderTimerObj(card)
+        });
+    });
+    if (uke) {
+        var drafts = safeParseJSON(STORAGE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: false }) : f; });
+        var archived = safeParseJSON(ARCHIVE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: true }) : f; });
+        var byNr = {};
+        drafts.concat(archived).forEach(function(f) {
+            if (!f) return;
+            var nr = String(f.ordreseddelNr || '').trim();
+            if (!byNr[nr] || (f.savedAt || '') > (byNr[nr].savedAt || '')) byNr[nr] = f;
+        });
+        Object.keys(byNr).forEach(function(nr) {
+            var f = byNr[nr];
+            if (currentNr && nr === currentNr) return;
+            if (_normUke(f.dato) !== uke) return;
+            (Array.isArray(f.orders) ? f.orders : []).forEach(function(o, idx) {
+                entries.push({
+                    isCurrent: false, card: null, form: f, orderIdx: idx,
+                    ordrenr: nr, navn: f.prosjektnavn || '',
+                    best: _bestLabel(o.description || '', idx),
+                    timer: (o && o.timer && typeof o.timer === 'object') ? o.timer : {}
+                });
+            });
+        });
+    }
+    return { uke: uke, entries: entries };
+}
+// {ma:n, ..., so:n, _generelt:n} på tvers av alle ordresedlene i uken.
+function _weekDayTotals() {
+    var tot = { _generelt: 0 };
+    TIMER_DAY_KEYS.forEach(function(k) { tot[k] = 0; });
+    _weekBestillingEntries().entries.forEach(function(en) {
+        var tm = en.timer || {};
+        TIMER_DAY_KEYS.forEach(function(k) { var n = parseLocaleNum(tm[k]); if (!isNaN(n)) tot[k] += n; });
+        var g = (tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt
+            : ((tm._total != null && String(tm._total).trim() !== '') ? tm._total : null);
+        if (g != null) { var gn = parseLocaleNum(g); if (!isNaN(gn)) tot._generelt += gn; }
+    });
+    return tot;
+}
+// Bidragsytere (bestillinger) som har timer på en gitt dag.
+function _weekDayContributorsData(dayKey) {
+    var total = 0;
+    var contributors = [];
+    _weekBestillingEntries().entries.forEach(function(en) {
+        var tm = en.timer || {};
+        var raw = (dayKey === '_generelt')
+            ? ((tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt : tm._total)
+            : tm[dayKey];
+        var h = parseLocaleNum(raw);
+        if (isNaN(h) || h <= 0) return;
+        total += h;
+        contributors.push({ entry: en, hours: h });
+    });
+    return { total: total, contributors: contributors };
+}
+
+// Nivå 2 (dag) — bidragsytere for ÉN dag på tvers av ordresedlene. Trykk en
+// bidragsyter → arbeidstid-editoren (flytt/endre). Tilbake → uke-oversikten.
+function openDayContributors(dayKey) {
+    var modal = document.getElementById('timer-overview-modal');
+    if (!modal) return;
+    var list = document.getElementById('timer-overview-list');
+    if (!list) return;
+    var data = _weekDayContributorsData(dayKey);
+    var dayName = (dayKey === '_generelt') ? t('timer_overview_other') : (dagNameMap[dayKey] || dayKey);
+    var titleEl = document.getElementById('timer-overview-title');
+    if (titleEl) titleEl.textContent = dayName;
+    var backBtn = document.getElementById('timer-overview-back');
+    if (backBtn) backBtn.style.display = '';
+    var totalLabelEl = document.getElementById('timer-overview-total-label');
+    if (totalLabelEl) totalLabelEl.textContent = t('timer_day_total');
+    list.innerHTML = '';
+
+    if (!data.contributors.length) {
+        var empty = document.createElement('div');
+        empty.className = 'timer-overview-empty';
+        empty.textContent = t('timer_overview_no_hours');
+        list.appendChild(empty);
+    }
+    data.contributors.forEach(function(c) {
+        var en = c.entry;
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'timer-week-row' + (en.isCurrent ? ' timer-week-row--current' : '');
+        var main = document.createElement('div');
+        main.className = 'timer-ov-main';
+        var lab = document.createElement('span');
+        lab.className = 'timer-week-label';
+        var nrSpan = document.createElement('span');
+        nrSpan.className = 'timer-week-nr';
+        nrSpan.textContent = en.ordrenr || t('no_name');
+        lab.appendChild(nrSpan);
+        var bestSpan = document.createElement('span');
+        bestSpan.className = 'timer-week-navn';
+        bestSpan.textContent = en.best;
+        lab.appendChild(bestSpan);
+        if (en.isCurrent) {
+            var here = document.createElement('span');
+            here.className = 'timer-week-here';
+            here.textContent = t('timer_week_this');
+            lab.appendChild(here);
+        }
+        var val = document.createElement('span');
+        val.className = 'timer-overview-value';
+        val.textContent = _fmtHours(c.hours) + ' t';
+        var chev = document.createElement('span');
+        chev.className = 'fakturaadresse-chevron';
+        chev.textContent = '›';
+        main.appendChild(lab); main.appendChild(val); main.appendChild(chev);
+        row.appendChild(main);
+        row.addEventListener('click', function() {
+            closeTimerOverview();
+            var back = function() { openDayContributors(dayKey); };
+            if (en.isCurrent) {
+                openDagTimerModal(_dagTimerCardSession(en.card, back));
+            } else {
+                openDagTimerModal(_dagTimerFormOrderSession(en.form, en.orderIdx, back));
+            }
+        });
+        list.appendChild(row);
+    });
+
+    var totalEl = document.getElementById('timer-overview-total-value');
+    if (totalEl) totalEl.textContent = _fmtHours(data.total) + ' t';
+
+    modal.classList.add('active');
+    if (typeof applyTranslations === 'function') applyTranslations();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+window.openDayContributors = openDayContributors;
+
 // Nivå 2 — bestilling-oversikt for ÉN ordreseddel. ctx.kind:
 //   'current' (default) = den åpne ordreseddelen (DOM-kort, redigerer live).
 //   'saved'             = en lagret ordreseddel i uken (ctx.form, auto-lagres).
@@ -13023,6 +13174,31 @@ function openWeekTimerOverview() {
         row.appendChild(main);
         row.addEventListener('click', onClick);
         list.appendChild(row);
+    }
+
+    // Per-dag-totaler (på tvers av ALLE ordresedlene i uken) — trykk en dag for
+    // å se/endre hvilke ordresedler som har timer den dagen. Hjelper deg å fange
+    // opp en overbelastet dag (f.eks. 10t på mandag fordelt på flere ordrer).
+    if (data.uke) {
+        var dt = _weekDayTotals();
+        var dayKeys = TIMER_DAY_KEYS.concat(['_generelt']);
+        var hasAnyDay = dayKeys.some(function(k) { return dt[k] > 0; });
+        if (hasAnyDay) {
+            var strip = document.createElement('div');
+            strip.className = 'timer-week-days';
+            dayKeys.forEach(function(k) {
+                if (!(dt[k] > 0)) return;
+                var label = (k === '_generelt') ? t('timer_overview_other') : (dagShortMap[k] || k);
+                var chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'timer-week-day';
+                chip.innerHTML = '<span class="twd-name">' + escapeHtml(label) + '</span>' +
+                    '<b class="twd-val">' + escapeHtml(_fmtHours(dt[k])) + 't</b>';
+                chip.addEventListener('click', function() { openDayContributors(k); });
+                strip.appendChild(chip);
+            });
+            list.appendChild(strip);
+        }
     }
 
     // Den åpne ordreseddelen (live) — drill til bestilling-oversikten (denne).

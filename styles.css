@@ -2955,6 +2955,31 @@ label.settings-default-label.field-required > span::after {
     line-height: 1;
     margin-left: -2px;
 }
+/* Per-dag-totaler (uke-oversikt): trykkbare chips, én pr. dag med timer.
+   Trykk → bidragsytere for den dagen. Hjelper å fange opp overbelastet dag. */
+.timer-week-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 4px;
+}
+.timer-week-day {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    background: #fff4ee;
+    border: 1px solid #f3c9b3;
+    border-radius: 9px;
+    padding: 7px 11px;
+    cursor: pointer;
+    font: inherit;
+    color: #1c1c1e;
+    transition: background .12s;
+}
+.timer-week-day:active { background: #ffe9dc; }
+.timer-week-day .twd-name { font-size: 12px; font-weight: 600; color: #8a8a8e; }
+.timer-week-day .twd-val { font-size: 13px; font-weight: 700; color: #E8501A; }
+
 /* Uke-oversikt: kompakt rad pr. ordreseddel (alle klikkbare → redigér timer).
    Kun ordreseddelnr fremhevet; navn dempet — samme språk som lagrede-lista. */
 .timer-week-row {

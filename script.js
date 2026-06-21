@@ -4448,7 +4448,9 @@ var dagTimerActiveCard = null;
 var _dagTimerSession = null;
 
 // DOM-kort-session: leser/skriver kortets data-attributter (uendret oppførsel).
-function _dagTimerCardSession(card) {
+// afterClose kan overstyres (f.eks. dag-visningen returnerer dit i stedet for
+// bestilling-oversikten); default = _maybeReturnToTimerOverview.
+function _dagTimerCardSession(card, afterClose) {
     return {
         card: card,
         getTimer: function() {
@@ -4472,7 +4474,7 @@ function _dagTimerCardSession(card) {
             updateDagTimerSummary(card);
             if (typeof updateTimerChip === 'function') updateTimerChip();
         },
-        afterClose: function() { _maybeReturnToTimerOverview(); }
+        afterClose: afterClose || function() { _maybeReturnToTimerOverview(); }
     };
 }
 
