@@ -12889,26 +12889,24 @@ function openDayContributors(dayKey) {
     }
     data.contributors.forEach(function(c) {
         var en = c.entry;
+        // Kort-layout (samme som bestilling-kortet): nr + timer øverst, FULL
+        // beskrivelse under (vises i sin helhet, ikke klippet).
         var row = document.createElement('button');
         row.type = 'button';
-        row.className = 'timer-week-row' + (en.isCurrent ? ' timer-week-row--current' : '');
+        row.className = 'timer-overview-row timer-overview-row--order' + (en.isCurrent ? ' timer-week-row--current' : '');
         var main = document.createElement('div');
         main.className = 'timer-ov-main';
-        var lab = document.createElement('span');
-        lab.className = 'timer-week-label';
+        var head = document.createElement('span');
+        head.className = 'timer-day-head';
         var nrSpan = document.createElement('span');
         nrSpan.className = 'timer-week-nr';
         nrSpan.textContent = en.ordrenr || t('no_name');
-        lab.appendChild(nrSpan);
-        var bestSpan = document.createElement('span');
-        bestSpan.className = 'timer-week-navn';
-        bestSpan.textContent = en.best;
-        lab.appendChild(bestSpan);
+        head.appendChild(nrSpan);
         if (en.isCurrent) {
             var here = document.createElement('span');
             here.className = 'timer-week-here';
             here.textContent = t('timer_week_this');
-            lab.appendChild(here);
+            head.appendChild(here);
         }
         var val = document.createElement('span');
         val.className = 'timer-overview-value';
@@ -12916,8 +12914,12 @@ function openDayContributors(dayKey) {
         var chev = document.createElement('span');
         chev.className = 'fakturaadresse-chevron';
         chev.textContent = '›';
-        main.appendChild(lab); main.appendChild(val); main.appendChild(chev);
+        main.appendChild(head); main.appendChild(val); main.appendChild(chev);
         row.appendChild(main);
+        var desc = document.createElement('div');
+        desc.className = 'timer-day-desc';
+        desc.textContent = en.best;
+        row.appendChild(desc);
         row.addEventListener('click', function() {
             closeTimerOverview();
             var back = function() { openDayContributors(dayKey); };
