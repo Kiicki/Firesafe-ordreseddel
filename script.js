@@ -5571,20 +5571,11 @@ function confirmSignature() {
             if (srvPlaceholder) srvPlaceholder.style.display = '';
         }
 
-        // Update service export table signature if preview is open
+        // Signert fra service-preview → regenerer PDF-preview med ny signatur.
         if (window._signedFromServicePreview) {
             window._signedFromServicePreview = false;
-            var sigData = document.getElementById('service-signatur').value;
-            var exportSigImg = document.getElementById('service-export-sig-img');
-            if (exportSigImg) {
-                if (sigData && sigData.startsWith('data:image')) {
-                    exportSigImg.src = sigData;
-                    exportSigImg.style.display = '';
-                } else {
-                    exportSigImg.style.display = 'none';
-                }
-            }
             updatePreviewHeaderState(hasSignature);
+            if (typeof openServicePreview === 'function') openServicePreview();
         }
         return;
     }
@@ -5617,21 +5608,11 @@ function confirmSignature() {
     signaturePathsBackup = JSON.parse(JSON.stringify(signaturePaths));
     cleanupSignatureOverlay();
 
-    // Update desktop signature directly in preview (preview stays open)
+    // Signert fra ordreseddel-preview → regenerer PDF-preview med ny signatur.
     if (window._signedFromPreview) {
         window._signedFromPreview = false;
-        var sigData = document.getElementById('mobile-kundens-underskrift').value;
-        var desktopImg = document.getElementById('desktop-signature-img');
-        if (desktopImg) {
-            if (sigData && sigData.startsWith('data:image')) {
-                desktopImg.src = sigData;
-                desktopImg.style.display = 'block';
-            } else {
-                desktopImg.style.display = 'none';
-            }
-        }
-        // Update preview header to show "Ferdig" + "Signert"
         updatePreviewHeaderState(hasSignature);
+        if (typeof openPreview === 'function') openPreview();
     }
 }
 
@@ -6007,6 +5988,178 @@ function buildDesktopWorkLines() {
     for (let i = currentRows; i < 15; i++) {
         addRow('', '', '');
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELT rad-/material-beregning for arbeidslinje-tabellen. Returnerer STRUKTURERTE
+// rader (data, ikke DOM) slik at den nye tekst-/vektor-PDF-en viser NØYAKTIG
+// samme innhold som dagens eksport. Speiler buildDesktopWorkLines-logikken, men
+// pusher rader til en array i stedet for DOM. Rad-typer:
+//   { kind:'descblock', paragraphs:[str...], meta:[{label, value}] }  — beskrivelse + Dager/Plan/Merknad
+//   { desc, antall, enhet, bold, italic, alignRight }                 — material/tid/total-rader
+// minRows: fyll opp med tomme rader til minst N (som dagens 15-rad-gulv).
+function computeWorkRows(orders, minRows) {
+    var rows = [];
+    function addRow(desc, antall, enhet, options) {
+        options = options || {};
+        rows.push({
+            desc: desc || '', antall: antall || '', enhet: enhet || '',
+            bold: !!options.bold, italic: !!options.italic, alignRight: !!options.alignRight
+        });
+    }
+    var totalTimer = 0;
+
+    (orders || []).forEach(function(order) {
+        // Beskrivelse-blokk (beskrivelse + Dager/Plan/Merknad med fete etiketter).
+        var genVal = order.timer && typeof order.timer === 'object' ? (order.timer._generelt || order.timer._total) : null;
+        if (order.description || (order.dager && order.dager.length > 0) || order.plan || order.merknad) {
+            var paragraphs = order.description ? String(order.description).split(/\n\n+/) : [];
+            var meta = [];
+            if ((order.dager && order.dager.length > 0) || genVal) {
+                var dagMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
+                var dagParts = [];
+                if (order.dager && order.dager.length > 0) {
+                    dagParts = order.dager.map(function(d) {
+                        var tv = order.timer && order.timer[d];
+                        return (dagMap[d] || d) + (tv ? ' (' + String(tv).replace('.', ',') + 't)' : '');
+                    });
+                }
+                if (genVal) dagParts.push('Uspesifisert dag (' + String(genVal).replace('.', ',') + 't)');
+                meta.push({ label: t('order_days') + ': ', value: dagParts.join(', ') });
+            }
+            if (order.plan) meta.push({ label: 'Plan: ', value: order.plan });
+            if (order.merknad) meta.push({ label: 'Merknad: ', value: order.merknad });
+            rows.push({ kind: 'descblock', paragraphs: paragraphs, meta: meta });
+        }
+
+        // Materialer — identisk med buildDesktopWorkLines (gjenbruker globale helpere).
+        var filledMats = (order.materials || []).filter(function(m) {
+            if (!m.name && !m.antall && !m.enhet) return false;
+            if (cachedMaterialOptions && m.enhet !== 'meter') {
+                var specBase = cachedMaterialOptions.find(function(o) {
+                    return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
+                });
+                if (specBase) return false;
+            }
+            return true;
+        });
+        var aggregatedMats = aggregateExportMaterials(filledMats);
+        if (aggregatedMats.length > 0) {
+            function addExportMatRow(m, displayNameOverride) {
+                var capName;
+                if (displayNameOverride) {
+                    capName = displayNameOverride;
+                } else {
+                    var rawName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
+                    capName = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
+                    var expEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
+                    if (expEnhet && expEnhet !== 'stk' && expEnhet !== 'meter') capName += ' ' + expEnhet;
+                }
+                var antallNum = parseFloat((m.antall || '').replace(',', '.'));
+                var pipeInfo = getRunningMeterInfo(m.name);
+                if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
+                    var lm = calculateRunningMeters(pipeInfo, antallNum);
+                    var lagMatchExp = capName.match(/^(.+?) \((\d+) lag\)$/);
+                    var baseSpecExp = lagMatchExp ? lagMatchExp[1] : capName;
+                    var roundsExp = lagMatchExp ? parseInt(lagMatchExp[2], 10) : 1;
+                    var nameWithStk = roundsExp > 1
+                        ? baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk × ' + roundsExp + ' lag)'
+                        : baseSpecExp + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
+                    addRow(formatDisplayForBreak(nameWithStk), formatRunningMeters(lm), 'meter', { alignRight: true });
+                } else if (m.source === 'kappe-products') {
+                    var plateCount = (typeof calcKappePlateCount === 'function') ? calcKappePlateCount(m) : 0;
+                    if (plateCount > 0) {
+                        var areaM2 = (typeof calcKappeAreaM2 === 'function') ? calcKappeAreaM2(m, plateCount) : 0;
+                        var areaLabel = (typeof formatKappeArea === 'function') ? formatKappeArea(areaM2) : String(areaM2);
+                        addRow(capName, areaLabel, 'm²', { alignRight: true });
+                    } else if (m.antall) {
+                        var fallbackUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                        addRow(capName, formatRunningMeters(m.antall), fallbackUnit, { alignRight: true });
+                    }
+                } else {
+                    var exportUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                    addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
+                }
+            }
+            var exportGroups = groupMaterialsByBase(aggregatedMats, { sortItems: true });
+            (function combineIsoAndFestemidler() {
+                var isoIdx = exportGroups.findIndex(function(g) { return g.isIsolationGroup; });
+                var festIdx = exportGroups.findIndex(function(g) { return g.isStiftGroup; });
+                if (isoIdx === -1 || festIdx === -1) return;
+                var isoG = exportGroups[isoIdx], festG = exportGroups[festIdx];
+                var mergedGroup = { baseName: isoG.baseName, displayName: 'Isolering', items: isoG.items.concat(festG.items), isSpecGroup: false, isIsolationGroup: true, isStiftGroup: true };
+                if (festIdx > isoIdx) { exportGroups.splice(festIdx, 1); exportGroups[isoIdx] = mergedGroup; }
+                else { exportGroups.splice(isoIdx, 1); exportGroups[festIdx] = mergedGroup; }
+            })();
+            var _hasLooseItems = exportGroups.some(function(g) { return !g.isSpecGroup && !g.isIsolationGroup && !g.isStiftGroup; });
+            if (_hasLooseItems) addRow('Materiell:', '', '', { bold: true, alignRight: true });
+            exportGroups.forEach(function(group) {
+                if (!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) {
+                    group.items.forEach(function(gm) { addExportMatRow(gm); });
+                } else {
+                    var exportGroupTitle = group.displayName || group.baseName;
+                    addRow('  ' + exportGroupTitle.charAt(0).toUpperCase() + exportGroupTitle.slice(1) + ':', '', '', { bold: true, alignRight: true });
+                    var groupTotalMeter = 0, groupHasMeter = false;
+                    var renderItems = group.items;
+                    if (group.isIsolationGroup) {
+                        var isoAgg = [], isoMap = {}, nonIsoItems = [];
+                        group.items.forEach(function(gm) {
+                            if (gm.source !== 'kappe-products') { nonIsoItems.push(gm); return; }
+                            var key = (gm.name || '').toLowerCase() + '|' + (gm.enhet || '').toLowerCase();
+                            var gmPC = (typeof calcKappePlateCount === 'function') ? calcKappePlateCount(gm) : 0;
+                            if (isoMap[key]) { isoMap[key].__plateSum += gmPC; }
+                            else { isoMap[key] = { name: gm.name, enhet: gm.enhet, source: gm.source, plate: gm.plate, __plateSum: gmPC }; isoAgg.push(isoMap[key]); }
+                        });
+                        renderItems = isoAgg.concat(nonIsoItems);
+                    }
+                    renderItems.forEach(function(gm) {
+                        var subName;
+                        if (gm.source === 'kappe-products' && typeof formatKappeIsolationName === 'function') subName = formatKappeIsolationName(gm.name, gm.enhet);
+                        else subName = getGroupedDisplayName(gm, group.baseName);
+                        subName = subName.charAt(0).toUpperCase() + subName.slice(1);
+                        subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
+                        if (gm.__plateSum != null) {
+                            var aggM2 = (typeof calcKappeAreaM2 === 'function') ? calcKappeAreaM2(gm, gm.__plateSum) : 0;
+                            var aggLabel = (typeof formatKappeArea === 'function') ? formatKappeArea(aggM2) : String(aggM2);
+                            addRow('    ' + subName, aggLabel, 'm²', { alignRight: true });
+                            return;
+                        }
+                        addExportMatRow(gm, '    ' + subName);
+                        var antallNum = parseFloat(String(gm.antall || '').replace(',', '.'));
+                        var pipeInfo = getRunningMeterInfo(gm.name);
+                        if (gm.source === 'kappe-products') {
+                            // plater akkumuleres ikke til en meter-total
+                        } else if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
+                            groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum); groupHasMeter = true;
+                        } else if ((gm.quantityUnit || getMaterialQuantityUnit(gm.name, gm.enhet, gm.source)) === 'meter' && !isNaN(antallNum)) {
+                            groupTotalMeter += antallNum; groupHasMeter = true;
+                        }
+                    });
+                    if (groupHasMeter && renderItems.length > 1) {
+                        addRow('    Totalt:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
+                    }
+                }
+            });
+        }
+
+        // Tid pr. bestilling.
+        if (order.timer && typeof order.timer === 'object') {
+            var orderTotal = 0;
+            Object.values(order.timer).forEach(function(v) { var val = parseFloat(String(v || '').replace(',', '.')); if (!isNaN(val)) orderTotal += val; });
+            if (orderTotal > 0) { addRow('Tid:', orderTotal.toFixed(1).replace('.', ','), 'timer', { alignRight: true }); totalTimer += orderTotal; }
+        } else if (typeof order.timer === 'string' && order.timer) {
+            var val2 = parseFloat(order.timer.replace(',', '.'));
+            addRow('Tid:', isNaN(val2) ? order.timer.replace('.', ',') : val2.toFixed(1).replace('.', ','), 'timer', { alignRight: true });
+            if (!isNaN(val2)) totalTimer += val2;
+        }
+    });
+
+    if (totalTimer > 0) {
+        addRow('', '', '');
+        addRow('Totalt:', totalTimer.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
+    }
+    if (minRows) { for (var i = rows.length; i < minRows; i++) addRow('', '', ''); }
+    return rows;
 }
 
 // Sync original form to mobile form (not used in new structure, kept for compatibility)

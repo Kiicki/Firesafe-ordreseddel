@@ -906,7 +906,59 @@ function updatePreviewScale() {
     window._previewCurrentScale = scale;
 }
 
+// «Vis» = render den EKTE tekst-PDF-en (via PDF.js) i preview-overlayet, så
+// forhåndsvisningen er identisk med eksportfilen. Sidene tegnes til canvas i høy
+// oppløsning. Fallback (PDF.js mangler): åpne PDF-blob i ny fane.
+async function _showPdfInPreview(doc) {
+    var overlay = document.getElementById('preview-overlay');
+    var scroll = document.getElementById('preview-scroll');
+    if (!overlay || !scroll) return;
+    scroll.innerHTML = '';
+    var wrap = document.createElement('div');
+    wrap.className = 'pdf-preview-pages';
+    scroll.appendChild(wrap);
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('preview-active');
+
+    var blob = doc.output('blob');
+    var lib = window.pdfjsLib;
+    if (!lib) {
+        try { window.open(URL.createObjectURL(blob), '_blank'); } catch (e) {}
+        return;
+    }
+    try { lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {}
+    try {
+        var buf = await blob.arrayBuffer();
+        var pdf = await lib.getDocument({ data: buf }).promise;
+        var renderScale = 2 * Math.min(window.devicePixelRatio || 1, 2);
+        for (var p = 1; p <= pdf.numPages; p++) {
+            var page = await pdf.getPage(p);
+            var vp = page.getViewport({ scale: renderScale });
+            var c = document.createElement('canvas');
+            c.className = 'pdf-preview-page';
+            c.width = vp.width; c.height = vp.height;
+            wrap.appendChild(c);
+            await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        }
+    } catch (e) {
+        try { window.open(URL.createObjectURL(blob), '_blank'); } catch (e2) {}
+    }
+}
+
 function openPreview() {
+    window._servicePreviewActive = false;
+    window._kappePreviewActive = false;
+    syncMobileToOriginal();
+    var hasSig = !!document.getElementById('mobile-kundens-underskrift').value;
+    updatePreviewHeaderState(hasSig);
+    var signBtn = document.querySelector('.preview-sign-btn');
+    if (signBtn) signBtn.style.display = '';   // ordreseddel kan signeres
+    window._previewSavedScroll = _saveScrollPositions();
+    buildOrdreseddelPdfDoc(getFormData()).then(_showPdfInPreview);
+}
+
+function _openPreviewLegacyDISABLED() {
     // Sync mobile form data to desktop layout
     syncMobileToOriginal();
     buildDesktopWorkLines();
@@ -1065,6 +1117,10 @@ function closePreview() {
         restoreTextareas(window._previewConverted);
         window._previewConverted = null;
     }
+
+    // Fjern PDF-canvas-sidene (tekst-PDF-preview).
+    var _ps = document.getElementById('preview-scroll');
+    if (_ps) { var pages = _ps.querySelector('.pdf-preview-pages'); if (pages) pages.remove(); }
 }
 
 function previewSign() {
@@ -4140,8 +4196,7 @@ async function doExportPDF(markSent) {
     const loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        const canvas = await renderFormToCanvas();
-        const pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
+        const pdf = await buildOrdreseddelPdfDoc(getFormData());
         pdf.save(getExportFilename('pdf'));
         // Last ned ≠ sendt — ingen status-endring.
     } catch (error) {
@@ -4209,8 +4264,7 @@ async function doSharePDF(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var canvas = await renderFormToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
+        var pdf = await buildOrdreseddelPdfDoc(getFormData());
         var blob = pdf.output('blob');
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
@@ -4241,6 +4295,533 @@ async function doSharePNG(markSent) {
     } finally {
         loading.classList.remove('active');
     }
+}
+
+// ============================================================================
+// EKTE TEKST/VEKTOR-PDF (erstatter html2canvas-bilde-PDF)
+// Skarp tekst ved enhver zoom + dramatisk mindre filer. Logo + signatur er de
+// eneste rasterne (små). All annen tekst/grafikk er ekte vektor.
+// ============================================================================
+
+// Rasteriser en bilde-URL (SVG data-URL e.l.) til en PNG data-URL på gitt
+// pikseloppløsning (høy for skarphet). Resolver null ved feil.
+function _pdfRasterize(srcUrl, pxW, pxH) {
+    return new Promise(function(resolve) {
+        if (!srcUrl) { resolve(null); return; }
+        var img = new Image();
+        img.onload = function() {
+            try {
+                var c = document.createElement('canvas');
+                c.width = pxW; c.height = pxH;
+                var ctx = c.getContext('2d');
+                ctx.clearRect(0, 0, pxW, pxH);
+                ctx.drawImage(img, 0, 0, pxW, pxH);
+                resolve(c.toDataURL('image/png'));
+            } catch (e) { resolve(null); }
+        };
+        img.onerror = function() { resolve(null); };
+        img.src = srcUrl;
+    });
+}
+
+// Hent logo som SVG data-URL (svart fyll), klar for rasterisering.
+function _pdfLogoSvgUrl() {
+    var el = document.querySelector('#form-container .firesafe-logo') || document.querySelector('.firesafe-logo');
+    if (!el) return null;
+    var clone = el.cloneNode(true);
+    clone.setAttribute('style', 'color:#000');
+    var s = new XMLSerializer().serializeToString(clone);
+    s = s.replace(/currentColor/g, '#000');
+    if (!/xmlns=/.test(s)) s = s.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+}
+
+var _pdfLogoCache = null;
+async function _pdfGetLogo() {
+    if (_pdfLogoCache !== null) return _pdfLogoCache;
+    _pdfLogoCache = await _pdfRasterize(_pdfLogoSvgUrl(), 720, 245);  // viewBox 250×85
+    return _pdfLogoCache;
+}
+
+// Signatur → PNG data-URL fra lagret SVG (generateSVG). null hvis usignert.
+async function _pdfGetSignature(data) {
+    var sig = (data && data.kundensUnderskrift) || '';
+    if (!sig || sig.indexOf('data:image') !== 0) return null;
+    // Beholder proporsjoner: signatur-SVG er bred (canvasAspectRatio brukt ved tegning).
+    return await _pdfRasterize(sig, 600, 200);
+}
+
+// ── Ordreseddel: ekte tekst/vektor-PDF ──────────────────────────────────────
+// Render ÉN ordreseddel inn i en eksisterende doc, fra og med gjeldende side
+// (kaller addPage selv ved tabell-overflyt). Bruk addPage FØR for skjema 2..n.
+async function _renderOrdreseddelInto(doc, data) {
+    data = data || {};
+    var PW = 210, PH = 297;
+    var M = 8;                 // ytre marg
+    var L = M, R = PW - M;     // venstre/høyre innhold
+    var W = R - L;             // innholdsbredde
+    var BLACK = [0, 0, 0], GRAY = [119, 119, 119], RED = [204, 0, 0];
+
+    function setFont(style, size) { doc.setFont('helvetica', style); doc.setFontSize(size); }
+    function line(x1, y1, x2, y2) { doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.line(x1, y1, x2, y2); }
+    function rect(x, y, w, h) { doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.rect(x, y, w, h); }
+
+    var logo = await _pdfGetLogo();
+    var sigImg = await _pdfGetSignature(data);
+
+    // ── Topp-ramme + header ──
+    var top = M;
+    var headerH = 30;
+    var frameTop = top;   // ytre ramme tegnes til SLUTT (omslutter kun innhold,
+                          // ikke hele A4 → ingen tom boks under footeren).
+
+    // Logo (venstre)
+    if (logo) {
+        var lw = 46, lh = lw * 85 / 250;
+        doc.addImage(logo, 'PNG', L + 4, top + 5, lw, lh);
+    }
+
+    // Ordreseddel nr + firma-info (høyre). Tallet VENSTREjusteres på samme
+    // vertikale linje som høyre-kolonnen (HOVEDKONTOR osv.), ikke mot sidekanten.
+    var rx = R - 4;
+    var colLeftX = rx - 39;        // x der høyre info-kolonne (og ordrenr) starter
+    var colLabelRight = rx - 42;   // x der venstre etikett-kolonne slutter (høyrejustert)
+    setFont('bold', 11);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Ordreseddel nr.:', colLabelRight, top + 8, { align: 'right' });
+    setFont('normal', 22);
+    doc.setTextColor(RED[0], RED[1], RED[2]);
+    doc.text(String(data.ordreseddelNr || ''), colLeftX, top + 9, { align: 'left' });
+    doc.setTextColor(0, 0, 0);
+    var infoY = top + 14;
+    function infoLine(left, right, bold) {
+        setFont(bold ? 'bold' : 'normal', bold ? 8.5 : 8);
+        if (left) doc.text(left, colLabelRight, infoY, { align: 'right' });
+        if (right) doc.text(right, colLeftX, infoY, { align: 'left' });
+        infoY += 4;
+    }
+    infoLine('FIRESAFE AS', 'HOVEDKONTOR', true);
+    infoLine('Postadresse', 'Postboks 6411 Etterstad');
+    infoLine('', '0605 Oslo');
+    infoLine('Telefon', '09110');
+
+    line(L, top + headerH, R, top + headerH);
+    var y = top + headerH;
+
+    // ── Felt-rad-helper ──
+    function fieldCell(x, w, h, label, value) {
+        setFont('normal', 7.5);
+        doc.setTextColor(90, 90, 90);
+        doc.text(String(label || ''), x + 3, y + 4);
+        setFont('normal', 11);
+        doc.setTextColor(0, 0, 0);
+        var val = String(value || '');
+        var maxW = w - 6;
+        var vlines = doc.splitTextToSize(val, maxW);
+        doc.text(vlines.length ? [vlines[0]] : [''], x + 3, y + 9);
+    }
+    function fieldRow(cells, h) {
+        var x = L;
+        cells.forEach(function(c, i) {
+            fieldCell(x, c.w, h, c.label, c.value);
+            if (i < cells.length - 1) line(x + c.w, y, x + c.w, y + h);
+            x += c.w;
+        });
+        line(L, y + h, R, y + h);
+        y += h;
+    }
+    var fh = 12;
+    fieldRow([
+        { w: W - 55, label: 'Oppdragsgiver', value: data.oppdragsgiver },
+        { w: 55, label: 'Kundens ref.', value: data.kundensRef }
+    ], fh);
+    fieldRow([{ w: W, label: 'Fakturaadresse', value: data.fakturaadresse }], fh);
+    // «Dato»-feltet inneholder ukenummeret; eksporten viser «uke N».
+    var ukeNum = String(data.dato || '').trim().replace(/^uke\s*/i, '').trim();
+    var ukeVal = ukeNum ? ('Uke ' + ukeNum) : '';
+    fieldRow([
+        { w: 30, label: 'Dato', value: ukeVal },
+        { w: (W / 2) - 30, label: 'Prosjektnr.', value: data.prosjektnr },
+        { w: W / 2, label: 'Prosjektnavn', value: data.prosjektnavn }
+    ], fh);
+    fieldRow([
+        { w: W / 2, label: 'Montør', value: data.montor },
+        { w: W / 2, label: 'Avdeling', value: data.avdeling }
+    ], fh);
+
+    // ── Arbeidslinje-tabell ──
+    var COL_ANTALL = 26, COL_ENHET = 26;
+    var COL_DESC = W - COL_ANTALL - COL_ENHET;
+    var xDesc = L, xAntall = L + COL_DESC, xEnhet = L + COL_DESC + COL_ANTALL;
+    var BOTTOM = PH - M - 36;   // plass til signatur/footer på siste side
+
+    function tableHeader() {
+        var hh = 8;
+        doc.setFillColor(GRAY[0], GRAY[1], GRAY[2]);
+        doc.rect(L, y, W, hh, 'F');
+        doc.setTextColor(255, 255, 255);
+        setFont('bold', 8.5);
+        doc.text('Beskrivelse av utførte arbeider', xDesc + COL_DESC / 2, y + 5.3, { align: 'center' });
+        doc.text('Antall', xAntall + COL_ANTALL / 2, y + 5.3, { align: 'center' });
+        doc.text('Enhet', xEnhet + COL_ENHET / 2, y + 5.3, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        // kolonne-skiller i header
+        line(xAntall, y, xAntall, y + hh);
+        line(xEnhet, y, xEnhet, y + hh);
+        rect(L, y, W, hh);
+        y += hh;
+    }
+
+    function newPage() {
+        // Lukk siden vi forlater i full høyde (fortsettelsesside), så ny side.
+        rect(L, frameTop, W, (PH - M) - frameTop);
+        doc.addPage();
+        y = M;
+        frameTop = M;
+        tableHeader();
+    }
+
+    function drawRow(row) {
+        var pad = 2;
+        var lineH = 4.0;
+        var lines;   // computed desc content
+        var rowH;
+        if (row.kind === 'descblock') {
+            lines = [];
+            (row.paragraphs || []).forEach(function(p, i) {
+                if (i > 0) lines.push({ t: '', bold: false });
+                doc.splitTextToSize(p, COL_DESC - 2 * pad - 23).forEach(function(l) { lines.push({ t: l, bold: false }); });
+            });
+            (row.meta || []).forEach(function(m) {
+                var full = m.label + m.value;
+                var wrapped = doc.splitTextToSize(full, COL_DESC - 2 * pad - 23);
+                wrapped.forEach(function(l, i) { lines.push({ t: l, bold: false, labelLen: i === 0 ? m.label.length : 0 }); });
+            });
+            rowH = Math.max(8, lines.length * lineH + 2 * pad);
+        } else {
+            setFont(row.bold ? 'bold' : 'normal', 9);
+            var avail = COL_DESC - 2 * pad - (row.alignRight ? 5 : 23);
+            lines = doc.splitTextToSize(String(row.desc || ''), avail).map(function(l) { return { t: l }; });
+            rowH = Math.max(8, lines.length * lineH + 2 * pad);
+        }
+        if (y + rowH > BOTTOM) newPage();
+
+        // rad-ramme
+        rect(L, y, W, rowH);
+        line(xAntall, y, xAntall, y + rowH);
+        line(xEnhet, y, xEnhet, y + rowH);
+
+        var ty = y + pad + 3;
+        if (row.kind === 'descblock') {
+            setFont('normal', 9);
+            doc.setTextColor(0, 0, 0);
+            lines.forEach(function(l) {
+                if (l.labelLen) {
+                    var lab = l.t.slice(0, l.labelLen), rest = l.t.slice(l.labelLen);
+                    setFont('bold', 9);
+                    doc.text(lab, xDesc + pad + 6, ty);
+                    var lw = doc.getTextWidth(lab);
+                    setFont('normal', 9);
+                    doc.text(rest, xDesc + pad + 6 + lw, ty);
+                } else {
+                    doc.text(l.t, xDesc + pad + 6, ty);
+                }
+                ty += lineH;
+            });
+        } else {
+            setFont(row.bold ? 'bold' : 'normal', 9);
+            if (row.italic) setFont('italic', 9);
+            doc.setTextColor(0, 0, 0);
+            lines.forEach(function(l) {
+                if (row.alignRight) doc.text(l.t, xAntall - pad - 3, ty, { align: 'right' });
+                else doc.text(l.t, xDesc + pad + 6, ty);
+                ty += lineH;
+            });
+            // antall + enhet sentrert
+            setFont(row.bold ? 'bold' : 'normal', 9);
+            var midY = y + rowH / 2 + 1.4;
+            if (row.antall) doc.text(String(row.antall), xAntall + COL_ANTALL / 2, midY, { align: 'center' });
+            if (row.enhet) doc.text(String(row.enhet), xEnhet + COL_ENHET / 2, midY, { align: 'center' });
+        }
+        y += rowH;
+    }
+
+    tableHeader();
+    var rows = computeWorkRows(data.orders || [], 15);
+    rows.forEach(drawRow);
+
+    // ── Signatur ──
+    if (y + 26 > PH - M) newPage();
+    y += 6;
+    var sigY = y;
+    var cellW = W / 3;
+    function sigCell(x, w, label, value, img) {
+        var underlineY = sigY + 12;
+        line(x + 4, underlineY, x + w - 4, underlineY);
+        if (img) {
+            var iw = Math.min(w - 10, 36), ih = iw * 200 / 600;
+            doc.addImage(img, 'PNG', x + (w - iw) / 2, underlineY - ih, iw, ih);
+        } else if (value) {
+            setFont('normal', 11);
+            doc.setTextColor(0, 0, 0);
+            doc.text(String(value), x + w / 2, underlineY - 1.5, { align: 'center' });
+        }
+        setFont('normal', 8);
+        doc.setTextColor(80, 80, 80);
+        doc.text(label, x + w / 2, underlineY + 4, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+    }
+    sigCell(L, cellW, 'Sted', data.sted, null);
+    sigCell(L + cellW, cellW, 'Dato', _todayDateNo(), null);
+    sigCell(L + 2 * cellW, cellW, 'Kundens underskrift', '', sigImg);
+    y = sigY + 20;
+
+    // ── Footer — flyter rett under signaturen (ingen skillelinje over). ──
+    setFont('bold', 8);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Original: Firesafe', L + 4, y);
+    doc.text('Kopi: Kunden', R - 4, y, { align: 'right' });
+    y += 5;
+    setFont('normal', 7);
+    doc.setTextColor(110, 110, 110);
+    doc.text('Staples - Tlf.: 02272', PW / 2, y, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    y += 3;
+
+    // ── Ytre ramme: omslutter KUN innhold (top → bunn av footer). ──
+    rect(L, frameTop, W, y - frameTop);
+    // Vertikal versjons-merking «GV: 9-01» nede til venstre i rammen.
+    setFont('bold', 6);
+    doc.setTextColor(70, 70, 70);
+    doc.text('GV: 9-01', 5, y - 2, { angle: 90 });
+    doc.setTextColor(0, 0, 0);
+}
+
+// Enkelt skjema → ny doc.
+async function buildOrdreseddelPdfDoc(data) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'p', unit: 'mm', format: 'a4' });
+    await _renderOrdreseddelInto(doc, data);
+    return doc;
+}
+
+// Flere skjemaer → én samlet doc (bulk). Leser STORED data direkte — ingen DOM,
+// så ingen html2canvas, ingen høyde-/størrelses-variasjon.
+async function buildOrdreseddelPdfDocMulti(forms) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'p', unit: 'mm', format: 'a4' });
+    for (var i = 0; i < forms.length; i++) {
+        if (i > 0) doc.addPage();
+        await _renderOrdreseddelInto(doc, forms[i]);
+    }
+    return doc;
+}
+
+// ── Generisk «HTML-tabell → vektor» ─────────────────────────────────────────
+// Tegner en <table> (med colgroup-bredder, colspan/rowspan, th/strong = fet,
+// th = grå bakgrunn) som ekte vektor i jsPDF. Brukes for service + kappe så ALL
+// eksisterende build-/domene-logikk gjenbrukes (vi tegner det de produserer).
+// Returnerer ny y. Enkel én-blokk-tegning (antar tabellen får plass i høyden).
+function _pdfTableFromEl(doc, table, x0, y0, totalW, opts) {
+    opts = opts || {};
+    var fontSize = opts.fontSize || 7;
+    var pad = 1.2;
+    var lineH = fontSize * 0.40 + 0.7;
+    function setF(b) { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(fontSize); }
+
+    // Kolonnebredder fra colgroup (prosent), ellers likt.
+    var pct = [];
+    table.querySelectorAll('colgroup col').forEach(function(c) {
+        var w = c.style.width || c.getAttribute('width') || '';
+        var m = String(w).match(/([\d.]+)\s*%/);
+        pct.push(m ? parseFloat(m[1]) : 0);
+    });
+
+    // Bygg rutenett (løs opp colspan/rowspan).
+    var occ = {}, cells = [], numCols = 0;
+    var trs = []; table.querySelectorAll('tr').forEach(function(tr) { trs.push(tr); });
+    trs.forEach(function(tr, r) {
+        var c = 0;
+        Array.prototype.forEach.call(tr.children, function(td) {
+            if (td.tagName !== 'TD' && td.tagName !== 'TH') return;
+            while (occ[r + '_' + c]) c++;
+            var cs = parseInt(td.getAttribute('colspan') || '1', 10);
+            var rs = parseInt(td.getAttribute('rowspan') || '1', 10);
+            var html = td.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+            var text = html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&times;/g, '×').replace(/ /g, ' ');
+            text = text.replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+            var isHeader = td.tagName === 'TH';
+            var bold = isHeader || /<(strong|b)\b/i.test(td.innerHTML);
+            try { if (!bold && (parseInt(getComputedStyle(td).fontWeight, 10) || 0) >= 600) bold = true; } catch (e) {}
+            for (var rr = 0; rr < rs; rr++) for (var cc = 0; cc < cs; cc++) occ[(r + rr) + '_' + (c + cc)] = true;
+            cells.push({ r: r, c: c, rs: rs, cs: cs, text: text, bold: bold, header: isHeader });
+            c += cs;
+            if (c > numCols) numCols = c;
+        });
+    });
+    var numRows = trs.length;
+    if (!numRows || !numCols) return y0;
+
+    var widths = [];
+    var pctSum = pct.reduce(function(a, b) { return a + b; }, 0);
+    for (var i = 0; i < numCols; i++) {
+        if (pctSum > 0) widths[i] = totalW * (pct[i] || 0) / pctSum;
+        else widths[i] = totalW / numCols;
+    }
+    function colX(c) { var x = x0; for (var k = 0; k < c; k++) x += widths[k]; return x; }
+    function spanW(c, cs) { var w = 0; for (var k = c; k < c + cs; k++) w += widths[k]; return w; }
+
+    // Radhøyder.
+    var rowH = []; for (var r0 = 0; r0 < numRows; r0++) rowH[r0] = opts.minRowH || 5;
+    cells.forEach(function(cell) {
+        setF(cell.bold);
+        cell._lines = doc.splitTextToSize(cell.text || '', Math.max(4, spanW(cell.c, cell.cs) - 2 * pad));
+        if (cell.rs === 1) {
+            var h = cell._lines.length * lineH + 2 * pad;
+            if (h > rowH[cell.r]) rowH[cell.r] = h;
+        }
+    });
+    cells.forEach(function(cell) {
+        if (cell.rs === 1) return;
+        var need = cell._lines.length * lineH + 2 * pad, have = 0;
+        for (var rr = cell.r; rr < cell.r + cell.rs; rr++) have += rowH[rr];
+        if (need > have) rowH[cell.r + cell.rs - 1] += (need - have);
+    });
+
+    var rowTop = []; var yy = y0;
+    for (var r1 = 0; r1 < numRows; r1++) { rowTop[r1] = yy; yy += rowH[r1]; }
+
+    cells.forEach(function(cell) {
+        var cx = colX(cell.c), cw = spanW(cell.c, cell.cs), cyt = rowTop[cell.r];
+        var ch = 0; for (var rr = cell.r; rr < cell.r + cell.rs; rr++) ch += rowH[rr];
+        if (cell.header) { doc.setFillColor(119, 119, 119); doc.rect(cx, cyt, cw, ch, 'F'); }
+        doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.3); doc.rect(cx, cyt, cw, ch);
+        setF(cell.bold);
+        doc.setTextColor(cell.header ? 255 : 0, cell.header ? 255 : 0, cell.header ? 255 : 0);
+        var align = cell.header ? 'center' : 'left';
+        var tx = align === 'center' ? cx + cw / 2 : cx + pad;
+        var ty = cyt + pad + lineH - 0.8;
+        cell._lines.forEach(function(l) { doc.text(l, tx, ty, { align: align }); ty += lineH; });
+        doc.setTextColor(0, 0, 0);
+    });
+    return yy;
+}
+
+// ── Service (Lageruttak Servicebiler): vektor-PDF ───────────────────────────
+// Gjenbruker buildServiceExportTable (all material-matrise-logikk) til å fylle
+// #service-export-container, og tegner tabellen som vektor (A4 liggende).
+function _renderServiceTableInto(doc) {
+    if (typeof buildServiceExportTable === 'function') buildServiceExportTable(7);
+    var cont = document.getElementById('service-export-container');
+    var table = cont ? cont.querySelector('table') : null;
+    if (table) _pdfTableFromEl(doc, table, 8, 12, 297 - 16, { fontSize: 6.5, minRowH: 7 });
+}
+async function buildServicePdfDoc(data) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'l', unit: 'mm', format: [297, 210] });
+    _renderServiceTableInto(doc);
+    return doc;
+}
+async function buildServicePdfDocMulti(forms) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'l', unit: 'mm', format: [297, 210] });
+    var prev = null;
+    try { prev = getServiceFormData(); } catch (e) {}
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            setServiceFormData(forms[i]);
+            if (i > 0) doc.addPage();
+            _renderServiceTableInto(doc);
+        }
+    } finally {
+        if (prev) { try { setServiceFormData(prev); } catch (e) {} }
+    }
+    return doc;
+}
+
+// Rasteriser et vilkårlig <svg>-element (svart fyll) → PNG data-URL.
+async function _pdfRasterizeSvgEl(svgEl, pxW, pxH) {
+    if (!svgEl) return null;
+    var clone = svgEl.cloneNode(true);
+    clone.setAttribute('style', 'color:#000');
+    var s = new XMLSerializer().serializeToString(clone);
+    s = s.replace(/currentColor/g, '#000');
+    if (!/xmlns=/.test(s)) s = s.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    return await _pdfRasterize('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s), pxW, pxH);
+}
+
+// ── Kappeskjema: vektor-PDF ─────────────────────────────────────────────────
+// Gjenbruker buildKappeExportTable (WN630/subtotaler/festemidler) til å fylle
+// #kappe-export-container; tegner header/info + de to tabellene som vektor.
+async function _renderKappeInto(doc) {
+    if (typeof buildKappeExportTable === 'function') buildKappeExportTable();
+    var cont = document.getElementById('kappe-export-container');
+    if (!cont) return;
+    var PW = 297, M = 8, L = M, R = PW - M, W = R - L;
+    var y = M + 2;
+    function setF(b, s) { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(s); }
+
+    // Logo + tittel + meta
+    var logo = await _pdfRasterizeSvgEl(cont.querySelector('.ke-header svg'), 720, 245);
+    if (logo) { var lw = 40, lh = lw * 85 / 250; doc.addImage(logo, 'PNG', L, y, lw, lh); }
+    setF(true, 16); doc.setTextColor(0, 0, 0);
+    doc.text('KAPPESKJEMA', L + 46, y + 9);
+    setF(false, 8);
+    var my = y + 2;
+    cont.querySelectorAll('.ke-meta > div').forEach(function(d) {
+        doc.text(d.textContent.replace(/\s+/g, ' ').trim(), R, my, { align: 'right' });
+        my += 4.5;
+    });
+    y += 17;
+
+    // Info-grid: to kolonner (Prosjekt / Leveringsadresse).
+    var colW = W / 2, iy0 = y, maxIy = y;
+    Array.prototype.forEach.call(cont.querySelectorAll('.ke-info-col'), function(col, ci) {
+        var cx = L + ci * colW, iy = iy0;
+        var title = col.querySelector('.ke-info-col-title');
+        setF(true, 9); doc.text(title ? title.textContent.trim() : '', cx, iy + 3); iy += 6.5;
+        col.querySelectorAll('.ke-info-row').forEach(function(row) {
+            var sp = row.querySelectorAll('span');
+            setF(true, 8); doc.text(sp[0] ? sp[0].textContent.trim() : '', cx, iy);
+            setF(false, 8); doc.text(sp[1] ? sp[1].textContent.trim() : '', cx + 24, iy);
+            iy += 4.6;
+        });
+        if (iy > maxIy) maxIy = iy;
+    });
+    y = maxIy + 4;
+
+    // Seksjonstitler + tabeller (Kappeliste, Festemidler).
+    var titles = cont.querySelectorAll('.ke-section-title');
+    var tables = cont.querySelectorAll('table');
+    Array.prototype.forEach.call(tables, function(tbl, ti) {
+        var st = titles[ti];
+        if (st) { setF(true, 10); doc.setTextColor(0, 0, 0); doc.text(st.textContent.trim(), L, y + 3.5); y += 7; }
+        y = _pdfTableFromEl(doc, tbl, L, y, W, { fontSize: 6.5, minRowH: 6 });
+        y += 7;
+    });
+}
+async function buildKappePdfDoc(data) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'l', unit: 'mm', format: [297, 210] });
+    await _renderKappeInto(doc);
+    return doc;
+}
+async function buildKappePdfDocMulti(forms) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'l', unit: 'mm', format: [297, 210] });
+    var prev = null;
+    try { prev = getKappeFormData(); } catch (e) {}
+    try {
+        for (var i = 0; i < forms.length; i++) {
+            setKappeFormData(forms[i]);
+            if (i > 0) doc.addPage();
+            await _renderKappeInto(doc);
+        }
+    } finally {
+        if (prev) { try { setKappeFormData(prev); } catch (e) {} }
+    }
+    return doc;
+}
+
+// Dagens dato på norsk (DD.MM.YYYY) — signering-dato er alltid i dag ved eksport.
+function _todayDateNo() {
+    var d = new Date();
+    var p = function(n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear();
 }
 
 // ============================================
@@ -4311,36 +4892,9 @@ function _forceViewVisible(viewId) {
 async function _bulkBuildOwnPDF() {
     var forms = _getSelectedForms();
     if (!forms.length) return null;
-    var prevSnapshot = null;
-    try { prevSnapshot = getFormDataSnapshot(); } catch (e) {}
-    var restoreView = _forceViewVisible('view-form');
-    var pdf = null;
-    try {
-        for (var i = 0; i < forms.length; i++) {
-            setFormData(forms[i]);
-            await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
-            var canvas = await renderFormToCanvas();
-            if (!canvas || !canvas.width || !canvas.height) {
-                var vf = document.getElementById('view-form');
-                var fc = document.getElementById('form-container');
-                var vfcs = vf ? getComputedStyle(vf) : {};
-                var fccs = fc ? getComputedStyle(fc) : {};
-                throw new Error('Tom canvas skjema ' + (i+1) + ' [vf.display=' + (vfcs.display||'?') + ' vf.active=' + (vf?vf.classList.contains('active'):'?') + ' fc.w=' + (fc?fc.offsetWidth:'?') + ' fc.h=' + (fc?fc.offsetHeight:'?') + ' body=' + document.body.className + ']');
-            }
-            // JPEG er mer robust enn PNG i jsPDF for multi-page bulk
-            if (i === 0) {
-                pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
-            } else {
-                _addPageFromCanvas(pdf, canvas, 210, 297, 'JPEG', 0.95);
-            }
-        }
-    } finally {
-        restoreView();
-        if (prevSnapshot) {
-            try { setFormData(JSON.parse(prevSnapshot)); } catch (e) {}
-        }
-    }
-    return pdf;
+    // Tekst-PDF: render direkte fra lagret data — ingen DOM/html2canvas, ingen
+    // setFormData-runde, ingen høyde-/størrelses-variasjon mellom skjemaer.
+    return await buildOrdreseddelPdfDocMulti(forms);
 }
 
 async function _renderServiceCanvasFromData(data) {
@@ -4360,24 +4914,7 @@ async function _renderServiceCanvasFromData(data) {
 async function _bulkBuildServicePDF() {
     var forms = _getSelectedForms();
     if (!forms.length) return null;
-    var restoreView = _forceViewVisible('service-view');
-    var pdf = null;
-    try {
-        for (var i = 0; i < forms.length; i++) {
-            var canvas = await _renderServiceCanvasFromData(forms[i]);
-            if (!canvas || !canvas.width || !canvas.height) {
-                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
-            }
-            if (i === 0) {
-                pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
-            } else {
-                _addPageFromCanvas(pdf, canvas, 297, 210, 'JPEG', 0.95);
-            }
-        }
-    } finally {
-        restoreView();
-    }
-    return pdf;
+    return await buildServicePdfDocMulti(forms);   // vektor-tekst, samlet doc
 }
 
 async function _renderKappeCanvasFromData(data) {
@@ -4397,24 +4934,7 @@ async function _renderKappeCanvasFromData(data) {
 async function _bulkBuildKappePDF() {
     var forms = _getSelectedForms();
     if (!forms.length) return null;
-    var restoreView = _forceViewVisible('kappe-view');
-    var pdf = null;
-    try {
-        for (var i = 0; i < forms.length; i++) {
-            var canvas = await _renderKappeCanvasFromData(forms[i]);
-            if (!canvas || !canvas.width || !canvas.height) {
-                throw new Error('Tom canvas for kappeskjema ' + (i + 1) + '/' + forms.length);
-            }
-            if (i === 0) {
-                pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
-            } else {
-                _addPageFromCanvas(pdf, canvas, 297, 210, 'JPEG', 0.95);
-            }
-        }
-    } finally {
-        restoreView();
-    }
-    return pdf;
+    return await buildKappePdfDocMulti(forms);   // vektor-tekst, samlet doc
 }
 
 // Dagens uke + år, f.eks. "Uke-16-2026"
@@ -4604,27 +5124,12 @@ function _pdfFilenameForForm(data, fallbackIdx, type) {
 async function _bulkBuildOwnPDFsSeparate() {
     var forms = _getSelectedForms();
     if (!forms.length) return [];
-    var prevSnapshot = null;
-    try { prevSnapshot = getFormDataSnapshot(); } catch (e) {}
-    var restoreView = _forceViewVisible('view-form');
+    // Tekst-PDF: én fil pr. skjema, rendret direkte fra lagret data (ingen DOM).
     var files = [];
-    try {
-        for (var i = 0; i < forms.length; i++) {
-            setFormData(forms[i]);
-            await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
-            var canvas = await renderFormToCanvas();
-            if (!canvas || !canvas.width || !canvas.height) {
-                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
-            }
-            var pdf = _createPdfFromCanvas(canvas, 210, 297, 'JPEG', 0.95);
-            var blob = pdf.output('blob');
-            files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
-        }
-    } finally {
-        restoreView();
-        if (prevSnapshot) {
-            try { setFormData(JSON.parse(prevSnapshot)); } catch (e) {}
-        }
+    for (var i = 0; i < forms.length; i++) {
+        var pdf = await buildOrdreseddelPdfDoc(forms[i]);
+        var blob = pdf.output('blob');
+        files.push(new File([blob], _pdfFilenameForForm(forms[i], i), { type: 'application/pdf' }));
     }
     return files;
 }
@@ -4632,20 +5137,18 @@ async function _bulkBuildOwnPDFsSeparate() {
 async function _bulkBuildServicePDFsSeparate() {
     var forms = _getSelectedForms();
     if (!forms.length) return [];
-    var restoreView = _forceViewVisible('service-view');
+    var prev = null;
+    try { prev = getServiceFormData(); } catch (e) {}
     var files = [];
     try {
         for (var i = 0; i < forms.length; i++) {
-            var canvas = await _renderServiceCanvasFromData(forms[i]);
-            if (!canvas || !canvas.width || !canvas.height) {
-                throw new Error('Tom canvas for skjema ' + (i + 1) + '/' + forms.length);
-            }
-            var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+            setServiceFormData(forms[i]);
+            var pdf = await buildServicePdfDoc(forms[i]);
             var blob = pdf.output('blob');
             files.push(new File([blob], _pdfFilenameForForm(forms[i], i, 'service'), { type: 'application/pdf' }));
         }
     } finally {
-        restoreView();
+        if (prev) { try { setServiceFormData(prev); } catch (e) {} }
     }
     return files;
 }
@@ -4653,20 +5156,18 @@ async function _bulkBuildServicePDFsSeparate() {
 async function _bulkBuildKappePDFsSeparate() {
     var forms = _getSelectedForms();
     if (!forms.length) return [];
-    var restoreView = _forceViewVisible('kappe-view');
+    var prev = null;
+    try { prev = getKappeFormData(); } catch (e) {}
     var files = [];
     try {
         for (var i = 0; i < forms.length; i++) {
-            var canvas = await _renderKappeCanvasFromData(forms[i]);
-            if (!canvas || !canvas.width || !canvas.height) {
-                throw new Error('Tom canvas for kappeskjema ' + (i + 1) + '/' + forms.length);
-            }
-            var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+            setKappeFormData(forms[i]);
+            var pdf = await buildKappePdfDoc(forms[i]);
             var blob = pdf.output('blob');
             files.push(new File([blob], _pdfFilenameForForm(forms[i], i, 'kappe'), { type: 'application/pdf' }));
         }
     } finally {
-        restoreView();
+        if (prev) { try { setKappeFormData(prev); } catch (e) {} }
     }
     return files;
 }
@@ -5755,36 +6256,14 @@ function buildServiceExportTable(cols) {
 }
 
 function openServicePreview() {
-    var container = buildServiceExportTable(7);
-    container.style.display = 'block';
-    container.style.width = '1250px';
-    container.style.overflow = 'hidden';
-
-    var scroll = document.getElementById('preview-scroll');
-    scroll.appendChild(container);
-
     window._servicePreviewActive = true;
-    window._previewSavedScroll = _saveScrollPositions();
-    document.getElementById('preview-overlay').classList.add('active');
-    document.body.style.overflow = 'hidden';
-    document.body.classList.add('preview-active');
-
-    // Set header state based on whether service signature exists
-    var hasSig = !!document.getElementById('service-signatur').value;
+    window._kappePreviewActive = false;
+    var hasSig = !!(document.getElementById('service-signatur') && document.getElementById('service-signatur').value);
     updatePreviewHeaderState(hasSig);
-
-    requestAnimationFrame(function() {
-        updateServicePreviewScale();
-        // Init pinch-zoom on mobile (same as ordreseddel preview)
-        var baseScale = Math.min(scroll.clientWidth / 1250, 1);
-        if (baseScale < 1) {
-            initPreviewPinchZoom(scroll, container, baseScale);
-        }
-    });
-
-    window._previewResizeHandler = _onServicePreviewViewportChange;
-    window.addEventListener('resize', window._previewResizeHandler);
-    window.addEventListener('orientationchange', window._previewResizeHandler);
+    var signBtn = document.querySelector('.preview-sign-btn');
+    if (signBtn) signBtn.style.display = '';   // service kan signeres
+    window._previewSavedScroll = _saveScrollPositions();
+    buildServicePdfDoc(getServiceFormData()).then(_showPdfInPreview);
 }
 
 // Re-skalerer og re-binder pinch-zoom ved viewport-endring (resize/orientationchange).
@@ -5889,8 +6368,7 @@ async function doServiceExportPDF(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var canvas = await renderServiceToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+        var pdf = await buildServicePdfDoc(getServiceFormData());
         pdf.save(getServiceExportFilename('pdf'));
         if (markSent) markServiceAsSent();
     } catch(error) {
@@ -5923,8 +6401,7 @@ async function doServiceSharePDF(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var canvas = await renderServiceToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+        var pdf = await buildServicePdfDoc(getServiceFormData());
         var blob = pdf.output('blob');
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
@@ -15079,8 +15556,7 @@ async function doKappeExportPDF(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var canvas = await renderKappeToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+        var pdf = await buildKappePdfDoc(getKappeFormData());
         pdf.save(getKappeExportFilename('pdf'));
         if (markSent) markKappeAsSent();
     } catch(error) {
@@ -15113,8 +15589,7 @@ async function doKappeSharePDF(markSent) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var canvas = await renderKappeToCanvas();
-        var pdf = _createPdfFromCanvas(canvas, 297, 210, 'JPEG', 0.95);
+        var pdf = await buildKappePdfDoc(getKappeFormData());
         var blob = pdf.output('blob');
         var file = new File([blob], getKappeExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
@@ -15179,35 +15654,13 @@ function showKappeExportMenu() {
 }
 
 function openKappePreview() {
-    var container = buildKappeExportTable();
-    container.style.display = 'block';
-    container.style.width = '1250px';
-    container.style.overflow = 'hidden';
-
-    var scroll = document.getElementById('preview-scroll');
-    scroll.appendChild(container);
-
     window._kappePreviewActive = true;
-    window._previewSavedScroll = _saveScrollPositions();
-    document.getElementById('preview-overlay').classList.add('active');
-    document.body.style.overflow = 'hidden';
-    document.body.classList.add('preview-active');
-
-    // Hide sign button — kappeskjema has no signature
+    window._servicePreviewActive = false;
+    // Kappeskjema har ingen signatur → skjul signer-knapp.
     var signBtn = document.querySelector('.preview-sign-btn');
     if (signBtn) signBtn.style.display = 'none';
-    var closeBtn = document.querySelector('.preview-close-btn');
-    if (closeBtn) closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> ' + t('btn_close');
-
-    requestAnimationFrame(function() {
-        updateKappePreviewScale();
-        var baseScale = Math.min(scroll.clientWidth / 1250, 1);
-        if (baseScale < 1) initPreviewPinchZoom(scroll, container, baseScale);
-    });
-
-    window._previewResizeHandler = _onKappePreviewViewportChange;
-    window.addEventListener('resize', window._previewResizeHandler);
-    window.addEventListener('orientationchange', window._previewResizeHandler);
+    window._previewSavedScroll = _saveScrollPositions();
+    buildKappePdfDoc(getKappeFormData()).then(_showPdfInPreview);
 }
 
 function _onKappePreviewViewportChange() {

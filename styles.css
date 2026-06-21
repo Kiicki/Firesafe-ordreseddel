@@ -6578,6 +6578,22 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     -webkit-overflow-scrolling: touch;
 }
 
+/* «Vis»: ekte tekst-PDF rendret med PDF.js — én canvas per side. */
+.pdf-preview-pages {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+}
+.pdf-preview-page {
+    width: 100%;
+    max-width: 900px;
+    height: auto;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
 /* Preview button in form */
 .preview-btn {
     width: 100%;
