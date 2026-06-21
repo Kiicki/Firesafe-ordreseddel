@@ -12976,7 +12976,14 @@ function openTimerOverview(ctx) {
             } });
         });
     } else {
-        if (titleEl) titleEl.textContent = t('timer_overview_title');
+        if (titleEl) {
+            var cnm = [];
+            var cnr = String(((document.getElementById('mobile-ordreseddel-nr') || {}).value) || '').trim();
+            var cnavn = String(((document.getElementById('mobile-prosjektnavn') || {}).value) || '').trim();
+            if (cnr) cnm.push(cnr);
+            if (cnavn) cnm.push(cnavn);
+            titleEl.textContent = cnm.length ? cnm.join(' · ') : t('timer_overview_title');
+        }
         document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card, idx) {
             entries.push({
                 label: _orderRowLabel(card, idx),

@@ -2930,11 +2930,14 @@ label.settings-default-label.field-required > span::after {
 .timer-overview-label {
     flex: 1;
     min-width: 0;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: #1c1c1e;
-    /* Hele beskrivelsen vises — kort-designet tåler variabel høyde. */
-    overflow-wrap: anywhere;
+    /* Én ryddig linje med «…» — lange bestilling-beskrivelser skal IKKE ta over
+       raden (ga svært rotete kort). Detaljene ser man i selve bestillingen. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     line-height: 1.32;
 }
 /* Timesum: ren verdi (iOS liste-celle), ikke en boks. */
