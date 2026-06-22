@@ -201,37 +201,210 @@ function _savedItemActionsHtml(hiddenButtonsHtml) {
 }
 
 // Åpne handlings-menyen for en lagret-rad (gjenbruker #action-popup).
+// Ikoner for de ekstra meny-valgene (Eksporter / Merk som).
+var _menuExportIcon = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
+var _menuMarkIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>';
+
+// Hvilken liste-fane raden tilhører (avgjør tilgjengelige handlinger).
+function _savedItemTab(savedItem) {
+    if (savedItem.closest && savedItem.closest('#service-list')) return 'service';
+    if (savedItem.closest && savedItem.closest('#kappe-list')) return 'kappe';
+    return 'own';
+}
+
 function showSavedItemMenu(savedItem) {
     if (!savedItem) return;
     var hidden = savedItem.querySelector('.saved-item-hidden-actions');
     if (!hidden) return;
+    var form = savedItem._formData;
+    var tab = _savedItemTab(savedItem);
     var labelMap = { clipboard: 'copy_btn', copy: 'duplicate_btn', delete: 'delete_btn' };
     var iconMap = { clipboard: copyIcon, copy: duplicateIcon, delete: deleteIcon };
-    var btns = Array.prototype.slice.call(hidden.querySelectorAll('button'));
-    var rows = btns.filter(function(b) { return !b.classList.contains('disabled'); }).map(function(b) {
+
+    // Bygg valg-liste. Rekkefølge: Kopier · Dupliser · (Merk som) · Eksporter · Slett.
+    var opts = [];
+    Array.prototype.slice.call(hidden.querySelectorAll('button')).forEach(function(b) {
+        if (b.classList.contains('disabled')) return;
         var type = b.classList.contains('clipboard') ? 'clipboard'
             : b.classList.contains('copy') ? 'copy' : 'delete';
-        var danger = (type === 'delete') ? ' saved-item-menu-option--danger' : '';
-        return '<button class="saved-item-menu-option' + danger + '" data-type="' + type + '">' +
-            '<span class="saved-item-menu-option-icon">' + iconMap[type] + '</span>' +
-            '<span>' + t(labelMap[type]) + '</span>' +
-        '</button>';
-    }).join('');
+        if (type === 'delete') return;   // slett legges sist
+        opts.push({ icon: iconMap[type], label: t(labelMap[type]), onClick: function() { closeActionPopup(); b.click(); } });
+    });
+    // «Merk som» — kun ordreseddel (status er ordreseddel-funksjon).
+    if (tab === 'own' && form) {
+        opts.push({ icon: _menuMarkIcon, label: t('bulk_mark_btn'), onClick: function() { _showSingleStatusMenu(savedItem); } });
+    }
+    // «Eksporter» — alle faner. Åpner eksport-popup (last ned / del × PDF / PNG).
+    if (form) {
+        opts.push({ icon: _menuExportIcon, label: t('toolbar_export'), onClick: function() { _showSingleExportMenu(savedItem); } });
+    }
+    // «Slett» sist (rød), om aktiv.
+    var delBtn = hidden.querySelector('.delete');
+    if (delBtn && !delBtn.classList.contains('disabled')) {
+        opts.push({ icon: deleteIcon, label: t('delete_btn'), danger: true, onClick: function() { closeActionPopup(); delBtn.click(); } });
+    }
+
+    _actionPopupBack(null);   // topp-nivå: ingen tilbake-pil
     var titleEl = document.getElementById('action-popup-title');
     if (titleEl) titleEl.textContent = t('more_actions');
-    document.getElementById('action-popup-buttons').innerHTML = '<div class="saved-item-menu">' + rows + '</div>';
+    document.getElementById('action-popup-buttons').innerHTML = '<div class="saved-item-menu">' +
+        opts.map(function(o, i) {
+            return '<button class="saved-item-menu-option' + (o.danger ? ' saved-item-menu-option--danger' : '') + '" data-i="' + i + '">' +
+                '<span class="saved-item-menu-option-icon">' + o.icon + '</span><span>' + escapeHtml(o.label) + '</span></button>';
+        }).join('') + '</div>';
     var popup = document.getElementById('action-popup');
-    popup.querySelectorAll('.saved-item-menu-option').forEach(function(opt) {
-        opt.addEventListener('click', function() {
-            var type = opt.getAttribute('data-type');
-            closeActionPopup();
-            var real = hidden.querySelector('.' + type);
-            if (real) real.click();   // utløser eksisterende per-liste delegering
-        });
+    popup.querySelectorAll('.saved-item-menu-option').forEach(function(el) {
+        el.addEventListener('click', function() { var o = opts[parseInt(el.getAttribute('data-i'), 10)]; if (o) o.onClick(); });
     });
     popup.classList.add('active');
 }
 window.showSavedItemMenu = showSavedItemMenu;
+
+// «Merk som» for ÉN ordreseddel (samme statuser som fler-valg-menyen).
+function _showSingleStatusMenu(savedItem) {
+    var form = savedItem && savedItem._formData;
+    if (!form) return;
+    _actionPopupBack(function() { showSavedItemMenu(savedItem); });   // tilbake → 3-prikker
+    var titleEl = document.getElementById('action-popup-title');
+    if (titleEl) titleEl.textContent = t('bulk_mark_btn');
+    function opt(target, color, key) {
+        var sq = (target === 'ikke_godkjent') ? ';border-radius:2px' : '';
+        return '<button class="bulk-status-option" data-target="' + target + '">' +
+            '<span class="bulk-status-option-dot" style="background:' + color + sq + '"></span>' + t(key) + '</button>';
+    }
+    document.getElementById('action-popup-buttons').innerHTML =
+        '<div class="bulk-status-menu">' +
+            opt('lagret', '#F5A623', 'status_lagret') +
+            opt('sendt', '#2D7FF9', 'status_sendt') +
+            opt('ferdig', '#34C759', 'status_ferdig') +
+            opt('ikke_godkjent', '#E53935', 'status_ikke_godkjent') +
+        '</div>';
+    var popup = document.getElementById('action-popup');
+    popup.querySelectorAll('.bulk-status-option').forEach(function(b) {
+        b.addEventListener('click', function() { closeActionPopup(); _applySingleStatus(form, b.getAttribute('data-target')); });
+    });
+    popup.classList.add('active');
+}
+function _applySingleStatus(form, target) {
+    var saved = safeParseJSON(STORAGE_KEY, []);
+    var archived = safeParseJSON(ARCHIVE_KEY, []);
+    try { _applyFormStatus(form, target, saved, archived); } catch (e) { console.error('Single status:', e); }
+    safeSetItem(STORAGE_KEY, JSON.stringify(saved));
+    safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+    _lastLocalSaveTs = Date.now();
+    loadedForms = [];
+    _showSavedFormsDirectly();
+    var labelKey = target === 'sendt' ? 'status_sendt' : target === 'ferdig' ? 'status_ferdig'
+        : target === 'ikke_godkjent' ? 'status_ikke_godkjent' : 'status_lagret';
+    showNotificationModal(t('bulk_marked', 1, t(labelKey).toLowerCase()), true);
+}
+
+// ── Eksport av ÉN lagret skjema (fra 3-prikker-menyen) ──────────────────────
+// Samme valg som eksport-popupen ellers: Last ned / Del × PDF / PNG.
+function _tabFormType(tab) { return tab === 'service' ? 'service' : tab === 'kappe' ? 'kappe' : 'ordreseddel'; }
+
+// Bygg PDF-doc for et lagret skjema (uavhengig av fane). Service/kappe laster
+// data midlertidig inn i DOM (build leser DOM) og gjenoppretter etterpå.
+async function _buildPdfForTab(form, tab) {
+    if (tab === 'service') {
+        var prevS = null; try { prevS = getServiceFormData(); } catch (e) {}
+        setServiceFormData(form);
+        var d = await buildServicePdfDoc(form);
+        if (prevS) { try { setServiceFormData(prevS); } catch (e) {} }
+        return d;
+    }
+    if (tab === 'kappe') {
+        var prevK = null; try { prevK = getKappeFormData(); } catch (e) {}
+        setKappeFormData(form);
+        var dk = await buildKappePdfDoc(form);
+        if (prevK) { try { setKappeFormData(prevK); } catch (e) {} }
+        return dk;
+    }
+    return await buildOrdreseddelPdfDoc(form);
+}
+
+// Raster-canvas for PNG-eksport av et lagret skjema (PNG er bilde → html2canvas).
+async function _renderOwnCanvasFromData(form) {
+    var prev = null; try { prev = getFormDataSnapshot(); } catch (e) {}
+    var restoreView = _forceViewVisible('view-form');
+    try {
+        setFormData(form);
+        await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+        return await renderFormToCanvas();
+    } finally {
+        restoreView();
+        if (prev) { try { setFormData(JSON.parse(prev)); } catch (e) {} }
+    }
+}
+async function _canvasForTab(form, tab) {
+    if (tab === 'service') return await _renderServiceCanvasFromData(form);
+    if (tab === 'kappe') return await _renderKappeCanvasFromData(form);
+    return await _renderOwnCanvasFromData(form);
+}
+
+async function _singleFormExport(form, tab, share, png) {
+    var loading = document.getElementById('loading');
+    if (loading) loading.classList.add('active');
+    var type = _tabFormType(tab);
+    try {
+        if (!png) {
+            var pdf = await _buildPdfForTab(form, tab);
+            var nameP = _filenameForForm(form, 0, type, 'pdf');
+            if (share) {
+                var blob = pdf.output('blob');
+                var fileP = new File([blob], nameP, { type: 'application/pdf' });
+                if (loading) loading.classList.remove('active');
+                await _safeShare([fileP]);
+            } else { pdf.save(nameP); }
+        } else {
+            var canvas = await _canvasForTab(form, tab);
+            var nameG = _filenameForForm(form, 0, type, 'png');
+            if (share) {
+                var durl = canvas.toDataURL('image/png');
+                var res = await fetch(durl); var blobG = await res.blob();
+                var fileG = new File([blobG], nameG, { type: 'image/png' });
+                if (loading) loading.classList.remove('active');
+                await _safeShare([fileG]);
+            } else {
+                var a = document.createElement('a');
+                a.download = nameG; a.href = canvas.toDataURL('image/png'); a.click();
+            }
+        }
+    } catch (e) {
+        showNotificationModal(t('export_pdf_error') + (e && e.message ? e.message : e));
+    } finally {
+        if (loading) loading.classList.remove('active');
+    }
+}
+window._singleFormExport = _singleFormExport;
+
+// Eksport-popup for ÉN lagret skjema. _singleExportCtx holder valgt form+fane.
+var _singleExportCtx = null;
+function _showSingleExportMenu(savedItem) {
+    if (!savedItem || !savedItem._formData) return;
+    _singleExportCtx = { savedItem: savedItem, form: savedItem._formData, tab: _savedItemTab(savedItem) };
+    var popup = document.getElementById('action-popup');
+    _actionPopupBack(function() { showSavedItemMenu(savedItem); });   // tilbake → 3-prikker
+    document.getElementById('action-popup-title').textContent = t('export_title');
+    var dl = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
+    var sh = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var canShare = !!(navigator.share && navigator.canShare);
+    function shareBtn(png) {
+        var lbl = png ? 'PNG' : 'PDF';
+        if (!canShare) return '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + sh + ' ' + lbl + '</button>';
+        return '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, true, ' + (png ? 'true' : 'false') + ')">' + sh + ' ' + lbl + '</button>';
+    }
+    document.getElementById('action-popup-buttons').innerHTML =
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, false)">' + dl + ' PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, true)">' + dl + ' PNG</button>' +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
+        '<div class="confirm-modal-buttons">' + shareBtn(false) + shareBtn(true) + '</div>';
+    popup.classList.add('active');
+}
+window._showSingleExportMenu = _showSingleExportMenu;
 
 function _buildSavedItemHtml(item, index) {
     var ordrenr = item.ordreseddelNr || '';
@@ -671,9 +844,18 @@ function switchHentTab(tab) {
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 
+// Tilbake-pil i action-popup-header. onBack=funksjon → vis + koble; null → skjul.
+function _actionPopupBack(onBack) {
+    var b = document.getElementById('action-popup-back');
+    if (!b) return;
+    if (onBack) { b.style.display = ''; b.onclick = onBack; }
+    else { b.style.display = 'none'; b.onclick = null; }
+}
+
 function closeActionPopup(e) {
     if (e && e.target !== document.getElementById('action-popup')) return;
     document.getElementById('action-popup').classList.remove('active');
+    _actionPopupBack(null);
 }
 
 // ─── Preview overlay ────────────────────────────────────────────────────────
@@ -6470,9 +6652,7 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
                 });
             }
         } else if (btn.classList.contains('copy')) {
-            showConfirmModal(t('duplicate_confirm'), function() {
-                duplicateFormDirect(savedItem._formData);
-            }, t('duplicate_btn'));
+            duplicateFormDirect(savedItem._formData);   // ingen bekreftelse (fra 3-prikker)
         } else if (btn.classList.contains('mark-status')) {
             advanceSavedFormStatus(savedItem._formData);
         } else if (btn.classList.contains('delete')) {
@@ -6527,9 +6707,7 @@ document.getElementById('service-list').addEventListener('click', function(e) {
         } else if (btn.classList.contains('delete')) {
             deleteServiceForm(formData);
         } else if (btn.classList.contains('copy')) {
-            showConfirmModal(t('duplicate_confirm'), function() {
-                duplicateServiceForm(formData);
-            }, t('duplicate_btn'));
+            duplicateServiceForm(formData);   // ingen bekreftelse (fra 3-prikker)
         }
         return;
     }
@@ -14946,9 +15124,7 @@ function deleteKappeForm(formData) {
             if (btn.classList.contains('saved-item-menu-btn')) { showSavedItemMenu(item); return; }
             if (btn.classList.contains('disabled')) return;
             if (btn.classList.contains('copy')) {
-                showConfirmModal(t('duplicate_confirm'), function() {
-                    duplicateKappeForm(formData);
-                }, t('duplicate_btn'));
+                duplicateKappeForm(formData);   // ingen bekreftelse (fra 3-prikker)
             } else if (btn.classList.contains('delete')) {
                 deleteKappeForm(formData);
             }

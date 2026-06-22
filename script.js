@@ -1719,6 +1719,9 @@ function _setUkeToToday() {
     var md = document.getElementById('mobile-dato');
     if (d) d.value = week;
     if (md) md.value = week;
+    // Uke-feltet styrer «Timer uke X»-chipen — oppdater den når uken endres
+    // (f.eks. ved duplisering: setFormData satte gammel uke, så settes dagens her).
+    if (typeof updateTimerChip === 'function') updateTimerChip();
 }
 
 // Check if mobile/tablet (≤1024px) or PC (>1024px)
