@@ -2679,7 +2679,7 @@ function openMaterialPicker(btn, onConfirm) {
     const matContainer = card ? card.querySelector('.mobile-order-materials') : null;
     const existing = matContainer ? getMaterialsFromContainer(matContainer) : [];
 
-    const allMaterials = getMaterialPickerOptions(cachedMaterialOptions || []);
+    let allMaterials = getMaterialPickerOptions(cachedMaterialOptions || []);
 
     const modal = document.getElementById('picker-overlay');
     const list = document.getElementById('picker-overlay-list');
@@ -3129,6 +3129,10 @@ function openMaterialPicker(btn, onConfirm) {
 
     function renderPickerList() {
         pickerRenderFn = renderPickerList;
+        // Hent ferske materialer hver render — så et nylig lagt til materiale
+        // (addPickerMaterial oppdaterer cachedMaterialOptions) vises umiddelbart
+        // i stedet for å rendre fra det utdaterte åpne-tidspunkt-øyeblikksbildet.
+        allMaterials = getMaterialPickerOptions(cachedMaterialOptions || []);
         // Build list: configured materials + checked spec-derived entries + checked custom entries
         const entries = [];
 

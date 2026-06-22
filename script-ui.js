@@ -2567,7 +2567,27 @@ async function addPickerMaterial() {
         return;
     }
     var current = Array.isArray(cachedMaterialOptions) ? cachedMaterialOptions : [];
-    if (current.some(function(m) { return (m.name || '').toLowerCase() === val.toLowerCase(); })) {
+    var existing = current.find(function(m) { return (m.name || '').toLowerCase() === val.toLowerCase(); });
+    if (existing) {
+        // Materialet finnes. Er en variant oppgitt → LEGG den til på det
+        // eksisterende materialet (så du kan utvide et materiale du nettopp la
+        // til). Uten variant, eller hvis varianten finnes → «finnes allerede».
+        var variantExists = (existing.allowedUnits || []).some(function(u) {
+            return (typeof u === 'string' ? u : (u.plural || u.singular || '')).toLowerCase() === variant.toLowerCase();
+        });
+        if (type === 'standard' && variant && !variantExists) {
+            existing.allowedUnits = (existing.allowedUnits || []).concat([variant]);
+            var updatedV = current.slice();
+            cachedMaterialOptions = updatedV;
+            if (typeof settingsMaterials !== 'undefined' && Array.isArray(settingsMaterials)) settingsMaterials = updatedV.slice();
+            _persistMaterialsDoc(updatedV);
+            nameEl.value = '';
+            if (variantEl) variantEl.value = '';
+            typeEl.value = 'standard';
+            if (typeof pickerRenderFn === 'function') pickerRenderFn();
+            showNotificationModal(t('settings_material_added'), true);
+            return;
+        }
         showNotificationModal(t('settings_material_exists'));
         return;
     }
