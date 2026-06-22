@@ -730,6 +730,10 @@ async function duplicateFormDirect(form) {
 
     lastSavedData = null;
     setFormReadOnly(false);
+    // Bestillingene ble nettopp tømt → oppdater «Timer uke X»-chipen så den ikke
+    // henger igjen på det dupliserte skjemaets timer (_setUkeToToday kjørte FØR
+    // tømmingen og fanget gamle timer).
+    if (typeof updateTimerChip === 'function') updateTimerChip();
     closeModal();
     window.location.hash = 'skjema';
     sessionStorage.setItem('firesafe_form_type', 'own');
