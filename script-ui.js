@@ -4567,266 +4567,278 @@ async function _pdfGetSignature(data) {
 }
 
 // ── Ordreseddel: ekte tekst/vektor-PDF ──────────────────────────────────────
-// Render ÉN ordreseddel inn i en eksisterende doc, fra og med gjeldende side
-// (kaller addPage selv ved tabell-overflyt). Bruk addPage FØR for skjema 2..n.
+// ÉN ordreseddel = ÉN side, og siden tilpasser HØYDEN til innholdet (A4-bredde,
+// variabel høyde). Aldri side-deling av ett skjema — det skal alltid være ett
+// skjema per side. Vi kjører to passeringer: PASS 1 måler innholdshøyden uten å
+// tegne, PASS 2 tegner på en ny side dimensjonert til den målte høyden.
+// Legger til ÉN ny side i doc; kalleren sletter default-siden til slutt.
 async function _renderOrdreseddelInto(doc, data) {
     data = data || {};
-    var PW = 210, PH = 297;
+    var PW = 210;
     var M = 8;                 // ytre marg
     var L = M, R = PW - M;     // venstre/høyre innhold
     var W = R - L;             // innholdsbredde
     var BLACK = [0, 0, 0], GRAY = [119, 119, 119], RED = [204, 0, 0];
 
+    var DRAW = false;          // PASS 1 = false (kun måling), PASS 2 = true (tegning)
     function setFont(style, size) { doc.setFont('helvetica', style); doc.setFontSize(size); }
-    function line(x1, y1, x2, y2) { doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.line(x1, y1, x2, y2); }
-    function rect(x, y, w, h) { doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.rect(x, y, w, h); }
+    function text() { if (DRAW) doc.text.apply(doc, arguments); }
+    function image() { if (DRAW) doc.addImage.apply(doc, arguments); }
+    function line(x1, y1, x2, y2) { if (!DRAW) return; doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.line(x1, y1, x2, y2); }
+    function rect(x, ry, w, h) { if (!DRAW) return; doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.rect(x, ry, w, h); }
+    function fillRect(x, ry, w, h, col) { if (!DRAW) return; doc.setFillColor(col[0], col[1], col[2]); doc.rect(x, ry, w, h, 'F'); }
 
     var logo = await _pdfGetLogo();
     var sigImg = await _pdfGetSignature(data);
 
-    // ── Topp-ramme + header ──
-    var top = M;
-    var headerH = 30;
-    var frameTop = top;   // ytre ramme tegnes til SLUTT (omslutter kun innhold,
-                          // ikke hele A4 → ingen tom boks under footeren).
+    var y, frameTop;
 
-    // Logo (venstre)
-    if (logo) {
-        var lw = 46, lh = lw * 85 / 250;
-        doc.addImage(logo, 'PNG', L + 4, top + 5, lw, lh);
-    }
+    // Hele oppsettet i én funksjon så den kan kjøres to ganger (mål + tegn).
+    function layout() {
+        var top = M;
+        var headerH = 30;
+        frameTop = top;
 
-    // Ordreseddel nr + firma-info (høyre). Tallet VENSTREjusteres på samme
-    // vertikale linje som høyre-kolonnen (HOVEDKONTOR osv.), ikke mot sidekanten.
-    var rx = R - 4;
-    var colLeftX = rx - 39;        // x der høyre info-kolonne (og ordrenr) starter
-    var colLabelRight = rx - 42;   // x der venstre etikett-kolonne slutter (høyrejustert)
-    setFont('bold', 11);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Ordreseddel nr.:', colLabelRight, top + 8, { align: 'right' });
-    setFont('normal', 22);
-    doc.setTextColor(RED[0], RED[1], RED[2]);
-    doc.text(String(data.ordreseddelNr || ''), colLeftX, top + 9, { align: 'left' });
-    doc.setTextColor(0, 0, 0);
-    var infoY = top + 14;
-    function infoLine(left, right, bold) {
-        setFont(bold ? 'bold' : 'normal', bold ? 8.5 : 8);
-        if (left) doc.text(left, colLabelRight, infoY, { align: 'right' });
-        if (right) doc.text(right, colLeftX, infoY, { align: 'left' });
-        infoY += 4;
-    }
-    infoLine('FIRESAFE AS', 'HOVEDKONTOR', true);
-    infoLine('Postadresse', 'Postboks 6411 Etterstad');
-    infoLine('', '0605 Oslo');
-    infoLine('Telefon', '09110');
-
-    line(L, top + headerH, R, top + headerH);
-    var y = top + headerH;
-
-    // ── Felt-rad-helper ──
-    function fieldCell(x, w, h, label, value) {
-        setFont('normal', 7.5);
-        doc.setTextColor(90, 90, 90);
-        doc.text(String(label || ''), x + 3, y + 4);
-        setFont('normal', 11);
-        doc.setTextColor(0, 0, 0);
-        var val = String(value || '');
-        var maxW = w - 6;
-        var vlines = doc.splitTextToSize(val, maxW);
-        doc.text(vlines.length ? [vlines[0]] : [''], x + 3, y + 9);
-    }
-    function fieldRow(cells, h) {
-        var x = L;
-        cells.forEach(function(c, i) {
-            fieldCell(x, c.w, h, c.label, c.value);
-            if (i < cells.length - 1) line(x + c.w, y, x + c.w, y + h);
-            x += c.w;
-        });
-        line(L, y + h, R, y + h);
-        y += h;
-    }
-    var fh = 12;
-    fieldRow([
-        { w: W - 55, label: 'Oppdragsgiver', value: data.oppdragsgiver },
-        { w: 55, label: 'Kundens ref.', value: data.kundensRef }
-    ], fh);
-    fieldRow([{ w: W, label: 'Fakturaadresse', value: data.fakturaadresse }], fh);
-    // «Dato»-feltet inneholder ukenummeret; eksporten viser «uke N».
-    var ukeNum = String(data.dato || '').trim().replace(/^uke\s*/i, '').trim();
-    var ukeVal = ukeNum ? ('Uke ' + ukeNum) : '';
-    fieldRow([
-        { w: 30, label: 'Dato', value: ukeVal },
-        { w: (W / 2) - 30, label: 'Prosjektnr.', value: data.prosjektnr },
-        { w: W / 2, label: 'Prosjektnavn', value: data.prosjektnavn }
-    ], fh);
-    fieldRow([
-        { w: W / 2, label: 'Montør', value: data.montor },
-        { w: W / 2, label: 'Avdeling', value: data.avdeling }
-    ], fh);
-
-    // ── Arbeidslinje-tabell ──
-    var COL_ANTALL = 26, COL_ENHET = 26;
-    var COL_DESC = W - COL_ANTALL - COL_ENHET;
-    var xDesc = L, xAntall = L + COL_DESC, xEnhet = L + COL_DESC + COL_ANTALL;
-    var BOTTOM = PH - M - 36;   // plass til signatur/footer på siste side
-
-    function tableHeader() {
-        var hh = 8;
-        doc.setFillColor(GRAY[0], GRAY[1], GRAY[2]);
-        doc.rect(L, y, W, hh, 'F');
-        doc.setTextColor(255, 255, 255);
-        setFont('bold', 8.5);
-        doc.text('Beskrivelse av utførte arbeider', xDesc + COL_DESC / 2, y + 5.3, { align: 'center' });
-        doc.text('Antall', xAntall + COL_ANTALL / 2, y + 5.3, { align: 'center' });
-        doc.text('Enhet', xEnhet + COL_ENHET / 2, y + 5.3, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
-        // kolonne-skiller i header
-        line(xAntall, y, xAntall, y + hh);
-        line(xEnhet, y, xEnhet, y + hh);
-        rect(L, y, W, hh);
-        y += hh;
-    }
-
-    function newPage() {
-        // Lukk siden vi forlater i full høyde (fortsettelsesside), så ny side.
-        rect(L, frameTop, W, (PH - M) - frameTop);
-        doc.addPage();
-        y = M;
-        frameTop = M;
-        tableHeader();
-    }
-
-    function drawRow(row) {
-        var pad = 2;
-        var lineH = 4.0;
-        var lines;   // computed desc content
-        var rowH;
-        if (row.kind === 'descblock') {
-            lines = [];
-            (row.paragraphs || []).forEach(function(p, i) {
-                if (i > 0) lines.push({ t: '', bold: false });
-                doc.splitTextToSize(p, COL_DESC - 2 * pad - 23).forEach(function(l) { lines.push({ t: l, bold: false }); });
-            });
-            (row.meta || []).forEach(function(m) {
-                var full = m.label + m.value;
-                var wrapped = doc.splitTextToSize(full, COL_DESC - 2 * pad - 23);
-                wrapped.forEach(function(l, i) { lines.push({ t: l, bold: false, labelLen: i === 0 ? m.label.length : 0 }); });
-            });
-            rowH = Math.max(8, lines.length * lineH + 2 * pad);
-        } else {
-            setFont(row.bold ? 'bold' : 'normal', 9);
-            var avail = COL_DESC - 2 * pad - (row.alignRight ? 5 : 23);
-            lines = doc.splitTextToSize(String(row.desc || ''), avail).map(function(l) { return { t: l }; });
-            rowH = Math.max(8, lines.length * lineH + 2 * pad);
+        // Logo (venstre)
+        if (logo) {
+            var lw = 46, lh = lw * 85 / 250;
+            image(logo, 'PNG', L + 4, top + 5, lw, lh);
         }
-        if (y + rowH > BOTTOM) newPage();
 
-        // rad-ramme
-        rect(L, y, W, rowH);
-        line(xAntall, y, xAntall, y + rowH);
-        line(xEnhet, y, xEnhet, y + rowH);
-
-        var ty = y + pad + 3;
-        if (row.kind === 'descblock') {
-            setFont('normal', 9);
-            doc.setTextColor(0, 0, 0);
-            lines.forEach(function(l) {
-                if (l.labelLen) {
-                    var lab = l.t.slice(0, l.labelLen), rest = l.t.slice(l.labelLen);
-                    setFont('bold', 9);
-                    doc.text(lab, xDesc + pad + 6, ty);
-                    var lw = doc.getTextWidth(lab);
-                    setFont('normal', 9);
-                    doc.text(rest, xDesc + pad + 6 + lw, ty);
-                } else {
-                    doc.text(l.t, xDesc + pad + 6, ty);
-                }
-                ty += lineH;
-            });
-        } else {
-            setFont(row.bold ? 'bold' : 'normal', 9);
-            if (row.italic) setFont('italic', 9);
-            doc.setTextColor(0, 0, 0);
-            lines.forEach(function(l) {
-                if (row.alignRight) doc.text(l.t, xAntall - pad - 3, ty, { align: 'right' });
-                else doc.text(l.t, xDesc + pad + 6, ty);
-                ty += lineH;
-            });
-            // antall + enhet sentrert
-            setFont(row.bold ? 'bold' : 'normal', 9);
-            var midY = y + rowH / 2 + 1.4;
-            if (row.antall) doc.text(String(row.antall), xAntall + COL_ANTALL / 2, midY, { align: 'center' });
-            if (row.enhet) doc.text(String(row.enhet), xEnhet + COL_ENHET / 2, midY, { align: 'center' });
+        // Ordreseddel nr + firma-info (høyre).
+        var rx = R - 4;
+        var colLeftX = rx - 39;
+        var colLabelRight = rx - 42;
+        setFont('bold', 11);
+        doc.setTextColor(0, 0, 0);
+        text('Ordreseddel nr.:', colLabelRight, top + 8, { align: 'right' });
+        setFont('normal', 22);
+        doc.setTextColor(RED[0], RED[1], RED[2]);
+        text(String(data.ordreseddelNr || ''), colLeftX, top + 9, { align: 'left' });
+        doc.setTextColor(0, 0, 0);
+        var infoY = top + 14;
+        function infoLine(left, right, bold) {
+            setFont(bold ? 'bold' : 'normal', bold ? 8.5 : 8);
+            if (left) text(left, colLabelRight, infoY, { align: 'right' });
+            if (right) text(right, colLeftX, infoY, { align: 'left' });
+            infoY += 4;
         }
-        y += rowH;
-    }
+        infoLine('FIRESAFE AS', 'HOVEDKONTOR', true);
+        infoLine('Postadresse', 'Postboks 6411 Etterstad');
+        infoLine('', '0605 Oslo');
+        infoLine('Telefon', '09110');
 
-    tableHeader();
-    var rows = computeWorkRows(data.orders || [], 15);
-    rows.forEach(drawRow);
+        line(L, top + headerH, R, top + headerH);
+        y = top + headerH;
 
-    // ── Signatur ──
-    if (y + 26 > PH - M) newPage();
-    y += 6;
-    var sigY = y;
-    var cellW = W / 3;
-    function sigCell(x, w, label, value, img) {
-        var underlineY = sigY + 12;
-        line(x + 4, underlineY, x + w - 4, underlineY);
-        if (img) {
-            var iw = Math.min(w - 10, 36), ih = iw * 200 / 600;
-            doc.addImage(img, 'PNG', x + (w - iw) / 2, underlineY - ih, iw, ih);
-        } else if (value) {
+        // ── Felt-rad-helper ──
+        function fieldCell(x, w, h, label, value) {
+            setFont('normal', 7.5);
+            doc.setTextColor(90, 90, 90);
+            text(String(label || ''), x + 3, y + 4);
             setFont('normal', 11);
             doc.setTextColor(0, 0, 0);
-            doc.text(String(value), x + w / 2, underlineY - 1.5, { align: 'center' });
+            var val = String(value || '');
+            var maxW = w - 6;
+            var vlines = doc.splitTextToSize(val, maxW);
+            text(vlines.length ? [vlines[0]] : [''], x + 3, y + 9);
         }
-        setFont('normal', 8);
-        doc.setTextColor(80, 80, 80);
-        doc.text(label, x + w / 2, underlineY + 4, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
-    }
-    sigCell(L, cellW, 'Sted', data.sted, null);
-    sigCell(L + cellW, cellW, 'Dato', _todayDateNo(), null);
-    sigCell(L + 2 * cellW, cellW, 'Kundens underskrift', '', sigImg);
-    y = sigY + 20;
+        function fieldRow(cells, h) {
+            var x = L;
+            cells.forEach(function(c, i) {
+                fieldCell(x, c.w, h, c.label, c.value);
+                if (i < cells.length - 1) line(x + c.w, y, x + c.w, y + h);
+                x += c.w;
+            });
+            line(L, y + h, R, y + h);
+            y += h;
+        }
+        var fh = 12;
+        fieldRow([
+            { w: W - 55, label: 'Oppdragsgiver', value: data.oppdragsgiver },
+            { w: 55, label: 'Kundens ref.', value: data.kundensRef }
+        ], fh);
+        fieldRow([{ w: W, label: 'Fakturaadresse', value: data.fakturaadresse }], fh);
+        // «Dato»-feltet inneholder ukenummeret; eksporten viser «Uke N».
+        var ukeNum = String(data.dato || '').trim().replace(/^uke\s*/i, '').trim();
+        var ukeVal = ukeNum ? ('Uke ' + ukeNum) : '';
+        fieldRow([
+            { w: 30, label: 'Dato', value: ukeVal },
+            { w: (W / 2) - 30, label: 'Prosjektnr.', value: data.prosjektnr },
+            { w: W / 2, label: 'Prosjektnavn', value: data.prosjektnavn }
+        ], fh);
+        fieldRow([
+            { w: W / 2, label: 'Montør', value: data.montor },
+            { w: W / 2, label: 'Avdeling', value: data.avdeling }
+        ], fh);
 
-    // ── Footer — flyter rett under signaturen (ingen skillelinje over). ──
-    setFont('bold', 8);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Original: Firesafe', L + 4, y);
-    doc.text('Kopi: Kunden', R - 4, y, { align: 'right' });
-    y += 5;
-    setFont('normal', 7);
-    doc.setTextColor(110, 110, 110);
-    doc.text('Staples - Tlf.: 02272', PW / 2, y, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
-    y += 3;
+        // ── Arbeidslinje-tabell ──
+        var COL_ANTALL = 26, COL_ENHET = 26;
+        var COL_DESC = W - COL_ANTALL - COL_ENHET;
+        var xDesc = L, xAntall = L + COL_DESC, xEnhet = L + COL_DESC + COL_ANTALL;
+
+        function tableHeader() {
+            var hh = 8;
+            fillRect(L, y, W, hh, GRAY);
+            doc.setTextColor(255, 255, 255);
+            setFont('bold', 8.5);
+            text('Beskrivelse av utførte arbeider', xDesc + COL_DESC / 2, y + 5.3, { align: 'center' });
+            text('Antall', xAntall + COL_ANTALL / 2, y + 5.3, { align: 'center' });
+            text('Enhet', xEnhet + COL_ENHET / 2, y + 5.3, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+            line(xAntall, y, xAntall, y + hh);
+            line(xEnhet, y, xEnhet, y + hh);
+            rect(L, y, W, hh);
+            y += hh;
+        }
+
+        function drawRow(row) {
+            var pad = 2;
+            var lineH = 4.0;
+            var lines;   // computed desc content
+            var rowH;
+            if (row.kind === 'descblock') {
+                lines = [];
+                (row.paragraphs || []).forEach(function(p, i) {
+                    if (i > 0) lines.push({ t: '', bold: false });
+                    doc.splitTextToSize(p, COL_DESC - 2 * pad - 23).forEach(function(l) { lines.push({ t: l, bold: false }); });
+                });
+                (row.meta || []).forEach(function(m) {
+                    var full = m.label + m.value;
+                    var wrapped = doc.splitTextToSize(full, COL_DESC - 2 * pad - 23);
+                    wrapped.forEach(function(l, i) { lines.push({ t: l, bold: false, labelLen: i === 0 ? m.label.length : 0 }); });
+                });
+                rowH = Math.max(8, lines.length * lineH + 2 * pad);
+            } else {
+                setFont(row.bold ? 'bold' : 'normal', 9);
+                var avail = COL_DESC - 2 * pad - (row.alignRight ? 5 : 23);
+                lines = doc.splitTextToSize(String(row.desc || ''), avail).map(function(l) { return { t: l }; });
+                rowH = Math.max(8, lines.length * lineH + 2 * pad);
+            }
+            // INGEN side-deling: siden vokser med innholdet (én ordreseddel = én side).
+
+            // rad-ramme
+            rect(L, y, W, rowH);
+            line(xAntall, y, xAntall, y + rowH);
+            line(xEnhet, y, xEnhet, y + rowH);
+
+            var ty = y + pad + 3;
+            if (row.kind === 'descblock') {
+                setFont('normal', 9);
+                doc.setTextColor(0, 0, 0);
+                lines.forEach(function(l) {
+                    if (l.labelLen) {
+                        var lab = l.t.slice(0, l.labelLen), rest = l.t.slice(l.labelLen);
+                        setFont('bold', 9);
+                        text(lab, xDesc + pad + 6, ty);
+                        var lw = doc.getTextWidth(lab);
+                        setFont('normal', 9);
+                        text(rest, xDesc + pad + 6 + lw, ty);
+                    } else {
+                        text(l.t, xDesc + pad + 6, ty);
+                    }
+                    ty += lineH;
+                });
+            } else {
+                setFont(row.bold ? 'bold' : 'normal', 9);
+                if (row.italic) setFont('italic', 9);
+                doc.setTextColor(0, 0, 0);
+                lines.forEach(function(l) {
+                    if (row.alignRight) text(l.t, xAntall - pad - 3, ty, { align: 'right' });
+                    else text(l.t, xDesc + pad + 6, ty);
+                    ty += lineH;
+                });
+                // antall + enhet sentrert
+                setFont(row.bold ? 'bold' : 'normal', 9);
+                var midY = y + rowH / 2 + 1.4;
+                if (row.antall) text(String(row.antall), xAntall + COL_ANTALL / 2, midY, { align: 'center' });
+                if (row.enhet) text(String(row.enhet), xEnhet + COL_ENHET / 2, midY, { align: 'center' });
+            }
+            y += rowH;
+        }
+
+        tableHeader();
+        var rows = computeWorkRows(data.orders || [], 15);
+        rows.forEach(drawRow);
+
+        // ── Signatur ──
+        y += 6;
+        var sigY = y;
+        var cellW = W / 3;
+        function sigCell(x, w, label, value, simg) {
+            var underlineY = sigY + 12;
+            line(x + 4, underlineY, x + w - 4, underlineY);
+            if (simg) {
+                var iw = Math.min(w - 10, 36), ih = iw * 200 / 600;
+                image(simg, 'PNG', x + (w - iw) / 2, underlineY - ih, iw, ih);
+            } else if (value) {
+                setFont('normal', 11);
+                doc.setTextColor(0, 0, 0);
+                text(String(value), x + w / 2, underlineY - 1.5, { align: 'center' });
+            }
+            setFont('normal', 8);
+            doc.setTextColor(80, 80, 80);
+            text(label, x + w / 2, underlineY + 4, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+        }
+        sigCell(L, cellW, 'Sted', data.sted, null);
+        sigCell(L + cellW, cellW, 'Dato', _todayDateNo(), null);
+        sigCell(L + 2 * cellW, cellW, 'Kundens underskrift', '', sigImg);
+        y = sigY + 20;
+
+        // ── Footer — flyter rett under signaturen (ingen skillelinje over). ──
+        setFont('bold', 8);
+        doc.setTextColor(0, 0, 0);
+        text('Original: Firesafe', L + 4, y);
+        text('Kopi: Kunden', R - 4, y, { align: 'right' });
+        y += 5;
+        setFont('normal', 7);
+        doc.setTextColor(110, 110, 110);
+        text('Staples - Tlf.: 02272', PW / 2, y, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        y += 3;
+    }
+
+    // PASS 1: mål innholdshøyden uten å tegne.
+    DRAW = false;
+    layout();
+    var contentH = y + M;   // bunnmarg lik toppmarg
+
+    // Ny side dimensjonert til innholdet (A4-bredde, variabel høyde).
+    // jsPDF bytter w/h for å matche orientation-strengen — velg orientation som
+    // samsvarer med faktiske mål så bredden ALLTID forblir PW (ingen rotasjon).
+    doc.addPage([PW, contentH], contentH >= PW ? 'p' : 'l');
+
+    // PASS 2: tegn på den dimensjonerte siden.
+    DRAW = true;
+    layout();
 
     // ── Ytre ramme: omslutter KUN innhold (top → bunn av footer). ──
     rect(L, frameTop, W, y - frameTop);
     // Vertikal versjons-merking «GV: 9-01» nede til venstre i rammen.
     setFont('bold', 6);
     doc.setTextColor(70, 70, 70);
-    doc.text('GV: 9-01', 5, y - 2, { angle: 90 });
+    text('GV: 9-01', 5, y - 2, { angle: 90 });
     doc.setTextColor(0, 0, 0);
 }
 
-// Enkelt skjema → ny doc.
+// Enkelt skjema → ny doc. _renderOrdreseddelInto legger til den innholds-
+// tilpassede siden; vi sletter default A4-siden som jsPDF lager ved init.
 async function buildOrdreseddelPdfDoc(data) {
     var doc = new (window.jspdf.jsPDF)({ orientation: 'p', unit: 'mm', format: 'a4' });
     await _renderOrdreseddelInto(doc, data);
+    doc.deletePage(1);
     return doc;
 }
 
-// Flere skjemaer → én samlet doc (bulk). Leser STORED data direkte — ingen DOM,
-// så ingen html2canvas, ingen høyde-/størrelses-variasjon.
+// Flere skjemaer → én samlet doc (bulk). Hvert skjema får sin egen side med
+// høyde tilpasset innholdet. Leser STORED data direkte — ingen DOM/html2canvas.
 async function buildOrdreseddelPdfDocMulti(forms) {
     var doc = new (window.jspdf.jsPDF)({ orientation: 'p', unit: 'mm', format: 'a4' });
     for (var i = 0; i < forms.length; i++) {
-        if (i > 0) doc.addPage();
         await _renderOrdreseddelInto(doc, forms[i]);
     }
+    doc.deletePage(1);
     return doc;
 }
 
@@ -4904,6 +4916,9 @@ function _pdfTableFromEl(doc, table, x0, y0, totalW, opts) {
     var rowTop = []; var yy = y0;
     for (var r1 = 0; r1 < numRows; r1++) { rowTop[r1] = yy; yy += rowH[r1]; }
 
+    // measureOnly: returner kun slutt-y (for å beregne sidehøyde) uten å tegne.
+    if (opts.measureOnly) return yy;
+
     cells.forEach(function(cell) {
         var cx = colX(cell.c), cw = spanW(cell.c, cell.cs), cyt = rowTop[cell.r];
         var ch = 0; for (var rr = cell.r; rr < cell.r + cell.rs; rr++) ch += rowH[rr];
@@ -4923,15 +4938,27 @@ function _pdfTableFromEl(doc, table, x0, y0, totalW, opts) {
 // ── Service (Lageruttak Servicebiler): vektor-PDF ───────────────────────────
 // Gjenbruker buildServiceExportTable (all material-matrise-logikk) til å fylle
 // #service-export-container, og tegner tabellen som vektor (A4 liggende).
-function _renderServiceTableInto(doc) {
+function _renderServiceTableInto(doc, measureOnly) {
     if (typeof buildServiceExportTable === 'function') buildServiceExportTable(7);
     var cont = document.getElementById('service-export-container');
     var table = cont ? cont.querySelector('table') : null;
-    if (table) _pdfTableFromEl(doc, table, 8, 12, 297 - 16, { fontSize: 6.5, minRowH: 7 });
+    var top = 12;
+    if (!table) return top;
+    return _pdfTableFromEl(doc, table, 8, top, 297 - 16, { fontSize: 6.5, minRowH: 7, measureOnly: measureOnly });
+}
+// Legger til ÉN side i doc med bredde 297mm og HØYDE tilpasset innholdet
+// (én service-skjema = én side). Måler først, dimensjonerer så siden, tegner.
+function _addAdaptiveServicePage(doc) {
+    var endY = _renderServiceTableInto(doc, true);     // mål uten å tegne
+    var H = Math.max(60, endY + 8);
+    // Orientation matcher faktiske mål så bredden (297) aldri byttes med høyden.
+    doc.addPage([297, H], H >= 297 ? 'p' : 'l');
+    _renderServiceTableInto(doc, false);               // tegn på dimensjonert side
 }
 async function buildServicePdfDoc(data) {
     var doc = new (window.jspdf.jsPDF)({ orientation: 'l', unit: 'mm', format: [297, 210] });
-    _renderServiceTableInto(doc);
+    _addAdaptiveServicePage(doc);
+    doc.deletePage(1);
     return doc;
 }
 async function buildServicePdfDocMulti(forms) {
@@ -4941,12 +4968,12 @@ async function buildServicePdfDocMulti(forms) {
     try {
         for (var i = 0; i < forms.length; i++) {
             setServiceFormData(forms[i]);
-            if (i > 0) doc.addPage();
-            _renderServiceTableInto(doc);
+            _addAdaptiveServicePage(doc);
         }
     } finally {
         if (prev) { try { setServiceFormData(prev); } catch (e) {} }
     }
+    doc.deletePage(1);
     return doc;
 }
 
@@ -4964,23 +4991,27 @@ async function _pdfRasterizeSvgEl(svgEl, pxW, pxH) {
 // ── Kappeskjema: vektor-PDF ─────────────────────────────────────────────────
 // Gjenbruker buildKappeExportTable (WN630/subtotaler/festemidler) til å fylle
 // #kappe-export-container; tegner header/info + de to tabellene som vektor.
-async function _renderKappeInto(doc) {
+// measureOnly=true: tegner ikke, returnerer kun slutt-y (til sidehøyde-beregning).
+async function _renderKappeInto(doc, measureOnly) {
     if (typeof buildKappeExportTable === 'function') buildKappeExportTable();
     var cont = document.getElementById('kappe-export-container');
-    if (!cont) return;
+    if (!cont) return 0;
+    var DRAW = !measureOnly;
     var PW = 297, M = 8, L = M, R = PW - M, W = R - L;
     var y = M + 2;
     function setF(b, s) { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(s); }
+    function text() { if (DRAW) doc.text.apply(doc, arguments); }
+    function image() { if (DRAW) doc.addImage.apply(doc, arguments); }
 
     // Logo + tittel + meta
     var logo = await _pdfRasterizeSvgEl(cont.querySelector('.ke-header svg'), 720, 245);
-    if (logo) { var lw = 40, lh = lw * 85 / 250; doc.addImage(logo, 'PNG', L, y, lw, lh); }
+    if (logo) { var lw = 40, lh = lw * 85 / 250; image(logo, 'PNG', L, y, lw, lh); }
     setF(true, 16); doc.setTextColor(0, 0, 0);
-    doc.text('KAPPESKJEMA', L + 46, y + 9);
+    text('KAPPESKJEMA', L + 46, y + 9);
     setF(false, 8);
     var my = y + 2;
     cont.querySelectorAll('.ke-meta > div').forEach(function(d) {
-        doc.text(d.textContent.replace(/\s+/g, ' ').trim(), R, my, { align: 'right' });
+        text(d.textContent.replace(/\s+/g, ' ').trim(), R, my, { align: 'right' });
         my += 4.5;
     });
     y += 17;
@@ -4990,11 +5021,11 @@ async function _renderKappeInto(doc) {
     Array.prototype.forEach.call(cont.querySelectorAll('.ke-info-col'), function(col, ci) {
         var cx = L + ci * colW, iy = iy0;
         var title = col.querySelector('.ke-info-col-title');
-        setF(true, 9); doc.text(title ? title.textContent.trim() : '', cx, iy + 3); iy += 6.5;
+        setF(true, 9); text(title ? title.textContent.trim() : '', cx, iy + 3); iy += 6.5;
         col.querySelectorAll('.ke-info-row').forEach(function(row) {
             var sp = row.querySelectorAll('span');
-            setF(true, 8); doc.text(sp[0] ? sp[0].textContent.trim() : '', cx, iy);
-            setF(false, 8); doc.text(sp[1] ? sp[1].textContent.trim() : '', cx + 24, iy);
+            setF(true, 8); text(sp[0] ? sp[0].textContent.trim() : '', cx, iy);
+            setF(false, 8); text(sp[1] ? sp[1].textContent.trim() : '', cx + 24, iy);
             iy += 4.6;
         });
         if (iy > maxIy) maxIy = iy;
@@ -5006,14 +5037,25 @@ async function _renderKappeInto(doc) {
     var tables = cont.querySelectorAll('table');
     Array.prototype.forEach.call(tables, function(tbl, ti) {
         var st = titles[ti];
-        if (st) { setF(true, 10); doc.setTextColor(0, 0, 0); doc.text(st.textContent.trim(), L, y + 3.5); y += 7; }
-        y = _pdfTableFromEl(doc, tbl, L, y, W, { fontSize: 6.5, minRowH: 6 });
+        if (st) { setF(true, 10); doc.setTextColor(0, 0, 0); text(st.textContent.trim(), L, y + 3.5); y += 7; }
+        y = _pdfTableFromEl(doc, tbl, L, y, W, { fontSize: 6.5, minRowH: 6, measureOnly: measureOnly });
         y += 7;
     });
+    return y;
+}
+// Legger til ÉN side med bredde 297mm og HØYDE tilpasset innholdet
+// (ett kappeskjema = én side). Måler først, dimensjonerer så siden, tegner.
+async function _addAdaptiveKappePage(doc) {
+    var endY = await _renderKappeInto(doc, true);      // mål uten å tegne
+    var H = Math.max(60, endY + 4);
+    // Orientation matcher faktiske mål så bredden (297) aldri byttes med høyden.
+    doc.addPage([297, H], H >= 297 ? 'p' : 'l');
+    await _renderKappeInto(doc, false);                // tegn på dimensjonert side
 }
 async function buildKappePdfDoc(data) {
     var doc = new (window.jspdf.jsPDF)({ orientation: 'l', unit: 'mm', format: [297, 210] });
-    await _renderKappeInto(doc);
+    await _addAdaptiveKappePage(doc);
+    doc.deletePage(1);
     return doc;
 }
 async function buildKappePdfDocMulti(forms) {
@@ -5023,12 +5065,12 @@ async function buildKappePdfDocMulti(forms) {
     try {
         for (var i = 0; i < forms.length; i++) {
             setKappeFormData(forms[i]);
-            if (i > 0) doc.addPage();
-            await _renderKappeInto(doc);
+            await _addAdaptiveKappePage(doc);
         }
     } finally {
         if (prev) { try { setKappeFormData(prev); } catch (e) {} }
     }
+    doc.deletePage(1);
     return doc;
 }
 
