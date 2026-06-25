@@ -721,6 +721,15 @@ async function duplicateFormDirect(form) {
     document.getElementById('mobile-kundens-underskrift').value = '';
     clearSignaturePreview();
 
+    // Et duplikat er ALLTID et ferskt utkast — nullstill sendt/ferdig-state.
+    // (Dupliserer du et SENDT skjema, hang firesafe_current_sent igjen, og
+    // saveForm hoppet over navigeringen til lagrede-listen + viste sendt-banner.)
+    sessionStorage.removeItem('firesafe_current_sent');
+    sessionStorage.removeItem('firesafe_current_status');
+    var _sb = document.getElementById('sent-banner');
+    if (_sb) _sb.style.display = 'none';
+    if (typeof _updateFormStatusButtons === 'function') _updateFormStatusButtons();
+
     // Reset bestillinger til 1 tomt ordrekort
     const container = document.getElementById('mobile-orders');
     container.innerHTML = '';
