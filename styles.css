@@ -6509,7 +6509,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     left: 0;
     right: 0;
     bottom: 0;
-    background: #fff;
+    /* Grå «pult» i hele overlayet — også bak header-sidene, så det ikke er en
+       hvit full-bredde-stripe ved siden av den sentrerte header-stripa. */
+    background: #d9d9de;
     z-index: 45;
     flex-direction: column;
 }
@@ -6577,6 +6579,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     min-height: 0;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
+    /* Nøytral grå «pult» bak dokumentet (som en PDF-viser) så den sentrerte
+       A4-siden leses som et dokument, ikke som forvirrende hvite gap. */
+    background: #d9d9de;
 }
 
 /* Tilbake-pil i action-popup-header. Tittelen er en oransje stripe, så pilen er
@@ -6601,15 +6606,19 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* Ingen topp-padding → dokumentet ligger rett under headeren (intet gap).
+       gap skiller bare flere sider ved fler-sides-dokumenter. */
     gap: 14px;
-    padding: 14px;
+    padding: 0;
 }
 .pdf-preview-page {
     width: 100%;
-    max-width: 900px;
+    /* A4 naturlig bredde (~210mm) → «100%» viser dokumentet i normal størrelse,
+       sentrert på den grå pulten, ikke strukket til hele vindusbredden. */
+    max-width: 800px;
     height: auto;
     background: #fff;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
 }
 
 /* Preview button in form */
@@ -6676,7 +6685,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
         max-width: 800px;
         margin: 0 auto;
     }
-    /* Preview overlay header også constrained på desktop */
+    /* Headeren har samme bredde som dokumentet (800px), sentrert — de matcher. */
     html.device-pc .preview-overlay-header {
         max-width: 800px;
     }

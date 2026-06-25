@@ -4575,8 +4575,9 @@ async function _pdfGetSignature(data) {
 async function _renderOrdreseddelInto(doc, data) {
     data = data || {};
     var PW = 210;
-    var M = 8;                 // ytre marg
-    var L = M, R = PW - M;     // venstre/høyre innhold
+    var MX = 0;                // ingen sidemarg → linjene går helt ut til kanten
+    var MY = 0;                // ingen topp/bunn-marg → fullt utfyllende skjema
+    var L = MX, R = PW - MX;   // venstre/høyre innhold
     var W = R - L;             // innholdsbredde
     var BLACK = [0, 0, 0], GRAY = [119, 119, 119], RED = [204, 0, 0];
 
@@ -4591,18 +4592,18 @@ async function _renderOrdreseddelInto(doc, data) {
     var logo = await _pdfGetLogo();
     var sigImg = await _pdfGetSignature(data);
 
-    var y, frameTop;
+    var y, frameTop, footerLineY;
 
     // Hele oppsettet i én funksjon så den kan kjøres to ganger (mål + tegn).
     function layout() {
-        var top = M;
+        var top = MY;
         var headerH = 30;
         frameTop = top;
 
-        // Logo (venstre)
+        // Logo (venstre) — litt lenger ned (top + 8).
         if (logo) {
             var lw = 46, lh = lw * 85 / 250;
-            image(logo, 'PNG', L + 4, top + 5, lw, lh);
+            image(logo, 'PNG', L + 4, top + 8, lw, lh);
         }
 
         // Ordreseddel nr + firma-info (høyre).
@@ -4634,7 +4635,7 @@ async function _renderOrdreseddelInto(doc, data) {
         // ── Felt-rad-helper ──
         function fieldCell(x, w, h, label, value) {
             setFont('normal', 7.5);
-            doc.setTextColor(90, 90, 90);
+            doc.setTextColor(0, 0, 0);   // felt-etiketter i svart (ikke grå)
             text(String(label || ''), x + 3, y + 4);
             setFont('normal', 11);
             doc.setTextColor(0, 0, 0);
@@ -4758,11 +4759,15 @@ async function _renderOrdreseddelInto(doc, data) {
         }
 
         tableHeader();
+        // Minst 15 rader (som papir-skjemaet) for håndskrevne tillegg. Siden
+        // tilpasser høyden til innholdet, så ingen A4-hale under radene.
         var rows = computeWorkRows(data.orders || [], 15);
         rows.forEach(drawRow);
 
         // ── Signatur ──
-        y += 6;
+        // Underlinjen skal ligge ~2 tabellrader (16mm) under siste tabell-linje.
+        // Cellen legger selv underlinjen 12mm under sigY, så 4mm gap her → 16mm totalt.
+        y += 4;
         var sigY = y;
         var cellW = W / 3;
         function sigCell(x, w, label, value, simg) {
@@ -4777,32 +4782,33 @@ async function _renderOrdreseddelInto(doc, data) {
                 text(String(value), x + w / 2, underlineY - 1.5, { align: 'center' });
             }
             setFont('normal', 8);
-            doc.setTextColor(80, 80, 80);
+            doc.setTextColor(0, 0, 0);   // signatur-etiketter i svart (ikke grå)
             text(label, x + w / 2, underlineY + 4, { align: 'center' });
             doc.setTextColor(0, 0, 0);
         }
         sigCell(L, cellW, 'Sted', data.sted, null);
         sigCell(L + cellW, cellW, 'Dato', _todayDateNo(), null);
         sigCell(L + 2 * cellW, cellW, 'Kundens underskrift', '', sigImg);
-        y = sigY + 20;
+        // Litt mer luft mellom signatur-etikettene (Sted/Dato/…) og Original/Kopi.
+        y = sigY + 22;
 
         // ── Footer — flyter rett under signaturen (ingen skillelinje over). ──
         setFont('bold', 8);
         doc.setTextColor(0, 0, 0);
+        footerLineY = y;   // y-linja for «Original: Firesafe» (brukes til GV-merking)
         text('Original: Firesafe', L + 4, y);
         text('Kopi: Kunden', R - 4, y, { align: 'right' });
         y += 5;
         setFont('normal', 7);
-        doc.setTextColor(110, 110, 110);
+        doc.setTextColor(0, 0, 0);   // Staples-tlf i svart (ikke grå)
         text('Staples - Tlf.: 02272', PW / 2, y, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
         y += 3;
     }
 
     // PASS 1: mål innholdshøyden uten å tegne.
     DRAW = false;
     layout();
-    var contentH = y + M;   // bunnmarg lik toppmarg
+    var contentH = y + MY;   // bunnmarg lik toppmarg
 
     // Ny side dimensjonert til innholdet (A4-bredde, variabel høyde).
     // jsPDF bytter w/h for å matche orientation-strengen — velg orientation som
@@ -4813,12 +4819,12 @@ async function _renderOrdreseddelInto(doc, data) {
     DRAW = true;
     layout();
 
-    // ── Ytre ramme: omslutter KUN innhold (top → bunn av footer). ──
-    rect(L, frameTop, W, y - frameTop);
-    // Vertikal versjons-merking «GV: 9-01» nede til venstre i rammen.
+    // Ingen ytre ramme — den offisielle ordreseddelen har ikke ramme rundt seg.
+    // Vertikal versjons-merking «GV: 9-01» nede til venstre — «G» starter på
+    // samme linje som «Original: Firesafe» og teksten går oppover derfra.
     setFont('bold', 6);
     doc.setTextColor(70, 70, 70);
-    text('GV: 9-01', 5, y - 2, { angle: 90 });
+    text('GV: 9-01', 2, footerLineY, { angle: 90 });
     doc.setTextColor(0, 0, 0);
 }
 
@@ -15308,7 +15314,7 @@ function buildKappeExportTable() {
         '<div class="ke-header">' +
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 85" class="firesafe-logo firesafe-logo--sm" preserveAspectRatio="xMidYMid meet">' +
                 '<path d="M2.67 37L2.67 11.23L22.36 11.23L22.36 16.77L10.67 16.77L10.67 21.27L20.65 21.27L20.65 26.47L10.67 26.47L10.67 37L2.67 37M26.96 37L26.96 11.23L34.95 11.23L34.95 37L26.96 37M48.76 37L40.76 37L40.76 11.23L54.04 11.23Q57.73 11.23 59.68 11.86Q61.63 12.50 62.82 14.21Q64.02 15.92 64.02 18.38Q64.02 20.53 63.11 22.08Q62.19 23.64 60.59 24.61Q59.57 25.22 57.80 25.63Q59.22 26.10 59.87 26.58Q60.31 26.89 61.15 27.93Q61.98 28.97 62.26 29.53L66.11 37L57.11 37L52.86 29.13Q52.05 27.60 51.42 27.14Q50.55 26.54 49.46 26.54L48.76 26.54L48.76 37M48.76 16.43L48.76 21.67L52.12 21.67Q52.66 21.67 54.23 21.32Q55.02 21.16 55.52 20.51Q56.02 19.86 56.02 19.02Q56.02 17.77 55.23 17.10Q54.44 16.43 52.26 16.43L48.76 16.43M68.64 37L68.64 11.23L89.98 11.23L89.98 16.73L76.62 16.73L76.62 20.83L89.02 20.83L89.02 26.08L76.62 26.08L76.62 31.16L90.37 31.16L90.37 37L68.64 37M93.27 28.47L100.85 28Q101.09 29.85 101.85 30.81Q103.08 32.38 105.36 32.38Q107.07 32.38 107.99 31.58Q108.91 30.78 108.91 29.72Q108.91 28.72 108.04 27.93Q107.16 27.14 103.96 26.44Q98.72 25.26 96.49 23.31Q94.24 21.36 94.24 18.33Q94.24 16.35 95.39 14.58Q96.54 12.81 98.85 11.80Q101.16 10.79 105.19 10.79Q110.13 10.79 112.72 12.63Q115.31 14.46 115.80 18.47L108.30 18.91Q108 17.17 107.04 16.38Q106.08 15.59 104.40 15.59Q103.01 15.59 102.30 16.18Q101.60 16.77 101.60 17.61Q101.60 18.23 102.18 18.72Q102.74 19.23 104.85 19.67Q110.07 20.79 112.33 21.94Q114.59 23.10 115.62 24.80Q116.65 26.51 116.65 28.62Q116.65 31.09 115.28 33.19Q113.91 35.28 111.45 36.36Q108.98 37.44 105.24 37.44Q98.67 37.44 96.13 34.91Q93.60 32.38 93.27 28.47M137.78 37L136.51 32.75L127.44 32.75L126.19 37L118.05 37L127.74 11.23L136.42 11.23L146.11 37L137.78 37M129.16 27.17L134.84 27.17L131.99 17.91L129.16 27.17M148.69 37L148.69 11.23L168.38 11.23L168.38 16.77L156.69 16.77L156.69 21.27L166.68 21.27L166.68 26.47L156.69 26.47L156.69 37L148.69 37M172.65 37L172.65 11.23L193.99 11.23L193.99 16.73L180.63 16.73L180.63 20.83L193.03 20.83L193.03 26.08L180.63 26.08L180.63 31.16L194.38 31.16L194.38 37" fill="currentColor"/>' +
-                '<polygon points="187,76 194,76 230,11 223,11" fill="currentColor"/>' +
+                '<polygon points="192,76 199,76 235,11 228,11" fill="currentColor"/>' +
             '</svg>' +
             '<div class="ke-title">KAPPESKJEMA</div>' +
             '<div class="ke-meta">' +
