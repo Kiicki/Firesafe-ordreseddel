@@ -4554,7 +4554,7 @@ function _pdfLogoSvgUrl() {
 var _pdfLogoCache = null;
 async function _pdfGetLogo() {
     if (_pdfLogoCache !== null) return _pdfLogoCache;
-    _pdfLogoCache = await _pdfRasterize(_pdfLogoSvgUrl(), 720, 245);  // viewBox 250×85
+    _pdfLogoCache = await _pdfRasterize(_pdfLogoSvgUrl(), 1440, 490);  // viewBox 250×85 (~800 dpi)
     return _pdfLogoCache;
 }
 
@@ -4563,7 +4563,7 @@ async function _pdfGetSignature(data) {
     var sig = (data && data.kundensUnderskrift) || '';
     if (!sig || sig.indexOf('data:image') !== 0) return null;
     // Beholder proporsjoner: signatur-SVG er bred (canvasAspectRatio brukt ved tegning).
-    return await _pdfRasterize(sig, 600, 200);
+    return await _pdfRasterize(sig, 1200, 400);
 }
 
 // ── Ordreseddel: ekte tekst/vektor-PDF ──────────────────────────────────────
@@ -5010,7 +5010,7 @@ async function _renderKappeInto(doc, measureOnly) {
     function image() { if (DRAW) doc.addImage.apply(doc, arguments); }
 
     // Logo + tittel + meta
-    var logo = await _pdfRasterizeSvgEl(cont.querySelector('.ke-header svg'), 720, 245);
+    var logo = await _pdfRasterizeSvgEl(cont.querySelector('.ke-header svg'), 1440, 490);
     if (logo) { var lw = 40, lh = lw * 85 / 250; image(logo, 'PNG', L, y, lw, lh); }
     setF(true, 16); doc.setTextColor(0, 0, 0);
     text('KAPPESKJEMA', L + 46, y + 9);
