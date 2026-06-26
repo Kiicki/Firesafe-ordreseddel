@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=857">
+    <link rel="stylesheet" href="styles.css?v=860">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -1243,8 +1243,10 @@
             <div class="spec-popup-header" data-i18n="iso_length_title">LM og antall</div>
             <div id="iso-length-scroll">
                 <div id="iso-length-rows"></div>
-                <button type="button" class="iso-group-add" onpointerdown="event.preventDefault()" onclick="_isoLengthAddRow()">+ <span data-i18n="iso_length_add">legg til</span></button>
             </div>
+            <!-- «+ legg til» UTENFOR scrollen → alltid synlig, dyttes ikke ned når
+                 mange rader legges til (samme mønster som kappe-lm-popupen). -->
+            <button type="button" class="iso-group-add" onpointerdown="event.preventDefault()" onclick="_isoLengthAddRow()">+ <span data-i18n="iso_length_add">legg til</span></button>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-confirm" onclick="closeIsoLengthPopup()" data-i18n="btn_ok">OK</button>
             </div>
@@ -1260,10 +1262,11 @@
                 <div id="spec-multi-empty" class="spec-multi-empty"></div>
                 <div id="spec-multi-rows"></div>
                 <div id="spec-multi-meter-rows"></div>
-                <div class="kappe-add-row-buttons" id="spec-multi-add-buttons">
-                    <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add" onclick="_specMultiAddRow()">+ Dimensjon</button>
-                    <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add-meter" onclick="_specMultiAddMeterRow()">+ Løpende meter</button>
-                </div>
+            </div>
+            <!-- Add-knappene UTENFOR scrollen → alltid synlige (samme som kappe-lm). -->
+            <div class="kappe-add-row-buttons" id="spec-multi-add-buttons">
+                <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add" onclick="_specMultiAddRow()">+ Dimensjon</button>
+                <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add-meter" onclick="_specMultiAddMeterRow()">+ Løpende meter</button>
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecMultiPopup()" data-i18n="btn_cancel">Avbryt</button>
@@ -1781,8 +1784,8 @@
     </div>
 
     <script src="lang.js?v=278"></script>
-    <script src="script.js?v=477"></script>
-    <script src="script-ui.js?v=1026"></script>
+    <script src="script.js?v=478"></script>
+    <script src="script-ui.js?v=1029"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

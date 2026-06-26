@@ -5017,7 +5017,8 @@ function setServiceFormData(data) {
     container.innerHTML = '';
     var list = data.entries && data.entries.length > 0 ? data.entries : [{}];
     list.forEach(function(entry, idx) {
-        container.appendChild(createServiceEntryCard(entry, list.length === 1));
+        // Alle ekspandert ved åpning (konsekvent med ordreseddel/kappe).
+        container.appendChild(createServiceEntryCard(entry, true));
     });
     renumberServiceEntries();
     updateServiceDeleteStates();
@@ -6294,7 +6295,9 @@ function setFormData(data) {
     container.innerHTML = '';
     const ordersList = orders && orders.length > 0 ? orders : [{ description: '', materials: [], timer: '' }];
     ordersList.forEach((order, idx) => {
-        const card = createOrderCard(order, false);
+        // Alle bestillinger ekspandert ved åpning av lagret skjema — innholdet
+        // skal være synlig for gjennomgang uten å måtte tappe hver seksjon.
+        const card = createOrderCard(order, true);
         container.appendChild(card);
     });
     container.querySelectorAll('.mobile-order-desc').forEach(ta => {

@@ -11651,8 +11651,42 @@ function _openIsoLengthPopup(btn) {
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
     var f = rowsEl.querySelector('.ilp-lm');
     if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
+    // Popupen skal ALLTID åpne på toppen. Auto-fokus + tastatur kan ellers
+    // dytte scroll-posisjonen ned. Tving topp, og re-assert etter ev.
+    // tastatur-/layout-scroll (settler ~250ms).
+    var scrollEl = document.getElementById('iso-length-scroll');
+    if (scrollEl) {
+        scrollEl.scrollTop = 0;
+        requestAnimationFrame(function() { scrollEl.scrollTop = 0; });
+        setTimeout(function() { scrollEl.scrollTop = 0; }, 300);
+    }
 }
 window._openIsoLengthPopup = _openIsoLengthPopup;
+
+// Generisk: scroll popup-scrolleren slik at en nettopp lagt-til rad blir synlig.
+// Add-knappen ligger nå UTENFOR scrollen (alltid synlig), så vi trenger bare å
+// vise selve raden. Bruker getBoundingClientRect (robust mot offsetParent) og
+// kjører igjen etter ev. tastatur-animasjon. Gjelder ALLE add-row-popuper.
+function _scrollPopupRowIntoView(rowEl) {
+    if (!rowEl) return;
+    var sc = rowEl.parentElement;
+    while (sc) {
+        var oy = '';
+        try { oy = getComputedStyle(sc).overflowY; } catch (e) {}
+        if ((oy === 'auto' || oy === 'scroll') && sc.scrollHeight > sc.clientHeight + 1) break;
+        sc = sc.parentElement;
+    }
+    if (!sc) return;
+    var go = function() {
+        var rRect = rowEl.getBoundingClientRect();
+        var sRect = sc.getBoundingClientRect();
+        if (rRect.bottom > sRect.bottom) sc.scrollTop += (rRect.bottom - sRect.bottom) + 8;
+        else if (rRect.top < sRect.top) sc.scrollTop -= (sRect.top - rRect.top) + 8;
+    };
+    requestAnimationFrame(go);
+    setTimeout(go, 300);   // på nytt etter ev. tastatur-animasjon
+}
+window._scrollPopupRowIntoView = _scrollPopupRowIntoView;
 
 function _isoLengthAddRow() {
     var rowsEl = document.getElementById('iso-length-rows');
@@ -11662,6 +11696,7 @@ function _isoLengthAddRow() {
     var f = r.querySelector('.ilp-lm');
     if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    _scrollPopupRowIntoView(r);
 }
 window._isoLengthAddRow = _isoLengthAddRow;
 
@@ -12571,18 +12606,22 @@ function _specMultiUpdateEmptyState() {
 function _specMultiAddRow() {
     var c = document.getElementById('spec-multi-rows');
     if (!c) return;
-    c.appendChild(_createSpecRow(_specMultiMatType, null));
+    var row = _createSpecRow(_specMultiMatType, null);
+    c.appendChild(row);
     _specMultiUpdateEmptyState();
     if (typeof applyTranslations === 'function') applyTranslations();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
 }
 
 function _specMultiAddMeterRow() {
     var c = document.getElementById('spec-multi-meter-rows');
     if (!c) return;
-    c.appendChild(_createSpecMeterRow(null));
+    var row = _createSpecMeterRow(null);
+    c.appendChild(row);
     _specMultiUpdateEmptyState();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
 }
 
 function _specMultiRemoveRow(btn) {
@@ -14283,6 +14322,7 @@ function addKappeLengthRow() {
     _updateKappeLmTotal();
     if (typeof applyTranslations === 'function') applyTranslations();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
     // Scroll den nye raden inn i synlig område i scroll-containeren (knappen
     // selv ligger fast utenfor scrollen, så den forblir synlig). Neste frame så
     // layout/applyKeyboardLayout har satt seg.
@@ -14739,7 +14779,8 @@ function setKappeFormData(data) {
     // Ett kort per lagret linje. Hvert kort har både kapp- og plate-seksjon;
     // eldre skjemaer (separate kapp/plate-linjer) lastes uendret — kortet
     // bygger begge seksjoner, den ubrukte forblir tom.
-    list.forEach(function(line) { container.appendChild(createKappeLineCard(line, list.length === 1)); });
+    // Alle ekspandert ved åpning (konsekvent med ordreseddel/service).
+    list.forEach(function(line) { container.appendChild(createKappeLineCard(line, true)); });
     renumberKappeLines();
     updateKappeDeleteStates();
     renderKappeStiftRows(data.fasteners || data.stift || []);
