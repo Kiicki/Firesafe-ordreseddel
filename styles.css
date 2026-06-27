@@ -9238,18 +9238,13 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     white-space: nowrap;
 }
 .iso-lm-btn-text--empty { color: #b0b0b5; }
-/* Lengde-popup (LM/Antall-linjer). */
-/* FAST høyde: popupen forhåndsfyller alltid ≥10 rader, så den er uansett høy —
-   da er fast høyde ryddigere enn at boksen vokser/hopper når man legger til
-   rader. Kun rad-scrollen endrer seg (internt), aldri popup-størrelsen.
-   Moderat høyde (~6–7 rader synlige), men cappes på små skjermer så den aldri
-   går utenfor. (Unntak vs. spec-multi, som starter TOM → der ville fast høyde
-   blitt tomrom.) */
-#iso-length-popup .spec-popup-sheet { height: min(520px, calc(100% - 32px)); }
-/* Header, «+ legg til» og OK står fast; kun rad-scrollen fyller/scroller. */
+/* Lengde-popup (LM/Antall-linjer). FAST høyde — popupen skal IKKE ekspandere
+   når man legger til rader; bare rad-lista scroller internt. Cappes av skjermen
+   så den aldri går utenfor. Header/«+ legg til»/OK står fast. */
+#iso-length-popup .spec-popup-sheet { height: min(560px, calc(100% - 32px)); }
 #iso-length-popup .spec-popup-sheet > *:not(#iso-length-scroll) { flex-shrink: 0; }
 #iso-length-scroll {
-    flex: 1 1 auto;          /* fyller den faste høyden; scroller internt */
+    flex: 1 1 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
