@@ -76,6 +76,15 @@ function refreshActiveView() {
             window.loadedTemplates = result.forms;
             safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
         }).catch(function(e) { console.error('Refresh templates:', e); });
+    } else if (document.body.classList.contains('timebok-view-open')) {
+        // Hent gjeldende periode på nytt; hopp over hvis vi nettopp lagret lokalt.
+        var range = _timebokPeriodRange();
+        getTimebokDays(range.start, range.end).then(function(days) {
+            if (Date.now() - _lastLocalSaveTs < 5000) return;
+            // Oppdater cache med disse dagene (merge inn i 60-vinduet).
+            _timebokMergeDaysToCache(days);
+            if (document.body.classList.contains('timebok-view-open')) renderTimebok();
+        }).catch(function(e) { console.error('Refresh timebok:', e); });
     }
 }
 
@@ -117,7 +126,7 @@ function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     _bilHistoryRendered = false;
-    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'calculator-modal-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'calculator-modal-open', 'timebok-view-open');
     // Servicebil-inntak/uttak-modus + picker-overlay må også lukkes —
     // ellers blir picker-overlay synlig over hjem/lagrede når brukeren
     // navigerer vekk fra Servicebil Inntak via toolbar (Hjem etc.).
@@ -141,7 +150,8 @@ function isModalOpen() {
         || document.body.classList.contains('settings-modal-open')
         || document.body.classList.contains('service-view-open')
         || document.body.classList.contains('kappe-view-open')
-        || document.body.classList.contains('calculator-modal-open');
+        || document.body.classList.contains('calculator-modal-open')
+        || document.body.classList.contains('timebok-view-open');
 }
 
 // Update toolbar button states based on current view
@@ -1027,6 +1037,12 @@ function navigateBack() {
         }
         return;
     }
+    // From Timebok: autolagrer per dag → ingen ulagret-guard, bare hjem.
+    if (currentId === 'timebok-view') {
+        closeTimebokView();
+        showTemplateModal();
+        return;
+    }
     // From Skjemaer: go back to home. closeModal() is reserved for loading a
     // saved form into the order form.
     if (currentId === 'saved-modal') {
@@ -1858,7 +1874,8 @@ function getSettingsPageTitle(page) {
         'form-service': t('tab_service'),
         'form-kappe': t('kappe_title'),
         templates: t('settings_templates_and_addresses'),
-        materials: t('settings_materials')
+        materials: t('settings_materials'),
+        timebok: t('settings_timebok')
     };
     return titles[page] || '';
 }
@@ -1937,7 +1954,9 @@ function showSettingsPage(page) {
     if (!header.querySelector('.settings-back-btn')) {
         const backBtn = document.createElement('button');
         backBtn.className = 'settings-back-btn';
-        backBtn.innerHTML = '&lsaquo;';
+        // SVG-chevron (samme som .header-back-btn) — geometrisk sentrert, i motsetning
+        // til tekst-glyfen ‹ som satt optisk for høyt i headeren.
+        backBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
         backBtn.onclick = showSettingsMenu;
         header.insertBefore(backBtn, header.firstChild);
     }
@@ -2061,6 +2080,211 @@ function showSettingsPage(page) {
             _sortSettingsMaterials(settingsMaterials);
             renderMaterialSettingsItems();
         });
+    } else if (page === 'timebok') {
+        _loadTimebokTimesatsSetting();
+        renderTimebokTimeTypeSettings();
+        renderTimebokBracketSettings();
+        renderTimebokProjectSettings();
+    }
+}
+
+// ── Timebok-innstillinger ───────────────────────────────────────────────────
+function _syncTimebokSetting(localKey, fbDoc, data) {
+    safeSetItem(localKey, JSON.stringify(data));
+    if (typeof enqueueUserDocSet === 'function') enqueueUserDocSet('settings', fbDoc, data, 'Sync ' + fbDoc);
+}
+function _timebokSaveTimeTypes(list) { _syncTimebokSetting(TIMEBOK_TIMETYPES_KEY, 'timebok_timetypes', { list: list }); }
+function _timebokSaveBrackets(list) { _syncTimebokSetting(TIMEBOK_BRACKETS_KEY, 'timebok_travel_brackets', { list: list }); }
+function _timebokSaveProjects(list) { _syncTimebokSetting(TIMEBOK_PROJECTS_KEY, 'timebok_projects', { list: list }); }
+function _timebokGenId(prefix) { return prefix + '_' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36); }
+
+function _loadTimebokTimesatsSetting() {
+    var inp = document.getElementById('settings-timebok-timesats');
+    if (inp) inp.value = formatLocaleNum(getTimebokTimesats(), 2);
+}
+function saveTimebokTimesats() {
+    var inp = document.getElementById('settings-timebok-timesats');
+    var v = inp ? parseLocaleNum(inp.value) : NaN;
+    _syncTimebokSetting(TIMEBOK_SETTINGS_KEY, 'timebok_settings', { timesats: isNaN(v) ? null : v });
+}
+
+// Tidstyper
+function renderTimebokTimeTypeSettings() {
+    var c = document.getElementById('settings-timebok-timetype-items');
+    if (!c) return;
+    var list = getTimebokTimeTypes();
+    var cnt = document.getElementById('settings-count-timebok-timetypes');
+    if (cnt) cnt.textContent = list.length ? '(' + list.length + ')' : '';
+    c.innerHTML = list.map(function (tt, i) {
+        var isOt = tt.kind === 'overtime';
+        return '<div class="timebok-setting-row">' +
+            '<span class="timebok-setting-name">' + escapeHtml(tt.label) + '</span>' +
+            '<input type="text" class="timebok-rate-input" inputmode="decimal" pattern="[0-9,.]*" placeholder="kr/t" value="' + escapeHtml(formatLocaleNum(tt.rate, 2)) + '" onchange="updateTimebokTimeTypeRate(' + i + ', this.value)">' +
+            (isOt ? '<input type="text" class="timebok-mult-input" inputmode="decimal" pattern="[0-9,.]*" placeholder="×" value="' + escapeHtml(formatLocaleNum(tt.multiplier, 2)) + '" onchange="updateTimebokTimeTypeMult(' + i + ', this.value)" title="Multiplikator">' : '') +
+            '<button type="button" class="settings-item-delete" onclick="removeTimebokTimeType(' + i + ')" title="Fjern">' + deleteIcon + '</button>' +
+            '</div>';
+    }).join('');
+}
+function addTimebokTimeType() {
+    var inp = document.getElementById('settings-new-timebok-timetype');
+    var name = (inp && inp.value || '').trim();
+    if (!name) { if (inp) inp.focus(); return; }
+    var list = getTimebokTimeTypes();
+    list.push({ id: _timebokGenId('tt'), label: name, kind: 'ordinary', rate: null, multiplier: null });
+    _timebokSaveTimeTypes(list);
+    if (inp) inp.value = '';
+    renderTimebokTimeTypeSettings();
+}
+function updateTimebokTimeTypeRate(i, val) {
+    var list = getTimebokTimeTypes();
+    if (!list[i]) return;
+    var v = parseLocaleNum(val); list[i].rate = isNaN(v) ? null : v;
+    _timebokSaveTimeTypes(list);
+}
+function updateTimebokTimeTypeMult(i, val) {
+    var list = getTimebokTimeTypes();
+    if (!list[i]) return;
+    var v = parseLocaleNum(val); list[i].multiplier = isNaN(v) ? null : v;
+    _timebokSaveTimeTypes(list);
+}
+function removeTimebokTimeType(i) {
+    var list = getTimebokTimeTypes();
+    if (!list[i]) return;
+    list.splice(i, 1);
+    _timebokSaveTimeTypes(list);
+    renderTimebokTimeTypeSettings();
+}
+
+// Reise-tillegg (brackets)
+function renderTimebokBracketSettings() {
+    var c = document.getElementById('settings-timebok-bracket-items');
+    if (!c) return;
+    var list = getTimebokBrackets();
+    var cnt = document.getElementById('settings-count-timebok-brackets');
+    if (cnt) cnt.textContent = list.length ? '(' + list.length + ')' : '';
+    c.innerHTML = list.map(function (b, i) {
+        return '<div class="timebok-setting-row">' +
+            '<span class="timebok-setting-name">' + escapeHtml(b.label) + '</span>' +
+            '<input type="text" class="timebok-rate-input" inputmode="decimal" pattern="[0-9,.]*" placeholder="kr/dag" value="' + escapeHtml(formatLocaleNum(b.rate, 2)) + '" onchange="updateTimebokBracketRate(' + i + ', this.value)">' +
+            '<button type="button" class="settings-item-delete" onclick="removeTimebokBracket(' + i + ')" title="Fjern">' + deleteIcon + '</button>' +
+            '</div>';
+    }).join('');
+}
+function addTimebokBracket() {
+    var inp = document.getElementById('settings-new-timebok-bracket');
+    var name = (inp && inp.value || '').trim();
+    if (!name) { if (inp) inp.focus(); return; }
+    var list = getTimebokBrackets();
+    list.push({ id: _timebokGenId('br'), label: name, rate: null });
+    _timebokSaveBrackets(list);
+    if (inp) inp.value = '';
+    renderTimebokBracketSettings();
+}
+function updateTimebokBracketRate(i, val) {
+    var list = getTimebokBrackets();
+    if (!list[i]) return;
+    var v = parseLocaleNum(val); list[i].rate = isNaN(v) ? null : v;
+    _timebokSaveBrackets(list);
+}
+function removeTimebokBracket(i) {
+    var list = getTimebokBrackets();
+    if (!list[i]) return;
+    list.splice(i, 1);
+    _timebokSaveBrackets(list);
+    renderTimebokBracketSettings();
+    renderTimebokProjectSettings();   // prosjekter kan referere bracketen
+}
+
+// Prosjekter
+function renderTimebokProjectSettings() {
+    var c = document.getElementById('settings-timebok-project-items');
+    if (!c) return;
+    var list = getTimebokProjects();
+    var brackets = getTimebokBrackets();
+    var cnt = document.getElementById('settings-count-timebok-projects');
+    if (cnt) cnt.textContent = list.length ? '(' + list.length + ')' : '';
+    c.innerHTML = list.map(function (p, i) {
+        var opts = '<option value=""' + (!p.bracketId ? ' selected' : '') + '>Ingen reise</option>' +
+            brackets.map(function (b) { return '<option value="' + escapeHtml(b.id) + '"' + (p.bracketId === b.id ? ' selected' : '') + '>' + escapeHtml(b.label) + '</option>'; }).join('');
+        return '<div class="timebok-setting-row">' +
+            '<span class="timebok-setting-name">' + escapeHtml(p.name) + '</span>' +
+            '<select class="timebok-bracket-select" onchange="updateTimebokProjectBracket(' + i + ', this.value)">' + opts + '</select>' +
+            '<button type="button" class="settings-item-delete" onclick="removeTimebokProject(' + i + ')" title="Fjern">' + deleteIcon + '</button>' +
+            '</div>';
+    }).join('');
+}
+// Felles add: returnerer prosjektet (nytt eller eksisterende ved navne-treff).
+function _timebokAddProject(name, source) {
+    name = (name || '').trim();
+    if (!name) return null;
+    var list = getTimebokProjects();
+    for (var i = 0; i < list.length; i++) if (String(list[i].name || '').toLowerCase() === name.toLowerCase()) return list[i];
+    var proj = { id: _timebokGenId('p'), name: name, bracketId: null, source: source || 'manual' };
+    list.push(proj);
+    _timebokSaveProjects(list);
+    return proj;
+}
+function addTimebokProject() {
+    var inp = document.getElementById('settings-new-timebok-project');
+    var name = (inp && inp.value || '').trim();
+    if (!name) { if (inp) inp.focus(); return; }
+    _timebokAddProject(name, 'manual');
+    if (inp) inp.value = '';
+    renderTimebokProjectSettings();
+}
+function updateTimebokProjectBracket(i, bracketId) {
+    var list = getTimebokProjects();
+    if (!list[i]) return;
+    list[i].bracketId = bracketId || null;
+    _timebokSaveProjects(list);
+}
+function removeTimebokProject(i) {
+    var list = getTimebokProjects();
+    if (!list[i]) return;
+    list.splice(i, 1);
+    _timebokSaveProjects(list);
+    renderTimebokProjectSettings();
+}
+// Speil timebok-prosjektlista mot Innstillinger → Prosjekter & lager (maler).
+// KUN maler er kilde — IKKE ordresedler (brukeren vil ikke ha tilfeldige prosjektnavn
+// fra lagrede/arkiverte skjemaer inn her). Legger til nye maler og fjerner tidligere
+// auto-importerte prosjekter som ikke lenger finnes som mal. Manuelle prosjekter (lagt
+// til direkte i timebok) og bracket-koblinger bevares alltid.
+function syncTimebokProjectsFromForms(showFeedback) {
+    var list = getTimebokProjects();
+    // Gyldige mal-navn fra Innstillinger → Prosjekter & lager (TEMPLATE_KEY).
+    var templateNames = {};
+    safeParseJSON(TEMPLATE_KEY, []).forEach(function (f) {
+        var nm = (f && f.prosjektnavn ? String(f.prosjektnavn) : '').trim();
+        if (nm) templateNames[nm.toLowerCase()] = nm;
+    });
+    var hasTemplates = Object.keys(templateNames).length > 0;
+    var changed = false, added = 0, removed = 0;
+    // Fjern gamle auto-importerte prosjekter som ikke er en mal lenger. Behold manuelle.
+    // Sikkerhet: prune ALDRI når mallista er tom/ikke lastet (unngå å tømme lista mens
+    // Firestore-cachen ikke er klar — jf. «aldri overskriv lokal data med tomt svar»).
+    if (hasTemplates) {
+        list = list.filter(function (p) {
+            if (p.source === 'manual') return true;
+            if (templateNames[String(p.name || '').toLowerCase()]) return true;
+            removed++; changed = true;
+            return false;
+        });
+    }
+    // Legg til maler som mangler i lista.
+    var have = {};
+    list.forEach(function (p) { have[String(p.name || '').toLowerCase()] = true; });
+    Object.keys(templateNames).forEach(function (key) {
+        if (have[key]) return;
+        have[key] = true;
+        list.push({ id: _timebokGenId('p'), name: templateNames[key], bracketId: null, source: 'mal' });
+        added++; changed = true;
+    });
+    if (changed) _timebokSaveProjects(list);
+    if (showFeedback) {
+        if (typeof showNotificationModal === 'function')
+            showNotificationModal(added > 0 ? (added + ' ' + t('timebok_projects_added')) : t('timebok_projects_none_new'), added > 0);
+        renderTimebokProjectSettings();
     }
 }
 
@@ -8644,6 +8868,15 @@ function _applyHashNavigation(hash) {
         if (!document.body.classList.contains('calculator-modal-open')) {
             _showCalculatorDirectly();
         }
+    } else if (hash === 'timebok') {
+        if (!document.body.classList.contains('timebok-view-open')) {
+            showView('timebok-view');
+            document.body.classList.add('timebok-view-open');
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open', 'kappe-view-open');
+            if (!_timebokAnchor) _timebokAnchor = new Date();
+            renderTimebok();
+            updateToolbarState();
+        }
     } else {
         // No hash = home = template modal
         showTemplateModal();
@@ -8659,6 +8892,7 @@ function _viewIdForHash(hash) {
     if (hash === 'service') return 'service-view';
     if (hash === 'kappe') return 'kappe-view';
     if (hash === 'calc') return 'calculator-modal';
+    if (hash === 'timebok') return 'timebok-view';
     return 'template-modal';
 }
 
@@ -8793,6 +9027,600 @@ function _showCalculatorDirectly() {
     if (mb) { mb.style.overflow = ''; mb.classList.remove('calc-body-fixed'); }
     if (typeof _swStopTicker === 'function') _swStopTicker();
     updateToolbarState();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  TIMEBOK
+// ════════════════════════════════════════════════════════════════════════════
+var _timebokViewMode = 'week';      // 'week' | 'day'
+var _timebokAnchor = null;          // Date — uke-mode: dag i uka; dag-mode: selve dagen
+var _timebokPickerTarget = null;    // element picker-en skriver til (kode-rad el. prosjekt-blokk)
+var _timebokPickerKind = null;      // 'type' | 'project'
+var _timebokSaveTimers = {};
+
+function _timebokKr(n) {
+    if (n == null) return '—';
+    return 'kr ' + formatLocaleNum(Math.round(n), 0);
+}
+
+// ── Cache ──
+function _timebokGetCache() { return safeParseJSON(TIMEBOK_STORAGE_KEY, []) || []; }
+function _timebokSetCache(arr) { safeSetItem(TIMEBOK_STORAGE_KEY, JSON.stringify(arr || [])); }
+function _timebokSortDesc(arr) {
+    return arr.sort(function (a, b) { var ka = a.id || a.date, kb = b.id || b.date; return kb < ka ? -1 : (kb > ka ? 1 : 0); });
+}
+function _timebokMergeDaysToCache(days) {
+    var byId = {};
+    _timebokGetCache().forEach(function (d) { byId[d.id || d.date] = d; });
+    (days || []).forEach(function (d) { byId[d.id || d.date] = d; });
+    var merged = Object.keys(byId).map(function (k) { return byId[k]; });
+    _timebokSortDesc(merged);
+    if (merged.length > 60) merged = merged.slice(0, 60);
+    _timebokSetCache(merged);
+}
+function _timebokDaysInRange(range) {
+    return _timebokSortDesc(_timebokGetCache().filter(function (d) {
+        var id = d.id || d.date; return id >= range.start && id <= range.end;
+    }));
+}
+
+// ── Periode (uke = man→søn rundt anchor) ──
+function _timebokPeriodRange() {
+    var a = _timebokAnchor || new Date();
+    var day = a.getDay();                      // 0=søn..6=lør
+    var diffToMon = (day === 0 ? -6 : 1 - day);
+    var mon = new Date(a.getFullYear(), a.getMonth(), a.getDate() + diffToMon);
+    var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+    return { start: _timebokDateId(mon), end: _timebokDateId(sun) };
+}
+// Kort dag-header: «Man 29. juni»
+function _timebokDayHeaderLabel(id) {
+    var d = _timebokParseId(id);
+    if (!d) return String(id || '');
+    var sh = ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'][d.getDay()];
+    return sh + ' ' + _timebokDayParts(id).date;
+}
+function _timebokRenderPeriodHeader() {
+    var a = _timebokAnchor || new Date();
+    var todayId = _timebokTodayId();
+    var label, isCurrent;
+    if (_timebokViewMode === 'day') {
+        label = _timebokDayHeaderLabel(_timebokDateId(a));
+        isCurrent = (_timebokDateId(a) === todayId);
+    } else {
+        var range = _timebokPeriodRange();
+        var mon = _timebokParseId(range.start), sun = _timebokParseId(range.end);
+        label = 'Uke ' + getWeekNumber(a) + ' · ' + _timebokShortDate(mon) + ' – ' + _timebokShortDate(sun);
+        isCurrent = (todayId >= range.start && todayId <= range.end);
+    }
+    var el = document.getElementById('timebok-period-label');
+    if (el) el.textContent = label;
+    // Highlight header-tittelen KUN når perioden som vises er den nåværende
+    // (uken/dagen som inneholder i dag). Navigerer man vekk → nøytral (hvit) tittel.
+    var headerEl = document.getElementById('timebok-header');
+    if (headerEl) headerEl.classList.toggle('tb-current-period', isCurrent);
+    var titleEl = document.getElementById('tb-summary-title');
+    if (titleEl) titleEl.textContent = t('timebok_summary_title');
+}
+// Alle dato-IDer i uka (man→søn).
+function _timebokDateIdsInRange(range) {
+    var ids = [], d = _timebokParseId(range.start), end = _timebokParseId(range.end);
+    if (!d || !end) return ids;
+    while (d <= end) {
+        ids.push(_timebokDateId(d));
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    }
+    return ids;
+}
+function timebokShiftPeriod(dir) {
+    if (!_timebokAnchor) _timebokAnchor = new Date();
+    var d = new Date(_timebokAnchor.getTime());
+    d.setDate(d.getDate() + dir * (_timebokViewMode === 'day' ? 1 : 7));
+    _timebokAnchor = d;
+    renderTimebok();
+}
+// Venstre-knapp i header: veksle mellom dag- og ukevisning.
+function timebokToggleViewMode() {
+    _timebokViewMode = (_timebokViewMode === 'week') ? 'day' : 'week';
+    if (_timebokViewMode === 'day' && !_timebokAnchor) _timebokAnchor = new Date();
+    renderTimebok();
+}
+// Midt i header / meny: hopp til i dag (og dagens uke).
+function timebokGoToday() {
+    _timebokAnchor = new Date();
+    renderTimebok();
+}
+// Klikk på et dag-kort i ukevisning → åpne dagsvisning for den dagen.
+function timebokOpenDay(dateId) {
+    var d = _timebokParseId(dateId);
+    if (d) _timebokAnchor = d;
+    _timebokViewMode = 'day';
+    renderTimebok();
+}
+// ── Hamburger-meny ──
+function timebokToggleMenu(ev) {
+    if (ev) ev.stopPropagation();
+    var m = document.getElementById('timebok-menu');
+    if (!m) return;
+    var open = m.classList.toggle('open');
+    if (open) {
+        setTimeout(function () { document.addEventListener('click', _timebokMenuOutside, true); }, 0);
+    }
+}
+function timebokCloseMenu() {
+    var m = document.getElementById('timebok-menu');
+    if (m) m.classList.remove('open');
+    document.removeEventListener('click', _timebokMenuOutside, true);
+}
+function _timebokMenuOutside(e) {
+    var m = document.getElementById('timebok-menu');
+    if (m && !m.contains(e.target) && !e.target.closest('.tb-head-menu')) timebokCloseMenu();
+}
+
+// ── Navigasjon ──
+function showTimebok() {
+    if (isOnFormPage() && hasUnsavedChanges()) {
+        showConfirmModal(t('unsaved_warning'), _showTimebokDirectly, t('btn_continue'), '#E8501A');
+        return;
+    }
+    _showTimebokDirectly();
+}
+function _showTimebokDirectly() {
+    closeAllModals();
+    window.location.hash = 'timebok';
+    showView('timebok-view');
+    document.body.classList.add('timebok-view-open');
+    if (!_timebokAnchor) _timebokAnchor = new Date();
+    renderTimebok();
+    updateToolbarState();
+}
+function closeTimebokView() {
+    document.body.classList.remove('timebok-view-open');
+}
+
+// ── Rendering: dispatcher (uke vs dag) ──
+function renderTimebok() {
+    if (!_timebokAnchor) _timebokAnchor = new Date();
+    timebokCloseMenu();
+    var view = document.getElementById('timebok-view');
+    var weekEl = document.getElementById('timebok-week');
+    var dayEl = document.getElementById('timebok-day');
+    var isDay = (_timebokViewMode === 'day');
+    if (view) { view.classList.toggle('tb-mode-day', isDay); view.classList.toggle('tb-mode-week', !isDay); }
+    if (weekEl) weekEl.style.display = isDay ? 'none' : '';
+    if (dayEl) dayEl.style.display = isDay ? '' : 'none';
+    _timebokRenderPeriodHeader();
+    if (isDay) renderTimebokDay(); else renderTimebokWeek();
+    if (typeof applyTranslations === 'function') applyTranslations();
+}
+
+// ════ UKEVISNING ════
+function renderTimebokWeek() {
+    var range = _timebokPeriodRange();
+    var stored = {};
+    _timebokDaysInRange(range).forEach(function (d) { stored[d.id || d.date] = d; });
+    var container = document.getElementById('timebok-days');
+    if (!container) return;
+    container.innerHTML = '';
+    _timebokDateIdsInRange(range).forEach(function (id) {
+        container.appendChild(createTimebokWeekCard(stored[id] || { date: id }, id));
+    });
+    recalcTimebokWeekSummary();
+}
+// Dag-kort i ukevisning = navigerbart sammendrag (ikke inline-editor).
+function createTimebokWeekCard(dayDoc, dateId) {
+    var parts = _timebokDayParts(dateId);
+    var timesats = getTimebokTimesats();
+    var hours = _timebokDayHours(dayDoc);
+    var wage = _timebokDayWage(dayDoc, timesats);
+    var hasData = _timebokDayHasData(dayDoc);
+    var card = document.createElement('div');
+    card.className = 'timebok-day-card nav' + (parts.isWeekend ? ' weekend' : '') + (parts.isToday ? ' today' : '');
+    card.setAttribute('data-date', dateId);
+    card.setAttribute('onclick', "timebokOpenDay('" + dateId + "')");
+    var totalTxt = hasData ? (formatLocaleNum(hours, 1) + ' t' + (wage != null ? ' · ' + _timebokKr(wage) : '')) : '';
+    var summary;
+    if (!hasData) summary = '<div class="timebok-day-summary empty">' + escapeHtml(t('timebok_no_entries')) + '</div>';
+    else {
+        var nLines = _timebokDayLines(dayDoc).length;
+        var travel = _timebokDayTravelComp(dayDoc);
+        var s = nLines + ' ' + (nLines === 1 ? t('timebok_line_one') : t('timebok_line_many')) + ' · ' + formatLocaleNum(hours, 1) + ' t';
+        if (travel != null && travel > 0) s += ' · ' + t('timebok_day_travel') + ' ' + _timebokKr(travel);
+        summary = '<div class="timebok-day-summary">' + escapeHtml(s) + '</div>';
+    }
+    card.innerHTML =
+        '<div class="timebok-day-header">' +
+            '<div class="timebok-day-datecol">' +
+                '<div class="timebok-day-dateline">' +
+                    '<span class="timebok-day-date">' + escapeHtml(parts.date) + '</span>' +
+                    (parts.isToday ? '<span class="timebok-day-today">' + escapeHtml(t('timebok_today')) + '</span>' : '') +
+                '</div>' +
+                '<span class="timebok-day-weekday">' + escapeHtml(parts.weekday) + '</span>' +
+            '</div>' +
+            '<span class="timebok-day-total">' + (totalTxt ? '<b>' + escapeHtml(totalTxt) + '</b>' : '') + '</span>' +
+            '<span class="timebok-day-arrow">&#8250;</span>' +
+        '</div>' + summary;
+    return card;
+}
+function recalcTimebokWeekSummary() {
+    var range = _timebokPeriodRange();
+    var s = _timebokPeriodSummary(_timebokDaysInRange(range));
+    var setT = function (id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+    setT('tb-sum-hours', formatLocaleNum(s.hours, 1) + ' t');
+    setT('tb-sum-wage', s.wage != null ? _timebokKr(s.wage) : '—');
+    setT('tb-sum-travel', s.travel != null ? _timebokKr(s.travel) : '—');
+    setT('tb-sum-receipts', s.receipts != null ? _timebokKr(s.receipts) : '—');
+    setT('tb-sum-days', String(s.days));
+    setT('tb-sum-total', s.total != null ? _timebokKr(s.total) : '—');
+    var subEl = document.getElementById('tb-sum-sub');
+    if (subEl) {
+        var ts = getTimebokTimesats();
+        subEl.textContent = (ts != null)
+            ? t('timebok_calc_with') + ' ' + _timebokKr(ts) + ' ' + t('timebok_per_hour')
+            : t('timebok_rates_unset');
+    }
+}
+
+// ════ DAGSVISNING ════
+function renderTimebokDay() {
+    var dateId = _timebokDateId(_timebokAnchor);
+    var doc = null, cache = _timebokGetCache();
+    for (var i = 0; i < cache.length; i++) if ((cache[i].id || cache[i].date) === dateId) { doc = cache[i]; break; }
+    doc = _timebokNormalizeDoc(doc, dateId);
+    var pc = document.getElementById('timebok-day-projects');
+    if (pc) {
+        pc.innerHTML = '';
+        var blocks = doc.projects.length ? doc.projects : [{ projectId: '', name: '', codes: [] }];
+        blocks.forEach(function (p) { pc.appendChild(createTimebokProjectBlock(p)); });
+    }
+    var rc = document.getElementById('timebok-receipts-list');
+    if (rc) {
+        rc.innerHTML = '';
+        (doc.receipts || []).forEach(function (r) { rc.appendChild(createTimebokReceiptRow(r)); });
+    }
+    _timebokUpdateDayTotals();
+    _timebokSetSaveStatus('saved');
+}
+// Normaliser eldre (lines) → ny modell (projects/receipts) for redigering.
+function _timebokNormalizeDoc(doc, dateId) {
+    if (!doc) return { date: dateId, projects: [], receipts: [] };
+    if (Array.isArray(doc.projects)) {
+        return {
+            date: dateId,
+            projects: doc.projects.map(function (p) {
+                return { projectId: p.projectId || '', name: p.name || '', codes: (p.codes || []).map(function (c) { return { typeId: c.typeId || '', hours: c.hours }; }) };
+            }),
+            receipts: (doc.receipts || []).map(function (r) { return { label: r.label || '', amount: r.amount }; })
+        };
+    }
+    var byProj = {}, order = [];
+    (doc.lines || []).forEach(function (l) {
+        var key = (l.projectId || '') + '|' + (l.project || '');
+        if (!byProj[key]) { byProj[key] = { projectId: l.projectId || '', name: l.project || '', codes: [] }; order.push(key); }
+        byProj[key].codes.push({ typeId: l.timeType || '', hours: l.hours });
+    });
+    return { date: dateId, projects: order.map(function (k) { return byProj[k]; }), receipts: [] };
+}
+
+function createTimebokProjectBlock(proj) {
+    proj = proj || { projectId: '', name: '', codes: [] };
+    var block = document.createElement('div');
+    block.className = 'timebok-project-block';
+    block.setAttribute('data-project-id', proj.projectId || '');
+    block.setAttribute('data-name', proj.name || '');
+    block.innerHTML =
+        '<div class="timebok-pb-head">' +
+            '<span class="timebok-pb-label">' + escapeHtml(t('timebok_project')) + ' <span class="timebok-req">*</span></span>' +
+            '<button type="button" class="timebok-pb-remove" onclick="removeTimebokProjectBlock(this)" aria-label="Fjern">&times;</button>' +
+        '</div>' +
+        '<div class="timebok-pb-selectrow">' +
+            '<button type="button" class="timebok-project-select' + (proj.name ? ' filled' : '') + '" onclick="openTimebokProjectPicker(this)">' +
+                '<span class="timebok-project-name">' + escapeHtml(proj.name || t('timebok_no_project')) + '</span>' +
+                '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+            '</button>' +
+            '<button type="button" class="timebok-pb-add" onclick="openTimebokProjectPickerAdd(this)" aria-label="Nytt prosjekt">+</button>' +
+        '</div>' +
+        '<div class="timebok-pb-hint">' + escapeHtml(t('timebok_code_hint')) + '</div>' +
+        '<div class="timebok-pb-codes-head">' +
+            '<span class="timebok-pb-codes-label">' + escapeHtml(t('timebok_codes')) + '</span>' +
+            '<button type="button" class="timebok-add-code-btn" onclick="addTimebokCode(this)">' + escapeHtml(t('timebok_add_code')) + '</button>' +
+        '</div>' +
+        '<div class="timebok-codes"></div>';
+    var codesC = block.querySelector('.timebok-codes');
+    (proj.codes || []).forEach(function (c) { codesC.appendChild(createTimebokCodeRow(c)); });
+    return block;
+}
+function createTimebokCodeRow(code) {
+    code = code || {};
+    var type = _timebokTypeById(code.typeId);
+    var label = type ? type.label : '';
+    var row = document.createElement('div');
+    row.className = 'timebok-code-row';
+    row.innerHTML =
+        '<button type="button" class="timebok-pick timebok-pick-type' + (label ? ' filled' : '') + '" onclick="openTimebokTypePicker(this)">' + (label ? escapeHtml(label) : escapeHtml(t('timebok_pick_type'))) + '</button>' +
+        '<div class="timebok-code-val">' +
+            '<input type="text" class="timebok-hours" inputmode="decimal" pattern="[0-9,.]*" placeholder="0,0" value="' + (code.hours != null && code.hours !== '' ? escapeHtml(formatLocaleNum(code.hours, 2)) : '') + '" oninput="_timebokOnDayInput()">' +
+            '<span class="timebok-code-unit">' + escapeHtml(_timebokUnitForType(code.typeId)) + '</span>' +
+        '</div>' +
+        '<button type="button" class="timebok-line-remove" onclick="removeTimebokCode(this)" aria-label="Fjern">&times;</button>' +
+        '<input type="hidden" class="timebok-code-type-id" value="' + escapeHtml(code.typeId || '') + '">';
+    return row;
+}
+function createTimebokReceiptRow(rec) {
+    rec = rec || {};
+    var row = document.createElement('div');
+    row.className = 'timebok-receipt-row';
+    row.innerHTML =
+        '<input type="text" class="timebok-receipt-label" placeholder="' + escapeHtml(t('timebok_receipt_label_ph')) + '" value="' + escapeHtml(rec.label || '') + '" oninput="_timebokOnDayInput()">' +
+        '<div class="timebok-code-val">' +
+            '<input type="text" class="timebok-receipt-amount" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" value="' + (rec.amount != null && rec.amount !== '' ? escapeHtml(formatLocaleNum(rec.amount, 2)) : '') + '" oninput="_timebokOnDayInput()">' +
+            '<span class="timebok-code-unit">kr</span>' +
+        '</div>' +
+        '<button type="button" class="timebok-line-remove" onclick="removeTimebokReceipt(this)" aria-label="Fjern">&times;</button>';
+    return row;
+}
+function _timebokUnitForType(typeId) {
+    var type = _timebokTypeById(typeId);
+    if (!type) return 't';
+    if (type.kind === 'km') return 'km';
+    if (type.kind === 'supplement') return 'kr';
+    return 't';
+}
+
+// Les dagsvisning fra DOM → dag-doc (ny modell).
+function _timebokReadDayView() {
+    var dateId = _timebokDateId(_timebokAnchor);
+    var projects = [];
+    document.querySelectorAll('#timebok-day-projects .timebok-project-block').forEach(function (block) {
+        var projectId = block.getAttribute('data-project-id') || '';
+        var name = block.getAttribute('data-name') || '';
+        var codes = [];
+        block.querySelectorAll('.timebok-code-row').forEach(function (row) {
+            var typeId = (row.querySelector('.timebok-code-type-id') || {}).value || '';
+            var rawH = (row.querySelector('.timebok-hours') || {}).value || '';
+            if (!typeId && !String(rawH).trim()) return;
+            var h = parseLocaleNum(rawH);
+            codes.push({ typeId: typeId, hours: isNaN(h) ? 0 : h });
+        });
+        if (!codes.length) return; // prosjekt uten koder → ikke lagre
+        projects.push({ projectId: projectId, name: name, codes: codes });
+    });
+    var receipts = [];
+    document.querySelectorAll('#timebok-receipts-list .timebok-receipt-row').forEach(function (row) {
+        var label = (row.querySelector('.timebok-receipt-label') || {}).value || '';
+        var rawA = (row.querySelector('.timebok-receipt-amount') || {}).value || '';
+        if (!String(label).trim() && !String(rawA).trim()) return;
+        var a = parseLocaleNum(rawA);
+        receipts.push({ label: String(label).trim(), amount: isNaN(a) ? 0 : a });
+    });
+    return { date: dateId, projects: projects, receipts: receipts, savedAt: new Date().toISOString() };
+}
+function _timebokUpdateDayTotals() {
+    var doc = _timebokReadDayView();
+    var timesats = getTimebokTimesats();
+    var setT = function (id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+    setT('tb-day-hours', formatLocaleNum(_timebokDayHours(doc), 1) + ' t');
+    var wage = _timebokDayWage(doc, timesats), travel = _timebokDayTravelComp(doc), rec = _timebokDayReceipts(doc), total = _timebokDayTotal(doc, timesats);
+    setT('tb-day-wage', wage != null ? _timebokKr(wage) : '—');
+    setT('tb-day-travel', travel != null ? _timebokKr(travel) : '—');
+    setT('tb-day-receipts', rec != null ? _timebokKr(rec) : '—');
+    setT('tb-day-total', total != null ? _timebokKr(total) : '—');
+    var blocks = document.querySelectorAll('#timebok-day-projects .timebok-project-block');
+    blocks.forEach(function (block) {
+        var hasCodes = block.querySelectorAll('.timebok-code-row').length > 0;
+        var hint = block.querySelector('.timebok-pb-hint');
+        if (hint) hint.style.display = hasCodes ? 'none' : '';
+        var rm = block.querySelector('.timebok-pb-remove');
+        // Alltid synlig, men disabled når det bare er én prosjekt-blokk (kan ikke fjerne
+        // den siste). Foretrukket framfor å skjule den helt.
+        if (rm) rm.disabled = (blocks.length <= 1);
+    });
+}
+function _timebokOnDayInput() {
+    _timebokUpdateDayTotals();
+    _timebokSetSaveStatus('saving');
+    _scheduleTimebokSave(_timebokDateId(_timebokAnchor));
+}
+function _timebokSetSaveStatus(state) {
+    var btn = document.getElementById('timebok-save-status');
+    if (!btn) return;
+    btn.classList.toggle('saving', state === 'saving');
+    var span = btn.querySelector('span');
+    if (span) span.textContent = (state === 'saving') ? t('timebok_saving') : t('timebok_saved');
+}
+
+// ── Legg til / fjern prosjekt-blokk, kode, kvittering ──
+function addTimebokProjectBlock() {
+    var pc = document.getElementById('timebok-day-projects');
+    if (!pc) return;
+    var block = createTimebokProjectBlock({ projectId: '', name: '', codes: [] });
+    pc.appendChild(block);
+    _timebokUpdateDayTotals();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    block.scrollIntoView({ block: 'nearest' });
+}
+function removeTimebokProjectBlock(btn) {
+    var block = btn.closest('.timebok-project-block');
+    var pc = document.getElementById('timebok-day-projects');
+    if (!block || !pc) return;
+    block.remove();
+    if (!pc.querySelector('.timebok-project-block')) pc.appendChild(createTimebokProjectBlock({ projectId: '', name: '', codes: [] }));
+    _timebokOnDayInput();
+}
+function addTimebokCode(btn) {
+    var block = btn.closest('.timebok-project-block');
+    var codesC = block.querySelector('.timebok-codes');
+    var row = createTimebokCodeRow({});
+    codesC.appendChild(row);
+    _timebokUpdateDayTotals();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
+}
+function removeTimebokCode(btn) {
+    var row = btn.closest('.timebok-code-row');
+    if (row) row.remove();
+    _timebokOnDayInput();
+}
+function addTimebokReceipt() {
+    var rc = document.getElementById('timebok-receipts-list');
+    if (!rc) return;
+    var row = createTimebokReceiptRow({});
+    rc.appendChild(row);
+    _timebokUpdateDayTotals();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
+}
+function removeTimebokReceipt(btn) {
+    var row = btn.closest('.timebok-receipt-row');
+    if (row) row.remove();
+    _timebokOnDayInput();
+}
+
+// ── Pickere ──
+function openTimebokTypePicker(btn) {
+    _timebokPickerTarget = btn.closest('.timebok-code-row');
+    _timebokPickerKind = 'type';
+    var listEl = document.getElementById('timebok-type-list');
+    var types = getTimebokTimeTypes();
+    var html = '';
+    types.forEach(function (tt) {
+        html += '<button type="button" class="plan-popup-row" data-id="' + escapeHtml(tt.id) + '" data-label="' + escapeHtml(tt.label) + '" onclick="_selectTimebokType(this)">' +
+            '<span class="plan-popup-name">' + escapeHtml(tt.label) + '</span></button>';
+    });
+    listEl.innerHTML = html;
+    document.getElementById('timebok-type-popup').classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+function _selectTimebokType(btn) {
+    var id = btn.getAttribute('data-id'), label = btn.getAttribute('data-label');
+    var row = _timebokPickerTarget;
+    if (row) {
+        var tb = row.querySelector('.timebok-pick-type');
+        tb.textContent = label; tb.classList.add('filled');
+        row.querySelector('.timebok-code-type-id').value = id;
+        var unitEl = row.querySelector('.timebok-code-unit');
+        if (unitEl) unitEl.textContent = _timebokUnitForType(id);
+        _timebokOnDayInput();
+    }
+    closeTimebokTypePicker();
+}
+function closeTimebokTypePicker() {
+    var p = document.getElementById('timebok-type-popup');
+    if (p) p.classList.remove('active');
+    _timebokPickerTarget = null;
+}
+
+function openTimebokProjectPicker(btn) {
+    _timebokPickerTarget = btn.closest('.timebok-project-block');
+    _timebokPickerKind = 'project';
+    // Slå sammen prosjekter fra maler (Innstillinger → Prosjekter & lager) inn i
+    // timebok-lista HVER gang picker-en åpnes — ikke bare ved innlogging. Ellers viser
+    // picker-en tom liste selv om brukeren har prosjekter i innstillingene.
+    // Leser localStorage (cache-first) → funker offline og uten ny innlogging.
+    if (typeof syncTimebokProjectsFromForms === 'function') syncTimebokProjectsFromForms();
+    var search = document.getElementById('timebok-project-search');
+    if (search) search.value = '';
+    _timebokRenderProjectPickerList();
+    document.getElementById('timebok-project-popup').classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+// «+»-knappen ved siden av prosjekt-feltet: åpner dedikert hurtig-legg-til-popup
+// (ikke velg-popup). Selve velg-popup-en er ren utvelging + søk.
+function openTimebokProjectPickerAdd(btn) {
+    _timebokPickerTarget = btn.closest('.timebok-project-block');
+    var inp = document.getElementById('timebok-new-project');
+    if (inp) inp.value = '';
+    document.getElementById('timebok-addproject-popup').classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (inp) setTimeout(function () { inp.focus(); }, 50);
+}
+function _timebokFilterProjectPickerList() { _timebokRenderProjectPickerList(); }
+function _timebokRenderProjectPickerList() {
+    var listEl = document.getElementById('timebok-project-list');
+    if (!listEl) return;
+    var projects = getTimebokProjects();
+    var brackets = getTimebokBrackets();
+    var searchEl = document.getElementById('timebok-project-search');
+    var q = (searchEl && searchEl.value || '').trim().toLowerCase();
+    var filtered = q ? projects.filter(function (p) { return String(p.name || '').toLowerCase().indexOf(q) !== -1; }) : projects;
+    var html = '';
+    filtered.forEach(function (p) {
+        var brLabel = '';
+        if (p.bracketId) for (var i = 0; i < brackets.length; i++) if (brackets[i].id === p.bracketId) { brLabel = brackets[i].label; break; }
+        html += '<button type="button" class="plan-popup-row" data-id="' + escapeHtml(p.id) + '" data-name="' + escapeHtml(p.name) + '" onclick="_selectTimebokProject(this)">' +
+            '<span class="plan-popup-name">' + escapeHtml(p.name) + '</span>' +
+            (brLabel ? '<span class="plan-popup-sub">' + escapeHtml(brLabel) + '</span>' : '') + '</button>';
+    });
+    if (!filtered.length) {
+        // Skille «ingen prosjekter i det hele tatt» fra «ingen treff på søk».
+        var msg = projects.length ? t('timebok_no_project_matches') : t('timebok_no_projects');
+        html = '<div class="timebok-picker-empty">' + escapeHtml(msg) + '</div>';
+    }
+    listEl.innerHTML = html;
+}
+function _timebokSetProjectOnBlock(block, id, name) {
+    if (!block) return;
+    block.setAttribute('data-project-id', id || '');
+    block.setAttribute('data-name', name || '');
+    var sel = block.querySelector('.timebok-project-select');
+    var nm = block.querySelector('.timebok-project-name');
+    if (nm) nm.textContent = name || t('timebok_no_project');
+    if (sel) sel.classList.toggle('filled', !!name);
+}
+function _selectTimebokProject(btn) {
+    var id = btn.getAttribute('data-id'), name = btn.getAttribute('data-name') || '';
+    if (_timebokPickerTarget) { _timebokSetProjectOnBlock(_timebokPickerTarget, id, name); _timebokOnDayInput(); }
+    closeTimebokProjectPicker();
+}
+// Hurtig-legg-til fra «+»-popupen: opprett manuelt prosjekt og sett det direkte på blokka.
+function addTimebokProjectInline() {
+    var inp = document.getElementById('timebok-new-project');
+    var name = (inp && inp.value || '').trim();
+    if (!name) { if (inp) inp.focus(); return; }
+    var proj = _timebokAddProject(name, 'manual');   // returnerer prosjektet (nytt el. eksisterende)
+    if (inp) inp.value = '';
+    if (_timebokPickerTarget && proj) { _timebokSetProjectOnBlock(_timebokPickerTarget, proj.id, proj.name); _timebokOnDayInput(); }
+    closeTimebokAddProject();
+}
+function closeTimebokAddProject() {
+    var p = document.getElementById('timebok-addproject-popup');
+    if (p) p.classList.remove('active');
+    _timebokPickerTarget = null;
+}
+function closeTimebokProjectPicker() {
+    var p = document.getElementById('timebok-project-popup');
+    if (p) p.classList.remove('active');
+    _timebokPickerTarget = null;
+}
+
+// ── Lagring (autolagre dag, debounced) ──
+function _scheduleTimebokSave(dateId) {
+    if (!dateId) return;
+    if (_timebokSaveTimers[dateId]) clearTimeout(_timebokSaveTimers[dateId]);
+    _timebokSaveTimers[dateId] = setTimeout(function () { delete _timebokSaveTimers[dateId]; saveTimebokDay(dateId); }, 600);
+}
+function saveTimebokDay(dateId) {
+    if (_timebokViewMode !== 'day' || _timebokDateId(_timebokAnchor) !== dateId) return;
+    var doc = _timebokReadDayView();
+    var hasData = (doc.projects && doc.projects.length) || (doc.receipts && doc.receipts.length);
+    var cache = _timebokGetCache();
+    var idx = -1;
+    for (var i = 0; i < cache.length; i++) if ((cache[i].id || cache[i].date) === dateId) { idx = i; break; }
+    if (!hasData) {
+        if (idx >= 0) { cache.splice(idx, 1); _timebokSetCache(cache); }
+        _lastLocalSaveTs = Date.now();
+        if (typeof enqueueUserDocDelete === 'function') enqueueUserDocDelete('timebok', dateId, 'Timebok day delete');
+        _timebokSetSaveStatus('saved');
+        return;
+    }
+    doc.id = dateId;
+    if (idx >= 0) cache[idx] = doc; else cache.unshift(doc);
+    _timebokSortDesc(cache);
+    if (cache.length > 60) cache = cache.slice(0, 60);
+    _timebokSetCache(cache);
+    _lastLocalSaveTs = Date.now();
+    if (typeof enqueueUserDocSet === 'function') enqueueUserDocSet('timebok', dateId, doc, 'Timebok save');
+    _timebokSetSaveStatus('saved');
 }
 
 function showCalcPage(page) {

@@ -28,6 +28,29 @@ const KAPPE_DEFAULT_KERF = 2;
 const KAPPE_PLATE_KEY = 'firesafe_kappe_plate';
 const KAPPE_DEFAULT_PLATE = { lengde: 1200, bredde: 1000 };
 const LEVERINGSADRESSE_KEY = 'firesafe_leveringsadresser';
+// ─── Timebok ────────────────────────────────────────────────────────────────
+const TIMEBOK_STORAGE_KEY = 'firesafe_timebok';              // array av dag-docs (cache, 50-vindu)
+const TIMEBOK_SETTINGS_KEY = 'firesafe_timebok_settings';   // { timesats }
+const TIMEBOK_TIMETYPES_KEY = 'firesafe_timebok_timetypes'; // { list }
+const TIMEBOK_BRACKETS_KEY = 'firesafe_timebok_brackets';   // { list }
+const TIMEBOK_PROJECTS_KEY = 'firesafe_timebok_projects';   // { list }
+// Forhåndsfylte tidstyper (blanke satser — fylles fra tariff senere). Tillegg/
+// oppmøte ligger KUN i brackets (under) for å unngå dobbelttelling.
+const TIMEBOK_DEFAULT_TIMETYPES = [
+    { id: 'tt_ordinaer', label: 'Ordinær', kind: 'ordinary', rate: null, multiplier: null },
+    { id: 'tt_overtid50', label: 'Overtid 50%', kind: 'overtime', rate: null, multiplier: 1.5 },
+    { id: 'tt_overtid100', label: 'Overtid 100%', kind: 'overtime', rate: null, multiplier: 2 },
+    { id: 'tt_reisetid', label: 'Reisetid', kind: 'travel', rate: null, multiplier: null },
+    { id: 'tt_km', label: 'Km-godtgjørelse', kind: 'km', rate: null, multiplier: null }
+];
+// Avstands-brackets for reisegodtgjørelse (oppmøtetillegg). Sats per dag/prosjekt.
+const TIMEBOK_DEFAULT_BRACKETS = [
+    { id: 'br_0715', label: '7,5–15 km', rate: null },
+    { id: 'br_1530', label: '15–30 km', rate: null },
+    { id: 'br_3045', label: '30–45 km', rate: null },
+    { id: 'br_4560', label: '45–60 km', rate: null },
+    { id: 'br_6075', label: '60–75 km', rate: null }
+];
 const MIN_INFO_KEY = 'firesafe_min_info';
 const MIN_INFO_FIELDS = ['montor', 'avdeling', 'mobil', 'epost', 'sted'];
 const MIN_INFO_TOGGLES = ['montor', 'avdeling', 'mobil', 'epost', 'sted', 'uke', 'dato'];
@@ -80,6 +103,202 @@ function formatLocaleNum(n, decimals) {
         }
     }
     return s.replace('.', ',');
+}
+
+// ─── Timebok: gettere (cache-først) ─────────────────────────────────────────
+function getTimebokTimesats() {
+    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null);
+    var v = d && d.timesats != null ? parseLocaleNum(d.timesats) : NaN;
+    return isNaN(v) ? null : v;
+}
+function getTimebokTimeTypes() {
+    var d = safeParseJSON(TIMEBOK_TIMETYPES_KEY, null);
+    if (d && Array.isArray(d.list) && d.list.length) return d.list;
+    return TIMEBOK_DEFAULT_TIMETYPES.map(function (t) { return Object.assign({}, t); });
+}
+function getTimebokBrackets() {
+    var d = safeParseJSON(TIMEBOK_BRACKETS_KEY, null);
+    if (d && Array.isArray(d.list) && d.list.length) return d.list;
+    return TIMEBOK_DEFAULT_BRACKETS.map(function (b) { return Object.assign({}, b); });
+}
+function getTimebokProjects() {
+    var d = safeParseJSON(TIMEBOK_PROJECTS_KEY, null);
+    return d && Array.isArray(d.list) ? d.list : [];
+}
+
+// ─── Timebok: oppslag ───────────────────────────────────────────────────────
+function _timebokTypeById(id) {
+    if (!id) return null;
+    var list = getTimebokTimeTypes();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+}
+function _timebokBracketById(id) {
+    if (!id) return null;
+    var list = getTimebokBrackets();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+}
+function _timebokProject(line) {
+    // Match på projectId først (stabil), deretter navn (historiske linjer).
+    var list = getTimebokProjects();
+    var i;
+    if (line && line.projectId) for (i = 0; i < list.length; i++) if (list[i].id === line.projectId) return list[i];
+    var nm = (line && line.project ? String(line.project) : '').toLowerCase();
+    if (nm) for (i = 0; i < list.length; i++) if (String(list[i].name || '').toLowerCase() === nm) return list[i];
+    return null;
+}
+
+// ─── Timebok: beregninger (null = ikke beregnbart → vis «—») ─────────────────
+// Effektiv kr/time for en linje sin tidstype. timesats kan være null.
+function _timebokEffectiveRate(type, timesats) {
+    if (!type) return null;
+    switch (type.kind) {
+        case 'ordinary': return timesats;
+        case 'overtime':
+            if (type.rate != null) return type.rate;
+            if (timesats != null && type.multiplier != null) return timesats * type.multiplier;
+            return null;
+        case 'travel': return type.rate != null ? type.rate : timesats;
+        case 'km': return type.rate;          // kr/km; «hours»-feltet tolkes som km
+        case 'supplement': return type.rate;
+        case 'absence': return null;
+        default: return type.rate != null ? type.rate : timesats;
+    }
+}
+function _timebokLineWage(line, timesats) {
+    if (!line) return null;
+    var type = _timebokTypeById(line.timeType);
+    var r = _timebokEffectiveRate(type, timesats);
+    var h = parseLocaleNum(line.hours);
+    if (r == null || isNaN(h)) return null;
+    return r * h;
+}
+// Normaliser en dag-doc til flat liste pseudo-linjer for time/lønn-math.
+// Ny modell: projects[].codes[] (kode = {typeId, hours}). Eldre modell: lines[].
+function _timebokDayLines(dayDoc) {
+    if (!dayDoc) return [];
+    if (Array.isArray(dayDoc.projects)) {
+        var out = [];
+        dayDoc.projects.forEach(function (p) {
+            (p.codes || []).forEach(function (c) {
+                out.push({ projectId: p.projectId || '', project: p.name || '', timeType: c.typeId, hours: c.hours });
+            });
+        });
+        return out;
+    }
+    return dayDoc.lines || [];
+}
+function _timebokDayWage(dayDoc, timesats) {
+    var total = 0, any = false;
+    _timebokDayLines(dayDoc).forEach(function (l) {
+        var w = _timebokLineWage(l, timesats);
+        if (w != null) { total += w; any = true; }
+    });
+    return any ? total : null;
+}
+// Sum timer (ekskl. km-type — der er «hours» en distanse, ikke timer).
+function _timebokDayHours(dayDoc) {
+    var total = 0;
+    _timebokDayLines(dayDoc).forEach(function (l) {
+        var type = _timebokTypeById(l.timeType);
+        if (type && type.kind === 'km') return;
+        var h = parseLocaleNum(l.hours);
+        if (!isNaN(h)) total += h;
+    });
+    return total;
+}
+// Reisegodtgjørelse for en dag: ÉN gang per distinkt prosjekt med data.
+function _timebokDayTravelComp(dayDoc) {
+    var seen = {}, total = 0, any = false;
+    _timebokDayLines(dayDoc).forEach(function (l) {
+        var key = (l.projectId || l.project || '');
+        if (!key || seen[key]) return;
+        seen[key] = true;
+        var proj = _timebokProject(l);
+        var br = proj && proj.bracketId ? _timebokBracketById(proj.bracketId) : null;
+        if (br && br.rate != null) { total += br.rate; any = true; }
+    });
+    return any ? total : null;
+}
+// Sum kvitteringer (utlegg) for en dag.
+function _timebokDayReceipts(dayDoc) {
+    if (!dayDoc || !Array.isArray(dayDoc.receipts) || !dayDoc.receipts.length) return null;
+    var total = 0, any = false;
+    dayDoc.receipts.forEach(function (r) {
+        var a = parseLocaleNum(r.amount);
+        if (!isNaN(a)) { total += a; any = true; }
+    });
+    return any ? total : null;
+}
+// Dagstotal (utbetaling): lønn + reise + kvitteringer.
+function _timebokDayTotal(dayDoc, timesats) {
+    var w = _timebokDayWage(dayDoc, timesats);
+    var tr = _timebokDayTravelComp(dayDoc);
+    var rc = _timebokDayReceipts(dayDoc);
+    if (w == null && tr == null && rc == null) return null;
+    return (w || 0) + (tr || 0) + (rc || 0);
+}
+// Har dagen noen registrering (linjer eller kvitteringer)?
+function _timebokDayHasData(dayDoc) {
+    return _timebokDayLines(dayDoc).length > 0 ||
+        (dayDoc && Array.isArray(dayDoc.receipts) && dayDoc.receipts.length > 0);
+}
+// Periode-aggregat over flere dag-docs.
+function _timebokPeriodSummary(dayDocs) {
+    var timesats = getTimebokTimesats();
+    var hours = 0, wage = 0, travel = 0, receipts = 0, days = 0;
+    var anyW = false, anyT = false, anyR = false;
+    (dayDocs || []).forEach(function (d) {
+        if (_timebokDayHasData(d)) days++;
+        hours += _timebokDayHours(d);
+        var w = _timebokDayWage(d, timesats); if (w != null) { wage += w; anyW = true; }
+        var t = _timebokDayTravelComp(d); if (t != null) { travel += t; anyT = true; }
+        var r = _timebokDayReceipts(d); if (r != null) { receipts += r; anyR = true; }
+    });
+    var wageV = anyW ? wage : null, travelV = anyT ? travel : null, recV = anyR ? receipts : null;
+    var total = (wageV == null && travelV == null && recV == null) ? null : (wage + travel + receipts);
+    return { hours: hours, wage: wageV, travel: travelV, receipts: recV, total: total, days: days };
+}
+
+// ─── Timebok: dato-hjelpere ─────────────────────────────────────────────────
+function _timebokPad2(n) { return (n < 10 ? '0' : '') + n; }
+function _timebokDateId(dateObj) {
+    var d = dateObj || new Date();
+    return d.getFullYear() + '-' + _timebokPad2(d.getMonth() + 1) + '-' + _timebokPad2(d.getDate());
+}
+function _timebokTodayId() { return _timebokDateId(new Date()); }
+function _timebokParseId(id) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(id || ''));
+    if (!m) return null;
+    return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+}
+// Visning: «Lør 14.06»
+function _timebokFormatDateId(id) {
+    var d = _timebokParseId(id);
+    if (!d) return String(id || '');
+    var dayNames = ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'];
+    return dayNames[d.getDay()] + ' ' + _timebokPad2(d.getDate()) + '.' + _timebokPad2(d.getMonth() + 1);
+}
+var _TIMEBOK_WEEKDAYS_FULL = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
+var _TIMEBOK_MONTHS_FULL = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
+var _TIMEBOK_MONTHS_SHORT = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
+// Kort dato fra Date-objekt: «29. jun»
+function _timebokShortDate(dateObj) {
+    if (!dateObj) return '';
+    return dateObj.getDate() + '. ' + _TIMEBOK_MONTHS_SHORT[dateObj.getMonth()];
+}
+// Deler for dag-kort: { date:'29. juni', weekday:'Mandag', isWeekend, isToday }
+function _timebokDayParts(id) {
+    var d = _timebokParseId(id);
+    if (!d) return { date: String(id || ''), weekday: '', isWeekend: false, isToday: false };
+    var dow = d.getDay();
+    return {
+        date: d.getDate() + '. ' + _TIMEBOK_MONTHS_FULL[d.getMonth()],
+        weekday: _TIMEBOK_WEEKDAYS_FULL[dow],
+        isWeekend: (dow === 0 || dow === 6),
+        isToday: (id === _timebokTodayId())
+    };
 }
 
 // Strip eventuell etternavn fra en montør-streng. Etternavn er placeholder for fremtiden
@@ -1232,6 +1451,7 @@ if (auth) {
              SERVICE_STORAGE_KEY, SERVICE_ARCHIVE_KEY, SERVICE_DEFAULTS_KEY,
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
+             TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY,
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
@@ -1331,6 +1551,18 @@ if (auth) {
                     db.collection('users').doc(user.uid).collection('settings').doc('kappe_plate').get()
                         .then(function(d) { if (d.exists) safeSetItem(KAPPE_PLATE_KEY, JSON.stringify(d.data())); }).catch(function() {})
                 ]).catch(function() {}),
+                // Timebok: siste dager (cache) + innstillinger (timesats/tidstyper/brackets/prosjekter)
+                getTimebokRecentDays().then(function(days) {
+                    if (Array.isArray(days)) safeSetItem(TIMEBOK_STORAGE_KEY, JSON.stringify(days.slice(0, 60)));
+                }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('timebok_settings').get()
+                    .then(function(d) { if (d.exists) safeSetItem(TIMEBOK_SETTINGS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('timebok_timetypes').get()
+                    .then(function(d) { if (d.exists) safeSetItem(TIMEBOK_TIMETYPES_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('timebok_travel_brackets').get()
+                    .then(function(d) { if (d.exists) safeSetItem(TIMEBOK_BRACKETS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('timebok_projects').get()
+                    .then(function(d) { if (d.exists) safeSetItem(TIMEBOK_PROJECTS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                 // Sync min_info, leveringsadresser, plate_size (autofyll-data — må være tilgjengelig før bruker åpner skjema)
                 db.collection('users').doc(user.uid).collection('settings').doc('min_info').get()
                     .then(function(d) { if (d.exists) safeSetItem(MIN_INFO_KEY, JSON.stringify(d.data())); }).catch(function() {}),
@@ -1348,6 +1580,9 @@ if (auth) {
                         }
                     }).catch(function() {})
             ]).then(function() {
+                // Slå sammen prosjektnavn fra ordresedler/maler inn i timebok-prosjektlista
+                // (legger kun til nye; rører aldri manuelle/bracket-koblinger).
+                if (typeof syncTimebokProjectsFromForms === 'function') syncTimebokProjectsFromForms();
                 if (typeof refreshActiveView === 'function') refreshActiveView();
             });
         } else if (wasOnLogin) {
@@ -5022,6 +5257,33 @@ function setServiceFormData(data) {
     });
     renumberServiceEntries();
     updateServiceDeleteStates();
+}
+
+// ─── Timebok: Firestore-henting ─────────────────────────────────────────────
+// Siste N dager (for initial cache). docId = YYYY-MM-DD → sorterbar.
+async function getTimebokRecentDays() {
+    if (currentUser && db) {
+        try {
+            var snapshot = await db.collection('users').doc(currentUser.uid).collection('timebok')
+                .orderBy(firebase.firestore.FieldPath.documentId(), 'desc').limit(60).get();
+            return snapshot.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        } catch (e) { console.error('getTimebokRecentDays error:', e); }
+    }
+    return safeParseJSON(TIMEBOK_STORAGE_KEY, []);
+}
+// Dager innenfor en dato-range (begge inkl., YYYY-MM-DD-strenger).
+async function getTimebokDays(startId, endId) {
+    if (currentUser && db) {
+        try {
+            var fp = firebase.firestore.FieldPath.documentId();
+            var snapshot = await db.collection('users').doc(currentUser.uid).collection('timebok')
+                .orderBy(fp).startAt(startId).endAt(endId).get();
+            return snapshot.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        } catch (e) { console.error('getTimebokDays error:', e); }
+    }
+    return safeParseJSON(TIMEBOK_STORAGE_KEY, []).filter(function (d) {
+        var id = d.id || d.date; return id >= startId && id <= endId;
+    });
 }
 
 // Firebase helpers for service forms

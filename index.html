@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=862">
+    <link rel="stylesheet" href="styles.css?v=873">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -64,7 +64,7 @@
     <div class="container form-view view" id="view-form">
         <div class="modal-content">
             <div class="modal-header" id="form-header">
-                <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <span id="form-header-title" data-i18n="form_title">Ordreseddel</span>
                 <button class="header-save-btn" id="header-save-btn" onclick="saveForm()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
             </div>
@@ -370,7 +370,7 @@
         <div class="modal-content">
             <div class="sticky-header">
                 <div class="modal-header">
-                    <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                    <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <span id="saved-modal-title" data-i18n="modal_load_title">Hent skjema</span>
                     <button class="header-select-btn" id="saved-select-btn" onclick="toggleSelectMode()" data-i18n="btn_select">Velg</button>
                 </div>
@@ -619,7 +619,7 @@
         <div class="modal-content">
             <div class="sticky-header">
                 <div class="modal-header" id="settings-header">
-                    <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                    <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <span id="settings-header-title">Innstillinger</span>
                 </div>
             </div>
@@ -658,6 +658,10 @@
                         </div>
                         <div class="settings-menu-item" onclick="showSettingsPage('materials')">
                             <span data-i18n="settings_materials">Materialer</span>
+                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        </div>
+                        <div class="settings-menu-item" onclick="showSettingsPage('timebok')">
+                            <span data-i18n="settings_timebok">Timebok</span>
                             <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
                         <div class="settings-menu-item" onclick="openLanguagePopup()">
@@ -889,6 +893,54 @@
                     </div>
                 </div>
 
+                <!-- Timebok-innstillinger -->
+                <div id="settings-page-timebok" class="settings-page" style="display:none;">
+                    <div class="settings-static-header">
+                        <span data-i18n="settings_timebok_timesats">Timesats</span>
+                    </div>
+                    <div class="settings-add-row">
+                        <input type="text" id="settings-timebok-timesats" inputmode="decimal" pattern="[0-9,.]*" placeholder="kr/time" onchange="saveTimebokTimesats()">
+                        <span class="timebok-unit-suffix">kr/t</span>
+                    </div>
+
+                    <div class="settings-collapsible-header settings-header-1line" onclick="toggleSettingsSection('timebok-timetypes')" style="margin-top: 16px;">
+                        <span><span data-i18n="settings_timebok_timetypes">Tidstyper</span> <span class="settings-collapsible-count" id="settings-count-timebok-timetypes"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-timebok-timetypes">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-timebok-timetypes">
+                        <div id="settings-timebok-timetype-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-timebok-timetype" autocapitalize="sentences" placeholder="Ny tidstype" onkeydown="if(event.key==='Enter'){event.preventDefault();addTimebokTimeType()}">
+                            <button type="button" class="settings-add-btn" onclick="addTimebokTimeType()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-collapsible-header settings-header-1line" onclick="toggleSettingsSection('timebok-brackets')">
+                        <span><span data-i18n="settings_timebok_brackets">Reise-tillegg (avstand)</span> <span class="settings-collapsible-count" id="settings-count-timebok-brackets"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-timebok-brackets">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-timebok-brackets">
+                        <div id="settings-timebok-bracket-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-timebok-bracket" autocapitalize="sentences" placeholder="f.eks. 75–90 km" onkeydown="if(event.key==='Enter'){event.preventDefault();addTimebokBracket()}">
+                            <button type="button" class="settings-add-btn" onclick="addTimebokBracket()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-collapsible-header settings-header-1line" onclick="toggleSettingsSection('timebok-projects')">
+                        <span><span data-i18n="settings_timebok_projects">Prosjekter</span> <span class="settings-collapsible-count" id="settings-count-timebok-projects"></span></span>
+                        <span class="settings-collapsible-arrow" id="settings-arrow-timebok-projects">&rsaquo;</span>
+                    </div>
+                    <div class="settings-collapsible-body" id="settings-body-timebok-projects">
+                        <button type="button" class="settings-add-btn timebok-sync-projects-btn" onclick="syncTimebokProjectsFromForms(true)" data-i18n="timebok_sync_projects">Hent fra Prosjekter & lager</button>
+                        <div id="settings-timebok-project-items" class="settings-list-container"></div>
+                        <div class="settings-add-row">
+                            <input type="text" id="settings-new-timebok-project" autocapitalize="sentences" placeholder="Nytt prosjekt" onkeydown="if(event.key==='Enter'){event.preventDefault();addTimebokProject()}">
+                            <button type="button" class="settings-add-btn" onclick="addTimebokProject()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                    </div>
+                </div>
+
 
                 <!-- Maler-side -->
                 <div id="settings-page-templates" class="settings-page" style="display:none;">
@@ -936,7 +988,7 @@
     <div class="container service-view view" id="service-view">
         <div class="modal-content">
             <div class="modal-header" id="service-header">
-                <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <span data-i18n="servicebil_title">Servicebil</span>
                 <button class="header-save-btn" id="service-save-btn" onclick="saveServicebilForm()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
             </div>
@@ -1006,7 +1058,7 @@
     <div class="container kappe-view view" id="kappe-view">
         <div class="modal-content">
             <div class="modal-header" id="kappe-header">
-                <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <span data-i18n="kappe_title">Kappeskjema</span>
                 <button class="header-save-btn" id="kappe-save-btn" onclick="saveKappeForm()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
             </div>
@@ -1402,6 +1454,51 @@
         </div>
     </div>
 
+    <!-- Timebok: timetype-picker -->
+    <div class="spec-popup-backdrop" id="timebok-type-popup" onclick="if(event.target===this)closeTimebokTypePicker()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span data-i18n="timebok_pick_type">Velg timetype</span>
+            </div>
+            <div class="spec-popup-body" id="timebok-type-list"></div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeTimebokTypePicker()" data-i18n="btn_cancel">Avbryt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timebok: prosjekt-picker (kun velge + søk; legg-til skjer via + ved prosjekt) -->
+    <div class="spec-popup-backdrop" id="timebok-project-popup" onclick="if(event.target===this)closeTimebokProjectPicker()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span data-i18n="timebok_pick_project">Velg prosjekt</span>
+            </div>
+            <div class="timebok-project-search-wrap">
+                <input type="text" id="timebok-project-search" class="timebok-project-search" data-i18n-placeholder="timebok_search_project" placeholder="Søk prosjekt …" oninput="_timebokFilterProjectPickerList()" autocapitalize="sentences">
+            </div>
+            <div class="spec-popup-body" id="timebok-project-list"></div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeTimebokProjectPicker()" data-i18n="btn_cancel">Avbryt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timebok: nytt prosjekt (hurtig-legg-til via + ved siden av prosjekt) -->
+    <div class="spec-popup-backdrop" id="timebok-addproject-popup" onclick="if(event.target===this)closeTimebokAddProject()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header">
+                <span data-i18n="timebok_new_project_title">Nytt prosjekt</span>
+            </div>
+            <div class="kappe-add-row-buttons">
+                <input type="text" id="timebok-new-project" class="timebok-new-project-input" data-i18n-placeholder="timebok_new_project_title" placeholder="Nytt prosjekt" autocapitalize="sentences">
+                <button type="button" class="kappe-add-kapp-btn" onclick="addTimebokProjectInline()" data-i18n="timebok_new_project">+ Legg til</button>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeTimebokAddProject()" data-i18n="btn_cancel">Avbryt</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Plan picker popup -->
     <div class="spec-popup-backdrop" id="plan-popup" onclick="if(event.target===this)closePlanPicker()">
         <div class="spec-popup-sheet">
@@ -1504,6 +1601,7 @@
             else if (h === 'service') { v = 'service-view'; b = 'service-view-open'; }
             else if (h === 'kappe') { v = 'kappe-view'; b = 'kappe-view-open'; }
             else if (h === 'calc') { v = 'calculator-modal'; b = 'calculator-modal-open'; }
+            else if (h === 'timebok') { v = 'timebok-view'; b = 'timebok-view-open'; }
             else if (h === 'skjema') { v = 'view-form'; }
             else { v = 'template-modal'; b = 'template-modal-open'; }
             // Show cached email immediately
@@ -1550,7 +1648,7 @@
         <div class="modal-content">
             <div class="sticky-header">
                 <div class="modal-header">
-                    <button class="header-back-btn" onclick="navigateBack()">&lsaquo;</button>
+                    <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <span data-i18n="calc_title">Kalkulator</span>
                 </div>
             </div>
@@ -1776,16 +1874,93 @@
     </div>
 
     <!-- Toolbar - alltid sist i DOM for riktig rekkefølge når keyboard er åpen -->
+    <!-- Timebok view -->
+    <div class="container timebok-view view" id="timebok-view">
+        <div class="modal-content">
+          <div class="sticky-header">
+            <!-- Standard app-header (tilbakeknapp + tittel) — lik alle andre views. -->
+            <div class="modal-header" id="timebok-main-header">
+                <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                <span data-i18n="timebok_title">Timebok</span>
+            </div>
+            <!-- Sekundær navigasjonsbar (dag/uke-toggle · ‹ · periode · › · meny) UNDER hoved-headeren. -->
+            <div class="timebok-header-bar" id="timebok-header">
+                <button type="button" class="tb-head-toggle" id="tb-view-toggle" onclick="timebokToggleViewMode()" aria-label="Bytt dag/uke">
+                    <svg class="tb-icon-week" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>
+                    <svg class="tb-icon-day" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="4" y1="9" x2="20" y2="9"/><rect x="7.5" y="12" width="9" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
+                </button>
+                <button type="button" class="tb-head-nav" onclick="timebokShiftPeriod(-1)" aria-label="Forrige"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                <button type="button" class="tb-head-label" onclick="timebokGoToday()"><span id="timebok-period-label">Uke</span></button>
+                <button type="button" class="tb-head-nav" onclick="timebokShiftPeriod(1)" aria-label="Neste"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+                <button type="button" class="tb-head-menu" onclick="timebokToggleMenu(event)" aria-label="Meny">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+                </button>
+                <div class="tb-head-dropdown" id="timebok-menu">
+                    <button type="button" onclick="timebokGoToday();timebokCloseMenu()" data-i18n="timebok_menu_today">Gå til i dag</button>
+                    <button type="button" onclick="timebokCloseMenu();showSettingsModal();showSettingsPage('timebok')" data-i18n="timebok_menu_settings">Innstillinger</button>
+                </div>
+            </div>
+          </div>
+            <div class="mobile-form" id="timebok-form">
+                <!-- UKEVISNING -->
+                <div id="timebok-week">
+                    <div id="timebok-days"></div>
+                    <div class="timebok-summary-card" id="timebok-summary">
+                        <div class="timebok-summary-head">
+                            <span class="timebok-summary-title" id="tb-summary-title">Ukesammendrag</span>
+                            <span class="timebok-summary-badge">FIRESAFE</span>
+                        </div>
+                        <div class="timebok-summary-sub" id="tb-sum-sub"></div>
+                        <div class="timebok-summary-grid">
+                            <div class="timebok-metric"><span data-i18n="timebok_sum_hours">Totale timer</span><b id="tb-sum-hours">—</b></div>
+                            <div class="timebok-metric"><span data-i18n="timebok_sum_wage">Totallønn</span><b id="tb-sum-wage">—</b></div>
+                            <div class="timebok-metric"><span data-i18n="timebok_sum_travel">Reisegodtgjørelse</span><b id="tb-sum-travel">—</b></div>
+                            <div class="timebok-metric"><span data-i18n="timebok_sum_receipts">Kvitteringer</span><b id="tb-sum-receipts">—</b></div>
+                            <div class="timebok-metric tb-metric-total"><span data-i18n="timebok_sum_total">Sum</span><b id="tb-sum-total">—</b></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- DAGSVISNING -->
+                <div id="timebok-day" style="display:none;">
+                    <div id="timebok-day-projects"></div>
+                    <button type="button" class="timebok-add-project" onclick="addTimebokProjectBlock()" data-i18n="timebok_add_project">+ Legg til prosjekt</button>
+                    <div class="timebok-receipts-card">
+                        <div class="timebok-receipts-head">
+                            <span data-i18n="timebok_receipts">Kvitteringer</span>
+                            <button type="button" class="timebok-add-receipt-btn" onclick="addTimebokReceipt()" data-i18n="timebok_add_receipt">+ Legg til kvittering</button>
+                        </div>
+                        <div id="timebok-receipts-list"></div>
+                    </div>
+                    <div class="timebok-summary-card" id="timebok-day-totals">
+                        <div class="timebok-summary-head">
+                            <span class="timebok-summary-title" data-i18n="timebok_day_totals">Dagens totaler</span>
+                            <span class="timebok-summary-badge">FIRESAFE</span>
+                        </div>
+                        <div class="timebok-summary-grid">
+                            <div class="timebok-metric"><span data-i18n="timebok_d_hours">Timer</span><b id="tb-day-hours">—</b></div>
+                            <div class="timebok-metric"><span data-i18n="timebok_d_wage">Lønn</span><b id="tb-day-wage">—</b></div>
+                            <div class="timebok-metric"><span data-i18n="timebok_d_travel">Reise</span><b id="tb-day-travel">—</b></div>
+                            <div class="timebok-metric"><span data-i18n="timebok_d_receipts">Kvitteringer</span><b id="tb-day-receipts">—</b></div>
+                            <div class="timebok-metric tb-metric-total"><span data-i18n="timebok_sum_total">Sum</span><b id="tb-day-total">—</b></div>
+                        </div>
+                    </div>
+                    <button type="button" class="timebok-save-status" id="timebok-save-status" onclick="renderTimebok()"><span data-i18n="timebok_saved">Alt er lagret</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="toolbar" role="toolbar" aria-label="Hovedhandlinger">
         <button class="btn-new" onclick="newForm()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span data-i18n="toolbar_home">Hjem</span></button>
         <button class="btn-load" onclick="showSavedForms()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg><span data-i18n="toolbar_forms">Skjemaer</span></button>
         <button class="btn-calc" onclick="showCalculator()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg><span data-i18n="toolbar_calc">Verktøy</span></button>
+        <button class="btn-timebok" onclick="showTimebok()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span data-i18n="toolbar_timebok">Timebok</span></button>
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=278"></script>
-    <script src="script.js?v=478"></script>
-    <script src="script-ui.js?v=1029"></script>
+    <script src="lang.js?v=283"></script>
+    <script src="script.js?v=481"></script>
+    <script src="script-ui.js?v=1039"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
