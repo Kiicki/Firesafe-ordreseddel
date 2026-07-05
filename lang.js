@@ -643,6 +643,8 @@ const TRANSLATIONS = {
         // Brannplate calculator
         calc_plate_title: 'Brannplate',
         calc_plate_desc: 'Beregn antall brannplater',
+        calc_gpg_title: 'GPG stein',
+        calc_gpg_desc: 'Antall stein og esker',
         calc_iso_title: 'Isolering stift',
         calc_iso_desc: 'Stift/skrue-plassering på plate',
         iso_profile: 'Profil',
@@ -1337,6 +1339,8 @@ const TRANSLATIONS = {
         // Fire board calculator
         calc_plate_title: 'Fire board',
         calc_plate_desc: 'Calculate fire boards needed',
+        calc_gpg_title: 'GPG stone',
+        calc_gpg_desc: 'Number of stones and boxes',
         calc_iso_title: 'Insulation pins',
         calc_iso_desc: 'Pin/screw placement on plate',
         iso_profile: 'Profile',

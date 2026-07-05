@@ -9647,6 +9647,9 @@ function showCalcPage(page) {
     } else if (page === 'brannplate') {
         header.textContent = t('calc_plate_title');
         bplReset();
+    } else if (page === 'gpg') {
+        header.textContent = t('calc_gpg_title');
+        gpgReset();
     } else if (page === 'lysaapning') {
         header.textContent = t('calc_la_title');
         document.getElementById('la-sections').innerHTML = '';
@@ -10769,6 +10772,150 @@ function bplCalc() {
     }
 
     document.getElementById('bpl-plate-count').textContent = totalPlates > 0 ? formatLocaleNum(totalPlates, 2) : '0';
+}
+
+// ===== GPG stein-kalkulator =====
+// Stein 200×80×40 mm. Bredde alltid 200 mm. Høyde/dybde velges PER GRUPPE (ikke per rad):
+// dybde 40 → steinhøyde 80 (færrest stein); dybde 80 → steinhøyde 40. Én gruppe = ett sett
+// flater med samme brannklasse/dybde; lag flere grupper for ulik dybde på samme jobb.
+// Ett steinlag (vegg = steinens dybde). Antall pr flate = ⌈(bredde×høyde) / (200×steinhøyde)⌉
+// — AREAL-basert, så avkapp gjenbrukes på neste rad (rundes opp bare ÉN gang for hele flaten,
+// ikke per rad). Mindre svinn; svinn%-marginen dekker reelt kapp-tap. Ganget med «Antall» like
+// flater, summert over alle grupper, + svinn%. Esker = 24 stein pr eske.
+var GPG_STONE_WIDTH_MM = 200;      // bredde alltid 200 mm
+var GPG_PER_BOX = 24;              // stein pr eske
+
+function gpgAddGroup(focus) {
+    var wrap = document.getElementById('gpg-groups');
+    if (!wrap) return;
+    var g = document.createElement('div');
+    g.className = 'gpg-group';
+    g.setAttribute('data-height', '80');   // standard: høyde 80 / dybde 40
+    g.innerHTML =
+        '<div class="gpg-group-head">' +
+            '<div class="gpg-rot-toggle">' +
+                '<button type="button" class="gpg-rot-btn active" onclick="gpgSetGroupHeight(this,80)">Høyde 80 · dybde 40</button>' +
+                '<button type="button" class="gpg-rot-btn" onclick="gpgSetGroupHeight(this,40)">Høyde 40 · dybde 80</button>' +
+            '</div>' +
+            '<button type="button" class="gpg-group-remove" onclick="gpgRemoveGroup(this)" aria-label="Fjern gruppe">&times;</button>' +
+        '</div>' +
+        '<div class="bp-table">' +
+            '<table>' +
+                '<colgroup><col class="gpg-col-w"><col class="gpg-col-h"><col class="gpg-col-a"><col class="gpg-col-r"></colgroup>' +
+                '<thead><tr><th>Bredde<span class="gpg-th-unit">(mm)</span></th><th>Høyde<span class="gpg-th-unit">(mm)</span></th><th>Antall</th><th>Stein</th></tr></thead>' +
+                '<tbody class="gpg-rows"></tbody>' +
+            '</table>' +
+        '</div>' +
+        '<div class="gpg-group-actions">' +
+            '<button type="button" class="calc-action-btn gpg-add-row-btn" onclick="gpgAddRow(this)">+ Legg til rad</button>' +
+        '</div>';
+    wrap.appendChild(g);
+    var tbody = g.querySelector('.gpg-rows');
+    for (var i = 0; i < 4; i++) _gpgAppendRow(tbody, false);   // 4 rader = klar for sjakt (4 sider)
+    gpgUpdateRemoveButtons();
+    gpgCalc();
+    if (focus) g.scrollIntoView({ block: 'nearest' });
+}
+
+function _gpgAppendRow(tbody, focus) {
+    if (!tbody) return;
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="gpg-w" placeholder="—" oninput="gpgCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="gpg-h" placeholder="—" oninput="gpgCalc()"></td>' +
+        '<td><input type="text" inputmode="decimal" pattern="[0-9,.]*" class="gpg-qty" placeholder="—" oninput="gpgCalc()"></td>' +
+        '<td class="bp-result-cell"><span class="bp-result-val">—</span></td>';
+    tbody.appendChild(tr);
+    // Klikk på resultatcellen = ekskluder flaten midlertidig (som brannplate).
+    tr.querySelector('.bp-result-cell').addEventListener('click', function () {
+        this.closest('tr').classList.toggle('bp-row-disabled');
+        gpgCalc();
+    });
+    if (focus) tr.querySelector('input').focus();
+}
+
+function gpgAddRow(btn) {
+    var g = btn.closest('.gpg-group');
+    if (!g) return;
+    _gpgAppendRow(g.querySelector('.gpg-rows'), true);
+}
+
+function gpgSetGroupHeight(btn, h) {
+    var g = btn.closest('.gpg-group');
+    if (!g) return;
+    g.setAttribute('data-height', (Number(h) === 40) ? '40' : '80');
+    g.querySelectorAll('.gpg-rot-btn').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    gpgCalc();
+}
+
+function gpgRemoveGroup(btn) {
+    var wrap = document.getElementById('gpg-groups');
+    var g = btn.closest('.gpg-group');
+    if (!wrap || !g) return;
+    if (wrap.querySelectorAll('.gpg-group').length <= 1) return;  // behold minst én gruppe
+    g.remove();
+    gpgUpdateRemoveButtons();
+    gpgCalc();
+}
+
+// Fjern-knappen er alltid synlig, men disabled når det bare er én gruppe.
+function gpgUpdateRemoveButtons() {
+    var groups = document.querySelectorAll('#gpg-groups .gpg-group');
+    var only = groups.length <= 1;
+    groups.forEach(function (g) {
+        var rm = g.querySelector('.gpg-group-remove');
+        if (rm) rm.disabled = only;
+    });
+}
+
+function gpgReset() {
+    var wrap = document.getElementById('gpg-groups');
+    if (wrap) wrap.innerHTML = '';
+    var m = document.getElementById('gpg-margin');
+    if (m) m.value = '10';
+    gpgAddGroup(false);   // legger til én gruppe + kaller gpgCalc()
+}
+
+function gpgCalc() {
+    var groups = document.querySelectorAll('#gpg-groups .gpg-group');
+    var steinWidthMm = GPG_STONE_WIDTH_MM;   // 200 mm
+    var totalStein = 0;
+    groups.forEach(function (g) {
+        var steinHeightMm = (Number(g.getAttribute('data-height')) === 40) ? 40 : 80;
+        var rows = g.querySelectorAll('.gpg-rows tr');
+        for (var i = 0; i < rows.length; i++) {
+            var isDisabled = rows[i].classList.contains('bp-row-disabled');
+            var w = parseLocaleNum(rows[i].querySelector('.gpg-w').value) || 0;   // mm
+            var h = parseLocaleNum(rows[i].querySelector('.gpg-h').value) || 0;   // mm
+            var qty = parseLocaleNum(rows[i].querySelector('.gpg-qty').value) || 0;
+            var valSpan = rows[i].querySelector('.bp-result-val');
+            if (w > 0 && h > 0 && qty > 0) {
+                // Areal-basert: (bredde×høyde) / steinens flateareal, rundet opp ÉN gang.
+                // Gjenbruker avkapp på neste rad → mindre svinn enn opprunding per rad.
+                var stein = Math.ceil((w * h) / (steinWidthMm * steinHeightMm)) * Math.round(qty);
+                valSpan.textContent = formatLocaleNum(stein, 0);
+                valSpan.style.color = '';
+                if (!isDisabled) totalStein += stein;
+            } else {
+                valSpan.textContent = '—';
+                valSpan.style.color = (w === 0 && h === 0 && qty === 0) ? '#ddd' : '';
+            }
+        }
+    });
+    var marginPct = parseLocaleNum(document.getElementById('gpg-margin').value);
+    if (isNaN(marginPct) || marginPct < 0) marginPct = 0;
+    var steinWithMargin = totalStein > 0 ? Math.ceil(totalStein * (1 + marginPct / 100)) : 0;
+    var eskerRaw = totalStein > 0 ? Math.ceil(totalStein / GPG_PER_BOX) : 0;
+    var esker = steinWithMargin > 0 ? Math.ceil(steinWithMargin / GPG_PER_BOX) : 0;
+    var steinRawEl = document.getElementById('gpg-stein-raw');
+    var steinEl = document.getElementById('gpg-stein-count');
+    var eskerRawEl = document.getElementById('gpg-eske-raw');
+    var eskerEl = document.getElementById('gpg-eske-count');
+    if (steinRawEl) steinRawEl.textContent = formatLocaleNum(totalStein, 0);
+    if (steinEl) steinEl.textContent = formatLocaleNum(steinWithMargin, 0);
+    if (eskerRawEl) eskerRawEl.textContent = formatLocaleNum(eskerRaw, 0);
+    if (eskerEl) eskerEl.textContent = formatLocaleNum(esker, 0);
 }
 
 // ===== Bil (Vehicle Inventory) =====

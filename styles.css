@@ -7319,6 +7319,125 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     letter-spacing: 0;
 }
 
+/* GPG stein-kalkulator — enhetlig type-skala for et rent, profesjonelt utseende:
+   ETIKETT 11px/600 (uppercase, #8a8a90) · Note 13px/400 · Body 14px (input/knapper)
+   · Tall 22px/700 (resultater). Delte .bp-table/.calc-action-btn overstyres scoped
+   til #calc-page-gpg så andre kalkulatorer ikke påvirkes. */
+.gpg-note { font-size: 13px; font-weight: 400; color: #8a8a90; line-height: 1.45; margin: 0 2px 8px; }
+
+/* Utvidbar «Slik regnes det»-info (native <details>). Foldet sammen som standard. */
+.gpg-info { margin: 0 2px 12px; }
+.gpg-info summary {
+    list-style: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; color: #E8501A; padding: 2px 0;
+    -webkit-tap-highlight-color: transparent;
+}
+.gpg-info summary::-webkit-details-marker { display: none; }
+.gpg-info summary::after {
+    content: ''; width: 7px; height: 7px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(45deg); transition: transform 0.2s; position: relative; top: -2px;
+}
+.gpg-info[open] summary::after { transform: rotate(-135deg); top: 1px; }
+.gpg-info-body {
+    margin-top: 8px; padding: 12px 14px;
+    background: #f8f8f8; border: 1px solid #eee; border-radius: 10px;
+    font-size: 13px; line-height: 1.5; color: #666;
+}
+.gpg-info-body p { margin: 0 0 8px; }
+.gpg-info-body b { color: #333; font-weight: 600; }
+.gpg-info-formula {
+    font-weight: 600; color: #333;
+    background: #fff; border: 1px solid #ececf0; border-radius: 8px;
+    padding: 8px 10px;
+}
+.gpg-info-body ul { margin: 0; padding-left: 18px; }
+.gpg-info-body li { margin-bottom: 5px; }
+.gpg-info-body li:last-child { margin-bottom: 0; }
+
+/* Gruppe = ett sett flater med felles høyde/dybde (én brannklasse). */
+.gpg-group {
+    border: 1px solid #e3e3e8; border-radius: 12px;
+    padding: 12px; margin-top: 12px; background: #fafafa;
+}
+.gpg-group-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.gpg-rot-toggle { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.gpg-rot-btn {
+    flex: 1; min-width: 0;
+    border: 1px solid #d8d8de; background: #fff; color: #444;
+    border-radius: 8px; padding: 10px 4px;
+    font-size: 11px; font-weight: 600; line-height: 1.2; cursor: pointer;
+    white-space: nowrap;   /* alltid én linje — 11px sikrer at teksten får plass */
+}
+.gpg-rot-btn.active { border-color: #E8501A; background: #fff3ee; color: #E8501A; }
+.gpg-group-remove {
+    flex-shrink: 0; background: none; border: none; color: #c0392b;
+    font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px;
+}
+.gpg-group-remove:disabled { opacity: 0.3; cursor: default; }
+.gpg-group .bp-table { background: #fff; }
+.gpg-group-actions { margin-top: 10px; }
+.gpg-add-row-btn { width: 100%; }
+.gpg-col-w { width: 30%; }
+.gpg-col-h { width: 30%; }
+.gpg-col-a { width: 20%; }
+.gpg-col-r { width: 20%; }
+
+/* Scoped overstyring av delte tabell-/knappe-stiler → samme skala som resten av siden. */
+#calc-page-gpg .bp-table th {
+    font-size: 11px; font-weight: 600; color: #8a8a90; letter-spacing: 0.4px; padding: 8px 6px;
+    vertical-align: top;
+}
+/* «(mm)» på egen linje 2 — konsekvent under BÅDE Bredde og Høyde. */
+.gpg-th-unit { display: block; font-size: 9px; font-weight: 500; color: #b0b0b6; letter-spacing: 0; margin-top: 2px; }
+#calc-page-gpg .bp-table input { font-size: 14px; font-weight: 500; padding: 9px 4px; }
+#calc-page-gpg .bp-table .bp-result-cell { font-size: 14px; font-weight: 700; }
+#calc-page-gpg .calc-action-btn { font-size: 14px; font-weight: 600; }
+
+.gpg-margin-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 2px; margin-top: 6px;
+    font-size: 11px; font-weight: 600; color: #8a8a90;
+    text-transform: uppercase; letter-spacing: 0.4px;
+}
+.gpg-margin-field { display: flex; align-items: center; gap: 6px; color: #333; }
+.gpg-margin-field input {
+    width: 64px; text-align: right;
+    border: 1px solid #d8d8de; border-radius: 8px; padding: 9px 10px;
+    font-size: 14px; font-weight: 600;
+}
+.gpg-margin-field b { font-size: 13px; font-weight: 600; color: #8a8a90; }
+
+/* Kompakt oppsummering som matrise: rader = Stein/Esker, kolonner = uten/med svinn. */
+.gpg-summary {
+    margin-top: 2px;
+    background: #f8f8f8; border: 1px solid #eee; border-radius: 12px; overflow: hidden;
+}
+.gpg-sum-head, .gpg-sum-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center;
+    padding: 0 14px;
+}
+.gpg-sum-head { padding-top: 10px; padding-bottom: 4px; }
+.gpg-sum-head span {
+    font-size: 11px; font-weight: 600; color: #8a8a90;
+    text-transform: uppercase; letter-spacing: 0.4px; text-align: right;
+}
+.gpg-sum-head span:first-child { text-align: left; }
+.gpg-sum-row { padding-top: 9px; padding-bottom: 9px; border-top: 1px solid #ececf0; }
+.gpg-sum-label {
+    font-size: 11px; font-weight: 600; color: #8a8a90;
+    text-transform: uppercase; letter-spacing: 0.4px;
+}
+.gpg-sum-val { font-size: 21px; font-weight: 700; color: #333; text-align: right; }
+/* Bestillingstallet (esker m/ svinn) = «svaret» → oransje pille, tydelig fremhevet. */
+.gpg-sum-accent {
+    justify-self: end;
+    background: #E8501A; color: #fff; font-weight: 800;
+    padding: 3px 16px; border-radius: 999px;
+    line-height: 1.15;
+}
+
 /* Lysåpning calculator */
 .la-section {
     border: 1px solid #e0e0e0;
