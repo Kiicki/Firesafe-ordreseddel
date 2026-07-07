@@ -4670,16 +4670,17 @@ async function doExportPNG(markSent) {
 // nytt fra OK-handleren (som er en ny user gesture).
 //
 // Returnerer: 'shared' | 'aborted' | 'error'
-async function _safeShare(files, text) {
-    // Legg ved søkbar tekst (f.eks. ordrenumre) i delingen når den finnes. Settes som
-    // BÅDE title og text: Android sender `title` som e-post-EMNE (EXTRA_SUBJECT) og
-    // `text` som brødtekst (EXTRA_TEXT). Outlook for Android ignorerer brødteksten når
-    // det er vedlegg, men bruker emnet → numrene blir synlige+søkbare der; Gmail bruker
-    // brødteksten. Med begge dekker vi begge apper. Fallback til files-only hvis
-    // plattformen ikke kan dele fil+tekst sammen (så deling aldri brytes).
+async function _safeShare(files, meta) {
+    // meta = { title, text }. Android sender `title` som e-post-EMNE (EXTRA_SUBJECT) —
+    // én linje med ordrenumre — og `text` som brødtekst (EXTRA_TEXT) — numrene som liste.
+    // Outlook bruker emnet (og brødteksten), Gmail bruker brødteksten → søkbart begge
+    // steder. Fallback til files-only hvis plattformen ikke kan dele fil+tekst sammen
+    // (så deling aldri brytes).
     var payload = { files: files };
-    if (text) {
-        var withMeta = { files: files, title: text, text: text };
+    if (meta && (meta.title || meta.text)) {
+        var withMeta = { files: files };
+        if (meta.title) withMeta.title = meta.title;
+        if (meta.text) withMeta.text = meta.text;
         if (!navigator.canShare || navigator.canShare(withMeta)) payload = withMeta;
     }
     try {
@@ -5574,12 +5575,25 @@ function _bulkFilename(ext, type) {
     return _typePrefix(type) + '_samlet_' + range + '.' + (ext || 'pdf');
 }
 
-// Søkbar e-post-tekst for samlet/bulk deling. Filnavnet forblir «samlet» (rent), men
-// ordrenumrene legges i delings-teksten → e-postens brødtekst, så e-post-søk på et
-// ordrenummer gir treff. Ordreseddel = ordrenumre; service/kappe = prosjekt-referanser.
+// Bygg delings-metadata { title, text } fra en liste av numre/referanser:
+//   title = én linje (e-post-emne, søkbar):  «Ordresedler: 305, 306»
+//   text  = numrene som liste (brødtekst):   «Ordresedler:\n\n• 305\n• 306»
+function _buildShareMeta(labelPlural, ids) {
+    if (!ids || !ids.length) return null;
+    var oneLine = labelPlural + ': ' + ids.join(', ');
+    var list = labelPlural + ':\n\n' + ids.map(function (n) { return '• ' + n; }).join('\n');
+    return { title: oneLine, text: list };
+}
+
+function _shareLabelPlural(type) {
+    return type === 'service' ? 'Lageruttak' : type === 'kappe' ? 'Kappeskjema' : 'Ordresedler';
+}
+
+// Søkbar delings-metadata for samlet/bulk deling. Filnavnet forblir «samlet» (rent),
+// men ordrenumrene legges i emne + brødtekst → e-post-søk på et nummer gir treff.
 function _bulkShareText(type) {
     var forms = _getSelectedForms();
-    if (!forms || !forms.length) return '';
+    if (!forms || !forms.length) return null;
     var ids = [];
     var push = function (v) {
         v = (v == null ? '' : String(v)).trim();
@@ -5587,24 +5601,27 @@ function _bulkShareText(type) {
     };
     if (type === 'service' || type === 'kappe') {
         for (var i = 0; i < forms.length; i++) push(_formProsjektId(forms[i], type));
-        var label = (type === 'service') ? 'Lageruttak' : 'Kappeskjema';
-        return ids.length ? (label + ': ' + ids.join(', ')) : '';
+    } else {
+        for (var j = 0; j < forms.length; j++) push(forms[j] && forms[j].ordreseddelNr);
     }
-    for (var j = 0; j < forms.length; j++) push(forms[j] && forms[j].ordreseddelNr);
-    return ids.length ? ('Ordresedler: ' + ids.join(', ')) : '';
+    return _buildShareMeta(_shareLabelPlural(type), ids);
 }
 
-// Søkbar delings-tekst for ETT skjema (individuell deling). Samme prinsipp som
-// _bulkShareText: ordrenummer (ordreseddel) el. prosjekt-referanse (service/kappe)
-// legges i e-postens brødtekst, så kunden lett ser nummeret og e-post-søk gir treff.
+// Delings-metadata for ETT skjema (individuell deling). Singular label; body = samme
+// som emnet siden det bare er ett nummer.
 function _singleShareText(data, type) {
+    var id, label;
     if (type === 'service' || type === 'kappe') {
-        var id = _formProsjektId(data, type);
-        var label = (type === 'service') ? 'Lageruttak' : 'Kappeskjema';
-        return id ? (label + ': ' + String(id).trim()) : '';
+        id = _formProsjektId(data, type);
+        label = (type === 'service') ? 'Lageruttak' : 'Kappeskjema';
+    } else {
+        id = (data && data.ordreseddelNr != null) ? data.ordreseddelNr : '';
+        label = 'Ordreseddel';
     }
-    var nr = (data && data.ordreseddelNr != null) ? String(data.ordreseddelNr).trim() : '';
-    return nr ? ('Ordreseddel: ' + nr) : '';
+    id = (id == null ? '' : String(id)).trim();
+    if (!id) return null;
+    var line = label + ' ' + id;
+    return { title: line, text: line };
 }
 
 // Per-skjema filnavn (separat bulk-eksport eller fallback).
