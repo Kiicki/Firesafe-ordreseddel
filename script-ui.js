@@ -364,7 +364,7 @@ async function _singleFormExport(form, tab, share, png) {
                 var blob = pdf.output('blob');
                 var fileP = new File([blob], nameP, { type: 'application/pdf' });
                 if (loading) loading.classList.remove('active');
-                await _safeShare([fileP]);
+                await _safeShare([fileP], _singleShareText(form, type));
             } else { pdf.save(nameP); }
         } else {
             var canvas = await _canvasForTab(form, tab);
@@ -374,7 +374,7 @@ async function _singleFormExport(form, tab, share, png) {
                 var res = await fetch(durl); var blobG = await res.blob();
                 var fileG = new File([blobG], nameG, { type: 'image/png' });
                 if (loading) loading.classList.remove('active');
-                await _safeShare([fileG]);
+                await _safeShare([fileG], _singleShareText(form, type));
             } else {
                 var a = document.createElement('a');
                 a.download = nameG; a.href = canvas.toDataURL('image/png'); a.click();
@@ -4715,7 +4715,7 @@ async function doSharePDF(markSent) {
         var blob = pdf.output('blob');
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
-        var result = await _safeShare([file]);
+        var result = await _safeShare([file], _singleShareText(getFormData(), 'ordreseddel'));
         if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
@@ -4735,7 +4735,7 @@ async function doSharePNG(markSent) {
         var blob = await res.blob();
         var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
-        var result = await _safeShare([file]);
+        var result = await _safeShare([file], _singleShareText(getFormData(), 'ordreseddel'));
         if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
@@ -5589,6 +5589,19 @@ function _bulkShareText(type) {
     }
     for (var j = 0; j < forms.length; j++) push(forms[j] && forms[j].ordreseddelNr);
     return ids.length ? ('Ordresedler: ' + ids.join(', ')) : '';
+}
+
+// Søkbar delings-tekst for ETT skjema (individuell deling). Samme prinsipp som
+// _bulkShareText: ordrenummer (ordreseddel) el. prosjekt-referanse (service/kappe)
+// legges i e-postens brødtekst, så kunden lett ser nummeret og e-post-søk gir treff.
+function _singleShareText(data, type) {
+    if (type === 'service' || type === 'kappe') {
+        var id = _formProsjektId(data, type);
+        var label = (type === 'service') ? 'Lageruttak' : 'Kappeskjema';
+        return id ? (label + ': ' + String(id).trim()) : '';
+    }
+    var nr = (data && data.ordreseddelNr != null) ? String(data.ordreseddelNr).trim() : '';
+    return nr ? ('Ordreseddel: ' + nr) : '';
 }
 
 // Per-skjema filnavn (separat bulk-eksport eller fallback).
@@ -6920,7 +6933,7 @@ async function doServiceSharePDF(markSent) {
         var blob = pdf.output('blob');
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
-        var result = await _safeShare([file]);
+        var result = await _safeShare([file], _singleShareText(getServiceFormData(), 'service'));
         if (result === 'shared' && markSent) markServiceAsSent();
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
@@ -6940,7 +6953,7 @@ async function doServiceSharePNG(markSent) {
         var blob = await res.blob();
         var file = new File([blob], getServiceExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
-        var result = await _safeShare([file]);
+        var result = await _safeShare([file], _singleShareText(getServiceFormData(), 'service'));
         if (result === 'shared' && markSent) markServiceAsSent();
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
@@ -16894,7 +16907,7 @@ async function doKappeSharePDF(markSent) {
         var blob = pdf.output('blob');
         var file = new File([blob], getKappeExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
-        var result = await _safeShare([file]);
+        var result = await _safeShare([file], _singleShareText(getKappeFormData(), 'kappe'));
         if (result === 'shared' && markSent) markKappeAsSent();
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
@@ -16914,7 +16927,7 @@ async function doKappeSharePNG(markSent) {
         var blob = await res.blob();
         var file = new File([blob], getKappeExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
-        var result = await _safeShare([file]);
+        var result = await _safeShare([file], _singleShareText(getKappeFormData(), 'kappe'));
         if (result === 'shared' && markSent) markKappeAsSent();
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
