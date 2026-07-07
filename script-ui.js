@@ -4671,13 +4671,16 @@ async function doExportPNG(markSent) {
 //
 // Returnerer: 'shared' | 'aborted' | 'error'
 async function _safeShare(files, text) {
-    // Legg ved søkbar tekst (f.eks. ordrenumre) i delingen når den finnes — havner i
-    // e-postens brødtekst, så mottakerens e-post-søk gir treff selv om filnavnet er
-    // «samlet». Bruk text KUN hvis plattformen kan dele files+text sammen (fallback
-    // til files-only ellers, så deling aldri brytes).
+    // Legg ved søkbar tekst (f.eks. ordrenumre) i delingen når den finnes. Settes som
+    // BÅDE title og text: Android sender `title` som e-post-EMNE (EXTRA_SUBJECT) og
+    // `text` som brødtekst (EXTRA_TEXT). Outlook for Android ignorerer brødteksten når
+    // det er vedlegg, men bruker emnet → numrene blir synlige+søkbare der; Gmail bruker
+    // brødteksten. Med begge dekker vi begge apper. Fallback til files-only hvis
+    // plattformen ikke kan dele fil+tekst sammen (så deling aldri brytes).
     var payload = { files: files };
-    if (text && (!navigator.canShare || navigator.canShare({ files: files, text: text }))) {
-        payload = { files: files, text: text };
+    if (text) {
+        var withMeta = { files: files, title: text, text: text };
+        if (!navigator.canShare || navigator.canShare(withMeta)) payload = withMeta;
     }
     try {
         await navigator.share(payload);
