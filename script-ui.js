@@ -4670,9 +4670,17 @@ async function doExportPNG(markSent) {
 // nytt fra OK-handleren (som er en ny user gesture).
 //
 // Returnerer: 'shared' | 'aborted' | 'error'
-async function _safeShare(files) {
+async function _safeShare(files, text) {
+    // Legg ved søkbar tekst (f.eks. ordrenumre) i delingen når den finnes — havner i
+    // e-postens brødtekst, så mottakerens e-post-søk gir treff selv om filnavnet er
+    // «samlet». Bruk text KUN hvis plattformen kan dele files+text sammen (fallback
+    // til files-only ellers, så deling aldri brytes).
+    var payload = { files: files };
+    if (text && (!navigator.canShare || navigator.canShare({ files: files, text: text }))) {
+        payload = { files: files, text: text };
+    }
     try {
-        await navigator.share({ files: files });
+        await navigator.share(payload);
         return 'shared';
     } catch (e) {
         if (e.name === 'AbortError') return 'aborted';
@@ -4680,7 +4688,7 @@ async function _safeShare(files) {
         if (/user gesture|user activation|transient activation/i.test(msg)) {
             return new Promise(function(resolve) {
                 showConfirmModal(t('share_ready_prompt'), function() {
-                    navigator.share({ files: files }).then(function() {
+                    navigator.share(payload).then(function() {
                         resolve('shared');
                     }).catch(function(err) {
                         if (err.name === 'AbortError') {
@@ -5563,6 +5571,26 @@ function _bulkFilename(ext, type) {
     return _typePrefix(type) + '_samlet_' + range + '.' + (ext || 'pdf');
 }
 
+// Søkbar e-post-tekst for samlet/bulk deling. Filnavnet forblir «samlet» (rent), men
+// ordrenumrene legges i delings-teksten → e-postens brødtekst, så e-post-søk på et
+// ordrenummer gir treff. Ordreseddel = ordrenumre; service/kappe = prosjekt-referanser.
+function _bulkShareText(type) {
+    var forms = _getSelectedForms();
+    if (!forms || !forms.length) return '';
+    var ids = [];
+    var push = function (v) {
+        v = (v == null ? '' : String(v)).trim();
+        if (v && ids.indexOf(v) === -1) ids.push(v);
+    };
+    if (type === 'service' || type === 'kappe') {
+        for (var i = 0; i < forms.length; i++) push(_formProsjektId(forms[i], type));
+        var label = (type === 'service') ? 'Lageruttak' : 'Kappeskjema';
+        return ids.length ? (label + ': ' + ids.join(', ')) : '';
+    }
+    for (var j = 0; j < forms.length; j++) push(forms[j] && forms[j].ordreseddelNr);
+    return ids.length ? ('Ordresedler: ' + ids.join(', ')) : '';
+}
+
 // Per-skjema filnavn (separat bulk-eksport eller fallback).
 //   {type}_{prosjektnr}_Uke-N-YYYY.{ext}
 // Fallback-rekkefølge når prosjektnr mangler:
@@ -5957,7 +5985,7 @@ async function doBulkSharePDF(markSent) {
             return;
         }
         loading.classList.remove('active');
-        var result = await _safeShare([file]);
+        var result = await _safeShare([file], _bulkShareText(_selectTab));
         if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
@@ -5982,7 +6010,7 @@ async function doBulkSharePNG(markSent) {
             return;
         }
         loading.classList.remove('active');
-        var result = await _safeShare(files);
+        var result = await _safeShare(files, _bulkShareText(_selectTab));
         if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
@@ -6033,7 +6061,7 @@ async function doBulkSharePDFSeparate(markSent) {
             return;
         }
         loading.classList.remove('active');
-        var result = await _safeShare(files);
+        var result = await _safeShare(files, _bulkShareText(_selectTab));
         if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
