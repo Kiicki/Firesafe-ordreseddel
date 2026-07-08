@@ -11166,7 +11166,9 @@ function renderBilHistory() {
             var subParts = [];
             if (item.prosjektnr) subParts.push(escapeHtml(item.prosjektnr));
             if (item.prosjektnavn) subParts.push(escapeHtml(item.prosjektnavn));
-            if (subParts.length) subtitleHtml = subParts.join('<span class="bil-history-sep"></span>');
+            // Samme separator-markup som alle .saved-item-lister (ordreseddel/service/kappe):
+            // mellomrom rundt <span> + 6px CSS-margin → identisk gap som ordreseddel.
+            if (subParts.length) subtitleHtml = subParts.join(' <span class="bil-history-sep"></span> ');
         }
 
         var matsHtml = '';
