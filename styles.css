@@ -1103,7 +1103,9 @@ body:has(:is(
 #service-list,
 #kappe-list,
 #bil-history-list {
-    padding-top: 0;
+    /* Servicebil-fanen har ikke søkefelt (som Ordreseddel/Kappe har), så uten dette
+       ville kortene klistret seg helt opp mot fane-raden. Gir samme luft på toppen. */
+    padding-top: 14px;
     padding-bottom: 0;
 }
 
