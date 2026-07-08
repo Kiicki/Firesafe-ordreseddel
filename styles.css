@@ -1759,8 +1759,11 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     flex-wrap: wrap;
 }
 /* Ekspanderbart beskrivelse-panel (ordreseddel-lista). */
+.saved-item-expand-btn { width: 30px; }   /* smalere enn kebaben → mer plass til nr */
 .saved-item-expand-btn svg { transition: transform 0.2s ease; }
 .saved-item.expanded .saved-item-expand-btn svg { transform: rotate(180deg); }
+/* Chevron + kebab tett sammen (ikke det brede 12px-gapet mellom flex-barn). */
+.saved-item-buttons { gap: 0; }
 .saved-item-details {
     flex-basis: 100%;
     margin-top: 4px;
@@ -1777,6 +1780,15 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     word-break: break-word;
 }
 .saved-item-desc-line + .saved-item-desc-line { border-top: 1px dashed #eee; }
+/* Service-uttak: prosjekt-header + materiallinjer per entry. */
+.saved-item-desc-entry + .saved-item-desc-entry { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #eee; }
+.saved-item-desc-proj { font-weight: 600; color: #333; font-size: 12px; margin-bottom: 4px; }
+.saved-item-desc-mat {
+    display: flex; justify-content: space-between; gap: 12px;
+    font-size: 13px; color: #444; line-height: 1.4; padding: 3px 0;
+}
+.saved-item-desc-mat > span:first-child { min-width: 0; word-break: break-word; }
+.saved-item-desc-qty { color: #888; white-space: nowrap; flex-shrink: 0; }
 
 .saved-item:hover {
     background: #f8f9fa;
@@ -1881,10 +1893,9 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     overflow: visible;
 }
 #saved-list .saved-item-nr {
-    flex: 0 1 auto;
+    /* Ordrenummeret er viktigst → aldri krymp/kutt det. Datoen gir etter i stedet. */
+    flex: 0 0 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
 }
 /* Uke = sekundær info — IDENTISK stil med datoen. Kun ordreseddelnr er
@@ -1903,7 +1914,13 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     font-weight: 400;
 }
 #saved-list .saved-item-date-inline {
-    flex-shrink: 0;
+    /* Datoen er minst viktig → den krymper/ellipsis-kuttes når plassen er trang,
+       slik at ordrenr og uke alltid vises fullt. */
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Dato dempes — sekundær info, skal ikke konkurrere med nr/Uke. */

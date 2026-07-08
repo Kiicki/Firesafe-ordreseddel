@@ -203,8 +203,9 @@ var kebabIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentCo
 // handling-knappene (kopier/dupliser/slett) skjules, og en kebab åpner menyen.
 // Menyvalg utløser den SKJULTE ekte knappen → eksisterende per-liste click-
 // delegering ruter handlingen (ingen duplisert logikk).
-function _savedItemActionsHtml(hiddenButtonsHtml) {
+function _savedItemActionsHtml(hiddenButtonsHtml, leadingHtml) {
     return '<div class="saved-item-buttons">' +
+        (leadingHtml || '') +
         '<div class="saved-item-hidden-actions" hidden>' + hiddenButtonsHtml + '</div>' +
         '<button class="saved-item-action-btn saved-item-menu-btn" title="' + t('more_actions') + '">' + kebabIcon + '</button>' +
     '</div>';
@@ -471,8 +472,7 @@ function _buildSavedItemHtml(item, index) {
             '</div>' +
             subtitle +
         '</div>' +
-        expandBtn +
-        _savedItemActionsHtml(statusBtn + clipBtn + dupBtn + deleteBtn) +
+        _savedItemActionsHtml(statusBtn + clipBtn + dupBtn + deleteBtn, expandBtn) +
         detailsHtml +
     '</div>';
 }
@@ -6398,6 +6398,32 @@ function _buildServiceItemHtml(item, index) {
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
         : '<button class="saved-item-action-btn delete" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
+    // Ekspanderbar oversikt: prosjekt + materialer per entry, så bruker raskt ser hva
+    // lageruttaket inneholder uten å åpne det (service har ingen fri beskrivelse).
+    var _svcDetail = '';
+    (Array.isArray(item.entries) ? item.entries : []).forEach(function (en) {
+        if (!en) return;
+        var projStr = [en.prosjektnr, en.prosjektnavn]
+            .filter(function (x) { return x && String(x).trim(); })
+            .map(function (x) { return escapeHtml(String(x).trim()); }).join(' · ');
+        var mats = (Array.isArray(en.materials) ? en.materials : [])
+            .filter(function (m) { return m && (String(m.name || '').trim() || String(m.antall || '').trim()); });
+        if (!projStr && !mats.length) return;
+        _svcDetail += '<div class="saved-item-desc-entry">';
+        if (projStr) _svcDetail += '<div class="saved-item-desc-proj">' + projStr + '</div>';
+        mats.forEach(function (m) {
+            var nm = escapeHtml(String(m.name || '').trim()) || '—';
+            var qty = [m.antall, m.enhet].filter(function (x) { return x && String(x).trim(); })
+                .map(function (x) { return escapeHtml(String(x).trim()); }).join(' ');
+            _svcDetail += '<div class="saved-item-desc-mat"><span>' + nm + '</span>' +
+                (qty ? '<span class="saved-item-desc-qty">' + qty + '</span>' : '') + '</div>';
+        });
+        _svcDetail += '</div>';
+    });
+    var svcExpandBtn = _svcDetail
+        ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'
+        : '';
+    var svcDetailsHtml = _svcDetail ? '<div class="saved-item-details" hidden>' + _svcDetail + '</div>' : '';
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-header">' +
@@ -6405,7 +6431,8 @@ function _buildServiceItemHtml(item, index) {
             '</div>' +
             serviceSubtitle +
         '</div>' +
-        _savedItemActionsHtml(dupBtn + deleteBtn) +
+        _savedItemActionsHtml(dupBtn + deleteBtn, svcExpandBtn) +
+        svcDetailsHtml +
     '</div>';
 }
 
@@ -7088,6 +7115,7 @@ document.getElementById('service-list').addEventListener('click', function(e) {
 
     var btn = e.target.closest('button');
     if (btn) {
+        if (btn.classList.contains('saved-item-expand-btn')) { e.stopPropagation(); _toggleSavedItemDetails(savedItem); return; }
         if (btn.classList.contains('saved-item-menu-btn')) { e.stopPropagation(); showSavedItemMenu(savedItem); return; }
         if (btn.classList.contains('disabled')) return;
         e.stopPropagation();
@@ -7108,6 +7136,8 @@ document.getElementById('service-list').addEventListener('click', function(e) {
         return;
     }
 
+    // Klikk inne i beskrivelse-panelet skal ikke åpne skjemaet (man ekspanderer for å lese).
+    if (e.target.closest('.saved-item-details')) return;
     // Click on item row - load the service form
     loadServiceFormDirect(formData);
 });
