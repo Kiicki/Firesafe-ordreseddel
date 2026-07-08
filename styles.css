@@ -1771,17 +1771,35 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     border-top: 1px solid #eee;
     cursor: default;
 }
-.saved-item-desc-line {
-    font-size: 13px;
-    color: #444;
-    line-height: 1.45;
-    padding: 5px 0;
-    white-space: pre-wrap;
-    word-break: break-word;
+/* Hver bestilling (ordreseddel) som eget nummerert kort → tydelig atskilt. */
+.saved-item-order {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 9px 11px;
+    background: #f7f7f8;
+    border: 1px solid #ececf0;
+    border-radius: 8px;
 }
-.saved-item-desc-line + .saved-item-desc-line { border-top: 1px dashed #eee; }
-/* Service-uttak: prosjekt-header + materiallinjer per entry. */
-.saved-item-desc-entry + .saved-item-desc-entry { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #eee; }
+.saved-item-order + .saved-item-order { margin-top: 6px; }
+.saved-item-order-num {
+    flex-shrink: 0;
+    width: 20px; height: 20px; margin-top: 1px;
+    border-radius: 50%;
+    background: #E8501A; color: #fff;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+}
+.saved-item-order-text {
+    font-size: 13px; color: #333; line-height: 1.4;
+    min-width: 0; word-break: break-word;
+}
+/* Service-uttak: hver entry som eget kort (prosjekt-header + materiallinjer). */
+.saved-item-desc-entry {
+    background: #f7f7f8; border: 1px solid #ececf0; border-radius: 8px;
+    padding: 9px 11px;
+}
+.saved-item-desc-entry + .saved-item-desc-entry { margin-top: 6px; }
 .saved-item-desc-proj { font-weight: 600; color: #333; font-size: 12px; margin-bottom: 4px; }
 .saved-item-desc-mat {
     display: flex; justify-content: space-between; gap: 12px;

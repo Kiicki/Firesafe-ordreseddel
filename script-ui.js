@@ -456,9 +456,15 @@ function _buildSavedItemHtml(item, index) {
     var expandBtn = _descLines.length
         ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'
         : '';
+    // Hver bestilling som eget nummerert kort → tydelig atskilt (ikke sammenflytende
+    // avsnitt). Nummer vises kun når det er flere bestillinger.
+    var _multiDesc = _descLines.length > 1;
     var detailsHtml = _descLines.length
         ? '<div class="saved-item-details" hidden>' +
-              _descLines.map(function (d) { return '<div class="saved-item-desc-line">' + escapeHtml(d) + '</div>'; }).join('') +
+              _descLines.map(function (d, i) {
+                  var num = _multiDesc ? '<span class="saved-item-order-num">' + (i + 1) + '</span>' : '';
+                  return '<div class="saved-item-order">' + num + '<span class="saved-item-order-text">' + escapeHtml(d) + '</span></div>';
+              }).join('') +
           '</div>'
         : '';
     return '<div class="saved-item" data-index="' + index + '">' +
