@@ -444,6 +444,22 @@ function _buildSavedItemHtml(item, index) {
     if (parts.length) {
         subtitle = '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>';
     }
+    // Ekspanderbar beskrivelse: samle ordre-/bestillings-beskrivelsene fra skjemaet, så
+    // bruker raskt kan se HVA ordreseddelen handler om uten å åpne den. Vises kun når det
+    // finnes minst én beskrivelse (ellers ingen ekspander-knapp).
+    var _descLines = [];
+    (Array.isArray(item.orders) ? item.orders : []).forEach(function (o) {
+        var d = (o && o.description != null) ? String(o.description).trim() : '';
+        if (d) _descLines.push(d);
+    });
+    var expandBtn = _descLines.length
+        ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'
+        : '';
+    var detailsHtml = _descLines.length
+        ? '<div class="saved-item-details" hidden>' +
+              _descLines.map(function (d) { return '<div class="saved-item-desc-line">' + escapeHtml(d) + '</div>'; }).join('') +
+          '</div>'
+        : '';
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-header">' +
@@ -455,8 +471,19 @@ function _buildSavedItemHtml(item, index) {
             '</div>' +
             subtitle +
         '</div>' +
+        expandBtn +
         _savedItemActionsHtml(statusBtn + clipBtn + dupBtn + deleteBtn) +
+        detailsHtml +
     '</div>';
+}
+
+// Vis/skjul beskrivelse-panelet på en lagret-rad (ekspander-knappen).
+function _toggleSavedItemDetails(item) {
+    var details = item.querySelector('.saved-item-details');
+    if (!details) return;
+    var willExpand = details.hasAttribute('hidden');
+    if (willExpand) details.removeAttribute('hidden'); else details.setAttribute('hidden', '');
+    item.classList.toggle('expanded', willExpand);
 }
 
 function renderSavedFormsList(forms, append, hasMore) {
@@ -7006,6 +7033,7 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
     const btn = e.target.closest('button');
     if (btn) {
         e.stopPropagation();
+        if (btn.classList.contains('saved-item-expand-btn')) { _toggleSavedItemDetails(savedItem); return; }
         if (btn.classList.contains('saved-item-menu-btn')) { showSavedItemMenu(savedItem); return; }
         if (btn.classList.contains('disabled')) return;
         if (btn.classList.contains('clipboard')) {
@@ -7027,6 +7055,8 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
         return;
     }
 
+    // Klikk inne i beskrivelse-panelet skal ikke åpne skjemaet (man ekspanderer for å lese).
+    if (e.target.closest('.saved-item-details')) return;
     // Click on item row - load the form
     loadFormDirect(savedItem._formData);
 });

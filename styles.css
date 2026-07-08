@@ -1754,7 +1754,29 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     background: #fff;
     transition: all 0.15s ease;
     gap: 12px;
+    /* Tillat at beskrivelse-panelet (.saved-item-details, flex-basis:100%) bryter til
+       egen linje under raden. Påvirker kun rader som har panelet (ordreseddel). */
+    flex-wrap: wrap;
 }
+/* Ekspanderbart beskrivelse-panel (ordreseddel-lista). */
+.saved-item-expand-btn svg { transition: transform 0.2s ease; }
+.saved-item.expanded .saved-item-expand-btn svg { transform: rotate(180deg); }
+.saved-item-details {
+    flex-basis: 100%;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+    cursor: default;
+}
+.saved-item-desc-line {
+    font-size: 13px;
+    color: #444;
+    line-height: 1.45;
+    padding: 5px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.saved-item-desc-line + .saved-item-desc-line { border-top: 1px dashed #eee; }
 
 .saved-item:hover {
     background: #f8f9fa;
