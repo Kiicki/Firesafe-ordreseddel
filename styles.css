@@ -1344,7 +1344,9 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    margin-bottom: 12px;
+    /* Tett mot subtitle (som ordreseddel rad1→subtitle). Var 12px, laget for den
+       gamle store/bold datoen — nå som headeren er kompakt ble det for stort. */
+    margin-bottom: 3px;
 }
 /* Status-dot rett før type-badge — sentreres vertikalt med badge-en */
 .bil-history-header > .status-dot {
@@ -1372,22 +1374,27 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
     flex: 1;
     min-width: 0;
     overflow-wrap: break-word;
-    font-weight: 600;
-    font-size: 14px;
-    color: #222;
+    /* Samme som ordreseddel-datoen (.saved-item-date-inline): liten, grå, ikke bold.
+       Emphasis ligger på UTTAK/INNTAK-badgen. */
+    font-weight: 400;
+    font-size: 11px;
+    color: #aaa;
 }
 .bil-history-subtitle {
-    font-size: 13px;
-    color: #666;
+    /* Samme typografi som ordreseddel-lista sin subtitle (.saved-item-subtitle). */
+    font-size: 12px;
+    color: #888;
     padding: 0 12px 2px;
 }
+/* Prikk (•) mellom prosjektnr og prosjektnavn — konsistent med ordreseddel-lista
+   (var tidligere en vertikal strek/pipe). */
 .bil-history-sep {
     display: inline-block;
-    width: 1px;
-    height: 12px;
-    background: #aaa;
-    margin: 0 8px;
-    vertical-align: -1px;
+}
+.bil-history-sep::before {
+    content: '•';
+    margin: 0 6px;
+    color: #ccc;
 }
 .bil-history-delete {
     position: absolute;
