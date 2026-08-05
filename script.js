@@ -6317,6 +6317,8 @@ function buildDesktopWorkLines() {
         // Timer — sum all values (days + _generelt/_total). Etiketten hentes fra
         // t('order_days') slik at den er ORDRETT lik beskrivelses-linjen over
         // ("Arbeidstid: Mandag (9,5t)…") — ett ord for ett begrep i dokumentet.
+        // Fet + tom rad over: uten det klistret raden seg til siste material-
+        // gruppe og så ut som en del av den (f.eks. under "Totalt: 8,5 meter").
         if (order.timer && typeof order.timer === 'object') {
             let orderTotal = 0;
             Object.values(order.timer).forEach(v => {
@@ -6325,14 +6327,16 @@ function buildDesktopWorkLines() {
             });
             if (orderTotal > 0) {
                 const formatted = orderTotal.toFixed(1).replace('.', ',');
-                addRow(t('order_days') + ':', formatted, 'timer', { alignRight: true });
+                addRow('', '', '');
+                addRow(t('order_days') + ':', formatted, 'timer', { bold: true, alignRight: true });
                 totalTimer += orderTotal;
                 timerRows++;
             }
         } else if (typeof order.timer === 'string' && order.timer) {
             const val = parseFloat(order.timer.replace(',', '.'));
             const formatted = isNaN(val) ? order.timer.replace('.', ',') : val.toFixed(1).replace('.', ',');
-            addRow(t('order_days') + ':', formatted, 'timer', { alignRight: true });
+            addRow('', '', '');
+            addRow(t('order_days') + ':', formatted, 'timer', { bold: true, alignRight: true });
             if (!isNaN(val)) { totalTimer += val; timerRows++; }
         }
     });
@@ -6514,14 +6518,20 @@ function computeWorkRows(orders, minRows) {
         }
 
         // Arbeidstid pr. bestilling — etiketten fra t('order_days') så den er
-        // ordrett lik beskrivelses-linjen over. Identisk med buildDesktopWorkLines.
+        // ordrett lik beskrivelses-linjen over. Fet + tom rad over så den ikke
+        // klistrer seg til siste material-gruppe. Identisk med buildDesktopWorkLines.
         if (order.timer && typeof order.timer === 'object') {
             var orderTotal = 0;
             Object.values(order.timer).forEach(function(v) { var val = parseFloat(String(v || '').replace(',', '.')); if (!isNaN(val)) orderTotal += val; });
-            if (orderTotal > 0) { addRow(t('order_days') + ':', orderTotal.toFixed(1).replace('.', ','), 'timer', { alignRight: true }); totalTimer += orderTotal; timerRows++; }
+            if (orderTotal > 0) {
+                addRow('', '', '');
+                addRow(t('order_days') + ':', orderTotal.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
+                totalTimer += orderTotal; timerRows++;
+            }
         } else if (typeof order.timer === 'string' && order.timer) {
             var val2 = parseFloat(order.timer.replace(',', '.'));
-            addRow(t('order_days') + ':', isNaN(val2) ? order.timer.replace('.', ',') : val2.toFixed(1).replace('.', ','), 'timer', { alignRight: true });
+            addRow('', '', '');
+            addRow(t('order_days') + ':', isNaN(val2) ? order.timer.replace('.', ',') : val2.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
             if (!isNaN(val2)) { totalTimer += val2; timerRows++; }
         }
     });
