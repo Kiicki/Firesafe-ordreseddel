@@ -23,6 +23,17 @@ Når vi blir enige om hvordan en interaksjon skal oppføre seg — **tastatur (�
 
 **Hvis du i unntakstilfelle MÅ scope smalt** (fordi en spesifikk komponent har genuint annerledes oppførsel): dokumenter det i koden OG nevn det eksplisitt i svaret ditt, slik at brukeren kan godkjenne unntaket. Aldri scope smalt uten å si fra.
 
+## **KONSISTENS: Diff BEGGE implementasjonene i koden før du endrer**
+
+Når brukeren ber om at noe skal være **konsistent / likt** mellom to steder (f.eks. ordreseddel-lista vs. servicebil-lista, to kort, to popuper), er det IKKE nok å matche ett og ett attributt eller gjette ut fra et skjermbilde. Da bommer du på detaljene (mellomrom, separatorer, marginer, vekt, størrelse) og brukeren må rapportere samme problem flere ganger.
+
+**Fremgangsmåte (obligatorisk ved konsistens-krav):**
+1. **Finn og les den FAKTISKE koden** som bygger begge variantene — både HTML/JS-markup (hvordan strengen settes sammen, inkl. mellomrom rundt separatorer) OG CSS-en som treffer dem (grep etter klassene, sjekk base-regler + eventuelle scoped overrides).
+2. **Sammenlign dem side ved side** og finn ALLE forskjellene (ikke bare den ene du la merke til): markup, separator-tegn, mellomrom, font-størrelse/-vekt/-farge, marginer/padding, gap.
+3. **Gjør dem identiske** (helst ved å dele samme markup/CSS), og **bekreft i svaret** at du har sammenlignet kilde + CSS på begge sider og at de nå er like.
+
+Ikke si «jeg tar det med videre» — det betyr ingenting. Verifiser i koden hver gang.
+
 ## VIKTIG: Firebase-kode som IKKE skal endres
 
 ### I `script.js` - Ikke endre disse delene:

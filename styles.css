@@ -1393,7 +1393,7 @@ body.servicebil-inntak-mode #picker-overlay .picker-overlay-header {
 }
 .bil-history-sep::before {
     content: '•';
-    margin: 0 6px;
+    margin: 0 4px;
     color: #ccc;
 }
 .bil-history-delete {
@@ -1907,7 +1907,7 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
 }
 .saved-item-subtitle .bil-history-sep::before {
     content: '•';
-    margin: 0 6px;
+    margin: 0 4px;
     color: #ccc;
 }
 
@@ -4677,6 +4677,42 @@ body.keyboard-open #spec-popup .spec-popup-sheet {
 }
 .bil-history-grouped .mat-summary-row {
     padding-left: 12px;
+}
+
+/* ── Servicebil-kort: penere materialliste ──────────────────────────────────
+   Scoped til .bil-history-materials fordi .mat-summary-row DELES med ordreskjemaets
+   material-sammendrag (script.js) — det skal IKKE endres. Mengden vises som en dempet
+   pille (chip) til høyre, navnet rolig mørkt til venstre, gruppe-headere som caption. */
+.bil-history-materials .mat-summary-row {
+    /* Kun vertikal padding — bevarer base/grupperings-innrykk (padding-left) på
+       grupperte rader (FSC/FSW-underelementer). */
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-bottom: none;
+    font-size: 13px;
+}
+.bil-history-materials .mat-summary-name {
+    color: #2a2a2a;
+    font-weight: 500;
+}
+.bil-history-materials .mat-summary-detail {
+    flex-shrink: 0;
+    margin-left: 12px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #f1f1f4;
+    color: #555;
+    font-weight: 600;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.bil-history-materials .bil-history-group-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8a8a90;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 10px 0 3px;
 }
 
 .mobile-add-mat-btn {
@@ -8969,6 +9005,14 @@ body.kappe-view-open #view-form { display: none; }
    med litt luft over så de skilles fra radene. */
 #spec-multi-popup .kappe-add-row-buttons {
     margin-top: 2px;
+}
+/* Tre knapper får IKKE plass på én linje: sheet er 90%/max 320px minus 40px
+   padding → ≤280px innhold, mens «+ Løpende meter» alene krever ~112px ved
+   13px. Med flex:1 på tre knapper (~88px hver) ville teksten flytt utenfor den
+   stiplede ramma. «+ Eske» får derfor egen full-bredde linje — samme mønster
+   som .iso-add-group-btn i isolering-popupen. */
+#spec-multi-popup #spec-multi-add-eske {
+    flex: 1 1 100%;
 }
 /* Dempet hint når popupen er tom (ingen rader ennå) — fyller tomrommet. */
 .spec-multi-empty {

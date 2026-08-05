@@ -443,7 +443,7 @@ function _buildSavedItemHtml(item, index) {
     if (item.prosjektnr) parts.push(escapeHtml(item.prosjektnr));
     if (item.prosjektnavn) parts.push(escapeHtml(item.prosjektnavn));
     if (parts.length) {
-        subtitle = '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>';
+        subtitle = '<div class="saved-item-subtitle">' + parts.join('<span class="bil-history-sep"></span>') + '</div>';
     }
     // Ekspanderbar beskrivelse: samle ordre-/bestillings-beskrivelsene fra skjemaet, så
     // bruker raskt kan se HVA ordreseddelen handler om uten å åpne den. Vises kun når det
@@ -6395,7 +6395,7 @@ function _buildServiceItemHtml(item, index) {
     if (entry.prosjektnr) projectParts.push(escapeHtml(entry.prosjektnr));
     if (entry.prosjektnavn) projectParts.push(escapeHtml(entry.prosjektnavn));
     if (projectParts.length > 0) {
-        serviceSubtitle = '<div class="saved-item-subtitle">' + projectParts.join(' <span class="bil-history-sep"></span> ') + '</div>';
+        serviceSubtitle = '<div class="saved-item-subtitle">' + projectParts.join('<span class="bil-history-sep"></span>') + '</div>';
     }
     var savedAtStr = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
@@ -6724,6 +6724,12 @@ function buildServiceExportTable(cols) {
                 // Direct meter entry on spec-base (Løpende) — render "Løpende · X meter"
                 if (m.enhet === 'meter' && m.name.toLowerCase() === baseName.toLowerCase() && m.antall) {
                     lines.push('L\u00f8pende \u00b7 ' + formatRunningMeters(m.antall) + ' meter');
+                    return;
+                }
+                // Direkte eske-post p\u00e5 spec-basen. Ikke gated p\u00e5 hasLM: esker gjelder
+                // alle tre spec-typene, ogs\u00e5 kabelhylse.
+                if (m.enhet === 'eske' && m.name.toLowerCase() === baseName.toLowerCase() && m.antall) {
+                    lines.push('Esker \u00b7 ' + formatRunningMeters(m.antall) + ' eske');
                     return;
                 }
                 if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
@@ -11167,8 +11173,9 @@ function renderBilHistory() {
             if (item.prosjektnr) subParts.push(escapeHtml(item.prosjektnr));
             if (item.prosjektnavn) subParts.push(escapeHtml(item.prosjektnavn));
             // Samme separator-markup som alle .saved-item-lister (ordreseddel/service/kappe):
-            // mellomrom rundt <span> + 6px CSS-margin → identisk gap som ordreseddel.
-            if (subParts.length) subtitleHtml = subParts.join(' <span class="bil-history-sep"></span> ');
+            // ingen literal-mellomrom — all spacing eies av .bil-history-sep::before sin
+            // margin, så gapet er identisk overalt og styres ett sted.
+            if (subParts.length) subtitleHtml = subParts.join('<span class="bil-history-sep"></span>');
         }
 
         var matsHtml = '';
@@ -13613,8 +13620,9 @@ function _isoCardEnsureActiveRow() {
 
 // ── Multi-add spec-popup (mansjett/brannpakning/kabelhylse) ──────────────────
 // Speiler isolering-popupen: flere dimensjons-rader (m/antall) + ev. løpende-
-// meter-rader i én operasjon. callback(selections) kalles ÉN gang med hele
-// listen; hver selection er { spec, antall, enhet:'stk' } eller { isMeter, antall, enhet:'meter' }.
+// meter-rader + eske-rader i én operasjon. callback(selections) kalles ÉN gang
+// med hele listen; hver selection er { spec, antall, enhet:'stk' },
+// { isMeter, antall, enhet:'meter' } eller { isEske, antall, enhet:'eske' }.
 var _specMultiCallback = null;
 var _specMultiMatType = 'kabelhylse';
 
@@ -13627,25 +13635,34 @@ function openSpecMultiPopup(baseName, matType, callback, prefillEntries) {
     if (title) title.textContent = baseName || '';
     var rowsC = document.getElementById('spec-multi-rows');
     var meterC = document.getElementById('spec-multi-meter-rows');
+    var eskeC = document.getElementById('spec-multi-eske-rows');
     if (rowsC) rowsC.innerHTML = '';
     if (meterC) meterC.innerHTML = '';
+    if (eskeC) eskeC.innerHTML = '';
     // Løpende-meter-knappen kun for mansjett/brannpakning (ikke kabelhylse).
+    // Eske-knappen gjelder derimot ALLE tre typene — alle selges i eske.
     var hasMeter = (_specMultiMatType === 'mansjett' || _specMultiMatType === 'brannpakning');
     var meterBtn = document.getElementById('spec-multi-add-meter');
     if (meterBtn) meterBtn.style.display = hasMeter ? '' : 'none';
 
-    // INGEN default-rad — bruker velger selv (dimensjon eller løpende meter), som
-    // isolering der man velger kapp/plate. Kun forhåndsfylte poster vises.
-    var dimEntries = [], meterEntries = [];
+    // INGEN default-rad — bruker velger selv (dimensjon, løpende meter eller eske),
+    // som isolering der man velger kapp/plate. Kun forhåndsfylte poster vises.
+    var dimEntries = [], meterEntries = [], eskeEntries = [];
     (prefillEntries || []).forEach(function(e) {
-        if (e && e.isMeter) meterEntries.push(e); else if (e) dimEntries.push(e);
+        if (!e) return;
+        // isMeter/isEske MÅ testes før dimensjons-fallbacken, ellers rendres de
+        // dimensjonsløse postene som tomme dimensjons-rader.
+        if (e.isMeter) meterEntries.push(e);
+        else if (e.isEske) eskeEntries.push(e);
+        else dimEntries.push(e);
     });
     if (rowsC) dimEntries.forEach(function(e) { rowsC.appendChild(_createSpecRow(_specMultiMatType, e)); });
     if (meterC) meterEntries.forEach(function(e) { meterC.appendChild(_createSpecMeterRow(e)); });
+    if (eskeC) eskeEntries.forEach(function(e) { eskeC.appendChild(_createSpecEskeRow(e)); });
     var emptyEl = document.getElementById('spec-multi-empty');
     if (emptyEl) emptyEl.textContent = hasMeter
-        ? 'Legg til dimensjoner eller løpende meter nedenfor.'
-        : 'Legg til en eller flere dimensjoner nedenfor.';
+        ? 'Legg til dimensjoner, løpende meter eller esker nedenfor.'
+        : 'Legg til dimensjoner eller esker nedenfor.';
     _specMultiUpdateEmptyState();
     if (typeof applyTranslations === 'function') applyTranslations();
     popup.classList.add('active');
@@ -13699,11 +13716,26 @@ function _createSpecMeterRow(data) {
     return row;
 }
 
+// Eske-rad: dimensjonsløs mengde (antall esker/pakker av produktet). Speiler
+// meter-raden, men heltall — man kjøper ikke en halv eske.
+function _createSpecEskeRow(data) {
+    var d = data || {};
+    var row = document.createElement('div');
+    row.className = 'spec-multi-row spec-multi-eske-row';
+    row.innerHTML =
+        '<div class="kappe-quad-row">' +
+            '<div class="mobile-field field-required"><label>Esker</label>' +
+                '<input type="text" class="spm-eske" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall != null ? String(d.antall) : '') + '"></div>' +
+        '</div>' +
+        '<button type="button" class="kappe-kapp-remove-btn" onclick="_specMultiRemoveRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
+    return row;
+}
+
 // Vis hint-teksten kun når ingen rader er lagt til (tom popup ser ikke bar ut).
 function _specMultiUpdateEmptyState() {
     var emptyEl = document.getElementById('spec-multi-empty');
     if (!emptyEl) return;
-    var rows = document.querySelectorAll('#spec-multi-rows .spec-multi-row, #spec-multi-meter-rows .spec-multi-row');
+    var rows = document.querySelectorAll('#spec-multi-rows .spec-multi-row, #spec-multi-meter-rows .spec-multi-row, #spec-multi-eske-rows .spec-multi-row');
     emptyEl.style.display = rows.length ? 'none' : '';
 }
 
@@ -13722,6 +13754,16 @@ function _specMultiAddMeterRow() {
     var c = document.getElementById('spec-multi-meter-rows');
     if (!c) return;
     var row = _createSpecMeterRow(null);
+    c.appendChild(row);
+    _specMultiUpdateEmptyState();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
+}
+
+function _specMultiAddEskeRow() {
+    var c = document.getElementById('spec-multi-eske-rows');
+    if (!c) return;
+    var row = _createSpecEskeRow(null);
     c.appendChild(row);
     _specMultiUpdateEmptyState();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
@@ -13763,7 +13805,16 @@ function confirmSpecMultiPopup() {
         if (isNaN(mn) || mn <= 0) { showNotificationModal('Fyll inn gyldig meter, eller fjern tomme.'); return; }
         selections.push({ isMeter: true, antall: mv, enhet: 'meter' });
     }
-    if (!selections.length) { showNotificationModal('Fyll inn minst én dimensjon eller løpende meter.'); return; }
+    var eskeRows = Array.prototype.slice.call(document.querySelectorAll('#spec-multi-eske-rows .spec-multi-row'));
+    for (var k = 0; k < eskeRows.length; k++) {
+        var ev = (eskeRows[k].querySelector('.spm-eske') || {}).value;
+        ev = ev ? String(ev).trim() : '';
+        if (!ev) continue;
+        var en = parseInt(ev, 10);
+        if (isNaN(en) || en <= 0) { showNotificationModal('Fyll inn gyldig antall esker, eller fjern tomme.'); return; }
+        selections.push({ isEske: true, antall: String(en), enhet: 'eske' });
+    }
+    if (!selections.length) { showNotificationModal('Fyll inn minst én dimensjon, løpende meter eller eske.'); return; }
     var cb = _specMultiCallback;
     closeSpecMultiPopup();
     if (cb) cb(selections);
@@ -16218,7 +16269,7 @@ function _buildKappeItemHtml(item, index) {
     if (savedAtStr) parts.push(escapeHtml(savedAtStr));
     if (item.prosjektnr && item.prosjektnavn) parts.push(escapeHtml(item.prosjektnr));
     var subtitle = parts.length
-        ? '<div class="saved-item-subtitle">' + parts.join(' <span class="bil-history-sep"></span> ') + '</div>'
+        ? '<div class="saved-item-subtitle">' + parts.join('<span class="bil-history-sep"></span>') + '</div>'
         : '';
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + _statusDotClass(item) + '"></span>';

@@ -721,7 +721,7 @@ function getKappeFastenerLabel() {
 }
 
 function _stripPickerSuffix(name) {
-    return String(name || '').replace(/__(\d+|meter)$/i, '');
+    return String(name || '').replace(/__(\d+|meter|eske)$/i, '');
 }
 
 function _getKappeProductName(name) {
@@ -964,6 +964,10 @@ function getMaterialQuantityUnit(materialName, enhet, source) {
     if (source && source.indexOf('unit:') === 0) return source.substring(5);
     var enhetLower = (enhet || '').toLowerCase();
     if (enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm') return 'meter';
+    // 'eske' som enhet betyr KUN "eske-rad på en spec-base" (mansjett/brannpakning/
+    // kabelhylse). Standard-materialer kan ha en brukerdefinert variant som heter
+    // «Eske» — de skal fortsatt telles i stk, derfor er dette gated på spec-gruppe.
+    if (enhetLower === 'eske' && isSpecGroupedMaterial(materialName, enhet)) return 'eske';
     var productDefault = getKappeProductDefaultUnit(materialName);
     if (productDefault) return productDefault;
     if (source === 'kappe-products') return 'meter';
@@ -1010,6 +1014,11 @@ function getBaseMaterialName(name, enhet) {
             if (m.type !== 'mansjett' && m.type !== 'brannpakning' && m.type !== 'kabelhylse') return false;
             if (name.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) return true;
             if (enhet === 'meter' && name.toLowerCase() === m.name.toLowerCase()) return true;
+            // Eske-rad på spec-basen (samme mønster som løpende meter): dimensjonsløs
+            // post lagret rett på basenavnet, diskriminert av enhet. Streng små-
+            // bokstav med vilje — en gammel standard-variant «Eske» (stor E) skal
+            // fortsatt IKKE treffe her.
+            if (enhet === 'eske' && name.toLowerCase() === m.name.toLowerCase()) return true;
             return false;
         });
         if (specBase) return specBase.name;
@@ -1023,6 +1032,8 @@ function isSpecGroupedMaterial(name, enhet) {
         if (m.type !== 'mansjett' && m.type !== 'brannpakning' && m.type !== 'kabelhylse') return false;
         if (name.toLowerCase().startsWith(m.name.toLowerCase() + ' ')) return true;
         if (enhet === 'meter' && name.toLowerCase() === m.name.toLowerCase()) return true;
+        // Eske-rad på spec-basen — se kommentar i getBaseMaterialName.
+        if (enhet === 'eske' && name.toLowerCase() === m.name.toLowerCase()) return true;
         return false;
     });
 }
@@ -1202,6 +1213,12 @@ function getGroupedDisplayName(m, baseName) {
         // ville v\u00e6rt redundant. Picker-UI (uten enhet-kolonne) bruker sin egen
         // "L\u00f8pende meter"-streng p\u00e5 linje ~2750.
         return 'l\u00f8pende';
+    }
+    // Direct eske entry under spec-base \u2192 label as "Esker". Enhet-kolonnen viser
+    // allerede "eske", men i motsetning til "l\u00f8pende" finnes det ikke noe
+    // adjektiv for dette, s\u00e5 navnet b\u00e6rer identiteten alene.
+    if (m.enhet === 'eske' && name.toLowerCase() === baseName.toLowerCase()) {
+        return 'esker';
     }
     // For spec-derived materials, strip the base name prefix to show just the spec
     if (name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
@@ -2656,7 +2673,10 @@ function renderMaterialSummary(matContainer, materials) {
     // Filter out empty and spec-base materials first
     var filtered = materials.filter(function(m) {
         if (!m.name && !m.antall && !m.enhet) return false;
-        if (cachedMaterialOptions && m.enhet !== 'meter') {
+        // Spec-basen ("FSC") er kun en launcher og skal aldri vises som egen rad.
+        // Unntak: dimensjonsløse poster lagret rett på basenavnet — løpende meter
+        // og esker — som ER ekte data.
+        if (cachedMaterialOptions && m.enhet !== 'meter' && m.enhet !== 'eske') {
             var specBase = cachedMaterialOptions.find(function(o) {
                 return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
             });
@@ -2868,8 +2888,22 @@ function parseMaterialPickerKey(key) {
             baseName: meterMatch[1],
             realName: meterMatch[1],
             isMeterEntry: true,
+            isEskeEntry: false,
             isDuplicate: !!meterMatch[2],
             duplicateIndex: meterMatch[2] ? parseInt(meterMatch[2], 10) : 1
+        };
+    }
+    // Eske-poster: dimensjonsløs mengde på spec-basen, samme nøkkel-grammatikk
+    // som __meter. Må testes FØR den generiske __N-dupliseringen.
+    var eskeMatch = raw.match(/^(.+)__eske(?:__(\d+))?$/);
+    if (eskeMatch) {
+        return {
+            baseName: eskeMatch[1],
+            realName: eskeMatch[1],
+            isMeterEntry: false,
+            isEskeEntry: true,
+            isDuplicate: !!eskeMatch[2],
+            duplicateIndex: eskeMatch[2] ? parseInt(eskeMatch[2], 10) : 1
         };
     }
     var dupMatch = raw.match(/^(.+)__(\d+)$/);
@@ -2878,6 +2912,7 @@ function parseMaterialPickerKey(key) {
             baseName: dupMatch[1],
             realName: dupMatch[1],
             isMeterEntry: false,
+            isEskeEntry: false,
             isDuplicate: true,
             duplicateIndex: parseInt(dupMatch[2], 10)
         };
@@ -2886,6 +2921,7 @@ function parseMaterialPickerKey(key) {
         baseName: raw,
         realName: raw,
         isMeterEntry: false,
+        isEskeEntry: false,
         isDuplicate: false,
         duplicateIndex: 1
     };
@@ -2937,10 +2973,15 @@ function openMaterialPicker(btn, onConfirm) {
             var isSpecBaseMat = allMaterials.some(function(o) {
                 return o.name.toLowerCase() === m.name.toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
             });
-            // Skip spec-base materials (e.g. "FSC" when type is mansjett/brannpakning/kabelhylse), but not direct meter entries
-            if (m.enhet !== 'meter' && isSpecBaseMat) return;
-            // Direct meter entry on a spec-base → use __meter suffix so it's treated as a meter entry in the picker
-            var storageKey = (m.enhet === 'meter' && isSpecBaseMat) ? m.name + '__meter' : m.name;
+            // Skip spec-base materials (e.g. "FSC" when type is mansjett/brannpakning/kabelhylse),
+            // but not direct meter-/eske-entries (dimensjonsløse poster på basenavnet)
+            if (m.enhet !== 'meter' && m.enhet !== 'eske' && isSpecBaseMat) return;
+            // Direct meter-/eske-entry on a spec-base → use __meter/__eske suffix so it's
+            // treated as a dimensjonsløs post in the picker (grupperes under basen)
+            var storageKey = isSpecBaseMat
+                ? (m.enhet === 'meter' ? m.name + '__meter'
+                    : (m.enhet === 'eske' ? m.name + '__eske' : m.name))
+                : m.name;
             // If this name already exists in pickerState, use __N suffix for duplicates
             var materialState = { checked: true, antall: m.antall || '', enhet: m.enhet || '' };
             if (m.source) materialState.source = m.source;
@@ -3005,6 +3046,9 @@ function openMaterialPicker(btn, onConfirm) {
                 unitPillText = enhetLower === 'eske' ? 'eske' : 'stk';
             } else if (isMeterQuantity) {
                 unitPillText = 'meter';
+            } else if (activeQuantityUnit === 'eske') {
+                // Eske-rad på en spec-base (FSC/FSW/Kabelhylse)
+                unitPillText = 'eske';
             } else {
                 // Inkluderer variants (Patron, Pølse, etc.) — de er stk-baserte
                 unitPillText = 'stk';
@@ -3087,6 +3131,7 @@ function openMaterialPicker(btn, onConfirm) {
         if (!name) return false;
         if (pickerState[name] && (pickerState[name].source === 'kappe-stift' || pickerState[name].source === 'kappe-fastener')) return true;
         if (/__meter$/i.test(name)) return true;
+        if (/__eske$/i.test(name)) return true;
         if (/__\d+$/.test(name)) return true;
         if (findBaseMaterial(name)) return true;
         var inDefaults = allMaterials.some(function(m) {
@@ -3332,6 +3377,11 @@ function openMaterialPicker(btn, onConfirm) {
                 prefill.push({ isMeter: true, antall: st.antall || '' });
                 return;
             }
+            if (parsed.isEskeEntry && parsed.baseName === baseName) {
+                keys.push(key);
+                prefill.push({ isEske: true, antall: st.antall || '' });
+                return;
+            }
             var deduped = key.replace(/__(\d+)$/, '');
             if (deduped.toLowerCase().indexOf(baseName.toLowerCase() + ' ') === 0) {
                 var dims = _parseSpecFromName(deduped, baseName);
@@ -3350,6 +3400,10 @@ function openMaterialPicker(btn, onConfirm) {
                     key = baseName + '__meter';
                     if (pickerState[key]) key = nextPickerDuplicateKey(key);
                     pickerState[key] = { checked: true, antall: s.antall || '', enhet: 'meter' };
+                } else if (s.isEske) {
+                    key = baseName + '__eske';
+                    if (pickerState[key]) key = nextPickerDuplicateKey(key);
+                    pickerState[key] = { checked: true, antall: s.antall || '', enhet: 'eske', quantityUnit: 'eske' };
                 } else {
                     var full = baseName + ' ' + s.spec;
                     key = pickerState[full] ? nextPickerDuplicateKey(full) : full;
@@ -3409,7 +3463,9 @@ function openMaterialPicker(btn, onConfirm) {
                 const baseLower = matObj.name.toLowerCase();
                 const hasDerived = Object.keys(pickerState).some(k => {
                     const kLower = k.toLowerCase();
-                    return kLower.startsWith(baseLower + ' ') || kLower === baseLower + '__meter' || kLower.startsWith(baseLower + '__meter__');
+                    return kLower.startsWith(baseLower + ' ')
+                        || kLower === baseLower + '__meter' || kLower.startsWith(baseLower + '__meter__')
+                        || kLower === baseLower + '__eske' || kLower.startsWith(baseLower + '__eske__');
                 });
                 if (!hasDerived) {
                     entries.push({ name: matObj.name, isChecked: false, antall: '', enhet: matObj.defaultUnit || '', matType: matType, isSpecDerived: false });
@@ -3447,6 +3503,11 @@ function openMaterialPicker(btn, onConfirm) {
             const parsedKey = parsePickerStorageKey(name);
             if (parsedKey.isMeterEntry) {
                 entries.push({ name, displayName: parsedKey.baseName, isChecked: state.checked, antall: state.antall || '', enhet: 'meter', matType: 'standard', isSpecDerived: true });
+                return;
+            }
+            // Eske-entries (f.eks. "FSC__eske") — dimensjonsløs post på spec-basen
+            if (parsedKey.isEskeEntry) {
+                entries.push({ name, displayName: parsedKey.baseName, isChecked: state.checked, antall: state.antall || '', enhet: 'eske', quantityUnit: 'eske', matType: 'standard', isSpecDerived: true });
                 return;
             }
             // Check for duplicate entries (e.g. "FSA__2" eller "FSW Ø100 2 lag__2")
@@ -3489,7 +3550,7 @@ function openMaterialPicker(btn, onConfirm) {
             var parsedEntryKey = parsePickerStorageKey(e.name);
             if (e.groupBaseName) {
                 baseName = e.groupBaseName;
-            } else if (parsedEntryKey.isMeterEntry) {
+            } else if (parsedEntryKey.isMeterEntry || parsedEntryKey.isEskeEntry) {
                 baseName = parsedEntryKey.baseName;
             } else if (parsedEntryKey.isDuplicate) {
                 var dupBaseName = parsedEntryKey.baseName;
@@ -3622,6 +3683,8 @@ function openMaterialPicker(btn, onConfirm) {
                         subDisplay = nameNoSuffix.substring(group.baseName.length + 1);
                     } else if (parsePickerStorageKey(e.name).isMeterEntry) {
                         subDisplay = 'L\u00f8pende meter';
+                    } else if (parsePickerStorageKey(e.name).isEskeEntry) {
+                        subDisplay = 'Esker';
                     } else if (e.name.match(/^(.+)__(\d+)$/)) {
                         var dupEnhet = normalizeVariant(group.baseName, e.enhet || '').toLowerCase();
                         subDisplay = (dupEnhet && dupEnhet !== 'stk' && dupEnhet !== 'meter')
@@ -3793,6 +3856,10 @@ function openMaterialPicker(btn, onConfirm) {
                 var derivedBase = null;
                 if (parsedNameKey.isMeterEntry) {
                     derivedBase = allMaterials.find(function(m) { return m.name === parsedNameKey.baseName && (m.type === 'mansjett' || m.type === 'brannpakning'); });
+                } else if (parsedNameKey.isEskeEntry) {
+                    // Eske gjelder ALLE tre spec-typene — også kabelhylse, i motsetning
+                    // til løpende meter som kun finnes for mansjett/brannpakning.
+                    derivedBase = allMaterials.find(function(m) { return m.name === parsedNameKey.baseName && (m.type === 'mansjett' || m.type === 'brannpakning' || m.type === 'kabelhylse'); });
                 } else {
                     derivedBase = findBaseMaterial(name);
                 }
@@ -3835,7 +3902,8 @@ function openMaterialPicker(btn, onConfirm) {
             // - Spec-derived (entry opprettet via spec-popup): alltid highlighted
             // - Vanlig produkt: highlighted iff Antall har verdi
             var isSpecType = matType === 'mansjett' || matType === 'brannpakning' || matType === 'kabelhylse';
-            var isSpecDerived = parsePickerStorageKey(name).isMeterEntry || !!findBaseMaterial(name);
+            var _parsedRowKey = parsePickerStorageKey(name);
+            var isSpecDerived = _parsedRowKey.isMeterEntry || _parsedRowKey.isEskeEntry || !!findBaseMaterial(name);
 
             function _ensureState() {
                 if (pickerState[name]) return;
@@ -3900,6 +3968,18 @@ function openMaterialPicker(btn, onConfirm) {
                             specMode: kappeSrcState.specMode || '',
                             plate: kappeSrcState.plate || null
                         });
+                        return;
+                    }
+                    // Eske-rader dupliseres direkte til en ny tom eske-rad. Bevisst ULIKT
+                    // meter-rader, som ruter videre til openSpecPopup — den popupen har
+                    // en Stk/Meter-toggle, men ingen eske-modus. Å legge til en tredje
+                    // modus der ville vært en større endring uten gevinst: en eske-rad
+                    // har ingen dimensjon å velge, så det finnes ingenting å spørre om.
+                    if (parsedDupKey.isEskeEntry) {
+                        var eskeNewKey = nextPickerDuplicateKey(baseName + '__eske');
+                        pickerState[eskeNewKey] = { checked: true, antall: '', enhet: 'eske', quantityUnit: 'eske' };
+                        renderPickerList();
+                        _scrollPickerOneRowAfterDup(eskeNewKey);
                         return;
                     }
                     // Spec-base lookup: håndterer både spec-rader (FSC Ø50mm) og meter-rader
@@ -6048,8 +6128,9 @@ function buildDesktopWorkLines() {
         // Materials
         const filledMats = (order.materials || []).filter(m => {
             if (!m.name && !m.antall && !m.enhet) return false;
-            // Skip spec-base materials that shouldn't be exported (but not direct meter entries)
-            if (cachedMaterialOptions && m.enhet !== 'meter') {
+            // Skip spec-base materials that shouldn't be exported (but not direct
+            // meter-/eske-entries — dimensjonsløse poster lagret på basenavnet)
+            if (cachedMaterialOptions && m.enhet !== 'meter' && m.enhet !== 'eske') {
                 var specBase = cachedMaterialOptions.find(function(o) {
                     return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
                 });
@@ -6148,6 +6229,11 @@ function buildDesktopWorkLines() {
                     addRow('  ' + exportGroupTitle.charAt(0).toUpperCase() + exportGroupTitle.slice(1) + ':', '', '', { bold: true, alignRight: true });
                     var groupTotalMeter = 0;
                     var groupHasMeter = false;
+                    // groupMeterRows teller radene som FAKTISK bidrar til meter-summen.
+                    // renderItems.length duger ikke lenger: en eske-rad er med i gruppa
+                    // uten å bidra, så «1 dimensjon + 1 eske» ville gitt en «Totalt:»-rad
+                    // som bare gjentar den ene dimensjonsraden.
+                    var groupMeterRows = 0;
                     var groupTotalPlater = 0;
                     var groupHasPlater = false;
                     // For Isolering: pre-aggreger isolasjons-rader med samme produkt+tykkelse,
@@ -6209,16 +6295,18 @@ function buildDesktopWorkLines() {
                         } else if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
                             groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum);
                             groupHasMeter = true;
+                            groupMeterRows++;
                         } else if ((gm.quantityUnit || getMaterialQuantityUnit(gm.name, gm.enhet, gm.source)) === 'meter' && !isNaN(antallNum)) {
                             groupTotalMeter += antallNum;
                             groupHasMeter = true;
+                            groupMeterRows++;
                         }
                     });
                     // Totalt-rad: kun for spec-grupper (FSC/FSW/Kabelhylse) der alle rader representerer
                     // samme produkt med ulike spec/runder — der gir summen mening.
                     // For Isolering har hver rad et UNIKT produkt (Fireprotect 20mm vs 22mm vs ...),
                     // så et "totalt" på tvers ville ikke vært meningsfullt.
-                    if (groupHasMeter && renderItems.length > 1) {
+                    if (groupHasMeter && groupMeterRows > 1) {
                         addRow('    Totalt:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
                     }
                 }
@@ -6305,7 +6393,7 @@ function computeWorkRows(orders, minRows) {
         // Materialer — identisk med buildDesktopWorkLines (gjenbruker globale helpere).
         var filledMats = (order.materials || []).filter(function(m) {
             if (!m.name && !m.antall && !m.enhet) return false;
-            if (cachedMaterialOptions && m.enhet !== 'meter') {
+            if (cachedMaterialOptions && m.enhet !== 'meter' && m.enhet !== 'eske') {
                 var specBase = cachedMaterialOptions.find(function(o) {
                     return o.name.toLowerCase() === (m.name || '').toLowerCase() && (o.type === 'mansjett' || o.type === 'brannpakning' || o.type === 'kabelhylse');
                 });
@@ -6369,7 +6457,11 @@ function computeWorkRows(orders, minRows) {
                 } else {
                     var exportGroupTitle = group.displayName || group.baseName;
                     addRow('  ' + exportGroupTitle.charAt(0).toUpperCase() + exportGroupTitle.slice(1) + ':', '', '', { bold: true, alignRight: true });
-                    var groupTotalMeter = 0, groupHasMeter = false;
+                    // groupMeterRows teller radene som FAKTISK bidrar til meter-summen.
+                    // renderItems.length duger ikke lenger: en eske-rad er med i gruppa
+                    // uten å bidra, så «1 dimensjon + 1 eske» ville gitt en «Totalt:»-rad
+                    // som bare gjentar den ene dimensjonsraden.
+                    var groupTotalMeter = 0, groupHasMeter = false, groupMeterRows = 0;
                     var renderItems = group.items;
                     if (group.isIsolationGroup) {
                         var isoAgg = [], isoMap = {}, nonIsoItems = [];
@@ -6400,12 +6492,12 @@ function computeWorkRows(orders, minRows) {
                         if (gm.source === 'kappe-products') {
                             // plater akkumuleres ikke til en meter-total
                         } else if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
-                            groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum); groupHasMeter = true;
+                            groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum); groupHasMeter = true; groupMeterRows++;
                         } else if ((gm.quantityUnit || getMaterialQuantityUnit(gm.name, gm.enhet, gm.source)) === 'meter' && !isNaN(antallNum)) {
-                            groupTotalMeter += antallNum; groupHasMeter = true;
+                            groupTotalMeter += antallNum; groupHasMeter = true; groupMeterRows++;
                         }
                     });
-                    if (groupHasMeter && renderItems.length > 1) {
+                    if (groupHasMeter && groupMeterRows > 1) {
                         addRow('    Totalt:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
                     }
                 }
