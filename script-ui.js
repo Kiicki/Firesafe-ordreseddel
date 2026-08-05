@@ -5608,18 +5608,92 @@ function _bulkFilename(ext, type) {
     return _typePrefix(type) + '_samlet_' + range + '.' + (ext || 'pdf');
 }
 
-// Bygg delings-metadata { title, text } fra en liste av numre/referanser:
-//   title = én linje (e-post-emne, søkbar):  «Ordresedler: 305, 306»
+// ─── E-post-emne ved deling ─────────────────────────────────────────────────
+// Emnet («Ordreseddel – Tørvikbygd – Uke 30 & 31») skal fortelle en mottaker som
+// skanner innboksen HVA dokumentet er, HVILKET prosjekt og NÅR. Ordrenummeret er
+// bevisst utelatt: det er et internt løpenummer uten mening for mottakeren, og
+// det står allerede i brødteksten. Typen står først fordi ordreseddel/lageruttak/
+// kappeskjema ofte går til ulike personer.
+var _SHARE_SUBJECT_SEP = ' – ';   // en dash
+var _SHARE_MAX_PROSJEKT_NAMES = 3;     // over dette blir emnet ulesbart i en innboks
+
+// «Uke-30-2026» / «Uker-30-31-2026» → «Uke 30» / «Uker 30-31».
+// Årstallet droppes: e-posten er selv datert, og emnet skal være kort.
+function _formatUkeForSubject(ukeYear) {
+    var s = String(ukeYear || '');
+    var m = s.match(/^(Uker?)-(\d+(?:-\d+)?)-\d{4}$/);
+    return m ? m[1] + ' ' + m[2] : s.replace(/-/g, ' ');
+}
+
+// Uke-tekst for ETT skjema. Råkildene har ulik form per skjematype.
+function _shareUkeLabel(data, type) {
+    if (!data) return '';
+    // Ordreseddel: `dato` er et FRITEKSTFELT der brukeren skriver f.eks.
+    // «Uke 30 & 31». Bruk den verbatim når den nevner uke, ellers mister vi
+    // spennet — den utledede uken plukker bare første tall (→ 30).
+    if (!type || type === 'ordreseddel') {
+        var raw = String(data.dato || '').trim();
+        if (raw && /uke/i.test(raw)) return raw;
+    }
+    // Lageruttak: `uke` er et rent tall. Samme visning som ellers i appen.
+    if (type === 'service') {
+        var um = String(data.uke || '').match(/(\d+)/);
+        if (um) return 'Uke ' + um[1];
+    }
+    return _formatUkeForSubject(_ukeYearForFormByType(data, type));
+}
+
+// Unike prosjektnavn fra én eller flere skjemaer, i rekkefølge. Navn foretrekkes
+// over nummer — mottakeren kjenner igjen prosjektet, ikke prosjektnr.
+function _shareProsjektNames(forms, type) {
+    var names = [];
+    var push = function (v) {
+        v = (v == null ? '' : String(v)).trim();
+        if (v && names.indexOf(v) === -1) names.push(v);
+    };
+    (forms || []).forEach(function (data) {
+        if (!data) return;
+        if (type === 'service') {
+            // Ett lageruttak kan dekke flere prosjekter (én pr. entry).
+            (data.entries || []).forEach(function (e) {
+                if (!e) return;
+                push(e.prosjektnavn || e.prosjektnr);
+            });
+        } else {
+            push(data.prosjektnavn || data.prosjektnr);
+        }
+    });
+    if (!names.length) return '';
+    if (names.length <= _SHARE_MAX_PROSJEKT_NAMES) return names.join(', ');
+    return names.slice(0, _SHARE_MAX_PROSJEKT_NAMES).join(', ')
+        + ' +' + (names.length - _SHARE_MAX_PROSJEKT_NAMES);
+}
+
+// Setter sammen emnet og hopper over tomme segmenter, så et skjema uten
+// prosjektnavn gir «Ordreseddel – Uke 30», ikke «Ordreseddel –  – Uke 30».
+function _buildShareSubject(label, names, uke) {
+    return [label, names, uke].filter(function (p) {
+        return p && String(p).trim();
+    }).join(_SHARE_SUBJECT_SEP);
+}
+
+// Bygg delings-metadata { title, text }:
+//   title = e-post-emne:                     «Ordresedler – Tørvikbygd – Uker 30-31»
 //   text  = numrene som liste (brødtekst):   «Ordresedler:\n\n• 305\n• 306»
-function _buildShareMeta(labelPlural, ids) {
-    if (!ids || !ids.length) return null;
-    var oneLine = labelPlural + ': ' + ids.join(', ');
+// Emne og brødtekst bærer BEVISST ulik informasjon: Outlook søker i emnet,
+// Gmail i brødteksten, så numrene må ligge i teksten for å være søkbare.
+function _buildShareMeta(labelPlural, ids, subject) {
+    if (!ids || !ids.length) return subject ? { title: subject } : null;
     var list = labelPlural + ':\n\n' + ids.map(function (n) { return '• ' + n; }).join('\n');
-    return { title: oneLine, text: list };
+    return { title: subject || (labelPlural + ': ' + ids.join(', ')), text: list };
 }
 
 function _shareLabelPlural(type) {
     return type === 'service' ? 'Lageruttak' : type === 'kappe' ? 'Kappeskjema' : 'Ordresedler';
+}
+
+function _shareLabelSingular(type) {
+    return type === 'service' ? 'Lageruttak' : type === 'kappe' ? 'Kappeskjema' : 'Ordreseddel';
 }
 
 // Søkbar delings-metadata for samlet/bulk deling. Filnavnet forblir «samlet» (rent),
@@ -5637,24 +5711,31 @@ function _bulkShareText(type) {
     } else {
         for (var j = 0; j < forms.length; j++) push(forms[j] && forms[j].ordreseddelNr);
     }
-    return _buildShareMeta(_shareLabelPlural(type), ids);
+    var label = _shareLabelPlural(type);
+    var uke = _formatUkeForSubject(
+        type === 'kappe' ? _sharedUkeYearOrRangeKappe() : _sharedUkeYearOrRange()
+    );
+    var subject = _buildShareSubject(label, _shareProsjektNames(forms, type), uke);
+    return _buildShareMeta(label, ids, subject);
 }
 
-// Delings-metadata for ETT skjema (individuell deling). Singular label; body = samme
-// som emnet siden det bare er ett nummer.
+// Delings-metadata for ETT skjema (individuell deling).
+//   title = «Ordreseddel – Tørvikbygd – Uke 30 & 31»  (emne, for mottakeren)
+//   text  = «Ordreseddel 342649»                       (brødtekst, søkbar på nr.)
 function _singleShareText(data, type) {
-    var id, label;
+    var id;
+    var label = _shareLabelSingular(type);
     if (type === 'service' || type === 'kappe') {
         id = _formProsjektId(data, type);
-        label = (type === 'service') ? 'Lageruttak' : 'Kappeskjema';
     } else {
         id = (data && data.ordreseddelNr != null) ? data.ordreseddelNr : '';
-        label = 'Ordreseddel';
     }
     id = (id == null ? '' : String(id)).trim();
-    if (!id) return null;
-    var line = label + ' ' + id;
-    return { title: line, text: line };
+    var subject = _buildShareSubject(label, _shareProsjektNames([data], type), _shareUkeLabel(data, type));
+    // Emnet står på egne bein (typen finnes alltid), så fila deles med emne selv
+    // om nummeret mangler — tidligere falt både emne og brødtekst bort da.
+    if (!id) return subject ? { title: subject } : null;
+    return { title: subject, text: label + ' ' + id };
 }
 
 // Per-skjema filnavn (separat bulk-eksport eller fallback).
