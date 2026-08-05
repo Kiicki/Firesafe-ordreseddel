@@ -6727,9 +6727,10 @@ function buildServiceExportTable(cols) {
                     return;
                 }
                 // Direkte eske-post p\u00e5 spec-basen. Ikke gated p\u00e5 hasLM: esker gjelder
-                // alle tre spec-typene, ogs\u00e5 kabelhylse.
+                // alle tre spec-typene, ogs\u00e5 kabelhylse. Enheten er 'stk' \u2014 navnet
+                // sier allerede \u00abEsker\u00bb, s\u00e5 \u00ab2,0 eske\u00bb ville gjentatt ordet.
                 if (m.enhet === 'eske' && m.name.toLowerCase() === baseName.toLowerCase() && m.antall) {
-                    lines.push('Esker \u00b7 ' + formatRunningMeters(m.antall) + ' eske');
+                    lines.push('Esker \u00b7 ' + formatRunningMeters(m.antall) + ' stk');
                     return;
                 }
                 if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {

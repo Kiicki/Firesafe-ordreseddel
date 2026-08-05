@@ -964,10 +964,9 @@ function getMaterialQuantityUnit(materialName, enhet, source) {
     if (source && source.indexOf('unit:') === 0) return source.substring(5);
     var enhetLower = (enhet || '').toLowerCase();
     if (enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm') return 'meter';
-    // 'eske' som enhet betyr KUN "eske-rad på en spec-base" (mansjett/brannpakning/
-    // kabelhylse). Standard-materialer kan ha en brukerdefinert variant som heter
-    // «Eske» — de skal fortsatt telles i stk, derfor er dette gated på spec-gruppe.
-    if (enhetLower === 'eske' && isSpecGroupedMaterial(materialName, enhet)) return 'eske';
+    // NB: enhet 'eske' (eske-rad på en spec-base) faller bevisst gjennom til 'stk'.
+    // Raden heter allerede «Esker», så enhets-kolonnen skal telle stykk — «2,0 stk»,
+    // ikke «2,0 eske» som ville gjentatt ordet.
     var productDefault = getKappeProductDefaultUnit(materialName);
     if (productDefault) return productDefault;
     if (source === 'kappe-products') return 'meter';
@@ -3046,9 +3045,6 @@ function openMaterialPicker(btn, onConfirm) {
                 unitPillText = enhetLower === 'eske' ? 'eske' : 'stk';
             } else if (isMeterQuantity) {
                 unitPillText = 'meter';
-            } else if (activeQuantityUnit === 'eske') {
-                // Eske-rad på en spec-base (FSC/FSW/Kabelhylse)
-                unitPillText = 'eske';
             } else {
                 // Inkluderer variants (Patron, Pølse, etc.) — de er stk-baserte
                 unitPillText = 'stk';
@@ -3403,7 +3399,8 @@ function openMaterialPicker(btn, onConfirm) {
                 } else if (s.isEske) {
                     key = baseName + '__eske';
                     if (pickerState[key]) key = nextPickerDuplicateKey(key);
-                    pickerState[key] = { checked: true, antall: s.antall || '', enhet: 'eske', quantityUnit: 'eske' };
+                    // Ingen quantityUnit: enheten skal vises som 'stk' (raden heter «Esker»).
+                    pickerState[key] = { checked: true, antall: s.antall || '', enhet: 'eske' };
                 } else {
                     var full = baseName + ' ' + s.spec;
                     key = pickerState[full] ? nextPickerDuplicateKey(full) : full;
@@ -3507,7 +3504,7 @@ function openMaterialPicker(btn, onConfirm) {
             }
             // Eske-entries (f.eks. "FSC__eske") — dimensjonsløs post på spec-basen
             if (parsedKey.isEskeEntry) {
-                entries.push({ name, displayName: parsedKey.baseName, isChecked: state.checked, antall: state.antall || '', enhet: 'eske', quantityUnit: 'eske', matType: 'standard', isSpecDerived: true });
+                entries.push({ name, displayName: parsedKey.baseName, isChecked: state.checked, antall: state.antall || '', enhet: 'eske', matType: 'standard', isSpecDerived: true });
                 return;
             }
             // Check for duplicate entries (e.g. "FSA__2" eller "FSW Ø100 2 lag__2")
@@ -3977,7 +3974,7 @@ function openMaterialPicker(btn, onConfirm) {
                     // har ingen dimensjon å velge, så det finnes ingenting å spørre om.
                     if (parsedDupKey.isEskeEntry) {
                         var eskeNewKey = nextPickerDuplicateKey(baseName + '__eske');
-                        pickerState[eskeNewKey] = { checked: true, antall: '', enhet: 'eske', quantityUnit: 'eske' };
+                        pickerState[eskeNewKey] = { checked: true, antall: '', enhet: 'eske' };
                         renderPickerList();
                         _scrollPickerOneRowAfterDup(eskeNewKey);
                         return;
