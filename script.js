@@ -6035,6 +6035,10 @@ function buildDesktopWorkLines() {
     }
 
     let totalTimer = 0;
+    // Teller bestillingene som FAKTISK bidrar til timesummen. Sum-raden nederst
+    // skjules når det bare er én — da ville den bare gjentatt bestillingens egen
+    // Arbeidstid-rad med samme tall, og se ut som en feil.
+    let timerRows = 0;
 
     orders.forEach((order, idx) => {
         // Description (with dager, plan and merknad combined, bold labels)
@@ -6310,7 +6314,9 @@ function buildDesktopWorkLines() {
             });
         }
 
-        // Timer — sum all values (days + _generelt/_total)
+        // Timer — sum all values (days + _generelt/_total). Etiketten hentes fra
+        // t('order_days') slik at den er ORDRETT lik beskrivelses-linjen over
+        // ("Arbeidstid: Mandag (9,5t)…") — ett ord for ett begrep i dokumentet.
         if (order.timer && typeof order.timer === 'object') {
             let orderTotal = 0;
             Object.values(order.timer).forEach(v => {
@@ -6319,23 +6325,27 @@ function buildDesktopWorkLines() {
             });
             if (orderTotal > 0) {
                 const formatted = orderTotal.toFixed(1).replace('.', ',');
-                addRow('Tid:', formatted, 'timer', { alignRight: true });
+                addRow(t('order_days') + ':', formatted, 'timer', { alignRight: true });
                 totalTimer += orderTotal;
+                timerRows++;
             }
         } else if (typeof order.timer === 'string' && order.timer) {
             const val = parseFloat(order.timer.replace(',', '.'));
             const formatted = isNaN(val) ? order.timer.replace('.', ',') : val.toFixed(1).replace('.', ',');
-            addRow('Tid:', formatted, 'timer', { alignRight: true });
-            if (!isNaN(val)) totalTimer += val;
+            addRow(t('order_days') + ':', formatted, 'timer', { alignRight: true });
+            if (!isNaN(val)) { totalTimer += val; timerRows++; }
         }
     });
 
-    // Total timer (only if there are any). Tom rad over for å skille fra siste bestilling
-    // (ellers ser det ut som totalen tilhører forrige seksjon).
-    if (totalTimer > 0) {
+    // Sum på tvers av bestillinger — kun når det faktisk er noe å summere (≥2
+    // bidragsytere). Tom rad over for å skille fra siste bestilling (ellers ser
+    // det ut som totalen tilhører forrige seksjon). Etiketten bygges fra samme
+    // kilde som rad-etiketten, så de aldri spriker; «Totalt:» alene sa ikke hva
+    // som ble summert og kolliderte med meter-summen i produktgruppene.
+    if (totalTimer > 0 && timerRows > 1) {
         addRow('', '', '');
         const formatted = totalTimer.toFixed(1).replace('.', ',');
-        addRow('Totalt:', formatted, 'timer', { bold: true, alignRight: true });
+        addRow('Total ' + t('order_days').toLowerCase() + ':', formatted, 'timer', { bold: true, alignRight: true });
     }
 
     // Ensure minimum rows to fill the page
@@ -6363,6 +6373,8 @@ function computeWorkRows(orders, minRows) {
         });
     }
     var totalTimer = 0;
+    // Se kommentar i buildDesktopWorkLines — samme teller, må holdes i synk.
+    var timerRows = 0;
 
     (orders || []).forEach(function(order) {
         // Beskrivelse-blokk (beskrivelse + Dager/Plan/Merknad med fete etiketter).
@@ -6501,21 +6513,23 @@ function computeWorkRows(orders, minRows) {
             });
         }
 
-        // Tid pr. bestilling.
+        // Arbeidstid pr. bestilling — etiketten fra t('order_days') så den er
+        // ordrett lik beskrivelses-linjen over. Identisk med buildDesktopWorkLines.
         if (order.timer && typeof order.timer === 'object') {
             var orderTotal = 0;
             Object.values(order.timer).forEach(function(v) { var val = parseFloat(String(v || '').replace(',', '.')); if (!isNaN(val)) orderTotal += val; });
-            if (orderTotal > 0) { addRow('Tid:', orderTotal.toFixed(1).replace('.', ','), 'timer', { alignRight: true }); totalTimer += orderTotal; }
+            if (orderTotal > 0) { addRow(t('order_days') + ':', orderTotal.toFixed(1).replace('.', ','), 'timer', { alignRight: true }); totalTimer += orderTotal; timerRows++; }
         } else if (typeof order.timer === 'string' && order.timer) {
             var val2 = parseFloat(order.timer.replace(',', '.'));
-            addRow('Tid:', isNaN(val2) ? order.timer.replace('.', ',') : val2.toFixed(1).replace('.', ','), 'timer', { alignRight: true });
-            if (!isNaN(val2)) totalTimer += val2;
+            addRow(t('order_days') + ':', isNaN(val2) ? order.timer.replace('.', ',') : val2.toFixed(1).replace('.', ','), 'timer', { alignRight: true });
+            if (!isNaN(val2)) { totalTimer += val2; timerRows++; }
         }
     });
 
-    if (totalTimer > 0) {
+    // Sum kun når ≥2 bestillinger bidrar — se kommentar i buildDesktopWorkLines.
+    if (totalTimer > 0 && timerRows > 1) {
         addRow('', '', '');
-        addRow('Totalt:', totalTimer.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
+        addRow('Total ' + t('order_days').toLowerCase() + ':', totalTimer.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
     }
     if (minRows) { for (var i = rows.length; i < minRows; i++) addRow('', '', ''); }
     return rows;
