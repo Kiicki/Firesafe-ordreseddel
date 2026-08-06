@@ -5226,12 +5226,10 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 #settings-page-materials .settings-static-header + #settings-material-items:empty {
     border: none;
 }
+/* Skjemaet er nå et frittstående kort (se .settings-add-material-row), ikke en
+   forlengelse av lista over — derfor ingen rammer som skal møte lista-boksen. */
 #settings-page-materials .settings-add-material-row {
-    border-left: 1px solid #e0e0e0;
-    border-right: 1px solid #e0e0e0;
-    border-bottom: 1px solid #e0e0e0;
-    border-radius: 0 0 8px 8px;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 /* Statisk under-seksjon-label inni en collapsible body (f.eks. Mine numre / Gitt bort
@@ -5996,18 +5994,43 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     border-radius: 6px;
 }
 
+/* «Nytt materiale»-skjemaet (både i Innstillinger og nederst i Materialer-
+   velgeren). Ett KORT med overskrift: navn, type og variant hører sammen — man
+   fyller dem ut i én operasjon. Før lå navnet i en egen seksjon over resten uten
+   noe som bandt dem sammen, og i velgeren var bakgrunnen hvit på hvitt med bare
+   en hårstrek på toppen, så feltene så ut som tre urelaterte ting. */
+/* Skalaen følger velgerens egen: materialnavn er 15px/normal i rader med bare
+   6px 10px padding, og «Materialer»/«Avbryt»/«Ok» er 13px. Skjemaet er sekundært
+   og skal ikke veie tyngre enn innholdet det står blant — derfor 14px tekst og
+   34px kontroller, ikke 15px/42px som gjorde det til sidens tyngste element. */
 .settings-add-material-row {
-    border-top: 1px solid #e0e0e0;
-    background: transparent;
+    background: #f5f5f7;
+    border: none;
+    border-radius: 14px;
+    padding: 12px;
+    margin: 10px 12px 12px;
 }
+.settings-add-material-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1c1c1e;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+}
+/* Navn på egen linje; Type + Variant deler linje under; knappen i full bredde
+   nederst. Tidligere delte Type, Variant OG knappen én linje, og da ble
+   variant-feltet klippet på 360px. */
 .settings-add-material-row-top {
-    padding: 8px 12px 0;
+    padding: 0;
+    margin-bottom: 9px;
 }
 .settings-add-material-row-bottom {
     display: flex;
-    gap: 10px;
+    flex-direction: row;
     align-items: flex-end;
-    padding: 8px 12px;
+    gap: 8px;
+    padding: 0;
+    margin-bottom: 9px;
 }
 .settings-add-material-field {
     flex: 1;
@@ -6016,15 +6039,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-add-material-row input,
 .settings-add-material-row .settings-material-type-btn {
     width: 100%;
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    padding: 7px 10px;
+    border: 1px solid #dedee3;
+    border-radius: 8px;
     font-size: 14px;
     box-sizing: border-box;
     outline: none;
-    color: #333;
+    color: #1c1c1e;
     background: #fff;
-    height: 32px;
+    height: 34px;
 }
 .settings-add-material-row input:focus {
     border-color: #E8501A;
@@ -6036,9 +6059,9 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-add-label {
     display: block;
     font-size: 12px;
-    color: #999;
-    font-weight: 500;
-    margin-bottom: 4px;
+    color: #6b6b70;
+    font-weight: 600;
+    margin-bottom: 5px;
     padding-left: 2px;
 }
 .settings-add-unit-fields {
@@ -6057,10 +6080,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     -webkit-text-fill-color: #999;
     opacity: 1;
 }
+/* Full bredde nederst i kortet — den avslutter skjemaet og skal ikke konkurrere
+   om plassen med feltene (som den gjorde da alle tre delte én linje). */
 .settings-add-material-row .settings-add-btn {
     flex-shrink: 0;
+    width: 100%;
     margin: 0;
-    height: 32px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 14px;
 }
 
 .settings-add-btn {
@@ -6078,9 +6106,65 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 
 /* Legg-til-materiale-skjema nederst i material-pickeren. Gjenbruker
    settings-add-material-row-stilen; her kun separator + native select-styling. */
+/* ── Hurtig-skjema i Materialer-velgeren ────────────────────────────────────
+   Velgeren skal vise REGISTRERTE materialer; «Nytt materiale» er en snarvei for
+   admin. Utfoldet tok skjemaet halve skjermen og stjal fokus fra lista, så det
+   er slått sammen til én rad som folder ut ved trykk. */
+.picker-add-material-wrap {
+    margin: 10px 12px 12px;
+}
+.picker-add-mat-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: #f5f5f7;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+}
+.picker-add-mat-trigger:active {
+    background: #ececef;
+}
+.picker-add-mat-plus {
+    flex-shrink: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1;
+    color: #E8501A;
+}
+/* 14px mot materialnavnenes 15px: lesbart, men tydelig underordnet lista. */
+.picker-add-mat-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1c1c1e;
+}
+.picker-add-mat-chev {
+    flex-shrink: 0;
+    font-size: 17px;
+    line-height: 1;
+    color: #c4c4cc;
+    transition: transform .15s ease;
+}
+/* Utfoldet: pila peker ned, og trigger-raden får firkantet bunn så den ser ut
+   som ett stykke sammen med skjemaet under. */
+.picker-add-mat--open .picker-add-mat-chev {
+    transform: rotate(90deg);
+}
+.picker-add-mat--open .picker-add-mat-trigger {
+    border-radius: 14px 14px 0 0;
+}
+/* Kortstilen arves fra .settings-add-material-row — men uten egen margin, siden
+   wrapperen eier plasseringen, og med flat topp mot trigger-raden. */
 .picker-add-material {
-    margin-top: 8px;
-    background: #fff;
+    margin: 0;
+    border-radius: 0 0 14px 14px;
+    padding-top: 4px;
 }
 .picker-add-material select {
     width: 100%;

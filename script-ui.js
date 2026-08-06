@@ -2744,11 +2744,42 @@ function _addKappeProduct(name, type) {
 }
 
 // HTML for add-skjemaet nederst i pickeren (gjenbruker settings-klasser for stil).
+// Er hurtig-skjemaet i velgeren utfoldet? Må ligge utenfor funksjonen fordi
+// renderPickerList() bygger lista på nytt ved hver render — ellers ville skjemaet
+// klappet igjen hver gang noe endres i lista.
+var _pickerAddMatOpen = false;
+
+// Velgerens jobb er å vise REGISTRERTE materialer. «Nytt materiale» er en
+// snarvei så admin slipper å gå via Innstillinger, men den skal ikke ta plass
+// fra lista — derfor sammenslått til én rad som folder ut ved trykk.
+function _togglePickerAddMaterial() {
+    _pickerAddMatOpen = !_pickerAddMatOpen;
+    var wrap = document.getElementById('picker-add-material-wrap');
+    var body = document.getElementById('picker-add-material-body');
+    if (!wrap || !body) return;
+    wrap.classList.toggle('picker-add-mat--open', _pickerAddMatOpen);
+    body.style.display = _pickerAddMatOpen ? '' : 'none';
+    if (_pickerAddMatOpen) {
+        var inp = document.getElementById('picker-new-material');
+        if (inp) inp.focus();
+        if (wrap.scrollIntoView) wrap.scrollIntoView({ block: 'nearest' });
+    }
+}
+
 function _pickerAddMaterialFormHtml() {
-    return '<div class="settings-add-material-row picker-add-material">' +
+    var openCls = _pickerAddMatOpen ? ' picker-add-mat--open' : '';
+    return '<div class="picker-add-material-wrap' + openCls + '" id="picker-add-material-wrap">' +
+        '<button type="button" class="picker-add-mat-trigger" onclick="_togglePickerAddMaterial()">' +
+            '<span class="picker-add-mat-plus">+</span>' +
+            '<span class="picker-add-mat-label">Nytt materiale</span>' +
+            '<span class="picker-add-mat-chev">›</span>' +
+        '</button>' +
+    '<div class="settings-add-material-row picker-add-material" id="picker-add-material-body"' +
+        (_pickerAddMatOpen ? '' : ' style="display:none"') + '>' +
+        // Ingen overskrift her — trigger-raden over ER overskriften.
         '<div class="settings-add-material-row-top">' +
             '<div class="settings-add-material-field">' +
-                '<label class="settings-add-label">Nytt materiale <span class="spec-required-star">*</span></label>' +
+                '<label class="settings-add-label">Navn <span class="spec-required-star">*</span></label>' +
                 '<input type="text" id="picker-new-material" autocapitalize="sentences">' +
             '</div>' +
         '</div>' +
@@ -2768,10 +2799,13 @@ function _pickerAddMaterialFormHtml() {
             '</div>' +
             '<div class="settings-add-unit-fields" id="picker-variant-field">' +
                 '<label class="settings-add-label">Variant (valgfri)</label>' +
-                '<input type="text" id="picker-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron, plate">' +
+                // Kortere placeholder enn i Innstillinger: feltet deler linje med
+                // Type, så «f.eks. patron, plate» ble klippet på 360px.
+                '<input type="text" id="picker-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron">' +
             '</div>' +
-            '<button type="button" class="settings-add-btn" onclick="addPickerMaterial()">' + t('btn_add') + '</button>' +
         '</div>' +
+        '<button type="button" class="settings-add-btn" onclick="addPickerMaterial()">' + t('btn_add') + '</button>' +
+    '</div>' +
     '</div>';
 }
 
@@ -2828,6 +2862,7 @@ async function addPickerMaterial() {
         nameEl.value = '';
         if (variantEl) variantEl.value = '';
         typeEl.value = 'standard';
+        _pickerAddMatOpen = false;   // Lukk snarveien — lista skal ha fokus igjen.
         if (typeof pickerRenderFn === 'function') pickerRenderFn();
         showNotificationModal(t('settings_material_added'), true);
         return;
@@ -2850,6 +2885,7 @@ async function addPickerMaterial() {
             nameEl.value = '';
             if (variantEl) variantEl.value = '';
             typeEl.value = 'standard';
+            _pickerAddMatOpen = false;   // Lukk snarveien — lista skal ha fokus igjen.
             if (typeof pickerRenderFn === 'function') pickerRenderFn();
             showNotificationModal(t('settings_material_added'), true);
             return;
@@ -2872,6 +2908,7 @@ async function addPickerMaterial() {
     nameEl.value = '';
     if (variantEl) variantEl.value = '';
     typeEl.value = 'standard';
+    _pickerAddMatOpen = false;   // Lukk snarveien — lista skal ha fokus igjen.
     // Bygg pickeren på nytt så det nye materialet vises (state/quantities bevares).
     if (typeof pickerRenderFn === 'function') pickerRenderFn();
     showNotificationModal(t('settings_material_added'), true);
@@ -5625,15 +5662,25 @@ function _formatUkeForSubject(ukeYear) {
     return m ? m[1] + ' ' + m[2] : s.replace(/-/g, ' ');
 }
 
+// Ser verdien ut som en skrevet dato («05.08.2026») fremfor et ukenummer?
+// Brukes som vakt så et slikt felt ikke blir til «Uke 05.08.2026» i emnet.
+function _looksLikeDate(s) {
+    return /^\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}$/.test(String(s || '').trim());
+}
+
 // Uke-tekst for ETT skjema. Råkildene har ulik form per skjematype.
 function _shareUkeLabel(data, type) {
     if (!data) return '';
-    // Ordreseddel: `dato` er et FRITEKSTFELT der brukeren skriver f.eks.
-    // «Uke 30 & 31». Bruk den verbatim når den nevner uke, ellers mister vi
-    // spennet — den utledede uken plukker bare første tall (→ 30).
+    // Ordreseddel: Dato-feltet lagrer KUN tallene («30 & 31») — ordet «Uke» er
+    // et visnings-prefiks som eksporten legger på (script.js:2245-2251). Samme
+    // regel her, ellers spriker emnet fra Dato-cellen i PDF-en. Verdien brukes
+    // ordrett så et spenn over flere uker overlever; den utledede uken plukker
+    // bare første tall (→ 30) og ville tapt «& 31».
     if (!type || type === 'ordreseddel') {
         var raw = String(data.dato || '').trim();
-        if (raw && /uke/i.test(raw)) return raw;
+        if (raw && !_looksLikeDate(raw)) {
+            return /^uke\s/i.test(raw) ? raw : 'Uke ' + raw;
+        }
     }
     // Lageruttak: `uke` er et rent tall. Samme visning som ellers i appen.
     if (type === 'service') {
@@ -5712,7 +5759,14 @@ function _bulkShareText(type) {
         for (var j = 0; j < forms.length; j++) push(forms[j] && forms[j].ordreseddelNr);
     }
     var label = _shareLabelPlural(type);
-    var uke = _formatUkeForSubject(
+    // Uke-tekst: bruk skjemaenes EGEN tekst når de er enige — da overlever et
+    // spenn som «Uke 30 & 31». _sharedUkeYearOrRange bygger et min–maks-spenn av
+    // _ukeYearForForm, som plukker første tall pr. skjema og derfor ville gitt
+    // «Uke 30» selv for ett enkelt to-ukers skjema. Ved ulike perioder er
+    // min–maks derimot det eneste meningsfulle, så da beholdes det.
+    var ukeLabels = forms.map(function (f) { return _shareUkeLabel(f, type); });
+    var allSame = ukeLabels[0] && ukeLabels.every(function (u) { return u === ukeLabels[0]; });
+    var uke = allSame ? ukeLabels[0] : _formatUkeForSubject(
         type === 'kappe' ? _sharedUkeYearOrRangeKappe() : _sharedUkeYearOrRange()
     );
     var subject = _buildShareSubject(label, _shareProsjektNames(forms, type), uke);

@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=899">
+    <link rel="stylesheet" href="styles.css?v=902">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -857,9 +857,13 @@
                     </div>
                     <div id="settings-material-items" class="settings-list-container"></div>
                     <div class="settings-add-material-row">
+                        <!-- Overskrift som binder navn + type + variant sammen til ÉN
+                             operasjon. «Nytt materiale» flyttet hit fra feltetiketten,
+                             som nå heter «Navn». Speiler _pickerAddMaterialFormHtml. -->
+                        <div class="settings-add-material-title">Nytt materiale</div>
                         <div class="settings-add-material-row-top">
                             <div class="settings-add-material-field">
-                                <label class="settings-add-label">Nytt materiale <span class="spec-required-star">*</span></label>
+                                <label class="settings-add-label">Navn <span class="spec-required-star">*</span></label>
                                 <input type="text" id="settings-new-material" autocapitalize="sentences">
                             </div>
                         </div>
@@ -878,10 +882,13 @@
                             </div>
                             <div class="settings-add-unit-fields">
                                 <label class="settings-add-label">Variant (valgfri)</label>
-                                <input type="text" id="settings-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron, plate">
+                                <input type="text" id="settings-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron">
                             </div>
-                            <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
                         </div>
+                        <!-- Knappen ligger UTENFOR -row-bottom så den går i full bredde
+                             under Type/Variant. Delte den linja med dem ble alle tre
+                             klemt sammen på 360px. Speiler _pickerAddMaterialFormHtml. -->
+                        <button type="button" class="settings-add-btn" onclick="addSettingsMaterial()" data-i18n="btn_add">Legg til</button>
                     </div>
 
                     <!-- Kappe-dimensjoner (flyttet hit fra Kappeskjema). Brukes av isolasjon/
@@ -2021,7 +2028,7 @@
 
     <script src="lang.js?v=285"></script>
     <script src="script.js?v=488"></script>
-    <script src="script-ui.js?v=1060"></script>
+    <script src="script-ui.js?v=1063"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
