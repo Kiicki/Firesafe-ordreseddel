@@ -3541,10 +3541,13 @@ label.settings-default-label.field-required > span::after {
 /* Maksimalt distinkt statuspalett (alle runde): grå · blå · grønn · rød. Tidligere
    var utkast brand-oransje, som var for likt rød (ikke godkjent) på en liten prikk;
    grått utkast fjerner kollisjonen og gir en konvensjonell, godt adskilt palett. */
+/* Tre tilstander: Lagret (oransje) → Sendt (blå) → Lukket (grå).
+   Lukket er GRÅ, ikke grønn: tilstanden rommer også avviste ordresedler, og
+   grønt ville signalisert «godkjent» for dem. Grått leser som «lukket/inaktiv»
+   og demper samtidig de ferdige, som utgjør flertallet i lista over tid. */
 .status-dot.s-draft { background: #F5A623; }
 .status-dot.s-sent { background: #2D7FF9; }
-.status-dot.s-done { background: #34C759; }
-.status-dot.s-rejected { background: #E53935; }
+.status-dot.s-done { background: #8a8a8e; }
 /* «Merk neste status»-knapp i lista: blå (merk sendt) / grønn (merk ferdig). */
 .saved-item-action-btn.mark-sent { color: #2D7FF9; }
 .saved-item-action-btn.mark-ferdig { color: #4CAF50; }
