@@ -2392,11 +2392,16 @@ function normalizeMaterialData(data) {
             if (type === 'standard' && allowedUnits.length === 0 && defaultUnit && defaultUnit !== 'stk') {
                 defaultUnit = '';
             }
+            // fixedSize: produktet kommer i FASTE størrelser (ferdige mansjetter),
+            // ikke på rull. Da er løpemeter meningsløst — se getRunningMeterInfo.
+            // Fraværende/false = rull = dagens oppførsel, så ingen migrering trengs.
+            // MÅ også med i saveMaterialSettings, ellers forsvinner feltet ved lagring.
             return {
                 name: m.name,
                 type: type,
                 defaultUnit: defaultUnit,
-                allowedUnits: allowedUnits
+                allowedUnits: allowedUnits,
+                fixedSize: !!m.fixedSize
             };
         });
     }
@@ -2423,7 +2428,9 @@ async function getMaterialSettings() {
 
 function saveMaterialSettings() {
     if (!isAdmin) return;
-    const data = { materials: settingsMaterials.map(m => ({ name: m.name, type: m.type || 'standard', defaultUnit: m.defaultUnit || '', allowedUnits: m.allowedUnits || [] })), units: [] };
+    // fixedSize MÅ være med her — normalizeMaterialData leser den ved innlasting,
+    // men uten den her ville flagget gått tapt ved neste lagring.
+    const data = { materials: settingsMaterials.map(m => ({ name: m.name, type: m.type || 'standard', defaultUnit: m.defaultUnit || '', allowedUnits: m.allowedUnits || [], fixedSize: !!m.fixedSize })), units: [] };
     // localStorage + cache first (optimistic)
     safeSetItem(MATERIALS_KEY, JSON.stringify(data));
     cachedMaterialOptions = data.materials.slice();
@@ -2488,7 +2495,7 @@ function renderMaterialSettingsItems() {
                     <span class="settings-material-name-display">${escapeHtml(item.name)}</span>
                     ${countBadge}
                 </div>
-                <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}">${t('material_type_' + matType)}</button>
+                <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}" data-fixed="${item.fixedSize ? '1' : '0'}">${t('material_type_' + matType) + _matTypeSubLabel(matType, item.fixedSize)}</button>
                 <button class="settings-material-edit-btn" onclick="event.stopPropagation();editSettingsMaterial(${idx})" title="Rediger navn">${editIcon}</button>
                 <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
                 <span class="settings-material-expand"${unitLocked ? ' style="visibility:hidden"' : ''}>&rsaquo;</span>
@@ -2694,7 +2701,12 @@ async function addSettingsMaterial() {
     if (type !== 'standard') {
         defaultUnit = 'stk';
     }
-    settingsMaterials.push({ name: val, type: type, defaultUnit: defaultUnit, allowedUnits: allowedUnits });
+    // fixedSize fra type-knappens data-fixed (satt av openNewMatTypePicker).
+    var newFixed = (function() {
+        var b = document.getElementById('settings-new-material-type-btn');
+        return !!(b && b.dataset.fixed === '1' && (type === 'mansjett' || type === 'brannpakning'));
+    })();
+    settingsMaterials.push({ name: val, type: type, defaultUnit: defaultUnit, allowedUnits: allowedUnits, fixedSize: newFixed });
     _sortSettingsMaterials(settingsMaterials);
     input.value = '';
     variantInput.value = '';
@@ -2715,7 +2727,9 @@ async function addSettingsMaterial() {
 function _persistMaterialsDoc(materials) {
     var data = {
         materials: materials.map(function(m) {
-            return { name: m.name, type: m.type || 'standard', defaultUnit: m.defaultUnit || '', allowedUnits: m.allowedUnits || [] };
+            // fixedSize må med her også — dette er den TREDJE skriveren av
+            // settings/materials (picker-ens «+ Nytt materiale» går hit).
+            return { name: m.name, type: m.type || 'standard', defaultUnit: m.defaultUnit || '', allowedUnits: m.allowedUnits || [], fixedSize: !!m.fixedSize };
         }),
         units: []
     };
@@ -2813,7 +2827,8 @@ function _pickerAddMaterialFormHtml() {
 function openPickerMatTypePicker() {
     var sel = document.getElementById('picker-new-material-type');
     if (!sel || typeof _renderMatTypePicker !== 'function') return;
-    _renderMatTypePicker(sel.value, function(newValue) {
+    var btnP = document.getElementById('picker-new-material-type-btn');
+    _renderMatTypePicker(sel.value, function(newValue, fixedSize) {
         sel.value = newValue;
         var btn = document.getElementById('picker-new-material-type-btn');
         if (btn) {
@@ -2821,10 +2836,11 @@ function openPickerMatTypePicker() {
                 ? ('kappe_product_type_' + newValue)
                 : ('material_type_' + newValue);
             btn.dataset.value = newValue;
-            btn.textContent = t(lblKey);
+            btn.dataset.fixed = fixedSize ? '1' : '0';
+            btn.textContent = t(lblKey) + _matTypeSubLabel(newValue, fixedSize);
         }
         if (typeof _updatePickerVariantField === 'function') _updatePickerVariantField();
-    }, true);
+    }, true, btnP && btnP.dataset.fixed === '1');
 }
 
 // Variant-feltet gjelder kun for type 'standard' (som i Innstillinger).
@@ -2894,7 +2910,12 @@ async function addPickerMaterial() {
     }
     var allowedUnits = [];
     if (type === 'standard' && variant) allowedUnits.push(variant);
-    var newMat = { name: val, type: type, defaultUnit: 'stk', allowedUnits: allowedUnits };
+    // fixedSize fra type-knappens data-fixed (satt av openPickerMatTypePicker).
+    var fixedSize = (function() {
+        var b = document.getElementById('picker-new-material-type-btn');
+        return !!(b && b.dataset.fixed === '1' && (type === 'mansjett' || type === 'brannpakning'));
+    })();
+    var newMat = { name: val, type: type, defaultUnit: 'stk', allowedUnits: allowedUnits, fixedSize: fixedSize };
     var updated = current.slice();
     updated.push(newMat);
     updated.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
@@ -2969,16 +2990,35 @@ function editSettingsMaterial(idx) {
     });
 }
 
+// «· rull» / «· fast størrelse»-suffiks på type-etiketten. Kun mansjett og
+// brannpakning har dette skillet; øvrige typer får tom streng.
+function _matTypeSubLabel(type, fixedSize) {
+    if (type !== 'mansjett' && type !== 'brannpakning') return '';
+    return ' · ' + t('material_subtype_' + (fixedSize ? 'fast' : 'rull'));
+}
+
 // Felles popup-renderer for type-velger. Brukes både for eksisterende materiale
 // (changeMaterialType) og for nytt materiale (oppdaterer skjult select + button-label).
-function _renderMatTypePicker(currentValue, onSelect, includeKappe) {
+// currentFixed: gjeldende fixedSize-flagg. Mansjett og brannpakning står som TO
+// oppføringer hver — «rull» (kappes, gir meter-total) og «fast størrelse»
+// (ferdige mansjetter, bestilles i stk, ingen meter-total). Internt er typen den
+// samme for begge, så gruppering/prikkfarge/popup/felt er uendret; det er kun
+// fixedSize som skiller dem. onSelect kalles med (type, fixedSize).
+function _renderMatTypePicker(currentValue, onSelect, includeKappe, currentFixed) {
     const existing = document.querySelector('.mat-type-backdrop');
     if (existing) { closeMatTypeDropdown(); return; }
 
+    const sub = (key) => ' · ' + t('material_subtype_' + key);
     const types = [
         { value: 'standard', icon: '#', desc: t('material_type_standard_desc'), lm: false },
-        { value: 'mansjett', icon: '○', desc: t('material_type_mansjett_desc'), lm: true },
-        { value: 'brannpakning', icon: '◎', desc: t('material_type_brannpakning_desc'), lm: true },
+        { value: 'mansjett', icon: '○', fixedSize: false, desc: t('material_type_mansjett_desc'), lm: true,
+          label: t('material_type_mansjett') + sub('rull') },
+        { value: 'mansjett', icon: '●', fixedSize: true, desc: t('material_type_mansjett_desc'), lm: false,
+          label: t('material_type_mansjett') + sub('fast') },
+        { value: 'brannpakning', icon: '◎', fixedSize: false, desc: t('material_type_brannpakning_desc'), lm: true,
+          label: t('material_type_brannpakning') + sub('rull') },
+        { value: 'brannpakning', icon: '◉', fixedSize: true, desc: t('material_type_brannpakning_desc'), lm: false,
+          label: t('material_type_brannpakning') + sub('fast') },
         { value: 'kabelhylse', icon: '⬡', desc: t('material_type_kabelhylse_desc'), lm: false }
     ];
     // Kappe-typer tas kun med i ADD-skjemaet (ikke ved type-bytte på et eksisterende
@@ -2995,8 +3035,11 @@ function _renderMatTypePicker(currentValue, onSelect, includeKappe) {
     const dropdown = document.createElement('div');
     dropdown.className = 'mat-type-dropdown';
 
-    types.forEach(({ value, icon, desc, lm, label }) => {
-        const isActive = value === currentValue;
+    types.forEach(({ value, icon, desc, lm, label, fixedSize }) => {
+        // Aktiv-markering må sammenligne BEGGE dimensjonene, ellers ville både
+        // «rull» og «fast» vist hake for et mansjett-produkt.
+        const fx = !!fixedSize;
+        const isActive = value === currentValue && (fixedSize === undefined || fx === !!currentFixed);
         const item = document.createElement('div');
         item.className = 'mat-type-dropdown-item' + (isActive ? ' active' : '');
         const lmBadge = lm ? '<span class="mat-type-lm-badge">→ løpemeter</span>' : '';
@@ -3011,7 +3054,7 @@ function _renderMatTypePicker(currentValue, onSelect, includeKappe) {
         item.onclick = (e) => {
             e.stopPropagation();
             closeMatTypeDropdown();
-            if (value !== currentValue) onSelect(value);
+            if (!isActive) onSelect(value, fx);
         };
         dropdown.appendChild(item);
     });
@@ -3025,9 +3068,9 @@ function _renderMatTypePicker(currentValue, onSelect, includeKappe) {
 }
 
 function openMatTypeDropdown(btn, idx) {
-    _renderMatTypePicker(btn.dataset.value, function(value) {
-        changeMaterialType(idx, value);
-    });
+    _renderMatTypePicker(btn.dataset.value, function(value, fixedSize) {
+        changeMaterialType(idx, value, fixedSize);
+    }, false, btn.dataset.fixed === '1');
 }
 
 // Åpne picker for nytt-materiale type-knappen. Oppdaterer den skjulte select-en
@@ -3035,8 +3078,9 @@ function openMatTypeDropdown(btn, idx) {
 function openNewMatTypePicker() {
     var sel = document.getElementById('settings-new-material-type');
     if (!sel) return;
+    var btn0 = document.getElementById('settings-new-material-type-btn');
     // includeKappe=true: add-skjemaet kan også opprette kappe-produkter (isolasjon/festemiddel).
-    _renderMatTypePicker(sel.value, function(newValue) {
+    _renderMatTypePicker(sel.value, function(newValue, fixedSize) {
         sel.value = newValue;
         var btn = document.getElementById('settings-new-material-type-btn');
         if (btn) {
@@ -3044,12 +3088,15 @@ function openNewMatTypePicker() {
                 ? ('kappe_product_type_' + newValue)
                 : ('material_type_' + newValue);
             btn.dataset.value = newValue;
-            btn.textContent = t(lblKey);
-            // Oppdater data-i18n så applyTranslations beholder riktig label ved språk-bytte
-            btn.setAttribute('data-i18n', lblKey);
+            btn.dataset.fixed = fixedSize ? '1' : '0';
+            btn.textContent = t(lblKey) + _matTypeSubLabel(newValue, fixedSize);
+            // data-i18n fjernes når suffikset er med: applyTranslations ville ellers
+            // overskrevet hele teksten med bare type-navnet ved språk-bytte.
+            if (_matTypeSubLabel(newValue, fixedSize)) btn.removeAttribute('data-i18n');
+            else btn.setAttribute('data-i18n', lblKey);
         }
         if (typeof updateSettingsUnitFields === 'function') updateSettingsUnitFields();
-    }, true);
+    }, true, btn0 && btn0.dataset.fixed === '1');
 }
 
 function closeMatTypeDropdown() {
@@ -3064,9 +3111,12 @@ function closeMatTypeDropdown() {
     }, 150);
 }
 
-async function changeMaterialType(idx, type) {
+async function changeMaterialType(idx, type, fixedSize) {
     if (!isAdmin) return;
     settingsMaterials[idx].type = type;
+    // fixedSize gjelder bare mansjett/brannpakning — nullstilles for øvrige typer
+    // så et gammelt flagg ikke henger igjen og påvirker en type det ikke gjelder for.
+    settingsMaterials[idx].fixedSize = (type === 'mansjett' || type === 'brannpakning') ? !!fixedSize : false;
     if (type !== 'standard') {
         settingsMaterials[idx].defaultUnit = 'stk';
         settingsMaterials[idx].allowedUnits = [{ singular: 'stk', plural: 'stk' }];
@@ -6858,11 +6908,10 @@ function buildServiceExportTable(cols) {
                     lines.push('L\u00f8pende \u00b7 ' + formatRunningMeters(m.antall) + ' meter');
                     return;
                 }
-                // Direkte eske-post p\u00e5 spec-basen. Ikke gated p\u00e5 hasLM: esker gjelder
-                // alle tre spec-typene, ogs\u00e5 kabelhylse. Enheten er 'stk' \u2014 navnet
-                // sier allerede \u00abEsker\u00bb, s\u00e5 \u00ab2,0 eske\u00bb ville gjentatt ordet.
+                // Dimensjonsløs eske-post på spec-basen (rullprodukt: én standard eske).
+                // Ikke gated på hasLM — esker gjelder alle tre spec-typene.
                 if (m.enhet === 'eske' && m.name.toLowerCase() === baseName.toLowerCase() && m.antall) {
-                    lines.push('Esker \u00b7 ' + formatRunningMeters(m.antall) + ' stk');
+                    lines.push('Esker \u00b7 ' + formatRunningMeters(m.antall) + ' eske');
                     return;
                 }
                 if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
@@ -6880,10 +6929,14 @@ function buildServiceExportTable(cols) {
                             : baseSpecSv + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
                         lines.push(escapeHtml(formatDisplayForBreak(specWithStk)) + ' \u00b7 ' + formatRunningMeters(lm) + ' meter');
                     } else {
-                        // Kabelhylse: show spec + antall + enhet on one line
+                        // Kabelhylse / fast-størrelse-mansjett: spec + antall + enhet.
+                        // enhet==='eske' → eske-post MED mål («2 esker Ø250mm»). Uten
+                        // dette ville den vist 'stk' og vært umulig å skille fra en
+                        // mål-rad med samme spec — servicebil har ingen enhets-kolonne.
+                        var svcUnit = (m.enhet === 'eske') ? ' eske' : ' stk';
                         var text = '';
                         if (spec) text += escapeHtml(formatDisplayForBreak(spec));
-                        if (m.antall) text += ' ' + formatRunningMeters(m.antall) + ' stk';
+                        if (m.antall) text += ' ' + formatRunningMeters(m.antall) + svcUnit;
                         lines.push(text.trim());
                     }
                 }
@@ -13758,6 +13811,10 @@ function _isoCardEnsureActiveRow() {
 // { isMeter, antall, enhet:'meter' } eller { isEske, antall, enhet:'eske' }.
 var _specMultiCallback = null;
 var _specMultiMatType = 'kabelhylse';
+// Settes i openSpecMultiPopup. Styrer BÅDE at «+ LM» skjules og at eske-rader
+// får et mål-felt: for et fast-størrelse-produkt hører esker til en størrelse
+// («1 eske av hvilken FC6?»), mens et rullprodukt har én standard eske.
+var _specMultiFixedSize = false;
 
 function openSpecMultiPopup(baseName, matType, callback, prefillEntries) {
     var popup = document.getElementById('spec-multi-popup');
@@ -13774,7 +13831,11 @@ function openSpecMultiPopup(baseName, matType, callback, prefillEntries) {
     if (eskeC) eskeC.innerHTML = '';
     // Løpende-meter-knappen kun for mansjett/brannpakning (ikke kabelhylse).
     // Eske-knappen gjelder derimot ALLE tre typene — alle selges i eske.
-    var hasMeter = (_specMultiMatType === 'mansjett' || _specMultiMatType === 'brannpakning');
+    // Fast-størrelse-produkter (FC6) kommer i Ø200/Ø250 osv., ikke i meter — «+ LM»
+    // er meningsløst der, og en meter-rad ville dessuten gitt produktet en
+    // meningsløs meter-total (enhet==='meter' bidrar uavhengig av fixedSize).
+    _specMultiFixedSize = (typeof isFixedSizeMaterial === 'function') && isFixedSizeMaterial(baseName);
+    var hasMeter = (_specMultiMatType === 'mansjett' || _specMultiMatType === 'brannpakning') && !_specMultiFixedSize;
     var meterBtn = document.getElementById('spec-multi-add-meter');
     if (meterBtn) meterBtn.style.display = hasMeter ? '' : 'none';
 
@@ -13858,8 +13919,15 @@ function _createSpecEskeRow(data) {
     var d = data || {};
     var row = document.createElement('div');
     row.className = 'spec-multi-row spec-multi-eske-row';
+    // Fast størrelse → esker hører til ET mål («2 esker Ø250mm»). Rull → én
+    // standard eske, så bare antall. Samme etikett som mål-raden så de leses likt.
+    var f1 = _specMultiFixedSize
+        ? '<div class="mobile-field field-required"><label>Ø / Mål</label>' +
+            '<input type="text" class="spm-eske-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>'
+        : '';
     row.innerHTML =
         '<div class="kappe-quad-row">' +
+            f1 +
             '<div class="mobile-field field-required"><label>Esker</label>' +
                 '<input type="text" class="spm-eske" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall != null ? String(d.antall) : '') + '"></div>' +
         '</div>' +
@@ -13945,10 +14013,23 @@ function confirmSpecMultiPopup() {
     for (var k = 0; k < eskeRows.length; k++) {
         var ev = (eskeRows[k].querySelector('.spm-eske') || {}).value;
         ev = ev ? String(ev).trim() : '';
-        if (!ev) continue;
+        // Mål-feltet finnes bare for fast-størrelse-produkter (se _createSpecEskeRow).
+        var efEl = eskeRows[k].querySelector('.spm-eske-f1');
+        var ef = efEl ? String(efEl.value || '').trim() : '';
+        if (!ev && !ef) continue;   // helt tom rad
         var en = parseInt(ev, 10);
         if (isNaN(en) || en <= 0) { showNotificationModal('Fyll inn gyldig antall esker, eller fjern tomme.'); return; }
-        selections.push({ isEske: true, antall: String(en), enhet: 'eske' });
+        var eSpec = null;
+        if (efEl) {
+            var efNum = parseInt(ef, 10);
+            if (!ef || isNaN(efNum) || efNum <= 0) { showNotificationModal(t('dim_invalid_diameter')); return; }
+            // Samme spec-bygger som mål-radene → «Ø250mm» formateres identisk.
+            eSpec = (typeof _buildSpecString === 'function') ? _buildSpecString(_specMultiMatType, efNum, 0, 0) : null;
+            if (eSpec === null) { showNotificationModal(t('dim_invalid_diameter')); return; }
+        }
+        var eSel = { isEske: true, antall: String(en), enhet: 'eske' };
+        if (eSpec) eSel.spec = eSpec;
+        selections.push(eSel);
     }
     if (!selections.length) { showNotificationModal('Fyll inn minst ett mål, løpemeter eller eske.'); return; }
     var cb = _specMultiCallback;

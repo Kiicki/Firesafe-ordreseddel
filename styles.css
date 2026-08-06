@@ -4677,6 +4677,29 @@ body.keyboard-open #spec-popup .spec-popup-sheet {
 .mat-summary-grouped {
     padding-left: 10px;
 }
+/* Meter-total for en spec-gruppe. Radene viser stk, så dette er eneste sted
+   meter finnes — samme tall og etikett som eksporten. Fet og innrykket som
+   underradene, med skillelinje over så den leses som en avslutning av gruppa. */
+.mat-summary-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 2px 4px 10px;
+    margin-top: 2px;
+    border-top: 1px solid #e5e5ea;
+    font-size: 14px;
+}
+.mat-summary-total-label {
+    color: #333;
+    font-weight: 700;
+}
+.mat-summary-total-value {
+    color: #333;
+    font-weight: 700;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
 /* Ekte iso-data-rader holdes i DOM (kilde for lagring/eksport) men
    skjules visuelt — fakturakortet viser kun den sammenslåtte raden. */
 .mat-row-data-only {
@@ -9138,6 +9161,36 @@ body.kappe-view-open #view-form { display: none; }
 .spec-multi-row .kappe-quad-row {
     flex: 1;
     min-width: 0;
+}
+/* Radene ER en tabell — kolonne-etikettene hører på ØVERSTE rad, ikke på hver.
+   Tre dimensjonsrader ga ni etiketter for tre kolonner.
+   :not(:first-child) er LIVE, så dette retter seg selv når rader legges til eller
+   slettes; ingen JS-hook trengs. Gjelder alle tre radgruppene: :first-child er
+   relativ til sin EGEN container, så første rad i #spec-multi-rows, -meter-rows og
+   -eske-rows beholder hver sin etikett mens påfølgende rader mister den.
+   Spesifisitet (id + 3 klasser + element) slår .kappe-quad-row .mobile-field label,
+   som setter display: block. */
+#spec-multi-scroll .spec-multi-row:not(:first-child) .mobile-field label {
+    display: none;
+}
+
+/* Rader med ETT felt (Meter, og Esker uten mål) skal ikke strekke feltet over hele
+   bredden — .kappe-quad-row .mobile-field { flex: 1 } gjorde nedre halvdel av
+   popupen til et annet skjema enn øvre.
+   Feltet plasseres i VERDI-kolonnen: bredde = én kolonne av tre (gap 6px ×2), og
+   margin-left:auto skyver det til slutten av raden. Da står tallet rett under
+   Antall, og ANTALL/METER/ESKER danner én loddrett etikett-kolonne — etiketten blir
+   stående over feltet og sentrert, som alle andre felt i popupen.
+   :only-child treffer nøyaktig disse radene: dimensjonsrader (3-4 felt) og
+   FC6-eskeraden (Ø/Mål + Esker) beholder tabell-oppsettet automatisk, uten at
+   CSS-en må kjenne radtypene.
+   For 4-felts-typer (brannpakning/kabelhylse) blir feltet litt bredere enn deres
+   Antall-kolonne, men høyre kant flukter — og det er høyre kant øyet følger på tall. */
+#spec-multi-scroll .kappe-quad-row > .mobile-field:only-child {
+    flex: 0 0 auto;
+    width: calc((100% - 12px) / 3);
+    min-width: 64px;
+    margin-left: auto;
 }
 /* «+ Dimensjon» / «+ Løpende meter» side ved side (.kappe-add-row-buttons),
    med litt luft over så de skilles fra radene. */
