@@ -2713,6 +2713,32 @@ label.settings-default-label.field-required > span::after {
     gap: 10px;
     margin-top: 14px;
 }
+
+/* Sum-rad mellom lista og knappene. Bevisst UTEN grå pille-bakgrunn som
+   dag-radene har — den er en oppsummering, ikke enda et inntastingsfelt.
+   flex-shrink: 0 så den aldri klemmes bort når lista scroller. */
+.dag-timer-modal-total {
+    flex-shrink: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px 2px;
+    margin-top: 4px;
+    border-top: 1px solid #e5e5ea;
+}
+.dag-timer-modal-total-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1c1c1e;
+    letter-spacing: -0.01em;
+}
+.dag-timer-modal-total-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+}
 .dag-timer-modal-content .confirm-btn-cancel {
     flex: 1;
     border: none;
@@ -2809,15 +2835,27 @@ label.settings-default-label.field-required > span::after {
     line-height: 1.15;
 }
 
-/* Hver dag = et eget mykt kort (ingen hårfine streker / rammer). */
-.dag-timer-modal-row {
+/* Hver rad = et eget mykt kort (ingen hårfine streker / rammer).
+   FELLES kortstil for BEGGE radtypene i Dager & tid — etasje-raden og dag-radene
+   har ulik indre struktur (etasje = tekst + «›», dag = tekst + input-pille), så
+   like paddinger ga likevel ~13px høydeforskjell (47px vs 60px). Høyden låses
+   derfor eksplisitt med min-height + vertikal sentrering.
+   Padding er 8px (var 12px): med 9 rader à 60px trengte lista 527px, men det er
+   bare 509px igjen etter tittel, sum-rad og knapper på en 360×800-skjerm — «Annet»
+   ble klippet. 8px gir 52px pr. rad = 468px, altså plass til alt uten scroll. */
+.dag-timer-modal-row,
+.dag-timer-etasje-row {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px 14px;
+    min-height: 52px;
+    padding: 8px 14px;
     background: #f5f5f7;
     border: none;
     border-radius: 14px;
+}
+.dag-timer-modal-row {
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
 }
 
 .dag-timer-modal-row.dag-timer-total-row {
@@ -2833,15 +2871,13 @@ label.settings-default-label.field-required > span::after {
 /* Etasjer — ÉN gang for hele bestillingen, øverst i Dager & tid. Ren rad som
    matcher dag-radene (grå kort); etasjene vises som tekst til høyre med diskret
    «›» (samme picker-stil som resten av appen) — ingen hvit boks/ramme. */
+/* Kortstilen (bakgrunn/padding/min-height) deles med .dag-timer-modal-row over —
+   her kun det som er unikt for etasje-raden. margin-bottom skiller den bevisst
+   litt ekstra fra dag-radene: den gjelder HELE bestillingen, ikke én dag. */
 .dag-timer-etasje-row {
-    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 12px 14px;
-    background: #f5f5f7;
-    border: none;
-    border-radius: 14px;
     margin-bottom: 4px;
 }
 .dag-timer-etasje-label {
@@ -3339,6 +3375,18 @@ label.settings-default-label.field-required > span::after {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
+}
+
+/* Status-melding («Laster…», «Ingen etasjer lagt til») i en liste-popup.
+   MÅ ha grid-column når lista er et grid: uten den blir meldingen et vanlig
+   grid-element på halv bredde og brekker midt i setningen
+   («Ingen etasjer lagt / til»), selv om popupen har rikelig plass.
+   Egenskapen ignoreres i ikke-grid-lister, så klassen er trygg overalt. */
+.popup-list-empty {
+    grid-column: 1 / -1;
+    padding: 16px;
+    color: #999;
+    text-align: center;
 }
 
 .plan-popup-row {

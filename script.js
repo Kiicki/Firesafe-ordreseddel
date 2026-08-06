@@ -2926,20 +2926,34 @@ function parseMaterialPickerKey(key) {
     };
 }
 
-function openMaterialPicker(btn, onConfirm) {
+// _didFetch: intern rekursjons-vakt. Hentingen forsøkes MAKS én gang.
+// Uten den blir dette en uendelig løkke hver gang hentingen ikke gir materialer
+// (Firestore-regler avviser, offline første gang, eller lista er genuint tom):
+// retry → fortsatt tom → retry … Velgeren står på «Laster…» for alltid, knappene
+// svarer ikke fordi overlayet rives ned og bygges opp på nytt hver runde, og
+// konsollen fylles med én feil pr. runde.
+function openMaterialPicker(btn, onConfirm, _didFetch) {
     // If material cache is empty and user is logged in, fetch from Firebase first
-    if ((!cachedMaterialOptions || cachedMaterialOptions.length === 0) && currentUser && db && typeof getDropdownOptions === 'function') {
+    if (!_didFetch && (!cachedMaterialOptions || cachedMaterialOptions.length === 0) && currentUser && db && typeof getDropdownOptions === 'function') {
         const modal = document.getElementById('picker-overlay');
         const list = document.getElementById('picker-overlay-list');
         list.innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('loading') + '</div>';
         if (!window._pickerSavedScroll) window._pickerSavedScroll = _saveScrollPositions();
         modal.classList.add('active');
         document.body.classList.add('picker-active');
-        getDropdownOptions().then(function() {
+        var _reopen = function() {
             modal.classList.remove('active');
             document.body.classList.remove('picker-active');
-            // Behold _pickerSavedScroll — re-åpning gjenbruker scroll-posisjonen
-            openMaterialPicker(btn, onConfirm);
+            // Behold _pickerSavedScroll — re-åpning gjenbruker scroll-posisjonen.
+            // _didFetch=true: åpne uansett resultat. Er lista fortsatt tom viser
+            // renderPickerList «ingen materialer» — bedre enn å henge på «Laster…».
+            openMaterialPicker(btn, onConfirm, true);
+        };
+        // .catch: uten den ville en avvist promise (f.eks. korrupt localStorage som
+        // ikke lar seg parse) etterlatt velgeren på «Laster…» uten vei ut.
+        getDropdownOptions().then(_reopen).catch(function(e) {
+            console.error('getDropdownOptions error:', e);
+            _reopen();
         });
         return;
     }
@@ -4620,7 +4634,7 @@ function openPlanPicker(displayEl) {
 
     // If cache is empty and user is logged in, fetch from Firebase first
     if ((!cachedPlanOptions || cachedPlanOptions.length === 0) && currentUser && db && typeof loadPlanOptions === 'function') {
-        document.getElementById('plan-popup-list').innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('loading') + '</div>';
+        document.getElementById('plan-popup-list').innerHTML = '<div class="popup-list-empty">' + t('loading') + '</div>';
         loadPlanOptions().then(function() { _renderPlanPickerList(displayEl); });
         return;
     }
@@ -4656,7 +4670,7 @@ function _renderPlanPickerList(displayEl) {
     });
 
     if (!html) {
-        html = '<div style="padding:16px;color:#999;text-align:center">' + t('settings_no_plans') + '</div>';
+        html = '<div class="popup-list-empty">' + t('settings_no_plans') + '</div>';
     }
 
     listEl.innerHTML = html;
@@ -4996,10 +5010,43 @@ function openDagTimerModal(arg) {
     genRow.appendChild(genTopRow);
     list.appendChild(genRow);
 
+    // Sum-rad: samme tall som «Arbeidstid»-raden i eksporten (alle dager + Annet),
+    // så montøren ser totalen mens han fører timene i stedet for å regne selv.
+    _bindDagTimerTotal();
+
     var modal = document.getElementById('dag-timer-modal');
     modal.classList.add('active');
     modal.addEventListener('touchmove', dagTimerBlockScroll, { passive: false });
     modal.addEventListener('wheel', dagTimerBlockScroll, { passive: false });
+}
+
+// Summerer ALLE timefeltene i dag-timer-popupen (ukedagene + «Annet») og skriver
+// resultatet til sum-raden. Samme regnestykke som eksportens Arbeidstid-rad, som
+// også summerer alle verdiene i order.timer inkl. _generelt.
+function _updateDagTimerTotal() {
+    var list = document.getElementById('dag-timer-modal-list');
+    var valueEl = document.getElementById('dag-timer-total-value');
+    if (!list || !valueEl) return;
+    var sum = 0;
+    list.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
+        var n = parseFloat(String(inp.value || '').replace(',', '.'));
+        if (!isNaN(n)) sum += n;
+    });
+    valueEl.textContent = sum.toFixed(1).replace('.', ',') + ' t';
+}
+
+// Etikett + live-oppdatering. Etiketten bygges fra t('order_days') så den er
+// samme begrep som overalt ellers («Total arbeidstid»).
+function _bindDagTimerTotal() {
+    var labelEl = document.getElementById('dag-timer-total-label');
+    if (labelEl) labelEl.textContent = 'Total ' + t('order_days').toLowerCase();
+    var list = document.getElementById('dag-timer-modal-list');
+    if (list) {
+        list.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
+            inp.addEventListener('input', _updateDagTimerTotal);
+        });
+    }
+    _updateDagTimerTotal();
 }
 
 function dagTimerBlockScroll(e) {
