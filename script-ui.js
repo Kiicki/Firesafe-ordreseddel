@@ -283,9 +283,9 @@ function _showSingleStatusMenu(savedItem) {
     }
     document.getElementById('action-popup-buttons').innerHTML =
         '<div class="bulk-status-menu">' +
-            opt('lagret', '#F5A623', 'status_lagret') +
-            opt('sendt', '#2D7FF9', 'status_sendt') +
-            opt('ferdig', '#8a8a8e', 'status_ferdig') +
+            opt('lagret', _STATUS_COLORS.lagret, 'status_lagret') +
+            opt('sendt', _STATUS_COLORS.sendt, 'status_sendt') +
+            opt('ferdig', _STATUS_COLORS.ferdig, 'status_ferdig') +
         '</div>';
     var popup = document.getElementById('action-popup');
     popup.querySelectorAll('.bulk-status-option').forEach(function(b) {
@@ -1580,12 +1580,18 @@ function _updateFormStatusButtons() {
     if (row) row.style.display = '';
 }
 
+// Status-farger på ETT sted. De var duplisert som literaler i tre popup-byggere
+// og drev fra hverandre: «Merk lukket»-knappen i lista sto igjen som grønn
+// gjennom to palett-endringer fordi den ble glemt. Må holdes i synk med
+// .status-dot-reglene i styles.css (CSS kan ikke lese herfra).
+var _STATUS_COLORS = { lagret: '#F5A623', sendt: '#2D7FF9', ferdig: '#3a3a3c' };
+
 // In-form status-meny: gjenbruker bulk-popup-mønsteret (#action-popup +
 // .bulk-status-option). Valgene avhenger av gjeldende status: forover i flyten,
 // og fra Lukket tilbake til Sendt (send på nytt hvis den ble avvist).
 var _FORM_STATUS_META = {
-    sendt:  { color: '#2D7FF9', key: 'btn_mark_sent' },
-    ferdig: { color: '#8a8a8e', key: 'btn_mark_ferdig' }        // = Lukket
+    sendt:  { color: _STATUS_COLORS.sendt,  key: 'btn_mark_sent' },
+    ferdig: { color: _STATUS_COLORS.ferdig, key: 'btn_mark_ferdig' }   // = Lukket
 };
 function showFormStatusMenu() {
     var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
@@ -4533,9 +4539,9 @@ function showBulkStatusMenu() {
     }
     document.getElementById('action-popup-buttons').innerHTML =
         '<div class="bulk-status-menu">' +
-            opt('lagret', '#F5A623', 'status_lagret') +
-            opt('sendt', '#2D7FF9', 'status_sendt') +
-            opt('ferdig', '#8a8a8e', 'status_ferdig') +
+            opt('lagret', _STATUS_COLORS.lagret, 'status_lagret') +
+            opt('sendt', _STATUS_COLORS.sendt, 'status_sendt') +
+            opt('ferdig', _STATUS_COLORS.ferdig, 'status_ferdig') +
         '</div>';
     document.getElementById('action-popup').classList.add('active');
 }

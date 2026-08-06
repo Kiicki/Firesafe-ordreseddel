@@ -3535,22 +3535,25 @@ label.settings-default-label.field-required > span::after {
     flex-shrink: 0;
     vertical-align: middle;
 }
-.status-dot.saved { background: #E8501A; }
-.status-dot.sent { background: #4CAF50; }
-/* Tre-tilstands status (ordreseddel): utkast (oransje) → sendt (blå) → ferdig (grønn). */
-/* Maksimalt distinkt statuspalett (alle runde): grå · blå · grønn · rød. Tidligere
-   var utkast brand-oransje, som var for likt rød (ikke godkjent) på en liten prikk;
-   grått utkast fjerner kollisjonen og gir en konvensjonell, godt adskilt palett. */
-/* Tre tilstander: Lagret (oransje) → Sendt (blå) → Lukket (grå).
-   Lukket er GRÅ, ikke grønn: tilstanden rommer også avviste ordresedler, og
-   grønt ville signalisert «godkjent» for dem. Grått leser som «lukket/inaktiv»
-   og demper samtidig de ferdige, som utgjør flertallet i lista over tid. */
+/* Tre tilstander: Lagret (gul) → Sendt (blå) → Lukket (grafitt).
+   MÅ holdes i synk med _STATUS_COLORS i script-ui.js, som fargelegger prikkene
+   i «Merk som»-popupene (CSS kan ikke leses derfra).
+
+   Lukket er GRAFITT, ikke grønn og ikke grå:
+   — ikke grønn, fordi tilstanden også rommer avviste ordresedler; grønt ville
+     signalisert «godkjent» for dem.
+   — ikke grå, fordi datoen og prosjektlinjen i samme rad ER grå — da leste
+     prikken som tekst i stedet for som en statusmarkør.
+   Grafitt er nøytralt (påstår ingenting om utfallet), men ~11:1 mot hvitt og
+   dermed mørkere enn all tekst i raden. Umettet, så den konkurrerer ikke med
+   gult om oppmerksomheten. */
 .status-dot.s-draft { background: #F5A623; }
 .status-dot.s-sent { background: #2D7FF9; }
-.status-dot.s-done { background: #8a8a8e; }
-/* «Merk neste status»-knapp i lista: blå (merk sendt) / grønn (merk ferdig). */
+.status-dot.s-done { background: #3a3a3c; }
+/* «Merk neste status»-knapp i lista. Samme farger som prikkene over — mark-ferdig
+   sto igjen som grønn gjennom to palett-endringer fordi den ble glemt. */
 .saved-item-action-btn.mark-sent { color: #2D7FF9; }
-.saved-item-action-btn.mark-ferdig { color: #4CAF50; }
+.saved-item-action-btn.mark-ferdig { color: #3a3a3c; }
 
 
 .mobile-add-line-btn {
