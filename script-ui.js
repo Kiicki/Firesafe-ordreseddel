@@ -13794,8 +13794,8 @@ function openSpecMultiPopup(baseName, matType, callback, prefillEntries) {
     if (eskeC) eskeEntries.forEach(function(e) { eskeC.appendChild(_createSpecEskeRow(e)); });
     var emptyEl = document.getElementById('spec-multi-empty');
     if (emptyEl) emptyEl.textContent = hasMeter
-        ? 'Legg til dimensjoner, løpende meter eller esker nedenfor.'
-        : 'Legg til dimensjoner eller esker nedenfor.';
+        ? 'Legg til mål, løpemeter eller esker nedenfor.'
+        : 'Legg til mål eller esker nedenfor.';
     _specMultiUpdateEmptyState();
     if (typeof applyTranslations === 'function') applyTranslations();
     popup.classList.add('active');
@@ -13824,7 +13824,10 @@ function _createSpecRow(matType, data) {
     }
     row.innerHTML =
         '<div class="kappe-quad-row">' +
-            '<div class="mobile-field field-required"><label>Bredde</label>' +
+            // «Ø / Bredde», ikke bare «Bredde»: står feltet alene blir målet RUNDT
+            // (Ø250mm), og etiketten må si det. Kortform fordi tre-fire felt deler
+            // raden på 360px — den eldre popupen har plass til «Bredde / Diameter (mm)».
+            '<div class="mobile-field field-required"><label>Ø / Bredde</label>' +
                 '<input type="text" class="spm-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
             '<div class="mobile-field"><label>Høyde</label>' +
                 '<input type="text" class="spm-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>' +
@@ -13947,7 +13950,7 @@ function confirmSpecMultiPopup() {
         if (isNaN(en) || en <= 0) { showNotificationModal('Fyll inn gyldig antall esker, eller fjern tomme.'); return; }
         selections.push({ isEske: true, antall: String(en), enhet: 'eske' });
     }
-    if (!selections.length) { showNotificationModal('Fyll inn minst én dimensjon, løpende meter eller eske.'); return; }
+    if (!selections.length) { showNotificationModal('Fyll inn minst ett mål, løpemeter eller eske.'); return; }
     var cb = _specMultiCallback;
     closeSpecMultiPopup();
     if (cb) cb(selections);

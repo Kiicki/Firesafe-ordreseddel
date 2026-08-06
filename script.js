@@ -2564,6 +2564,28 @@ function formatRunningMeters(value) {
     return rounded.toFixed(1).replace('.', ',');
 }
 
+// Antall TIDELER en meter-verdi vises som — speiler opprundingen i
+// formatRunningMeters over. Brukes til gruppe-summene i eksporten så totalen
+// alltid er lik summen av de VISTE radverdiene: kunden skal kunne legge sammen
+// kolonnen og få samme tall. Summerte man de rå lengdene i stedet, samlet
+// opprundingen fra hver rad seg opp til et synlig avvik (0,7+2,1+0,7+3,0 = 6,5
+// mot 6,3 for rå sum). Per rad er opprunding riktig — 0,628 m mansjett er ikke
+// en bestillbar mengde, 0,7 er — så summen av bestillbare mengder er det som
+// faktisk skal bestilles.
+// Heltall-tideler (ikke float) så akkumuleringen ikke drar med seg
+// flyttallsfeil når mange rader legges sammen.
+function meterTenths(value) {
+    var num = parseFloat(String(value).replace(',', '.'));
+    if (!num || isNaN(num)) return 0;
+    return Math.ceil(num * 10);
+}
+
+// Formater en tidels-sum tilbake til visningsformat. Ingen ny opprunding — verdien
+// er allerede et helt antall tideler.
+function formatMeterTenths(tenths) {
+    return (tenths / 10).toFixed(1).replace('.', ',');
+}
+
 function createMaterialSummaryRow(m, groupBaseName) {
     const div = document.createElement('div');
     div.className = 'mobile-material-row';
@@ -6275,7 +6297,9 @@ function buildDesktopWorkLines() {
                     // Group header row (bold base name)
                     var exportGroupTitle = group.displayName || group.baseName;
                     addRow('  ' + exportGroupTitle.charAt(0).toUpperCase() + exportGroupTitle.slice(1) + ':', '', '', { bold: true, alignRight: true });
-                    var groupTotalMeter = 0;
+                    // Akkumuleres i TIDELER av de VISTE radverdiene (se meterTenths),
+                    // ikke i rå lengder — ellers stemmer ikke kolonnen med totalen.
+                    var groupTotalTenths = 0;
                     var groupHasMeter = false;
                     // groupMeterRows teller radene som FAKTISK bidrar til meter-summen.
                     // renderItems.length duger ikke lenger: en eske-rad er med i gruppa
@@ -6284,6 +6308,11 @@ function buildDesktopWorkLines() {
                     var groupMeterRows = 0;
                     var groupTotalPlater = 0;
                     var groupHasPlater = false;
+                    // Esker kan IKKE summeres til meter: antall meter pr. eske er ikke
+                    // registrert (og skal ikke være det). Sum-raden må derfor si at den
+                    // ikke dekker dem — men bare når gruppa faktisk HAR esker, ellers
+                    // forklarer skjemaet bort noe som ikke finnes.
+                    var groupHasEske = false;
                     // For Isolering: pre-aggreger isolasjons-rader med samme produkt+tykkelse,
                     // summer plate-antall. Festemiddel-items beholdes som separate rader.
                     var renderItems = group.items;
@@ -6312,6 +6341,11 @@ function buildDesktopWorkLines() {
                         renderItems = isoAgg.concat(nonIsoItems);
                     }
                     renderItems.forEach(function(gm) {
+                        // Settes FØR alle grener, så flagget fanges uansett hvordan
+                        // raden rendres. enhet==='eske' treffer kun eske-rader på en
+                        // spec-base — festemidler har quantityUnit 'eske' men enhet =
+                        // dimensjon, og skal ikke påvirke sum-etiketten.
+                        if (gm.enhet === 'eske') groupHasEske = true;
                         var subName;
                         if (gm.source === 'kappe-products' && typeof formatKappeIsolationName === 'function') {
                             // Eksport: vis produktnavn + tykkelse uten bredde/plate-suffiks.
@@ -6341,11 +6375,12 @@ function buildDesktopWorkLines() {
                                 groupHasPlater = true;
                             }
                         } else if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
-                            groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum);
+                            // meterTenths på SAMME verdi raden viser → totalen = sum av kolonnen
+                            groupTotalTenths += meterTenths(calculateRunningMeters(pipeInfo, antallNum));
                             groupHasMeter = true;
                             groupMeterRows++;
                         } else if ((gm.quantityUnit || getMaterialQuantityUnit(gm.name, gm.enhet, gm.source)) === 'meter' && !isNaN(antallNum)) {
-                            groupTotalMeter += antallNum;
+                            groupTotalTenths += meterTenths(antallNum);
                             groupHasMeter = true;
                             groupMeterRows++;
                         }
@@ -6355,7 +6390,8 @@ function buildDesktopWorkLines() {
                     // For Isolering har hver rad et UNIKT produkt (Fireprotect 20mm vs 22mm vs ...),
                     // så et "totalt" på tvers ville ikke vært meningsfullt.
                     if (groupHasMeter && groupMeterRows > 1) {
-                        addRow('    Totalt:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
+                        addRow('    ' + (groupHasEske ? 'Totalt uten esker:' : 'Totalt:'),
+                            formatMeterTenths(groupTotalTenths), 'meter', { bold: true, alignRight: true });
                     }
                 }
             });
@@ -6521,7 +6557,12 @@ function computeWorkRows(orders, minRows) {
                     // renderItems.length duger ikke lenger: en eske-rad er med i gruppa
                     // uten å bidra, så «1 dimensjon + 1 eske» ville gitt en «Totalt:»-rad
                     // som bare gjentar den ene dimensjonsraden.
-                    var groupTotalMeter = 0, groupHasMeter = false, groupMeterRows = 0;
+                    // groupHasEske: esker kan ikke summeres til meter (meter pr. eske er
+                    // ikke registrert), så sum-raden må si at den ikke dekker dem — men
+                    // bare når gruppa faktisk har esker. Se buildDesktopWorkLines.
+                    // groupTotalTenths: tideler av de VISTE radverdiene, ikke rå lengder
+                    // — se meterTenths og kommentaren i buildDesktopWorkLines.
+                    var groupTotalTenths = 0, groupHasMeter = false, groupMeterRows = 0, groupHasEske = false;
                     var renderItems = group.items;
                     if (group.isIsolationGroup) {
                         var isoAgg = [], isoMap = {}, nonIsoItems = [];
@@ -6535,6 +6576,8 @@ function computeWorkRows(orders, minRows) {
                         renderItems = isoAgg.concat(nonIsoItems);
                     }
                     renderItems.forEach(function(gm) {
+                        // Før alle grener — se kommentar i buildDesktopWorkLines.
+                        if (gm.enhet === 'eske') groupHasEske = true;
                         var subName;
                         if (gm.source === 'kappe-products' && typeof formatKappeIsolationName === 'function') subName = formatKappeIsolationName(gm.name, gm.enhet);
                         else subName = getGroupedDisplayName(gm, group.baseName);
@@ -6552,13 +6595,14 @@ function computeWorkRows(orders, minRows) {
                         if (gm.source === 'kappe-products') {
                             // plater akkumuleres ikke til en meter-total
                         } else if (pipeInfo && !isNaN(antallNum) && antallNum > 0) {
-                            groupTotalMeter += calculateRunningMeters(pipeInfo, antallNum); groupHasMeter = true; groupMeterRows++;
+                            groupTotalTenths += meterTenths(calculateRunningMeters(pipeInfo, antallNum)); groupHasMeter = true; groupMeterRows++;
                         } else if ((gm.quantityUnit || getMaterialQuantityUnit(gm.name, gm.enhet, gm.source)) === 'meter' && !isNaN(antallNum)) {
-                            groupTotalMeter += antallNum; groupHasMeter = true; groupMeterRows++;
+                            groupTotalTenths += meterTenths(antallNum); groupHasMeter = true; groupMeterRows++;
                         }
                     });
                     if (groupHasMeter && groupMeterRows > 1) {
-                        addRow('    Totalt:', formatRunningMeters(groupTotalMeter), 'meter', { bold: true, alignRight: true });
+                        addRow('    ' + (groupHasEske ? 'Totalt uten esker:' : 'Totalt:'),
+                            formatMeterTenths(groupTotalTenths), 'meter', { bold: true, alignRight: true });
                     }
                 }
             });

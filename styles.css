@@ -9144,14 +9144,9 @@ body.kappe-view-open #view-form { display: none; }
 #spec-multi-popup .kappe-add-row-buttons {
     margin-top: 2px;
 }
-/* Tre knapper får IKKE plass på én linje: sheet er 90%/max 320px minus 40px
-   padding → ≤280px innhold, mens «+ Løpende meter» alene krever ~112px ved
-   13px. Med flex:1 på tre knapper (~88px hver) ville teksten flytt utenfor den
-   stiplede ramma. «+ Eske» får derfor egen full-bredde linje — samme mønster
-   som .iso-add-group-btn i isolering-popupen. */
-#spec-multi-popup #spec-multi-add-eske {
-    flex: 1 1 100%;
-}
+/* Alle tre knappene deler én rad via basisregelen .kappe-add-row-buttons
+   .kappe-add-kapp-btn { flex: 1 }. Det ble mulig da tekstene ble kortet til
+   «+ Mål» / «+ LM» / «+ Eske» — de lange variantene måtte ha egen linje. */
 /* Dempet hint når popupen er tom (ingen rader ennå) — fyller tomrommet. */
 .spec-multi-empty {
     text-align: center;
