@@ -964,12 +964,20 @@ function getMaterialQuantityUnit(materialName, enhet, source) {
     if (source && source.indexOf('unit:') === 0) return source.substring(5);
     var enhetLower = (enhet || '').toLowerCase();
     if (enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm') return 'meter';
-    // enhet 'eske' → «eske» under Enhet. NØDVENDIG, ikke kosmetikk: eske-rader kan nå
-    // ha mål, så «Ø250mm · 2 · stk» (2 mansjetter) og «Ø250mm · 2 · eske» (2 esker)
-    // skilles KUN av enheten. Gaten på isSpecGroupedMaterial hindrer at et
-    // standard-materiale med brukervarianten «Eske» endrer enhet — den skal telles
-    // i stk. Dekker begge eske-formene: «FSC» (name===base) og «FC6 Ø250mm» (prefiks).
-    if (enhetLower === 'eske' && isSpecGroupedMaterial(materialName, enhet)) return 'eske';
+    // enhet 'eske' → «eske» under Enhet, men BARE når navnet ikke alt sier det.
+    // Regel: Enhet skal fullføre navnet, ikke gjenta det.
+    //   «Ø250mm · 2 · eske»  → nødvendig: eneste som skiller 2 esker fra
+    //                          «Ø250mm · 3 · stk» (3 mansjetter av samme mål).
+    //   «Esker · 2 · stk»    → navnet sier alt at det er esker; «eske» ville gitt
+    //                          «2 eske esker». «2 stk esker» er riktig norsk, og
+    //                          det finnes ingen annen rad som heter «Esker».
+    // Derfor kreves et spec-DERIVERT navn (produkt + mellomrom + mål), ikke
+    // basenavnet alene. Sjekken hindrer samtidig at et standard-materiale med
+    // brukervarianten «Eske» bytter enhet — det skal fortsatt telles i stk.
+    if (enhetLower === 'eske' && (cachedMaterialOptions || []).some(function(m) {
+        if (m.type !== 'mansjett' && m.type !== 'brannpakning' && m.type !== 'kabelhylse') return false;
+        return String(materialName || '').toLowerCase().startsWith(m.name.toLowerCase() + ' ');
+    })) return 'eske';
     var productDefault = getKappeProductDefaultUnit(materialName);
     if (productDefault) return productDefault;
     if (source === 'kappe-products') return 'meter';
