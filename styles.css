@@ -9133,8 +9133,8 @@ body.kappe-view-open #view-form { display: none; }
 #iso-card-popup.iso-card-backdrop {
     z-index: 55;
 }
-/* Multi-add spec-popup: kompakt, innholds-tilpasset (vokser IKKE → ikke tomrom),
-   og flat — begge seksjoner (dimensjon + løpende meter) ser like ut. */
+/* Multi-add spec-popup: kompakt, innholds-tilpasset (vokser IKKE → ikke tomrom).
+   Tre likt oppbygde seksjoner (Mål / Løpemeter / Esker) — se .spm-section under. */
 #spec-multi-popup.iso-card-backdrop { z-index: 55; }
 #spec-multi-popup .spec-popup-sheet { gap: 8px; }
 #spec-multi-popup .spec-popup-sheet > *:not(#spec-multi-scroll) { flex-shrink: 0; }
@@ -9149,12 +9149,16 @@ body.kappe-view-open #view-form { display: none; }
     padding-right: 4px;
     padding-bottom: 2px;
 }
-/* Felt + slett-knapp på ÉN linje (som iso-card-row-main): quad-row tar all plass,
-   slett-knappen krymper ikke. Liten horisontal padding så 4 felt får plass. */
+/* Felt-rutenettet tar all plass, slett-knappen sist og krymper ikke → ÉN loddrett
+   slett-kolonne helt til høyre i alle rader, uansett hvor mange felt radtypen har.
+   Prøvd og forkastet: å la slett-knappen følge radens siste felt (raden som ett
+   rutenett + display: contents). Da fikk Mål, Løpemeter og Esker ikonet i hver sin
+   kolonne — hvert ikon sto nær «sitt» felt, men de tre X-posisjonene leste som rot.
+   Justering slår nærhet her; øyet leser den loddrette linjen først. */
 .spec-multi-row {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
+    gap: 6px;
     padding: 4px 2px;
     border-bottom: 1px solid #f0f0f0;
 }
@@ -9174,32 +9178,94 @@ body.kappe-view-open #view-form { display: none; }
     display: none;
 }
 
-/* Rader med ETT felt (Meter, og Esker uten mål) skal ikke strekke feltet over hele
-   bredden — .kappe-quad-row .mobile-field { flex: 1 } gjorde nedre halvdel av
-   popupen til et annet skjema enn øvre.
-   Feltet plasseres i VERDI-kolonnen: bredde = én kolonne av tre (gap 6px ×2), og
-   margin-left:auto skyver det til slutten av raden. Da står tallet rett under
-   Antall, og ANTALL/METER/ESKER danner én loddrett etikett-kolonne — etiketten blir
-   stående over feltet og sentrert, som alle andre felt i popupen.
-   :only-child treffer nøyaktig disse radene: dimensjonsrader (3-4 felt) og
-   FC6-eskeraden (Ø/Mål + Esker) beholder tabell-oppsettet automatisk, uten at
-   CSS-en må kjenne radtypene.
-   For 4-felts-typer (brannpakning/kabelhylse) blir feltet litt bredere enn deres
-   Antall-kolonne, men høyre kant flukter — og det er høyre kant øyet følger på tall. */
-#spec-multi-scroll .kappe-quad-row > .mobile-field:only-child {
-    flex: 0 0 auto;
-    width: calc((100% - 12px) / 3);
-    min-width: 64px;
-    margin-left: auto;
+/* Hver seksjon fyller SAMME totalbredde, uansett hvor mange felt den har:
+   grid-auto-flow: column + grid-auto-columns: 1fr deler radens bredde likt på
+   antallet felt raden faktisk har (3-4 i Mål, 2 i Esker, 1 i Løpemeter). Da
+   flukter BÅDE venstre- og høyrekanten hele veien ned, og ingen seksjon ser
+   avkortet ut. Ingen --spm-cols å holde i sync med feltantallet — rutenettet
+   leser antallet selv.
+   Forkastet alternativ: felles fast kolonneantall for alle seksjoner. Det ga lik
+   feltbredde, men korte seksjoner sluttet midt på raden og etterlot en ujevn
+   høyrekant. (Slett-knappen ligger utenfor dette rutenettet, se .spec-multi-row —
+   den har sin egen loddrette kolonne helt til høyre.) */
+#spec-multi-scroll .kappe-quad-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 6px;
+    align-items: end;
 }
-/* «+ Dimensjon» / «+ Løpende meter» side ved side (.kappe-add-row-buttons),
-   med litt luft over så de skilles fra radene. */
-#spec-multi-popup .kappe-add-row-buttons {
-    margin-top: 2px;
+#spec-multi-scroll .kappe-quad-row > .mobile-field {
+    min-width: 0;
 }
-/* Alle tre knappene deler én rad via basisregelen .kappe-add-row-buttons
-   .kappe-add-kapp-btn { flex: 1 }. Det ble mulig da tekstene ble kortet til
-   «+ Mål» / «+ LM» / «+ Eske» — de lange variantene måtte ha egen linje. */
+
+/* ── Seksjoner: Mål / Løpemeter / Esker ────────────────────────────────────────
+   Hver posttype er en selvstendig blokk med tittel, egne kolonner og egen
+   «+ Legg til». Seksjonene vises alltid (også uten rader) — den tomme popupen
+   viser da hvilke posttyper produktet har, og hver knapp står ved det den lager.
+   Det erstatter den gamle hint-teksten + den samlede knappestripen nederst. */
+.spm-section {
+    display: flex;
+    flex-direction: column;
+}
+.spm-section + .spm-section {
+    margin-top: 10px;
+}
+/* Tittelen bærer seksjonens identitet; kolonne-etikettene under sier hva hvert
+   felt er. Tydelig mørkere og tyngre enn feltetikettene så hierarkiet leses:
+   seksjon → kolonne → verdi. */
+.spm-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #6c6c72;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 0 2px 5px;
+    border-bottom: 1px solid #ececf0;
+    margin-bottom: 2px;
+}
+/* Legg-til-knappen tilhører seksjonen sin, ikke popupen. Venstrestilt under
+   radene, dempet grå pille — IKKE stor stiplet full-bredde-boks: tre slike ga
+   knappene mer visuell vekt enn tallene de legger til, og popupen leste som en
+   side med knapper. Grå pille (ikke bar tekst) fordi den fortsatt må være en
+   trygg trykkflate på mobil.
+   ID-scopet fordi basisklassen .kappe-add-kapp-btn setter width: 100% + stiplet
+   ramme. Den gamle #spec-multi-popup .kappe-add-kapp-btn-regelen (stiplet boks) er
+   fjernet — alle add-knapper i denne popupen er .spm-add-btn, så den var død vekt
+   som bare konkurrerte om samme spesifisitet. */
+#spec-multi-popup .spm-add-btn {
+    align-self: flex-start;
+    width: auto;
+    margin: 8px 0 0 2px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 8px;
+    background: #f3f3f5;
+    font-size: 13px;
+    font-weight: 600;
+    color: #E8501A;
+}
+#spec-multi-popup .spm-add-btn:active {
+    background: #fdece5;
+}
+/* Siste rad i en seksjon trenger ingen skillelinje — seksjonen slutter der,
+   og linjen ville lagt seg tett inntil «+ Legg til»-knappen. */
+#spec-multi-scroll .spec-multi-row:last-child {
+    border-bottom: none;
+}
+/* Stjerne-forklaring: dempet og liten — den skal kunne leses når man lurer, ikke
+   konkurrere med feltene. Stjerna selv i samme røde som .field-required-stjernene
+   (#e74c3c) så den leses som den SAMME markøren, ikke som en ny. */
+.spm-legend {
+    font-size: 11.5px;
+    color: #9b9ba1;
+    text-align: center;
+    padding: 2px 4px 0;
+}
+.spm-legend span {
+    color: #e74c3c;
+    font-weight: bold;
+}
 /* Dempet hint når popupen er tom (ingen rader ennå) — fyller tomrommet. */
 .spec-multi-empty {
     text-align: center;
@@ -9251,23 +9317,8 @@ body.kappe-view-open #view-form { display: none; }
 #spec-multi-popup .spec-multi-row .kappe-kapp-remove-btn {
     height: 42px;
     align-items: center;
-    padding: 0 0 0 4px;
+    padding: 0 0 0 2px;
     color: #e74c3c;
-}
-/* Diskré «+ Legg til»-knapper. Mindre font + smal horisontal padding så lengre
-   etikett ("+ Løpende meter") får luft på begge sider og sentreres tydelig. */
-#spec-multi-popup .kappe-add-kapp-btn {
-    margin: 0;
-    padding: 11px 6px;
-    border: 1px dashed #d6d6db;
-    border-radius: 10px;
-    background: #fff;
-    font-size: 13px;
-    text-align: center;
-}
-#spec-multi-popup .kappe-add-kapp-btn:active {
-    background: #fff4f0;
-    border-color: #E8501A;
 }
 /* Avrundede, moderne footer-knapper. */
 #spec-multi-popup .spec-popup-buttons { gap: 10px; }

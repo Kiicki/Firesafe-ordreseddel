@@ -889,7 +889,9 @@ function formatKappeStiftName(enhet, name, quantityUnit) {
     if (dim && productName.toLowerCase() === dim.toLowerCase()) {
         productName = getMaterialStiftLabel();
     }
-    // Enhet (stk/eske) vises allerede i antall-kolonnen → ikke dupliser i navnet.
+    // quantityUnit tas bevisst IKKE i bruk til et navne-suffiks: eske/stk står i
+    // Enhet-kolonnen, og et « eske» her ville gjort den cella dødvekt. Parameteren
+    // beholdes i signaturen fordi kallerne sender den og den beskriver raden.
     return dim ? productName + ' ' + dim : productName;
 }
 
@@ -960,23 +962,58 @@ function getMaterialPickerConfig(materialName) {
     return null;
 }
 
+// ── Kolonne-modellen: Beskrivelse / Antall / Enhet ───────────────────────────
+// Tre kolonner, tre ansvar — gjelder ALLE flater (ordreseddel, PDF, ordrekort,
+// servicebil, bil-historikk, materialvelger):
+//   Beskrivelse = produktidentiteten = MÅLET, eller produktnavnet når mål mangler
+//   Antall      = mengden
+//   Enhet       = hva tallet faktisk teller (stk / eske / meter / m²)
+//
+// Enhets-kolonnen fortjener plassen sin KUN når den varierer og tilfører noe.
+// Testen på hver rad er: tvinger beskrivelsen enheten? Gjør den det, er cella
+// dødvekt. «Ø125mm eske · 2 · stk» besto ikke den testen — «stk» kunne ikke vært
+// noe annet når beskrivelsen alt sa eske. Derfor bærer Enhet formen:
+//   «Ø125mm · 2 · eske»   \u2014 to esker av det målet
+//   «Ø125mm · 4 · stk»    \u2014 fire løse av samme mål; SKILLET ligger i Enhet,
+//                            som er nøyaktig det kolonnen finnes for
+//   «FSC · 3,0 · meter»   \u2014 tallet er en lengde, ikke et antall
+//
+// Rader uten mål viser PRODUKTNAVNET i Beskrivelse. Prøvd og forkastet underveis:
+// en tankestrek (sa ingenting), og formordene «Løpende»/«Eske» der (flyttet
+// enheten inn i Beskrivelse og gjorde Enhet-cella dødvekt på de radene).
+// Kostnaden er at produktnavnet også står i gruppe-overskriften — bevisst valgt
+// framfor en celle som ikke tilfører noe.
+//
+// GRENSE: standard-materialer med brukerdefinerte VARIANTER (FSA Patron, Pølse)
+// legger fortsatt varianten i navnet og telles i stk. En variant er en egen vare,
+// ikke en pakningsform — det systemet er urørt.
+
+// ÉN kilde for Enhet-kolonnen på alle flater. Før fantes det to konkurrerende
+// regler (denne og materialvelgerens egen if/else), og de ga «stk» i eksporten og
+// «eske» i servicebil for nøyaktig samme rad.
+function getMaterialRowUnit(m) {
+    if (!m) return 'stk';
+    return m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source) || 'stk';
+}
+
 function getMaterialQuantityUnit(materialName, enhet, source) {
     if (source && source.indexOf('unit:') === 0) return source.substring(5);
     var enhetLower = (enhet || '').toLowerCase();
     if (enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm') return 'meter';
-    // enhet 'eske' → «eske» under Enhet, men BARE når navnet ikke alt sier det.
-    // Regel: Enhet skal fullføre navnet, ikke gjenta det.
-    //   «Ø250mm · 2 · eske»  → nødvendig: eneste som skiller 2 esker fra
-    //                          «Ø250mm · 3 · stk» (3 mansjetter av samme mål).
-    //   «Esker · 2 · stk»    → navnet sier alt at det er esker; «eske» ville gitt
-    //                          «2 eske esker». «2 stk esker» er riktig norsk, og
-    //                          det finnes ingen annen rad som heter «Esker».
-    // Derfor kreves et spec-DERIVERT navn (produkt + mellomrom + mål), ikke
-    // basenavnet alene. Sjekken hindrer samtidig at et standard-materiale med
-    // brukervarianten «Eske» bytter enhet — det skal fortsatt telles i stk.
+    // enhet 'eske' → «eske» under Enhet. Gjelder BÅDE et spec-derivert navn
+    // («FC6 Ø250mm», eske med mål) og spec-basen selv («FSC», eske uten mål).
+    // Tidligere krevde denne et spec-DERIVERT navn, så eske-rader uten mål fikk
+    // «stk» — altså feil enhet på et dokument kunden signerer. Det var et bevisst
+    // valg for å unngå «Esker · 2 · eske». Det problemet er nå borte på ordentlig:
+    // «eske» er en pakningsform i Beskrivelse og Enhet er «stk» (se
+    // getMaterialRowUnit), så ordet står ett sted og enheten er alltid sann.
+    // Type-vakten står igjen og hindrer fortsatt at et STANDARD-materiale med
+    // brukervarianten «Eske» bytter enhet — det skal fremdeles telles i stk.
     if (enhetLower === 'eske' && (cachedMaterialOptions || []).some(function(m) {
         if (m.type !== 'mansjett' && m.type !== 'brannpakning' && m.type !== 'kabelhylse') return false;
-        return String(materialName || '').toLowerCase().startsWith(m.name.toLowerCase() + ' ');
+        var lower = String(materialName || '').toLowerCase();
+        var base = m.name.toLowerCase();
+        return lower === base || lower.startsWith(base + ' ');
     })) return 'eske';
     var productDefault = getKappeProductDefaultUnit(materialName);
     if (productDefault) return productDefault;
@@ -1114,17 +1151,39 @@ function aggregateExportMaterials(materials) {
 // Sort-nøkkel for spec-entries: [diameter, lag/høyde, meter-flag]
 // Brukes til å sortere stigende: Ø100 2 lag før Ø100 3 lag før Ø200 2 lag.
 // Meter-entries (__meter) plasseres sist i gruppen.
-function getSpecSortKey(name) {
-    var s = name || '';
-    if (/__meter$/i.test(s)) return [Number.MAX_SAFE_INTEGER, 0, 1];
-    var diaMatch = s.match(/[øØ](\d+)/);
-    var dia = diaMatch ? parseInt(diaMatch[1], 10) : 0;
-    // Sekundær nøkkel: lag-tall ("2 lag" eller "r2") eller høyde for kabelhylse ("Ø50x250mm")
-    var heightMatch = s.match(/[øØ]\d+x(\d+)mm/i);
-    if (heightMatch) return [dia, parseInt(heightMatch[1], 10), 0];
-    var lagMatch = s.match(/(\d+)\s*lag\b/i) || s.match(/r(\d+)\s*$/i);
-    var lag = lagMatch ? parseInt(lagMatch[1], 10) : 0;
-    return [dia, lag, 0];
+// Rekkefølgen enhets-blokkene vises i. Dette er en PRODUKTBESLUTNING, ikke en
+// implementasjonsdetalj — derfor en navngitt tabell og ikke tall inline:
+// stk (de fleste radene) → meter → eske. Eske sist gir en fin bivirkning: blokken
+// havner rett over «Totalt (uten esker)», så forbeholdet står inntil radene det
+// gjelder. Ukjent enhet havner bakerst i stedet for å blande seg inn i en blokk.
+var SPEC_UNIT_SORT_RANK = { stk: 0, meter: 1, eske: 2 };
+var SPEC_UNIT_SORT_RANK_UNKNOWN = 3;
+
+// Sorteringsnøkkel for én rad i en spec-gruppe: [enhet, harMål, bredde, høyde,
+// dybde, lag]. ENHET er primær — det er den eneste rekkefølgen der Enhet-kolonnen
+// faktisk leser sortert. (Mål primært gjør enhet til en tiebreaker mellom rader med
+// samme mål, og siden nesten alle mål er unike ville kolonnen forblitt spredt.)
+//
+// Tar materialet, ikke bare navnet: enheten kan ikke utledes av navnet alene.
+//
+// Erstattet en lokal regex som hadde to feil: den lette etter «Ø» for å finne
+// bredden, så FIRKANT-mål («250x250mm») fikk bredde 0 og havnet øverst i gruppa;
+// og den hadde en gren for «__meter»-suffikset som aldri traff, fordi suffikset
+// strippes før lagring. Enhets-rangeringen over dekker nå intensjonen bak den.
+function getSpecSortKey(m, baseName) {
+    var name = (m && m.name) || '';
+    var unit = String(getMaterialRowUnit(m) || '').toLowerCase();
+    var unitRank = SPEC_UNIT_SORT_RANK[unit];
+    if (unitRank == null) unitRank = SPEC_UNIT_SORT_RANK_UNKNOWN;
+    // Gjenbruker _parseSpecFromName (samme parser som resten av appen) i stedet for
+    // en egen regex — den kjenner ALLE formene appen produserer: Ø100mm, 100x200mm,
+    // Ø50x250mm, 100x200x300mm og «… 2 lag». Det var nettopp en hjemmesnekret regex
+    // uten firkant-støtte som var bugen. Returnerer null når navnet ikke har mål.
+    var dims = (typeof _parseSpecFromName === 'function') ? _parseSpecFromName(name, baseName) : null;
+    // Rader uten mål (løpemeter, eske uten mål) først i sin egen enhets-blokk.
+    if (!dims || dims.isMeter) return [unitRank, 0, 0, 0, 0, 0];
+    // Lik bredde: rund før firkant, siden en rund spec ikke har høyde (0 < N).
+    return [unitRank, 1, dims.width || 0, dims.height || 0, dims.depth || 0, dims.rounds || 0];
 }
 
 function groupMaterialsByBase(materials, options) {
@@ -1169,11 +1228,15 @@ function groupMaterialsByBase(materials, options) {
         groups.forEach(function(g) {
             if (g.isSpecGroup && g.items.length > 1) {
                 g.items.sort(function(a, b) {
-                    var ka = getSpecSortKey(a.name);
-                    var kb = getSpecSortKey(b.name);
-                    if (ka[2] !== kb[2]) return ka[2] - kb[2];
-                    if (ka[0] !== kb[0]) return ka[0] - kb[0];
-                    return ka[1] - kb[1];
+                    var ka = getSpecSortKey(a, g.baseName);
+                    var kb = getSpecSortKey(b, g.baseName);
+                    // Alle nivåene i rekkefølge. Den gamle koden sammenlignet bare
+                    // tre av dem, og i rekkefølgen [2],[0],[1] — så dybde/lag slo
+                    // bredden.
+                    for (var i = 0; i < ka.length; i++) {
+                        if (ka[i] !== kb[i]) return ka[i] - kb[i];
+                    }
+                    return 0;
                 });
             }
         });
@@ -1216,21 +1279,15 @@ function getGroupedDisplayName(m, baseName) {
     if (shouldGroupAsKappeStift(m)) {
         return formatKappeStiftName(m.enhet, name, m.quantityUnit);
     }
-    // Direct meter entry under spec-base → label as "Løpende"
-    if (m.enhet === 'meter' && name.toLowerCase() === baseName.toLowerCase()) {
-        // Bevisst uten "meter"-suffiks her: enhet-kolonnen i tabell-visningene
-        // (ordrekort-summary, eksport-skjema) viser allerede "meter", s\u00e5 dobbel
-        // ville v\u00e6rt redundant. Picker-UI (uten enhet-kolonne) bruker sin egen
-        // "L\u00f8pende meter"-streng p\u00e5 linje ~2750.
-        return 'l\u00f8pende';
+    // Dimensjonsl\u00f8se poster p\u00e5 spec-basen (l\u00f8pemeter og esker uten m\u00e5l): PRODUKT-
+    // NAVNET er beskrivelsen. Formen ligger i Enhet-kolonnen (\u00abmeter\u00bb / \u00abeske\u00bb),
+    // som dermed tilf\u00f8rer noe p\u00e5 nettopp disse radene i stedet for \u00e5 si \u00abstk\u00bb.
+    if ((m.enhet === 'meter' || m.enhet === 'eske') && name.toLowerCase() === baseName.toLowerCase()) {
+        return baseName;
     }
-    // Direct eske entry under spec-base \u2192 label as "Esker". Enhet-kolonnen viser
-    // allerede "eske", men i motsetning til "l\u00f8pende" finnes det ikke noe
-    // adjektiv for dette, s\u00e5 navnet b\u00e6rer identiteten alene.
-    if (m.enhet === 'eske' && name.toLowerCase() === baseName.toLowerCase()) {
-        return 'esker';
-    }
-    // For spec-derived materials, strip the base name prefix to show just the spec
+    // Spec-avledet: strip produktnavnet, vis KUN m\u00e5let. En eske-rad og en stk-rad
+    // med samme m\u00e5l skilles av Enhet-kolonnen \u2014 det er den forskjellen kolonnen
+    // finnes for, og derfor skal ordet \u00abeske\u00bb ikke ogs\u00e5 st\u00e5 her.
     if (name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
         return name.substring(baseName.length + 1);
     }
@@ -2529,7 +2586,8 @@ window._updateOrderSkipUI = _updateOrderSkipUI;
 // Pipe sealant helpers
 // Kommer produktet i FASTE størrelser (ferdige mansjetter) i stedet for på rull?
 // Samme kilde som gaten i getRunningMeterInfo under — popupene må kunne spørre om
-// dette for å skjule «+ LM» og for å kreve mål på eske-rader.
+// dette for å skjule «+ LM» / meter-toggelen. (Eske-radens mål-felt er IKKE gated
+// på dette lenger — det er valgfritt og vises for alle spec-produkter.)
 function isFixedSizeMaterial(baseName) {
     if (!baseName) return false;
     var allMats = cachedMaterialOptions || [];
@@ -2636,7 +2694,7 @@ function specGroupMeterTotal(items) {
         if (pipeInfo && antallNum > 0) {
             tenths += meterTenths(calculateRunningMeters(pipeInfo, antallNum));
             rows++;
-        } else if ((m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source)) === 'meter') {
+        } else if (getMaterialRowUnit(m) === 'meter') {
             tenths += meterTenths(antallNum);
             rows++;
         }
@@ -2644,10 +2702,17 @@ function specGroupMeterTotal(items) {
     return { tenths: tenths, rows: rows, hasMeter: rows > 0, hasEske: hasEske };
 }
 
-// Etikett for total-raden. «uten esker» kun når gruppa faktisk har esker — ellers
-// forklarer skjemaet bort noe som ikke finnes.
+// Etikett for total-raden. Etiketten står i BESKRIVELSE-kolonnen og skal derfor
+// ikke inneholde enhetsordet — Enhet-kolonnen sier allerede «meter». Sto en kort
+// periode som «Totalt løpemeter», som skrev «meter» to ganger på samme rad;
+// nøyaktig samme feil som «Esker · 2 · eske», bare i etiketten.
+// «(uten esker)» kun når gruppa faktisk har esker — ellers forklarer skjemaet bort
+// noe som ikke finnes. Forbeholdet trengs fordi meter pr. eske ikke er registrert
+// noe sted, så eske-radene kan ikke regnes om; uten det ville summen vært for lav
+// uten at noen fikk vite det. Parentesen gjør det til et forbehold PÅ totalen, i
+// stedet for «Totalt uten esker» som kunne leses som at et antall ble trukket fra.
 function specGroupTotalLabel(hasEske) {
-    return hasEske ? 'Totalt uten esker:' : 'Totalt:';
+    return hasEske ? 'Totalt (uten esker):' : 'Totalt:';
 }
 
 function createMaterialSummaryRow(m, groupBaseName) {
@@ -2697,10 +2762,10 @@ function createMaterialSummaryRow(m, groupBaseName) {
         } else if (m.specMode === 'plate') {
             nameFormatted += ' (plate)';
         }
-        // Eske-suffix for festemiddel (samme mønster som bredde-suffix for isolasjon).
-        if (m.quantityUnit === 'eske' && (m.source === 'kappe-stift' || m.source === 'kappe-fastener')) {
-            nameFormatted += ' (eske)';
-        }
+        // INGEN eske-suffiks i navnet: Enhet-kolonnen viser «eske» for de radene,
+        // og et suffiks her ville gjort den cella dødvekt. Sto tidligere som
+        // « (eske)» kun for festemidler, mens den grupperte veien ikke hadde det —
+        // de to veiene skrev da samme rad ulikt.
     }
     // Dimensjonsrader viser STK, ikke meter. Meter-omregningen finnes fortsatt, men
     // vises kun i gruppe-totalen (specGroupMeterTotal) \u2014 derfor er \u00ab(N stk)\u00bb-suffikset
@@ -2721,13 +2786,13 @@ function createMaterialSummaryRow(m, groupBaseName) {
             detailParts.push(((typeof formatKappeArea === 'function') ? formatKappeArea(kappeM2) : String(kappeM2)) + ' m²');
         } else if (m.antall) {
             // Fallback hvis bredde/plate-info mangler: fall tilbake til antall + enhet
-            var qUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+            var qUnit = getMaterialRowUnit(m);
             var uLabel = qUnit === 'meter' ? ' meter' : ' ' + qUnit;
             detailParts.push(formatRunningMeters(m.antall) + uLabel);
         }
     } else {
         if (m.antall) {
-            var quantityUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+            var quantityUnit = getMaterialRowUnit(m);
             var unitLabel = quantityUnit === 'meter' ? ' meter' : ' ' + quantityUnit;
             detailParts.push(formatRunningMeters(m.antall) + unitLabel);
         }
@@ -2758,7 +2823,10 @@ function renderMaterialSummary(matContainer, materials) {
         return true;
     });
     // Group by base material name
-    var groups = groupMaterialsByBase(filtered);
+    // sortItems: samme rekkefølge på skjermen som på papiret. Uten den viste
+    // ordrekortet innleggingsrekkefølge mens eksporten var sortert — samme data,
+    // to ulike rekkefølger.
+    var groups = groupMaterialsByBase(filtered, { sortItems: true });
     groups.forEach(function(group) {
         if (!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) {
             // Standard material or single spec — render flat
@@ -3151,11 +3219,13 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                 unitPillText = isMeterQuantity ? 'meter' : 'plate';
             } else if (source === 'kappe-stift' || source === 'kappe-fastener') {
                 unitPillText = enhetLower === 'eske' ? 'eske' : 'stk';
-            } else if (isMeterQuantity) {
-                unitPillText = 'meter';
             } else {
-                // Inkluderer variants (Patron, Pølse, etc.) — de er stk-baserte
-                unitPillText = 'stk';
+                // activeQuantityUnit, IKKE hardkodet 'stk': denne grenen ga før
+                // 'stk' på ALT som ikke var meter — også eske-rader. Velgeren viste
+                // da 'stk' mens eksporten viste 'eske' for nøyaktig samme rad.
+                // Varianter (Patron, Pølse, …) er stk-baserte og gir fortsatt 'stk'
+                // herfra, siden getMaterialQuantityUnit returnerer det for dem.
+                unitPillText = activeQuantityUnit;
             }
         }
         // Strip redundante suffixer fra navnet når samme info finnes i pillen.
@@ -3482,8 +3552,10 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                 return;
             }
             if (parsed.isEskeEntry) {
-                // To former: «FSC__eske» (rull, uten mål) og «FC6 Ø250mm__eske»
-                // (fast størrelse, med mål). For den siste er parsed.baseName
+                // To former: «FSC__eske» (uten mål) og «FSC Ø250mm__eske» /
+                // «FSC 100x200mm__eske» (med rundt hhv. firkantet mål). Målet er
+                // valgfritt for ALLE spec-produkter, så formene kan finnes side om
+                // side på samme base. For de sistnevnte er parsed.baseName
                 // spec-navnet, så vi må også matche på prefiks.
                 if (parsed.baseName === baseName) {
                     keys.push(key);
@@ -3493,7 +3565,14 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                 if (parsed.baseName.toLowerCase().indexOf(baseName.toLowerCase() + ' ') === 0) {
                     var eDims = _parseSpecFromName(parsed.baseName, baseName);
                     keys.push(key);
-                    prefill.push({ isEske: true, width: eDims ? eDims.width : '', antall: st.antall || '' });
+                    // height MÅ være med: uten den mistet en firkant-eske høyden ved
+                    // gjenåpning og ble lagret tilbake som rund («Ø100mm»).
+                    prefill.push({
+                        isEske: true,
+                        width: eDims ? eDims.width : '',
+                        height: eDims ? eDims.height : '',
+                        antall: st.antall || ''
+                    });
                     return;
                 }
                 return;
@@ -3805,14 +3884,15 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                     } else if (group.isStiftGroup) {
                         subDisplay = e.displayName || formatKappeStiftName(e.enhet, e.name, e.quantityUnit);
                     } else if (parsePickerStorageKey(e.name).isMeterEntry) {
-                        subDisplay = 'L\u00f8pende meter';
+                        // Produktnavnet; pillen («meter») bærer formen.
+                        subDisplay = group.baseName;
                     } else if (parsePickerStorageKey(e.name).isEskeEntry) {
-                        // Med mål: vis spec-delen («Ø250mm») — enhets-pillen sier
-                        // «eske» og skiller den fra mål-raden med samme spec.
+                        // Med mål: kun målet — pillen sier «eske» og skiller raden
+                        // fra stk-raden med samme mål. Uten mål: produktnavnet.
                         var eKeyBase = parsePickerStorageKey(e.name).baseName;
                         subDisplay = (eKeyBase.toLowerCase().indexOf(group.baseName.toLowerCase() + ' ') === 0)
                             ? eKeyBase.substring(group.baseName.length + 1)
-                            : 'Esker';
+                            : group.baseName;
                     // isSpec-grenen MÅ ligge etter eske-grenen over: nameNoSuffix
                     // stripper bare «__N», så «FC6 Ø250mm__eske» ville ellers blitt
                     // vist som «Ø250mm__eske».
@@ -6346,11 +6426,11 @@ function buildDesktopWorkLines() {
                         addRow(capName, areaLabel, 'm²', { alignRight: true });
                     } else if (m.antall) {
                         // Fallback hvis bredde/plate-info mangler
-                        var fallbackUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                        var fallbackUnit = getMaterialRowUnit(m);
                         addRow(capName, formatRunningMeters(m.antall), fallbackUnit, { alignRight: true });
                     }
                 } else {
-                    var exportUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                    var exportUnit = getMaterialRowUnit(m);
                     addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
                 }
             }
@@ -6596,11 +6676,11 @@ function computeWorkRows(orders, minRows) {
                         var areaLabel = (typeof formatKappeArea === 'function') ? formatKappeArea(areaM2) : String(areaM2);
                         addRow(capName, areaLabel, 'm²', { alignRight: true });
                     } else if (m.antall) {
-                        var fallbackUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                        var fallbackUnit = getMaterialRowUnit(m);
                         addRow(capName, formatRunningMeters(m.antall), fallbackUnit, { alignRight: true });
                     }
                 } else {
-                    var exportUnit = m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source);
+                    var exportUnit = getMaterialRowUnit(m);
                     addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
                 }
             }

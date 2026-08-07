@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=910">
+    <link rel="stylesheet" href="styles.css?v=917">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -1323,24 +1323,43 @@
     <div class="spec-popup-backdrop iso-card-backdrop" id="spec-multi-popup" onclick="if(event.target===this)closeSpecMultiPopup()">
         <div class="spec-popup-sheet">
             <div class="spec-popup-header" id="spec-multi-title"></div>
+            <!-- Tre SELVSTENDIGE seksjoner, ikke tre radgrupper i én tabell.
+                 Mål, løpemeter og esker er ulike posttyper med ulikt antall felt;
+                 presset inn i ett felles rutenett ga tomme celler og et oppsett som
+                 leste som tre halve skjemaer. Hver seksjon har derfor egen tittel,
+                 egne kolonner og sin EGEN «+ Legg til» rett under radene — knappen
+                 står ved det den lager. Seksjonene vises alltid (også tomme), så
+                 popupen selv forteller hvilke posttyper produktet har; det erstatter
+                 den gamle hint-teksten. #spec-multi-meter-section skjules for
+                 kabelhylse og fast-størrelse-produkter (se openSpecMultiPopup).
+                 REKKEFØLGEN Mål → Esker → Løpemeter er valgt etter feltantall:
+                 3-4 → 2 → 1 gir en synkende trapp på høyre kant. Motsatt (Løpemeter
+                 før Esker) ga 3 → 1 → 2, altså en sikksakk som leste som rot.
+                 Bonus: den skjulbare Løpemeter-seksjonen ligger da SIST, så den
+                 etterlater ikke et hull midt i popupen når den er av. -->
             <div id="spec-multi-scroll">
-                <div id="spec-multi-empty" class="spec-multi-empty"></div>
-                <div id="spec-multi-rows"></div>
-                <div id="spec-multi-meter-rows"></div>
-                <div id="spec-multi-eske-rows"></div>
+                <div class="spm-section" id="spec-multi-maal-section">
+                    <div class="spm-section-title">Mål</div>
+                    <div id="spec-multi-rows"></div>
+                    <button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add" onclick="_specMultiAddRow()">+ Legg til</button>
+                </div>
+                <div class="spm-section" id="spec-multi-eske-section">
+                    <div class="spm-section-title">Esker</div>
+                    <div id="spec-multi-eske-rows"></div>
+                    <button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add-eske" onclick="_specMultiAddEskeRow()">+ Legg til</button>
+                </div>
+                <div class="spm-section" id="spec-multi-meter-section">
+                    <div class="spm-section-title">Løpemeter</div>
+                    <div id="spec-multi-meter-rows"></div>
+                    <button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add-meter" onclick="_specMultiAddMeterRow()">+ Legg til</button>
+                </div>
             </div>
-            <!-- Add-knappene UTENFOR scrollen → alltid synlige (samme som kappe-lm).
-                 «+ Eske» gjelder ALLE tre spec-typene (ingen display-gating), i
-                 motsetning til «+ LM» som skjules for kabelhylse.
-                 Korte ord er et KRAV for å få alle tre på én rad: arket gir 88px pr.
-                 knapp, altså ~74px til tekst — «+ Dimensjon» (~82px) og «+ Løpemeter»
-                 (~80px) er begge for brede. «Mål» og «LM» er appens egne ord fra
-                 kappeskjemaet (kappe_col_maal / kappe_col_lopemeter). -->
-            <div class="kappe-add-row-buttons" id="spec-multi-add-buttons">
-                <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add" onclick="_specMultiAddRow()">+ Mål</button>
-                <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add-meter" onclick="_specMultiAddMeterRow()">+ LM</button>
-                <button type="button" class="kappe-add-kapp-btn" id="spec-multi-add-eske" onclick="_specMultiAddEskeRow()">+ Eske</button>
-            </div>
+            <!-- Stjerne-forklaring. Nødvendig HER selv om stjerna er en kjent
+                 konvensjon: i denne popupen er SAMME felt («Ø / Bredde») obligatorisk
+                 under Mål og valgfritt under Esker. To like felt med ulik regel er
+                 nettopp der brukeren trenger å få bekreftet hva stjerna betyr.
+                 Utenfor scrollen → alltid synlig, også med mange rader. -->
+            <div class="spm-legend"><span>*</span> må fylles ut &middot; øvrige felt er valgfrie</div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecMultiPopup()" data-i18n="btn_cancel">Avbryt</button>
                 <button type="button" class="spec-popup-confirm" onclick="confirmSpecMultiPopup()" data-i18n="btn_select">Velg</button>
@@ -2031,8 +2050,8 @@
     </div>
 
     <script src="lang.js?v=287"></script>
-    <script src="script.js?v=494"></script>
-    <script src="script-ui.js?v=1070"></script>
+    <script src="script.js?v=502"></script>
+    <script src="script-ui.js?v=1083"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
