@@ -2777,6 +2777,61 @@ label.settings-default-label.field-required > span::after {
     flex-shrink: 0;
 }
 
+/* ── Ukefaner i Dager & tid ───────────────────────────────────────────────────
+   Vises KUN når ordreseddelen dekker flere uker (se openDagTimerModal). Ett sett
+   dagfelt per uke, i ÉN container med én kontroll — ikke to lister under
+   hverandre, som ville gitt 14+ rader der de fleste står tomme.
+   Delsummen står PÅ fanen så begge uker er synlige uten å bytte; ellers er det
+   lett å glemme å fylle den man ikke ser. Sticky, så den følger med når
+   dag-radene scroller. */
+.dag-timer-week-tabs {
+    display: flex;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #fff;
+    padding-bottom: 6px;
+    margin-bottom: -2px;
+}
+.dag-timer-week-tab {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 7px 6px;
+    border: 1px solid #e0e0e6;
+    border-radius: 10px;
+    background: #f7f7f9;
+    cursor: pointer;
+    font-family: inherit;
+    color: #6c6c72;
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.dag-timer-week-tab.active {
+    background: #fff;
+    border-color: #E8501A;
+    color: #1c1c1e;
+    box-shadow: 0 0 0 1px #E8501A inset;
+}
+.dag-timer-week-tab-name {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+/* Delsummen dempet på inaktiv fane, oransje p\u00e5 aktiv \u2014 tallet skal kunne leses
+   p\u00e5 begge, men ikke konkurrere med den aktive fanens tilstand. */
+.dag-timer-week-tab-sum {
+    font-size: 13px;
+    font-weight: 700;
+}
+.dag-timer-week-tab.active .dag-timer-week-tab-sum { color: #E8501A; }
+
 .dag-timer-modal-list {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -3388,6 +3443,46 @@ label.settings-default-label.field-required > span::after {
     color: #999;
     text-align: center;
 }
+
+/* Legg-til-rad nederst i etasje-velgeren. grid-column: 1 / -1 av samme grunn som
+   .popup-list-empty over — lista er et 2-kolonners grid, og raden skal spenne
+   begge så input-feltet får full bredde.
+   Uten denne var en tom etasje-liste en blindvei: eneste vei videre var å lukke
+   skjemaet og gå inn i Innstillinger. */
+.plan-popup-add {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+}
+.plan-popup-add-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 10px;
+    border: 1px solid #dedee3;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #1c1c1e;
+    background: #fff;
+    outline: none;
+    box-sizing: border-box;
+}
+.plan-popup-add-input:focus { border-color: #E8501A; }
+.plan-popup-add-btn {
+    flex: 0 0 auto;
+    width: 44px;
+    border: 1px solid #E8501A;
+    border-radius: 8px;
+    background: #fff;
+    color: #E8501A;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    font-family: inherit;
+}
+.plan-popup-add-btn:active { background: #fdece5; }
 
 .plan-popup-row {
     display: flex;

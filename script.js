@@ -2373,12 +2373,16 @@ function convertTextareasToDiv() {
         convertedElements.push({ original: ordreseddelInput, replacement: span });
     }
 
-    // Add "Uke " prefix to dato input for eksport-visning (input lagres som kun nummer)
+    // Kanonisk uke-etikett i eksport-visningen. Feltet er fritekst, så «30 & 31»,
+    // «31 & 30» og «30, ,31» skal alle bli det samme på kundedokumentet.
     const datoInput = document.getElementById('dato');
-    if (datoInput && datoInput.value && !/^uke\s/i.test(datoInput.value)) {
+    if (datoInput && datoInput.value) {
         const originalValue = datoInput.value;
-        datoInput.value = 'Uke ' + originalValue;
-        convertedElements.push({ datoInput: datoInput, originalValue: originalValue });
+        const ukeLabel = formatUkeLabel(originalValue);
+        if (ukeLabel !== originalValue) {
+            datoInput.value = ukeLabel;
+            convertedElements.push({ datoInput: datoInput, originalValue: originalValue });
+        }
     }
 
     return convertedElements;
@@ -4917,10 +4921,17 @@ function openPlanPicker(displayEl) {
     _renderPlanPickerList(displayEl);
 }
 
-function _renderPlanPickerList(displayEl) {
+// keepState: behold avhukingene som ligger i _planPickerState i stedet for å lese
+// dem på nytt fra elementet. Brukes etter at en etasje er lagt til fra popupen —
+// ellers ville brukerens valg blitt nullstilt av re-renderingen.
+function _renderPlanPickerList(displayEl, keepState) {
     var existing = (displayEl.getAttribute('data-plan') || '').split(',').map(s => s.trim()).filter(s => s);
     var options = cachedPlanOptions || [];
+    var prevState = keepState ? _planPickerState : null;
     _planPickerState = {};
+    if (prevState) {
+        Object.keys(prevState).forEach(function(k) { if (prevState[k]) existing.push(k); });
+    }
 
     var listEl = document.getElementById('plan-popup-list');
     var html = '';
@@ -4949,6 +4960,18 @@ function _renderPlanPickerList(displayEl) {
         html = '<div class="popup-list-empty">' + t('settings_no_plans') + '</div>';
     }
 
+    // Admin kan legge til etasjer direkte her — uten dette måtte man ut av
+    // skjemaet og inn i Innstillinger, og den tomme lista var en blindvei.
+    // Samme mønster som «Nytt materiale» i materialvelgeren, og samme
+    // admin-gate: _persistPlanList krever den.
+    if (typeof isAdmin !== 'undefined' && isAdmin) {
+        html += '<div class="plan-popup-add">' +
+            '<input type="text" id="plan-popup-new" class="plan-popup-add-input" placeholder="' +
+                escapeHtml(t('settings_plan_placeholder')) + '" autocapitalize="characters" autocomplete="off">' +
+            '<button type="button" class="plan-popup-add-btn" onclick="addPlanFromPicker()">+</button>' +
+        '</div>';
+    }
+
     listEl.innerHTML = html;
 
     // Attach click handlers
@@ -4959,6 +4982,14 @@ function _renderPlanPickerList(displayEl) {
             this.classList.toggle('plan-popup-selected');
         });
     });
+
+    // Enter i feltet legger til, så man slipper å sikte på knappen.
+    var newInp = document.getElementById('plan-popup-new');
+    if (newInp) {
+        newInp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); addPlanFromPicker(); }
+        });
+    }
 }
 
 function confirmPlanPicker() {
@@ -5059,9 +5090,219 @@ var _dagTimerSession = null;
 // DOM-kort-session: leser/skriver kortets data-attributter (uendret oppførsel).
 // afterClose kan overstyres (f.eks. dag-visningen returnerer dit i stedet for
 // bestilling-oversikten); default = _maybeReturnToTimerOverview.
+// ── Uker og timer ────────────────────────────────────────────────────────────
+// Uke-feltet er fritekst og skrives ut verbatim på ordreseddelen. Men det brukes
+// OGSÅ som nøkkel: hvilke uker gjelder timene? De to rollene skilles her — teksten
+// røres ikke, men vi utleder et sett med ukenumre fra den.
+//
+// Uten dette kunne en ordreseddel over «30 & 31» bare lagre SYV ukedags-felt, så
+// to onsdager havnet i samme celle («Onsdag 21 t»). Den informasjonen var tapt ved
+// registrering og kunne ikke gjenskapes i etterkant.
+//
+// Håndterer «30 & 31», «31 & 30», «30-31», «30 og 31», «30, 31», «30/31»,
+// «Uke 30 til 31». Gir tom liste når teksten ikke inneholder ukenumre
+// («sommerferie») — da faller alt tilbake til den flate ukedags-lista som før.
+function parseUkeNumbers(text) {
+    var s = String(text == null ? '' : text).toLowerCase().replace(/uke/g, ' ');
+    var found = {};
+    var add = function(n) { if (n >= 1 && n <= 53) found[n] = true; };
+    // Intervaller FØRST, og de fjernes fra strengen så endepunktene ikke telles
+    // en gang til av det løse tall-søket under.
+    s = s.replace(/(\d{1,2})\s*(?:-|\u2013|til|t\.o\.m\.)\s*(\d{1,2})/g, function(_, a, b) {
+        a = parseInt(a, 10); b = parseInt(b, 10);
+        if (b >= a && b - a <= 53) { for (var i = a; i <= b; i++) add(i); }
+        return ' ';
+    });
+    s.replace(/\d{1,2}/g, function(n) { add(parseInt(n, 10)); return ''; });
+    return Object.keys(found).map(Number).sort(function(a, b) { return a - b; });
+}
+
+// Ukene ordreseddelen som er ÅPEN gjelder for. Tom liste = ukjent.
+function currentFormUkeNumbers() {
+    var el = document.getElementById('mobile-dato');
+    return parseUkeNumbers(el ? el.value : '');
+}
+
+var TIMER_DAY_KEYS_CORE = ['ma', 'ti', 'on', 'to', 'fr', 'lo', 'so'];
+
+// Timer-objektet har to lag:
+//   flate nøkler (ma, ti, … _generelt)  = SUM på tvers av uker
+//   .uker = { "30": {ma,…,_generelt}, "31": {…} }  = kilden, per uke
+// De flate nøklene beholdes fordi ALLE eksisterende lesere (eksport, PDF,
+// ordrekort, timer-oversikt) bruker dem — de fortsetter å virke uendret. De
+// regnes alltid ut på nytt fra .uker ved lagring, så de kan ikke drive fra
+// hverandre. Mangler .uker (data lagret før dette), ER de flate nøklene dataen.
+function timerWeekBuckets(timer, weeks) {
+    var out = {};
+    var known = (weeks || []).map(String);
+    if (timer && timer.uker && typeof timer.uker === 'object') {
+        // Behold alle lagrede uker, også de som ikke lenger står i Uke-feltet —
+        // ellers ville timer forsvunnet stille om noen retter teksten.
+        Object.keys(timer.uker).forEach(function(w) { out[w] = Object.assign({}, timer.uker[w]); });
+        known.forEach(function(w) { if (!out[w]) out[w] = {}; });
+        return out;
+    }
+    // Migrering av flate data: én uke → entydig. Flere uker → informasjonen om
+    // hvilken uke finnes ikke, så alt legges på FØRSTE uke. Totalen bevares, og
+    // fordelingen kan rettes manuelt. Se kommentaren over parseUkeNumbers.
+    var flat = {};
+    TIMER_DAY_KEYS_CORE.forEach(function(k) { if (timer && timer[k]) flat[k] = timer[k]; });
+    var gen = timer && (timer._generelt || timer._total);
+    if (gen) flat._generelt = gen;
+    if (!known.length) return { '': flat };
+    known.forEach(function(w, i) { out[w] = (i === 0) ? flat : {}; });
+    return out;
+}
+
+// Bygg timer-objektet fra uke-bøttene: flate summer + .uker.
+function timerFromWeekBuckets(buckets) {
+    var timer = {};
+    var uker = {};
+    var anyWeek = false;
+    Object.keys(buckets).forEach(function(w) {
+        var b = buckets[w] || {};
+        var kept = {};
+        TIMER_DAY_KEYS_CORE.concat(['_generelt']).forEach(function(k) {
+            var v = String(b[k] == null ? '' : b[k]).trim();
+            if (!v) return;
+            kept[k] = v;
+            var n = parseFloat(v.replace(',', '.'));
+            if (isNaN(n)) return;
+            var prev = parseFloat(String(timer[k] || '0').replace(',', '.'));
+            if (isNaN(prev)) prev = 0;
+            var sum = prev + n;
+            // Hele tall uten desimal, ellers én desimal med komma — samme form
+            // som brukeren selv skriver.
+            timer[k] = (Math.round(sum * 10) / 10).toString().replace('.', ',');
+        });
+        if (w && Object.keys(kept).length) { uker[w] = kept; anyWeek = true; }
+    });
+    if (anyWeek) timer.uker = uker;
+    return timer;
+}
+
+// Kanonisk uke-etikett til EKSPORTEN. Uke-feltet er fritekst — «30 & 31»,
+// «31 & 30», «30, ,31» og «30-31» betyr det samme, men ble skrevet ordrett ut på
+// kundedokumentet med skrivefeil og alt («Uke 30, ,31»).
+//
+// Sammenhengende uker skrives som INTERVALL med bindestrek, resten med komma:
+//   [30]              → «Uke 30»
+//   [30,31]           → «Uke 30-31»
+//   [30,31,32,33]     → «Uke 30-33»
+//   [30,33]           → «Uke 30, 33»          (ikke sammenhengende)
+//   [30,31,32,35]     → «Uke 30-32, 35»
+//
+// Intervallet er nødvendig av PLASS: Dato-cella i PDF-en er 30 mm, og
+// «Uke 30, 31, 32, 33» får ikke plass der — cella kutter stille (se fieldCell).
+// «Uke 30-33» gjør det.
+// Bindestrek kan IKKE brukes på uker som ikke henger sammen: «Uke 30-33» betyr
+// 30, 31, 32 og 33, så for uke 30 og 33 alene ville den lagt til to uker som
+// aldri ble ført. Derfor komma i akkurat de tilfellene — det er en regel om hva
+// som er SANT, ikke et stilvalg.
+//
+// Lar teksten seg ikke tolke («sommerferie»), skrives den ordrett som før —
+// da har vi ingenting bedre å tilby.
+function formatUkeLabel(text) {
+    var raw = String(text == null ? '' : text).trim();
+    if (!raw) return '';
+    var uker = parseUkeNumbers(raw);
+    if (!uker.length) return /^uke\s/i.test(raw) ? raw : 'Uke ' + raw;
+    var deler = [];
+    var i = 0;
+    while (i < uker.length) {
+        var start = uker[i], slutt = start;
+        while (i + 1 < uker.length && uker[i + 1] === slutt + 1) { i++; slutt = uker[i]; }
+        deler.push(slutt > start ? (start + '-' + slutt) : String(start));
+        i++;
+    }
+    return 'Uke ' + deler.join(', ');
+}
+
+// Arbeidstid-linjene til eksportens beskrivelses-blokk. Returnerer ÉN linje per
+// uke når timene er fordelt på flere, ellers én samlet linje som før.
+// Uten dette ble to uker slått sammen til én liste der «Lørdag (31t)» egentlig var
+// to lørdager — samme sammenblanding som popupen nå unngår.
+function orderArbeidstidMeta(order) {
+    // dagShortMap, ikke fulle dagnavn: med full skrivemåte brøt linja til to når
+    // en uke hadde mange dager. Dette er dessuten den forkortelsen appen ALLEREDE
+    // bruker i sammendraget på bestillings-kortet, så montøren og kunden ser nå
+    // samme form. Vil man ha tre bokstaver («Man»), er det ett sted å endre.
+    // Samme grunn til «Annet» framfor «Uspesifisert dag»: kortere, og det er
+    // ordet både popupen og kort-sammendraget bruker.
+    var timer = (order && order.timer && typeof order.timer === 'object') ? order.timer : null;
+    if (!timer) return [];
+    // «Ma 37,5» framfor «Ma (37,5t)»: parentesene og t-en er 3 tegn PER oppføring,
+    // altså 24 tegn på en full uke — mer enn dagnavnene til sammen. Med åtte
+    // oppføringer og desimaltimer brøt linja uansett hvor korte dagnavnene var.
+    // «t» kan gå fordi etiketten allerede sier «Arbeidstid».
+    // Skilletegnet er «·» og ikke komma: verdiene inneholder selv komma som
+    // desimalskille, så «Ma 37,5, Ti 37,5» ville vært flertydig.
+    var bygg = function(tm) {
+        var parts = [];
+        TIMER_DAY_KEYS_CORE.forEach(function(d) {
+            var tv = tm[d];
+            if (tv != null && String(tv).trim()) parts.push((dagShortMap[d] || d) + ' ' + String(tv).replace('.', ','));
+        });
+        var g = tm._generelt || tm._total;
+        if (g != null && String(g).trim()) parts.push('Annet ' + String(g).replace('.', ','));
+        return parts;
+    };
+    // Etiketten er «Timer uke N», ikke «Arbeidstid uke N». Tre grunner:
+    //  1. 5 tegn kortere — den var den største enkeltposten på en linje som brøt.
+    //  2. Ordet «Timer» sier at tallene er timer. Det trengs nå, siden «t» er
+    //     fjernet fra hver verdi for å spare plass.
+    //  3. Det er nøyaktig samme etikett som timer-chipen i appen bruker
+    //     (timer_week_label), så montøren og kunden ser samme begrep.
+    // Ukenummeret tas med OGSÅ når det bare er ÉN uke — da er formen den samme
+    // uansett, i stedet for å veksle mellom «Timer uke 30:» og «Arbeidstid:».
+    var uker = (timer.uker && typeof timer.uker === 'object')
+        ? Object.keys(timer.uker).sort(function(a, b) { return Number(a) - Number(b); })
+        : [];
+    if (uker.length) {
+        var out = [];
+        uker.forEach(function(w) {
+            var parts = bygg(timer.uker[w] || {});
+            if (parts.length) out.push({ label: t('timer_week_label') + ' ' + w + ': ', value: parts.join(' \u00b7 ') });
+        });
+        if (out.length) return out;
+    }
+    // Ingen uke-fordeling (data lagret før uke-oppdelingen) → ingen ukenummer å vise.
+    var flat = bygg(timer);
+    return flat.length ? [{ label: t('timer_chip_label') + ': ', value: flat.join(' \u00b7 ') }] : [];
+}
+
+// Timer ført på ÉN bestemt uke. Brukes til uke-summering på tvers av ordresedler.
+function orderHoursForWeek(timer, week) {
+    if (!timer || typeof timer !== 'object') return 0;
+    var sum = 0;
+    var addAll = function(obj) {
+        TIMER_DAY_KEYS_CORE.concat(['_generelt', '_total']).forEach(function(k) {
+            var n = parseFloat(String(obj[k] == null ? '' : obj[k]).replace(',', '.'));
+            if (!isNaN(n)) sum += n;
+        });
+    };
+    if (timer.uker && typeof timer.uker === 'object') {
+        var b = timer.uker[String(week)];
+        if (b) addAll(b);
+        return sum;
+    }
+    // Uten .uker finnes ingen fordeling. Timene tilhører uken KUN hvis
+    // ordreseddelen bare dekker den ene — det avgjør kalleren.
+    addAll(timer);
+    return sum;
+}
+
+// Kladd mens popupen er åpen: { ukeNøkkel: {ma..so,_generelt} }. Fanebytte
+// renderer fra denne, så ingenting går tapt når man skifter uke.
+var _dagTimerWeeks = [];
+var _dagTimerBuckets = {};
+var _dagTimerActiveWeek = '';
+
 function _dagTimerCardSession(card, afterClose) {
     return {
         card: card,
+        // Ukene hentes fra det ÅPNE skjemaets Uke-felt.
+        getWeeks: function() { return currentFormUkeNumbers(); },
         getTimer: function() {
             try { return JSON.parse(card.getAttribute('data-timer') || '{}') || {}; } catch (e) { return {}; }
         },
@@ -5200,7 +5441,11 @@ function openDagTimerModal(arg) {
     _dagTimerSession = session;
     dagTimerActiveCard = session.card || null;   // bakoverkompat for ev. ekstern bruk
     const timer = session.getTimer();
-    const dagOrder = ['ma','ti','on','to','fr','lo','so'];
+    // Ukene ordreseddelen dekker. Tom liste (ukjent/ikke tolkbar tekst) → nøkkelen
+    // '' og nøyaktig samme flate liste som før, uten faner.
+    _dagTimerWeeks = (typeof session.getWeeks === 'function') ? session.getWeeks() : [];
+    _dagTimerBuckets = timerWeekBuckets(timer, _dagTimerWeeks);
+    _dagTimerActiveWeek = _dagTimerWeeks.length ? String(_dagTimerWeeks[0]) : '';
     const list = document.getElementById('dag-timer-modal-list');
     list.innerHTML = '';
 
@@ -5228,7 +5473,95 @@ function openDagTimerModal(arg) {
     etRow.appendChild(etBtn);
     list.appendChild(etRow);
 
-    // === Dag-rader: KUN timer per dag (etasjer er felles, over) ===
+    // === Ukefaner (kun når ordreseddelen dekker FLERE uker) ===
+    // Ett felt per (uke, dag) i stedet for ett per dag. Uten dette havnet to
+    // onsdager i samme celle når Uke var «30 & 31», og informasjonen om hvilken
+    // onsdag var tapt allerede ved registrering.
+    // Delsummen står PÅ fanen, så begge uker er synlige uten å bytte — ellers er
+    // det lett å glemme å fylle den man ikke ser.
+    if (_dagTimerWeeks.length > 1) {
+        var tabs = document.createElement('div');
+        tabs.className = 'dag-timer-week-tabs';
+        tabs.id = 'dag-timer-week-tabs';
+        list.appendChild(tabs);
+        _renderDagTimerTabs();
+    }
+
+    var rowsWrap = document.createElement('div');
+    rowsWrap.id = 'dag-timer-day-rows';
+    list.appendChild(rowsWrap);
+    _renderDagTimerDayRows();
+
+    // Sum-rad: samme tall som «Arbeidstid»-raden i eksporten (alle dager + Annet,
+    // på tvers av ALLE uker), så montøren ser totalen mens han fører timene.
+    _bindDagTimerTotal();
+
+    var modal = document.getElementById('dag-timer-modal');
+    modal.classList.add('active');
+    modal.addEventListener('touchmove', dagTimerBlockScroll, { passive: false });
+    modal.addEventListener('wheel', dagTimerBlockScroll, { passive: false });
+}
+
+// Fane-rad med delsum per uke.
+function _renderDagTimerTabs() {
+    var tabs = document.getElementById('dag-timer-week-tabs');
+    if (!tabs) return;
+    tabs.innerHTML = '';
+    _dagTimerWeeks.forEach(function(w) {
+        var key = String(w);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dag-timer-week-tab' + (key === _dagTimerActiveWeek ? ' active' : '');
+        var sum = _dagTimerBucketSum(_dagTimerBuckets[key]);
+        btn.innerHTML = '<span class="dag-timer-week-tab-name">' + t('timer_week_label') + ' ' + key + '</span>'
+            + '<span class="dag-timer-week-tab-sum">' + (sum ? _fmtDagTimerHours(sum) + ' t' : '—') + '</span>';
+        btn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            _flushDagTimerInputs();
+            _dagTimerActiveWeek = key;
+            _renderDagTimerTabs();
+            _renderDagTimerDayRows();
+            _bindDagTimerTotal();
+        };
+        tabs.appendChild(btn);
+    });
+}
+
+function _fmtDagTimerHours(n) {
+    return (Math.round(n * 10) / 10).toString().replace('.', ',');
+}
+
+function _dagTimerBucketSum(bucket) {
+    var s = 0;
+    if (!bucket) return 0;
+    Object.keys(bucket).forEach(function(k) {
+        var n = parseFloat(String(bucket[k] || '').replace(',', '.'));
+        if (!isNaN(n)) s += n;
+    });
+    return s;
+}
+
+// Les det som står i de synlige feltene inn i den aktive uke-bøtta. Kalles før
+// fanebytte og før lagring, så ingenting går tapt ved skifte.
+function _flushDagTimerInputs() {
+    var wrap = document.getElementById('dag-timer-day-rows');
+    if (!wrap) return;
+    var b = _dagTimerBuckets[_dagTimerActiveWeek] || (_dagTimerBuckets[_dagTimerActiveWeek] = {});
+    Object.keys(b).forEach(function(k) { delete b[k]; });
+    wrap.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
+        var v = String(inp.value || '').trim();
+        if (v) b[inp.dataset.dag] = v;
+    });
+}
+
+// Dag-radene for den AKTIVE uka (eller den ene flate lista når uken er ukjent).
+function _renderDagTimerDayRows() {
+    var wrap = document.getElementById('dag-timer-day-rows');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    var bucket = _dagTimerBuckets[_dagTimerActiveWeek] || {};
+    var dagOrder = ['ma','ti','on','to','fr','lo','so'];
     dagOrder.forEach(function(dag) {
         var row = document.createElement('div');
         row.className = 'dag-timer-modal-row';
@@ -5244,7 +5577,7 @@ function openDagTimerModal(arg) {
         inp.inputMode = 'decimal';
         inp.placeholder = '0';
         inp.dataset.dag = dag;
-        inp.value = timer[dag] || '';
+        inp.value = bucket[dag] || '';
         var inpWrap = document.createElement('div');
         inpWrap.className = 'dag-timer-input-wrap';
         var unit = document.createElement('span');
@@ -5255,7 +5588,7 @@ function openDagTimerModal(arg) {
         topRow.appendChild(label);
         topRow.appendChild(inpWrap);
         row.appendChild(topRow);
-        list.appendChild(row);
+        wrap.appendChild(row);
     });
 
     // Annet-rad (additiv timer for uspesifisert dag, kun timer).
@@ -5273,7 +5606,8 @@ function openDagTimerModal(arg) {
     genInp.inputMode = 'decimal';
     genInp.placeholder = '0';
     genInp.id = 'dag-timer-generelt-input';
-    genInp.value = timer._generelt || timer._total || '';
+    genInp.dataset.dag = '_generelt';
+    genInp.value = bucket._generelt || '';
     var genInpWrap = document.createElement('div');
     genInpWrap.className = 'dag-timer-input-wrap';
     var genUnit = document.createElement('span');
@@ -5284,31 +5618,23 @@ function openDagTimerModal(arg) {
     genTopRow.appendChild(genLabel);
     genTopRow.appendChild(genInpWrap);
     genRow.appendChild(genTopRow);
-    list.appendChild(genRow);
-
-    // Sum-rad: samme tall som «Arbeidstid»-raden i eksporten (alle dager + Annet),
-    // så montøren ser totalen mens han fører timene i stedet for å regne selv.
-    _bindDagTimerTotal();
-
-    var modal = document.getElementById('dag-timer-modal');
-    modal.classList.add('active');
-    modal.addEventListener('touchmove', dagTimerBlockScroll, { passive: false });
-    modal.addEventListener('wheel', dagTimerBlockScroll, { passive: false });
+    wrap.appendChild(genRow);
 }
 
 // Summerer ALLE timefeltene i dag-timer-popupen (ukedagene + «Annet») og skriver
 // resultatet til sum-raden. Samme regnestykke som eksportens Arbeidstid-rad, som
 // også summerer alle verdiene i order.timer inkl. _generelt.
 function _updateDagTimerTotal() {
-    var list = document.getElementById('dag-timer-modal-list');
     var valueEl = document.getElementById('dag-timer-total-value');
-    if (!list || !valueEl) return;
+    if (!valueEl) return;
+    // Flush først: de synlige feltene er den ferskeste sannheten for aktiv uke.
+    _flushDagTimerInputs();
+    // Summen skal dekke ALLE uker, ikke bare den fanen som vises — ellers ville
+    // totalen falt når man byttet til en tom uke.
     var sum = 0;
-    list.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
-        var n = parseFloat(String(inp.value || '').replace(',', '.'));
-        if (!isNaN(n)) sum += n;
-    });
+    Object.keys(_dagTimerBuckets).forEach(function(w) { sum += _dagTimerBucketSum(_dagTimerBuckets[w]); });
     valueEl.textContent = sum.toFixed(1).replace('.', ',') + ' t';
+    _renderDagTimerTabs();   // delsummene på fanene holdes i takt
 }
 
 // Etikett + live-oppdatering. Etiketten bygges fra t('order_days') så den er
@@ -5345,19 +5671,14 @@ function closeDagTimerModal(confirmed) {
         return;
     }
     const list = document.getElementById('dag-timer-modal-list');
-    const dager = [];
-    const timer = {};
 
-    // Timer per dag (etasjer er bestilling-nivå, leses fra etasje-knappen under).
-    list.querySelectorAll('.dag-timer-modal-row:not(.dag-timer-total-row)').forEach(function(row) {
-        var dag = row.dataset.dag;
-        var inp = row.querySelector('.dag-timer-modal-input');
-        var timerVal = inp ? inp.value.trim() : '';
-        if (timerVal) { dager.push(dag); timer[dag] = timerVal; }
-    });
-    var genInput = document.getElementById('dag-timer-generelt-input');
-    var genVal = genInput ? genInput.value.trim() : '';
-    if (genVal) timer._generelt = genVal;
+    // Les KLADDEN, ikke DOM-en: bare den aktive uka finnes som felt, så en
+    // DOM-innsamling ville slettet de andre ukene.
+    _flushDagTimerInputs();
+    const timer = timerFromWeekBuckets(_dagTimerBuckets);
+    // «dager» = ukedager det er ført timer på, på tvers av alle uker. Brukes til
+    // sammendraget på kortet og til eksportens Arbeidstid-linje.
+    const dager = TIMER_DAY_KEYS_CORE.filter(function(k) { return timer[k]; });
 
     // Etasjer (bestilling-nivå) fra den ene picker-knappen.
     var etBtn = list.querySelector('.dag-timer-etasje-btn');
@@ -5767,6 +6088,29 @@ function getOrdersData() {
         ['ma','ti','on','to','fr','lo','so','_generelt','_total'].forEach(function(k) {
             if (timerObj[k] != null && String(timerObj[k]).trim()) timerCanon[k] = String(timerObj[k]).trim();
         });
+        // .uker MÅ hvitelistes her. Hviteliste-filteret er selve mekanismen som gjør
+        // serialiseringen kanonisk, så et felt som ikke står her blir stille kastet
+        // ved lagring. Uten den mistet en fler-ukes ordreseddel uke-fordelingen, og
+        // timerWeekBuckets falt tilbake til «alt på første uke» ved gjenåpning —
+        // uke 31 så tom ut selv om timene var ført.
+        // Kanoniseres etter samme prinsipp som de flate nøklene: uker i stigende
+        // rekkefølge, dagnøkler i fast rekkefølge, tomme verdier utelatt. Ellers
+        // ville nøkkel-rekkefølgen i JSON kunne markere skjemaet «ulagret» uten at
+        // noe var endret.
+        if (timerObj.uker && typeof timerObj.uker === 'object') {
+            var ukerCanon = {};
+            Object.keys(timerObj.uker)
+                .sort(function(a, b) { return Number(a) - Number(b); })
+                .forEach(function(w) {
+                    var src = timerObj.uker[w] || {};
+                    var dst = {};
+                    ['ma','ti','on','to','fr','lo','so','_generelt'].forEach(function(k) {
+                        if (src[k] != null && String(src[k]).trim()) dst[k] = String(src[k]).trim();
+                    });
+                    if (Object.keys(dst).length) ukerCanon[w] = dst;
+                });
+            if (Object.keys(ukerCanon).length) timerCanon.uker = ukerCanon;
+        }
         const timer = Object.keys(timerCanon).length > 0 ? timerCanon : '';
         // Arbeidsdager = dager med timer (avledet, ikke stale data-dager).
         const dager = ['ma','ti','on','to','fr','lo','so'].filter(function(d) { return timerCanon[d]; });
@@ -6394,25 +6738,17 @@ function buildDesktopWorkLines() {
                 descContent.appendChild(spacer);
             }
 
-            if ((order.dager && order.dager.length > 0) || genVal) {
-                const dagMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
-                var dagParts = [];
-                if (order.dager && order.dager.length > 0) {
-                    dagParts = order.dager.map(d => {
-                        const tv = order.timer && order.timer[d];
-                        return (dagMap[d] || d) + (tv ? ' (' + String(tv).replace('.', ',') + 't)' : '');
-                    });
-                }
-                if (genVal) {
-                    dagParts.push('Uspesifisert dag (' + String(genVal).replace('.', ',') + 't)');
-                }
+            // Én linje per uke når timene er fordelt (se orderArbeidstidMeta).
+            var arbMeta = orderArbeidstidMeta(order);
+            arbMeta.forEach(function(m, mi) {
+                if (mi > 0) descContent.appendChild(document.createTextNode('\n'));
                 const dagLabel = document.createElement('strong');
-                dagLabel.textContent = t('order_days') + ': ';
+                dagLabel.textContent = m.label;
                 descContent.appendChild(dagLabel);
-                descContent.appendChild(document.createTextNode(dagParts.join(', ')));
-            }
+                descContent.appendChild(document.createTextNode(m.value));
+            });
 
-            var hasDagerLine = (order.dager && order.dager.length > 0) || genVal;
+            var hasDagerLine = arbMeta.length > 0;
             if (order.plan) {
                 if (hasDagerLine) {
                     descContent.appendChild(document.createTextNode('\n'));
@@ -6695,18 +7031,8 @@ function computeWorkRows(orders, minRows) {
         if (order.description || (order.dager && order.dager.length > 0) || order.plan || order.merknad) {
             var paragraphs = order.description ? String(order.description).split(/\n\n+/) : [];
             var meta = [];
-            if ((order.dager && order.dager.length > 0) || genVal) {
-                var dagMap = { ma: 'Mandag', ti: 'Tirsdag', on: 'Onsdag', to: 'Torsdag', fr: 'Fredag', lo: 'Lørdag', so: 'Søndag' };
-                var dagParts = [];
-                if (order.dager && order.dager.length > 0) {
-                    dagParts = order.dager.map(function(d) {
-                        var tv = order.timer && order.timer[d];
-                        return (dagMap[d] || d) + (tv ? ' (' + String(tv).replace('.', ',') + 't)' : '');
-                    });
-                }
-                if (genVal) dagParts.push('Uspesifisert dag (' + String(genVal).replace('.', ',') + 't)');
-                meta.push({ label: t('order_days') + ': ', value: dagParts.join(', ') });
-            }
+            // Samme kilde som HTML-eksporten — én linje per uke ved fordeling.
+            orderArbeidstidMeta(order).forEach(function(m) { meta.push(m); });
             if (order.plan) meta.push({ label: 'Plan: ', value: order.plan });
             if (order.merknad) meta.push({ label: 'Merknad: ', value: order.merknad });
             rows.push({ kind: 'descblock', paragraphs: paragraphs, meta: meta });

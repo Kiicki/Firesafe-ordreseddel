@@ -3198,15 +3198,60 @@ async function getPlanSettings() {
     return stored ? JSON.parse(stored) : [];
 }
 
-function savePlanSettings() {
-    if (!isAdmin) return;
-    safeSetItem(PLANS_KEY, JSON.stringify(settingsPlans));
-    cachedPlanOptions = sortPlans(settingsPlans.slice());
+// ÉN persisterings-vei for etasjer: localStorage + Firestore + begge cachene.
+// Skilt ut fordi etasjer nå kan legges til fra TO steder (Innstillinger og
+// etasje-velgeren i Arbeidstid), og de må skrive likt.
+function _persistPlanList(list) {
+    var sorted = sortPlans((list || []).slice());
+    settingsPlans = sorted.slice();
+    cachedPlanOptions = sorted.slice();
+    safeSetItem(PLANS_KEY, JSON.stringify(sorted));
     if (currentUser && db) {
-        db.collection('settings').doc('plans').set({ plans: settingsPlans })
+        db.collection('settings').doc('plans').set({ plans: sorted })
             .catch(function(e) { console.error('Save plan settings error:', e); });
     }
 }
+
+function savePlanSettings() {
+    if (!isAdmin) return;
+    _persistPlanList(settingsPlans);
+}
+
+// Legg til etasje direkte fra etasje-velgeren, uten å gå via Innstillinger.
+//
+// Bygger på cachedPlanOptions, IKKE settingsPlans. Det er kritisk: settingsPlans
+// fylles bare når Innstillinger-siden åpnes, så for en bruker som går rett til
+// skjemaet er den tom — og en lagring basert på den ville skrevet en liste med
+// kun den nye etasjen til Firestore og slettet alle de andre.
+function addPlanFromPicker() {
+    if (!isAdmin) return;
+    var input = document.getElementById('plan-popup-new');
+    if (!input) return;
+    var val = String(input.value || '').trim().toUpperCase();
+    if (!val) {
+        input.classList.add('settings-input-error');
+        setTimeout(function() { input.classList.remove('settings-input-error'); }, 1500);
+        return;
+    }
+    var base = (cachedPlanOptions || []).slice();
+    if (base.some(function(p) { return String(p).toUpperCase() === val; })) {
+        showNotificationModal(t('settings_plan_exists'));
+        return;
+    }
+    base.push(val);
+    _persistPlanList(base);
+    input.value = '';
+    // Den nye etasjen hukes av med én gang — man legger den jo til fordi den
+    // skal brukes nå. keepState bevarer det brukeren alt hadde valgt.
+    _planPickerState[val] = true;
+    if (typeof _renderPlanPickerList === 'function' && _planPickerDisplay) {
+        _renderPlanPickerList(_planPickerDisplay, true);
+    }
+    if (typeof renderPlanSettingsItems === 'function' && document.getElementById('settings-plan-items')) {
+        renderPlanSettingsItems();
+    }
+}
+window.addPlanFromPicker = addPlanFromPicker;
 
 function renderPlanSettingsItems() {
     var container = document.getElementById('settings-plan-items');
@@ -5036,9 +5081,11 @@ async function _renderOrdreseddelInto(doc, data) {
             { w: 55, label: 'Kundens ref.', value: data.kundensRef }
         ], fh);
         fieldRow([{ w: W, label: 'Fakturaadresse', value: data.fakturaadresse }], fh);
-        // «Dato»-feltet inneholder ukenummeret; eksporten viser «Uke N».
-        var ukeNum = String(data.dato || '').trim().replace(/^uke\s*/i, '').trim();
-        var ukeVal = ukeNum ? ('Uke ' + ukeNum) : '';
+        // «Dato»-feltet inneholder uken (fritekst). formatUkeLabel normaliserer
+        // den — samme funksjon som HTML/PNG-veien bruker, så PDF-en og bildet ikke
+        // kan vise ulik uke-tekst. Her lå tidligere en egen «Uke »-prefiksering
+        // som skrev fritekst ordrett ut («Uke 30, ,31»).
+        var ukeVal = formatUkeLabel(data.dato);
         fieldRow([
             { w: 30, label: 'Dato', value: ukeVal },
             { w: (W / 2) - 30, label: 'Prosjektnr.', value: data.prosjektnr },
@@ -14849,10 +14896,63 @@ function _savedFormHoursSum(form) {
     return s;
 }
 // { uke, currentRow:{nr,navn,hours}, savedRows:[{nr,navn,hours}], total }
+// Timer i EN lagret ordreseddel som tilhører et gitt sett med uker.
+// Tre tilfeller, i rekkefølge:
+//   1. timer.uker finnes  → eksakt: summer bare bøttene for de aktuelle ukene.
+//   2. flate timer + ÉN uke på skjemaet → entydig, alt tilhører den uken.
+//   3. flate timer + FLERE uker → fordelingen finnes ikke. Alt legges på første
+//      uke, samme regel som migreringen i timerWeekBuckets, så tallet stemmer med
+//      det popupen viser. Kan rettes ved å åpne Arbeidstid og fordele.
+function _formHoursForWeeks(form, weeks) {
+    if (!form || !Array.isArray(form.orders)) return 0;
+    var want = {};
+    (weeks || []).forEach(function(w) { want[String(w)] = true; });
+    var fWeeks = parseUkeNumbers(form.dato);
+    var sum = 0;
+    form.orders.forEach(function(o) {
+        var tm = (o && o.timer && typeof o.timer === 'object') ? o.timer : null;
+        if (!tm) return;
+        if (tm.uker && typeof tm.uker === 'object') {
+            Object.keys(tm.uker).forEach(function(w) {
+                if (want[w]) sum += orderHoursForWeek(tm, w);
+            });
+            return;
+        }
+        var attributTil = fWeeks.length ? String(fWeeks[0]) : null;
+        if (attributTil && want[attributTil]) sum += _orderHoursSum(tm);
+    });
+    return sum;
+}
+
+// Timer i det ÅPNE skjemaets bestillinger som tilhører et gitt sett med uker.
+// Samme tre-trinns regel som _formHoursForWeeks for lagrede skjemaer.
+function _liveHoursForWeeks(weeks) {
+    var want = {};
+    (weeks || []).forEach(function(w) { want[String(w)] = true; });
+    var mine = currentFormUkeNumbers();
+    var attributTil = mine.length ? String(mine[0]) : null;
+    var sum = 0;
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
+        var tm = _orderTimerObj(card);
+        if (tm && tm.uker && typeof tm.uker === 'object') {
+            Object.keys(tm.uker).forEach(function(w) { if (want[w]) sum += orderHoursForWeek(tm, w); });
+            return;
+        }
+        if (attributTil && want[attributTil]) sum += _orderHoursSum(tm || {});
+    });
+    return sum;
+}
+
 function _weekTimerData() {
     var uke = _currentFormUke();
+    var mineUker = currentFormUkeNumbers();
     var currentNr = String(((document.getElementById('mobile-ordreseddel-nr') || {}).value) || '').trim();
-    var liveTotal = _weekTimerTotals().total;
+    // Den ÅPNE ordreseddelens egne timer må filtreres på uke akkurat som de
+    // lagrede. _weekTimerTotals() summerer de FLATE ukedags-feltene, altså alle
+    // uker under ett — med «30 & 31» ført på skjemaet ga den samme tall enten
+    // chipen sa uke 30 eller uke 31. Den brukes bare som fallback når Uke-feltet
+    // ikke lar seg tolke, der det ikke finnes noen fordeling å ta hensyn til.
+    var liveTotal = mineUker.length ? _liveHoursForWeeks(mineUker) : _weekTimerTotals().total;
     var savedRows = [];
     var savedSum = 0;
     if (uke) {
@@ -14866,11 +14966,25 @@ function _weekTimerData() {
             var nr = String(f.ordreseddelNr || '').trim();
             if (!byNr[nr] || (f.savedAt || '') > (byNr[nr].savedAt || '')) byNr[nr] = f;
         });
+        // Ukenumre fra det ÅPNE skjemaet. Er de tolkbare, matcher vi på UKE-OVERLAPP
+        // i stedet for eksakt streng — «30 & 31» fanger da også opp ordresedler ført
+        // på bare «30», og «31 & 30» / «30-31» / «30, 31» regnes som det samme.
+        // Gir teksten ingen ukenumre («sommerferie»), faller vi tilbake til den
+        // eksakte streng-sammenligningen, altså nøyaktig oppførselen fra før.
         Object.keys(byNr).forEach(function(nr) {
             var f = byNr[nr];
             if (currentNr && nr === currentNr) return;   // den åpne telles live, ikke fra lagret
-            if (_normUke(f.dato) !== uke) return;
-            var h = _savedFormHoursSum(f);
+            var h;
+            if (mineUker.length) {
+                var fUker = parseUkeNumbers(f.dato);
+                var overlapp = fUker.filter(function(w) { return mineUker.indexOf(w) !== -1; });
+                if (!overlapp.length) return;
+                h = _formHoursForWeeks(f, overlapp);
+                if (!h) return;   // deler uke, men har ingen timer der
+            } else {
+                if (_normUke(f.dato) !== uke) return;
+                h = _savedFormHoursSum(f);
+            }
             savedSum += h;
             savedRows.push({ nr: nr, navn: f.prosjektnavn || '', hours: h, form: f });
         });
@@ -15283,6 +15397,9 @@ function _saveWeekFormEdit(form) {
 function _dagTimerFormOrderSession(form, orderIdx, afterCommit) {
     return {
         card: null,
+        // Ukene fra den LAGREDE ordreseddelens eget Uke-felt (feltet heter «dato»
+        // av historiske grunner, men inneholder uke).
+        getWeeks: function() { return parseUkeNumbers(form.dato); },
         getTimer: function() {
             var o = form.orders[orderIdx];
             return (o && o.timer && typeof o.timer === 'object') ? o.timer : {};
