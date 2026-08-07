@@ -5529,28 +5529,50 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-type-select:focus {
     border-color: #E8501A;
 }
+/* PRODUKTNAVNET HAR FORRANG. Knappen sto før med flex-shrink: 0 og tok sin fulle
+   bredde først, så navnet ved siden av absorberte all plassmangel.
+   flex-shrink: 100 er ikke et magisk tall — det betyr «absorber overskuddet her
+   først»; enhver verdi mye høyere enn navn-wrapperens 1 gir samme effekt.
+   min-width holder BASE-typen lesbar («Brannpakning» er den lengste), så knappen
+   degraderer pent: undertypen ryker først, aldri selve typenavnet.
+   padding-right reserverer plass til pilen, som er absolutt-plassert under. */
 .settings-material-type-btn {
+    position: relative;
     border: 1px solid #ddd;
     border-radius: 4px;
-    padding: 4px 8px;
+    padding: 4px 20px 4px 8px;
     font-size: 11px;
     font-weight: 600;
     color: #555;
     background: #fff;
     cursor: pointer;
     white-space: nowrap;
-    flex-shrink: 0;
+    flex-shrink: 100;
+    min-width: 6.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+/* Pilen absolutt-plassert, IKKE i tekstflyten: som ::after-innhold ville den blitt
+   spist av ellipsen når knappen kuttes, og da forsvinner signalet om at knappen er
+   en nedtrekksliste. Denne varianten krever ingen endring i JS-en som setter
+   knappeteksten tre steder. */
 .settings-material-type-btn::after {
-    content: ' ▾';
+    content: '▾';
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 9px;
 }
 /* Type-knappen i nytt-materiale-add-row skal være full bredde og matche
-   input-feltet "Nytt materiale" stil-mesig. */
+   input-feltet "Nytt materiale" stil-mesig.
+   padding-right MÅ være med i short-hand'en her: uten den overstyres plassen som
+   basisregelen reserverer til den absolutt-plasserte pilen, og pilen ville lagt
+   seg oppå etiketten. Samme grunn i .settings-add-material-row lenger ned. */
 #settings-new-material-type-btn,
 #settings-new-kappe-type-btn {
     width: 100%;
-    padding: 6px 10px;
+    padding: 6px 22px 6px 10px;
     font-size: 14px;
     text-align: left;
     border-radius: 6px;
@@ -5696,11 +5718,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-material-group.expanded .settings-material-body {
     display: block;
 }
+/* flex-basis: auto (ikke 0) — navnet KREVER sin egen innholdsbredde, og får ikke
+   bare det som blir til overs. Med basis 0 hjalp det ikke å la type-knappen krympe:
+   navnet ba aldri om plassen i utgangspunktet, og ble kuttet til «Promasto…».
+   Sammen med flex-shrink på type-knappen gir dette navnet forrang. */
 .settings-material-name-wrap {
     display: flex;
     align-items: center;
     gap: 6px;
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
 }
 .settings-material-name-display {
@@ -6077,6 +6103,12 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     color: #1c1c1e;
     background: #fff;
     height: 34px;
+}
+/* Egen regel, ikke padding-right i short-hand'en over: den deles med <input>, som
+   ikke har noen pil å reservere plass til. Uten denne ville pilen lagt seg oppå
+   etiketten (basisregelen for .settings-material-type-btn plasserer den absolutt). */
+.settings-add-material-row .settings-material-type-btn {
+    padding-right: 22px;
 }
 .settings-add-material-row input:focus {
     border-color: #E8501A;
@@ -9188,9 +9220,20 @@ body.kappe-view-open #view-form { display: none; }
    feltbredde, men korte seksjoner sluttet midt på raden og etterlot en ujevn
    høyrekant. (Slett-knappen ligger utenfor dette rutenettet, se .spec-multi-row —
    den har sin egen loddrette kolonne helt til høyre.) */
+/* Første kolonne er BREDERE enn de øvrige. To grunner, samme retning:
+   etiketten «Ø / BREDDE» er den klart lengste og ble kuttet til «Ø / BRE…» i
+   4-felts-radene (brannpakning og kabelhylse), og feltet rommer dessuten de
+   største tallene (1000) mens Lag/Dybde/Antall rommer 1-2 sifre.
+   MERK: å forkorte en ANNEN etikett hjelper ikke — kolonnene er like brede, så
+   «Ø / BREDDE» kuttes av sin egen kolonne, ikke av naboene.
+   grid-template-columns definerer KUN kolonne 1 (eksplisitt); grid-auto-flow:
+   column lager resten implisitt med grid-auto-columns. Dermed virker det for 1,
+   2, 3 og 4 felt uten at CSS-en trenger å vite antallet — løpemeter-raden har
+   bare ett felt og fyller fortsatt hele bredden. */
 #spec-multi-scroll .kappe-quad-row {
     display: grid;
     grid-auto-flow: column;
+    grid-template-columns: 1.6fr;
     grid-auto-columns: 1fr;
     gap: 6px;
     align-items: end;
@@ -9281,12 +9324,17 @@ body.kappe-view-open #view-form { display: none; }
     margin-bottom: 2px;
 }
 /* Små, dempede uppercase-etiketter (iOS/SaaS-stil). */
+/* Kompakt etikett-typografi. font-size og letter-spacing er skrudd ned med vilje:
+   «Ø / BREDDE» ble kuttet i 4-felts-radene, og en versal-etikett med sperring er
+   uforholdsmessig bred for en kolonne som deler raden på fire. Etikettene er
+   sekundær tekst — verdiene under står i 15px. Se også .kappe-quad-row-regelen
+   over (bredere første kolonne) og selve etikett-teksten i _createSpecRow. */
 #spec-multi-popup .kappe-quad-row .mobile-field label {
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 600;
     color: #8e8e93;
     text-transform: uppercase;
-    letter-spacing: .03em;
+    letter-spacing: 0;
     margin-bottom: 5px;
 }
 /* Rene, fylte inputs som blir hvite m/oransje fokus-ring. */

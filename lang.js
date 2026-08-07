@@ -340,8 +340,13 @@ const TRANSLATIONS = {
         material_type_standard_desc: 'Standard — antall + enhet',
         // Underskille for mansjett/brannpakning: «rull» kappes og gir meter-total,
         // «fast størrelse» bestilles i stk og får ingen meter-total.
+        // Lang form: KUN i type-velgeren, som har god plass og en forklarende
+        // linje under. Kort form: på selve knappene, der lang form presset
+        // produktnavnet ut («Promasto…»). Se _matTypeSubLabel i script-ui.js.
         material_subtype_rull: 'rull',
         material_subtype_fast: 'fast størrelse',
+        material_subtype_rull_short: 'rull',
+        material_subtype_fast_short: 'fast',
         material_type_mansjett_desc: 'Mansjett — bredde/Ø, høyde',
         material_type_brannpakning_desc: 'Brannpakning — bredde/Ø, høyde, runder',
         material_type_kabelhylse_desc: 'Kabelhylse — bredde/Ø, høyde, dybde',
@@ -1038,6 +1043,8 @@ const TRANSLATIONS = {
         material_type_standard_desc: 'Standard — quantity + unit',
         material_subtype_rull: 'roll',
         material_subtype_fast: 'fixed size',
+        material_subtype_rull_short: 'roll',
+        material_subtype_fast_short: 'fixed',
         material_type_mansjett_desc: 'Collar — width/Ø, height',
         material_type_brannpakning_desc: 'Fire seal — width/Ø, height, rounds',
         material_type_kabelhylse_desc: 'Cable sleeve — width/Ø, height, depth',

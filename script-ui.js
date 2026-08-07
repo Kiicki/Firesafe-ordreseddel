@@ -2394,14 +2394,24 @@ function normalizeMaterialData(data) {
             }
             // fixedSize: produktet kommer i FASTE størrelser (ferdige mansjetter),
             // ikke på rull. Da er løpemeter meningsløst — se getRunningMeterInfo.
-            // Fraværende/false = rull = dagens oppførsel, så ingen migrering trengs.
             // MÅ også med i saveMaterialSettings, ellers forsvinner feltet ved lagring.
+            //
+            // KUN mansjett kan være fast størrelse. Brannpakning fantes en periode i
+            // begge varianter, men kombinasjonen var meningsløs: meter-omregningen
+            // (omkrets × lag × antall) MODELLERER at man vikler en lengde rundt et
+            // rør — altså selve definisjonen på et rullprodukt. «Fast størrelse» slo
+            // av nettopp den beregningen og etterlot en type med Lag-felt uten noe å
+            // bruke laget til. Alle brannpakninger kommer på rull.
+            // Migreringen ligger HER fordi normalizeMaterialData er eneste
+            // innlastingspunkt — både Firestore og localStorage går via den, så et
+            // gammelt flagg kan ikke overleve på noen enhet.
+            var fixedSize = !!m.fixedSize && type === 'mansjett';
             return {
                 name: m.name,
                 type: type,
                 defaultUnit: defaultUnit,
                 allowedUnits: allowedUnits,
-                fixedSize: !!m.fixedSize
+                fixedSize: fixedSize
             };
         });
     }
@@ -2704,7 +2714,7 @@ async function addSettingsMaterial() {
     // fixedSize fra type-knappens data-fixed (satt av openNewMatTypePicker).
     var newFixed = (function() {
         var b = document.getElementById('settings-new-material-type-btn');
-        return !!(b && b.dataset.fixed === '1' && (type === 'mansjett' || type === 'brannpakning'));
+        return !!(b && b.dataset.fixed === '1' && type === 'mansjett');
     })();
     settingsMaterials.push({ name: val, type: type, defaultUnit: defaultUnit, allowedUnits: allowedUnits, fixedSize: newFixed });
     _sortSettingsMaterials(settingsMaterials);
@@ -2913,7 +2923,7 @@ async function addPickerMaterial() {
     // fixedSize fra type-knappens data-fixed (satt av openPickerMatTypePicker).
     var fixedSize = (function() {
         var b = document.getElementById('picker-new-material-type-btn');
-        return !!(b && b.dataset.fixed === '1' && (type === 'mansjett' || type === 'brannpakning'));
+        return !!(b && b.dataset.fixed === '1' && type === 'mansjett');
     })();
     var newMat = { name: val, type: type, defaultUnit: 'stk', allowedUnits: allowedUnits, fixedSize: fixedSize };
     var updated = current.slice();
@@ -2990,20 +3000,30 @@ function editSettingsMaterial(idx) {
     });
 }
 
-// «· rull» / «· fast størrelse»-suffiks på type-etiketten. Kun mansjett og
-// brannpakning har dette skillet; øvrige typer får tom streng.
+// «· rull» / «· fast»-suffiks på type-KNAPPENE. KUN mansjett har dette skillet
+// (ferdigstøpte mansjetter i faste størrelser vs. rull); øvrige typer, inkludert
+// brannpakning, får tom streng. Se normalizeMaterialData for hvorfor brannpakning
+// ikke lenger deles.
+//
+// KORTFORMEN brukes her med vilje: knappen står ved siden av produktnavnet i
+// Materialer-lista, og «· fast størrelse» presset navnet ut («Promasto…»).
+// Kortformen gjør dessuten «fast» og «rull» like brede, så knappe-kolonnen ikke
+// hopper mellom radene. Den lange formen finnes fortsatt og brukes av
+// type-VELGEREN (_renderMatTypePicker, egen sub()-helper) — der er det plass, og
+// hvert valg har en forklarende linje under seg.
 function _matTypeSubLabel(type, fixedSize) {
-    if (type !== 'mansjett' && type !== 'brannpakning') return '';
-    return ' · ' + t('material_subtype_' + (fixedSize ? 'fast' : 'rull'));
+    if (type !== 'mansjett') return '';
+    return ' · ' + t('material_subtype_' + (fixedSize ? 'fast' : 'rull') + '_short');
 }
 
 // Felles popup-renderer for type-velger. Brukes både for eksisterende materiale
 // (changeMaterialType) og for nytt materiale (oppdaterer skjult select + button-label).
-// currentFixed: gjeldende fixedSize-flagg. Mansjett og brannpakning står som TO
-// oppføringer hver — «rull» (kappes, gir meter-total) og «fast størrelse»
-// (ferdige mansjetter, bestilles i stk, ingen meter-total). Internt er typen den
-// samme for begge, så gruppering/prikkfarge/popup/felt er uendret; det er kun
-// fixedSize som skiller dem. onSelect kalles med (type, fixedSize).
+// currentFixed: gjeldende fixedSize-flagg. KUN mansjett står som to oppføringer —
+// «rull» (kappes, gir meter-total) og «fast størrelse» (ferdigstøpte mansjetter,
+// bestilles i stk, ingen meter-total). Internt er typen den samme for begge, så
+// gruppering/prikkfarge/popup/felt er uendret; det er kun fixedSize som skiller dem.
+// Brannpakning hadde samme deling, men alle brannpakninger kommer på rull — se
+// normalizeMaterialData. onSelect kalles med (type, fixedSize).
 function _renderMatTypePicker(currentValue, onSelect, includeKappe, currentFixed) {
     const existing = document.querySelector('.mat-type-backdrop');
     if (existing) { closeMatTypeDropdown(); return; }
@@ -3015,10 +3035,12 @@ function _renderMatTypePicker(currentValue, onSelect, includeKappe, currentFixed
           label: t('material_type_mansjett') + sub('rull') },
         { value: 'mansjett', icon: '●', fixedSize: true, desc: t('material_type_mansjett_desc'), lm: false,
           label: t('material_type_mansjett') + sub('fast') },
-        { value: 'brannpakning', icon: '◎', fixedSize: false, desc: t('material_type_brannpakning_desc'), lm: true,
-          label: t('material_type_brannpakning') + sub('rull') },
-        { value: 'brannpakning', icon: '◉', fixedSize: true, desc: t('material_type_brannpakning_desc'), lm: false,
-          label: t('material_type_brannpakning') + sub('fast') },
+        // Brannpakning har INGEN rull/fast-deling: alle kommer på rull, og
+        // meter-omregningen (omkrets × lag) er det som definerer typen.
+        // fixedSize utelates med vilje — isActive-testen under godtar da enhver
+        // lagret verdi, så et gammelt «fast»-produkt vises som aktivt her mens
+        // normalizeMaterialData rydder flagget bort.
+        { value: 'brannpakning', icon: '◎', desc: t('material_type_brannpakning_desc'), lm: true },
         { value: 'kabelhylse', icon: '⬡', desc: t('material_type_kabelhylse_desc'), lm: false }
     ];
     // Kappe-typer tas kun med i ADD-skjemaet (ikke ved type-bytte på et eksisterende
@@ -3114,9 +3136,10 @@ function closeMatTypeDropdown() {
 async function changeMaterialType(idx, type, fixedSize) {
     if (!isAdmin) return;
     settingsMaterials[idx].type = type;
-    // fixedSize gjelder bare mansjett/brannpakning — nullstilles for øvrige typer
-    // så et gammelt flagg ikke henger igjen og påvirker en type det ikke gjelder for.
-    settingsMaterials[idx].fixedSize = (type === 'mansjett' || type === 'brannpakning') ? !!fixedSize : false;
+    // fixedSize gjelder bare MANSJETT — nullstilles for øvrige typer så et gammelt
+    // flagg ikke henger igjen og påvirker en type det ikke gjelder for. Brannpakning
+    // sto her tidligere; se normalizeMaterialData for hvorfor den er ute.
+    settingsMaterials[idx].fixedSize = (type === 'mansjett') ? !!fixedSize : false;
     if (type !== 'standard') {
         settingsMaterials[idx].defaultUnit = 'stk';
         settingsMaterials[idx].allowedUnits = [{ singular: 'stk', plural: 'stk' }];
@@ -13893,10 +13916,12 @@ function _createSpecRow(matType, data) {
     }
     row.innerHTML =
         '<div class="kappe-quad-row">' +
-            // «Ø / Bredde», ikke bare «Bredde»: står feltet alene blir målet RUNDT
+            // «Ø/Bredde», ikke bare «Bredde»: står feltet alene blir målet RUNDT
             // (Ø250mm), og etiketten må si det. Kortform fordi tre-fire felt deler
             // raden på 360px — den eldre popupen har plass til «Bredde / Diameter (mm)».
-            '<div class="mobile-field field-required"><label>Ø / Bredde</label>' +
+            // UTEN mellomrom rundt skråstreken: med dem ble etiketten kuttet til
+            // «Ø / BREDD…» i 4-felts-radene (brannpakning og kabelhylse).
+            '<div class="mobile-field field-required"><label>Ø/Bredde</label>' +
                 '<input type="text" class="spm-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
             '<div class="mobile-field"><label>Høyde</label>' +
                 '<input type="text" class="spm-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>' +
@@ -13939,7 +13964,7 @@ function _createSpecEskeRow(data) {
     var row = document.createElement('div');
     row.className = 'spec-multi-row spec-multi-eske-row';
     // Ingen field-required på mål-feltene — kun antall esker kreves.
-    var f1 = '<div class="mobile-field"><label>Ø / Bredde</label>' +
+    var f1 = '<div class="mobile-field"><label>Ø/Bredde</label>' +
         '<input type="text" class="spm-eske-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
         '<div class="mobile-field"><label>Høyde</label>' +
         '<input type="text" class="spm-eske-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>';
