@@ -136,6 +136,10 @@ const TRANSLATIONS = {
         material_isolation: 'Isolasjon',
         material_kappe: 'Isolering',
         order_days: 'Arbeidstid',
+        // Seksjons-/popup-tittel: her føres BÅDE timer og etasje, så navnet
+        // må dekke begge. Egen nøkkel fordi order_days brukes som ren
+        // timer-etikett i eksporten og skal ikke endres der.
+        order_days_section: 'Arbeidstid og etasje',
         order_skip_materialer: 'Ingen materialer for denne bestillingen',
         order_skipped_materialer: 'Ingen materialer',
         order_skip_arbeidstid: 'Ingen arbeidstid for denne bestillingen',
@@ -840,6 +844,7 @@ const TRANSLATIONS = {
         material_isolation: 'Insulation',
         material_kappe: 'Insulation',
         order_days: 'Work hours',
+        order_days_section: 'Work hours and floor',
         order_skip_materialer: 'No materials for this entry',
         order_skipped_materialer: 'No materials',
         order_skip_arbeidstid: 'No work hours for this entry',

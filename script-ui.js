@@ -3446,7 +3446,7 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'sted',           labelKey: 'label_sted' },
         { key: 'signeringDato',  labelKey: 'label_dato' },
         { key: 'beskrivelse',    labelKey: 'settings_req_beskrivelse' },
-        { key: 'dager',         labelKey: 'order_days' },
+        { key: 'dager',         labelKey: 'order_days_section' },
         { key: 'merknad',       labelKey: 'order_merknad' },
         { key: 'materialer',    labelKey: 'order_materials_label' },
         { key: 'signatur',       labelKey: 'label_kundens_underskrift' }

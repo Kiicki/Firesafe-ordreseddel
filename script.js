@@ -2462,8 +2462,8 @@ function createOrderCard(orderData, expanded) {
                 </div>
             </div>
             <div class="mobile-field mobile-order-arbeidstid-section${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.dager ? ' field-required' : ''}">
-                <label data-i18n="order_days">${t('order_days')}</label>
-                <button type="button" class="mobile-arbeidstid-btn" onclick="openDagTimerModal(this)">+ ${t('order_days')}</button>
+                <label data-i18n="order_days_section">${t('order_days_section')}</label>
+                <button type="button" class="mobile-arbeidstid-btn" onclick="openDagTimerModal(this)">+ ${t('order_days_section')}</button>
                 <div class="dag-timer-display" onclick="openDagTimerModal(this)">
                     <span class="dag-timer-display-text"></span>
                     <span class="fakturaadresse-chevron">›</span>
