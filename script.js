@@ -5517,7 +5517,11 @@ function _renderDagTimerTabs() {
         btn.type = 'button';
         btn.className = 'dag-timer-week-tab' + (key === _dagTimerActiveWeek ? ' active' : '');
         var sum = _dagTimerBucketSum(_dagTimerBuckets[key]);
-        btn.innerHTML = '<span class="dag-timer-week-tab-name">' + t('timer_week_label') + ' ' + key + '</span>'
+        // «Uke 30», ikke «Timer uke 30»: fanene deler bredden mellom seg, så hvert
+        // ord koster plass PER uke. Med fire uker ble «Timer uke 30» kuttet til
+        // «Timer uk…». Ordet «Timer» er dessuten overflødig her — popupen heter
+        // «Dager & tid», og delsummen rett under står med «t».
+        btn.innerHTML = '<span class="dag-timer-week-tab-name">Uke ' + key + '</span>'
             + '<span class="dag-timer-week-tab-sum">' + (sum ? _fmtDagTimerHours(sum) + ' t' : '—') + '</span>';
         btn.onclick = function(e) {
             e.preventDefault();

@@ -2785,7 +2785,12 @@ label.settings-default-label.field-required > span::after {
    lett å glemme å fylle den man ikke ser. Sticky, så den følger med når
    dag-radene scroller. */
 .dag-timer-week-tabs {
-    display: flex;
+    /* GRID, ikke flex-wrap: med flex fikk siste rad færre elementer som strakk
+       seg og ble dobbelt så brede som de over («Uke 34» ved siden av «Uke 30»).
+       auto-fill + 1fr gir alle faner identisk bredde uansett hvilken rad de
+       havner på, og siste rad fylles ikke ut. */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr));
     gap: 6px;
     position: sticky;
     top: 0;
@@ -2794,9 +2799,11 @@ label.settings-default-label.field-required > span::after {
     padding-bottom: 6px;
     margin-bottom: -2px;
 }
+/* Fanen krymper ALDRI under lesbar bredde — minmax() i grid-sporet over setter
+   gulvet. Sto opprinnelig som «flex: 1; min-width: 0», altså «del bredden likt
+   uansett antall», som garanterte avkorting når antallet vokste («Timer uk…»). */
 .dag-timer-week-tab {
-    flex: 1;
-    min-width: 0;
+    min-width: 0;      /* grid-sporet styrer bredden nå */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2840,8 +2847,17 @@ label.settings-default-label.field-required > span::after {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 2px;
-    margin: -2px -2px 0;
+    /* Rullefeltet skal ha luft til innholdet.
+       Popupen har 18px sidepadding. Lista trekkes UT til kanten med negativ
+       margin og får de samme 18px som egen padding — innholdet står dermed
+       nøyaktig der det gjorde før, men RULLEFELTET tegnes nå ved arkets kant i
+       stedet for oppå boksene.
+       scrollbar-gutter ble prøvd først og virket ikke: rullefeltet her er et
+       OVERLAY-rullefelt (tynn, avrundet bar uten spor), og de tar ingen
+       layout-plass — spesifikasjonen sier at scrollbar-gutter ikke gjelder dem.
+       Padding er derfor eneste som virker, og den virker for begge typer. */
+    padding: 2px 18px;
+    margin: -2px -18px 0;
     overscroll-behavior: contain;
     touch-action: pan-y;
 }
@@ -9273,8 +9289,12 @@ body.kappe-view-open #view-form { display: none; }
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding-right: 4px;
-    padding-bottom: 2px;
+    /* Samme rullefelt-teknikk som .dag-timer-modal-list — se der. Arket har 20px
+       sidepadding, så lista trekkes ut 20px og får dem tilbake som padding.
+       Sto tidligere som en ensidig «padding-right: 4px»: den ga litt luft mot
+       rullefeltet, men gjorde margene ulike når rullefeltet ikke var der. */
+    padding: 0 20px 2px;
+    margin: 0 -20px;
 }
 /* Felt-rutenettet tar all plass, slett-knappen sist og krymper ikke → ÉN loddrett
    slett-kolonne helt til høyre i alle rader, uansett hvor mange felt radtypen har.
@@ -11416,3 +11436,46 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     background: #fafafa;
 }
 
+/* ── Rullefelt-klaring for scroll-områder i popup-ark ────────────────────────
+   Et OVERLAY-rullefelt (tynn bar uten spor, standard i Firefox/Windows og på
+   Android) tar ingen layout-plass — det tegnes OPPÅ innholdet ved scroll-
+   containerens kant. Har containeren ingen egen sidepadding, ligger boksene
+   dermed klint inntil, mens motsatt side beholder arkets luft.
+   scrollbar-gutter hjelper ikke: spesifikasjonen sier den ikke gjelder
+   overlay-rullefelt.
+   Teknikken: trekk containeren UT til arkets kant med negativ margin, og gi den
+   arkets padding tilbake som sin egen. Innholdet står da nøyaktig der det gjorde
+   før — det er bare rullefeltet som flyttes ut til kanten. Virker for begge
+   typer rullefelt.
+   Disse er alle direkte barn av et ark med padding: 20px (.spec-popup-sheet,
+   og .template-editor-content for mal-editoren).
+   Kun sideverdiene settes, så topp/bunn-padding og margin-bottom fra hver egen
+   regel består. */
+.template-editor-body,
+#plan-popup-list,
+.spec-popup-body,
+#iso-card-scroll,
+#fastener-popup-scroll,
+#iso-length-scroll,
+#kappe-lm-scroll,
+#kappe-maal-scroll {
+    margin-left: -20px;
+    margin-right: -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+/* Timer-oversikten ligger i .confirm-modal-content (padding: 24px). Sto med
+   «padding: 2px; margin: -2px», altså 2px klaring — mindre enn rullefeltet. */
+.timer-overview-list {
+    margin-left: -24px;
+    margin-right: -24px;
+    padding-left: 24px;
+    padding-right: 24px;
+}
+/* Fakturaadresse-popupen: eget ark, samme 20px. */
+.fakturaadresse-popup-body {
+    margin-left: -20px;
+    margin-right: -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+}
