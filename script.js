@@ -5231,20 +5231,23 @@ function orderArbeidstidMeta(order) {
     // ordet både popupen og kort-sammendraget bruker.
     var timer = (order && order.timer && typeof order.timer === 'object') ? order.timer : null;
     if (!timer) return [];
-    // «Ma 37,5» framfor «Ma (37,5t)»: parentesene og t-en er 3 tegn PER oppføring,
-    // altså 24 tegn på en full uke — mer enn dagnavnene til sammen. Med åtte
-    // oppføringer og desimaltimer brøt linja uansett hvor korte dagnavnene var.
-    // «t» kan gå fordi etiketten allerede sier «Arbeidstid».
+    // «Ma 2t» — ÉN fast form uansett om bestillingen har én dag eller sju.
+    // Parentesene fra «Ma (2t)» er borte fordi de kostet 2 tegn per oppføring uten
+    // å tilføre noe, men «t» beholdes: «Ma 2» alene leser som en dato eller et
+    // løpenummer, ikke som timer.
+    // Prøvd og forkastet: å velge dagform etter hvor mye plass som er ledig
+    // (fulle navn ved én dag, forkortet ved sju). Det ga to formater i samme
+    // dokument, og konsistens veier tyngre enn å utnytte ledig plass.
     // Skilletegnet er «·» og ikke komma: verdiene inneholder selv komma som
-    // desimalskille, så «Ma 37,5, Ti 37,5» ville vært flertydig.
+    // desimalskille, så «Ma 2t, Ti 8t» ville vært flertydig.
     var bygg = function(tm) {
         var parts = [];
         TIMER_DAY_KEYS_CORE.forEach(function(d) {
             var tv = tm[d];
-            if (tv != null && String(tv).trim()) parts.push((dagShortMap[d] || d) + ' ' + String(tv).replace('.', ','));
+            if (tv != null && String(tv).trim()) parts.push((dagShortMap[d] || d) + ' ' + String(tv).replace('.', ',') + 't');
         });
         var g = tm._generelt || tm._total;
-        if (g != null && String(g).trim()) parts.push('Annet ' + String(g).replace('.', ','));
+        if (g != null && String(g).trim()) parts.push('Annet ' + String(g).replace('.', ',') + 't');
         return parts;
     };
     // Etiketten er «Arbeidstid uke N» — samme ord som total-raden nederst i
@@ -5267,7 +5270,7 @@ function orderArbeidstidMeta(order) {
         });
         if (out.length) return out;
     }
-    // Ingen uke-fordeling (data lagret før uke-oppdelingen) → ingen ukenummer å vise.
+    // Ingen uke-fordeling (data lagret før uke-oppdelingen) → ingen ukenummer.
     var flat = bygg(timer);
     return flat.length ? [{ label: t('order_days') + ': ', value: flat.join(' \u00b7 ') }] : [];
 }

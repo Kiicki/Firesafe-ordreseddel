@@ -5117,22 +5117,31 @@ async function _renderOrdreseddelInto(doc, data) {
         }
 
         function drawRow(row) {
-            // Beskrivelses-cella har LIKE marger: 8mm på hver side.
-            //   venstre   = pad + 6                    = 8mm
-            //   tekst     = COL_DESC - 2*pad - 12      = COL_DESC - 16
-            //   høyre     = COL_DESC - 8 - tekstbredde = 8mm
-            // Høyremargen var tidligere 19mm mot 4mm til venstre — en rest fra
+            // Beskrivelses-cella har LIKE marger: 4mm på hver side.
+            //   venstre   = pad + 2                   = 4mm
+            //   tekst     = COL_DESC - 2*pad - 4      = COL_DESC - 8
+            //   høyre     = COL_DESC - 4 - tekstbredde = 4mm
+            // Høyremargen var en periode 19mm mot 4mm til venstre — en rest fra
             // da venstremargen ble halvert uten at høyre ble justert. Teksten
             // brakk da unødig tidlig, med et tomt felt langs høyrekanten.
             var pad = 2;
             var lineH = 4.0;
             var lines;   // computed desc content
             var rowH;
+            // ÉN tekstbredde for HELE beskrivelses-kolonnen — avsnitt, Arbeidstid/
+            // Plan/Merknad OG de høyrestilte materialradene. Tidligere hadde de
+            // høyrestilte radene 5mm høyremarg mot 8mm for teksten over.
+            var avail = COL_DESC - 2 * pad - 4;
+            // Fonten MÅ settes før splitTextToSize. Uten dette målte den med det
+            // som tilfeldigvis var satt sist — etter tableHeader var det fet 8,5pt,
+            // altså SMALERE enn de 9pt teksten tegnes med. Linjer slapp da gjennom
+            // målingen og ble tegnet forbi høyremargen.
+            setFont('normal', 9);
             if (row.kind === 'descblock') {
                 lines = [];
                 (row.paragraphs || []).forEach(function(p, i) {
                     if (i > 0) lines.push({ t: '', bold: false });
-                    doc.splitTextToSize(p, COL_DESC - 2 * pad - 12).forEach(function(l) { lines.push({ t: l, bold: false }); });
+                    doc.splitTextToSize(p, avail).forEach(function(l) { lines.push({ t: l, bold: false }); });
                 });
                 // Tom linje mellom brødteksten og Timer/Plan-linjene. HTML-eksporten
                 // har allerede slik luft (6px-spacer i buildDesktopWorkLines);
@@ -5141,14 +5150,20 @@ async function _renderOrdreseddelInto(doc, data) {
                     lines.push({ t: '', bold: false });
                 }
                 (row.meta || []).forEach(function(m) {
+                    // Etiketten TEGNES i fet, men hele strengen måles i normal.
+                    // Differansen trekkes fra bredden, ellers rakk «Arbeidstid uke
+                    // 30: …» 2,2mm lenger ut enn målingen trodde.
+                    setFont('bold', 9);
+                    var labBold = doc.getTextWidth(m.label);
+                    setFont('normal', 9);
+                    var labExtra = labBold - doc.getTextWidth(m.label);
                     var full = m.label + m.value;
-                    var wrapped = doc.splitTextToSize(full, COL_DESC - 2 * pad - 12);
+                    var wrapped = doc.splitTextToSize(full, avail - labExtra);
                     wrapped.forEach(function(l, i) { lines.push({ t: l, bold: false, labelLen: i === 0 ? m.label.length : 0 }); });
                 });
                 rowH = Math.max(8, lines.length * lineH + 2 * pad);
             } else {
                 setFont(row.bold ? 'bold' : 'normal', 9);
-                var avail = COL_DESC - 2 * pad - (row.alignRight ? 5 : 12);
                 lines = doc.splitTextToSize(String(row.desc || ''), avail).map(function(l) { return { t: l }; });
                 rowH = Math.max(8, lines.length * lineH + 2 * pad);
             }
@@ -5159,7 +5174,14 @@ async function _renderOrdreseddelInto(doc, data) {
             line(xAntall, y, xAntall, y + rowH);
             line(xEnhet, y, xEnhet, y + rowH);
 
-            var ty = y + pad + 3;
+            // Vertikal sentrering: tekstblokken sentreres i raden, med SAMME anker
+            // som Antall/Enhet under (y + rowH/2 + 1.4). Sto tidligere som en fast
+            // y + pad + 3, uavhengig av radhøyden — på enlinjes-rader ga det 0,4mm
+            // for høyt, så «Løpende» lå litt over «3,0» og «meter» ved siden av.
+            // Enlinjes-rader er de eneste med slakk: Math.max(8, …) gir 8mm rad til
+            // 4mm tekst. Flerlinjes-rader har høyde etter innholdet, så formelen
+            // faller tilbake til tilnærmet toppstilt der.
+            var ty = y + rowH / 2 + 1.4 - (lines.length - 1) * lineH / 2;
             if (row.kind === 'descblock') {
                 setFont('normal', 9);
                 doc.setTextColor(0, 0, 0);
@@ -5167,12 +5189,12 @@ async function _renderOrdreseddelInto(doc, data) {
                     if (l.labelLen) {
                         var lab = l.t.slice(0, l.labelLen), rest = l.t.slice(l.labelLen);
                         setFont('bold', 9);
-                        text(lab, xDesc + pad + 6, ty);
+                        text(lab, xDesc + pad + 2, ty);
                         var lw = doc.getTextWidth(lab);
                         setFont('normal', 9);
-                        text(rest, xDesc + pad + 6 + lw, ty);
+                        text(rest, xDesc + pad + 2 + lw, ty);
                     } else {
-                        text(l.t, xDesc + pad + 6, ty);
+                        text(l.t, xDesc + pad + 2, ty);
                     }
                     ty += lineH;
                 });
@@ -5181,8 +5203,8 @@ async function _renderOrdreseddelInto(doc, data) {
                 if (row.italic) setFont('italic', 9);
                 doc.setTextColor(0, 0, 0);
                 lines.forEach(function(l) {
-                    if (row.alignRight) text(l.t, xAntall - pad - 3, ty, { align: 'right' });
-                    else text(l.t, xDesc + pad + 6, ty);
+                    if (row.alignRight) text(l.t, xAntall - pad - 2, ty, { align: 'right' });
+                    else text(l.t, xDesc + pad + 2, ty);
                     ty += lineH;
                 });
                 // antall + enhet sentrert
