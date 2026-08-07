@@ -6939,23 +6939,21 @@ function buildServiceExportTable(cols) {
                     return;
                 }
                 if (m.name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
-                    var pipeInfo = getRunningMeterInfo(m.name);
-                    var pipes = parseFloat((m.antall || '').replace(',', '.'));
                     var spec = formatKabelhylseSpec(m.name.substring(baseName.length + 1).replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
-                    // m.enhet !== 'eske': en eske-post MED mål på et rullprodukt
-                    // («FSC Ø250mm», enhet eske) treffer getRunningMeterInfo, men
-                    // antallet er esker — ikke rør-stykker. Uten gaten ville
-                    // 2 esker blitt vist som «(2 stk) · X meter».
-                    if (hasLM && m.enhet !== 'eske' && pipeInfo && !isNaN(pipes) && pipes > 0) {
-                        // Mansjett/Brannpakning: show spec(N stk × M lag) · total meter
-                        var lm = calculateRunningMeters(pipeInfo, pipes);
-                        var lagMatchSv = spec.match(/^(.+?) \((\d+) lag\)$/);
-                        var baseSpecSv = lagMatchSv ? lagMatchSv[1] : spec;
-                        var roundsSv = lagMatchSv ? parseInt(lagMatchSv[2], 10) : 1;
-                        var specWithStk = roundsSv > 1
-                            ? baseSpecSv + ' (' + (m.antall || '').replace('.', ',') + ' stk \u00d7 ' + roundsSv + ' lag)'
-                            : baseSpecSv + ' (' + (m.antall || '').replace('.', ',') + ' stk)';
-                        lines.push(escapeHtml(formatDisplayForBreak(specWithStk)) + ' \u00b7 ' + formatRunningMeters(lm) + ' meter');
+                    // Rull-dimensjonsrad → mål + «(N stk)» og omregnet meter, likt
+                    // alle andre flater. Bygget av de DELTE helperne; her lå
+                    // tidligere en egen kopi av suffiks-logikken, og det var slik
+                    // servicebil og eksporten rakk å vise samme rad ulikt.
+                    // getSpecMeterRow gir null for eske-rader, så en eske MED mål på
+                    // et rullprodukt («FSC Ø250mm», enhet eske) faller riktig ned i
+                    // else-grenen og telles i esker, ikke i meter.
+                    var lmRow = (typeof getSpecMeterRow === 'function') ? getSpecMeterRow(m) : null;
+                    if (hasLM && lmRow) {
+                        // «(N lag)» ligger allerede i spec fra formatKabelhylseSpec —
+                        // strippes her, siden materialStkSuffix bygger «(N stk × M lag)».
+                        var baseSpecSv = spec.replace(/ \(\d+ lag\)$/, '');
+                        var specWithStk = baseSpecSv + materialStkSuffix(m);
+                        lines.push(escapeHtml(formatDisplayForBreak(specWithStk)) + ' \u00b7 ' + getMaterialRowAntall(m) + ' meter');
                     } else {
                         // Kabelhylse / fast-størrelse-mansjett: mål + antall + enhet.
                         // Enheten («eske»/«stk») skiller en eske-rad fra en stk-rad
@@ -11395,34 +11393,20 @@ function renderBilHistory() {
 
         var matsHtml = '';
         // Helper to build detail parts for a material
+        // Begge bygget nå av de DELTE helperne (getMaterialRowAntall /
+        // getMaterialRowUnit / materialStkSuffix). Her lå tidligere egne kopier av
+        // både meter-omregningen og «(N stk × M lag)»-suffikset — det var slik
+        // bil-historikken rakk å vise samme rad ulikt fra eksporten.
         function buildBilDetail(m) {
-            var detailParts = [];
-            // Samme eske-gate som i servicebil-eksporten: enhet 'eske' teller esker,
-            // ikke rør-stykker, så meter-omregningen gjelder ikke.
-            var pipeInfo = m.enhet === 'eske' ? null : getRunningMeterInfo(m.name);
-            var pipes = parseFloat((m.antall || '').replace(',', '.'));
-            if (pipeInfo && !isNaN(pipes) && pipes > 0) {
-                var lm = calculateRunningMeters(pipeInfo, pipes);
-                detailParts.push(formatRunningMeters(lm) + ' meter');
-            } else {
-                var bilQuantityUnit = getMaterialRowUnit(m);
-                var bilUnit = bilQuantityUnit === 'meter' ? ' meter' : ' ' + bilQuantityUnit;
-                detailParts.push(formatRunningMeters(m.antall) + bilUnit);
-            }
-            return detailParts.join(' ');
+            var bilQuantityUnit = getMaterialRowUnit(m);
+            var bilUnit = bilQuantityUnit === 'meter' ? ' meter' : ' ' + bilQuantityUnit;
+            return getMaterialRowAntall(m) + bilUnit;
         }
-        // Helper to inject "(N stk × M lag)" into a formatted name for pipe-spec entries
+        // Suffikset for GRUPPERTE rader kommer allerede fra getGroupedDisplayName —
+        // denne gjelder kun den ugrupperte fallback-veien (foreldreløse data), der
+        // navnet bygges fra m.name direkte.
         function injectBilStkLag(formattedName, m) {
-            var pipeInfo = m.enhet === 'eske' ? null : getRunningMeterInfo(m.name);
-            var pipes = parseFloat((m.antall || '').replace(',', '.'));
-            if (!pipeInfo || isNaN(pipes) || pipes <= 0) return formatDisplayForBreak(formattedName);
-            var lagMatch = formattedName.match(/^(.+?) \((\d+) lag\)$/);
-            var baseSpec = lagMatch ? lagMatch[1] : formattedName;
-            var rounds = lagMatch ? parseInt(lagMatch[2], 10) : 1;
-            var result = rounds > 1
-                ? baseSpec + ' (' + (m.antall || '0') + ' stk \u00d7 ' + rounds + ' lag)'
-                : baseSpec + ' (' + (m.antall || '0') + ' stk)';
-            return formatDisplayForBreak(result);
+            return formatDisplayForBreak(formattedName + materialStkSuffix(m));
         }
         // Helper to format a full material name (with variant appended)
         function formatBilName(m) {
@@ -11459,7 +11443,9 @@ function renderBilHistory() {
                     var subName = getGroupedDisplayName(gm, bilGroup.baseName);
                     subName = subName.charAt(0).toUpperCase() + subName.slice(1);
                     subName = formatKabelhylseSpec(subName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
-                    subName = injectBilStkLag(subName, gm);
+                    // IKKE injectBilStkLag her: getGroupedDisplayName har allerede
+                    // lagt på «(N stk)», og et nytt kall ville doblet det.
+                    subName = formatDisplayForBreak(subName);
                     matsHtml += '<div class="bil-history-grouped"><div class="mat-summary-row">'
                         + '<span class="mat-summary-name">' + escapeHtml(subName) + '</span>'
                         + '<span class="mat-summary-detail">' + buildBilDetail(gm) + '</span>'
@@ -13952,19 +13938,22 @@ function _createSpecMeterRow(data) {
     return row;
 }
 
-// Eske-rad: mengde esker/pakker av produktet, med VALGFRITT mål.
+// Eske-rad: mengde esker/pakker av produktet, med mål.
 // Mål-feltene er de SAMME som i Mål-seksjonen (Ø/Bredde + Høyde) og har samme
 // etiketter — en eske av et firkant-mål er like gyldig som en eske av et rundt,
 // og to seksjoner med ulike ord for samme felt leste som to ulike skjemaer.
-// Begge er valgfrie: tomme → dimensjonsløs eske-post på basen («FSC__eske»),
-// utfylt → eske-post med mål («FSC Ø250mm__eske» / «FSC 100x200mm__eske»).
-// Gjelder ALLE spec-produkter, både fast størrelse (FC6) og rull (FSC).
+//
+// Ø/BREDDE ER OBLIGATORISK FOR FAST-STØRRELSE-PRODUKTER (FC6): en ferdigstøpt
+// mansjett har alltid en størrelse, så «en eske FC6» uten mål er ikke en gyldig
+// bestilling. For RULLPRODUKTER (FSC) er feltet valgfritt — der er esken en
+// pakning av selve rullen og har ingen egen størrelse. Det er samme skille som
+// styrer Løpemeter-seksjonen, så flagget finnes allerede (_specMultiFixedSize).
+// Høyde er valgfri uansett: tomt → rundt mål (Ø250mm), utfylt → firkant (100x200mm).
 function _createSpecEskeRow(data) {
     var d = data || {};
     var row = document.createElement('div');
     row.className = 'spec-multi-row spec-multi-eske-row';
-    // Ingen field-required på mål-feltene — kun antall esker kreves.
-    var f1 = '<div class="mobile-field"><label>Ø/Bredde</label>' +
+    var f1 = '<div class="mobile-field' + (_specMultiFixedSize ? ' field-required' : '') + '"><label>Ø/Bredde</label>' +
         '<input type="text" class="spm-eske-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
         '<div class="mobile-field"><label>Høyde</label>' +
         '<input type="text" class="spm-eske-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>';
@@ -14049,6 +14038,10 @@ function confirmSpecMultiPopup() {
         var ef2El = eskeRows[k].querySelector('.spm-eske-f2');
         var ef2 = ef2El ? String(ef2El.value || '').trim() : '';
         if (!ev && !ef && !ef2) continue;   // helt tom rad
+        // Fast størrelse: målet er påkrevd. Uten dette ville raden blitt lagret
+        // som en dimensjonsløs eske og vist «Standard» i eksporten — men et
+        // fast-størrelse-produkt HAR ingen standardpakning.
+        if (_specMultiFixedSize && !ef) { showNotificationModal('Fyll inn Ø/Bredde for esken, eller fjern raden.'); return; }
         var en = parseInt(ev, 10);
         if (isNaN(en) || en <= 0) { showNotificationModal('Fyll inn gyldig antall esker, eller fjern tomme.'); return; }
         // Høyde alene gir ikke et mål — «x200mm» er ikke en dimensjon. Fanges her

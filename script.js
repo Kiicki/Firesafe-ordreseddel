@@ -987,12 +987,58 @@ function getMaterialPickerConfig(materialName) {
 // GRENSE: standard-materialer med brukerdefinerte VARIANTER (FSA Patron, Pølse)
 // legger fortsatt varianten i navnet og telles i stk. En variant er en egen vare,
 // ikke en pakningsform — det systemet er urørt.
+//
+// ── RULL-produkter er et eget tilfelle ───────────────────────────────────────
+// For et RULLPRODUKT (FSC, FSW — mansjett/brannpakning uten fixedSize) ER en
+// dimensjonsrad en LENGDE: du kapper π×Ø×lag meter av rullen for hver mansjett.
+// Slike rader viser derfor omregnet meter i Antall/Enhet, og beholder dimensjon
+// + stykktall i BESKRIVELSEN:
+//     Ø160mm (4 stk)  ·  2,1  ·  meter
+// Da kan leseren se hvorfor gruppe-totalen blir som den blir — radene summerer
+// seg eksakt til den, fordi meterTenths bruker samme opprunding som rad-visningen.
+// FAST-STØRRELSE (Promastop FC6) er motsatt: der er dimensjon + stk hele saken,
+// og det finnes ingen meter-total å forklare.
+
+// Er raden en dimensjonsrad på et RULLPRODUKT? Returnerer omregningen, ellers null.
+// Eske-rader gir null: en eske er ikke kappet av rullen, og holdes derfor også
+// utenfor gruppe-totalen (se specGroupMeterTotal).
+function getSpecMeterRow(m) {
+    if (!m || m.enhet === 'eske') return null;
+    if (typeof getRunningMeterInfo !== 'function') return null;
+    var info = getRunningMeterInfo(m.name);
+    if (!info) return null;
+    var antall = parseFloat(String(m.antall || '').replace(',', '.'));
+    if (isNaN(antall) || antall <= 0) return null;
+    return { meters: calculateRunningMeters(info, antall), rounds: info.rounds || 1, stk: m.antall };
+}
+
+// «(4 stk)» / «(3 stk × 2 lag)»-suffikset til Beskrivelse. Tomt for alt annet enn
+// rull-dimensjonsrader. ÉN kilde — logikken fantes tidligere i tre kopier
+// (servicebil, bil-historikk og eksporten), som er nettopp hvordan de rakk å
+// vise samme rad på tre ulike måter.
+function materialStkSuffix(m) {
+    var lm = getSpecMeterRow(m);
+    if (!lm) return '';
+    var stk = String(lm.stk || '').replace('.', ',');
+    return lm.rounds > 1 ? ' (' + stk + ' stk × ' + lm.rounds + ' lag)' : ' (' + stk + ' stk)';
+}
+
+// ÉN kilde for Antall-kolonnen. For rull-dimensjonsrader er tallet den omregnede
+// LENGDEN, ikke stykktallet — stykktallet står i Beskrivelse.
+function getMaterialRowAntall(m) {
+    if (!m) return '';
+    var lm = getSpecMeterRow(m);
+    return formatRunningMeters(lm ? lm.meters : m.antall);
+}
 
 // ÉN kilde for Enhet-kolonnen på alle flater. Før fantes det to konkurrerende
 // regler (denne og materialvelgerens egen if/else), og de ga «stk» i eksporten og
 // «eske» i servicebil for nøyaktig samme rad.
 function getMaterialRowUnit(m) {
     if (!m) return 'stk';
+    // Rull-dimensjonsrad → meter. MÅ ligge før quantityUnit-oppslaget: raden er
+    // lagret med enhet «stk», men det tallet vises ikke lenger i Antall-kolonnen.
+    if (getSpecMeterRow(m)) return 'meter';
     return m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source) || 'stk';
 }
 
@@ -1279,17 +1325,34 @@ function getGroupedDisplayName(m, baseName) {
     if (shouldGroupAsKappeStift(m)) {
         return formatKappeStiftName(m.enhet, name, m.quantityUnit);
     }
-    // Dimensjonsl\u00f8se poster p\u00e5 spec-basen (l\u00f8pemeter og esker uten m\u00e5l): PRODUKT-
-    // NAVNET er beskrivelsen. Formen ligger i Enhet-kolonnen (\u00abmeter\u00bb / \u00abeske\u00bb),
-    // som dermed tilf\u00f8rer noe p\u00e5 nettopp disse radene i stedet for \u00e5 si \u00abstk\u00bb.
-    if ((m.enhet === 'meter' || m.enhet === 'eske') && name.toLowerCase() === baseName.toLowerCase()) {
-        return baseName;
+    // Dimensjonsl\u00f8se poster p\u00e5 spec-basen: l\u00f8pemeter og esker uten m\u00e5l.
+    // Begge f\u00e5r et FORMORD som beskriver hva raden er, uten \u00e5 gjenta noe:
+    //   \u00abL\u00f8pende\u00bb \u00b7 meter   \u2014 p\u00e5 rull, ikke ferdigkappet
+    //   \u00abStandard\u00bb \u00b7 eske   \u2014 standard pakning, ingen st\u00f8rrelse valgt
+    // Ingen av dem gjentar gruppe-overskriften eller enhets-kolonnen.
+    // Forkastet underveis: produktnavnet (gjentok overskriften), \u00abEsker\u00bb (gjentok
+    // enheten), \u00abUten m\u00e5l\u00bb (negativ formulering), tom celle (leses som glemt
+    // utfylling p\u00e5 et signert dokument) og tankestrek.
+    if (m.enhet === 'meter' && name.toLowerCase() === baseName.toLowerCase()) {
+        return 'l\u00f8pende';
     }
-    // Spec-avledet: strip produktnavnet, vis KUN m\u00e5let. En eske-rad og en stk-rad
+    if (m.enhet === 'eske' && name.toLowerCase() === baseName.toLowerCase()) {
+        return 'standard';
+    }
+    // Spec-avledet: strip produktnavnet, vis m\u00e5let. En eske-rad og en stk-rad
     // med samme m\u00e5l skilles av Enhet-kolonnen \u2014 det er den forskjellen kolonnen
     // finnes for, og derfor skal ordet \u00abeske\u00bb ikke ogs\u00e5 st\u00e5 her.
+    // materialStkSuffix legger p\u00e5 \u00ab(4 stk)\u00bb for RULL-produkter, der Antall-kolonnen
+    // viser meter og stykktallet ellers ville forsvunnet helt.
     if (name.toLowerCase().startsWith(baseName.toLowerCase() + ' ')) {
-        return name.substring(baseName.length + 1);
+        var spec = name.substring(baseName.length + 1);
+        var stkSuffix = materialStkSuffix(m);
+        // Suffikset b\u00e6rer ALLEREDE lag-tallet (\u00ab3 stk \u00d7 2 lag\u00bb), s\u00e5 lag-delen m\u00e5
+        // strippes av spec-en \u2014 ellers st\u00e5r det to ganger:
+        // \u00ab\u00d8100mm 2 lag (3 stk \u00d7 2 lag)\u00bb. Gjelder brannpakning, som er den ene
+        // typen der spec-navnet selv inneholder antall lag.
+        if (stkSuffix) spec = spec.replace(/\s+\d+\s*lag$/i, '').replace(/r\d+$/i, '');
+        return spec + stkSuffix;
     }
     // For standard materials with variants (like FSA), show the variant from enhet
     var enhetVal = normalizeVariant(name, m.enhet || '').toLowerCase();
@@ -2788,13 +2851,15 @@ function createMaterialSummaryRow(m, groupBaseName) {
             // Fallback hvis bredde/plate-info mangler: fall tilbake til antall + enhet
             var qUnit = getMaterialRowUnit(m);
             var uLabel = qUnit === 'meter' ? ' meter' : ' ' + qUnit;
-            detailParts.push(formatRunningMeters(m.antall) + uLabel);
+            detailParts.push(getMaterialRowAntall(m) + uLabel);
         }
     } else {
         if (m.antall) {
             var quantityUnit = getMaterialRowUnit(m);
             var unitLabel = quantityUnit === 'meter' ? ' meter' : ' ' + quantityUnit;
-            detailParts.push(formatRunningMeters(m.antall) + unitLabel);
+            // getMaterialRowAntall, ikke m.antall: for et rullprodukt er tallet
+            // den omregnede LENGDEN, og stykktallet står i navnet.
+            detailParts.push(getMaterialRowAntall(m) + unitLabel);
         }
     }
     const detail = detailParts.length > 0 ? detailParts.join(' ') : '';
@@ -3884,15 +3949,17 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                     } else if (group.isStiftGroup) {
                         subDisplay = e.displayName || formatKappeStiftName(e.enhet, e.name, e.quantityUnit);
                     } else if (parsePickerStorageKey(e.name).isMeterEntry) {
-                        // Produktnavnet; pillen («meter») bærer formen.
-                        subDisplay = group.baseName;
+                        // «Løpende» — samme ord som dokument-visningene. Gjentar
+                        // verken gruppe-overskriften eller enhets-pillen («meter»).
+                        subDisplay = 'Løpende';
                     } else if (parsePickerStorageKey(e.name).isEskeEntry) {
                         // Med mål: kun målet — pillen sier «eske» og skiller raden
                         // fra stk-raden med samme mål. Uten mål: produktnavnet.
+                        // Uten mål: «Standard», samme ord som dokument-visningene.
                         var eKeyBase = parsePickerStorageKey(e.name).baseName;
                         subDisplay = (eKeyBase.toLowerCase().indexOf(group.baseName.toLowerCase() + ' ') === 0)
                             ? eKeyBase.substring(group.baseName.length + 1)
-                            : group.baseName;
+                            : 'Standard';
                     // isSpec-grenen MÅ ligge etter eske-grenen over: nameNoSuffix
                     // stripper bare «__N», så «FC6 Ø250mm__eske» ville ellers blitt
                     // vist som «Ø250mm__eske».
@@ -6431,7 +6498,9 @@ function buildDesktopWorkLines() {
                     }
                 } else {
                     var exportUnit = getMaterialRowUnit(m);
-                    addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
+                    // getMaterialRowAntall: rull-dimensjonsrader viser omregnet
+                    // meter her, og «(N stk)» ligger allerede i capName.
+                    addRow(capName, getMaterialRowAntall(m), exportUnit, { alignRight: true });
                 }
             }
             // Group materials for export (sorter items innen hver gruppe)
@@ -6681,7 +6750,9 @@ function computeWorkRows(orders, minRows) {
                     }
                 } else {
                     var exportUnit = getMaterialRowUnit(m);
-                    addRow(capName, formatRunningMeters(m.antall), exportUnit, { alignRight: true });
+                    // getMaterialRowAntall: rull-dimensjonsrader viser omregnet
+                    // meter her, og «(N stk)» ligger allerede i capName.
+                    addRow(capName, getMaterialRowAntall(m), exportUnit, { alignRight: true });
                 }
             }
             var exportGroups = groupMaterialsByBase(aggregatedMats, { sortItems: true });
