@@ -5117,6 +5117,13 @@ async function _renderOrdreseddelInto(doc, data) {
         }
 
         function drawRow(row) {
+            // Beskrivelses-cella har LIKE marger: 8mm på hver side.
+            //   venstre   = pad + 6                    = 8mm
+            //   tekst     = COL_DESC - 2*pad - 12      = COL_DESC - 16
+            //   høyre     = COL_DESC - 8 - tekstbredde = 8mm
+            // Høyremargen var tidligere 19mm mot 4mm til venstre — en rest fra
+            // da venstremargen ble halvert uten at høyre ble justert. Teksten
+            // brakk da unødig tidlig, med et tomt felt langs høyrekanten.
             var pad = 2;
             var lineH = 4.0;
             var lines;   // computed desc content
@@ -5125,17 +5132,23 @@ async function _renderOrdreseddelInto(doc, data) {
                 lines = [];
                 (row.paragraphs || []).forEach(function(p, i) {
                     if (i > 0) lines.push({ t: '', bold: false });
-                    doc.splitTextToSize(p, COL_DESC - 2 * pad - 23).forEach(function(l) { lines.push({ t: l, bold: false }); });
+                    doc.splitTextToSize(p, COL_DESC - 2 * pad - 12).forEach(function(l) { lines.push({ t: l, bold: false }); });
                 });
+                // Tom linje mellom brødteksten og Timer/Plan-linjene. HTML-eksporten
+                // har allerede slik luft (6px-spacer i buildDesktopWorkLines);
+                // PDF-en manglet den, så beskrivelsen rant rett over i timene.
+                if ((row.paragraphs || []).length && (row.meta || []).length) {
+                    lines.push({ t: '', bold: false });
+                }
                 (row.meta || []).forEach(function(m) {
                     var full = m.label + m.value;
-                    var wrapped = doc.splitTextToSize(full, COL_DESC - 2 * pad - 23);
+                    var wrapped = doc.splitTextToSize(full, COL_DESC - 2 * pad - 12);
                     wrapped.forEach(function(l, i) { lines.push({ t: l, bold: false, labelLen: i === 0 ? m.label.length : 0 }); });
                 });
                 rowH = Math.max(8, lines.length * lineH + 2 * pad);
             } else {
                 setFont(row.bold ? 'bold' : 'normal', 9);
-                var avail = COL_DESC - 2 * pad - (row.alignRight ? 5 : 23);
+                var avail = COL_DESC - 2 * pad - (row.alignRight ? 5 : 12);
                 lines = doc.splitTextToSize(String(row.desc || ''), avail).map(function(l) { return { t: l }; });
                 rowH = Math.max(8, lines.length * lineH + 2 * pad);
             }

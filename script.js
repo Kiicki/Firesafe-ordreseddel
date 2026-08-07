@@ -5247,14 +5247,15 @@ function orderArbeidstidMeta(order) {
         if (g != null && String(g).trim()) parts.push('Annet ' + String(g).replace('.', ','));
         return parts;
     };
-    // Etiketten er «Timer uke N», ikke «Arbeidstid uke N». Tre grunner:
-    //  1. 5 tegn kortere — den var den største enkeltposten på en linje som brøt.
-    //  2. Ordet «Timer» sier at tallene er timer. Det trengs nå, siden «t» er
-    //     fjernet fra hver verdi for å spare plass.
-    //  3. Det er nøyaktig samme etikett som timer-chipen i appen bruker
-    //     (timer_week_label), så montøren og kunden ser samme begrep.
+    // Etiketten er «Arbeidstid uke N» — samme ord som total-raden nederst i
+    // eksporten (t('order_days')), så dokumentet bruker ETT begrep om timer.
+    // Den sto en periode som «Timer uke N» fordi linja brøt til to og etiketten
+    // var den største enkeltposten. Det er ikke nødvendig lenger: beskrivelses-
+    // kolonnen ble 4 mm bredere da venstremargen ble halvert (133 mm mot 129).
+    // Målt: full uke med alle sju dager + Annet og desimaltimer er 122,6 mm og
+    // får plass. Bare et konstruert tilfelle med 37,5 t HVER dag (136,6 mm) bryter.
     // Ukenummeret tas med OGSÅ når det bare er ÉN uke — da er formen den samme
-    // uansett, i stedet for å veksle mellom «Timer uke 30:» og «Arbeidstid:».
+    // uansett, i stedet for å veksle mellom «Arbeidstid uke 30:» og «Arbeidstid:».
     var uker = (timer.uker && typeof timer.uker === 'object')
         ? Object.keys(timer.uker).sort(function(a, b) { return Number(a) - Number(b); })
         : [];
@@ -5262,13 +5263,13 @@ function orderArbeidstidMeta(order) {
         var out = [];
         uker.forEach(function(w) {
             var parts = bygg(timer.uker[w] || {});
-            if (parts.length) out.push({ label: t('timer_week_label') + ' ' + w + ': ', value: parts.join(' \u00b7 ') });
+            if (parts.length) out.push({ label: t('order_days') + ' uke ' + w + ': ', value: parts.join(' \u00b7 ') });
         });
         if (out.length) return out;
     }
     // Ingen uke-fordeling (data lagret før uke-oppdelingen) → ingen ukenummer å vise.
     var flat = bygg(timer);
-    return flat.length ? [{ label: t('timer_chip_label') + ': ', value: flat.join(' \u00b7 ') }] : [];
+    return flat.length ? [{ label: t('order_days') + ': ', value: flat.join(' \u00b7 ') }] : [];
 }
 
 // Timer ført på ÉN bestemt uke. Brukes til uke-summering på tvers av ordresedler.
