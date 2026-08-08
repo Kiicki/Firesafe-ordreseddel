@@ -2796,8 +2796,32 @@ label.settings-default-label.field-required > span::after {
     top: 0;
     z-index: 1;
     background: #fff;
-    padding-bottom: 6px;
-    margin-bottom: -2px;
+    /* Det opake feltet MÅ dekke hele scroll-området rundt stripa, ellers ruller
+       dag-radene synlig gjennom sprekkene over og under den.
+       UNDER: lista er flex med gap: 8px, og stripa hadde margin-bottom: -2px →
+       6px transparent mellom stripa og første dag-rad. Løses ved å la stripas
+       EGEN bakgrunn fylle gapet: padding-bottom +6, margin-bottom -6. Summen
+       (12 - 8 = 4) er identisk med før (6 - 2 = 4), så layouten er uendret. */
+    padding-bottom: 12px;
+    margin-bottom: -8px;
+}
+/* OVER: lista har padding: 2px (så fokusringen på timefeltet ikke klippes øverst/
+   nederst). En sticky-boks kan ikke pinnes lenger opp enn containerens CONTENT-
+   kant, altså stopper stripa 2px under scroll-kanten — og i det båndet var
+   radene synlige. Padding-top + negativ margin virker ikke (testet: den pinnede
+   boksen klemmes fortsatt mot content-kanten, og fanene flyttes nedover i
+   stedet). Et absolutt plassert dekke over stripa er ikke bundet av den
+   begrensningen, og klippes uansett av scroll-kanten — høyden er derfor rundelig
+   satt så den dekker båndet i alle nettlesere. Ren maling, null layout-effekt. */
+.dag-timer-week-tabs::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 24px;
+    background: #fff;
+    pointer-events: none;
 }
 /* Fanen krymper ALDRI under lesbar bredde — minmax() i grid-sporet over setter
    gulvet. Sto opprinnelig som «flex: 1; min-width: 0», altså «del bredden likt
