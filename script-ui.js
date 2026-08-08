@@ -2392,6 +2392,17 @@ function normalizeMaterialData(data) {
             if (type === 'standard' && allowedUnits.length === 0 && defaultUnit && defaultUnit !== 'stk') {
                 defaultUnit = '';
             }
+            // Cleanup: defaultUnit peker på en variant som ikke finnes lenger
+            // (typisk etter at varianten ble DØPT OM — sletting re-peker allerede
+            // i removeMaterialUnit). Da falt ingen variant ut som standard i
+            // Innstillinger, OG materialvelgeren viste det gamle navnet, fordi
+            // den bruker `defaultUnit || allowedUnits[0]` og en foreldreløs
+            // streng er sann. Fall tilbake til første variant, som er samme
+            // regel som brukes for kappe-produkter (script.js:373).
+            if (allowedUnits.length > 0 && defaultUnit
+                && !allowedUnits.some(function(u) { return u.toLowerCase() === defaultUnit.toLowerCase(); })) {
+                defaultUnit = allowedUnits[0];
+            }
             // fixedSize: produktet kommer i FASTE størrelser (ferdige mansjetter),
             // ikke på rull. Da er løpemeter meningsløst — se getRunningMeterInfo.
             // MÅ også med i saveMaterialSettings, ellers forsvinner feltet ved lagring.
@@ -2493,12 +2504,12 @@ function renderMaterialSettingsItems() {
             return `<div class="settings-material-unit-item">
                 ${starIcon}<span class="settings-material-unit-text">${escapeHtml(label)}</span>${editBtn}${removeBtn}</div>`;
         }).join('');
-        const addRow = unitLocked ? '' : `<div class="settings-material-unit-add" onclick="addMaterialUnit(${idx})">+ Legg til variant</div>`;
+        const addRow = unitLocked ? '' : `<div class="settings-material-unit-add" onclick="addMaterialUnit(${idx})">+ Legg til enhet</div>`;
         const isExpanded = expandedSet.has(item.name);
         const matType = item.type || 'standard';
         const bodyContent = unitLocked ? '' : `${variantsHtml}${addRow}`;
         const variantCount = (!unitLocked && item.allowedUnits) ? item.allowedUnits.length : 0;
-        const countBadge = variantCount > 0 ? `<span class="settings-material-variant-count" title="${variantCount} ${variantCount === 1 ? 'variant' : 'varianter'}">${variantCount}</span>` : '';
+        const countBadge = variantCount > 0 ? `<span class="settings-material-variant-count" title="${variantCount} ${variantCount === 1 ? 'enhet' : 'enheter'}">${variantCount}</span>` : '';
         return `<div class="settings-material-group${isExpanded ? ' expanded' : ''}">
             <div class="settings-material-header"${unitLocked ? '' : ' onclick="toggleMaterialExpand(this)"'}>
                 <div class="settings-material-name-wrap">
@@ -2544,7 +2555,7 @@ function addMaterialUnit(idx) {
     editRow.className = 'settings-material-unit-edit';
     const inputV = document.createElement('input');
     inputV.type = 'text';
-    inputV.placeholder = 'Variantnavn';
+    inputV.placeholder = 'Enhetsnavn';
     inputV.autocapitalize = 'sentences';
     var okBtn = document.createElement('button');
     okBtn.className = 'settings-unit-save settings-unit-save-ok';
@@ -2590,7 +2601,7 @@ function editMaterialUnit(idx, unitIdx, itemEl) {
     const inputV = document.createElement('input');
     inputV.type = 'text';
     inputV.value = oldValue;
-    inputV.placeholder = 'Variantnavn';
+    inputV.placeholder = 'Enhetsnavn';
     var okBtn = document.createElement('button');
     okBtn.className = 'settings-unit-save settings-unit-save-ok';
     okBtn.textContent = 'OK';
@@ -2600,7 +2611,11 @@ function editMaterialUnit(idx, unitIdx, itemEl) {
     editRow.appendChild(inputV);
     editRow.appendChild(okBtn);
     editRow.appendChild(cancelBtn);
-    itemEl.replaceWith(editRow);
+    // itemEl er blyantKNAPPEN (onclick sender this) — erstatt hele RADEN, ikke
+    // knappen. Uten .closest() ble stjernen og variantnavnet stående igjen ved
+    // siden av input-feltet, så navnet vistes to ganger under redigering.
+    // Samme mønster som editKappeProductUnit.
+    (itemEl.closest('.settings-material-unit-item') || itemEl).replaceWith(editRow);
     inputV.focus();
     inputV.select();
 
@@ -2609,6 +2624,11 @@ function editMaterialUnit(idx, unitIdx, itemEl) {
         if (variant && variant !== oldValue) {
             if (!mat.allowedUnits) mat.allowedUnits = units.slice();
             mat.allowedUnits[unitIdx] = variant;
+            // Var den omdøpte varianten standard, skal den FORTSATT være det —
+            // det er samme variant, bare nytt navn. Uten dette ble defaultUnit
+            // hengende på det gamle navnet (samme opprydning som
+            // removeMaterialUnit gjør ved sletting).
+            if (mat.defaultUnit === oldValue) mat.defaultUnit = variant;
             saveMaterialSettings();
         }
         renderMaterialSettingsItems();
@@ -2821,7 +2841,7 @@ function _pickerAddMaterialFormHtml() {
                 '</select>' +
             '</div>' +
             '<div class="settings-add-unit-fields" id="picker-variant-field">' +
-                '<label class="settings-add-label">Variant (valgfri)</label>' +
+                '<label class="settings-add-label">Enhet (valgfri)</label>' +
                 // Kortere placeholder enn i Innstillinger: feltet deler linje med
                 // Type, så «f.eks. patron, plate» ble klippet på 360px.
                 '<input type="text" id="picker-new-material-variant" autocapitalize="sentences" placeholder="f.eks. patron">' +

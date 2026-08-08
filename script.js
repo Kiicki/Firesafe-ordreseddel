@@ -1042,6 +1042,22 @@ function getMaterialRowUnit(m) {
     return m.quantityUnit || getMaterialQuantityUnit(m.name, m.enhet, m.source) || 'stk';
 }
 
+// ÉN kilde for «skal varianten stå i NAVNET?». Normalt nei: varianten ER enheten
+// (se getMaterialQuantityUnit) og hører i Enhet-kolonnen — ellers står
+// pakningsformen to steder («FSA pølse · 1,0 pølse»). Eneste unntak er en
+// FORELDRELØS variant (slettet eller omdøpt) som ikke ble enheten: da beholdes
+// ordet i navnet så informasjonen ikke forsvinner sporløst.
+// Lå tidligere som fire nesten like kopier — begge eksport-veiene,
+// materialvelgeren og ordrekortet — og de drev fra hverandre: ordrekortet
+// appendet ubetinget og skrev derfor varianten dobbelt.
+function materialVariantSuffix(m) {
+    if (!m) return '';
+    var variant = String(normalizeVariant(m.name, m.enhet || '') || '').toLowerCase();
+    if (!variant || variant === 'stk' || variant === 'meter') return '';
+    if (variant === String(getMaterialRowUnit(m) || '').toLowerCase()) return '';
+    return ' ' + variant;
+}
+
 function getMaterialQuantityUnit(materialName, enhet, source) {
     if (source && source.indexOf('unit:') === 0) return source.substring(5);
     var enhetLower = (enhet || '').toLowerCase();
@@ -1065,6 +1081,21 @@ function getMaterialQuantityUnit(materialName, enhet, source) {
     if (productDefault) return productDefault;
     if (source === 'kappe-products') return 'meter';
     var config = getMaterialPickerConfig(materialName);
+    // Et standard-materiales VARIANT ER enheten. «Sekk», «Pølse», «Patron» er
+    // pakningsformer man faktisk bestiller i — «stk» ville vært den tomme
+    // enheten, og ordet måtte da klemmes inn i Beskrivelse i stedet («GPG sekk
+    // · 4,0 · stk»). Spec-materialene har alltid gjort det riktig («Ø250mm ·
+    // 3,0 · eske»); dette gjør standard-materialene like.
+    // Kun når enheten faktisk ER en av materialets varianter — et foreldreløst
+    // navn (variant slettet/omdøpt) faller fortsatt tilbake til «stk», og da
+    // beholder Beskrivelse ordet så informasjonen ikke forsvinner.
+    if (config && (config.type || 'standard') === 'standard' && enhetLower
+        && (config.allowedUnits || []).some(function(u) {
+            var label = typeof u === 'string' ? u : (u.plural || u.singular || '');
+            return String(label).toLowerCase() === enhetLower;
+        })) {
+        return enhetLower;
+    }
     return (config && config.quantityUnit === 'meter') ? 'meter' : 'stk';
 }
 
@@ -2817,11 +2848,7 @@ function createMaterialSummaryRow(m, groupBaseName) {
         var rawName = (m.name || '');
         rawName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
         nameFormatted = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
-        // Append variant to name if enhet is not stk/meter (it's a variant like "patron")
-        var enhetVal = normalizeVariant(m.name, m.enhet || '').toLowerCase();
-        if (enhetVal && enhetVal !== 'stk' && enhetVal !== 'meter') {
-            nameFormatted += ' ' + enhetVal;
-        }
+        nameFormatted += materialVariantSuffix(m);
         // Spec-suffix for isolasjon: bredde-modus → "×160mm" (uten spaces, konsistent med
         // FSC/FSW/Kabelhylse), plate-modus → "(plate)".
         if (m.bredde) {
@@ -3268,17 +3295,13 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         // Spec-launchere (mansjett/brannpakning/kabelhylse uten valgt størrelse) er
         // ikke-aktiverte rader som krever popup for å bli konkrete entries.
         const isSpecLauncher = isLauncher && !isChecked;
-        // Klassifiser enhet:
-        //  - meter/løpende: vises som liten "m"-badge ved siden av navn
-        //  - stk eller tom: ingen ekstra visning (default)
-        //  - alt annet (Patron, Pølse, etc.): er en variant — append'es til navn
-        const isMeterEnhet = enhetLower === 'meter' || enhetLower === 'løpende' || enhetLower === 'lm';
-        const isVariantEnhet = !!enhetLower && enhetLower !== 'stk' && !isMeterEnhet;
         const activeQuantityUnit = quantityUnit || getMaterialQuantityUnit(name, enhet, source);
         const isMeterQuantity = activeQuantityUnit === 'meter';
-        // Bygg visningsnavn: append variant hvis material har variant valgt
-        const displayName = (hasVariants && isVariantEnhet)
-            ? baseDisplay + ' ' + (enhet || '')
+        // Samme regel som eksporten og ordrekortet, via den delte helperen.
+        // hasVariants-vakten står igjen fordi spec-rader («FSC Ø250mm», eske) ikke
+        // er varianter — de har målet i navnet og enheten i pillen fra før.
+        const displayName = hasVariants
+            ? baseDisplay + materialVariantSuffix({ name: name, enhet: enhet, source: source, quantityUnit: activeQuantityUnit })
             : baseDisplay;
         // Enhets-pill etter navnet for konsistens på alle rader. Spec-launchere
         // (ikke valgt enda) får ingen pill — de er placeholder for popup.
@@ -3341,7 +3364,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
             var _bm = allMaterials.find(function(m) { return m.name === (parseMaterialPickerKey(name).baseName || name); });
             var _vc = _bm && _bm.allowedUnits ? _bm.allowedUnits.length : 0;
             if (_vc > 0) {
-                variantBadge = '<span class="picker-mat-variant-count" title="' + _vc + ' ' + (_vc === 1 ? 'variant' : 'varianter') + '">' + _vc + '</span>';
+                variantBadge = '<span class="picker-mat-variant-count" title="' + _vc + ' ' + (_vc === 1 ? 'enhet' : 'enheter') + '">' + _vc + '</span>';
             }
         }
         // Meter-badgen er fjernet etter brukerønske — Antall-placeholder ("Meter") og
@@ -6817,10 +6840,7 @@ function buildDesktopWorkLines() {
                 } else {
                     const rawName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
                     capName = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
-                    var expEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
-                    if (expEnhet && expEnhet !== 'stk' && expEnhet !== 'meter') {
-                        capName += ' ' + expEnhet;
-                    }
+                    capName += materialVariantSuffix(m);
                 }
                 const antallNum = parseFloat((m.antall || '').replace(',', '.'));
                 // Dimensjonsrader viser STK. Meter-omregningen brukes fortsatt, men
@@ -6874,16 +6894,13 @@ function buildDesktopWorkLines() {
                     exportGroups[festIdx] = mergedGroup;
                 }
             })();
-            // «Materiell:»-header vises kun når det finnes løse varer (uten
-            // gruppering — typisk standard-produkter som GPG, FSB1). Når
-            // alle varer er i sub-grupper (FSC/FSW/Kabelhylse/Isolering) gir
-            // headeren ingen mening — sub-headere identifiserer alt.
-            var _hasLooseItems = exportGroups.some(function(g) {
-                return !g.isSpecGroup && !g.isIsolationGroup && !g.isStiftGroup;
-            });
-            if (_hasLooseItems) {
-                addRow('Materiell:', '', '', { bold: true, alignRight: true });
-            }
+            // Ingen «Materiell:»-header over de løse varene. Den navnga hele
+            // tabellen, ikke en gruppe — alt under er materiell — men hadde
+            // samme stil som produkt-headerne (fet, høyrestilt) og leste derfor
+            // som et produktnavn. Kolonne-headerne gir konteksten, og rammen
+            // gir skillet mot beskrivelses-blokken over. Dokumentet var
+            // uansett allerede uten den når alle varer lå i sub-grupper.
+            // Samme fjerning i computeWorkRows (PDF) — de to må være like.
             exportGroups.forEach(function(group) {
                 if (!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) {
                     group.items.forEach(function(gm) { addExportMatRow(gm); });
@@ -7066,8 +7083,7 @@ function computeWorkRows(orders, minRows) {
                 } else {
                     var rawName = m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : '';
                     capName = formatKabelhylseSpec(rawName.replace(/ø(?=\d)/g, 'Ø')).replace(/^(.+?)r(\d+)$/, '$1 ($2 lag)').replace(/^(.+?) (\d+) lag$/, '$1 ($2 lag)');
-                    var expEnhet = normalizeVariant(m.name, m.enhet || '').toLowerCase();
-                    if (expEnhet && expEnhet !== 'stk' && expEnhet !== 'meter') capName += ' ' + expEnhet;
+                    capName += materialVariantSuffix(m);
                 }
                 var antallNum = parseFloat((m.antall || '').replace(',', '.'));
                 // Dimensjonsrader viser STK — se kommentar i buildDesktopWorkLines.
@@ -7099,8 +7115,7 @@ function computeWorkRows(orders, minRows) {
                 if (festIdx > isoIdx) { exportGroups.splice(festIdx, 1); exportGroups[isoIdx] = mergedGroup; }
                 else { exportGroups.splice(isoIdx, 1); exportGroups[festIdx] = mergedGroup; }
             })();
-            var _hasLooseItems = exportGroups.some(function(g) { return !g.isSpecGroup && !g.isIsolationGroup && !g.isStiftGroup; });
-            if (_hasLooseItems) addRow('Materiell:', '', '', { bold: true, alignRight: true });
+            // Ingen «Materiell:»-header — se begrunnelsen i buildDesktopWorkLines.
             exportGroups.forEach(function(group) {
                 if (!group.isSpecGroup && !group.isIsolationGroup && !group.isStiftGroup) {
                     group.items.forEach(function(gm) { addExportMatRow(gm); });

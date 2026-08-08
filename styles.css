@@ -4864,6 +4864,16 @@ body.keyboard-open #spec-popup .spec-popup-sheet {
 .mobile-order-materials .mat-summary-grouped {
     padding-left: 0;
 }
+/* Total-raden MÅ følge de grupperte radene den avslutter. Basisregelen gir den
+   «padding: 5px 2px 4px 10px» for å matche .mat-summary-grouped sitt 10px
+   innrykk — riktig i servicebil/bil-historikk, der innrykket beholdes. Her er
+   grupperte rader satt til 0 (regelen rett over), men total-raden ble ikke med,
+   så etiketten sto 10px inn og verdien 2px inn mens alle andre rader lå på 0.
+   Endres innrykket over, skal dette endres i takt. */
+.mobile-order-materials .mat-summary-total {
+    padding-left: 0;
+    padding-right: 0;
+}
 .bil-history-group-header {
     font-weight: 600;
     font-size: 13px;
