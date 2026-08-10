@@ -5140,6 +5140,15 @@ function parseUkeNumbers(text) {
     return Object.keys(found).map(Number).sort(function(a, b) { return a - b; });
 }
 
+// Hvilken uke flate timer (uten .uker-fordeling) trygt kan tilskrives: KUN når
+// skjemaet dekker NØYAKTIG ÉN uke — da hører alle timene per definisjon til den.
+// Dekker skjemaet null eller flere uker, er fordelingen ukjent, og da skal det
+// ikke gjettes. Gjelder gamle skjemaer og skjemaer lagret i perioden der
+// getFormData droppet `uker`; de har timer, men ingen fordeling.
+function soleWeekOf(weeks) {
+    return (weeks && weeks.length === 1) ? String(weeks[0]) : '';
+}
+
 // Ukene ordreseddelen som er ÅPEN gjelder for. Tom liste = ukjent.
 function currentFormUkeNumbers() {
     var el = document.getElementById('mobile-dato');
@@ -5245,7 +5254,7 @@ function formatUkeLabel(text) {
 // uke når timene er fordelt på flere, ellers én samlet linje som før.
 // Uten dette ble to uker slått sammen til én liste der «Lørdag (31t)» egentlig var
 // to lørdager — samme sammenblanding som popupen nå unngår.
-function orderArbeidstidMeta(order) {
+function orderArbeidstidMeta(order, fallbackWeeks) {
     // dagShortMap, ikke fulle dagnavn: med full skrivemåte brøt linja til to når
     // en uke hadde mange dager. Dette er dessuten den forkortelsen appen ALLEREDE
     // bruker i sammendraget på bestillings-kortet, så montøren og kunden ser nå
@@ -5293,9 +5302,12 @@ function orderArbeidstidMeta(order) {
         });
         if (out.length) return out;
     }
-    // Ingen uke-fordeling (data lagret før uke-oppdelingen) → ingen ukenummer.
+    // Ingen uke-fordeling (data lagret før uke-oppdelingen). Dekker skjemaet
+    // bare ÉN uke, vet vi likevel hvilken timene hører til — se soleWeekOf.
     var flat = bygg(timer);
-    return flat.length ? [{ label: t('order_days') + ': ', value: flat.join(' \u00b7 ') }] : [];
+    if (!flat.length) return [];
+    var sole = soleWeekOf(fallbackWeeks);
+    return [{ label: t('order_days') + (sole ? ' uke ' + sole : '') + ': ', value: flat.join(' \u00b7 ') }];
 }
 
 // Timer ført på ÉN bestemt uke. Brukes til uke-summering på tvers av ordresedler.
@@ -5464,8 +5476,15 @@ function updateDagTimerSummary(card) {
                 + SEP + p.join(SEP));
         });
     } else {
+        // Uten fordeling: merk likevel linja når skjemaet dekker bare ÉN uke.
+        // Samme regel som eksporten bruker (soleWeekOf), så de to viser likt.
         var flat = _dayParts(timer);
-        if (flat.length) lines.push(flat.join(SEP));
+        if (flat.length) {
+            var sole = soleWeekOf(typeof currentFormUkeNumbers === 'function' ? currentFormUkeNumbers() : []);
+            lines.push(sole
+                ? '<span class="dt-part"><b class="dt-label">Uke ' + escapeHtml(sole) + '</b></span>' + SEP + flat.join(SEP)
+                : flat.join(SEP));
+        }
     }
     // Etasjer — bestilling-nivå, vist ÉN gang. Egen linje: hengt på slutten av
     // siste uke-linje ville de sett ut som om de bare gjaldt den uka.
@@ -6807,7 +6826,7 @@ function buildDesktopWorkLines() {
             }
 
             // Én linje per uke når timene er fordelt (se orderArbeidstidMeta).
-            var arbMeta = orderArbeidstidMeta(order);
+            var arbMeta = orderArbeidstidMeta(order, currentFormUkeNumbers());
             arbMeta.forEach(function(m, mi) {
                 if (mi > 0) descContent.appendChild(document.createTextNode('\n'));
                 const dagLabel = document.createElement('strong');
@@ -7074,7 +7093,9 @@ function buildDesktopWorkLines() {
 //   { kind:'descblock', paragraphs:[str...], meta:[{label, value}] }  — beskrivelse + Dager/Plan/Merknad
 //   { desc, antall, enhet, bold, italic, alignRight }                 — material/tid/total-rader
 // minRows: fyll opp med tomme rader til minst N (som dagens 15-rad-gulv).
-function computeWorkRows(orders, minRows) {
+// weeks: ukene skjemaet dekker (fra Uke-feltet). Brukes kun som fallback når en
+// bestilling mangler .uker-fordeling — se soleWeekOf.
+function computeWorkRows(orders, minRows, weeks) {
     var rows = [];
     function addRow(desc, antall, enhet, options) {
         options = options || {};
@@ -7094,7 +7115,7 @@ function computeWorkRows(orders, minRows) {
             var paragraphs = order.description ? String(order.description).split(/\n\n+/) : [];
             var meta = [];
             // Samme kilde som HTML-eksporten — én linje per uke ved fordeling.
-            orderArbeidstidMeta(order).forEach(function(m) { meta.push(m); });
+            orderArbeidstidMeta(order, weeks).forEach(function(m) { meta.push(m); });
             if (order.plan) meta.push({ label: 'Plan: ', value: order.plan });
             if (order.merknad) meta.push({ label: 'Merknad: ', value: order.merknad });
             rows.push({ kind: 'descblock', paragraphs: paragraphs, meta: meta });

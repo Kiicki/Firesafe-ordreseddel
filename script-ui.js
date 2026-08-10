@@ -5262,7 +5262,7 @@ async function _renderOrdreseddelInto(doc, data) {
         tableHeader();
         // Minst 15 rader (som papir-skjemaet) for håndskrevne tillegg. Siden
         // tilpasser høyden til innholdet, så ingen A4-hale under radene.
-        var rows = computeWorkRows(data.orders || [], 15);
+        var rows = computeWorkRows(data.orders || [], 15, parseUkeNumbers(data.dato));
         rows.forEach(drawRow);
 
         // ── Signatur ──
