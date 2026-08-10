@@ -5426,25 +5426,54 @@ function updateDagTimerSummary(card) {
     const textEl = display.querySelector('.dag-timer-display-text');
     const btn = card.querySelector('.mobile-arbeidstid-btn');
     const timer = JSON.parse(card.getAttribute('data-timer') || '{}');
-    const dagOrder = ['ma','ti','on','to','fr','lo','so'];
     function _formatDayPart(label, hours) {
         var hoursStr = hours ? escapeHtml(String(hours).replace('.', ',')) + 't' : '';
         var inner = '<b class="dt-day">' + escapeHtml(label) + '</b>';
         if (hoursStr) inner += ' ' + hoursStr;
         return '<span class="dt-part">' + inner + '</span>';
     }
-    // Timer per dag (etasjer er felles for bestillingen og vises ÉN gang til slutt).
-    const parts = dagOrder.filter(d => timer[d]).map(d => {
-        return _formatDayPart(dagShortMap[d] || d, timer[d] || '');
-    });
-    var genVal = timer._generelt || timer._total;
-    if (genVal) parts.push(_formatDayPart('Annet', genVal));
-    // Etasjer — bestilling-nivå, vist én gang.
+    // Dag-delene for ETT sett timer — én uke, eller de flate nøklene for data
+    // lagret før uke-oppdelingen. TIMER_DAY_KEYS_CORE er samme kilde som
+    // eksporten bruker, så dagrekkefølgen kan ikke drive fra hverandre.
+    function _dayParts(tm) {
+        var out = TIMER_DAY_KEYS_CORE.filter(function(d) { return tm[d]; }).map(function(d) {
+            return _formatDayPart(dagShortMap[d] || d, tm[d]);
+        });
+        var g = tm._generelt || tm._total;
+        if (g) out.push(_formatDayPart('Annet', g));
+        return out;
+    }
+    var SEP = '<span class="dt-sep">•</span>';
+    var lines = [];
+    var uker = (timer.uker && typeof timer.uker === 'object')
+        ? Object.keys(timer.uker).sort(function(a, b) { return Number(a) - Number(b); })
+        : [];
+    if (uker.length) {
+        // ÉN LINJE PER UKE. De flate nøklene i `timer` er SUMMEN på tvers av uker,
+        // så én felles linje viste «On 19t» for to onsdager à 9,5t — nettopp den
+        // sammenblandingen uke-modellen ble laget for å fjerne, og stikk i strid
+        // med eksporten, som skiller ukene. Kortet er der man leser tilbake det
+        // man har ført; slås ukene sammen, kan man ikke kontrollere det uten å
+        // åpne popupen.
+        // Ukenummeret tas med OGSÅ når det bare er én uke — samme begrunnelse som
+        // i orderArbeidstidMeta: én fast form, framfor å veksle etter antall uker.
+        uker.forEach(function(w) {
+            var p = _dayParts(timer.uker[w] || {});
+            if (!p.length) return;
+            lines.push('<span class="dt-part"><b class="dt-week">Uke ' + escapeHtml(w) + '</b></span>'
+                + SEP + p.join(SEP));
+        });
+    } else {
+        var flat = _dayParts(timer);
+        if (flat.length) lines.push(flat.join(SEP));
+    }
+    // Etasjer — bestilling-nivå, vist ÉN gang. Egen linje: hengt på slutten av
+    // siste uke-linje ville de sett ut som om de bare gjaldt den uka.
     var floors = ((typeof _getCardPlans === 'function') ? _getCardPlans(card) : []).join(', ');
     if (floors) {
-        parts.push('<span class="dt-part"><span class="dt-plan">' + escapeHtml(floors) + '</span></span>');
+        lines.push('<span class="dt-part"><span class="dt-plan">' + escapeHtml(floors) + '</span></span>');
     }
-    var summary = parts.join('<span class="dt-sep">•</span>');
+    var summary = lines.map(function(l) { return '<span class="dt-line">' + l + '</span>'; }).join('');
     textEl.innerHTML = summary;
     // Skjul separator-bullets som havner først/sist på en linje (ved wrap)
     requestAnimationFrame(function() { _hideEdgeSeparators(textEl); });
