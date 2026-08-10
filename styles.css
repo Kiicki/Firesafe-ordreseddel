@@ -4703,6 +4703,35 @@ body.keyboard-open #spec-popup .spec-popup-sheet {
 .template-picker-sheet .spec-popup-body {
     max-height: 60vh;
 }
+/* Skjuler prosjekt-velgeren mens prosjekt-editoren er åpen. Velgeren er en
+   .spec-popup-backdrop (z-index 60), editoren en .confirm-modal (20) — uten
+   dette ville editoren blitt liggende BAK velgeren. Kun visuelt: elementet blir
+   i DOM så velgerens måltilstand (ordreseddel/service/kappe) overlever. */
+#template-picker-overlay.template-picker--hidden {
+    display: none !important;
+}
+/* «+ Nytt prosjekt» nederst i lista. Stiplet ramme = «legger til noe», samme
+   språk som «+ Ny dimensjon» i kappe-produktvelgeren. Padding og margin matcher
+   .saved-item (14px 16px / 10px) så den står i takt med prosjekt-radene. */
+.template-picker-add {
+    display: block;
+    width: 100%;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    border: 2px dashed #d6d6db;
+    border-radius: 8px;
+    background: #fff;
+    color: #E8501A;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.template-picker-add:active {
+    background: #fdece5;
+}
 .variant-popup-btn {
     display: block;
     width: 100%;

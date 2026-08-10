@@ -3634,6 +3634,10 @@ async function toggleRequiredField(section, key, value) {
 // ============================================
 
 var _editingTemplateId = null;
+// Ble prosjekt-editoren åpnet fra «Velg prosjekt» (ikke fra Innstillinger)?
+// Styrer om velgeren skal tilbake ved avbryt, og om det nye prosjektet skal
+// tas i bruk med én gang ved lagring.
+var _templateEditorFromPicker = false;
 
 function _findSettingsTemplateItem(templateId) {
     var items = document.querySelectorAll('.settings-template-item[data-id]');
@@ -3868,6 +3872,12 @@ function showTemplateEditor(templateId) {
 function closeTemplateEditor() {
     _editingTemplateId = null;
     document.getElementById('template-editor-overlay').classList.remove('active');
+    // Avbrutt fra «Velg prosjekt» → vis velgeren igjen. Uten dette ville avbryt
+    // etterlate brukeren i skjemaet, uten lista de faktisk sto i.
+    if (_templateEditorFromPicker) {
+        _templateEditorFromPicker = false;
+        _setTemplatePickerHidden(false);
+    }
 }
 
 async function duplicateTemplateFromSettings(templateId) {
@@ -3966,8 +3976,21 @@ async function saveTemplateFromEditor() {
         enqueueUserDocSet('templates', data.id, data, 'Create template');
     }
 
+    // Nullstilles FØR closeTemplateEditor, ellers ville den vist velgeren igjen
+    // et øyeblikk før vi lukker den — en synlig blink.
+    var fromPicker = _templateEditorFromPicker;
+    _templateEditorFromPicker = false;
     closeTemplateEditor();
     _renderSettingsTemplateListFromData(templates);
+    // Opprettet fra «Velg prosjekt»: ta det i bruk med det samme. Man åpner jo
+    // velgeren fordi et prosjekt skal brukes NÅ — samme resonnement som
+    // addPlanFromPicker, der den nye etasjen hukes av direkte.
+    // _applyTemplateToForm treffer riktig skjema (ordreseddel/service/kappe) og
+    // lukker velgeren selv.
+    if (fromPicker) {
+        _setTemplatePickerHidden(false);
+        _applyTemplateToForm(data);
+    }
 }
 
 async function toggleTemplateActive(templateId) {
@@ -11699,22 +11722,48 @@ function closeTemplatePicker() {
 }
 
 function _renderTemplatePickerList(templates, listEl) {
-    if (!templates || templates.length === 0) {
-        listEl.innerHTML = '<div class="bil-empty-msg">' + t('no_templates') + '</div>';
-        return;
-    }
-    var html = '';
-    for (var i = 0; i < templates.length; i++) {
+    var hasAny = !!(templates && templates.length);
+    var html = hasAny ? '' : '<div class="bil-empty-msg">' + t('no_templates') + '</div>';
+    for (var i = 0; hasAny && i < templates.length; i++) {
         html += _buildTemplateItemHtml(templates[i], i);
     }
+    // «+ Nytt prosjekt» ligger I LISTA, ikke i knapperaden, nettopp så den også
+    // vises når lista er tom — den tomme lista var ellers en blindvei som tvang
+    // brukeren ut i Innstillinger for å komme videre. Samme resonnement som
+    // «+»-raden i etasje-velgeren. Ingen admin-gate, fordi knappen i
+    // Innstillinger heller ikke har en.
+    html += '<button type="button" class="template-picker-add" onclick="newTemplateFromPicker()">'
+        + escapeHtml(t('settings_new_template')) + '</button>';
     listEl.innerHTML = html;
 
-    // Attach click handlers
+    // Attach click handlers. Knappen er ingen .saved-item, så indeksene under
+    // følger fortsatt templates[] og klikk-delegeringen på lista treffer den ikke.
     var items = listEl.querySelectorAll('.saved-item');
     for (var j = 0; j < items.length; j++) {
         items[j]._formData = templates[j];
     }
 }
+
+// Prosjekt-editoren gjenbrukes 1:1 fra Innstillinger — samme felter, samme
+// validering av obligatoriske felt og samme Firebase-lagring. Ingen kopi av
+// skjemaet, så de kan ikke drive fra hverandre.
+function _setTemplatePickerHidden(hidden) {
+    var ov = document.getElementById('template-picker-overlay');
+    if (ov) ov.classList.toggle('template-picker--hidden', !!hidden);
+}
+
+function newTemplateFromPicker() {
+    // Velgeren er en .spec-popup-backdrop (z-index 60) og editoren en
+    // .confirm-modal (20), så editoren ville havnet BAK velgeren. Derfor skjules
+    // velgeren mens editoren står åpen — samme grep som dag-timer-modalen gjør
+    // når plan-popupen åpnes. Klassen skjuler kun visuelt: elementet blir i DOM,
+    // så _kappeTemplateActive / _serviceTemplateTargetCard (altså HVILKET skjema
+    // prosjektet skal inn i) overlever turen innom editoren.
+    _templateEditorFromPicker = true;
+    _setTemplatePickerHidden(true);
+    showTemplateEditor();
+}
+window.newTemplateFromPicker = newTemplateFromPicker;
 
 var _serviceTemplateTargetCard = null;
 
