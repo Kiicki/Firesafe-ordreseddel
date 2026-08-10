@@ -5460,7 +5460,7 @@ function updateDagTimerSummary(card) {
         uker.forEach(function(w) {
             var p = _dayParts(timer.uker[w] || {});
             if (!p.length) return;
-            lines.push('<span class="dt-part"><b class="dt-week">Uke ' + escapeHtml(w) + '</b></span>'
+            lines.push('<span class="dt-part"><b class="dt-label">Uke ' + escapeHtml(w) + '</b></span>'
                 + SEP + p.join(SEP));
         });
     } else {
@@ -5469,9 +5469,17 @@ function updateDagTimerSummary(card) {
     }
     // Etasjer — bestilling-nivå, vist ÉN gang. Egen linje: hengt på slutten av
     // siste uke-linje ville de sett ut som om de bare gjaldt den uka.
+    // Etiketten er nødvendig: uten den sto linja som et bart «1, 2, 3», som ikke
+    // sier hva tallene ER — og den var den eneste linja uten etikett etter at
+    // uke-linjene fikk sin. Teksten hentes fra SAMME nøkkel som raden i
+    // Arbeidstid-popupen bruker, så kortet og popupen ikke kan si ulike ting.
+    // Fast form (alltid flertall), ikke entall/flertall etter antall: appen skal
+    // ikke veksle mellom to former for samme felt.
     var floors = ((typeof _getCardPlans === 'function') ? _getCardPlans(card) : []).join(', ');
     if (floors) {
-        lines.push('<span class="dt-part"><span class="dt-plan">' + escapeHtml(floors) + '</span></span>');
+        lines.push('<span class="dt-part"><b class="dt-label">' + escapeHtml(t('settings_req_etasjer'))
+            + '</b></span>' + SEP
+            + '<span class="dt-part"><span class="dt-plan">' + escapeHtml(floors) + '</span></span>');
     }
     var summary = lines.map(function(l) { return '<span class="dt-line">' + l + '</span>'; }).join('');
     textEl.innerHTML = summary;

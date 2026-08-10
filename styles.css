@@ -2664,9 +2664,9 @@ label.settings-default-label.field-required > span::after {
 .dag-timer-display-text .dt-line {
     display: block;
 }
-/* Uke-etiketten er dempet: den merker linja, men skal ikke konkurrere med
-   dagnavnene (.dt-day) som er det man faktisk leser. */
-.dag-timer-display-text .dt-week {
+/* Linje-etikett («Uke 30», «Etasjer»). Dempet: den merker hva linja er, men
+   skal ikke konkurrere med verdiene (.dt-day/.dt-plan) som er det man leser. */
+.dag-timer-display-text .dt-label {
     color: #8e8e93;
     font-weight: 600;
 }
