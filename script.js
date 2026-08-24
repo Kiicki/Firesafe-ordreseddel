@@ -1678,6 +1678,12 @@ if (auth) {
                     _templateHasMore = result.hasMore;
                     safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
                     window.loadedTemplates = result.forms;
+                    // Prosjektene er fasit for prosjektfeltene i skjemaene. Lister som
+                    // rakk å rendre FØR malene var lastet ble synket mot en tom
+                    // fasit — rendre dem på nytt nå som fasiten finnes.
+                    if (typeof _rerenderListsAfterProjectCorrection === 'function') {
+                        _rerenderListsAfterProjectCorrection();
+                    }
                     // Refresh template modal if still visible
                     if (document.body.classList.contains('template-modal-open')) {
                         var active = result.forms.filter(function(t) { return t.active !== false; });
@@ -6035,6 +6041,7 @@ function getServiceFormData() {
 }
 
 function setServiceFormData(data) {
+    if (typeof syncOneFormWithProjects === 'function') data = syncOneFormWithProjects(data, 'identity');
     if (!data) return;
     var montorEl = document.getElementById('service-montor');
     if (montorEl) montorEl.value = stripEtternavn(data.montor);
@@ -7309,6 +7316,9 @@ function getFormData() {
 }
 
 function setFormData(data) {
+    // Fasit-synk: prosjektet i Innstillinger eier skrivemåten på prosjektfeltene.
+    if (typeof syncOneFormWithProjects === 'function') data = syncOneFormWithProjects(data, 'full');
+
     // Helper for safe value setting
     function setVal(id, val) {
         const el = document.getElementById(id);

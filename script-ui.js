@@ -490,6 +490,8 @@ function _toggleSavedItemDetails(item) {
 }
 
 function renderSavedFormsList(forms, append, hasMore) {
+    // Fasit-synk før visning: prosjektet i Innstillinger eier skrivemåten.
+    forms = syncFormsWithProjects(forms, 'full');
     var listEl = document.getElementById('saved-list');
     // Remove existing "load more" button
     var existingBtn = listEl.querySelector('.load-more-btn');
@@ -3994,13 +3996,24 @@ function _projectSnapshotMatches(obj, match) {
     return !!navn && navn.toLowerCase() === matchNavn.toLowerCase();
 }
 
+// Sammenlignings-normalisering: samme tekst bortsett fra store/små bokstaver og
+// mellomrom. Brukes av `from`-vernet i _applyProjectCorrection.
+function _projNorm(v) { return _projTrim(v).replace(/\s+/g, ' ').toLowerCase(); }
+
 // Skriv rettelsen inn i ett snapshot. Returnerer true hvis noe faktisk endret seg.
-function _applyProjectCorrection(obj, changes, fields) {
+//
+// `from` er vernet mot å overskrive brukerens egne verdier: et felt rettes KUN når
+// det fortsatt inneholder det `from` sier det skal — altså at det er en urørt kopi av
+// prosjektet. Har brukeren skrevet noe annet i feltet (typisk en ordre-spesifikk
+// kundens ref eller fakturaadresse), matcher det ikke og feltet røres aldri.
+// Sammenligningen er skrivemåte-uavhengig, så nettopp en case-feil ikke sperrer.
+function _applyProjectCorrection(obj, changes, fields, from) {
     var changed = false;
     for (var i = 0; i < fields.length; i++) {
         var k = fields[i];
         if (!Object.prototype.hasOwnProperty.call(changes, k)) continue;
         if (!_projTrim(obj[k])) continue;                        // tomt felt → ikke fyll ut
+        if (from && _projNorm(obj[k]) !== _projNorm(from[k])) continue;
         if (_projTrim(obj[k]) === _projTrim(changes[k])) continue;
         obj[k] = changes[k];
         changed = true;
@@ -4013,7 +4026,7 @@ function _applyProjectRules(obj, rules, fields) {
     var changed = false;
     for (var i = 0; i < rules.length; i++) {
         if (!_projectSnapshotMatches(obj, rules[i].match)) continue;
-        if (_applyProjectCorrection(obj, rules[i].changes, fields)) changed = true;
+        if (_applyProjectCorrection(obj, rules[i].changes, fields, rules[i].from)) changed = true;
     }
     return changed;
 }
@@ -4072,11 +4085,12 @@ function _applyTimebokRenames(obj, renames) {
 }
 
 function _correctProjectInTimebokLocal(renames) {
+    var anyChanged = false;
     if (typeof getTimebokProjects === 'function' && typeof _timebokSaveProjects === 'function') {
         var list = getTimebokProjects();
         var listChanged = false;
         list.forEach(function(p) { if (_applyTimebokRenames(p, renames)) listChanged = true; });
-        if (listChanged) _timebokSaveProjects(list);
+        if (listChanged) { _timebokSaveProjects(list); anyChanged = true; }
     }
     if (typeof _timebokGetCache === 'function' && typeof _timebokSetCache === 'function') {
         var cache = _timebokGetCache();
@@ -4086,8 +4100,9 @@ function _correctProjectInTimebokLocal(renames) {
                 if (_applyTimebokRenames(p, renames)) cacheChanged = true;
             });
         });
-        if (cacheChanged) _timebokSetCache(cache);
+        if (cacheChanged) { _timebokSetCache(cache); anyChanged = true; }
     }
+    return anyChanged;
 }
 
 // ── Åpent skjema (input-feltene på skjermen) ──
@@ -4258,7 +4273,9 @@ async function _correctProjectInFirestore(rules, renames) {
 // ville risikert å tegne feil datasett inn i den.
 function _isListVisible(id) {
     var el = document.getElementById(id);
-    return !!el && el.offsetParent !== null;
+    // getClientRects() framfor offsetParent: offsetParent er null også for elementer
+    // inne i position:fixed-kontekster, som views'ene er.
+    return !!el && el.getClientRects().length > 0;
 }
 
 function _rerenderListsAfterProjectCorrection() {
@@ -4279,6 +4296,109 @@ function _rerenderListsAfterProjectCorrection() {
     }
 }
 
+// ── FASIT-SYNK VED VISNING (ingen «lagre på nytt» kreves) ────────────────────
+// Prosjektet i Innstillinger er fasit for skrivemåten. Hver gang en liste eller et
+// skjema fylles med lagret data, synkroniseres kopien mot prosjektene FØR den vises.
+// Selvreparerende: retter data som drev fra hverandre før denne mekanismen fantes,
+// uten migrering og uten at brukeren må gjøre noe.
+//
+// Reglene har `from` = prosjektets egne verdier, så de retter bare SKRIVEMÅTEN
+// (store/små bokstaver, mellomrom). Et felt der brukeren har skrevet noe reelt annet
+// — typisk en ordre-spesifikk kundens ref eller fakturaadresse — matcher ikke og blir
+// aldri overskrevet.
+// Reelle innholds-endringer i et prosjekt håndteres av _propagateProjectCorrection
+// ved lagring, som kjenner både gammel og ny verdi og derfor trygt kan skille
+// «urørt kopi» fra «brukerens egen endring».
+var _PROJECT_FIELD_KINDS = { full: _PROJECT_SNAPSHOT_FIELDS, identity: _PROJECT_IDENTITY_FIELDS };
+
+function _projectFasitRules() {
+    // Union av minne og localStorage-cachen (dedupet på id): begge kildene er
+    // begrenset til én side (PAGE_SIZE), og de kan inneholde ulike prosjekter.
+    var templates = [];
+    var seenTplIds = {};
+    [(window.loadedTemplates || []), safeParseJSON(TEMPLATE_KEY, [])].forEach(function(src) {
+        (src || []).forEach(function(tpl) {
+            if (!tpl) return;
+            var id = tpl.id != null ? String(tpl.id) : '';
+            if (id) {
+                if (seenTplIds[id]) return;
+                seenTplIds[id] = true;
+            }
+            templates.push(tpl);
+        });
+    });
+    var rules = [], renames = [];
+    (templates || []).forEach(function(tpl) {
+        if (!tpl) return;
+        var identity = { prosjektnr: _projTrim(tpl.prosjektnr), prosjektnavn: _projTrim(tpl.prosjektnavn) };
+        if (!identity.prosjektnr && !identity.prosjektnavn) return;
+        var changes = {};
+        _PROJECT_SNAPSHOT_FIELDS.forEach(function(f) {
+            var v = _projTrim(tpl[f]);
+            if (v) changes[f] = v;
+        });
+        // from = prosjektets egne verdier → kun skrivemåte rettes.
+        rules.push({ match: identity, changes: changes, from: changes });
+        if (identity.prosjektnavn) renames.push({ from: identity.prosjektnavn, to: identity.prosjektnavn });
+    });
+    return { rules: rules, renames: renames };
+}
+
+// Heling av LAGRET data (localStorage + Firestore). Debounced og kjøres bare når
+// visningen faktisk fant et avvik — etter første heling er det ingenting å gjøre,
+// så dette er en engangskostnad, ikke noe som skjer ved hver listeåpning.
+var _projectHealTimer = null;
+var _projectHealRunning = false;
+function _scheduleProjectHeal() {
+    if (_projectHealRunning || _projectHealTimer) return;
+    _projectHealTimer = setTimeout(function() {
+        _projectHealTimer = null;
+        _projectHealRunning = true;
+        var built = _projectFasitRules();
+        try {
+            _correctProjectInLocalStores(built.rules);
+            _correctProjectInTimebokLocal(built.renames);
+        } catch (e) { console.error('Project heal (lokalt):', e); }
+        _correctProjectInFirestore(built.rules, built.renames)
+            .catch(function(e) { console.error('Project heal (Firestore):', e); })
+            .then(function() { _projectHealRunning = false; });
+    }, 600);
+}
+
+// Kalles med lista som skal vises. Retter skrivemåten i objektene som faktisk
+// rendres, så rettelsen er synlig med én gang — også før helingen har rukket å
+// skrive til Firestore.
+function syncFormsWithProjects(forms, kind) {
+    if (!Array.isArray(forms) || !forms.length) return forms;
+    var fields = _PROJECT_FIELD_KINDS[kind] || _PROJECT_SNAPSHOT_FIELDS;
+    var built = _projectFasitRules();
+    if (!built.rules.length) return forms;
+    var changed = false;
+    forms.forEach(function(f) { if (_correctProjectInForm(f, built.rules, fields)) changed = true; });
+    if (changed) _scheduleProjectHeal();
+    return forms;
+}
+
+// Samme, for ett enkelt skjema (åpning av lagret skjema / sesjons-gjenoppretting).
+function syncOneFormWithProjects(form, kind) {
+    if (!form) return form;
+    var fields = _PROJECT_FIELD_KINDS[kind] || _PROJECT_SNAPSHOT_FIELDS;
+    var built = _projectFasitRules();
+    if (built.rules.length && _correctProjectInForm(form, built.rules, fields)) _scheduleProjectHeal();
+    return form;
+}
+
+// Timebok lagrer prosjektnavnet som tekst i både prosjektlista og dag-docene.
+function syncTimebokProjectNames() {
+    var built = _projectFasitRules();
+    if (!built.renames.length) return;
+    if (_correctProjectInTimebokLocal(built.renames)) _scheduleProjectHeal();
+}
+
+window.syncFormsWithProjects = syncFormsWithProjects;
+window.syncOneFormWithProjects = syncOneFormWithProjects;
+window.syncTimebokProjectNames = syncTimebokProjectNames;
+
 // Bygg reglene: (1) den faktiske rettelsen, (2) normalisering av skrivemåte.
 function _buildProjectCorrectionRules(oldTpl, newTpl) {
     var rules = [];
@@ -4289,7 +4409,10 @@ function _buildProjectCorrectionRules(oldTpl, newTpl) {
             if (_projTrim(oldTpl[f]) !== _projTrim(newTpl[f])) changes[f] = _projTrim(newTpl[f]);
         });
         if (Object.keys(changes).length) {
-            rules.push({ match: oldTpl, changes: changes });
+            // from = de gamle prosjektverdiene → kun skjemaer som fortsatt har en
+            // urørt kopi oppdateres. Har brukeren overstyrt feltet i ett skjema,
+            // beholder det skjemaet sin egen verdi.
+            rules.push({ match: oldTpl, changes: changes, from: oldTpl });
             if (Object.prototype.hasOwnProperty.call(changes, 'prosjektnavn')) {
                 renames.push({ from: _projTrim(oldTpl.prosjektnavn), to: _projTrim(newTpl.prosjektnavn) });
             }
@@ -4300,7 +4423,7 @@ function _buildProjectCorrectionRules(oldTpl, newTpl) {
     // prosjekter som ble rettet før denne mekanismen fantes; ellers en no-op.
     var identity = { prosjektnr: _projTrim(newTpl.prosjektnr), prosjektnavn: _projTrim(newTpl.prosjektnavn) };
     if (identity.prosjektnr || identity.prosjektnavn) {
-        rules.push({ match: identity, changes: identity });
+        rules.push({ match: identity, changes: identity, from: identity });
         if (identity.prosjektnavn) renames.push({ from: identity.prosjektnavn, to: identity.prosjektnavn });
     }
     return { rules: rules, renames: renames };
@@ -7191,6 +7314,7 @@ function _buildServiceItemHtml(item, index) {
 }
 
 function renderServiceFormsList(forms) {
+    forms = syncFormsWithProjects(forms, 'identity');
     var listEl = document.getElementById('service-list');
     if (!forms || forms.length === 0) {
         listEl.innerHTML = '<div class="no-saved">' + t('service_no_saved') + '</div>';
@@ -10070,6 +10194,7 @@ function closeTimebokView() {
 // ── Rendering: dispatcher (uke vs dag) ──
 function renderTimebok() {
     if (!_timebokAnchor) _timebokAnchor = new Date();
+    syncTimebokProjectNames();
     timebokCloseMenu();
     var view = document.getElementById('timebok-view');
     var weekEl = document.getElementById('timebok-week');
@@ -11865,8 +11990,8 @@ function renderBilHistory() {
     // window.loadedServiceForms er kilden for select-mode bulk-eksport. Sett den lik
     // alle uttak-skjemaer (saved + sent dedupet) slik at toggleFormSelection /
     // _getSelectedForms kan slå opp skjema via samme indeks som data-form-idx.
-    var saved = safeParseJSON(SERVICE_STORAGE_KEY, []);
-    var archived = safeParseJSON(SERVICE_ARCHIVE_KEY, []);
+    var saved = syncFormsWithProjects(safeParseJSON(SERVICE_STORAGE_KEY, []), 'identity');
+    var archived = syncFormsWithProjects(safeParseJSON(SERVICE_ARCHIVE_KEY, []), 'identity');
     var combined = [];
     var seen = {};
     for (var ai = 0; ai < archived.length; ai++) {
@@ -15480,8 +15605,10 @@ function _weekTimerData() {
     if (uke) {
         // Tag opphav (_isSent) så loadFormDirect setter riktig status/banner når
         // en lagret ordreseddel åpnes herfra. Arkiverte = sendt/ferdig/avvist.
-        var drafts = safeParseJSON(STORAGE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: false }) : f; });
-        var archived = safeParseJSON(ARCHIVE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: true }) : f; });
+        // Fasit-synk: leser localStorage direkte, så prosjektfeltene må synkes her
+        // også (Timer-oversikten kan åpnes uten at Hent-lista har vært innom).
+        var drafts = syncFormsWithProjects(safeParseJSON(STORAGE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: false }) : f; }), 'full');
+        var archived = syncFormsWithProjects(safeParseJSON(ARCHIVE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: true }) : f; }), 'full');
         var byNr = {};
         drafts.concat(archived).forEach(function(f) {
             if (!f) return;
@@ -15634,8 +15761,10 @@ function _weekBestillingEntries() {
         });
     });
     if (uke) {
-        var drafts = safeParseJSON(STORAGE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: false }) : f; });
-        var archived = safeParseJSON(ARCHIVE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: true }) : f; });
+        // Fasit-synk: leser localStorage direkte, så prosjektfeltene må synkes her
+        // også (Timer-oversikten kan åpnes uten at Hent-lista har vært innom).
+        var drafts = syncFormsWithProjects(safeParseJSON(STORAGE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: false }) : f; }), 'full');
+        var archived = syncFormsWithProjects(safeParseJSON(ARCHIVE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: true }) : f; }), 'full');
         var byNr = {};
         drafts.concat(archived).forEach(function(f) {
             if (!f) return;
@@ -16810,6 +16939,7 @@ function getKappeFormDataSnapshot() {
 
 function setKappeFormData(data) {
     if (!data) return;
+    data = syncOneFormWithProjects(data, 'identity');
     document.getElementById('kappe-dato').value = data.dato || _kappeFormatDateNO(_kappeTodayISO());
     document.getElementById('kappe-onsket-leveringsdato').value = _kappeFormatDateNO(data.onsketLeveringsdato) || '';
     document.getElementById('kappe-avdeling').value = data.avdeling || '';
@@ -17186,6 +17316,7 @@ function _buildKappeItemHtml(item, index) {
 }
 
 function renderKappeFormsList(forms) {
+    forms = syncFormsWithProjects(forms, 'identity');
     var listEl = document.getElementById('kappe-list');
     if (!listEl) return;
     if (!forms || forms.length === 0) {
