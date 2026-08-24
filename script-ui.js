@@ -3921,6 +3921,409 @@ async function _findTemplateById(id) {
     return null;
 }
 
+// ============================================================================
+// PROSJEKT-RETTELSE → PROPAGERING (gjelder HELE appen)
+// ============================================================================
+// Et prosjekt fra Innstillinger → Prosjekter & lager KOPIERES inn i skjemaene som
+// løse verdier (se _applyTemplateToForm) — skjemaet har ingen referanse tilbake til
+// prosjektet. Retter man derfor en skrivefeil i prosjektet («Framo fusa» →
+// «Framo Fusa»), ville alle allerede lagrede skjemaer beholdt feilen.
+//
+// Rettelsen skrives ut til ALLE steder som har en kopi:
+//   ordreseddel  → forms / archive               (prosjektnr, navn, oppdragsgiver, ref, faktura)
+//   servicebil   → serviceforms / serviceArchive  (prosjekt ligger pr. rad i entries[])
+//   kappeskjema  → kappeforms / kappeArchive      (prosjektnr + navn)
+//   timebok      → prosjektlista + dag-docs (projects[].name)
+//   åpent skjema → input-feltene som står på skjermen nå
+// Bil-historikk (uttak) og Timer-oversikt har INGEN egen lagring — de leser fra
+// skjemaene over og følger derfor automatisk.
+//
+// TO REGLER kjøres i samme gjennomgang (se _buildProjectCorrectionRules):
+//   1. Rettelsen: gammel verdi → ny verdi.
+//   2. Normalisering: samme prosjekt (prosjektnr + navn likt uansett store/små
+//      bokstaver) får prosjektets nøyaktige skrivemåte. Denne reparerer prosjekter
+//      som ble rettet FØR denne mekanismen fantes — det holder å lagre prosjektet
+//      på nytt. Den er idempotent, så den skriver ingenting når alt allerede stemmer.
+//
+// To bevisste begrensninger (dokumentert fordi de er unntak, jf. CLAUDE.md):
+//  a. Vi treffer kun snapshots som faktisk hadde de gamle verdiene
+//     (_projectSnapshotMatches) — et annet delprosjekt som deler prosjektnr, men har
+//     eget navn, røres ikke.
+//  b. Vi skriver kun i felt som allerede har innhold. Dette er en RETTELSE, ikke en
+//     utfylling: et felt brukeren lot stå tomt skal forbli tomt.
+
+// Ordreseddel kopierer hele prosjektkortet; servicebil/kappeskjema kun identiteten
+// (se _applyTemplateToForm — samme kilde, så listene her må følge den).
+var _PROJECT_SNAPSHOT_FIELDS = ['prosjektnr', 'prosjektnavn', 'oppdragsgiver', 'kundensRef', 'fakturaadresse'];
+var _PROJECT_IDENTITY_FIELDS = ['prosjektnr', 'prosjektnavn'];
+
+// localStorage-cache + Firestore-samling for hvert sted et prosjekt-snapshot bor.
+// `inEntries`: prosjektet ligger pr. rad i entries[] (servicebil) — da kan det ikke
+// spørres på i Firestore og dokumentene må skannes.
+function _projectSnapshotStores() {
+    return [
+        { key: STORAGE_KEY,         col: 'forms',          fields: _PROJECT_SNAPSHOT_FIELDS },
+        { key: ARCHIVE_KEY,         col: 'archive',        fields: _PROJECT_SNAPSHOT_FIELDS },
+        { key: SERVICE_STORAGE_KEY, col: 'serviceforms',   fields: _PROJECT_IDENTITY_FIELDS, inEntries: true },
+        { key: SERVICE_ARCHIVE_KEY, col: 'serviceArchive', fields: _PROJECT_IDENTITY_FIELDS, inEntries: true },
+        { key: KAPPE_STORAGE_KEY,   col: 'kappeforms',     fields: _PROJECT_IDENTITY_FIELDS },
+        { key: KAPPE_ARCHIVE_KEY,   col: 'kappeArchive',   fields: _PROJECT_IDENTITY_FIELDS }
+    ];
+}
+
+function _projTrim(v) { return v == null ? '' : String(v).trim(); }
+
+// Er dette snapshotet det samme prosjektet som regelen leter etter?
+// Prosjektnr er den stabile identiteten; navnet brukes som kontroll (og som eneste
+// nøkkel når prosjektet ikke har nummer). Navn sammenlignes uten hensyn til
+// store/små bokstaver — ellers ville nettopp en case-feil gjort at vi ikke fant den.
+function _projectSnapshotMatches(obj, match) {
+    if (!obj) return false;
+    var matchNr = _projTrim(match.prosjektnr);
+    var matchNavn = _projTrim(match.prosjektnavn);
+    var nr = _projTrim(obj.prosjektnr);
+    var navn = _projTrim(obj.prosjektnavn);
+    if (matchNr) {
+        if (nr !== matchNr) return false;
+        // Navnet må stemme når BEGGE har navn — hindrer at et annet delprosjekt
+        // som deler prosjektnr blir døpt om ved et uhell.
+        if (matchNavn && navn && navn.toLowerCase() !== matchNavn.toLowerCase()) return false;
+        return true;
+    }
+    if (!matchNavn) return false;
+    return !!navn && navn.toLowerCase() === matchNavn.toLowerCase();
+}
+
+// Skriv rettelsen inn i ett snapshot. Returnerer true hvis noe faktisk endret seg.
+function _applyProjectCorrection(obj, changes, fields) {
+    var changed = false;
+    for (var i = 0; i < fields.length; i++) {
+        var k = fields[i];
+        if (!Object.prototype.hasOwnProperty.call(changes, k)) continue;
+        if (!_projTrim(obj[k])) continue;                        // tomt felt → ikke fyll ut
+        if (_projTrim(obj[k]) === _projTrim(changes[k])) continue;
+        obj[k] = changes[k];
+        changed = true;
+    }
+    return changed;
+}
+
+// Kjør alle regler mot ett snapshot-objekt (flatt skjema eller én service-rad).
+function _applyProjectRules(obj, rules, fields) {
+    var changed = false;
+    for (var i = 0; i < rules.length; i++) {
+        if (!_projectSnapshotMatches(obj, rules[i].match)) continue;
+        if (_applyProjectCorrection(obj, rules[i].changes, fields)) changed = true;
+    }
+    return changed;
+}
+
+// Ett lagret skjema. Håndterer både flate skjemaer (ordreseddel/kappeskjema) og
+// skjemaer med prosjekt pr. rad (servicebil).
+function _correctProjectInForm(form, rules, fields) {
+    if (!form) return false;
+    if (Array.isArray(form.entries)) {
+        var entryChanged = false;
+        form.entries.forEach(function(e) {
+            if (_applyProjectRules(e, rules, fields)) entryChanged = true;
+        });
+        return entryChanged;
+    }
+    return _applyProjectRules(form, rules, fields);
+}
+
+// ── localStorage-cachene + de innlastede listene i minnet ──
+function _correctProjectInLocalStores(rules) {
+    _projectSnapshotStores().forEach(function(store) {
+        var list = safeParseJSON(store.key, []);
+        if (!Array.isArray(list) || !list.length) return;
+        var changed = false;
+        list.forEach(function(f) {
+            if (_correctProjectInForm(f, rules, store.fields)) changed = true;
+        });
+        if (changed) safeSetItem(store.key, JSON.stringify(list));
+    });
+    // Listene rendres fra disse in-memory-arrayene, ikke fra localStorage — uten
+    // dette ville lista vist gammelt navn til neste fulle refresh.
+    (window.loadedForms || []).forEach(function(f) { _correctProjectInForm(f, rules, _PROJECT_SNAPSHOT_FIELDS); });
+    (window.loadedServiceForms || []).forEach(function(f) { _correctProjectInForm(f, rules, _PROJECT_IDENTITY_FIELDS); });
+    (window.loadedKappeForms || []).forEach(function(f) { _correctProjectInForm(f, rules, _PROJECT_IDENTITY_FIELDS); });
+}
+
+// ── Timebok ──
+// Prosjektlista speiles på NAVN (syncTimebokProjectsFromForms), og dag-docene lagrer
+// navnet som snapshot ved siden av projectId. Navnet må rettes PÅ PLASS i lista:
+// lot vi speilingen slette + legge til på nytt, ville prosjektet fått ny id og alle
+// dag-linjer mistet koblingen (bl.a. reise-sonen).
+// `renames` = [{ from: <gammelt navn>, to: <nytt navn> }] — `from` matches uten
+// hensyn til store/små bokstaver, så normaliseringsregelen (from === to) også virker.
+function _applyTimebokRenames(obj, renames) {
+    var name = _projTrim(obj.name);
+    if (!name) return false;
+    for (var i = 0; i < renames.length; i++) {
+        var r = renames[i];
+        if (!r.from || !r.to) continue;
+        if (name.toLowerCase() !== r.from.toLowerCase()) continue;
+        if (name === r.to) return false;
+        obj.name = r.to;
+        return true;
+    }
+    return false;
+}
+
+function _correctProjectInTimebokLocal(renames) {
+    if (typeof getTimebokProjects === 'function' && typeof _timebokSaveProjects === 'function') {
+        var list = getTimebokProjects();
+        var listChanged = false;
+        list.forEach(function(p) { if (_applyTimebokRenames(p, renames)) listChanged = true; });
+        if (listChanged) _timebokSaveProjects(list);
+    }
+    if (typeof _timebokGetCache === 'function' && typeof _timebokSetCache === 'function') {
+        var cache = _timebokGetCache();
+        var cacheChanged = false;
+        cache.forEach(function(day) {
+            (day && Array.isArray(day.projects) ? day.projects : []).forEach(function(p) {
+                if (_applyTimebokRenames(p, renames)) cacheChanged = true;
+            });
+        });
+        if (cacheChanged) _timebokSetCache(cache);
+    }
+}
+
+// ── Åpent skjema (input-feltene på skjermen) ──
+// Uten dette ville skjemaet brukeren står i beholde feilen, og et lagringsklikk
+// skrive den rett tilbake til basen vi nettopp rettet.
+function _correctProjectInOpenForms(rules) {
+    var k, el, dirtyBefore = false;
+    try { dirtyBefore = (typeof hasUnsavedChanges === 'function') && hasUnsavedChanges(); } catch (e) {}
+
+    // Ordreseddel — mobil- og desktop-feltet holdes i synk av appen, så vi leser det
+    // som har verdi og skriver tilbake til begge.
+    var ORD_IDS = {
+        prosjektnr: 'prosjektnr',
+        prosjektnavn: 'prosjektnavn',
+        oppdragsgiver: 'oppdragsgiver',
+        kundensRef: 'kundens-ref',
+        fakturaadresse: 'fakturaadresse'
+    };
+    var ord = {};
+    for (k in ORD_IDS) {
+        var mob = document.getElementById('mobile-' + ORD_IDS[k]);
+        var desk = document.getElementById(ORD_IDS[k]);
+        ord[k] = (mob && _projTrim(mob.value)) ? mob.value : (desk ? desk.value : '');
+    }
+    var ordChanged = _applyProjectRules(ord, rules, _PROJECT_SNAPSHOT_FIELDS);
+    if (ordChanged) {
+        for (k in ORD_IDS) {
+            el = document.getElementById(ORD_IDS[k]);             if (el) el.value = ord[k];
+            el = document.getElementById('mobile-' + ORD_IDS[k]);  if (el) el.value = ord[k];
+        }
+        if (typeof updateFakturaadresseDisplay === 'function') {
+            updateFakturaadresseDisplay('fakturaadresse-display-text', ord.fakturaadresse || '');
+        }
+    }
+
+    // Kappeskjema
+    var KAPPE_IDS = { prosjektnr: 'kappe-prosjektnr', prosjektnavn: 'kappe-prosjektnavn' };
+    var kappe = {};
+    for (k in KAPPE_IDS) { el = document.getElementById(KAPPE_IDS[k]); kappe[k] = el ? el.value : ''; }
+    var kappeChanged = _applyProjectRules(kappe, rules, _PROJECT_IDENTITY_FIELDS);
+    if (kappeChanged) {
+        for (k in KAPPE_IDS) { el = document.getElementById(KAPPE_IDS[k]); if (el) el.value = kappe[k]; }
+        if (typeof renumberKappeLines === 'function') renumberKappeLines();
+    }
+
+    // Servicebil — prosjekt pr. bestillingskort
+    var serviceChanged = false;
+    document.querySelectorAll('#service-entries .service-entry-card').forEach(function(card) {
+        var nrEl = card.querySelector('.service-entry-prosjektnr');
+        var navnEl = card.querySelector('.service-entry-prosjektnavn');
+        var entry = { prosjektnr: nrEl ? nrEl.value : '', prosjektnavn: navnEl ? navnEl.value : '' };
+        if (!_applyProjectRules(entry, rules, _PROJECT_IDENTITY_FIELDS)) return;
+        if (nrEl) nrEl.value = entry.prosjektnr;
+        if (navnEl) navnEl.value = entry.prosjektnavn;
+        serviceChanged = true;
+    });
+    if (serviceChanged && typeof renumberServiceEntries === 'function') renumberServiceEntries();
+
+    if (!ordChanged && !kappeChanged && !serviceChanged) return;
+
+    // Sesjons-gjenopprettingen holder sin egen kopi av skjemaet.
+    try {
+        if (serviceChanged && typeof getServiceFormData === 'function') {
+            sessionStorage.setItem('firesafe_service_current', JSON.stringify(getServiceFormData()));
+        }
+        if (ordChanged && typeof getFormData === 'function') {
+            sessionStorage.setItem('firesafe_current', JSON.stringify(getFormData()));
+        }
+    } catch (e) {}
+
+    // Ulagret-baseline: vi rettet BÅDE skjemaet og den lagrede kopien, så et skjema
+    // som var rent skal fortsatt være rent. Var det allerede skittent, lar vi
+    // baselinen stå — ellers ville brukerens egne ulagrede endringer blitt «glemt».
+    if (dirtyBefore) return;
+    try {
+        if (ordChanged && typeof lastSavedData !== 'undefined' && lastSavedData !== null && typeof getFormDataSnapshot === 'function') {
+            lastSavedData = getFormDataSnapshot();
+        }
+        if (serviceChanged && _serviceLastSavedData !== null && typeof getServiceFormDataSnapshot === 'function') {
+            _serviceLastSavedData = getServiceFormDataSnapshot();
+            sessionStorage.setItem('firesafe_service_current', _serviceLastSavedData);
+        }
+        if (kappeChanged && _kappeLastSavedData !== null && typeof getKappeFormDataSnapshot === 'function') {
+            _kappeLastSavedData = getKappeFormDataSnapshot();
+            sessionStorage.setItem('firesafe_kappe_current', _kappeLastSavedData);
+        }
+    } catch (e) {}
+}
+
+// ── Firestore ──
+// localStorage cacher bare de nyeste ~50 skjemaene; fasiten ligger i Firestore, så
+// eldre skjemaer må rettes der. Samlingene er per bruker og små — full skanning er
+// samme mønster som syncOrderNumberIndex.
+async function _commitProjectCorrectionWrites(writes) {
+    for (var i = 0; i < writes.length; i += 400) {
+        var batch = db.batch();
+        writes.slice(i, i + 400).forEach(function(w) { batch.update(w.ref, w.patch); });
+        await batch.commit();
+    }
+}
+
+async function _correctProjectInFirestore(rules, renames) {
+    if (!currentUser || !db) return;
+    var base = db.collection('users').doc(currentUser.uid);
+    // Kan vi spørre smalt? Kun når ALLE regler leter etter samme prosjektnr — ellers
+    // må vi skanne, siden en where-spørring bare tar ett nummer.
+    var queryNr = '';
+    for (var r = 0; r < rules.length; r++) {
+        var nr = _projTrim(rules[r].match.prosjektnr);
+        if (!nr) { queryNr = ''; break; }
+        if (queryNr && queryNr !== nr) { queryNr = ''; break; }
+        queryNr = nr;
+    }
+    var stores = _projectSnapshotStores();
+
+    for (var i = 0; i < stores.length; i++) {
+        var store = stores[i];
+        try {
+            // Flate skjemaer har prosjektnr på dokumentet → smal spørring. Servicebil
+            // har det i entries[] (array) og må skannes.
+            var query = (queryNr && !store.inEntries)
+                ? base.collection(store.col).where('prosjektnr', '==', queryNr)
+                : base.collection(store.col);
+            var snap = await query.get();
+            var writes = [];
+            snap.docs.forEach(function(doc) {
+                var data = doc.data();
+                // Kopi av verdiene FØR rettelsen, så patchen kun inneholder felt som
+                // faktisk endret seg (ingen unødvendige skrivinger til Firestore).
+                var before = {};
+                store.fields.forEach(function(f) { before[f] = data[f]; });
+                if (!_correctProjectInForm(data, rules, store.fields)) return;
+                var patch = {};
+                if (store.inEntries) {
+                    patch.entries = data.entries;
+                } else {
+                    store.fields.forEach(function(f) { if (data[f] !== before[f]) patch[f] = data[f]; });
+                }
+                if (Object.keys(patch).length) writes.push({ ref: doc.ref, patch: patch });
+            });
+            if (writes.length) await _commitProjectCorrectionWrites(writes);
+        } catch (e) {
+            console.error('Project correction (' + store.col + '):', e);
+        }
+    }
+
+    // Timebok-dagene: navn-snapshot ved siden av projectId.
+    try {
+        var daySnap = await base.collection('timebok').get();
+        var dayWrites = [];
+        daySnap.docs.forEach(function(doc) {
+            var data = doc.data();
+            if (!Array.isArray(data.projects)) return;
+            var changed = false;
+            data.projects.forEach(function(p) { if (_applyTimebokRenames(p, renames)) changed = true; });
+            if (changed) dayWrites.push({ ref: doc.ref, patch: { projects: data.projects } });
+        });
+        if (dayWrites.length) await _commitProjectCorrectionWrites(dayWrites);
+    } catch (e) {
+        console.error('Project correction (timebok):', e);
+    }
+}
+
+// Rendre listene på nytt hvis de står åpne, så rettelsen er synlig med én gang.
+// Hver liste gates på om DEN er synlig — ikke bare på at Hent-visningen er åpen.
+// Fanene deler window.loaded*-arrayene (bil-historikken fyller f.eks.
+// loadedServiceForms med sin egen kombinerte liste), så å rendre en skjult fane
+// ville risikert å tegne feil datasett inn i den.
+function _isListVisible(id) {
+    var el = document.getElementById(id);
+    return !!el && el.offsetParent !== null;
+}
+
+function _rerenderListsAfterProjectCorrection() {
+    try {
+        if (_isListVisible('saved-list') && typeof renderSavedFormsList === 'function' && window.loadedForms) {
+            renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
+        }
+        if (_isListVisible('service-list') && typeof renderServiceFormsList === 'function' && window.loadedServiceForms) {
+            renderServiceFormsList(window.loadedServiceForms);
+        }
+        if (_isListVisible('kappe-list') && typeof renderKappeFormsList === 'function' && window.loadedKappeForms) {
+            renderKappeFormsList(window.loadedKappeForms);
+        }
+        if (_isListVisible('bil-history-list') && typeof renderBilHistory === 'function') renderBilHistory();
+        if (document.body.classList.contains('timebok-view-open') && typeof renderTimebok === 'function') renderTimebok();
+    } catch (e) {
+        console.error('Rerender after project correction:', e);
+    }
+}
+
+// Bygg reglene: (1) den faktiske rettelsen, (2) normalisering av skrivemåte.
+function _buildProjectCorrectionRules(oldTpl, newTpl) {
+    var rules = [];
+    var renames = [];
+    if (oldTpl) {
+        var changes = {};
+        _PROJECT_SNAPSHOT_FIELDS.forEach(function(f) {
+            if (_projTrim(oldTpl[f]) !== _projTrim(newTpl[f])) changes[f] = _projTrim(newTpl[f]);
+        });
+        if (Object.keys(changes).length) {
+            rules.push({ match: oldTpl, changes: changes });
+            if (Object.prototype.hasOwnProperty.call(changes, 'prosjektnavn')) {
+                renames.push({ from: _projTrim(oldTpl.prosjektnavn), to: _projTrim(newTpl.prosjektnavn) });
+            }
+        }
+    }
+    // Normaliseringsregelen: match = prosjektet slik det ER nå (navn matches uten
+    // hensyn til store/små bokstaver), changes = nøyaktig skrivemåte. Reparerer
+    // prosjekter som ble rettet før denne mekanismen fantes; ellers en no-op.
+    var identity = { prosjektnr: _projTrim(newTpl.prosjektnr), prosjektnavn: _projTrim(newTpl.prosjektnavn) };
+    if (identity.prosjektnr || identity.prosjektnavn) {
+        rules.push({ match: identity, changes: identity });
+        if (identity.prosjektnavn) renames.push({ from: identity.prosjektnavn, to: identity.prosjektnavn });
+    }
+    return { rules: rules, renames: renames };
+}
+
+// Inngangspunkt: kalles når et prosjekt er lagret i Innstillinger.
+function _propagateProjectCorrection(oldTpl, newTpl) {
+    if (!newTpl) return;
+    var built = _buildProjectCorrectionRules(oldTpl, newTpl);
+    if (!built.rules.length) return;
+
+    _correctProjectInLocalStores(built.rules);
+    _correctProjectInOpenForms(built.rules);
+    if (built.renames.length) _correctProjectInTimebokLocal(built.renames);
+    _rerenderListsAfterProjectCorrection();
+
+    // Firestore i bakgrunnen — lokalt er allerede rettet, så UI-et er oppdatert
+    // uansett hvor lenge skanningen tar.
+    _correctProjectInFirestore(built.rules, built.renames)
+        .catch(function(e) { console.error('Propagate project correction:', e); });
+}
+
+
 async function saveTemplateFromEditor() {
     var data = {
         prosjektnavn: document.getElementById('tpl-edit-prosjektnavn').value.trim(),
@@ -3948,6 +4351,13 @@ async function saveTemplateFromEditor() {
         }
     }
 
+    // Verdiene FØR rettelsen — nøkkelen som finner igjen prosjektet i alle lagrede
+    // skjemaer. Må hentes før localStorage/minnet skrives over. Kopi, ikke referanse:
+    // _findTemplateById kan returnere objektet fra window.loadedTemplates, som vi
+    // oppdaterer lenger ned.
+    var oldTemplate = _editingTemplateId ? await _findTemplateById(_editingTemplateId) : null;
+    if (oldTemplate) oldTemplate = Object.assign({}, oldTemplate);
+
     // Update localStorage immediately (optimistic)
     var templates = safeParseJSON(TEMPLATE_KEY, []);
 
@@ -3958,9 +4368,17 @@ async function saveTemplateFromEditor() {
             Object.assign(templates[idx], data);
         }
         safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
+        // Minnet er kilden for prosjekt-velgeren og _findTemplateById — uten dette
+        // ville velgeren fortsatt tilbudt det gamle navnet.
+        var memIdx = (window.loadedTemplates || []).findIndex(function(t) { return t.id === _editingTemplateId; });
+        if (memIdx !== -1) Object.assign(window.loadedTemplates[memIdx], data);
         showNotificationModal(t('template_updated'), true);
 
         enqueueUserDocSet('templates', _editingTemplateId, data, 'Update template', { merge: true });
+
+        // Rettelsen må slå igjennom overalt prosjektet er brukt — skjemaene har bare
+        // en kopi av verdiene, ingen referanse tilbake hit.
+        _propagateProjectCorrection(oldTemplate, data);
     } else {
         // Create new template
         data.createdAt = new Date().toISOString();
