@@ -354,6 +354,7 @@ async function _singleFormExport(form, tab, share, png) {
     var loading = document.getElementById('loading');
     if (loading) loading.classList.add('active');
     var type = _tabFormType(tab);
+    var didShare = false;
     try {
         if (!png) {
             var pdf = await _buildPdfForTab(form, tab);
@@ -362,7 +363,7 @@ async function _singleFormExport(form, tab, share, png) {
                 var blob = pdf.output('blob');
                 var fileP = new File([blob], nameP, { type: 'application/pdf' });
                 if (loading) loading.classList.remove('active');
-                await _safeShare([fileP], _singleShareText(form, type));
+                didShare = (await _safeShare([fileP], _singleShareText(form, type))) === 'shared';
             } else { pdf.save(nameP); }
         } else {
             var canvas = await _canvasForTab(form, tab);
@@ -372,7 +373,7 @@ async function _singleFormExport(form, tab, share, png) {
                 var res = await fetch(durl); var blobG = await res.blob();
                 var fileG = new File([blobG], nameG, { type: 'image/png' });
                 if (loading) loading.classList.remove('active');
-                await _safeShare([fileG], _singleShareText(form, type));
+                didShare = (await _safeShare([fileG], _singleShareText(form, type))) === 'shared';
             } else {
                 var a = document.createElement('a');
                 a.download = nameG; a.href = canvas.toDataURL('image/png'); a.click();
@@ -383,6 +384,10 @@ async function _singleFormExport(form, tab, share, png) {
     } finally {
         if (loading) loading.classList.remove('active');
     }
+    // Fullført deling → sendt. Samme regel som i det åpne skjemaet og i
+    // fler-valg-eksporten; her manglet den, så et skjema delt fra Lagret-lista
+    // ble liggende som utkast (gul prikk).
+    if (didShare) _promoteListFormToSent(form, tab);
 }
 window._singleFormExport = _singleFormExport;
 
@@ -1384,27 +1389,21 @@ function showExportMenu() {
     const popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('export_title');
     const buttonsEl = document.getElementById('action-popup-buttons');
-    var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
-    var checkboxHtml = isSent ? '' :
-        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:8px 0">' +
-            '<input type="checkbox" id="export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
-            t('export_and_mark_label') +
-        '</label>';
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
     // «Marker som sendt»-avhuking fjernet: deling markerer nå automatisk som sendt
     // (kun ved fullført deling, ikke nedlasting). Manuell merking via knappene i skjemaet.
     let html =
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPNG(document.getElementById(\'export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPNG(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
         '</div>' +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
         '<div class="confirm-modal-buttons">' +
@@ -1666,11 +1665,49 @@ window.markCurrentFormAsFerdig = markCurrentFormAsFerdig;
 // Kalt når en DELING er fullført: løft LAGRET (utkast) til sendt. Sendt forblir
 // sendt, ferdig forblir ferdig — aldri nedgrader (en ferdig/signert liste som
 // deles er fortsatt ferdig). Nedlasting kaller IKKE denne (last ned ≠ sendt).
+// ── «Deling = sendt» — ÉN regel for hele appen ───────────────────────────────
+// En FULLFØRT deling markerer skjemaet som sendt. En nedlasting gjør det ikke —
+// en fil på egen disk er ikke levert til noen. Regelen gjelder alle tre
+// skjematypene (ordreseddel, servicebil, kappeskjema) og alle tre delings-veiene
+// (åpent skjema, enkeltskjema fra Lagret-lista, fler-valg-eksport).
+// Ingen av veiene nedgraderer et skjema som allerede er sendt eller lukket.
+// Manuell merking finnes fortsatt: «Merk som» i ordreseddelen og
+// «Merk som sendt»-knappen i servicebil/kappeskjema.
 function _promoteFormToSent() {
     if (sessionStorage.getItem('firesafe_current_sent') === '1') return; // sendt el. ferdig → ikke rør
     markCurrentFormAsSent();
 }
 window._promoteFormToSent = _promoteFormToSent;
+
+function _promoteServiceToSent() {
+    if (sessionStorage.getItem('firesafe_service_sent') === '1') return;
+    markServiceAsSent();
+}
+window._promoteServiceToSent = _promoteServiceToSent;
+
+function _promoteKappeToSent() {
+    if (sessionStorage.getItem('firesafe_kappe_sent') === '1') return;
+    markKappeAsSent();
+}
+window._promoteKappeToSent = _promoteKappeToSent;
+
+// Enkeltskjema delt fra Lagret-lista. Skjemaet er IKKE åpent, så vi bruker de
+// samme data-baserte hjelperne som fler-valg-eksporten (_bulkMarkSelectedAsSent)
+// i stedet for de skjema-baserte markXAsSent-funksjonene.
+// tab: 'own' | 'service' | 'kappe' (fra _savedItemTab).
+function _promoteListFormToSent(form, tab) {
+    if (!form || form._isSent) return false;   // allerede sendt/lukket → aldri nedgrader
+    if (tab === 'service') _markServiceFormDataAsSent(form);
+    else if (tab === 'kappe') _markKappeFormDataAsSent(form);
+    else _markOwnFormDataAsSent(form);
+    form._isSent = true;                       // lista holder samme objekt
+    _lastLocalSaveTs = Date.now();
+    loadedForms = [];
+    _showSavedFormsDirectly(tab);
+    showNotificationModal(t('marked_as_sent'), true);
+    return true;
+}
+window._promoteListFormToSent = _promoteListFormToSent;
 
 // ── Status fra lista: utkast → sendt → ferdig ────────────────────────────────
 // Marker et lagret skjema (fra #hent-lista) som SENDT (blå): flytt forms→archive
@@ -5408,7 +5445,7 @@ function getExportFilename(ext) {
     return _filenameForForm(data, 0, 'ordreseddel', ext);
 }
 
-async function doExportPDF(markSent) {
+async function doExportPDF() {
     if (!validateRequiredFields()) return;
     const loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -5423,7 +5460,7 @@ async function doExportPDF(markSent) {
     }
 }
 
-async function doExportPNG(markSent) {
+async function doExportPNG() {
     if (!validateRequiredFields()) return;
     const loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -5488,7 +5525,7 @@ async function _safeShare(files, meta) {
     }
 }
 
-async function doSharePDF(markSent) {
+async function doSharePDF() {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -5506,7 +5543,7 @@ async function doSharePDF(markSent) {
     }
 }
 
-async function doSharePNG(markSent) {
+async function doSharePNG() {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -6775,27 +6812,12 @@ function _bulkMarkSelectedAsSent() {
     _lastLocalSaveTs = Date.now();
 }
 
-function _bulkHasUnsentSelected() {
-    var forms = _getSelectedForms();
-    for (var i = 0; i < forms.length; i++) {
-        if (!forms[i]._isSent) return true;
-    }
-    return false;
-}
-
 // Eksport-meny for bulk (identisk pattern som showExportMenu for enkeltskjema)
 function showBulkExportMenu() {
     if (_selectedSet.size === 0) return;
     var popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('bulk_export_title') + ' (' + _selectedSet.size + ')';
     var buttonsEl = document.getElementById('action-popup-buttons');
-    var showCheckbox = _bulkHasUnsentSelected();
-    var checkboxHtml = showCheckbox
-        ? '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;padding:4px 0">' +
-              '<input type="checkbox" id="bulk-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
-              t('bulk_mark_sent_label') +
-          '</label>'
-        : '';
     var combinedCheckboxHtml =
         '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
             '<input type="checkbox" id="bulk-export-combined" onchange="_updateBulkPngState()" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
@@ -6804,12 +6826,11 @@ function showBulkExportMenu() {
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var dlIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
-    var mr = "document.getElementById('bulk-export-mark-sent')?.checked";
     // Runtime-dispatch: checkbox styrer om PDF-knappen bruker samlet eller separat
-    var pdfDl = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkExportPDF(' + mr + ') : doBulkExportPDFSeparate(' + mr + '))';
-    var pdfShare = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkSharePDF(' + mr + ') : doBulkSharePDFSeparate(' + mr + '))';
-    var pngDl = 'doBulkExportPNG(' + mr + ')';
-    var pngShare = 'doBulkSharePNG(' + mr + ')';
+    var pdfDl = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkExportPDF() : doBulkExportPDFSeparate())';
+    var pdfShare = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkSharePDF() : doBulkSharePDFSeparate())';
+    var pngDl = 'doBulkExportPNG()';
+    var pngShare = 'doBulkSharePNG()';
 
     var shareBtnPDF = canShare
         ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="' + pdfShare + '; closeActionPopup()">' + shareIcon + ' PDF</button>'
@@ -6872,7 +6893,7 @@ async function _bulkFinishAfterExport(markSent) {
     }
 }
 
-async function doBulkExportPDF(markSent) {
+async function doBulkExportPDF() {
     if (_selectedSet.size === 0) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -6887,7 +6908,7 @@ async function doBulkExportPDF(markSent) {
     }
 }
 
-async function doBulkExportPNG(markSent) {
+async function doBulkExportPNG() {
     if (_selectedSet.size === 0) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -6913,7 +6934,7 @@ async function doBulkExportPNG(markSent) {
     }
 }
 
-async function doBulkSharePDF(markSent) {
+async function doBulkSharePDF() {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -6940,7 +6961,7 @@ async function doBulkSharePDF(markSent) {
     }
 }
 
-async function doBulkSharePNG(markSent) {
+async function doBulkSharePNG() {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -6966,7 +6987,7 @@ async function doBulkSharePNG(markSent) {
 }
 
 // Separate PDF-filer (én per skjema)
-async function doBulkExportPDFSeparate(markSent) {
+async function doBulkExportPDFSeparate() {
     if (_selectedSet.size === 0) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -6991,7 +7012,7 @@ async function doBulkExportPDFSeparate(markSent) {
     }
 }
 
-async function doBulkSharePDFSeparate(markSent) {
+async function doBulkSharePDFSeparate() {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -7484,25 +7505,22 @@ function showServiceExportMenu() {
     var popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('export_title');
     var buttonsEl = document.getElementById('action-popup-buttons');
-    var isSent = sessionStorage.getItem('firesafe_service_sent') === '1';
-    var checkboxHtml = isSent ? '' :
-        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:8px 0">' +
-            '<input type="checkbox" id="service-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
-            t('export_and_mark_label') +
-        '</label>';
+    // «Marker som sendt»-avhuking fjernet — deling markerer nå automatisk som
+    // sendt, nedlasting endrer aldri status. Samme regel som ordreseddel og
+    // fler-valg-eksport. Manuell merking: «Merk som sendt»-knappen i skjemaet.
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePDF(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePNG(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doServiceSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
-    buttonsEl.innerHTML = checkboxHtml +
+    buttonsEl.innerHTML =
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPDF(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPNG(document.getElementById(\'service-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doServiceExportPNG(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
         '</div>' +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
         '<div class="confirm-modal-buttons">' +
@@ -7866,14 +7884,14 @@ function getServiceExportFilename(ext) {
     return _filenameForForm(data, 0, 'service', ext);
 }
 
-async function doServiceExportPDF(markSent) {
+async function doServiceExportPDF() {
     if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
         var pdf = await buildServicePdfDoc(getServiceFormData());
         pdf.save(getServiceExportFilename('pdf'));
-        if (markSent) markServiceAsSent();
+        // Last ned ≠ sendt — ingen status-endring.
     } catch(error) {
         showNotificationModal(t('export_pdf_error') + error.message);
     } finally {
@@ -7881,7 +7899,7 @@ async function doServiceExportPDF(markSent) {
     }
 }
 
-async function doServiceExportPNG(markSent) {
+async function doServiceExportPNG() {
     if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -7891,7 +7909,7 @@ async function doServiceExportPNG(markSent) {
         link.download = getServiceExportFilename('png');
         link.href = canvas.toDataURL('image/png');
         link.click();
-        if (markSent) markServiceAsSent();
+        // Last ned ≠ sendt — ingen status-endring.
     } catch(error) {
         showNotificationModal(t('export_png_error') + error.message);
     } finally {
@@ -7899,7 +7917,7 @@ async function doServiceExportPNG(markSent) {
     }
 }
 
-async function doServiceSharePDF(markSent) {
+async function doServiceSharePDF() {
     if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -7909,7 +7927,7 @@ async function doServiceSharePDF(markSent) {
         var file = new File([blob], getServiceExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getServiceFormData(), 'service'));
-        if (result === 'shared' && markSent) markServiceAsSent();
+        if (result === 'shared') _promoteServiceToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -7917,7 +7935,7 @@ async function doServiceSharePDF(markSent) {
     }
 }
 
-async function doServiceSharePNG(markSent) {
+async function doServiceSharePNG() {
     if (!validateServiceRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -7929,7 +7947,7 @@ async function doServiceSharePNG(markSent) {
         var file = new File([blob], getServiceExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getServiceFormData(), 'service'));
-        if (result === 'shared' && markSent) markServiceAsSent();
+        if (result === 'shared') _promoteServiceToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -18041,14 +18059,14 @@ function getKappeExportFilename(ext) {
     return _filenameForForm(data, 0, 'kappe', ext);
 }
 
-async function doKappeExportPDF(markSent) {
+async function doKappeExportPDF() {
     if (!validateKappeRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
         var pdf = await buildKappePdfDoc(getKappeFormData());
         pdf.save(getKappeExportFilename('pdf'));
-        if (markSent) markKappeAsSent();
+        // Last ned ≠ sendt — ingen status-endring.
     } catch(error) {
         showNotificationModal(t('export_pdf_error') + error.message);
     } finally {
@@ -18056,7 +18074,7 @@ async function doKappeExportPDF(markSent) {
     }
 }
 
-async function doKappeExportPNG(markSent) {
+async function doKappeExportPNG() {
     if (!validateKappeRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -18066,7 +18084,7 @@ async function doKappeExportPNG(markSent) {
         link.download = getKappeExportFilename('png');
         link.href = canvas.toDataURL('image/png');
         link.click();
-        if (markSent) markKappeAsSent();
+        // Last ned ≠ sendt — ingen status-endring.
     } catch(error) {
         showNotificationModal(t('export_png_error') + error.message);
     } finally {
@@ -18074,7 +18092,7 @@ async function doKappeExportPNG(markSent) {
     }
 }
 
-async function doKappeSharePDF(markSent) {
+async function doKappeSharePDF() {
     if (!validateKappeRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -18084,7 +18102,7 @@ async function doKappeSharePDF(markSent) {
         var file = new File([blob], getKappeExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getKappeFormData(), 'kappe'));
-        if (result === 'shared' && markSent) markKappeAsSent();
+        if (result === 'shared') _promoteKappeToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -18092,7 +18110,7 @@ async function doKappeSharePDF(markSent) {
     }
 }
 
-async function doKappeSharePNG(markSent) {
+async function doKappeSharePNG() {
     if (!validateKappeRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -18104,7 +18122,7 @@ async function doKappeSharePNG(markSent) {
         var file = new File([blob], getKappeExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getKappeFormData(), 'kappe'));
-        if (result === 'shared' && markSent) markKappeAsSent();
+        if (result === 'shared') _promoteKappeToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -18116,25 +18134,20 @@ function showKappeExportMenu() {
     var popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('export_title');
     var buttonsEl = document.getElementById('action-popup-buttons');
-    var isSent = sessionStorage.getItem('firesafe_kappe_sent') === '1';
-    var checkboxHtml = isSent ? '' :
-        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:8px 0">' +
-            '<input type="checkbox" id="kappe-export-mark-sent" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
-            t('export_and_mark_label') +
-        '</label>';
+    // «Marker som sendt»-avhuking fjernet — se showServiceExportMenu.
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePDF(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePNG(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doKappeSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
-    buttonsEl.innerHTML = checkboxHtml +
+    buttonsEl.innerHTML =
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doKappeExportPDF(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="doKappeExportPNG(document.getElementById(\'kappe-export-mark-sent\')?.checked); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doKappeExportPDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="doKappeExportPNG(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PNG</button>' +
         '</div>' +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
         '<div class="confirm-modal-buttons">' +
