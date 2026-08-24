@@ -5219,6 +5219,79 @@ function timerFromWeekBuckets(buckets) {
     return timer;
 }
 
+// Uke-feltet er en ETIKETT på ordreseddelen, ikke en nøkkel timene eies av.
+// Timene tilhører BESTILLINGEN: fører du 2 t lørdag, skal ordreseddelen vise 2 t
+// lørdag — uansett hva som senere står i Uke-feltet. Retter du en uke du førte
+// feil, skal timene bli med over.
+//
+// timer.uker finnes utelukkende for å holde to LIKE ukedager fra hverandre når
+// ordreseddelen dekker flere uker («30 & 31» har to onsdager). Bøttene er derfor
+// POSISJONELLE: første bøtte hører til første uke i Uke-feltet, andre bøtte til
+// den andre. Endres Uke-feltet, følger bøttene med, posisjon for posisjon:
+//
+//   [35] → [34]         bøtta flyttes til uke 34 — 2 t lørdag står der den skal
+//   [30,31] → [31,32]   posisjon for posisjon
+//   [30,31] → [30]      to bøtter slås sammen (summeres) — ingen timer forsvinner
+//   [30] → [30,31]      uke 31 blir tom, klar til utfylling
+//   [30] → «sommerferie»  ingen ukenumre å feste til → bøttene beholdes urørt
+//
+// Totalen er alltid uendret: de flate nøklene regnes ut på nytt fra bøttene av
+// timerFromWeekBuckets, så det er kun ETIKETTEN som flyttes.
+function realignTimerWeeks(timer, newWeeks) {
+    if (!timer || typeof timer !== 'object') return timer;
+    var uker = timer.uker;
+    if (!uker || typeof uker !== 'object') return timer;
+    var oldKeys = Object.keys(uker).sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    if (!oldKeys.length) return timer;
+    var target = (newWeeks || []).map(String);
+    if (!target.length) return timer;                       // ukjent uke → la bøttene stå
+    // Allerede i takt → returner samme objekt (kallerne bruker det som «uendret»).
+    if (oldKeys.length === target.length && oldKeys.every(function(k, i) { return k === target[i]; })) return timer;
+
+    var out = {};
+    var KEYS = TIMER_DAY_KEYS_CORE.concat(['_generelt']);
+    oldKeys.forEach(function(k, i) {
+        // Flere bøtter enn uker → de overskytende slås sammen i SISTE uke.
+        // Alternativet ville vært å droppe dem, og da forsvant timer.
+        var dest = target[Math.min(i, target.length - 1)];
+        var bucket = out[dest] || (out[dest] = {});
+        var src = uker[k] || {};
+        KEYS.forEach(function(d) {
+            var v = String(src[d] == null ? '' : src[d]).trim();
+            if (!v) return;
+            if (!bucket[d]) { bucket[d] = v; return; }
+            var a = parseFloat(String(bucket[d]).replace(',', '.'));
+            var n = parseFloat(v.replace(',', '.'));
+            if (isNaN(a) || isNaN(n)) { bucket[d] = v; return; }
+            bucket[d] = (Math.round((a + n) * 10) / 10).toString().replace('.', ',');
+        });
+    });
+    var res = Object.assign({}, timer);
+    res.uker = out;
+    return res;
+}
+
+// Legg om ALLE bestillingenes uke-bøtter til Uke-feltets nåværende uker.
+// Kalles når Uke-feltet er ferdig endret (change, ikke input: midt i en
+// redigering av «30 & 31» ville et mellomsteg med bare «30» slått de to bøttene
+// sammen, og den sammenslåingen kan ikke angres) og når et lagret skjema åpnes
+// (reparerer skjemaer der uken ble endret før denne mekanismen fantes).
+function realignAllOrderTimerWeeks() {
+    var weeks = currentFormUkeNumbers();
+    if (!weeks.length) return;                              // ukjent uke → ikke rør noe
+    var changed = false;
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
+        var timer;
+        try { timer = JSON.parse(card.getAttribute('data-timer') || '{}') || {}; } catch (e) { return; }
+        var next = realignTimerWeeks(timer, weeks);
+        if (next === timer) return;
+        card.setAttribute('data-timer', JSON.stringify(next));
+        if (typeof updateDagTimerSummary === 'function') updateDagTimerSummary(card);
+        changed = true;
+    });
+    if (changed && typeof updateTimerChip === 'function') updateTimerChip();
+}
+
 // Kanonisk uke-etikett til EKSPORTEN. Uke-feltet er fritekst — «30 & 31»,
 // «31 & 30», «30, ,31» og «30-31» betyr det samme, men ble skrevet ordrett ut på
 // kundedokumentet med skrivefeil og alt («Uke 30, ,31»).
@@ -5532,9 +5605,14 @@ function openDagTimerModal(arg) {
     const timer = session.getTimer();
     // Ukene ordreseddelen dekker. Tom liste (ukjent/ikke tolkbar tekst) → nøkkelen
     // '' og nøyaktig samme flate liste som før, uten faner.
-    _dagTimerWeeks = (typeof session.getWeeks === 'function') ? session.getWeeks() : [];
-    _dagTimerBuckets = timerWeekBuckets(timer, _dagTimerWeeks);
-    _dagTimerActiveWeek = _dagTimerWeeks.length ? String(_dagTimerWeeks[0]) : '';
+    var formWeeks = (typeof session.getWeeks === 'function') ? session.getWeeks() : [];
+    _dagTimerBuckets = timerWeekBuckets(timer, formWeeks);
+    // Fanene bygges av unionen, ikke av Uke-feltet alene — se _dagTimerWeeksToShow.
+    _dagTimerWeeks = _dagTimerWeeksToShow(_dagTimerBuckets, formWeeks);
+    // Aktiv uke: ordreseddelens FØRSTE uke når den finnes (der nye timer normalt
+    // føres), ellers første uke som har timer. Fanene viser delsummen for de andre,
+    // så en uke med timer utenfor Uke-feltet er synlig uten å bytte fane.
+    _dagTimerActiveWeek = formWeeks.length ? String(formWeeks[0]) : (_dagTimerWeeks[0] || '');
     const list = document.getElementById('dag-timer-modal-list');
     list.innerHTML = '';
 
@@ -5633,6 +5711,45 @@ function _dagTimerBucketSum(bucket) {
         if (!isNaN(n)) s += n;
     });
     return s;
+}
+
+function _dagTimerBucketHasValue(bucket) {
+    if (!bucket) return false;
+    return Object.keys(bucket).some(function(k) { return String(bucket[k] == null ? '' : bucket[k]).trim() !== ''; });
+}
+
+// Ukene popupen skal VISE: ordreseddelens uker UNION ukene det faktisk ER ført
+// timer på.
+//
+// Uten unionen ble en uke som finnes i dataene, men ikke i Uke-feltet, verken
+// vist eller redigerbar — samtidig som timene talte med i total-raden, fordi den
+// summerer alle bøttene. Popupen kunne da vise «alle dager 0 t» og
+// «Total arbeidstid 2,0 t» samtidig, og timene var umulige å rette fra UI-et.
+// Det inntreffer så snart Uke-feltet endres etter at timer er ført (uke-feltet er
+// bruker-persistent og kan rettes når som helst), og når teksten ikke lenger lar
+// seg tolke til de samme ukenumrene.
+//
+// Timene har aldri gått tapt — kladden beholder alle bøtter og
+// timerFromWeekBuckets skriver dem tilbake — de var bare usynlige.
+//
+// Den tomme nøkkelen '' er «ukjent uke» (Uke-feltet er fritekst som ikke lot seg
+// tolke). Den er ikke en uke, og skal ikke ha fane: da faller popupen tilbake til
+// den flate dag-lista, som før.
+function _dagTimerWeeksToShow(buckets, formWeeks) {
+    var out = [], seen = {};
+    (formWeeks || []).forEach(function(w) {
+        var k = String(w);
+        if (!k || seen[k]) return;
+        seen[k] = true;
+        out.push(k);
+    });
+    Object.keys(buckets || {}).forEach(function(k) {
+        if (!k || seen[k]) return;
+        if (!_dagTimerBucketHasValue(buckets[k])) return;   // tom uke → ingen grunn til fane
+        seen[k] = true;
+        out.push(k);
+    });
+    return out.sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
 }
 
 // Les det som står i de synlige feltene inn i den aktive uke-bøtta. Kalles før
@@ -7397,6 +7514,10 @@ function setFormData(data) {
     });
     renumberOrders();
     updateOrderDeleteStates();
+    // Uke-feltet eier ikke timene. Er bøttene merket med andre uker enn skjemaets
+    // (uken ble rettet før denne mekanismen fantes), flyttes de på plass nå — da
+    // viser kortet og Arbeidstid-popupen timene med én gang.
+    realignAllOrderTimerWeeks();
 }
 
 // Validering av påkrevde felter (konfigurerbar via innstillinger)

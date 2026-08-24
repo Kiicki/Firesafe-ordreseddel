@@ -8078,10 +8078,20 @@ document.getElementById('mobile-form').addEventListener('input', function() {
 });
 
 // Uke-feltet endrer hvilken uke chipen summerer → oppdater uke-totalen live.
+// Og når feltet er FERDIG endret: flytt bestillingenes uke-bøtter med over, så
+// timene blir værende på ordreseddelen (se realignTimerWeeks). «change», ikke
+// «input» — midt i en redigering av «30 & 31» er verdien innom bare «30», og et
+// mellomsteg der ville slått de to ukenes bøtter sammen for godt.
 (function() {
-    var ukeInput = document.getElementById('mobile-dato');
-    if (ukeInput) ukeInput.addEventListener('input', function() {
-        if (typeof updateTimerChip === 'function') updateTimerChip();
+    ['mobile-dato', 'dato'].forEach(function(id) {
+        var ukeInput = document.getElementById(id);
+        if (!ukeInput) return;
+        ukeInput.addEventListener('input', function() {
+            if (typeof updateTimerChip === 'function') updateTimerChip();
+        });
+        ukeInput.addEventListener('change', function() {
+            if (typeof realignAllOrderTimerWeeks === 'function') realignAllOrderTimerWeeks();
+        });
     });
 })();
 
