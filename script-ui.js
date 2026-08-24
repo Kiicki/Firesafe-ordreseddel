@@ -4280,13 +4280,22 @@ function _isListVisible(id) {
 
 function _rerenderListsAfterProjectCorrection() {
     try {
-        if (_isListVisible('saved-list') && typeof renderSavedFormsList === 'function' && window.loadedForms) {
+        // KRITISK: bare re-rendre lister som FAKTISK har data. Dette er en kosmetisk
+        // oppfriskning, og den må aldri kunne bytte ut ekte innhold med tomt.
+        // window.loadedForms nullstilles til [] i auth.onAuthStateChanged (script.js),
+        // som fyrer under sidelasting mens den cachede lista alt står på skjermen —
+        // uten .length-sjekken rendret vi da «Ingen lagrede skjemaer» oppå den, helt
+        // til Firestore-refreshen kom og fylte den igjen. Det ga et synlig blink.
+        if (_isListVisible('saved-list') && typeof renderSavedFormsList === 'function'
+            && window.loadedForms && window.loadedForms.length) {
             renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
         }
-        if (_isListVisible('service-list') && typeof renderServiceFormsList === 'function' && window.loadedServiceForms) {
+        if (_isListVisible('service-list') && typeof renderServiceFormsList === 'function'
+            && window.loadedServiceForms && window.loadedServiceForms.length) {
             renderServiceFormsList(window.loadedServiceForms);
         }
-        if (_isListVisible('kappe-list') && typeof renderKappeFormsList === 'function' && window.loadedKappeForms) {
+        if (_isListVisible('kappe-list') && typeof renderKappeFormsList === 'function'
+            && window.loadedKappeForms && window.loadedKappeForms.length) {
             renderKappeFormsList(window.loadedKappeForms);
         }
         if (_isListVisible('bil-history-list') && typeof renderBilHistory === 'function') renderBilHistory();
