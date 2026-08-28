@@ -2858,6 +2858,109 @@ label.settings-default-label.field-required > span::after {
 }
 .dag-timer-week-tab.active .dag-timer-week-tab-sum { color: #E8501A; }
 
+/* ── Personrad i Arbeidstid-popupen ──────────────────────────────────────────
+   Samme grid-mønster som uke-fanene over (auto-fill + 1fr) av samme grunn: med
+   flex-wrap ville siste rad fått færre, bredere faner enn radene over. «+»-knappen
+   får et smalere spor siden den bare rommer et plusstegn. */
+.dag-timer-person-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(5.4rem, 1fr));
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.dag-timer-person-tab {
+    position: relative;   /* anker for fjern-krysset */
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 7px 6px;
+    border: 1px solid #e0e0e6;
+    border-radius: 10px;
+    background: #f7f7f9;
+    cursor: pointer;
+    font-family: inherit;
+    color: #6c6c72;
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.dag-timer-person-tab.active {
+    background: #fff;
+    border-color: #E8501A;
+    color: #1c1c1e;
+    box-shadow: 0 0 0 1px #E8501A inset;
+}
+.dag-timer-person-tab-name {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+.dag-timer-person-tab-sum { font-size: 13px; font-weight: 700; }
+.dag-timer-person-tab.active .dag-timer-person-tab-sum { color: #E8501A; }
+/* Fjern-krysset: eget treffområde i hjørnet, stort nok for tommel (24px) uten å
+   spise av navnet. Bare synlig på aktiv fane — ellers er raden full av kryss som
+   konkurrerer med selve fane-valget. */
+.dag-timer-person-x {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 22px;
+    height: 22px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #E8501A;
+    color: #fff;
+    font-size: 15px;
+    line-height: 1;
+}
+.dag-timer-person-tab.active .dag-timer-person-x { display: flex; }
+.dag-timer-person-add {
+    min-width: 0;
+    padding: 7px 6px;
+    border: 1px dashed #c9c9d1;
+    border-radius: 10px;
+    background: #fff;
+    color: #E8501A;
+    font-size: 19px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
+/* Solo-varianten: ingen fanerad, bare en diskré lenke. Popupen skal se ut som før
+   når man fører timer for seg selv. */
+.dag-timer-person-add-link {
+    display: block;
+    width: 100%;
+    padding: 6px 0;
+    border: none;
+    background: none;
+    color: #E8501A;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.dag-timer-person-copy {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 9px 10px;
+    border: 1px solid #E8501A;
+    border-radius: 10px;
+    background: #fff6f2;
+    color: #E8501A;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
+
 .dag-timer-modal-list {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -9068,6 +9171,20 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-unit-suffix { font-size: 13px; color: #888; align-self: center; }
 .timebok-sync-projects-btn { margin-bottom: 10px; }
 
+/* Forklarende undertekst i en innstillings-seksjon (Kolleger m.fl.) */
+.settings-hint {
+    font-size: 13px;
+    color: #777;
+    line-height: 1.45;
+    padding: 2px 0 10px;
+}
+.settings-empty-msg {
+    font-size: 13px;
+    color: #999;
+    text-align: center;
+    padding: 14px 0;
+}
+
 /* Kappe-view shell (samme mønster som service-view) */
 body.kappe-view-open #view-form { display: none; }
 .container.kappe-view {
@@ -9998,6 +10115,14 @@ body.kappe-view-open #view-form { display: none; }
     border-color: #E8501A;
     color: #E8501A;
 }
+/* Bekreft-dialogen (f.eks. «Fjern person?») må over Arbeidstid-popupen.
+   #dag-timer-modal ER selv en .confirm-modal og ligger ETTER #confirm-modal i
+   DOM-en, så med lik z-index malte den over bekreftelsen. :not() holder den
+   utenfor hevingen — ellers ville begge fått 80 og DOM-rekkefølgen avgjort igjen.
+   Valgt framfor å skjule Arbeidstid-popupen (slik plan-velgeren gjør), fordi
+   showConfirmModal ikke har noen avbryt-callback å gjenopprette den fra. */
+body:has(#dag-timer-modal.active) .confirm-modal:not(#dag-timer-modal) { z-index: 80; }
+
 /* «+ Ny dimensjon» (showInputModal/confirm-modal) må over festemiddel-popupene. */
 body:has(#fastener-popup.active) .confirm-modal,
 body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }

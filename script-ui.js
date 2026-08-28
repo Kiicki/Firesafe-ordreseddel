@@ -2124,11 +2124,19 @@ function showSettingsPage(page) {
             });
         });
         _loadLagerInline();
+        renderKollegerSettings();
         if (currentUser && db) {
             db.collection('users').doc(currentUser.uid).collection('settings').doc('lager').get().then(function(doc) {
                 if (!doc.exists) return;
                 _saveLagerLocalOnly(doc.data());
                 if (document.body.classList.contains('settings-modal-open')) _loadLagerInline();
+            }).catch(function() {});
+            // Cache-first + bakgrunns-refresh, samme mønster som lager over: lista
+            // kan ha blitt endret på en annen enhet siden forrige innlogging.
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('kolleger').get().then(function(doc) {
+                if (!doc.exists) return;
+                safeSetItem(KOLLEGER_KEY, JSON.stringify(doc.data()));
+                if (document.body.classList.contains('settings-modal-open')) renderKollegerSettings();
             }).catch(function() {});
         }
     } else if (page === 'materials') {
@@ -2167,6 +2175,105 @@ function _syncTimebokSetting(localKey, fbDoc, data) {
 function _timebokSaveTimeTypes(list) { _syncTimebokSetting(TIMEBOK_TIMETYPES_KEY, 'timebok_timetypes', { list: list }); }
 function _timebokSaveBrackets(list) { _syncTimebokSetting(TIMEBOK_BRACKETS_KEY, 'timebok_travel_brackets', { list: list }); }
 function _timebokSaveProjects(list) { _syncTimebokSetting(TIMEBOK_PROJECTS_KEY, 'timebok_projects', { list: list }); }
+// ── Kolleger ────────────────────────────────────────────────────────────────
+// Navnene du kan føre timer på ved siden av deg selv, i Arbeidstid-popupen.
+// Egen liste framfor fritekst i popupen: samme kollega skrevet «Ola», «ola» og
+// «Ola H» ville blitt tre personer i kundedokumentet og i per-person-summene.
+// Følger samme sync-mønster som timebok-innstillingene (lokalt + Firestore i én
+// operasjon), og hentes ved innlogging + ryddes ved bruker-bytte i script.js.
+function _saveKolleger(list) {
+    _syncTimebokSetting(KOLLEGER_KEY, 'kolleger', { list: list });
+}
+
+function _kollegaGenId() {
+    return 'k_' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
+}
+
+function renderKollegerSettings() {
+    var c = document.getElementById('settings-kolleger-items');
+    if (!c) return;
+    var list = getKolleger();
+    var cnt = document.getElementById('settings-count-kolleger');
+    if (cnt) cnt.textContent = list.length ? '(' + list.length + ')' : '';
+    if (!list.length) {
+        c.innerHTML = '<div class="settings-empty-msg">' + escapeHtml(t('settings_kolleger_empty')) + '</div>';
+        return;
+    }
+    c.innerHTML = list.map(function(k, i) {
+        return '<div class="timebok-setting-row">' +
+            '<span class="timebok-setting-name">' + escapeHtml(k.navn || '') + '</span>' +
+            '<button type="button" class="settings-item-delete" onclick="removeKollega(' + i + ')" title="' + escapeHtml(t('delete_btn')) + '">' + deleteIcon + '</button>' +
+            '</div>';
+    }).join('');
+}
+
+// Legger til og returnerer kollegaen. Navne-treff (uansett skrivemåte) gir den
+// eksisterende tilbake i stedet for en duplikat — samme regel som
+// _timebokAddProject, så en kollega ikke kan finnes i to varianter.
+function _addKollegaNamed(navn) {
+    navn = String(navn || '').trim();
+    if (!navn) return null;
+    var list = getKolleger();
+    for (var i = 0; i < list.length; i++) {
+        if (String(list[i].navn || '').trim().toLowerCase() === navn.toLowerCase()) return list[i];
+    }
+    var k = { id: _kollegaGenId(), navn: navn };
+    list.push(k);
+    _saveKolleger(list);
+    return k;
+}
+
+function addKollega() {
+    var inp = document.getElementById('settings-new-kollega');
+    var navn = (inp && inp.value || '').trim();
+    if (!navn) { if (inp) inp.focus(); return; }
+    _addKollegaNamed(navn);
+    if (inp) inp.value = '';
+    renderKollegerSettings();
+}
+
+function removeKollega(i) {
+    var list = getKolleger();
+    if (!list[i]) return;
+    // Sletting her fjerner bare navnet fra VELGEREN. Timer som allerede er ført
+    // på personen ligger i ordreseddelen og blir stående — de er et historisk
+    // faktum om hvem som gjorde jobben, ikke en referanse til denne lista.
+    list.splice(i, 1);
+    _saveKolleger(list);
+    renderKollegerSettings();
+}
+
+// Legg til kollega fra Arbeidstid-popupens person-velger. Speiler
+// addPlanFromPicker: navnet lagres i lista OG tas i bruk med det samme — man
+// legger den jo til fordi personen skal ha timer nå.
+function addKollegaFromPicker() {
+    var input = document.getElementById('person-popup-new');
+    if (!input) return;
+    var val = String(input.value || '').trim();
+    if (!val) {
+        input.classList.add('settings-input-error');
+        setTimeout(function() { input.classList.remove('settings-input-error'); }, 1500);
+        return;
+    }
+    // Allerede ført på denne bestillingen? Da er det ikke noe å legge til, og en
+    // stille no-op ville sett ut som at knappen ikke virket.
+    var taken = (typeof _dagTimerPersons !== 'undefined') && _dagTimerPersons.some(function(p) {
+        return String(p.navn || '').trim().toLowerCase() === val.toLowerCase();
+    });
+    if (taken) {
+        showNotificationModal(t('dag_timer_person_exists'));
+        return;
+    }
+    _addKollegaNamed(val);              // persister i Kolleger-lista (+ Firebase)
+    input.value = '';
+    if (document.getElementById('settings-kolleger-items')) renderKollegerSettings();
+    _addDagTimerPerson(val);            // ...og ta den i bruk (lukker velgeren)
+}
+
+window.addKollega = addKollega;
+window.removeKollega = removeKollega;
+window.addKollegaFromPicker = addKollegaFromPicker;
+
 function _timebokGenId(prefix) { return prefix + '_' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36); }
 
 function _loadTimebokTimesatsSetting() {
@@ -5378,6 +5485,22 @@ async function renderFormToCanvas() {
 
     syncMobileToOriginal();
 
+    // Montør-cella skal vise dem som faktisk utførte arbeidet når bestillingene
+    // har en personfordeling. PNG-eksporten fotograferer #form-container, så
+    // verdien må stå i selve inputen — samme lagre/gjenopprett-mønster som
+    // signering-dato over. PDF-veien bruker formMontorLabel direkte på dataene.
+    var _mont = document.getElementById('montor');
+    var _origMont = null;
+    if (_mont && typeof formMontorLabel === 'function' && typeof getFormData === 'function') {
+        try {
+            var _lbl = formMontorLabel(getFormData());
+            // Bare skriv når det faktisk er en personfordeling å vise. Jobber jeg
+            // alene skal inputen stå urørt, så solo-eksporten er bit-identisk med
+            // før (og vi aldri kan komme til å restaurere feil verdi).
+            if (_lbl && _lbl !== _mont.value) { _origMont = _mont.value; _mont.value = _lbl; }
+        } catch (e) {}
+    }
+
     const element = document.getElementById('form-container');
     const originalDisplay = element.style.display;
     const originalPosition = element.style.position;
@@ -5436,6 +5559,7 @@ async function renderFormToCanvas() {
     // dato i UI — PDF-en er allerede ferdig og inneholder dagens dato).
     if (_sd && _origSd !== null) _sd.value = _origSd;
     if (_msd && _origMsd !== null) _msd.value = _origMsd;
+    if (_mont && _origMont !== null) _mont.value = _origMont;
 
     return canvas;
 }
@@ -5722,7 +5846,7 @@ async function _renderOrdreseddelInto(doc, data) {
             { w: W / 2, label: 'Prosjektnavn', value: data.prosjektnavn }
         ], fh);
         fieldRow([
-            { w: W / 2, label: 'Montør', value: data.montor },
+            { w: W / 2, label: 'Montør', value: formMontorLabel(data) },
             { w: W / 2, label: 'Avdeling', value: data.avdeling }
         ], fh);
 
@@ -15571,13 +15695,27 @@ function _normUke(v) {
 function _currentFormUke() {
     return _normUke((document.getElementById('mobile-dato') || {}).value || '');
 }
-function _savedFormHoursSum(form) {
+function _savedFormHoursSum(form, onlyMine) {
     if (!form || !Array.isArray(form.orders)) return 0;
+    var me = onlyMine ? _myNameForHours() : '';
     var s = 0;
     form.orders.forEach(function(o) {
-        if (o && o.timer && typeof o.timer === 'object') s += _orderHoursSum(o.timer);
+        if (!o || !o.timer || typeof o.timer !== 'object') return;
+        s += onlyMine ? orderTimerSumMine(o.timer, me) : _orderHoursSum(o.timer);
     });
     return s;
+}
+
+// Hvem er «meg» i time-summeringen? Montør-feltet i det åpne skjemaet, med Min
+// info som reserve. Samme kilde som Arbeidstid-popupen bruker når den avgjør om
+// timene skal lagres uten personfordeling, så de to kan ikke bli uenige.
+function _myNameForHours() {
+    if (typeof currentFormMontorName === 'function') {
+        var n = currentFormMontorName();
+        if (n) return n;
+    }
+    var info = (typeof getMinInfo === 'function') ? getMinInfo() : {};
+    return (typeof stripEtternavn === 'function') ? stripEtternavn(info.montor) : (info.montor || '');
 }
 // { uke, currentRow:{nr,navn,hours}, savedRows:[{nr,navn,hours}], total }
 // Timer i EN lagret ordreseddel som tilhører et gitt sett med uker.
@@ -15587,42 +15725,59 @@ function _savedFormHoursSum(form) {
 //   3. flate timer + FLERE uker → fordelingen finnes ikke. Alt legges på første
 //      uke, samme regel som migreringen i timerWeekBuckets, så tallet stemmer med
 //      det popupen viser. Kan rettes ved å åpne Arbeidstid og fordele.
-function _formHoursForWeeks(form, weeks) {
+function _formHoursForWeeks(form, weeks, onlyMine) {
     if (!form || !Array.isArray(form.orders)) return 0;
     var want = {};
     (weeks || []).forEach(function(w) { want[String(w)] = true; });
     var fWeeks = parseUkeNumbers(form.dato);
+    var me = onlyMine ? _myNameForHours() : '';
     var sum = 0;
     form.orders.forEach(function(o) {
         var tm = (o && o.timer && typeof o.timer === 'object') ? o.timer : null;
         if (!tm) return;
         if (tm.uker && typeof tm.uker === 'object') {
             Object.keys(tm.uker).forEach(function(w) {
-                if (want[w]) sum += orderHoursForWeek(tm, w);
+                if (!want[w]) return;
+                sum += onlyMine ? orderHoursForWeekMine(tm, w, me) : orderHoursForWeek(tm, w);
             });
             return;
         }
         var attributTil = fWeeks.length ? String(fWeeks[0]) : null;
-        if (attributTil && want[attributTil]) sum += _orderHoursSum(tm);
+        if (attributTil && want[attributTil]) sum += onlyMine ? orderTimerSumMine(tm, me) : _orderHoursSum(tm);
     });
     return sum;
 }
 
 // Timer i det ÅPNE skjemaets bestillinger som tilhører et gitt sett med uker.
 // Samme tre-trinns regel som _formHoursForWeeks for lagrede skjemaer.
-function _liveHoursForWeeks(weeks) {
+function _liveHoursForWeeks(weeks, onlyMine) {
     var want = {};
     (weeks || []).forEach(function(w) { want[String(w)] = true; });
     var mine = currentFormUkeNumbers();
     var attributTil = mine.length ? String(mine[0]) : null;
+    var me = onlyMine ? _myNameForHours() : '';
     var sum = 0;
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
         var tm = _orderTimerObj(card);
         if (tm && tm.uker && typeof tm.uker === 'object') {
-            Object.keys(tm.uker).forEach(function(w) { if (want[w]) sum += orderHoursForWeek(tm, w); });
+            Object.keys(tm.uker).forEach(function(w) {
+                if (!want[w]) return;
+                sum += onlyMine ? orderHoursForWeekMine(tm, w, me) : orderHoursForWeek(tm, w);
+            });
             return;
         }
-        if (attributTil && want[attributTil]) sum += _orderHoursSum(tm || {});
+        if (attributTil && want[attributTil]) sum += onlyMine ? orderTimerSumMine(tm || {}, me) : _orderHoursSum(tm || {});
+    });
+    return sum;
+}
+
+// Alle bestillingenes timer i det åpne skjemaet, kun MINE. Fallback når Uke-feltet
+// ikke lar seg tolke — da finnes ingen uke-fordeling å filtrere på.
+function _liveHoursMineFlat() {
+    var me = _myNameForHours();
+    var sum = 0;
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
+        sum += orderTimerSumMine(_orderTimerObj(card) || {}, me);
     });
     return sum;
 }
@@ -15637,8 +15792,13 @@ function _weekTimerData() {
     // chipen sa uke 30 eller uke 31. Den brukes bare som fallback når Uke-feltet
     // ikke lar seg tolke, der det ikke finnes noen fordeling å ta hensyn til.
     var liveTotal = mineUker.length ? _liveHoursForWeeks(mineUker) : _weekTimerTotals().total;
+    // ...og det samme regnestykket for KUN mine timer. Chipen viser mine, med
+    // lagets total i parentes — uten dette ville den hoppet fra 35t til 53t bare
+    // fordi jeg førte kollegaens timer på min ordreseddel.
+    var liveMine = mineUker.length ? _liveHoursForWeeks(mineUker, true) : _liveHoursMineFlat();
     var savedRows = [];
     var savedSum = 0;
+    var savedMine = 0;
     if (uke) {
         // Tag opphav (_isSent) så loadFormDirect setter riktig status/banner når
         // en lagret ordreseddel åpnes herfra. Arkiverte = sendt/ferdig/avvist.
@@ -15660,18 +15820,21 @@ function _weekTimerData() {
         Object.keys(byNr).forEach(function(nr) {
             var f = byNr[nr];
             if (currentNr && nr === currentNr) return;   // den åpne telles live, ikke fra lagret
-            var h;
+            var h, hMine;
             if (mineUker.length) {
                 var fUker = parseUkeNumbers(f.dato);
                 var overlapp = fUker.filter(function(w) { return mineUker.indexOf(w) !== -1; });
                 if (!overlapp.length) return;
                 h = _formHoursForWeeks(f, overlapp);
                 if (!h) return;   // deler uke, men har ingen timer der
+                hMine = _formHoursForWeeks(f, overlapp, true);
             } else {
                 if (_normUke(f.dato) !== uke) return;
                 h = _savedFormHoursSum(f);
+                hMine = _savedFormHoursSum(f, true);
             }
             savedSum += h;
+            savedMine += hMine;
             savedRows.push({ nr: nr, navn: f.prosjektnavn || '', hours: h, form: f });
         });
         savedRows.sort(function(a, b) { return String(a.nr).localeCompare(String(b.nr)); });
@@ -15684,8 +15847,21 @@ function _weekTimerData() {
             hours: liveTotal
         },
         savedRows: savedRows,
-        total: liveTotal + savedSum
+        total: liveTotal + savedSum,
+        mine: liveMine + savedMine
     };
+}
+
+// «35t (av 53t)»: mine timer først, lagets total i parentes. Parentesen vises BARE
+// når noen andre har timer i uka — ellers ville hver eneste solo-uke stått som
+// «35t (av 35t)», som bare er støy. Delt av chipen og Timer-oversikten så de to
+// aldri kan vise ulike tall for samme uke.
+function _timerMineOfTotalText(data) {
+    var total = data.total || 0;
+    var mine = (data.mine != null) ? data.mine : total;
+    var txt = _fmtHours(mine) + ' t';
+    if (Math.abs(total - mine) > 0.001) txt += ' (' + t('timer_of_total') + ' ' + _fmtHours(total) + ' t)';
+    return txt;
 }
 
 function updateTimerChip() {
@@ -15698,7 +15874,10 @@ function updateTimerChip() {
         labelEl.removeAttribute('data-i18n');   // dynamisk (inkl. ukenr) — ikke overstyr av applyTranslations
         labelEl.textContent = data.uke ? (t('timer_week_label') + ' ' + data.uke) : t('timer_chip_label');
     }
-    if (valEl) valEl.textContent = _fmtHours(data.total) + ' t';
+    // «35t (av 53t)»: mine timer først, lagets total i parentes. Parentesen vises
+    // BARE når noen andre har timer i uka — ellers ville hver eneste solo-uke stått
+    // som «35t (av 35t)», som bare er støy.
+    if (valEl) valEl.textContent = _timerMineOfTotalText(data);
 }
 window.updateTimerChip = updateTimerChip;
 
@@ -15922,8 +16101,9 @@ function openDayContributors(dayKey) {
         list.appendChild(row);
     });
 
+    // Samme form som chipen: mine timer, lagets total i parentes når de skiller seg.
     var totalEl = document.getElementById('timer-overview-total-value');
-    if (totalEl) totalEl.textContent = _fmtHours(data.total) + ' t';
+    if (totalEl) totalEl.textContent = _timerMineOfTotalText(data);
 
     modal.classList.add('active');
     if (typeof applyTranslations === 'function') applyTranslations();
@@ -16088,6 +16268,9 @@ function _dagTimerFormOrderSession(form, orderIdx, afterCommit) {
         // Ukene fra den LAGREDE ordreseddelens eget Uke-felt (feltet heter «dato»
         // av historiske grunner, men inneholder uke).
         getWeeks: function() { return parseUkeNumbers(form.dato); },
+        // «Meg» for en LAGRET ordreseddel = montøren som står på den, ikke den
+        // som tilfeldigvis er innlogget nå.
+        getMyName: function() { return stripEtternavn(form.montor); },
         getTimer: function() {
             var o = form.orders[orderIdx];
             return (o && o.timer && typeof o.timer === 'object') ? o.timer : {};
@@ -16221,8 +16404,9 @@ function openWeekTimerOverview() {
         list.appendChild(note);
     }
 
+    // Samme form som chipen: mine timer, lagets total i parentes når de skiller seg.
     var totalEl = document.getElementById('timer-overview-total-value');
-    if (totalEl) totalEl.textContent = _fmtHours(data.total) + ' t';
+    if (totalEl) totalEl.textContent = _timerMineOfTotalText(data);
 
     modal.classList.add('active');
     if (typeof applyTranslations === 'function') applyTranslations();

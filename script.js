@@ -52,6 +52,7 @@ const TIMEBOK_DEFAULT_BRACKETS = [
     { id: 'br_6075', label: '60–75 km', rate: null }
 ];
 const MIN_INFO_KEY = 'firesafe_min_info';
+const KOLLEGER_KEY = 'firesafe_kolleger';        // { list: [{id, navn}] }
 const MIN_INFO_FIELDS = ['montor', 'avdeling', 'mobil', 'epost', 'sted'];
 const MIN_INFO_TOGGLES = ['montor', 'avdeling', 'mobil', 'epost', 'sted', 'uke', 'dato'];
 
@@ -306,6 +307,32 @@ function _timebokDayParts(id) {
 function stripEtternavn(montorVal) {
     if (!montorVal) return '';
     return String(montorVal).trim().split(/\s+/)[0] || '';
+}
+
+// ── Kolleger ────────────────────────────────────────────────────────────────
+// Navnene du kan føre timer på ved siden av deg selv. Forvaltes i
+// Innstillinger → Prosjekter & lager, og synkes til Firebase som alle andre
+// brukerdata, så samme liste finnes på telefon, nettbrett og PC.
+function getKolleger() {
+    var d = safeParseJSON(KOLLEGER_KEY, null);
+    return (d && Array.isArray(d.list)) ? d.list : [];
+}
+
+// Navnet mitt slik det skal stå på timene. Montør-feltet i det ÅPNE skjemaet er
+// fasit — det er navnet som allerede står på dokumentet — med Min info som
+// reserve når feltet ikke er fylt ut ennå.
+function currentFormMontorName() {
+    var el = document.getElementById('mobile-montor');
+    var v = el ? String(el.value || '').trim() : '';
+    if (!v) {
+        el = document.getElementById('montor');
+        v = el ? String(el.value || '').trim() : '';
+    }
+    if (!v) {
+        var info = (typeof getMinInfo === 'function') ? getMinInfo() : {};
+        v = info.montor || '';
+    }
+    return stripEtternavn(v);
 }
 
 function getMinInfo() {
@@ -1630,7 +1657,7 @@ if (auth) {
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY,
-             LEVERINGSADRESSE_KEY, MIN_INFO_KEY,
+             LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY,
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             cachedRequiredSettings = null;
@@ -1750,6 +1777,8 @@ if (auth) {
                 // Sync min_info, leveringsadresser, plate_size (autofyll-data — må være tilgjengelig før bruker åpner skjema)
                 db.collection('users').doc(user.uid).collection('settings').doc('min_info').get()
                     .then(function(d) { if (d.exists) safeSetItem(MIN_INFO_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('kolleger').get()
+                    .then(function(d) { if (d.exists) safeSetItem(KOLLEGER_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('lager').get()
                     .then(function(d) { if (d.exists) safeSetItem(LEVERINGSADRESSE_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('plateSize').get()
@@ -5219,6 +5248,148 @@ function timerFromWeekBuckets(buckets) {
     return timer;
 }
 
+// ── Personer: hvem har utført timene ────────────────────────────────────────
+// Timer-objektet har nå TRE lag, hvert avledet av det under:
+//   flate nøkler (ma, ti, … _generelt)  = sum på tvers av personer OG uker
+//   .uker = { "30": {…}, "31": {…} }    = sum per uke, på tvers av personer
+//   .personer = [ { navn, uker } ]      = KILDEN når flere har jobbet
+//
+// De to øverste lagene beholder nøyaktig samme betydning som før, så ALLE
+// eksisterende lesere (eksport-totaler, PDF, timer-chip, uke-oversikt,
+// orderHoursForWeek) fortsetter å virke uendret — de ser summen slik de alltid
+// har gjort. Det er derfor person kunne legges til uten å røre dem.
+//
+// .personer skrives KUN når den tilfører noe: to eller flere personer, eller én
+// person som ikke er meg (jeg fører for en kollega). Jobber jeg alene, er
+// timer-objektet bit-identisk med det appen lagret før denne endringen — ingen
+// migrering, og ingen falsk «ulagret» på eksisterende ordresedler.
+var TIMER_BUCKET_KEYS = TIMER_DAY_KEYS_CORE.concat(['_generelt']);
+
+function _timerFmtNum(n) {
+    // Hele tall uten desimal, ellers én desimal med komma — samme form som
+    // brukeren selv skriver, og som timerFromWeekBuckets bruker.
+    return (Math.round(n * 10) / 10).toString().replace('.', ',');
+}
+
+function _timerTrim(v) { return String(v == null ? '' : v).trim(); }
+
+// Slå sammen flere bøtte-kart ({uke: {dag: timer}}) til ett, med summering per
+// (uke, dag). Brukes til å utlede .uker fra personene.
+function _mergeBucketMaps(maps) {
+    var out = {};
+    (maps || []).forEach(function(m) {
+        Object.keys(m || {}).forEach(function(w) {
+            var src = m[w] || {};
+            var dst = out[w] || (out[w] = {});
+            TIMER_BUCKET_KEYS.forEach(function(d) {
+                var v = _timerTrim(src[d]);
+                if (!v) return;
+                var n = parseFloat(v.replace(',', '.'));
+                if (isNaN(n)) { if (!dst[d]) dst[d] = v; return; }
+                var prev = parseFloat(_timerTrim(dst[d] || '0').replace(',', '.'));
+                if (isNaN(prev)) prev = 0;
+                dst[d] = _timerFmtNum(prev + n);
+            });
+        });
+    });
+    return out;
+}
+
+// Behold bare dager med verdi; dropp tomme uker.
+function _cleanBucketMap(map) {
+    var out = {};
+    Object.keys(map || {}).forEach(function(w) {
+        var src = map[w] || {};
+        var kept = {};
+        TIMER_BUCKET_KEYS.forEach(function(d) {
+            var v = _timerTrim(src[d]);
+            if (v) kept[d] = v;
+        });
+        if (Object.keys(kept).length) out[w] = kept;
+    });
+    return out;
+}
+
+// Er personlista verdt å lagre? Se blokk-kommentaren over.
+function _shouldStorePersons(persons, myName) {
+    if (!persons || !persons.length) return false;
+    if (persons.length > 1) return true;
+    var only = _timerTrim(persons[0].navn).toLowerCase();
+    var me = _timerTrim(myName).toLowerCase();
+    return !!only && only !== me;
+}
+
+// Har dette timer-objektet en personfordeling? (Ellers er timene «mine».)
+function timerHasPersons(timer) {
+    return !!(timer && Array.isArray(timer.personer) && timer.personer.length);
+}
+
+// Timer-objekt → redigerbar personliste [{navn, buckets}].
+// Uten .personer får vi ÉN person (meg) med dagens bøtter — da oppfører popupen
+// seg nøyaktig som før.
+function timerPersonList(timer, weeks, myName) {
+    if (timerHasPersons(timer)) {
+        return timer.personer.map(function(p) {
+            return {
+                navn: _timerTrim(p && p.navn),
+                buckets: timerWeekBuckets({ uker: (p && p.uker) || {} }, weeks)
+            };
+        });
+    }
+    return [{ navn: _timerTrim(myName), buckets: timerWeekBuckets(timer, weeks) }];
+}
+
+// Redigerbar personliste → timer-objekt (alle tre lag).
+function timerFromPersonList(persons, myName) {
+    var clean = [];
+    (persons || []).forEach(function(p) {
+        var uker = _cleanBucketMap(p && p.buckets);
+        if (!Object.keys(uker).length) return;      // person uten timer lagres ikke
+        clean.push({ navn: _timerTrim(p && p.navn), uker: uker });
+    });
+    var merged = _mergeBucketMaps(clean.map(function(p) { return p.uker; }));
+    var timer = timerFromWeekBuckets(merged);
+    if (_shouldStorePersons(clean, myName)) timer.personer = clean;
+    return timer;
+}
+
+// Timer ført av ÉN person på tvers av alle uker. Uten personfordeling er alle
+// timene mine, så da svarer den for meg og 0 for alle andre.
+function orderHoursForPerson(timer, personName, myName) {
+    if (!timer || typeof timer !== 'object') return 0;
+    var want = _timerTrim(personName).toLowerCase();
+    var sum = 0;
+    var addBucket = function(b) {
+        TIMER_BUCKET_KEYS.forEach(function(d) {
+            var n = parseFloat(_timerTrim(b[d]).replace(',', '.'));
+            if (!isNaN(n)) sum += n;
+        });
+    };
+    if (timerHasPersons(timer)) {
+        timer.personer.forEach(function(p) {
+            if (_timerTrim(p.navn).toLowerCase() !== want) return;
+            Object.keys(p.uker || {}).forEach(function(w) { addBucket(p.uker[w] || {}); });
+        });
+        return sum;
+    }
+    if (want && want !== _timerTrim(myName).toLowerCase()) return 0;
+    return orderTimerSum(timer);
+}
+
+// Alle personnavn i et timer-objekt, i lagret rekkefølge. Tom liste = ingen
+// fordeling (timene er mine).
+function timerPersonNames(timer) {
+    if (!timerHasPersons(timer)) return [];
+    var out = [], seen = {};
+    timer.personer.forEach(function(p) {
+        var n = _timerTrim(p && p.navn);
+        if (!n || seen[n.toLowerCase()]) return;
+        seen[n.toLowerCase()] = true;
+        out.push(n);
+    });
+    return out;
+}
+
 // Uke-feltet er en ETIKETT på ordreseddelen, ikke en nøkkel timene eies av.
 // Timene tilhører BESTILLINGEN: fører du 2 t lørdag, skal ordreseddelen vise 2 t
 // lørdag — uansett hva som senere står i Uke-feltet. Retter du en uke du førte
@@ -5237,37 +5408,149 @@ function timerFromWeekBuckets(buckets) {
 //
 // Totalen er alltid uendret: de flate nøklene regnes ut på nytt fra bøttene av
 // timerFromWeekBuckets, så det er kun ETIKETTEN som flyttes.
-function realignTimerWeeks(timer, newWeeks) {
-    if (!timer || typeof timer !== 'object') return timer;
-    var uker = timer.uker;
-    if (!uker || typeof uker !== 'object') return timer;
-    var oldKeys = Object.keys(uker).sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
-    if (!oldKeys.length) return timer;
-    var target = (newWeeks || []).map(String);
-    if (!target.length) return timer;                       // ukjent uke → la bøttene stå
-    // Allerede i takt → returner samme objekt (kallerne bruker det som «uendret»).
-    if (oldKeys.length === target.length && oldKeys.every(function(k, i) { return k === target[i]; })) return timer;
-
-    var out = {};
-    var KEYS = TIMER_DAY_KEYS_CORE.concat(['_generelt']);
-    oldKeys.forEach(function(k, i) {
-        // Flere bøtter enn uker → de overskytende slås sammen i SISTE uke.
-        // Alternativet ville vært å droppe dem, og da forsvant timer.
-        var dest = target[Math.min(i, target.length - 1)];
-        var bucket = out[dest] || (out[dest] = {});
-        var src = uker[k] || {};
-        KEYS.forEach(function(d) {
-            var v = String(src[d] == null ? '' : src[d]).trim();
-            if (!v) return;
-            if (!bucket[d]) { bucket[d] = v; return; }
-            var a = parseFloat(String(bucket[d]).replace(',', '.'));
-            var n = parseFloat(v.replace(',', '.'));
-            if (isNaN(a) || isNaN(n)) { bucket[d] = v; return; }
-            bucket[d] = (Math.round((a + n) * 10) / 10).toString().replace('.', ',');
+// Timer ført av MEG — brukt av «Timer uke N»-chipen, som svarer på «hvor mye har
+// JEG ført denne uka». Uten en personfordeling er alle timene mine, akkurat som
+// før personer fantes; det gjør at eldre ordresedler teller uendret.
+function orderHoursForWeekMine(timer, week, myName) {
+    if (!timerHasPersons(timer)) return orderHoursForWeek(timer, week);
+    var want = _timerTrim(myName).toLowerCase();
+    if (!want) return 0;
+    var sum = 0;
+    timer.personer.forEach(function(p) {
+        if (_timerTrim(p && p.navn).toLowerCase() !== want) return;
+        var b = ((p && p.uker) || {})[String(week)];
+        if (!b) return;
+        TIMER_BUCKET_KEYS.forEach(function(d) {
+            var n = parseFloat(_timerTrim(b[d]).replace(',', '.'));
+            if (!isNaN(n)) sum += n;
         });
     });
+    return sum;
+}
+
+function orderTimerSumMine(timer, myName) {
+    if (!timerHasPersons(timer)) return orderTimerSum(timer);
+    return orderHoursForPerson(timer, myName, myName);
+}
+
+// Navnet(e) til Montør-cella i eksporten. Har bestillingene en personfordeling,
+// er det DE som har utført arbeidet — da skal cella vise dem, ikke meg. Fører jeg
+// timer for en kollega uten å ha vært der selv, ville «Montør: Igor, Ola» stått
+// for at jeg var på jobben, og det er ikke sant.
+//
+// Uten personfordeling er timene mine, og cella viser montør-feltet som før.
+// Merk: `data.montor` selv røres ALDRI — den er fortsatt ett fornavn, slik
+// stripEtternavn og resten av felt-koden forventer.
+function formMontorLabel(data) {
+    var names = [], seen = {};
+    (data && Array.isArray(data.orders) ? data.orders : []).forEach(function(o) {
+        timerPersonNames(o && o.timer).forEach(function(n) {
+            var key = n.toLowerCase();
+            if (seen[key]) return;
+            seen[key] = true;
+            names.push(n);
+        });
+    });
+    if (names.length) return names.join(', ');
+    return stripEtternavn(data && data.montor);
+}
+
+// Alle uker som forekommer i timer-objektet — både på toppnivå og hos hver
+// person. ÉN felles liste er nødvendig fordi personer kan ha ULIK uke-dekning:
+// jobbet Igor uke 30 og 31, men Ola bare uke 31, ville en per-person posisjonell
+// flytting sendt Olas eneste bøtte til første måluke — altså en annen uke enn
+// Igors timer fra samme dag. Alle skal flyttes med SAMME mapping.
+function _timerAllWeekKeys(timer) {
+    var seen = {};
+    var add = function(map) { Object.keys(map || {}).forEach(function(w) { if (w) seen[w] = true; }); };
+    if (timer && timer.uker && typeof timer.uker === 'object') add(timer.uker);
+    if (timerHasPersons(timer)) timer.personer.forEach(function(p) { add(p && p.uker); });
+    return Object.keys(seen).sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+}
+
+// gammel uke → ny uke. Flere gamle uker enn nye → de overskytende peker på SISTE
+// nye uke, så de slås sammen der. Alternativet ville vært å droppe dem, og da
+// forsvant timer.
+function _buildWeekMapping(oldWeeks, target) {
+    var map = {};
+    oldWeeks.forEach(function(k, i) { map[k] = target[Math.min(i, target.length - 1)]; });
+    // Den tomme nøkkelen er «ukjent uke» (Uke-feltet var fritekst uten ukenummer).
+    // Nå som vi VET uken, hører de timene til den første — samme regel som
+    // timerWeekBuckets bruker når flate data skal fordeles.
+    map[''] = target[0];
+    return map;
+}
+
+// Bygg om ett bøtte-kart etter mappingen. Returnerer null når ingenting endret seg,
+// så kallerne kan skille «uendret» fra «ny verdi».
+function _applyWeekMapping(bucketMap, map) {
+    var keys = Object.keys(bucketMap || {});
+    if (!keys.length) return null;
+    var out = {};
+    var changed = false;
+    keys.sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); }).forEach(function(k) {
+        var dest = (map[k] !== undefined) ? map[k] : k;
+        if (dest !== k) changed = true;
+        out[dest] = out[dest] || {};
+        var src = bucketMap[k] || {};
+        TIMER_BUCKET_KEYS.forEach(function(d) {
+            var v = _timerTrim(src[d]);
+            if (!v) return;
+            if (!out[dest][d]) { out[dest][d] = v; return; }
+            changed = true;                                  // to bøtter slått sammen
+            var a = parseFloat(_timerTrim(out[dest][d]).replace(',', '.'));
+            var n = parseFloat(v.replace(',', '.'));
+            if (isNaN(a) || isNaN(n)) { out[dest][d] = v; return; }
+            out[dest][d] = _timerFmtNum(a + n);
+        });
+    });
+    return changed ? out : null;
+}
+
+// Finnes det timer ført på «ukjent uke» (den tomme nøkkelen)? De skal flyttes til
+// den første kjente uka så snart brukeren skriver inn et ukenummer — ellers ville
+// timer ført mens Uke-feltet var utolkbar fritekst blitt liggende utenfor alle
+// ukene, og aldri telt med i uke-summeringen.
+function _timerHasUnknownWeekBucket(timer) {
+    if (timer && timer.uker && typeof timer.uker === 'object' && timer.uker['']) return true;
+    if (timerHasPersons(timer)) {
+        for (var i = 0; i < timer.personer.length; i++) {
+            var p = timer.personer[i];
+            if (p && p.uker && p.uker['']) return true;
+        }
+    }
+    return false;
+}
+
+function realignTimerWeeks(timer, newWeeks) {
+    if (!timer || typeof timer !== 'object') return timer;
+    var target = (newWeeks || []).map(String);
+    if (!target.length) return timer;                       // ukjent uke → la bøttene stå
+    var oldWeeks = _timerAllWeekKeys(timer);
+    var hasUnknown = _timerHasUnknownWeekBucket(timer);
+    if (!oldWeeks.length && !hasUnknown) return timer;
+    // Allerede i takt → returner samme objekt (kallerne bruker det som «uendret»).
+    // Et ukjent-bøtte har alltid noe å gjøre, uansett om ukene ellers stemmer.
+    if (!hasUnknown && oldWeeks.length === target.length
+        && oldWeeks.every(function(k, i) { return k === target[i]; })) return timer;
+
+    var map = _buildWeekMapping(oldWeeks, target);
+    var newUker = (timer.uker && typeof timer.uker === 'object') ? _applyWeekMapping(timer.uker, map) : null;
+    var newPersons = null;
+    if (timerHasPersons(timer)) {
+        var anyPersonChanged = false;
+        newPersons = timer.personer.map(function(p) {
+            var m = _applyWeekMapping(p && p.uker, map);
+            if (!m) return p;
+            anyPersonChanged = true;
+            return Object.assign({}, p, { uker: m });
+        });
+        if (!anyPersonChanged) newPersons = null;
+    }
+    if (!newUker && !newPersons) return timer;
     var res = Object.assign({}, timer);
-    res.uker = out;
+    if (newUker) res.uker = newUker;
+    if (newPersons) res.personer = newPersons;
     return res;
 }
 
@@ -5370,6 +5653,46 @@ function orderArbeidstidMeta(order, fallbackWeeks) {
     // får plass. Bare et konstruert tilfelle med 37,5 t HVER dag (136,6 mm) bryter.
     // Ukenummeret tas med OGSÅ når det bare er ÉN uke — da er formen den samme
     // uansett, i stedet for å veksle mellom «Arbeidstid uke 30:» og «Arbeidstid:».
+    // Flere personer: ÉN linje per (uke, person), gruppert på uke. Da ser kunden
+    // hvem som jobbet hvilken dag — det er den oppstillingen som holder hvis
+    // timene senere blir bestridt, og det er kunden som signerer på dem.
+    //
+    // Etiketten kortes fra «Arbeidstid uke 30:» til «Uke 30 · Igor:» av PLASS:
+    // beskrivelses-kolonnen er 133 mm, og en full uke med alle sju dager måler
+    // allerede 122,6 mm (se kommentaren over). Med «Arbeidstid» foran navnet ville
+    // linja brutt. Ordet står uansett igjen på totalraden nederst i tabellen, så
+    // dokumentet mangler ikke begrepet.
+    if (timerHasPersons(timer)) {
+        var pOut = [];
+        var weekOrder = [], weekSeen = {};
+        timer.personer.forEach(function(p) {
+            Object.keys((p && p.uker) || {}).forEach(function(w) {
+                if (weekSeen[w]) return;
+                weekSeen[w] = true;
+                weekOrder.push(w);
+            });
+        });
+        // Tom nøkkel («ukjent uke») først, deretter ukenummer stigende.
+        weekOrder.sort(function(a, b) {
+            if (!a) return -1;
+            if (!b) return 1;
+            return Number(a) - Number(b);
+        });
+        weekOrder.forEach(function(w) {
+            timer.personer.forEach(function(p) {
+                var parts = bygg(((p && p.uker) || {})[w] || {});
+                if (!parts.length) return;
+                var navn = _timerTrim(p && p.navn);
+                var lbl;
+                if (navn && w) lbl = 'Uke ' + w + ' \u00b7 ' + navn + ': ';
+                else if (navn) lbl = navn + ': ';
+                else lbl = t('order_days') + (w ? ' uke ' + w : '') + ': ';
+                pOut.push({ label: lbl, value: parts.join(' \u00b7 ') });
+            });
+        });
+        if (pOut.length) return pOut;
+    }
+
     var uker = (timer.uker && typeof timer.uker === 'object')
         ? Object.keys(timer.uker).sort(function(a, b) { return Number(a) - Number(b); })
         : [];
@@ -5387,6 +5710,23 @@ function orderArbeidstidMeta(order, fallbackWeeks) {
     if (!flat.length) return [];
     var sole = soleWeekOf(fallbackWeeks);
     return [{ label: t('order_days') + (sole ? ' uke ' + sole : '') + ': ', value: flat.join(' \u00b7 ') }];
+}
+
+// Total timer i ett timer-objekt: de FLATE nøklene, som er summen på tvers av
+// både personer og uker. Leser bevisst ikke .uker/.personer — de er avledede lag
+// av nøyaktig de samme timene, og ville gitt dobbelttelling.
+//
+// Erstatter et tidligere `Object.values(timer)`-løp i begge eksport-veiene. Det
+// ga riktig svar, men bare fordi .uker er et objekt og parseFloat('[object
+// Object]') blir NaN. Enhver ny nøkkel med et TALL i seg ville blitt talt med.
+function orderTimerSum(timer) {
+    if (!timer || typeof timer !== 'object') return 0;
+    var sum = 0;
+    TIMER_DAY_KEYS_CORE.concat(['_generelt', '_total']).forEach(function(k) {
+        var n = parseFloat(String(timer[k] == null ? '' : timer[k]).replace(',', '.'));
+        if (!isNaN(n)) sum += n;
+    });
+    return sum;
 }
 
 // Timer ført på ÉN bestemt uke. Brukes til uke-summering på tvers av ordresedler.
@@ -5410,17 +5750,56 @@ function orderHoursForWeek(timer, week) {
     return sum;
 }
 
-// Kladd mens popupen er åpen: { ukeNøkkel: {ma..so,_generelt} }. Fanebytte
-// renderer fra denne, så ingenting går tapt når man skifter uke.
+// Kladd mens popupen er åpen. Fanebytte renderer fra denne, så ingenting går
+// tapt når man skifter person eller uke.
+//   _dagTimerPersons  = [{ navn, buckets: { ukeNøkkel: {ma..so,_generelt} } }]
+// Jobber man alene er det ÉN person (meg), og popupen ser ut som før: ingen
+// person-fanerad, bare dagradene.
 var _dagTimerWeeks = [];
-var _dagTimerBuckets = {};
+var _dagTimerPersons = [];
+var _dagTimerActivePerson = 0;
 var _dagTimerActiveWeek = '';
+var _dagTimerMyName = '';
+
+function _dagTimerActiveBuckets() {
+    var p = _dagTimerPersons[_dagTimerActivePerson];
+    if (!p) return {};
+    return p.buckets || (p.buckets = {});
+}
+
+// Alle personers bøtter slått sammen — brukes til å avgjøre hvilke uker som
+// trenger fane (en uke der BARE kollegaen jobbet må også være synlig).
+function _dagTimerMergedBuckets() {
+    return _mergeBucketMaps(_dagTimerPersons.map(function(p) { return p.buckets || {}; }));
+}
+
+// Summen for én person på tvers av alle uker (tallet på person-fanen).
+function _dagTimerPersonSum(person) {
+    var sum = 0;
+    Object.keys((person && person.buckets) || {}).forEach(function(w) {
+        sum += _dagTimerBucketSum(person.buckets[w]);
+    });
+    return sum;
+}
+
+// Vises person-fanene? Bare når de tilfører noe: flere personer, eller én person
+// som ikke er meg (jeg fører for en kollega). Ellers holder «+ Legg til person».
+function _dagTimerShowPersonTabs() {
+    if (_dagTimerPersons.length > 1) return true;
+    if (!_dagTimerPersons.length) return false;
+    var only = String(_dagTimerPersons[0].navn || '').trim().toLowerCase();
+    var me = String(_dagTimerMyName || '').trim().toLowerCase();
+    return !!only && only !== me;
+}
 
 function _dagTimerCardSession(card, afterClose) {
     return {
         card: card,
         // Ukene hentes fra det ÅPNE skjemaets Uke-felt.
         getWeeks: function() { return currentFormUkeNumbers(); },
+        // Hvem er «meg»? Montør-feltet i skjemaet — navnet som allerede står på
+        // dokumentet. Styrer om timene lagres uten personfordeling (solo).
+        getMyName: function() { return currentFormMontorName(); },
         getTimer: function() {
             try { return JSON.parse(card.getAttribute('data-timer') || '{}') || {}; } catch (e) { return {}; }
         },
@@ -5536,7 +5915,36 @@ function updateDagTimerSummary(card) {
     }
     var SEP = '<span class="dt-sep">•</span>';
     var lines = [];
-    var uker = (timer.uker && typeof timer.uker === 'object')
+    // Flere personer: samme oppdeling som eksporten — én linje per (uke, person).
+    // Kortet er der man leser tilbake det man har ført, så det MÅ vise samme
+    // fordeling som dokumentet kunden signerer. Slo vi personene sammen her,
+    // ville kortet sagt «Ma 16t» mens eksporten sa «Igor 8t / Ola 8t».
+    if (timerHasPersons(timer)) {
+        var pWeeks = [], pSeen = {};
+        timer.personer.forEach(function(p) {
+            Object.keys((p && p.uker) || {}).forEach(function(w) {
+                if (pSeen[w]) return;
+                pSeen[w] = true;
+                pWeeks.push(w);
+            });
+        });
+        pWeeks.sort(function(a, b) {
+            if (!a) return -1;
+            if (!b) return 1;
+            return Number(a) - Number(b);
+        });
+        pWeeks.forEach(function(w) {
+            timer.personer.forEach(function(p) {
+                var parts = _dayParts(((p && p.uker) || {})[w] || {});
+                if (!parts.length) return;
+                var navn = _timerTrim(p && p.navn);
+                var lbl = w ? ('Uke ' + w + (navn ? ' \u00b7 ' + navn : '')) : (navn || 'Arbeidstid');
+                lines.push('<span class="dt-part"><b class="dt-label">' + escapeHtml(lbl) + '</b></span>'
+                    + SEP + parts.join(SEP));
+            });
+        });
+    }
+    var uker = (!lines.length && timer.uker && typeof timer.uker === 'object')
         ? Object.keys(timer.uker).sort(function(a, b) { return Number(a) - Number(b); })
         : [];
     if (uker.length) {
@@ -5554,9 +5962,12 @@ function updateDagTimerSummary(card) {
             lines.push('<span class="dt-part"><b class="dt-label">Uke ' + escapeHtml(w) + '</b></span>'
                 + SEP + p.join(SEP));
         });
-    } else {
+    } else if (!lines.length) {
         // Uten fordeling: merk likevel linja når skjemaet dekker bare ÉN uke.
         // Samme regel som eksporten bruker (soleWeekOf), så de to viser likt.
+        // `!lines.length` er nødvendig fordi person-grenen over allerede kan ha
+        // fylt lines — uten den la denne på en flat linje i tillegg, og kortet
+        // viste både «Uke 30 · Igor: Ma 8t» og en samlet «Ma 16t» under.
         var flat = _dayParts(timer);
         if (flat.length) {
             var sole = soleWeekOf(typeof currentFormUkeNumbers === 'function' ? currentFormUkeNumbers() : []);
@@ -5606,9 +6017,12 @@ function openDagTimerModal(arg) {
     // Ukene ordreseddelen dekker. Tom liste (ukjent/ikke tolkbar tekst) → nøkkelen
     // '' og nøyaktig samme flate liste som før, uten faner.
     var formWeeks = (typeof session.getWeeks === 'function') ? session.getWeeks() : [];
-    _dagTimerBuckets = timerWeekBuckets(timer, formWeeks);
+    _dagTimerMyName = (typeof session.getMyName === 'function') ? session.getMyName() : '';
+    _dagTimerPersons = timerPersonList(timer, formWeeks, _dagTimerMyName);
+    _dagTimerActivePerson = 0;
     // Fanene bygges av unionen, ikke av Uke-feltet alene — se _dagTimerWeeksToShow.
-    _dagTimerWeeks = _dagTimerWeeksToShow(_dagTimerBuckets, formWeeks);
+    // Union på tvers av ALLE personer: en uke der bare kollegaen jobbet må også ha fane.
+    _dagTimerWeeks = _dagTimerWeeksToShow(_dagTimerMergedBuckets(), formWeeks);
     // Aktiv uke: ordreseddelens FØRSTE uke når den finnes (der nye timer normalt
     // føres), ellers første uke som har timer. Fanene viser delsummen for de andre,
     // så en uke med timer utenfor Uke-feltet er synlig uten å bytte fane.
@@ -5639,6 +6053,15 @@ function openDagTimerModal(arg) {
     etRow.appendChild(etLabel);
     etRow.appendChild(etBtn);
     list.appendChild(etRow);
+
+    // === Personrad ===
+    // Fanerad når flere har jobbet, ellers bare «+ Legg til person». Ligger ØVERST
+    // fordi person er den ytterste dimensjonen: hver person har sine uker, og hver
+    // uke sine dager.
+    var personRow = document.createElement('div');
+    personRow.id = 'dag-timer-person-row';
+    list.appendChild(personRow);
+    _renderDagTimerPersonRow();
 
     // === Ukefaner (kun når ordreseddelen dekker FLERE uker) ===
     // Ett felt per (uke, dag) i stedet for ett per dag. Uten dette havnet to
@@ -5679,7 +6102,7 @@ function _renderDagTimerTabs() {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'dag-timer-week-tab' + (key === _dagTimerActiveWeek ? ' active' : '');
-        var sum = _dagTimerBucketSum(_dagTimerBuckets[key]);
+        var sum = _dagTimerBucketSum(_dagTimerActiveBuckets()[key]);
         // «Uke 30», ikke «Timer uke 30»: fanene deler bredden mellom seg, så hvert
         // ord koster plass PER uke. Med fire uker ble «Timer uke 30» kuttet til
         // «Timer uk…». Ordet «Timer» er dessuten overflødig her — popupen heter
@@ -5698,6 +6121,239 @@ function _renderDagTimerTabs() {
         tabs.appendChild(btn);
     });
 }
+
+// ── Personrad i Arbeidstid-popupen ──────────────────────────────────────────
+// Speiler uke-fanene: samme mønster, samme delsum-på-fanen, samme flush-før-bytte.
+// Person er den YTTERSTE dimensjonen (person → uke → dag), derfor står raden
+// øverst.
+function _renderDagTimerPersonRow() {
+    var row = document.getElementById('dag-timer-person-row');
+    if (!row) return;
+    row.innerHTML = '';
+
+    if (_dagTimerShowPersonTabs()) {
+        var tabs = document.createElement('div');
+        tabs.className = 'dag-timer-person-tabs';
+        _dagTimerPersons.forEach(function(p, i) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'dag-timer-person-tab' + (i === _dagTimerActivePerson ? ' active' : '');
+            var sum = _dagTimerPersonSum(p);
+            btn.innerHTML =
+                '<span class="dag-timer-person-tab-name">' + escapeHtml(p.navn || t('dag_timer_person_me')) + '</span>' +
+                '<span class="dag-timer-person-tab-sum">' + (sum ? _fmtDagTimerHours(sum) + ' t' : '—') + '</span>';
+            btn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                _switchDagTimerPerson(i);
+            };
+            var x = document.createElement('span');
+            x.className = 'dag-timer-person-x';
+            x.innerHTML = '&times;';
+            x.setAttribute('aria-label', t('dag_timer_person_remove'));
+            x.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                _removeDagTimerPerson(i);
+            };
+            btn.appendChild(x);
+            tabs.appendChild(btn);
+        });
+        var add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'dag-timer-person-add';
+        add.innerHTML = '+';
+        add.setAttribute('aria-label', t('dag_timer_person_add'));
+        add.onclick = function(e) { e.preventDefault(); e.stopPropagation(); openPersonPicker(); };
+        tabs.appendChild(add);
+        row.appendChild(tabs);
+    } else {
+        // Solo: ingen fanerad — popupen ser ut som før. Bare én diskré lenke, som
+        // ellers ville vært den eneste måten å komme i gang med en kollega på.
+        var link = document.createElement('button');
+        link.type = 'button';
+        link.className = 'dag-timer-person-add-link';
+        link.textContent = '+ ' + t('dag_timer_person_add');
+        link.onclick = function(e) { e.preventDefault(); e.stopPropagation(); openPersonPicker(); };
+        row.appendChild(link);
+    }
+
+    _renderDagTimerCopyBtn(row);
+}
+
+function _switchDagTimerPerson(i) {
+    if (i === _dagTimerActivePerson) return;
+    _flushDagTimerInputs();           // behold det som står i feltene nå
+    _dagTimerActivePerson = i;
+    _renderDagTimerPersonRow();
+    _renderDagTimerTabs();
+    _renderDagTimerDayRows();
+    _bindDagTimerTotal();
+}
+
+// «Kopier timene fra X» — det vanligste tilfellet er at laget jobbet i lag og har
+// SAMME timer. Uten denne måtte hvert tall tastes om igjen per person. Vises kun
+// når den aktive personen ennå er tom og noen andre har timer å kopiere.
+function _renderDagTimerCopyBtn(row) {
+    if (_dagTimerPersons.length < 2) return;
+    var active = _dagTimerPersons[_dagTimerActivePerson];
+    if (!active || _dagTimerPersonSum(active) > 0) return;
+    var src = null;
+    for (var i = 0; i < _dagTimerPersons.length; i++) {
+        if (i === _dagTimerActivePerson) continue;
+        if (_dagTimerPersonSum(_dagTimerPersons[i]) > 0) { src = _dagTimerPersons[i]; break; }
+    }
+    if (!src) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dag-timer-person-copy';
+    btn.textContent = t('dag_timer_person_copy') + ' ' + (src.navn || t('dag_timer_person_me'));
+    btn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        _copyDagTimerHoursFrom(src);
+    };
+    row.appendChild(btn);
+}
+
+function _copyDagTimerHoursFrom(src) {
+    var active = _dagTimerPersons[_dagTimerActivePerson];
+    if (!active || !src) return;
+    var copy = {};
+    Object.keys(src.buckets || {}).forEach(function(w) {
+        copy[w] = Object.assign({}, src.buckets[w]);
+    });
+    active.buckets = copy;
+    _renderDagTimerPersonRow();
+    _renderDagTimerTabs();
+    _renderDagTimerDayRows();
+    _bindDagTimerTotal();
+}
+
+function _removeDagTimerPerson(i) {
+    var p = _dagTimerPersons[i];
+    if (!p) return;
+    if (_dagTimerPersons.length <= 1) return;   // siste person kan ikke fjernes
+    var doRemove = function() {
+        _flushDagTimerInputs();
+        _dagTimerPersons.splice(i, 1);
+        if (_dagTimerActivePerson >= _dagTimerPersons.length) _dagTimerActivePerson = _dagTimerPersons.length - 1;
+        else if (_dagTimerActivePerson > i) _dagTimerActivePerson--;
+        _renderDagTimerPersonRow();
+        _renderDagTimerTabs();
+        _renderDagTimerDayRows();
+        _bindDagTimerTotal();
+    };
+    // Har personen timer, er det reell data som forsvinner → bekreft først.
+    // Arbeidstid-popupen blir stående synlig bak bekreftelsen (CSS hever den over,
+    // se styles.css). Å skjule den slik plan-velgeren gjør er ikke mulig her:
+    // showConfirmModal har ingen avbryt-callback, så «Avbryt» ville etterlatt
+    // popupen skjult og timene utilgjengelige.
+    if (_dagTimerPersonSum(p) > 0) {
+        showConfirmModal(
+            t('dag_timer_person_remove') + ': ' + (p.navn || '') + '?',
+            doRemove,
+            t('delete_btn'), '#E8501A'
+        );
+        return;
+    }
+    doRemove();
+}
+
+// ── Person-velger ───────────────────────────────────────────────────────────
+// Kildene er Min info (meg) + Kolleger-lista fra Innstillinger. Fritekst er
+// bevisst utelatt: samme kollega skrevet på tre måter ville blitt tre personer i
+// kundedokumentet. Nye navn legges til ett sted, og gjelder da overalt.
+function openPersonPicker() {
+    // Uten et navn på MEG får den første personen ingen etikett, og eksporten
+    // ville fått en navnløs linje ved siden av kollegaens. Bedre å si fra én gang
+    // enn å produsere et kundedokument der halve arbeidstiden er anonym.
+    if (!String(_dagTimerMyName || '').trim()) {
+        showNotificationModal(t('dag_timer_person_need_montor'));
+        return;
+    }
+    var modal = document.getElementById('dag-timer-modal');
+    if (modal) modal.classList.add('dag-timer-modal--hidden');
+
+    var taken = {};
+    _dagTimerPersons.forEach(function(p) {
+        var n = String(p.navn || '').trim().toLowerCase();
+        if (n) taken[n] = true;
+    });
+
+    var candidates = [];
+    var me = String(_dagTimerMyName || '').trim();
+    if (me && !taken[me.toLowerCase()]) candidates.push(me);
+    getKolleger().forEach(function(k) {
+        var n = String(k.navn || '').trim();
+        if (n && !taken[n.toLowerCase()]) candidates.push(n);
+    });
+
+    var listEl = document.getElementById('person-popup-list');
+    var html = candidates.length
+        ? candidates.map(function(n) {
+            return '<div class="plan-popup-row" data-person="' + escapeHtml(n) + '">' +
+                '<span class="plan-popup-name">' + escapeHtml(n) + '</span>' +
+                '</div>';
+        }).join('')
+        : '<div class="popup-list-empty">' + escapeHtml(t('dag_timer_person_none')) + '</div>';
+
+    // Ny kollega direkte herfra — uten dette var den tomme lista en blindvei som
+    // tvang brukeren ut av skjemaet og inn i Innstillinger midt i timeføringen.
+    // Feltet ligger I LISTA, ikke i knapperaden, nettopp så det også vises når
+    // lista er tom. Samme mønster, samme CSS og samme Enter-snarvei som
+    // etasje-velgeren (addPlanFromPicker) og materialvelgerens «Nytt materiale».
+    // Ingen admin-gate: Kolleger er dine egne data, og knappen i Innstillinger
+    // har ingen gate heller.
+    html += '<div class="plan-popup-add">' +
+        '<input type="text" id="person-popup-new" class="plan-popup-add-input" placeholder="' +
+            escapeHtml(t('settings_kolleger_placeholder')) + '" autocapitalize="words" autocomplete="off">' +
+        '<button type="button" class="plan-popup-add-btn" onclick="addKollegaFromPicker()">+</button>' +
+    '</div>';
+    listEl.innerHTML = html;
+
+    listEl.querySelectorAll('.plan-popup-row').forEach(function(el) {
+        el.addEventListener('click', function() {
+            _addDagTimerPerson(el.getAttribute('data-person'));
+        });
+    });
+    // Enter i feltet legger til, så man slipper å sikte på knappen.
+    var newInp = document.getElementById('person-popup-new');
+    if (newInp) {
+        newInp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); addKollegaFromPicker(); }
+        });
+    }
+    document.getElementById('person-popup').classList.add('active');
+}
+
+function closePersonPicker() {
+    document.getElementById('person-popup').classList.remove('active');
+    var modal = document.getElementById('dag-timer-modal');
+    if (modal) modal.classList.remove('dag-timer-modal--hidden');
+}
+
+function _addDagTimerPerson(navn) {
+    navn = String(navn || '').trim();
+    closePersonPicker();
+    if (!navn) return;
+    _flushDagTimerInputs();
+    // Første person er «meg» og kan være navnløs (solo-tilfellet). Legger man til
+    // en kollega, må meg-personen få navn — ellers ville eksporten vist én linje
+    // uten navn ved siden av kollegaens.
+    if (_dagTimerPersons.length === 1 && !String(_dagTimerPersons[0].navn || '').trim()) {
+        _dagTimerPersons[0].navn = _dagTimerMyName || '';
+    }
+    _dagTimerPersons.push({ navn: navn, buckets: {} });
+    _dagTimerActivePerson = _dagTimerPersons.length - 1;
+    _renderDagTimerPersonRow();
+    _renderDagTimerTabs();
+    _renderDagTimerDayRows();
+    _bindDagTimerTotal();
+}
+
+window.openPersonPicker = openPersonPicker;
+window.closePersonPicker = closePersonPicker;
 
 function _fmtDagTimerHours(n) {
     return (Math.round(n * 10) / 10).toString().replace('.', ',');
@@ -5757,7 +6413,8 @@ function _dagTimerWeeksToShow(buckets, formWeeks) {
 function _flushDagTimerInputs() {
     var wrap = document.getElementById('dag-timer-day-rows');
     if (!wrap) return;
-    var b = _dagTimerBuckets[_dagTimerActiveWeek] || (_dagTimerBuckets[_dagTimerActiveWeek] = {});
+    var ab = _dagTimerActiveBuckets();
+    var b = ab[_dagTimerActiveWeek] || (ab[_dagTimerActiveWeek] = {});
     Object.keys(b).forEach(function(k) { delete b[k]; });
     wrap.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
         var v = String(inp.value || '').trim();
@@ -5770,7 +6427,7 @@ function _renderDagTimerDayRows() {
     var wrap = document.getElementById('dag-timer-day-rows');
     if (!wrap) return;
     wrap.innerHTML = '';
-    var bucket = _dagTimerBuckets[_dagTimerActiveWeek] || {};
+    var bucket = _dagTimerActiveBuckets()[_dagTimerActiveWeek] || {};
     var dagOrder = ['ma','ti','on','to','fr','lo','so'];
     dagOrder.forEach(function(dag) {
         var row = document.createElement('div');
@@ -5841,10 +6498,13 @@ function _updateDagTimerTotal() {
     _flushDagTimerInputs();
     // Summen skal dekke ALLE uker, ikke bare den fanen som vises — ellers ville
     // totalen falt når man byttet til en tom uke.
+    // ...og alle PERSONER: totalen er hele bestillingens arbeidstid, som er tallet
+    // som havner på totalraden i eksporten.
     var sum = 0;
-    Object.keys(_dagTimerBuckets).forEach(function(w) { sum += _dagTimerBucketSum(_dagTimerBuckets[w]); });
+    _dagTimerPersons.forEach(function(p) { sum += _dagTimerPersonSum(p); });
     valueEl.textContent = sum.toFixed(1).replace('.', ',') + ' t';
-    _renderDagTimerTabs();   // delsummene på fanene holdes i takt
+    _renderDagTimerTabs();        // delsummene på uke-fanene holdes i takt
+    _renderDagTimerPersonRow();   // ...og på person-fanene
 }
 
 // Etikett + live-oppdatering. Etiketten bygges fra t('order_days') så den er
@@ -5885,7 +6545,7 @@ function closeDagTimerModal(confirmed) {
     // Les KLADDEN, ikke DOM-en: bare den aktive uka finnes som felt, så en
     // DOM-innsamling ville slettet de andre ukene.
     _flushDagTimerInputs();
-    const timer = timerFromWeekBuckets(_dagTimerBuckets);
+    const timer = timerFromPersonList(_dagTimerPersons, _dagTimerMyName);
     // «dager» = ukedager det er ført timer på, på tvers av alle uker. Brukes til
     // sammendraget på kortet og til eksportens Arbeidstid-linje.
     const dager = TIMER_DAY_KEYS_CORE.filter(function(k) { return timer[k]; });
@@ -6321,6 +6981,32 @@ function getOrdersData() {
                     if (Object.keys(dst).length) ukerCanon[w] = dst;
                 });
             if (Object.keys(ukerCanon).length) timerCanon.uker = ukerCanon;
+        }
+        // .personer MÅ hvitelistes av samme grunn som .uker: hviteliste-filteret
+        // ER mekanismen som gjør serialiseringen kanonisk, så et felt som ikke står
+        // her blir stille kastet ved lagring — og personfordelingen ville forsvunnet
+        // ved første lagring etter at den ble ført.
+        // Kanoniseres i lagret rekkefølge (personlista er ordnet — rekkefølgen
+        // styrer linjene i eksporten), med uker stigende og dagnøkler i fast
+        // rekkefølge, så JSON-en ikke kan endre seg uten at innholdet gjorde det.
+        if (Array.isArray(timerObj.personer) && timerObj.personer.length) {
+            var persCanon = [];
+            timerObj.personer.forEach(function(p) {
+                var navn = String((p && p.navn) || '').trim();
+                var ukerP = {};
+                Object.keys((p && p.uker) || {})
+                    .sort(function(a, b) { return Number(a) - Number(b); })
+                    .forEach(function(w) {
+                        var srcP = p.uker[w] || {};
+                        var dstP = {};
+                        ['ma','ti','on','to','fr','lo','so','_generelt'].forEach(function(k) {
+                            if (srcP[k] != null && String(srcP[k]).trim()) dstP[k] = String(srcP[k]).trim();
+                        });
+                        if (Object.keys(dstP).length) ukerP[w] = dstP;
+                    });
+                if (Object.keys(ukerP).length) persCanon.push({ navn: navn, uker: ukerP });
+            });
+            if (persCanon.length) timerCanon.personer = persCanon;
         }
         const timer = Object.keys(timerCanon).length > 0 ? timerCanon : '';
         // Arbeidsdager = dager med timer (avledet, ikke stale data-dager).
@@ -7170,11 +7856,7 @@ function buildDesktopWorkLines() {
         // Fet + tom rad over: uten det klistret raden seg til siste material-
         // gruppe og så ut som en del av den (f.eks. under "Totalt: 8,5 meter").
         if (order.timer && typeof order.timer === 'object') {
-            let orderTotal = 0;
-            Object.values(order.timer).forEach(v => {
-                const val = parseFloat(String(v || '').replace(',', '.'));
-                if (!isNaN(val)) orderTotal += val;
-            });
+            const orderTotal = orderTimerSum(order.timer);
             if (orderTotal > 0) {
                 const formatted = orderTotal.toFixed(1).replace('.', ',');
                 addRow('', '', '');
@@ -7346,8 +8028,7 @@ function computeWorkRows(orders, minRows, weeks) {
         // ordrett lik beskrivelses-linjen over. Fet + tom rad over så den ikke
         // klistrer seg til siste material-gruppe. Identisk med buildDesktopWorkLines.
         if (order.timer && typeof order.timer === 'object') {
-            var orderTotal = 0;
-            Object.values(order.timer).forEach(function(v) { var val = parseFloat(String(v || '').replace(',', '.')); if (!isNaN(val)) orderTotal += val; });
+            var orderTotal = orderTimerSum(order.timer);
             if (orderTotal > 0) {
                 addRow('', '', '');
                 addRow(t('order_days') + ':', orderTotal.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
