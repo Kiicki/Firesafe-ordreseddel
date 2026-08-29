@@ -407,6 +407,9 @@ function _showSingleExportMenu(savedItem) {
         if (!canShare) return '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + sh + ' ' + lbl + '</button>';
         return '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, true, ' + (png ? 'true' : 'false') + ')">' + sh + ' ' + lbl + '</button>';
     }
+    // Tekst-seksjonen gjelder bare kappeskjema, som eneste skjematype har en
+    // kort nok bestillingsliste til å stå som ren e-posttekst.
+    var textSectionHtml = (_singleExportCtx.tab === 'kappe') ? _kappeTextSectionHtml(true) : '';
     document.getElementById('action-popup-buttons').innerHTML =
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
@@ -414,7 +417,8 @@ function _showSingleExportMenu(savedItem) {
             '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, true)">' + dl + ' PNG</button>' +
         '</div>' +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
-        '<div class="confirm-modal-buttons">' + shareBtn(false) + shareBtn(true) + '</div>';
+        '<div class="confirm-modal-buttons">' + shareBtn(false) + shareBtn(true) + '</div>' +
+        textSectionHtml;
     popup.classList.add('active');
 }
 window._showSingleExportMenu = _showSingleExportMenu;
@@ -5615,12 +5619,25 @@ async function _safeShare(files, meta) {
     // Outlook bruker emnet (og brødteksten), Gmail bruker brødteksten → søkbart begge
     // steder. Fallback til files-only hvis plattformen ikke kan dele fil+tekst sammen
     // (så deling aldri brytes).
-    var payload = { files: files };
-    if (meta && (meta.title || meta.text)) {
-        var withMeta = { files: files };
-        if (meta.title) withMeta.title = meta.title;
-        if (meta.text) withMeta.text = meta.text;
-        if (!navigator.canShare || navigator.canShare(withMeta)) payload = withMeta;
+    var payload;
+    if (!files || !files.length) {
+        // REN TEKST-deling (ingen vedlegg) — kappeskjemaets bestillingsliste.
+        // Android sender `title` som e-post-EMNE (EXTRA_SUBJECT) og `text` som
+        // brødtekst (EXTRA_TEXT), så mottakeren får en lesbar e-post uten fil.
+        // canShare sjekkes IKKE her: den krever et files-felt i flere nettlesere
+        // og ville avvist en gyldig tekst-payload.
+        payload = {};
+        if (meta && meta.title) payload.title = meta.title;
+        if (meta && meta.text) payload.text = meta.text;
+        if (!payload.title && !payload.text) return 'error';
+    } else {
+        payload = { files: files };
+        if (meta && (meta.title || meta.text)) {
+            var withMeta = { files: files };
+            if (meta.title) withMeta.title = meta.title;
+            if (meta.text) withMeta.text = meta.text;
+            if (!navigator.canShare || navigator.canShare(withMeta)) payload = withMeta;
+        }
     }
     try {
         await navigator.share(payload);
@@ -18324,6 +18341,267 @@ async function doKappeSharePNG() {
     }
 }
 
+// ── Kappeskjema som REN TEKST ───────────────────────────────────────────────
+// Den vanlige eksporten er et produksjonsdokument (PDF/PNG) med kappedetaljer:
+// WN630 «12 stk (6 i 2-stabel) · langs 1200mm · rest 40mm», m², +10 % svinn og
+// delsummer. Denne er en bestillingsliste som limes rett inn i e-postens
+// brødtekst — ingen vedlegg, ingen logo, ingen tittel og ingen dato.
+//
+// Bevisst uten alt det: en e-post har allerede avsender, emne og dato, så et
+// «brevhode» inni brødteksten er bare støy. Prosjektnavn og -nummer står igjen
+// fordi de identifiserer HVA bestillingen gjelder.
+//
+// Ren tekst framfor fil: mottakeren skal kunne lese og svare uten å laste ned
+// noe, og teksten er søkbar i e-postklienten.
+function buildKappeSimpleText(data) {
+    data = data || getKappeFormData();
+    var out = [];
+
+    var pn = String((data && data.prosjektnavn) || '').trim();
+    var pnr = String((data && data.prosjektnr) || '').trim();
+    if (pn || pnr) {
+        out.push((pn && pnr) ? (pn + ' (' + pnr + ')') : (pn || pnr));
+        out.push('');
+    }
+
+    function fmt(n) {
+        return (n == null || isNaN(n)) ? '' : formatLocaleNum(Math.round(n * 100) / 100);
+    }
+
+    (data && data.lines ? data.lines : []).forEach(function(l) {
+        l = l || {};
+        if (l.type === 'fast') return;          // festemidler samles nederst
+
+        var rows = [];
+
+        // Bredder — samme aggregering som den detaljerte eksporten (lm × sider ×
+        // antall, like bredder slått sammen), så de to aldri viser ulike tall.
+        var kappArr = (l.kapp && l.kapp.length)
+            ? l.kapp
+            : ((l.bredde || l.lopemeter || l.antallSider)
+                ? [{ bredde: l.bredde || '', lopemeter: l.lopemeter || '', antallSider: l.antallSider || '' }]
+                : []);
+        var groups = {}, order = [];
+        kappArr.forEach(function(ka) {
+            if (!ka) return;
+            if (String(ka.bredde || '').trim() === '' && String(ka.lopemeter || '').trim() === '') return;
+            var key = String(parseLocaleNum(ka.bredde));
+            if (!groups[key]) { groups[key] = { bredde: ka.bredde, totalLm: 0 }; order.push(key); }
+            var lm = parseLocaleNum(ka.lopemeter) || 0;
+            var sider = parseLocaleNum(ka.antallSider) || 0;
+            var ant = parseLocaleNum(ka.antall);
+            if (isNaN(ant) || ant <= 0) ant = 1;
+            groups[key].totalLm += lm * sider * ant;
+        });
+        order.forEach(function(key) {
+            var g = groups[key];
+            var b = fmt(parseLocaleNum(g.bredde));
+            rows.push('  ' + (b ? b + ' mm' : 'Bredde') + ': ' + fmt(g.totalLm) + ' lm');
+        });
+
+        // Hele plater
+        var plateArr = (l.plateRader && l.plateRader.length)
+            ? l.plateRader
+            : (l.plateAntall ? [{ antall: l.plateAntall }] : []);
+        var plateSum = 0;
+        plateArr.forEach(function(pr) {
+            var n = parseLocaleNum(pr && pr.antall);
+            if (!isNaN(n)) plateSum += n;
+        });
+        if (plateSum > 0) rows.push('  ' + fmt(plateSum) + ' hele plater');
+
+        var merknad = String(l.merknad || '').trim();
+        var produkt = String(l.produkt || '').trim();
+        if (!rows.length && !merknad && !produkt) return;
+
+        // Platemålet står i overskriften, ikke på hver rad — det gjelder hele
+        // blokken. Største side først, samme normalisering som ellers.
+        var pl = '';
+        var ln = parseLocaleNum(l.plateLengde || '1200');
+        var wn = parseLocaleNum(l.plateBredde || '1000');
+        if (!isNaN(ln) && !isNaN(wn) && (ln || wn)) {
+            pl = formatLocaleNum(Math.max(ln, wn)) + 'x' + formatLocaleNum(Math.min(ln, wn)) + ' mm';
+        }
+        out.push((produkt || '-') + (pl ? ' - plate ' + pl : ''));
+        rows.forEach(function(r) { out.push(r); });
+        if (merknad) out.push('  Merknad: ' + merknad);
+        out.push('');
+    });
+
+    // Festemidler — stk/eske slått sammen til én verdi.
+    var fastData = (data && (data.fasteners || data.stift)) || [];
+    var fastLines = [];
+    fastData.forEach(function(item) {
+        if (!item) return;
+        var productName = item.produkt || item.product || MATERIAL_STIFT_LAUNCHER;
+        var size = item.storrelse || item['størrelse'] || item.enhet || '';
+        var stkV = '', eskeV = '';
+        if (item.stk != null || item.eske != null) {
+            stkV = String(item.stk || '').trim();
+            eskeV = String(item.eske || '').trim();
+        } else if (item.antall) {
+            var u = item.enhetType || item.unit || item.quantityUnit || getKappeProductDefaultUnit(productName) || 'stk';
+            if (String(u).toLowerCase() === 'eske') eskeV = String(item.antall).trim();
+            else stkV = String(item.antall).trim();
+        }
+        if (!stkV && !eskeV) return;
+        var parts = [];
+        if (eskeV) parts.push(eskeV + ' ' + (parseLocaleNum(eskeV) === 1 ? 'eske' : 'esker'));
+        if (stkV) parts.push(stkV + ' stk');
+        fastLines.push('  ' + productName + (size ? ' ' + _formatDimMm(size) : '') + ': ' + parts.join(' + '));
+    });
+    if (fastLines.length) {
+        out.push(getKappeFastenerLabel() + ':');
+        fastLines.forEach(function(fl) { out.push(fl); });
+        out.push('');
+    }
+
+    // Fjern etterfølgende tomme linjer, så teksten ikke starter e-posten med
+    // luft på slutten.
+    while (out.length && out[out.length - 1] === '') out.pop();
+    return out.join('\n');
+}
+
+// E-post-emne + brødtekst for tekst-delingen.
+// Emnet gjenbruker _buildShareSubject, samme bygger som fil-delingen — da får
+// «Kappeskjema – Prosjekt – Uke N» identisk form uansett hvordan man deler, og
+// e-postsøk gir treff på begge.
+function _kappeSimpleShareMeta(data) {
+    data = data || getKappeFormData();
+    var subject = _buildShareSubject(
+        _shareLabelSingular('kappe'),
+        _shareProsjektNames([data], 'kappe'),
+        _shareUkeLabel(data, 'kappe')
+    );
+    var body = buildKappeSimpleText(data);
+    if (!body) return null;
+    return { title: subject || _shareLabelSingular('kappe'), text: body };
+}
+
+// Kopier tekst til utklippstavlen, med fallback for eldre nettlesere.
+function _copyKappeText(txt, okMsg) {
+    var done = function() { showNotificationModal(okMsg || t('copied_to_clipboard'), true); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(done).catch(function() { _fallbackCopyText(txt, done); });
+    } else {
+        _fallbackCopyText(txt, done);
+    }
+}
+
+// mailto:-fallback når Web Share mangler (typisk Firefox på PC). Åpner
+// e-postklienten med emne og brødtekst ferdig utfylt — akkurat det delingen
+// skulle gjort, og det virker i enhver nettleser.
+//
+// Returnerer false når URL-en blir for lang: e-postklienter og OS-et kutter
+// mailto-lenker et sted rundt 2000 tegn, og en avkortet bestillingsliste er
+// verre enn ingen — da kopierer vi i stedet.
+var _MAILTO_MAX = 1900;
+function _openKappeMailto(meta) {
+    var url = 'mailto:?subject=' + encodeURIComponent(meta.title || '') +
+              '&body=' + encodeURIComponent(meta.text || '');
+    if (url.length > _MAILTO_MAX) return false;
+    window.location.href = url;
+    return true;
+}
+
+// ÉN vei for tekst-deling, uansett hvor den startes fra.
+// Rekkefølge: Web Share → mailto → utklippstavle. Knappen er derfor ALDRI
+// deaktivert: mangler nettleseren deling, finnes det alltid noe som virker.
+async function _kappeShareTextWith(meta, onShared) {
+    if (!meta) { showNotificationModal(t('kappe_text_empty')); return; }
+    if (navigator.share) {
+        // Android sender `title` som e-post-EMNE (EXTRA_SUBJECT) og `text` som
+        // brødtekst (EXTRA_TEXT).
+        var result = await _safeShare(null, meta);
+        if (result === 'shared' && onShared) onShared();
+        return;
+    }
+    if (_openKappeMailto(meta)) return;
+    _copyKappeText(meta.text, t('kappe_text_copied_long'));
+}
+
+// Del bestillingslista som ren tekst — ingen vedlegg.
+async function doKappeShareText() {
+    if (!validateKappeRequiredFields()) return;
+    await _kappeShareTextWith(_kappeSimpleShareMeta(), _promoteKappeToSent);
+}
+
+// Samme tekst til utklippstavlen — for e-post på PC, eller når man vil lime den
+// inn et helt annet sted.
+function doKappeCopyText() {
+    var meta = _kappeSimpleShareMeta();
+    if (!meta) { showNotificationModal(t('kappe_text_empty')); return; }
+    _copyKappeText(meta.text);
+}
+
+// Utklippstavle-fallback for eldre nettlesere / usikker kontekst.
+function _fallbackCopyText(txt, done) {
+    try {
+        var ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        done();
+    } catch (e) {
+        showNotificationModal(t('share_error') + e.message);
+    }
+}
+
+// Tekst-seksjonen i eksport-menyen. fromList=true → lagret skjema, som må lastes
+// inn i skjemaet før teksten kan bygges (getKappeFormData leser DOM-en).
+function _kappeTextSectionHtml(fromList) {
+    var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var copySvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align:-3px"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+    var shareFn = fromList ? '_kappeListShareText()' : 'doKappeShareText()';
+    var copyFn = fromList ? '_kappeListCopyText()' : 'doKappeCopyText()';
+    // ALDRI deaktivert, i motsetning til PDF/PNG-deling: ren tekst kan alltid
+    // leveres — mangler Web Share, faller vi tilbake til mailto og deretter
+    // utklippstavlen (se _kappeShareTextWith). PDF/PNG har ingen slik utvei,
+    // fordi en fil ikke kan sendes uten Web Share.
+    var shareBtn = '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); ' + shareFn + '">' + shareIcon + ' ' + escapeHtml(t('kappe_text_share')) + '</button>';
+    return '<div style="font-size:13px;font-weight:600;color:#555;margin:12px 0 4px">' + escapeHtml(t('kappe_text_section')) + '</div>' +
+        '<div class="confirm-modal-buttons">' +
+            shareBtn +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); ' + copyFn + '">' + copySvg + ' ' + escapeHtml(t('kappe_text_copy')) + '</button>' +
+        '</div>';
+}
+
+// Fra Lagret-lista: skjemaet er ikke åpent, så dataene lastes inn midlertidig og
+// settes tilbake etterpå — samme mønster som _buildPdfForTab bruker.
+function _kappeListWithForm(fn) {
+    var form = _singleExportCtx && _singleExportCtx.form;
+    if (!form) return;
+    var prev = null;
+    try { prev = getKappeFormData(); } catch (e) {}
+    try {
+        setKappeFormData(form);
+        fn();
+    } finally {
+        if (prev) { try { setKappeFormData(prev); } catch (e) {} }
+    }
+}
+function _kappeListShareText() {
+    var meta = null;
+    _kappeListWithForm(function() { meta = _kappeSimpleShareMeta(); });
+    _kappeShareTextWith(meta);
+}
+function _kappeListCopyText() {
+    var meta = null;
+    _kappeListWithForm(function() { meta = _kappeSimpleShareMeta(); });
+    if (!meta) { showNotificationModal(t('kappe_text_empty')); return; }
+    _copyKappeText(meta.text);
+}
+
+window.doKappeShareText = doKappeShareText;
+window.doKappeCopyText = doKappeCopyText;
+window._kappeListShareText = _kappeListShareText;
+window._kappeListCopyText = _kappeListCopyText;
+
 function showKappeExportMenu() {
     var popup = document.getElementById('action-popup');
     document.getElementById('action-popup-title').textContent = t('export_title');
@@ -18346,7 +18624,8 @@ function showKappeExportMenu() {
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
         '<div class="confirm-modal-buttons">' +
             shareBtnPDF + shareBtnPNG +
-        '</div>';
+        '</div>' +
+        _kappeTextSectionHtml(false);
     popup.classList.add('active');
 }
 
