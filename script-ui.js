@@ -18414,15 +18414,10 @@ function buildKappeSimpleText(data) {
         var produkt = String(l.produkt || '').trim();
         if (!rows.length && !merknad && !produkt) return;
 
-        // Platemålet står i overskriften, ikke på hver rad — det gjelder hele
-        // blokken. Største side først, samme normalisering som ellers.
-        var pl = '';
-        var ln = parseLocaleNum(l.plateLengde || '1200');
-        var wn = parseLocaleNum(l.plateBredde || '1000');
-        if (!isNaN(ln) && !isNaN(wn) && (ln || wn)) {
-            pl = formatLocaleNum(Math.max(ln, wn)) + 'x' + formatLocaleNum(Math.min(ln, wn)) + ' mm';
-        }
-        out.push((produkt || '-') + (pl ? ' - plate ' + pl : ''));
+        // Platemålet utelates bevisst: dette er en BESTILLINGSliste, og hvilken
+        // plate kappene tas fra er en produksjonsdetalj. Den detaljerte
+        // PDF-eksporten viser det fortsatt.
+        out.push(produkt || '-');
         rows.forEach(function(r) { out.push(r); });
         if (merknad) out.push('  Merknad: ' + merknad);
         out.push('');
