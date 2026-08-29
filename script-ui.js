@@ -350,7 +350,7 @@ async function _canvasForTab(form, tab) {
     return await _renderOwnCanvasFromData(form);
 }
 
-async function _singleFormExport(form, tab, share, png) {
+async function _singleFormExport(form, tab, share, png, markFerdig) {
     var loading = document.getElementById('loading');
     if (loading) loading.classList.add('active');
     var type = _tabFormType(tab);
@@ -387,7 +387,7 @@ async function _singleFormExport(form, tab, share, png) {
     // Fullført deling → sendt. Samme regel som i det åpne skjemaet og i
     // fler-valg-eksporten; her manglet den, så et skjema delt fra Lagret-lista
     // ble liggende som utkast (gul prikk).
-    if (didShare) _promoteListFormToSent(form, tab);
+    if (didShare) _promoteListFormToSent(form, tab, markFerdig);
 }
 window._singleFormExport = _singleFormExport;
 
@@ -405,12 +405,24 @@ function _showSingleExportMenu(savedItem) {
     function shareBtn(png) {
         var lbl = png ? 'PNG' : 'PDF';
         if (!canShare) return '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + sh + ' ' + lbl + '</button>';
-        return '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, true, ' + (png ? 'true' : 'false') + ')">' + sh + ' ' + lbl + '</button>';
+        return '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, true, ' + (png ? 'true' : 'false') + ', ' + mf + ')">' + sh + ' ' + lbl + '</button>';
     }
     // Tekst-seksjonen gjelder bare kappeskjema, som eneste skjematype har en
     // kort nok bestillingsliste til å stå som ren e-posttekst.
     var textSectionHtml = (_singleExportCtx.tab === 'kappe') ? _kappeTextSectionHtml(true) : '';
-    document.getElementById('action-popup-buttons').innerHTML =
+    // «Merk som ferdig» — kun ordreseddel (3-tilstands status), og kun når
+    // skjemaet ikke allerede er lukket.
+    var _lf = _singleExportCtx.form || {};
+    var _lIsClosed = _lf._isSent && _lf.status !== 'sendt';
+    var showFerdig = _singleExportCtx.tab === 'own' && !_lIsClosed;
+    var mf = showFerdig ? "document.getElementById('export-mark-ferdig')?.checked" : 'false';
+    var ferdigCheckboxHtml = showFerdig
+        ? '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
+              '<input type="checkbox" id="export-mark-ferdig" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
+              escapeHtml(t('export_mark_ferdig_label')) +
+          '</label>'
+        : '';
+    document.getElementById('action-popup-buttons').innerHTML = ferdigCheckboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, false)">' + dl + ' PDF</button>' +
@@ -1395,15 +1407,25 @@ function showExportMenu() {
     const buttonsEl = document.getElementById('action-popup-buttons');
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
+    var mf = "document.getElementById('export-mark-ferdig')?.checked";
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(' + mf + '); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(' + mf + '); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
-    // «Marker som sendt»-avhuking fjernet: deling markerer nå automatisk som sendt
-    // (kun ved fullført deling, ikke nedlasting). Manuell merking via knappene i skjemaet.
-    let html =
+    // «Merk som ferdig»: av → deling gir sendt (som før), på → ferdig. Vises ikke
+    // når skjemaet ALLEREDE er lukket — da er det ingenting å velge.
+    // Nedlasting endrer aldri status, uansett avkrysning.
+    var _fIsSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+    var _fStatus = sessionStorage.getItem('firesafe_current_status') || '';
+    var alreadyClosed = _fIsSent && _fStatus !== 'sendt';
+    var ferdigCheckboxHtml = alreadyClosed ? '' :
+        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
+            '<input type="checkbox" id="export-mark-ferdig" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
+            escapeHtml(t('export_mark_ferdig_label')) +
+        '</label>';
+    let html = ferdigCheckboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
@@ -1677,8 +1699,23 @@ window.markCurrentFormAsFerdig = markCurrentFormAsFerdig;
 // Ingen av veiene nedgraderer et skjema som allerede er sendt eller lukket.
 // Manuell merking finnes fortsatt: «Merk som» i ordreseddelen og
 // «Merk som sendt»-knappen i servicebil/kappeskjema.
-function _promoteFormToSent() {
-    if (sessionStorage.getItem('firesafe_current_sent') === '1') return; // sendt el. ferdig → ikke rør
+// markFerdig = avkrysningen «Merk som ferdig» i eksport-menyen.
+//   av  → utkast blir sendt; sendt/ferdig røres ikke (som før)
+//   på  → utkast OG sendt blir ferdig (kunden har signert, saken er lukket)
+// Ferdig nedgraderes aldri. Kun ordreseddel: servicebil og kappeskjema har bare
+// to tilstander og ingen «ferdig».
+function _promoteFormToSent(markFerdig) {
+    var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
+    var status = sessionStorage.getItem('firesafe_current_status') || '';
+    if (markFerdig) {
+        // Alt i archive som ikke er 'sendt' er allerede lukket — samme regel som
+        // showFormStatusMenu bruker, så de to kan ikke bli uenige om tilstanden.
+        var alreadyClosed = isSent && status !== 'sendt';
+        if (alreadyClosed) return;
+        markCurrentFormAsFerdig();
+        return;
+    }
+    if (isSent) return;                        // sendt el. ferdig → ikke rør
     markCurrentFormAsSent();
 }
 window._promoteFormToSent = _promoteFormToSent;
@@ -1699,8 +1736,29 @@ window._promoteKappeToSent = _promoteKappeToSent;
 // samme data-baserte hjelperne som fler-valg-eksporten (_bulkMarkSelectedAsSent)
 // i stedet for de skjema-baserte markXAsSent-funksjonene.
 // tab: 'own' | 'service' | 'kappe' (fra _savedItemTab).
-function _promoteListFormToSent(form, tab) {
-    if (!form || form._isSent) return false;   // allerede sendt/lukket → aldri nedgrader
+function _promoteListFormToSent(form, tab, markFerdig) {
+    if (!form) return false;
+    // «Merk som ferdig» gjelder kun ordreseddel, og gjør at et allerede SENDT
+    // skjema kan lukkes ved deling. _applyFormStatus håndterer alle overganger
+    // (også forms→archive for et utkast), så vi slipper egen flytte-logikk her.
+    if (markFerdig && tab === 'own') {
+        var isClosed = form._isSent && form.status !== 'sendt';
+        if (isClosed) return false;            // allerede lukket → ingenting å gjøre
+        var savedArr = safeParseJSON(STORAGE_KEY, []);
+        var archArr = safeParseJSON(ARCHIVE_KEY, []);
+        try { _applyFormStatus(form, 'ferdig', savedArr, archArr); }
+        catch (e) { console.error('Del → ferdig:', e); return false; }
+        safeSetItem(STORAGE_KEY, JSON.stringify(savedArr));
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(archArr));
+        form._isSent = true;
+        form.status = 'ferdig';
+        _lastLocalSaveTs = Date.now();
+        loadedForms = [];
+        _showSavedFormsDirectly(tab);
+        showNotificationModal(t('marked_as_ferdig'), true);
+        return true;
+    }
+    if (form._isSent) return false;            // allerede sendt/lukket → aldri nedgrader
     if (tab === 'service') _markServiceFormDataAsSent(form);
     else if (tab === 'kappe') _markKappeFormDataAsSent(form);
     else _markOwnFormDataAsSent(form);
@@ -5666,7 +5724,7 @@ async function _safeShare(files, meta) {
     }
 }
 
-async function doSharePDF() {
+async function doSharePDF(markFerdig) {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -5676,7 +5734,7 @@ async function doSharePDF() {
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getFormData(), 'ordreseddel'));
-        if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
+        if (result === 'shared') _promoteFormToSent(markFerdig);   // fullført deling → sendt/ferdig (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -5684,7 +5742,7 @@ async function doSharePDF() {
     }
 }
 
-async function doSharePNG() {
+async function doSharePNG(markFerdig) {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -5696,7 +5754,7 @@ async function doSharePNG() {
         var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getFormData(), 'ordreseddel'));
-        if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
+        if (result === 'shared') _promoteFormToSent(markFerdig);   // fullført deling → sendt/ferdig (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
