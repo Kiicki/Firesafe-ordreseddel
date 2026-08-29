@@ -159,23 +159,51 @@ function updateToolbarState() {
     // No toolbar buttons need disabling anymore — save/export are in the form view itself
 }
 
-// Status-prikk-klasse for et lagret skjema. TRE tilstander:
-//  s-draft (oransje) = Lagret — ikke sendt ennå (i forms-samlingen)
-//  s-sent  (blå)     = Sendt — venter på svar (i archive, status='sendt')
-//  s-done  (grå)     = Lukket — svar mottatt, ferdigbehandlet
+// Status-prikk-klasse for et lagret skjema. Antall tilstander avhenger av TYPEN:
 //
-// «Lukket» er alt i archive som IKKE er 'sendt'. Det dekker med vilje flere
-// lagrede verdier: 'ferdig', den utgåtte 'ikke_godkjent' (skrives ikke lenger,
-// men gamle dokumenter har den) og eldre arkiverte helt uten status-felt.
-// Derfor vises gammel data korrekt uten at ett dokument må migreres.
-function _statusDotClass(item) {
+//  ORDRESEDDEL (tab utelatt) — TRE tilstander:
+//   s-draft (oransje) = Lagret — ikke sendt ennå (i forms-samlingen)
+//   s-sent  (blå)     = Sendt — venter på svar (i archive, status='sendt')
+//   s-done  (grafitt) = Lukket — svar mottatt, ferdigbehandlet
+//
+//  KAPPESKJEMA og SERVICEBIL — TO tilstander:
+//   s-draft (oransje) = Lagret
+//   s-sent  (blå)     = Sendt. Punktum. De trenger ingen godkjenning, så det
+//                       finnes ingen «Lukket» å gå videre til.
+//
+// Hvorfor TYPEN avgjør, og ikke et lagret felt: kappe/service skriver aldri
+// `status` (markKappeAsSent/markServiceAsSent flytter bare til arkiv-samlingen),
+// så de falt før gjennom til s-done og så ut som lukkede saker. Å begynne å
+// skrive feltet ville bare fikset NYE dokumenter — alt som alt ligger i arkivet
+// ville forblitt grafitt. Å avgjøre på typen fikser gammel og ny data på én gang,
+// uten å migrere ett eneste dokument.
+//
+// `tab` er en POSITIV allowlist, ikke `tab !== 'own'`. _statusSortRank og enhver
+// fremtidig kaller som glemmer argumentet sender undefined; med negasjon ville
+// det stille slått ordreseddel over til to tilstander. Slik er undefined per
+// konstruksjon = ordreseddel.
+//
+// Både 'service' og 'servicebil' godtas: _savedItemTab returnerer 'service',
+// mens _selectTab/switchHentTab bruker 'servicebil'.
+//
+// For ordreseddel er «Lukket» alt i archive som IKKE er 'sendt'. Det dekker med
+// vilje flere lagrede verdier: 'ferdig', den utgåtte 'ikke_godkjent' (skrives
+// ikke lenger, men gamle dokumenter har den) og eldre arkiverte helt uten
+// status-felt. Derfor vises gammel data korrekt uten at noe må migreres.
+function _statusDotClass(item, tab) {
     if (!item || !item._isSent) return 's-draft';
+    // Typen vinner over feltet: et kappe-dokument som via duplisering eller
+    // import har fått et fremmed status-felt skal aldri rendres som lukket.
+    if (tab === 'service' || tab === 'servicebil' || tab === 'kappe') return 's-sent';
     if (item.status === 'sendt') return 's-sent';
     return 's-done';
 }
 
 // Sorterings-rang for status-gruppering i lista: aktivt øverst (lagret, så
 // sendt/venter på svar), lukkede nederst.
+// KUN ordreseddel — kalles bare fra _savedFormsStatusCompare, som igjen brukes
+// på window.loadedForms. Sender derfor bevisst ingen `tab` videre: default =
+// 3-tilstands. Kappe/service sorterer med egne inline-komparatorer på _isSent.
 function _statusSortRank(item) {
     switch (_statusDotClass(item)) {
         case 's-draft': return 0;   // 🟡 Lagret
@@ -7499,7 +7527,7 @@ function _buildServiceItemHtml(item, index) {
     }
     var savedAtStr = formatDateWithTime(item.savedAt);
     var isSent = item._isSent;
-    var dot = '<span class="status-dot ' + _statusDotClass(item) + '"></span>';
+    var dot = '<span class="status-dot ' + _statusDotClass(item, 'service') + '"></span>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
@@ -12250,7 +12278,10 @@ function renderBilHistory() {
             items.push({
                 type: 'uttak',
                 formIdx: i2, // indeks i window.loadedServiceForms — brukes for select-mode + open
-                isSent: !!form._isSent,
+                // _isSent (med understrek) er navnet _statusDotClass forventer, så
+                // denne projeksjonen kan gis rett til den. Het før `isSent`, som
+                // gjorde at prikk-logikken her måtte duplisere seg selv.
+                _isSent: !!form._isSent,
                 dato: entry.dato || '',
                 createdAt: form.savedAt || '',
                 prosjektnr: entry.prosjektnr || '',
@@ -12276,8 +12307,14 @@ function renderBilHistory() {
         var item = items[i3];
         var isPafylling = item.type === 'pafylling';
         var typeLabel = isPafylling ? t('bil_history_pafylling') : t('bil_history_uttak');
-        // Status-dot: inntak er alltid "ferdig" (grønn). Uttak: oransje for lagret/draft, grønn for sendt.
-        var dotClass = isPafylling ? 'sent' : (item.isSent ? 'sent' : 'saved');
+        // Status-prikk, samme to tilstander som resten av Servicebil:
+        //   INNTAK  → alltid blå. En påfylling er en ferdig registrert hendelse,
+        //             aldri et utkast; INNTAK/UTTAK-merkelappen ved siden av sier
+        //             uansett hva raden er.
+        //   UTTAK   → oransje utkast / blå sendt, via den delte _statusDotClass.
+        // Klassene het før 'sent'/'saved', som IKKE finnes i styles.css (kun
+        // .s-draft/.s-sent/.s-done) — prikkene her var derfor usynlige.
+        var dotClass = isPafylling ? 's-sent' : _statusDotClass(item, 'service');
         var statusDot = '<span class="status-dot ' + dotClass + '"></span>';
         var titleHtml = escapeHtml(item.dato);
         var subtitleHtml = '';
@@ -17595,7 +17632,7 @@ function _buildKappeItemHtml(item, index) {
         ? '<div class="saved-item-subtitle">' + parts.join('<span class="bil-history-sep"></span>') + '</div>'
         : '';
     var isSent = item._isSent;
-    var dot = '<span class="status-dot ' + _statusDotClass(item) + '"></span>';
+    var dot = '<span class="status-dot ' + _statusDotClass(item, 'kappe') + '"></span>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
     var deleteBtn = isSent
         ? '<button class="saved-item-action-btn delete disabled" title="' + t('delete_btn') + '">' + deleteIcon + '</button>'
