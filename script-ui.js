@@ -5448,7 +5448,10 @@ function updateSelectionUI() {
 
 // Anvend en status på ÉN form i de gitte localStorage-arrayene + enqueue Firestore.
 // target: 'lagret' (oransje, i forms) | 'sendt' (blå, archive) | 'ferdig' (grå = Lukket, archive).
-function _applyFormStatus(form, target, saved, archived) {
+// ops (valgfri): samme mekanikk som i _markOwnFormDataAsSent — når fler-valg
+// sender inn en samle-array committes Firestore-skrivingene som ÉN atomisk
+// batch i stedet for 2 kall pr. skjema i en sekvensiell kjede.
+function _applyFormStatus(form, target, saved, archived, ops) {
     var data = Object.assign({}, form);
     delete data._isSent;
     if (!data.id) data.id = Date.now().toString();
@@ -5459,14 +5462,16 @@ function _applyFormStatus(form, target, saved, archived) {
         delete data.status;                                   // tilbake til utkast
         if (aIdx !== -1) archived.splice(aIdx, 1);
         if (sIdx !== -1) saved[sIdx] = data; else saved.unshift(data);
-        if (inArchive) enqueueUserDocMove('forms', 'archive', data.id, data, 'Bulk → lagret');
+        if (ops) ops.push({ target: 'forms', source: inArchive ? 'archive' : null, id: data.id, data: data });
+        else if (inArchive) enqueueUserDocMove('forms', 'archive', data.id, data, 'Bulk → lagret');
         else enqueueUserDocSet('forms', data.id, data, 'Bulk → lagret');
     } else {
         // target = 'sendt' | 'ferdig' (= Lukket) → begge i archive.
         data.status = target;
         if (sIdx !== -1) saved.splice(sIdx, 1);
         if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
-        if (!inArchive) enqueueUserDocMove('archive', 'forms', data.id, data, 'Bulk → ' + target);
+        if (ops) ops.push({ target: 'archive', source: inArchive ? null : 'forms', id: data.id, data: data });
+        else if (!inArchive) enqueueUserDocMove('archive', 'forms', data.id, data, 'Bulk → ' + target);
         else enqueueUserDocSet('archive', data.id, data, 'Bulk → ' + target);
     }
     addToOrderNumberIndex(data.ordreseddelNr);
@@ -5504,9 +5509,11 @@ function bulkSetStatus(target) {
         : t('status_lagret');
     var saved = safeParseJSON(STORAGE_KEY, []);
     var archived = safeParseJSON(ARCHIVE_KEY, []);
-    forms.forEach(function(f) { try { _applyFormStatus(f, target, saved, archived); } catch (e) { console.error('Bulk status:', e); } });
+    var ops = [];
+    forms.forEach(function(f) { try { _applyFormStatus(f, target, saved, archived, ops); } catch (e) { console.error('Bulk status:', e); } });
     safeSetItem(STORAGE_KEY, JSON.stringify(saved));
     safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+    enqueueUserDocMoveBatch(ops, 'Bulk → ' + target);
     _lastLocalSaveTs = Date.now();
     var n = forms.length;
     toggleSelectMode();                                       // ut av fler-valg
