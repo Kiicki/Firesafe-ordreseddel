@@ -1485,6 +1485,38 @@ function enqueueUserDocMove(targetCollection, sourceCollection, docId, data, con
     if (typeof _pendingFirestoreOps !== 'undefined') _pendingFirestoreOps = window._pendingFirestoreOps;
 }
 
+// Fler-valg: flytt N dokumenter i ÉN atomisk batch i stedet for 2 Firestore-kall
+// pr. skjema i en lang sekvensiell kjede. Deling sender appen i bakgrunnen, og
+// Android/Chrome kan fryse eller forkaste PWA-siden mens brukeren står i
+// e-postappen — da mistes resten av køen. Resultatet var at bare de første
+// skjemaene faktisk ble flyttet til archive i Firestore, mens localStorage sa at
+// alle var sendt; neste refresh hentet Firestore-fasiten og «angret» resten.
+// En batch er alt-eller-ingenting og krever bare én round-trip.
+// ops = [{ target, source, id, data }] — source kan utelates (ren set).
+function enqueueUserDocMoveBatch(ops, context) {
+    if (!currentUser || !db || !ops || !ops.length) return;
+    if (!window._pendingFirestoreOps) window._pendingFirestoreOps = Promise.resolve();
+    // Firestore-grensen er 500 writes pr. batch; hver move er 2 writes.
+    var chunks = [];
+    for (var i = 0; i < ops.length; i += 200) chunks.push(ops.slice(i, i + 200));
+    window._pendingFirestoreOps = window._pendingFirestoreOps.then(function() {
+        var userRef = db.collection('users').doc(currentUser.uid);
+        return Promise.all(chunks.map(function(chunk) {
+            var batch = db.batch();
+            chunk.forEach(function(op) {
+                batch.set(userRef.collection(op.target).doc(op.id), op.data);
+                if (op.source && op.source !== op.target) {
+                    batch.delete(userRef.collection(op.source).doc(op.id));
+                }
+            });
+            return batch.commit();
+        }));
+    }).catch(function(e) {
+        console.error((context || 'Firestore batch move') + ' error:', e);
+    });
+    if (typeof _pendingFirestoreOps !== 'undefined') _pendingFirestoreOps = window._pendingFirestoreOps;
+}
+
 // Global HTML escape function - prevents XSS attacks
 function escapeHtml(str) {
     if (!str) return '';

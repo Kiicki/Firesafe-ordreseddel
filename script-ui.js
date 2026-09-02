@@ -5542,7 +5542,27 @@ function toggleSelectAllVisible() {
     updateSelectionUI();
 }
 
+// ── Fryst utvalg for ÉN bulk-kjøring ────────────────────────────────────────
+// _selectedSet holder ARRAY-INDEKSER inn i window.loadedForms, ikke skjema-IDer.
+// _getSelectedForms() kalles ~10 steder i løpet av én eksport/deling (byggere,
+// filnavn, delings-tekst — og markeringen som skjer ETTER at delingen er
+// fullført). Deling sender appen i bakgrunnen, og bakgrunns-refreshen fra
+// Firestore i _showSavedFormsDirectly kan bytte ut window.loadedForms i
+// mellomtiden. De samme indeksene peker da på ANDRE skjemaer: vi delte to
+// skjemaer, men markerte to andre — og de av dem som allerede var sendt ble
+// hoppet over, så det så ut som «bare ett ble sendt».
+// Derfor: frys utvalget ved starten av kjøringen, og bruk den samme fasit-lista
+// hele veien til markeringen er ferdig.
+var _bulkRunForms = null;
+function _beginBulkRun() {
+    _bulkRunForms = null;                 // aldri bygg en ny kjøring på en gammel
+    _bulkRunForms = _getSelectedForms();
+    return _bulkRunForms;
+}
+function _endBulkRun() { _bulkRunForms = null; }
+
 function _getSelectedForms() {
+    if (_bulkRunForms) return _bulkRunForms;
     var src;
     if (_selectTab === 'service') src = window.loadedServiceForms || [];
     else if (_selectTab === 'kappe') src = window.loadedKappeForms || [];
@@ -6959,7 +6979,10 @@ async function _bulkBuildKappePNGs() {
 // Mark-as-sent helpere (uten UI-støy, brukt i bulk).
 // VIKTIG: savedAt må bumpes slik at _mergeAndDedup velger arkiv-versjonen over saved-versjonen
 // (samme mekanisme som getFormData() i enkelt-skjema-flyten).
-function _markOwnFormDataAsSent(sourceData) {
+// ops (valgfri): når fler-valg-flyten sender inn en samle-array skrives ikke
+// Firestore-flyttingen med én gang — den legges i arrayen og committes som ÉN
+// atomisk batch av _bulkMarkSelectedAsSent. Uten ops beholdes enkelt-oppførselen.
+function _markOwnFormDataAsSent(sourceData, ops) {
     try {
         // Clone to avoid mutating window.loadedForms entry
         var data = JSON.parse(JSON.stringify(sourceData));
@@ -6980,11 +7003,12 @@ function _markOwnFormDataAsSent(sourceData) {
         else archived.unshift(data);
         safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
         addToOrderNumberIndex(data.ordreseddelNr);
-        enqueueUserDocMove('archive', 'forms', data.id, data, 'Bulk mark-sent (own)');
+        if (ops) ops.push({ target: 'archive', source: 'forms', id: data.id, data: data });
+        else enqueueUserDocMove('archive', 'forms', data.id, data, 'Bulk mark-sent (own)');
     } catch (e) { console.error('Bulk mark-sent (own) error:', e); }
 }
 
-function _markServiceFormDataAsSent(sourceData) {
+function _markServiceFormDataAsSent(sourceData, ops) {
     try {
         var data = JSON.parse(JSON.stringify(sourceData));
         delete data._isSent;
@@ -7002,11 +7026,12 @@ function _markServiceFormDataAsSent(sourceData) {
             saved.splice(savedIdx, 1);
             safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify(saved));
         }
-        enqueueUserDocMove('serviceArchive', 'serviceforms', data.id, data, 'Bulk mark-sent (service)');
+        if (ops) ops.push({ target: 'serviceArchive', source: 'serviceforms', id: data.id, data: data });
+        else enqueueUserDocMove('serviceArchive', 'serviceforms', data.id, data, 'Bulk mark-sent (service)');
     } catch (e) { console.error('Bulk mark-sent (service) error:', e); }
 }
 
-function _markKappeFormDataAsSent(sourceData) {
+function _markKappeFormDataAsSent(sourceData, ops) {
     try {
         var data = JSON.parse(JSON.stringify(sourceData));
         delete data._isSent;
@@ -7024,18 +7049,30 @@ function _markKappeFormDataAsSent(sourceData) {
             saved.splice(savedIdx, 1);
             safeSetItem(KAPPE_STORAGE_KEY, JSON.stringify(saved));
         }
-        enqueueUserDocMove('kappeArchive', 'kappeforms', data.id, data, 'Bulk mark-sent (kappe)');
+        if (ops) ops.push({ target: 'kappeArchive', source: 'kappeforms', id: data.id, data: data });
+        else enqueueUserDocMove('kappeArchive', 'kappeforms', data.id, data, 'Bulk mark-sent (kappe)');
     } catch (e) { console.error('Bulk mark-sent (kappe) error:', e); }
 }
 
-function _bulkMarkSelectedAsSent() {
+// Marker ALLE valgte som sendt. localStorage skrives synkront pr. skjema (som
+// før), men Firestore-flyttingene samles og committes som ÉN atomisk batch —
+// ellers kan en delvis gjennomført kjede etterlate noen skjemaer som utkast i
+// Firestore når appen fryses under deling (se enqueueUserDocMoveBatch).
+function _bulkMarkSelectedAsSent(tab) {
     var forms = _getSelectedForms();
+    tab = tab || _selectTab;
+    var ops = [];
     for (var i = 0; i < forms.length; i++) {
         if (forms[i]._isSent) continue; // already sent
-        if (_selectTab === 'service') _markServiceFormDataAsSent(forms[i]);
-        else if (_selectTab === 'kappe') _markKappeFormDataAsSent(forms[i]);
-        else _markOwnFormDataAsSent(forms[i]);
+        if (tab === 'service') _markServiceFormDataAsSent(forms[i], ops);
+        else if (tab === 'kappe') _markKappeFormDataAsSent(forms[i], ops);
+        else _markOwnFormDataAsSent(forms[i], ops);
+        // Hold list-objektet i synk (samme som _promoteListFormToSent gjør), så
+        // en re-kjøring/re-render ikke tror skjemaet fortsatt er utkast.
+        forms[i]._isSent = true;
+        if (tab !== 'service' && tab !== 'kappe') forms[i].status = 'sendt';
     }
+    enqueueUserDocMoveBatch(ops, 'Bulk mark-sent (' + (tab || 'own') + ')');
     _lastLocalSaveTs = Date.now();
 }
 
@@ -7112,7 +7149,7 @@ function _updateBulkPngState() {
 
 async function _bulkFinishAfterExport(markSent) {
     var tabForRefresh = _selectTab;  // capture FØR toggleSelectMode nullstiller _selectTab
-    if (markSent) _bulkMarkSelectedAsSent();
+    if (markSent) _bulkMarkSelectedAsSent(tabForRefresh);
     toggleSelectMode();
     if (markSent) {
         // Refresh saved list slik at sendt-status vises korrekt
@@ -7122,6 +7159,7 @@ async function _bulkFinishAfterExport(markSent) {
 
 async function doBulkExportPDF() {
     if (_selectedSet.size === 0) return;
+    _beginBulkRun();   // frys utvalget for HELE kjøringen (bygging + markering etter deling)
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
@@ -7132,11 +7170,13 @@ async function doBulkExportPDF() {
         showNotificationModal(t('export_pdf_error') + e.message);
     } finally {
         loading.classList.remove('active');
+        _endBulkRun();
     }
 }
 
 async function doBulkExportPNG() {
     if (_selectedSet.size === 0) return;
+    _beginBulkRun();   // frys utvalget for HELE kjøringen (bygging + markering etter deling)
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
@@ -7158,6 +7198,7 @@ async function doBulkExportPNG() {
         showNotificationModal(t('export_png_error') + e.message);
     } finally {
         loading.classList.remove('active');
+        _endBulkRun();
     }
 }
 
@@ -7167,6 +7208,7 @@ async function doBulkSharePDF() {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
         return;
     }
+    _beginBulkRun();   // frys utvalget for HELE kjøringen (bygging + markering etter deling)
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
@@ -7185,6 +7227,7 @@ async function doBulkSharePDF() {
         showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
+        _endBulkRun();
     }
 }
 
@@ -7194,6 +7237,7 @@ async function doBulkSharePNG() {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
         return;
     }
+    _beginBulkRun();   // frys utvalget for HELE kjøringen (bygging + markering etter deling)
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
@@ -7210,12 +7254,14 @@ async function doBulkSharePNG() {
         showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
+        _endBulkRun();
     }
 }
 
 // Separate PDF-filer (én per skjema)
 async function doBulkExportPDFSeparate() {
     if (_selectedSet.size === 0) return;
+    _beginBulkRun();   // frys utvalget for HELE kjøringen (bygging + markering etter deling)
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
@@ -7236,6 +7282,7 @@ async function doBulkExportPDFSeparate() {
         showNotificationModal(t('export_pdf_error') + e.message);
     } finally {
         loading.classList.remove('active');
+        _endBulkRun();
     }
 }
 
@@ -7245,6 +7292,7 @@ async function doBulkSharePDFSeparate() {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
         return;
     }
+    _beginBulkRun();   // frys utvalget for HELE kjøringen (bygging + markering etter deling)
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
@@ -7261,6 +7309,7 @@ async function doBulkSharePDFSeparate() {
         showNotificationModal(t('share_error') + e.message);
     } finally {
         loading.classList.remove('active');
+        _endBulkRun();
     }
 }
 
