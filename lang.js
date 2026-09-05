@@ -263,6 +263,7 @@ const TRANSLATIONS = {
         duplicate_confirm: 'Vil du duplisere dette skjemaet?',
         duplicated_success: 'Skjema duplisert — husk å lagre!',
         copied_to_clipboard: 'Kopiert!',
+        copy_failed: 'Kunne ikke kopiere — prøv igjen',
 
         // New form
         new_form_confirm: 'Vil du starte et nytt skjema? Ulagrede endringer vil gå tapt.',
@@ -985,6 +986,7 @@ const TRANSLATIONS = {
         duplicate_confirm: 'Do you want to duplicate this form?',
         duplicated_success: 'Form duplicated — remember to save!',
         copied_to_clipboard: 'Copied!',
+        copy_failed: 'Could not copy — please try again',
 
         // New form
         new_form_confirm: 'Start a new form? Unsaved changes will be lost.',

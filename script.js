@@ -2498,18 +2498,80 @@ function restoreTextareas(convertedElements) {
     });
 }
 
+// ── Utklippstavle: ÉN vei for hele appen ────────────────────────────────────
+// Alle «Kopier»-knapper (ordrenummer i skjemaet, i Lagret-lista, i servicebil-
+// lista, kappe-tekst, stoppeklokke) går gjennom copyTextToClipboard.
+//
+// Hvorfor: navigator.clipboard.writeText() feiler jevnlig i praksis — den
+// avvises med NotAllowedError når dokumentet ikke har fokus (typisk rett etter
+// at tastaturet lukkes, eller når appen nettopp kom tilbake i forgrunnen), og
+// navigator.clipboard finnes ikke i det hele tatt i usikker kontekst eller
+// eldre WebView. Da MÅ vi ha en fallback, og vi må aldri påstå at noe ble
+// kopiert når det ikke ble det: en falsk «Kopiert!» er verre enn en feilmelding,
+// fordi brukeren først oppdager det når limingen er tom.
+
+// Synkron fallback via execCommand. Bruker et usynlig <span> + Range i stedet
+// for en <textarea>: en textarea må fokuseres for at select() skal virke, og
+// fokus på et tekstfelt spretter opp skjermtastaturet på mobil. Et Range-utvalg
+// på et ikke-redigerbart element kopierer uten å røre fokus i det hele tatt.
+// Returnerer om kopieringen FAKTISK lyktes.
+function _execCommandCopy(text) {
+    var span = null, sel = null, prevRanges = [];
+    try {
+        span = document.createElement('span');
+        span.textContent = text;
+        span.style.cssText = 'position:fixed;top:0;left:-9999px;white-space:pre;user-select:text;';
+        document.body.appendChild(span);
+        sel = window.getSelection();
+        for (var i = 0; i < sel.rangeCount; i++) prevRanges.push(sel.getRangeAt(i));
+        sel.removeAllRanges();
+        var range = document.createRange();
+        range.selectNodeContents(span);
+        sel.addRange(range);
+        var ok = document.execCommand('copy');
+        return !!ok;
+    } catch (e) {
+        return false;
+    } finally {
+        // Rydd opp uansett utfall — og legg tilbake brukerens eget tekstutvalg.
+        try {
+            if (sel) {
+                sel.removeAllRanges();
+                prevRanges.forEach(function(r) { try { sel.addRange(r); } catch (e) {} });
+            }
+            if (span && span.parentNode) span.parentNode.removeChild(span);
+        } catch (e) {}
+    }
+}
+
+// Kopier tekst og gi ÆRLIG tilbakemelding. okMsg/failMsg er valgfrie.
+function copyTextToClipboard(text, okMsg, failMsg) {
+    text = (text == null) ? '' : String(text);
+    if (!text) return;
+    var ok = function() { showNotificationModal(okMsg || t('copied_to_clipboard'), true); };
+    var fail = function() { showNotificationModal(failMsg || t('copy_failed')); };
+    // Mangler async-API-et (usikker kontekst / eldre WebView): gå rett på
+    // execCommand mens vi fortsatt er inne i brukerens trykk.
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        _execCommandCopy(text) ? ok() : fail();
+        return;
+    }
+    try {
+        navigator.clipboard.writeText(text).then(ok, function() {
+            _execCommandCopy(text) ? ok() : fail();
+        });
+    } catch (e) {
+        // writeText kan kaste synkront (bl.a. når navigator.clipboard finnes,
+        // men er avskrudd av policy).
+        _execCommandCopy(text) ? ok() : fail();
+    }
+}
+
 function copyOrderNumber() {
+    // Leser .value (ikke DOM-utvalg) — virker også når feltet er disabled på et
+    // sendt skjema, der den gamle input.select()-fallbacken var en no-op.
     const nr = document.getElementById('mobile-ordreseddel-nr').value;
-    if (!nr) return;
-    navigator.clipboard.writeText(nr).then(() => {
-        showNotificationModal(t('copied_to_clipboard'), true);
-    }).catch(() => {
-        // Fallback for older browsers
-        const input = document.getElementById('mobile-ordreseddel-nr');
-        input.select();
-        document.execCommand('copy');
-        showNotificationModal(t('copied_to_clipboard'), true);
-    });
+    copyTextToClipboard(nr);
 }
 
 // --- Order card functions ---

@@ -8266,14 +8266,7 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
         if (btn.classList.contains('saved-item-menu-btn')) { showSavedItemMenu(savedItem); return; }
         if (btn.classList.contains('disabled')) return;
         if (btn.classList.contains('clipboard')) {
-            var nr = savedItem._formData.ordreseddelNr || '';
-            if (nr) {
-                navigator.clipboard.writeText(nr).then(function() {
-                    showNotificationModal(t('copied_to_clipboard'), true);
-                }).catch(function() {
-                    showNotificationModal(t('copied_to_clipboard'), true);
-                });
-            }
+            copyTextToClipboard(savedItem._formData.ordreseddelNr);
         } else if (btn.classList.contains('copy')) {
             duplicateFormDirect(savedItem._formData);   // ingen bekreftelse (fra 3-prikker)
         } else if (btn.classList.contains('mark-status')) {
@@ -8322,14 +8315,7 @@ document.getElementById('service-list').addEventListener('click', function(e) {
         if (btn.classList.contains('disabled')) return;
         e.stopPropagation();
         if (btn.classList.contains('clipboard')) {
-            var nr = formData.ordreseddelNr || '';
-            if (nr) {
-                navigator.clipboard.writeText(nr).then(function() {
-                    showNotificationModal(t('copied_to_clipboard'), true);
-                }).catch(function() {
-                    showNotificationModal(t('copied_to_clipboard'), true);
-                });
-            }
+            copyTextToClipboard(formData.ordreseddelNr);
         } else if (btn.classList.contains('delete')) {
             deleteServiceForm(formData);
         } else if (btn.classList.contains('copy')) {
@@ -11757,29 +11743,7 @@ function swCopy(id) {
     for (var i = 0; i < list.length; i++) if (list[i].id === id) { w = list[i]; break; }
     if (!w) return;
     var text = _swBilledHours(_swElapsed(w));
-    function onDone() { showNotificationModal(t('sw_copied_toast') + ' ' + text); }
-    function onFail() { showNotificationModal(t('sw_copy_failed')); }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(onDone, function() {
-            _swCopyFallback(text) ? onDone() : onFail();
-        });
-    } else {
-        _swCopyFallback(text) ? onDone() : onFail();
-    }
-}
-
-function _swCopyFallback(text) {
-    try {
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        var ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-        return ok;
-    } catch (e) { return false; }
+    copyTextToClipboard(text, t('sw_copied_toast') + ' ' + text, t('sw_copy_failed'));
 }
 
 document.addEventListener('visibilitychange', function() {
@@ -18624,14 +18588,11 @@ function _kappeSimpleShareMeta(data) {
     return { title: subject || _shareLabelSingular('kappe'), text: body };
 }
 
-// Kopier tekst til utklippstavlen, med fallback for eldre nettlesere.
+// Kopier bestillingslista. Bruker den delte utklippstavle-veien (se
+// copyTextToClipboard i script.js) — inkl. ærlig feilmelding når kopiering
+// faktisk feiler.
 function _copyKappeText(txt, okMsg) {
-    var done = function() { showNotificationModal(okMsg || t('copied_to_clipboard'), true); };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt).then(done).catch(function() { _fallbackCopyText(txt, done); });
-    } else {
-        _fallbackCopyText(txt, done);
-    }
+    copyTextToClipboard(txt, okMsg);
 }
 
 // mailto:-fallback når Web Share mangler (typisk Firefox på PC). Åpner
@@ -18678,24 +18639,6 @@ function doKappeCopyText() {
     var meta = _kappeSimpleShareMeta();
     if (!meta) { showNotificationModal(t('kappe_text_empty')); return; }
     _copyKappeText(meta.text);
-}
-
-// Utklippstavle-fallback for eldre nettlesere / usikker kontekst.
-function _fallbackCopyText(txt, done) {
-    try {
-        var ta = document.createElement('textarea');
-        ta.value = txt;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        done();
-    } catch (e) {
-        showNotificationModal(t('share_error') + e.message);
-    }
 }
 
 // Tekst-seksjonen i eksport-menyen. fromList=true → lagret skjema, som må lastes
