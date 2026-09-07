@@ -238,6 +238,14 @@ function _savedItemActionsHtml(hiddenButtonsHtml, leadingHtml) {
     '</div>';
 }
 
+// Er skjemaet LUKKET (grå/grønn = ferdig eller ikke godkjent)? Alt som ligger i
+// archive og ikke har status 'sendt' er lukket — samme regel som _statusDotClass
+// og showFormStatusMenu bruker, samlet ett sted så de tre ikke kan bli uenige.
+// Kun ordreseddel har 3-tilstands status; service/kappe er alltid utkast|sendt.
+function _isFormClosed(form) {
+    return !!(form && form._isSent && form.status !== 'sendt');
+}
+
 // Åpne handlings-menyen for en lagret-rad (gjenbruker #action-popup).
 // Ikoner for de ekstra meny-valgene (Eksporter / Merk som).
 var _menuExportIcon = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
@@ -440,9 +448,7 @@ function _showSingleExportMenu(savedItem) {
     var textSectionHtml = (_singleExportCtx.tab === 'kappe') ? _kappeTextSectionHtml(true) : '';
     // «Merk som ferdig» — kun ordreseddel (3-tilstands status), og kun når
     // skjemaet ikke allerede er lukket.
-    var _lf = _singleExportCtx.form || {};
-    var _lIsClosed = _lf._isSent && _lf.status !== 'sendt';
-    var showFerdig = _singleExportCtx.tab === 'own' && !_lIsClosed;
+    var showFerdig = _singleExportCtx.tab === 'own' && !_isFormClosed(_singleExportCtx.form);
     var mf = showFerdig ? "document.getElementById('export-mark-ferdig')?.checked" : 'false';
     var ferdigCheckboxHtml = showFerdig
         ? '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
@@ -1593,7 +1599,7 @@ function markCurrentFormAsSent() {
         if (existingIndex !== -1) {
             data.id = saved[existingIndex].id;
         } else {
-            data.id = Date.now().toString();
+            data.id = _newFormId();
         }
         var archived = safeParseJSON(ARCHIVE_KEY, []);
         var archivedExisting = archived.findIndex(function(item) { return item.ordreseddelNr === data.ordreseddelNr; });
@@ -1770,8 +1776,7 @@ function _promoteListFormToSent(form, tab, markFerdig) {
     // skjema kan lukkes ved deling. _applyFormStatus håndterer alle overganger
     // (også forms→archive for et utkast), så vi slipper egen flytte-logikk her.
     if (markFerdig && tab === 'own') {
-        var isClosed = form._isSent && form.status !== 'sendt';
-        if (isClosed) return false;            // allerede lukket → ingenting å gjøre
+        if (_isFormClosed(form)) return false;  // allerede lukket → ingenting å gjøre
         var savedArr = safeParseJSON(STORAGE_KEY, []);
         var archArr = safeParseJSON(ARCHIVE_KEY, []);
         try { _applyFormStatus(form, 'ferdig', savedArr, archArr); }
@@ -1808,7 +1813,7 @@ function _markFormSent(form) {
         var data = Object.assign({}, form);
         delete data._isSent;
         data.status = 'sendt';
-        if (!data.id) data.id = Date.now().toString();
+        if (!data.id) data.id = _newFormId();
         // localStorage: flytt fra saved til archive.
         var saved = safeParseJSON(STORAGE_KEY, []);
         var sIdx = saved.findIndex(function(f) { return f.id === data.id; });
@@ -1833,7 +1838,7 @@ function _markFormFerdig(form) {
         var data = Object.assign({}, form);
         delete data._isSent;
         data.status = 'ferdig';
-        if (!data.id) data.id = Date.now().toString();
+        if (!data.id) data.id = _newFormId();
         var archived = safeParseJSON(ARCHIVE_KEY, []);
         var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
         if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
@@ -5454,7 +5459,7 @@ function updateSelectionUI() {
 function _applyFormStatus(form, target, saved, archived, ops) {
     var data = Object.assign({}, form);
     delete data._isSent;
-    if (!data.id) data.id = Date.now().toString();
+    if (!data.id) data.id = _newFormId();
     var inArchive = !!form._isSent;
     var sIdx = saved.findIndex(function(f) { return f.id === data.id; });
     var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
@@ -7065,10 +7070,35 @@ function _markKappeFormDataAsSent(sourceData, ops) {
 // før), men Firestore-flyttingene samles og committes som ÉN atomisk batch —
 // ellers kan en delvis gjennomført kjede etterlate noen skjemaer som utkast i
 // Firestore når appen fryses under deling (se enqueueUserDocMoveBatch).
-function _bulkMarkSelectedAsSent(tab) {
+function _bulkMarkSelectedAsSent(tab, markFerdig) {
     var forms = _getSelectedForms();
     tab = tab || _selectTab;
     var ops = [];
+    // «Merk som ferdig» — avkrysningen i eksport-menyen. Samme regel som for
+    // enkeltskjema (_promoteListFormToSent): kun ordreseddel har 3-tilstands
+    // status, både utkast OG sendt kan lukkes, og et allerede lukket skjema
+    // røres ikke. _applyFormStatus håndterer forms→archive-flyttingen selv.
+    if (markFerdig && tab !== 'service' && tab !== 'kappe') {
+        var saved = safeParseJSON(STORAGE_KEY, []);
+        var archived = safeParseJSON(ARCHIVE_KEY, []);
+        var changed = false;
+        for (var k = 0; k < forms.length; k++) {
+            var f = forms[k];
+            if (_isFormClosed(f)) continue;                  // allerede lukket
+            try { _applyFormStatus(f, 'ferdig', saved, archived, ops); }
+            catch (e) { console.error('Bulk deling → ferdig:', e); continue; }
+            f._isSent = true;
+            f.status = 'ferdig';
+            changed = true;
+        }
+        if (changed) {
+            safeSetItem(STORAGE_KEY, JSON.stringify(saved));
+            safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
+        }
+        enqueueUserDocMoveBatch(ops, 'Bulk deling → ferdig');
+        _lastLocalSaveTs = Date.now();
+        return;
+    }
     for (var i = 0; i < forms.length; i++) {
         if (forms[i]._isSent) continue; // already sent
         if (tab === 'service') _markServiceFormDataAsSent(forms[i], ops);
@@ -7094,14 +7124,26 @@ function showBulkExportMenu() {
             '<input type="checkbox" id="bulk-export-combined" onchange="_updateBulkPngState()" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
             t('bulk_combine_pdf_label') +
         '</label>';
+    // «Merk som ferdig» — samme avkrysning som i enkeltskjema-eksporten
+    // (_showSingleExportMenu), bare for hele utvalget. Kun ordreseddel har
+    // 3-tilstands status, og bare når minst ETT valgt skjema kan lukkes.
+    var showFerdig = _selectTab !== 'service' && _selectTab !== 'kappe' &&
+        _getSelectedForms().some(function(f) { return !_isFormClosed(f); });
+    var mf = showFerdig ? "document.getElementById('bulk-export-mark-ferdig')?.checked" : 'false';
+    var ferdigCheckboxHtml = showFerdig
+        ? '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
+              '<input type="checkbox" id="bulk-export-mark-ferdig" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
+              escapeHtml(t('export_mark_ferdig_label')) +
+          '</label>'
+        : '';
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var dlIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     // Runtime-dispatch: checkbox styrer om PDF-knappen bruker samlet eller separat
     var pdfDl = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkExportPDF() : doBulkExportPDFSeparate())';
-    var pdfShare = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkSharePDF() : doBulkSharePDFSeparate())';
+    var pdfShare = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkSharePDF(' + mf + ') : doBulkSharePDFSeparate(' + mf + '))';
     var pngDl = 'doBulkExportPNG()';
-    var pngShare = 'doBulkSharePNG()';
+    var pngShare = 'doBulkSharePNG(' + mf + ')';
 
     var shareBtnPDF = canShare
         ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="' + pdfShare + '; closeActionPopup()">' + shareIcon + ' PDF</button>'
@@ -7112,7 +7154,7 @@ function showBulkExportMenu() {
 
     // «Marker som sendt»-avhuking fjernet: deling markerer automatisk (fullført
     // deling → sendt; nedlasting endrer ikke status; ferdig forblir ferdig).
-    var html = combinedCheckboxHtml +
+    var html = ferdigCheckboxHtml + combinedCheckboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="' + pdfDl + '; closeActionPopup()">' + dlIcon + ' PDF</button>' +
@@ -7154,9 +7196,9 @@ function _updateBulkPngState() {
     });
 }
 
-async function _bulkFinishAfterExport(markSent) {
+async function _bulkFinishAfterExport(markSent, markFerdig) {
     var tabForRefresh = _selectTab;  // capture FØR toggleSelectMode nullstiller _selectTab
-    if (markSent) _bulkMarkSelectedAsSent(tabForRefresh);
+    if (markSent) _bulkMarkSelectedAsSent(tabForRefresh, markFerdig);
     toggleSelectMode();
     if (markSent) {
         // Refresh saved list slik at sendt-status vises korrekt
@@ -7209,7 +7251,7 @@ async function doBulkExportPNG() {
     }
 }
 
-async function doBulkSharePDF() {
+async function doBulkSharePDF(markFerdig) {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -7229,7 +7271,7 @@ async function doBulkSharePDF() {
         }
         loading.classList.remove('active');
         var result = await _safeShare([file], _bulkShareText(_selectTab));
-        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
+        if (result === 'shared') await _bulkFinishAfterExport(true, markFerdig);   // fullført deling → sendt/ferdig
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -7238,7 +7280,7 @@ async function doBulkSharePDF() {
     }
 }
 
-async function doBulkSharePNG() {
+async function doBulkSharePNG(markFerdig) {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -7256,7 +7298,7 @@ async function doBulkSharePNG() {
         }
         loading.classList.remove('active');
         var result = await _safeShare(files, _bulkShareText(_selectTab));
-        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
+        if (result === 'shared') await _bulkFinishAfterExport(true, markFerdig);   // fullført deling → sendt/ferdig
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -7293,7 +7335,7 @@ async function doBulkExportPDFSeparate() {
     }
 }
 
-async function doBulkSharePDFSeparate() {
+async function doBulkSharePDFSeparate(markFerdig) {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -7311,7 +7353,7 @@ async function doBulkSharePDFSeparate() {
         }
         loading.classList.remove('active');
         var result = await _safeShare(files, _bulkShareText(_selectTab));
-        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
+        if (result === 'shared') await _bulkFinishAfterExport(true, markFerdig);   // fullført deling → sendt/ferdig
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {

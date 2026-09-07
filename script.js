@@ -1517,6 +1517,15 @@ function enqueueUserDocMoveBatch(ops, context) {
     if (typeof _pendingFirestoreOps !== 'undefined') _pendingFirestoreOps = window._pendingFirestoreOps;
 }
 
+// Ny skjema-ID. Date.now() ALENE er ikke nok: markerer man flere skjemaer i én
+// operasjon (fler-valg → «Merk som» / «Merk som ferdig») kjører løkka innenfor
+// samme millisekund, og alle ID-løse skjemaer ville fått IDENTISK id. Både
+// localStorage-dedupen (findIndex på id) og Firestore-doc-IDen ville da slått
+// dem sammen — resultatet var at bare ETT av skjemaene faktisk ble markert.
+function _newFormId() {
+    return Date.now().toString() + Math.random().toString(36).slice(2, 6);
+}
+
 // Global HTML escape function - prevents XSS attacks
 function escapeHtml(str) {
     if (!str) return '';
