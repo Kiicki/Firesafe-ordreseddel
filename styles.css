@@ -10130,6 +10130,8 @@ body.kappe-view-open #view-form { display: none; }
    showConfirmModal ikke har noen avbryt-callback å gjenopprette den fra. */
 body:has(#dag-timer-modal.active) .confirm-modal:not(#dag-timer-modal) { z-index: 80; }
 
+/* Bekreftelse (f.eks. «Slette denne seksjonen?») må over Isolering-popupen. */
+body:has(#iso-card-popup.active) .confirm-modal { z-index: 80; }
 /* «+ Ny dimensjon» (showInputModal/confirm-modal) må over festemiddel-popupene. */
 body:has(#fastener-popup.active) .confirm-modal,
 body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
@@ -10386,9 +10388,26 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     flex-direction: column;
     gap: 10px;
 }
-.iso-section + .iso-section {
-    border-top: 1px solid #e0e0e6;
-    padding-top: 10px;
+/* Seksjons-hode skjult ved ÉN seksjon (kompakt). Ved 2+ seksjoner
+   (.iso-group-sections--multi): hver seksjon er en innrammet boks med
+   «Seksjon N» + «Fjern seksjon», så det er tydelig hvor en seksjon slutter. */
+.iso-section-head { display: none; }
+.iso-group-sections--multi .iso-section {
+    border: 1px solid #d9d9df;
+    border-radius: 12px;
+    /* Smal side-padding: 4 kolonner må få plass også i den smale popupen. */
+    padding: 8px 6px 10px;
+}
+.iso-group-sections--multi .iso-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+.iso-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #3a3a3c;
 }
 .iso-section-bredder,
 .iso-section-plate-rows {
@@ -10405,10 +10424,16 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     gap: 4px;
 }
 .iso-bredde-head .kappe-quad-row { flex: 1; min-width: 0; }
+/* 4 kolonner (Antall/LM/Bredde/Sider) er smale i popupen (~53px) — «Bredde *»
+   er ~1px for bred. Ikke kutt med «…»; korte etiketter kan trygt flyte inn i
+   kolonne-gapet. */
+.iso-bredde-head .kappe-quad-row .mobile-field label { overflow: visible; text-overflow: clip; }
 .iso-bredde-head-del { flex: 0 0 22px; }
 /* Bredde-radene har ikke lenger egne etiketter → lav rad (ingen 56px min-høyde). */
 .iso-section-bredder .iso-card-row { min-height: 0; }
 .iso-section-plate-rows:empty { display: none; }
+/* Luft mellom bredde-lista og «Antall plater» (samme 8px som under LM/Antall). */
+.iso-section-plate-rows:not(:empty) { margin-top: 8px; }
 /* Seksjonens knapperad: «+ Stk» + «+ Plate» + «+ Seksjon» + fjern — alt på én
    rad. Kompakte knapper (mindre font/padding) så de tre + slett-ikon får plass. */
 .iso-section-foot {
@@ -10423,18 +10448,25 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     margin: 0;
     white-space: nowrap;
 }
+/* «Fjern seksjon»: rød TEKST-knapp i seksjons-hodet — bevisst ulik rad-
+   slettingens søppel-ikon, så seksjon vs rad ikke forveksles. */
 .iso-section-remove {
     flex: 0 0 auto;
     background: none;
     border: none;
     color: #e74c3c;
-    padding: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 6px 2px 6px 8px;
     cursor: pointer;
-    display: flex;
-    align-items: center;
     -webkit-tap-highlight-color: transparent;
 }
-.iso-section-remove svg { width: 18px; height: 18px; }
+/* «+ Legg til seksjon» under alle seksjonene (2+ seksjoner): full bredde. Ved
+   ÉN seksjon flyttes knappen inn i seksjonens knapperad og arver
+   .iso-section-foot-stilen (se _updateIsoSectionRemoveStates). */
+.iso-group-body > .iso-add-section-btn { width: 100%; margin: 0; }
+.iso-group-card--no-product .iso-add-section-btn { display: none; }
 /* Stram radavstand: nullstill arvet margin-bottom fra .iso-card-row. */
 .iso-section-bredder .iso-card-row { margin-bottom: 0; }
 .iso-section-bredder .iso-card-row--calc { gap: 0; }
@@ -10447,79 +10479,26 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     padding-top: 6px;
     margin-top: 2px;
 }
-/* Rad i lengde-popupen: LM + Antall på én linje. */
-.iso-row-line {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-/* Flate input-felt (kun lengde-popupen bruker .iso-inp nå). */
-.iso-inp {
-    flex: 1 1 auto;
-    min-width: 0;
-    box-sizing: border-box;
-    height: 40px;
-    border: 1px solid #dcdce0;
-    background: #fff;
-    border-radius: 8px;
-    padding: 0 10px;
-    font-size: 15px;
-    font-family: inherit;
-    color: #1d1d1f;
-    -webkit-appearance: none;
-    appearance: none;
-}
-.iso-inp:focus {
-    outline: none;
-    border-color: #E8501A;
-    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.25);
-}
-.iso-inp::placeholder { color: #b0b0b5; }
-.iso-row-del {
-    flex: 0 0 auto;
-    background: none;
-    border: none;
-    color: #e74c3c;
-    padding: 2px;
+/* Antall/LM i rad 2+ = låst speil av rad 1 (seksjonens felles verdi): grått så
+   det leses som «følger raden over», ikke et eget felt å fylle ut. Høy
+   spesifisitet slår kontekst-reglene for hvite felt (kappe + popup). */
+#kappe-lines .iso-section .mobile-field input.iso-len-mirror,
+#iso-card-popup .iso-section .mobile-field input.iso-len-mirror {
+    background: #e9e9ee;
+    color: #9a9aa0;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    -webkit-tap-highlight-color: transparent;
+    box-shadow: none;
 }
-.iso-row-del svg { width: 18px; height: 18px; }
-/* LM/Antall-feltet (midt-kolonnen i bredde-raden) er dobbelt så bredt som
-   Bredde/Sider — får plassen til de gamle LM+Antall-kolonnene. */
-.kappe-quad-row .mobile-field.iso-lm-field { flex: 2; }
-/* LM/Antall-knappen ser ut som et input-felt (samme stil som mobile-field input):
-   hvit, avrundet, sentrert tekst. Åpner lengde-popupen. EKSPLISITT lik høyde som
-   Bredde/Sider-feltene — flex-sentrert så tom knapp ikke kollapser. */
-.iso-bredde-row .mobile-field input,
-.iso-bredde-row .iso-lm-btn {
+#kappe-lines .iso-section .mobile-field input.iso-len-mirror::placeholder,
+#iso-card-popup .iso-section .mobile-field input.iso-len-mirror::placeholder { color: #b8b8be; }
+.iso-section .mobile-field input {
     box-sizing: border-box;
     height: 40px;
 }
-.iso-lm-btn {
-    width: 100%;
-    background: #fff;
-    border: none;
-    border-radius: 10px;
-    padding: 0 6px;
-    font-size: 15px;
-    font-family: inherit;
-    color: #1d1d1f;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    -webkit-tap-highlight-color: transparent;
-}
-.iso-lm-btn:active { background: #fff5f0; }
-/* Kappeskjemaet bruker den DELTE iso-seksjonen — gi Bredde/Sider-feltene samme
-   iOS-stil som i ordreseddel-popupen (hvit, avrundet, sentrert, ingen ramme). */
-#kappe-lines .iso-bredde-row .mobile-field input {
+/* Kappeskjemaet bruker den DELTE iso-seksjonen — gi ALLE seksjons-feltene (LM/
+   Antall, Bredde/Sider, Antall plater) samme iOS-stil som i ordreseddel-popupen
+   (hvit, avrundet, sentrert, ingen ramme). */
+#kappe-lines .iso-section .mobile-field input {
     border: none;
     background: #fff;
     border-radius: 10px;
@@ -10527,65 +10506,13 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     font-size: 15px;
     padding: 0 6px;
 }
-#kappe-lines .iso-bredde-row .mobile-field input:focus {
+#kappe-lines .iso-section .mobile-field input:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
 }
-.iso-lm-btn-text {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.iso-lm-btn-text--empty { color: #b0b0b5; }
-/* Lengde-popup (LM/Antall-linjer). FAST høyde — popupen skal IKKE ekspandere
-   når man legger til rader; bare rad-lista scroller internt. Cappes av skjermen
-   så den aldri går utenfor. Header/«+ legg til»/OK står fast. */
-#iso-length-popup .spec-popup-sheet { height: min(560px, calc(100% - 32px)); }
-#iso-length-popup .spec-popup-sheet > *:not(#iso-length-scroll) { flex-shrink: 0; }
-#iso-length-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    overflow-y: auto;
-    padding: 4px 2px;
-}
-#iso-length-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-/* Hvite input-felt i lengde-popupen (samme språk som iso-kortets felt). */
-#iso-length-popup .iso-inp {
-    background: #f1f1f4;
-}
-#iso-length-popup .iso-inp:focus {
-    background: #fff;
-}
-/* Liten inline «+ bredde / + lengde / + plate» — kompakt, venstrejustert. */
-.iso-group-add {
-    align-self: flex-start;
-    font-size: 12px;
-    padding: 3px 9px;
-    border: 1px dashed #d6d6db;
-    border-radius: 7px;
-    background: none;
-    color: #E8501A;
-    font-weight: 600;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-}
-.iso-group-add:active { background: #fff5f0; }
 #iso-card-popup .iso-card-group .iso-card-row-plates,
 #iso-card-popup .iso-group-card .iso-card-row-plates {
     margin-top: 2px;
-}
-/* Kompakt produkt-velger i gruppe-hodet. */
-#iso-card-popup .iso-group-product-btn {
-    padding: 8px 10px;
-    font-size: 13px;
 }
 /* «+ Legg til isolasjonsprodukt» er et nivå over rad-knappene: full bredde,
    stiplet ramme, så det leses som «nytt produkt», ikke «ny rad». */
@@ -11726,7 +11653,6 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
 .spec-popup-body,
 #iso-card-scroll,
 #fastener-popup-scroll,
-#iso-length-scroll,
 #kappe-lm-scroll,
 #kappe-maal-scroll {
     margin-left: -20px;

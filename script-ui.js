@@ -10017,7 +10017,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // finne noe annet å scrolle (visual viewport / sheet-transform) → popupen
     // ble dratt opp og bort. Disse interne scrollerne har overscroll-behavior:
     // contain så de chainer aldri ut.
-    var _POPUP_SCROLLABLE_SELECTOR = '.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .picker-overlay-list, .modal-body, #iso-card-scroll, #iso-length-scroll, #kappe-lm-scroll, #kappe-maal-scroll';
+    var _POPUP_SCROLLABLE_SELECTOR = '.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .picker-overlay-list, .modal-body, #iso-card-scroll, #kappe-lm-scroll, #kappe-maal-scroll';
     document.addEventListener('touchmove', function(e) {
         if (!document.querySelector(_POPUP_ACTIVE_SELECTOR)) return;
         var tgt = e.target;
@@ -13899,28 +13899,29 @@ var _isoCardSelected = null; // { name, enhet, dim, plate:{length,width}, source
 // Sider). Slik skrives breddene ÉN gang selv om flere lengder/antall finnes
 // (ingen duplisering). Hver kombinasjon bredde×lengde blir ett material-entry.
 
-// Én rad pr. bredde — alt på én linje: Bredde · [LM/Antall-knapp] · Sider.
-// Bredde og Sider redigeres direkte. LM/Antall er en KNAPP som åpner en popup.
-// LM/Antall-linjene er FELLES for hele SEKSJONEN (section._isoLengths) — alle
-// bredder i seksjonen deler samme lengder/antall. Hver (bredde × lengde-linje)
-// blir ett material-entry ved lagring.
+// Én rad pr. bredde: Bredde · Sider · LM · Antall. Per-rad-feltene (hvite) til
+// venstre, seksjonens felles felt til høyre → de grå speilene i rad 2+ danner én
+// samlet blokk. Antall + LM er FELLES for hele SEKSJONEN (section._isoLengths):
+// kun FØRSTE rad har dem redigerbare; rad 2+ viser samme verdi grået ut (låst
+// speil, _isoSyncLenRows). Trykk på et grått
+// felt → fokus flyttes til rad 1. Ulik LM/antall = ny seksjon.
 function _createIsoBreddeRow(data) {
     var d = data || {};
     var row = document.createElement('div');
     row.className = 'iso-card-row iso-bredde-row iso-card-row--calc';
     row.dataset.iscOrient = d.kappeOrient || '';
     // INGEN per-rad-etiketter — kolonne-overskriftene står ÉN gang på toppen av
-    // seksjonen (_isoBreddeHeadHtml). Kolonnene (Bredde / LM-Antall flex2 / Sider)
-    // har samme flex som headeren, så de er på linje.
+    // bredde-lista. Kolonnene har samme flex som headeren. Antall/LM-verdier og
+    // låst/redigerbar-tilstand settes av _isoSyncLenRows (seksjonen eier dem).
     row.innerHTML =
         '<div class="iso-card-row-main">' +
             '<div class="kappe-quad-row">' +
                 '<div class="mobile-field">' +
                     '<input type="text" class="isc-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.bredde || '') + '" oninput="_isoAfterChange(this)"></div>' +
-                '<div class="mobile-field iso-lm-field">' +
-                    '<button type="button" class="iso-lm-btn" onpointerdown="event.preventDefault()" onclick="_openIsoLengthPopup(this)"><span class="iso-lm-btn-text"></span></button></div>' +
                 '<div class="mobile-field">' +
                     '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '') + '" oninput="_isoAfterChange(this)"></div>' +
+                '<div class="mobile-field"><input type="text" class="isc-len-lm" inputmode="decimal" pattern="[0-9,.]*" placeholder="m" oninput="_isoSectionLenInput(this)" onpointerdown="_isoLenMirrorDown(event, this)" onclick="_isoLenMirrorTap(this)"></div>' +
+                '<div class="mobile-field"><input type="text" class="isc-len-antall" inputmode="numeric" pattern="[0-9]*" placeholder="1" oninput="_isoSectionLenInput(this)" onpointerdown="_isoLenMirrorDown(event, this)" onclick="_isoLenMirrorTap(this)"></div>' +
             '</div>' +
             '<button type="button" class="kappe-kapp-remove-btn" onpointerdown="event.preventDefault()" onclick="_isoRemoveBredde(this)" title="Fjern">' + deleteIcon + '</button>' +
         '</div>' +
@@ -13930,87 +13931,78 @@ function _createIsoBreddeRow(data) {
 
 function _isoFmtNum(v) { return String(Math.round(v * 100) / 100).replace('.', ','); }
 
-// Seksjonens FELLES lengde-linjer (delt av alle bredder i seksjonen).
-function _isoSectionLengths(el) {
-    var sec = (el && el.closest) ? el.closest('.iso-section') : null;
-    return (sec && sec._isoLengths) ? sec._isoLengths : [];
-}
 
-// Oppdater LM/Antall-knappen på ALLE bredde-rader i en seksjon (felles verdi).
-function _updateIsoLmBtnsForSection(section) {
-    if (!section) return;
-    section.querySelectorAll('.iso-bredde-row').forEach(function(r) { _updateIsoLmBtn(r); });
-}
-
-// Oppdater én rads LM/Antall-knapp fra seksjonens felles lengder.
-function _updateIsoLmBtn(row) {
+// Antall/LM-feltene (oninput, kun rad 1 er redigerbar): seksjonens felles
+// lengde = [{lm, antall}] (tom når begge er tomme). section._isoLengths er
+// datakilden for lagring/beregning — alltid maks ÉN linje.
+function _isoSectionLenInput(inp) {
+    var section = inp.closest('.iso-section');
+    var row = section ? section.querySelector('.iso-section-bredder .iso-bredde-row') : null;
     if (!row) return;
-    var el = row.querySelector('.iso-lm-btn-text');
-    if (!el) return;
-    var lines = _isoSectionLengths(row);
-    var totLm = 0, totAnt = 0, any = false;
-    lines.forEach(function(l) {
-        var lm = parseLocaleNum(l.lm);
-        var an = parseLocaleNum(l.antall);
-        if (!an || an <= 0 || isNaN(an)) an = 1;
-        if (lm && lm > 0 && !isNaN(lm)) { totLm += lm * an; totAnt += an; any = true; }
-    });
-    if (any) {
-        el.textContent = _isoFmtNum(totLm) + ' lm · ' + _isoFmtNum(totAnt) + ' stk';
-        el.classList.remove('iso-lm-btn-text--empty');
-    } else {
-        // Tom: ingen ledetekst inni knappen — etiketten «LM / Antall» over dekker det.
-        el.textContent = '';
-        el.classList.add('iso-lm-btn-text--empty');
-    }
+    var lm = String((row.querySelector('.isc-len-lm') || {}).value || '').trim();
+    var an = String((row.querySelector('.isc-len-antall') || {}).value || '').trim();
+    section._isoLengths = (lm || an) ? [{ lm: lm, antall: an }] : [];
+    _isoAfterChange(inp);   // → _isoSyncLenRows oppdaterer speilene i rad 2+
 }
+window._isoSectionLenInput = _isoSectionLenInput;
 
-// ── Popup for LM/Antall-linjer (FELLES for seksjonen) ────────────────────────
-var _isoLengthTargetSection = null;
-
-function _createIsoLengthRow(d) {
-    d = d || {};
-    var row = document.createElement('div');
-    row.className = 'iso-length-row iso-row-line';
-    row.innerHTML =
-        '<input type="text" class="ilp-lm iso-inp" inputmode="decimal" pattern="[0-9,.]*" placeholder="LM" value="' + escapeHtml(d.lm || '') + '">' +
-        '<input type="text" class="ilp-antall iso-inp" inputmode="numeric" pattern="[0-9]*" placeholder="Antall" value="' + escapeHtml(d.antall || '') + '">' +
-        '<button type="button" class="iso-row-del" onpointerdown="event.preventDefault()" onclick="_isoLengthRemoveRow(this)" title="Fjern">' + deleteIcon + '</button>';
-    return row;
-}
-
-function _openIsoLengthPopup(btn) {
-    var section = btn.closest('.iso-section');
+// Sett Antall/LM i alle bredde-rader fra seksjonens felles verdi: rad 1 =
+// redigerbar, rad 2+ = låst grått speil (readonly, ikke i tab-rekkefølgen).
+// Kalles ved bygging og fra _isoAfterChange (dekker legg til/fjern rad — slettes
+// rad 1, blir neste rad redigerbar). Skriver kun ved faktisk endring, så
+// markøren i feltet man skriver i ikke flyttes.
+function _isoSyncLenRows(section) {
     if (!section) return;
-    _isoLengthTargetSection = section;
-    if (!section._isoLengths) section._isoLengths = [];
-    var rowsEl = document.getElementById('iso-length-rows');
-    if (!rowsEl) return;
-    rowsEl.innerHTML = '';
-    // Vis eksisterende linjer + fyll opp til minst 10 tomme rader klare for
-    // utfylling (slipper å trykke «+ legg til» for hver linje). Tomme rader
-    // filtreres bort ved lukking.
-    var lines = section._isoLengths.slice();
-    while (lines.length < 10) lines.push({});
-    lines.forEach(function(l) { rowsEl.appendChild(_createIsoLengthRow(l)); });
-    _hideIsoCardForPicker();
-    var popup = document.getElementById('iso-length-popup');
-    if (popup) popup.classList.add('active');
-    if (typeof applyTranslations === 'function') applyTranslations();
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    var f = rowsEl.querySelector('.ilp-lm');
-    if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
-    // Popupen skal ALLTID åpne på toppen. Auto-fokus + tastatur kan ellers
-    // dytte scroll-posisjonen ned. Tving topp, og re-assert etter ev.
-    // tastatur-/layout-scroll (settler ~250ms).
-    var scrollEl = document.getElementById('iso-length-scroll');
-    if (scrollEl) {
-        scrollEl.scrollTop = 0;
-        requestAnimationFrame(function() { scrollEl.scrollTop = 0; });
-        setTimeout(function() { scrollEl.scrollTop = 0; }, 300);
-    }
+    var L = (section._isoLengths && section._isoLengths[0]) || {};
+    var rows = section.querySelectorAll('.iso-section-bredder .iso-bredde-row');
+    Array.prototype.forEach.call(rows, function(row, i) {
+        [['.isc-len-lm', L.lm || ''], ['.isc-len-antall', L.antall || '']].forEach(function(pair) {
+            var inp = row.querySelector(pair[0]);
+            if (!inp) return;
+            if (inp.value !== pair[1]) inp.value = pair[1];
+            var mirror = i > 0;
+            inp.readOnly = mirror;
+            inp.tabIndex = mirror ? -1 : 0;
+            inp.classList.toggle('iso-len-mirror', mirror);
+        });
+    });
 }
-window._openIsoLengthPopup = _openIsoLengthPopup;
+
+// Låst speil-felt (rad 2+): ikke la det få fokus (pointerdown preventDefault,
+// samme mønster som knappene — beholder ev. åpent tastatur), og send trykket
+// videre til tilsvarende felt i rad 1 der verdien redigeres.
+function _isoLenMirrorDown(e, inp) {
+    if (inp.classList.contains('iso-len-mirror')) e.preventDefault();
+}
+window._isoLenMirrorDown = _isoLenMirrorDown;
+function _isoLenMirrorTap(inp) {
+    if (!inp.classList.contains('iso-len-mirror')) return;
+    var section = inp.closest('.iso-section');
+    var first = section ? section.querySelector('.iso-section-bredder .iso-bredde-row') : null;
+    var target = first ? first.querySelector(inp.classList.contains('isc-len-lm') ? '.isc-len-lm' : '.isc-len-antall') : null;
+    if (target) { try { target.focus({ preventScroll: true }); } catch (err) { target.focus(); } }
+}
+window._isoLenMirrorTap = _isoLenMirrorTap;
+
+// Én LM/antall pr. seksjon. Eldre data kunne ha FLERE lengde-linjer i én seksjon
+// (via den fjernede LM-popupen) → del opp i én seksjon pr. lengde med samme
+// bredder. Ingenting forsvinner, og beregningen er identisk (hver bredde ×
+// lengde var allerede en egen rad). Hele plater følger første seksjon.
+function _isoSplitSectionsByLength(sections) {
+    var out = [];
+    (sections || []).forEach(function(sec) {
+        var lens = sec.lengths || [];
+        if (lens.length <= 1) { out.push(sec); return; }
+        lens.forEach(function(l, i) {
+            out.push({
+                breddes: (sec.breddes || []).map(function(br) { return Object.assign({}, br); }),
+                lengths: [l],
+                plates: i === 0 ? (sec.plates || []) : []
+            });
+        });
+    });
+    return out;
+}
 
 // Generisk: scroll popup-scrolleren slik at en nettopp lagt-til rad blir synlig.
 // Add-knappen ligger nå UTENFOR scrollen (alltid synlig), så vi trenger bare å
@@ -14037,75 +14029,38 @@ function _scrollPopupRowIntoView(rowEl) {
 }
 window._scrollPopupRowIntoView = _scrollPopupRowIntoView;
 
-function _isoLengthAddRow() {
-    var rowsEl = document.getElementById('iso-length-rows');
-    if (!rowsEl) return;
-    var r = _createIsoLengthRow({});
-    rowsEl.appendChild(r);
-    var f = r.querySelector('.ilp-lm');
-    if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    _scrollPopupRowIntoView(r);
-}
-window._isoLengthAddRow = _isoLengthAddRow;
-
-function _isoLengthRemoveRow(btn) {
-    var r = btn.closest('.iso-length-row');
-    var active = document.activeElement;
-    if (r && active && r.contains(active)) {
-        var sib = r.previousElementSibling || r.nextElementSibling;
-        var f = sib ? sib.querySelector('input') : null;
-        if (f) f.focus({ preventScroll: true });
-    }
-    if (r) r.remove();
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-}
-window._isoLengthRemoveRow = _isoLengthRemoveRow;
-
-// Lukk popup: les linjene tilbake til SEKSJONEN (felles), oppdater alle bredde-
-// raders LM/Antall-knapp + total.
-function closeIsoLengthPopup() {
-    if (_isoLengthTargetSection) {
-        var lines = [];
-        document.querySelectorAll('#iso-length-rows .iso-length-row').forEach(function(r) {
-            var lm = String((r.querySelector('.ilp-lm') || {}).value || '').trim();
-            var an = String((r.querySelector('.ilp-antall') || {}).value || '').trim();
-            if (lm || an) lines.push({ lm: lm, antall: an });
-        });
-        _isoLengthTargetSection._isoLengths = lines;
-        _updateIsoLmBtnsForSection(_isoLengthTargetSection);
-    }
-    var section = _isoLengthTargetSection;
-    var popup = document.getElementById('iso-length-popup');
-    if (popup) popup.classList.remove('active');
-    _isoLengthTargetSection = null;
-    _showIsoCardAfterPicker();
-    _isoAfterChange(section);
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-}
-window.closeIsoLengthPopup = closeIsoLengthPopup;
-
 function _isoCardBlockOf(el) {
     return (el && el.closest) ? el.closest('.iso-card-block') : null;
 }
 
-// En SEKSJON (= ett stål-element) inni en gruppe: egne bredde-rader + egne FELLES
-// LM/Antall-linjer (section._isoLengths) + ev. hele-plate-rader.
+// En SEKSJON (= ett stål-element) inni en gruppe: FELLES LM + Antall (ett sett,
+// section._isoLengths) + egne bredde-rader + ev. hele-plate-rader.
 // data = { breddes:[{bredde,sider,kappeOrient}], lengths:[{lm,antall}], plates:[antall] }.
 function _createIsoSection(data) {
     data = data || {};
     var section = document.createElement('div');
     section.className = 'iso-section';
-    section._isoLengths = (data.lengths && data.lengths.length)
-        ? data.lengths.map(function(l) { return { lm: l.lm || '', antall: l.antall || '' }; })
-        : [];
+    // Maks ÉN lengde-linje pr. seksjon (flere splittes av _isoSplitSectionsByLength
+    // før seksjonen bygges).
+    var len0 = (data.lengths && data.lengths[0]) || {};
+    section._isoLengths = (len0.lm || len0.antall) ? [{ lm: len0.lm || '', antall: len0.antall || '' }] : [];
     section.innerHTML =
+        // Seksjons-hode («Seksjon N» + «Fjern seksjon»): vises KUN når gruppen har
+        // 2+ seksjoner (_updateIsoSectionRemoveStates setter --multi + nummer).
+        // Tekst-knapp (ikke søppel-ikon) så den ikke forveksles med rad-slett.
+        '<div class="iso-section-head">' +
+            '<span class="iso-section-title"></span>' +
+            '<button type="button" class="iso-section-remove" onpointerdown="event.preventDefault()" onclick="_isoRemoveSection(this)">' + escapeHtml(t('iso_section_remove')) + '</button>' +
+        '</div>' +
         '<div class="iso-section-bredder">' +
             '<div class="iso-bredde-head">' +
                 '<div class="kappe-quad-row">' +
                     '<div class="mobile-field field-required"><label data-i18n="iso_bredde">Bredde</label></div>' +
-                    '<div class="mobile-field field-required iso-lm-field"><label>LM / Antall</label></div>' +
                     '<div class="mobile-field field-required"><label data-i18n="iso_sider">Sider</label></div>' +
+                    // LM + Antall gjelder hele seksjonen (redigeres i rad 1). LM
+                    // (påkrevd) før Antall (valgfritt; tomt = 1 → placeholder «1»).
+                    '<div class="mobile-field field-required"><label data-i18n="iso_lm_per_side">' + t('iso_lm_per_side') + '</label></div>' +
+                    '<div class="mobile-field"><label data-i18n="iso_antall_objekter">' + t('iso_antall_objekter') + '</label></div>' +
                 '</div>' +
                 '<span class="iso-bredde-head-del"></span>' +
             '</div>' +
@@ -14114,15 +14069,13 @@ function _createIsoSection(data) {
         '<div class="kappe-add-row-buttons iso-section-foot">' +
             '<button type="button" class="kappe-add-kapp-btn" onpointerdown="event.preventDefault()" onclick="_isoCardAddStk(this)">+ <span data-i18n="iso_btn_stk">Stk</span></button>' +
             '<button type="button" class="kappe-add-kapp-btn" onpointerdown="event.preventDefault()" onclick="_isoCardAddPlateRow(this)">+ <span data-i18n="iso_btn_plate">Plate</span></button>' +
-            '<button type="button" class="kappe-add-kapp-btn" onpointerdown="event.preventDefault()" onclick="_isoAddSection(this)">+ <span data-i18n="iso_btn_section">Seksjon</span></button>' +
-            '<button type="button" class="iso-section-remove" onpointerdown="event.preventDefault()" onclick="_isoRemoveSection(this)" title="Fjern seksjon">' + deleteIcon + '</button>' +
         '</div>';
     var bredderEl = section.querySelector('.iso-section-bredder');
     var breddes = data.breddes ? data.breddes : [{}];
     breddes.forEach(function(b) { bredderEl.appendChild(_createIsoBreddeRow(b)); });
     var plateEl = section.querySelector('.iso-section-plate-rows');
     (data.plates || []).forEach(function(p) { plateEl.appendChild(_createIsoCardPlateRow({ antall: p })); });
-    _updateIsoLmBtnsForSection(section);
+    _isoSyncLenRows(section);
     return section;
 }
 
@@ -14158,13 +14111,18 @@ function _createIsoGroupCard(opts) {
             // headeren vokser med innholdet. Ferdig = tapp utenfor (site-wide).
             '<textarea class="iso-group-name" rows="1" placeholder="" autocapitalize="sentences" onclick="event.stopPropagation()" oninput="_isoGroupTitleInput(this)">' + escapeHtml(_kappeNoteText(opts.title)) + '</textarea>' +
             '<button type="button" class="mobile-order-header-delete" onpointerdown="event.preventDefault()" onclick="event.stopPropagation(); ' + (opts.removeCall || '') + '" title="Fjern gruppe">' + deleteIcon + '</button>' +
-            '<span class="iso-group-drag" onpointerdown="_isoGroupDragStart(event, this)" onclick="event.stopPropagation()" title="' + t('iso_group_drag') + '">' + _ISO_DRAG_ICON + '</span>' +
+            // Skjult til _isoRefreshGroupTitles ser 2+ grupper (ingenting å sortere ellers).
+            '<span class="iso-group-drag" hidden onpointerdown="_isoGroupDragStart(event, this)" onclick="event.stopPropagation()" title="' + t('iso_group_drag') + '">' + _ISO_DRAG_ICON + '</span>' +
         '</div>' +
         '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
         '<div class="mobile-order-body iso-group-body">' +
             (opts.productHtml || '') +
             '<div class="iso-group-pick-hint" data-i18n="kappe_pick_product_hint">' + t('kappe_pick_product_hint') + '</div>' +
             '<div class="iso-group-sections"></div>' +
+            // «+ Legg til seksjon» på GRUPPE-nivå (under alle seksjonene) — ikke
+            // inni hver seksjon, så hierarkiet er tydelig: rad-knapper (Stk/Plate)
+            // hører til seksjonen, seksjons-knappen til gruppen.
+            '<button type="button" class="kappe-add-kapp-btn iso-add-section-btn" onpointerdown="event.preventDefault()" onclick="_isoAddSection(this)">+ <span data-i18n="iso_add_section">' + t('iso_add_section') + '</span></button>' +
         '</div>' +
         '</div>';
     _isoGroupNameObserve(card.querySelector('.iso-group-name'));
@@ -14275,10 +14233,34 @@ function _updateIsoSectionRemoveStates(el) {
         ? el : el.querySelector('.iso-group-sections');
     if (!sectionsEl) return;
     var sections = sectionsEl.querySelectorAll('.iso-section');
-    sections.forEach(function(sec) {
-        var btn = sec.querySelector('.iso-section-remove');
-        if (btn) btn.style.display = (sections.length > 1) ? '' : 'none';
+    // 2+ seksjoner → hver seksjon blir en innrammet boks med «Seksjon N» +
+    // «Fjern seksjon». Én seksjon → ingen ramme/hode (kompakt; gruppens egen
+    // slett-knapp dekker «fjern alt»).
+    var multi = sections.length > 1;
+    sectionsEl.classList.toggle('iso-group-sections--multi', multi);
+    sections.forEach(function(sec, i) {
+        var title = sec.querySelector('.iso-section-title');
+        if (title) title.textContent = t('iso_btn_section') + ' ' + (i + 1);
     });
+    // «+ Seksjon»-plassering (sparer en rad i det vanlige tilfellet):
+    //   • ÉN seksjon → som 3. knapp i seksjonens knapperad: [+Stk][+Plate][+Seksjon].
+    //   • 2+ seksjoner → under alle seksjons-boksene som «+ Legg til seksjon»
+    //     (inni siste boks ville den sett ut som den hører til DEN seksjonen).
+    var body = sectionsEl.parentElement;
+    var addBtn = body ? body.querySelector('.iso-add-section-btn') : null;
+    if (addBtn) {
+        var foot = (!multi && sections[0]) ? sections[0].querySelector('.iso-section-foot') : null;
+        var key = foot ? 'iso_btn_section' : 'iso_add_section';
+        var label = addBtn.querySelector('span');
+        if (label && label.getAttribute('data-i18n') !== key) {
+            label.setAttribute('data-i18n', key);
+            label.textContent = t(key);
+        }
+        if (foot) { if (addBtn.parentElement !== foot) foot.appendChild(addBtn); }
+        else if (addBtn.parentElement !== body || addBtn.previousElementSibling !== sectionsEl) {
+            sectionsEl.insertAdjacentElement('afterend', addBtn);
+        }
+    }
 }
 
 // Oppdater gruppens produkt-knapp: «Velg produkt» (tom) eller «Navn dim · LxB».
@@ -14393,6 +14375,9 @@ function _isoInKappe(el) {
 
 // Etter en verdiendring i en rad/seksjon: oppdater riktig kontekst.
 function _isoAfterChange(el) {
+    // Antall/LM-speilene i seksjonen holdes i sync (også etter legg til/fjern rad).
+    var sec = (el && el.closest) ? el.closest('.iso-section') : null;
+    if (sec) _isoSyncLenRows(sec);
     if (_isoInKappe(el)) {
         if (typeof renumberKappeLines === 'function') renumberKappeLines();
         try { sessionStorage.setItem('firesafe_kappe_current', JSON.stringify(getKappeFormData())); } catch (e) {}
@@ -14726,23 +14711,24 @@ window._isoCardAddGroupTop = _isoCardAddGroupTop;
 // Kontekst-agnostisk: finner seksjons-containeren direkte (virker både i
 // ordreseddel-popupen og i kappeskjemaet).
 function _isoAddSection(btn) {
-    var c = btn.closest('.iso-group-sections');
+    var body = btn.closest('.iso-group-body');
+    var c = body ? body.querySelector('.iso-group-sections') : null;
     if (!c) return;
     var section = _createIsoSection({});
     c.appendChild(section);
     _updateIsoSectionRemoveStates(c);
-    _isoAfterAddRow(section.querySelector('.iso-bredde-row'), '.isc-bredde');
+    // Ny seksjon → fokus første felt (Bredde i rad 1).
+    _isoAfterAddRow(section, '.isc-bredde');
 }
 window._isoAddSection = _isoAddSection;
 
-// «+ Legg til stk»: legg en bredde-rad (Bredde · LM/Antall · Sider) til SEKSJONEN.
+// «+ Legg til stk»: legg en bredde-rad (Bredde · Sider) til SEKSJONEN.
 function _isoCardAddStk(btn) {
     var section = btn.closest('.iso-section');
     var c = section ? section.querySelector('.iso-section-bredder') : null;
     if (!c) return;
     var row = _createIsoBreddeRow({});
     c.appendChild(row);
-    _updateIsoLmBtn(row);  // vis seksjonens felles LM/Antall-sum på den nye raden
     _isoAfterAddRow(row, '.isc-bredde');
 }
 window._isoCardAddStk = _isoCardAddStk;
@@ -14808,8 +14794,20 @@ window._isoRemoveBredde = _isoRemoveBredde;
 // .iso-card-block; kappeskjema: kappelinjen håndteres av removeKappeLine).
 function _isoRemoveSection(btn) {
     var section = btn.closest('.iso-section');
-    var container = section ? section.closest('.iso-group-sections') : null;
     if (!section) return;
+    // Bekreft før en seksjon MED innhold slettes (lett å trykke feil, og hele
+    // seksjonen m/ alle rader forsvinner). Tom seksjon fjernes direkte.
+    var hasData = Array.prototype.some.call(section.querySelectorAll('input'), function(inp) {
+        return !inp.readOnly && String(inp.value || '').trim() !== '';
+    });
+    if (hasData && !btn._confirmed) {
+        showConfirmModal(t('iso_section_delete_confirm'), function() {
+            btn._confirmed = true;
+            try { _isoRemoveSection(btn); } finally { btn._confirmed = false; }
+        }, t('btn_remove'), '#e74c3c');
+        return;
+    }
+    var container = section.closest('.iso-group-sections');
     var remaining = container ? container.querySelectorAll('.iso-section').length : 0;
     if (remaining <= 1) {
         if (_isoInKappe(section)) {
@@ -14850,7 +14848,7 @@ window._isoRemoveGroup = _isoRemoveGroup;
 function _findFallbackIsoCardInput(excludeContainer) {
     function _firstInput(el) {
         if (!el || !el.querySelector) return null;
-        var inps = el.querySelectorAll('input:not([disabled])');
+        var inps = el.querySelectorAll('input:not([disabled]):not([readonly])');
         for (var i = 0; i < inps.length; i++) {
             if (inps[i].offsetHeight > 0) return inps[i];
         }
@@ -14877,7 +14875,7 @@ function _findFallbackIsoCardInput(excludeContainer) {
     // Hvilken som helst annen input i popupen
     var popup = excludeContainer.closest('.spec-popup-backdrop, .confirm-modal, .fakturaadresse-popup-backdrop');
     if (popup) {
-        var all = popup.querySelectorAll('input:not([disabled])');
+        var all = popup.querySelectorAll('input:not([disabled]):not([readonly])');
         for (var j = 0; j < all.length; j++) {
             if (!excludeContainer.contains(all[j]) && all[j].offsetHeight > 0) {
                 return all[j];
@@ -15070,13 +15068,13 @@ function _isoCardBuildFromEntries(entries) {
 
     if (blocksC) {
         groups.forEach(function(g) {
-            var sections = g.sections.map(function(sec) {
+            var sections = _isoSplitSectionsByLength(g.sections.map(function(sec) {
                 return {
                     breddes: sec.breddes.length ? sec.breddes : (sec.plates.length ? [] : [{}]),
                     lengths: sec.lengths,
                     plates: sec.plates
                 };
-            });
+            }));
             blocksC.appendChild(_createIsoCardBlock({ sel: g.sel, sections: sections, title: g.title || '' }, groups.length === 1));
         });
         // Ingen isolasjons-grupper (f.eks. kun festemidler) → vis én tom gruppe.
@@ -15432,6 +15430,9 @@ function openIsoCardPopup(callback, prefill) {
         blocksC.appendChild(_createIsoCardBlock({}));
     }
 
+    // Navne-hint («Gruppe 1») + dra-håndtak for ALLE åpnings-veier (også fersk
+    // åpning / prefill, som ikke går via _isoAfterChange).
+    _isoRefreshGroupTitles(document.querySelectorAll('#iso-card-blocks .iso-card-block'));
     // Knappenes tekst MÅ gjenspeile faktisk innhold (ikke stale tekst fra en
     // avbrutt økt der rader ble lagt til i DOM men aldri lagret).
     _updateIsoCardProductBtn();
@@ -17388,7 +17389,7 @@ function createKappeLineCard(lineData, expanded) {
     // Bygg iso-seksjoner fra kapp[] (gruppert på steel-indeks). Hele plater
     // legges i første seksjon. Minst én seksjon alltid (klar for utfylling).
     var sectionsEl = card.querySelector('.iso-group-sections');
-    var sectionData = _kappeKappToSections(kappList);
+    var sectionData = _isoSplitSectionsByLength(_kappeKappToSections(kappList));
     if (!sectionData.length) sectionData = [{}];
     if (plateList.length) {
         sectionData[0].plates = plateList.map(function(p) { return String(p.antall); });
