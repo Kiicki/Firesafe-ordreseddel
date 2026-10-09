@@ -3709,8 +3709,7 @@ label.settings-default-label.field-required > span::after {
    uten øvre grense via _autoResizeMerknadAndScroll-helperen. Side-scroll holder
    textarea-bunnen synlig (se _ensureTextareaBottomVisible som defensive check). */
 .mobile-order-desc,
-.mobile-order-merknad,
-.kappe-line-merknad {
+.mobile-order-merknad {
     resize: none;
     font-family: inherit;
     line-height: 1.4;
@@ -3851,12 +3850,20 @@ label.settings-default-label.field-required > span::after {
     flex: 1 1 auto;
     min-width: 0;
 }
+/* Felt-stil inni gruppe-kortet (grå flate): ÉN stil for gruppenavn, produkt-
+   velger og Bredde/LM/Sider-radene — hvit, ingen ramme, 10px hjørner, 15px,
+   40px høy, fokus = oransje glød. (På hvit flate, f.eks. «Endre festemidler»,
+   beholder feltene ramme — de trenger den for å synes.) */
 .iso-group-card .kappe-line-product-btn {
-    font-size: 13px;
-    padding: 8px 10px;
+    font-size: 15px;
+    height: 40px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 10px;
+    -webkit-tap-highlight-color: transparent;
 }
-/* Skjul merknad-feltet før produkt er valgt (samme som hint/seksjoner). */
-.iso-group-card--no-product .kappe-merknad-field { display: none; }
+.iso-group-card .kappe-line-product-btn:active { background: #fff5f0; }
+.iso-group-card .kappe-line-product-btn:focus { box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35); }
 /* «+ Legg til gruppe» (kappeskjema): oransje stiplet, identisk med ordreseddel. */
 #kappe-form .mobile-add-line-btn {
     width: 100%;
@@ -10272,37 +10279,85 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     justify-content: space-between;
     gap: 6px;
 }
-/* Redigerbart gruppenavn — dempet, profesjonell redigér-affordans: blyant-ikon
-   til høyre + lett avrundet felt. Ingen hard understrek/hvit boks. */
+/* Redigerbart gruppenavn — ser ut som et vanlig tekstfelt (hvit boks + ramme,
+   samme som produkt-velgeren under) så det er åpenbart at man kan skrive der. */
 .iso-group-name {
     flex: 1;
     min-width: 0;
-    font-weight: 600;
-    font-size: 14px;
-    color: #333;
-    border: 1px solid transparent;
-    background-color: transparent;
-    padding: 4px 24px 4px 8px;
-    border-radius: 8px;
+    /* Samme felt-stil som produkt-velgeren og radene i kortet (se
+       .iso-group-card .kappe-line-product-btn): 15px, hvit, ingen ramme. */
+    font-weight: normal;
+    font-size: 15px;
+    color: #000;
+    border: none;
+    background-color: #fff;
+    padding: 11px 12px;
+    border-radius: 10px;
     font-family: inherit;
+    /* Textarea som vokser: lange navn brytes over flere linjer (høyde settes av
+       _isoGroupNameResize). Ingen manuell resize, ingen scrollbar. */
+    display: block;
+    resize: none;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    /* Blyant-ikon (grå) til høyre = «trykk for å redigere navn». */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a0a0a8'%3E%3Cpath d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 6px center;
-    background-size: 14px 14px;
-    transition: background-color 0.15s ease-out, border-color 0.15s ease-out;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 18px;   /* 18 + 2×11 padding = 40px, lik radene/produkt-velgeren */
+    box-sizing: border-box;
+    margin: 0;
+    transition: box-shadow 0.15s ease-out;
 }
 /* Placeholder = nøytralt navne-hint («Gruppe 1»). Nedtonet så det er tydelig at
    feltet er TOMT og kan navngis manuelt (ikke en fast produkt-tittel). */
-.iso-group-name::placeholder { color: #999; font-weight: 500; opacity: 1; }
+.iso-group-name::placeholder { color: #888; opacity: 1; }
+/* Dra-håndtak for sortering (DELT av ordreseddel-popup og kappeskjema).
+   touch-action:none = fingeren på håndtaket starter aldri native scroll, så
+   draget eier gesten; resten av kortet scroller som normalt. Plassert HELT TIL
+   HØYRE (etter slett) — maksimal avstand fra ekspander-pila til venstre, så de
+   ikke forveksles. Negativ margin strekker trykkflaten til hele header-høyden
+   + høyre padding. */
+.iso-group-drag {
+    flex: 0 0 auto;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    margin: -10px -12px -10px 0;
+    padding: 0 10px 0 6px;
+    color: #a0a0a8;
+    cursor: grab;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+.iso-group-drag[hidden] { display: none; }
+/* Gruppe-header: alt midtstilt vertikalt (header er alltid én linje). Pila får
+   trykkflate i full header-høyde + venstre padding, siden navnefeltet ellers
+   dekker nesten hele headeren og pila er hoved-målet for åpne/lukke. */
+.iso-group-card .iso-group-header { align-items: center; padding: 10px 12px; }
+.iso-group-header .mobile-order-arrow {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: -10px 0 -10px -12px;
+    padding: 0 6px 0 14px;
+}
+.iso-group-drag svg { width: 20px; height: 20px; }
+/* Under sortering: ingen åpne/lukke-animasjon (lista lukkes/åpnes momentant). */
+.iso-group-sorting .mobile-order-body-wrap,
+.iso-group-sorting .mobile-order-body { transition: none !important; }
+body.iso-group-dragging,
+body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: none; user-select: none; }
+/* Kortet som dras: løftet over naboene med skygge. */
+.iso-group-card.mobile-order-card.iso-group-card--dragging {
+    position: relative;
+    z-index: 5;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+    border-color: rgba(232, 80, 26, 0.45);
+}
 /* Fokus: myk, lett oransje-tonet boks (ingen stark hvit/understrek). */
 .iso-group-name:focus {
     outline: none;
-    background-color: rgba(232, 80, 26, 0.06);
-    border-color: rgba(232, 80, 26, 0.35);
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35);
 }
 .iso-group-remove {
     flex: 0 0 auto;
@@ -10560,8 +10615,14 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
 .fastener-rows:not(:empty) {
     background: #f5f5f7;
     border-radius: 14px;
-    padding: 12px;
+    padding: 8px 10px;
 }
+/* Siste rad: ingen ekstra marg under (kortets padding gir luften). */
+.fastener-rows > .iso-card-row:last-child { margin-bottom: 0; }
+/* Luft mellom «Velg/Endre festemidler» og det grå kortet. Popupene får dette
+   fra seksjonens flex-gap (10px); skjema-seksjonen (.mobile-section) er ikke
+   flex → samme 10px som margin, så begge ser like ut. */
+.mobile-section > .iso-block-product-slot + .fastener-rows:not(:empty) { margin-top: 10px; }
 /* Festemiddel-rad-feltene er borderless-hvite (som i popupene) overalt der
    `.fastener-rows` brukes — også i kappeskjemaet (full side). */
 .fastener-rows .mobile-field input {
@@ -10664,7 +10725,14 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     margin-top: 4px;
     border-top: 1px solid #ececef;
 }
-/* Festemiddel-rad i iso-popupen: produktnavn til venstre, kompakt antall. */
+/* Festemiddel-rad (iso-popup, festemiddel-popup, kappeskjema): produktnavn til
+   venstre, Stk/Eske-felt med enhet inni. Ingen etikett-linje → alt på én linje,
+   midtstilt. */
+.iso-card-row.iso-card-fast-row {
+    align-items: center;
+    /* Overstyrer felles min-height:56px (som er der for rader MED etikett-linje). */
+    min-height: 0;
+}
 .iso-card-fast-row .iso-card-fast-name {
     flex: 1 1 auto;
     min-width: 0;
@@ -10674,13 +10742,32 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     /* Lange navn brekker til 2 linjer i stedet for å bli avkortet, så
        navnet får mer plass og Stk/Eske trenger lite. */
     white-space: normal;
-    overflow-wrap: anywhere;
+    /* break-word: brekk mellom ord; kun et ord som ikke får plass alene deles. */
+    overflow-wrap: break-word;
     line-height: 1.25;
-    padding-bottom: 10px;
 }
-/* Smal Stk/Eske-blokk (samme felt-størrelse som Bredde/LM-radene over). */
+/* Stk/Eske-blokk: bred nok til 3-4 sifre + enhets-suffiks i hvert felt. */
 .iso-card-fast-row .kappe-quad-row {
-    flex: 0 0 124px;
+    flex: 0 0 148px;
+}
+/* Slett-knappen: midtstilt (ingen bunn-padding — den var for å flukte med felt
+   under en etikett-linje, som festemiddel-raden ikke har). */
+.iso-card-fast-row .kappe-kapp-remove-btn { padding-bottom: 0; }
+/* Felt med enhet inni (høyrestilt, grå). Suffikset slipper trykk gjennom til
+   feltet (pointer-events:none) så hele boksen er trykkflate. */
+.isc-unit-field { position: relative; }
+.isc-unit-field input {
+    text-align: right;
+    padding-right: 34px !important;
+}
+.isc-unit {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #8e8e93;
+    pointer-events: none;
 }
 /* Alle tre legg-til-rad-knappene (Stk/Plate/Festemiddel) skal ha identisk
    spacing — kun sheetens gap:10px, ingen egen margin. Ellers hopper knappen

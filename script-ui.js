@@ -3743,7 +3743,7 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'tlf',                 labelKey: 'kappe_label_tlf' },
         { key: 'produkter',           labelKey: 'kappe_section_products' },
         { key: 'stift',               labelKey: 'kappe_section_fasteners' },
-        { key: 'merknad',             labelKey: 'kappe_col_merknad' }
+        { key: 'merknad',             labelKey: 'kappe_group_name' }   // nøkkel beholdt (lagrede innstillinger); gjelder nå gruppenavnet
     ]
 };
 
@@ -6226,7 +6226,7 @@ function _pdfTableFromEl(doc, table, x0, y0, totalW, opts) {
             var cs = parseInt(td.getAttribute('colspan') || '1', 10);
             var rs = parseInt(td.getAttribute('rowspan') || '1', 10);
             var html = td.innerHTML.replace(/<br\s*\/?>/gi, '\n');
-            var text = html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&times;/g, '×').replace(/ /g, ' ');
+            var text = html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&amp;/g, '&').replace(/&times;/g, '×').replace(/ /g, ' ');
             text = text.replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
             var isHeader = td.tagName === 'TH';
             var bold = isHeader || /<(strong|b)\b/i.test(td.innerHTML);
@@ -9911,6 +9911,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // for all scroll med åpent tastatur. IS_TOUCH-gate → desktop aldri.
         if (!IS_TOUCH_DEVICE) return false;
         if (Date.now() < _kbdDismissGuardUntil) return false;
+        // Dra-for-å-sortere (gruppe-kort) er ikke scroll — behold tastaturet,
+        // samme som ved tapp på knapper med preventDefault på pointerdown.
+        if (window._isoGroupDragActive) return false;
         var ae = document.activeElement;
         if (!ae || typeof isKeyboardOpeningElement !== 'function') return false;
         if (!isKeyboardOpeningElement(ae)) return false;
@@ -14129,8 +14132,9 @@ function _createIsoSection(data) {
 // (topp-nivå) lager ny gruppe med eget produkt.
 // ── ÉN delt gruppe-kort-bygger (ordreseddel-Isolering OG kappeskjema) ────────
 // Bygger det sammenleggbare kort-SKALLET som er IDENTISK for begge: header
-// (pil + redigerbar tittel + slett), body-wrap, body, produkt-slot, pick-hint,
-// seksjons-container og valgfritt Merknad-felt. Kontekst-forskjellene sendes inn
+// (pil + redigerbar tittel + slett), body-wrap, body, produkt-slot, pick-hint
+// og seksjons-container. (Merknad-feltet er fjernet — gruppenavnet ER merknaden
+// i kappeskjema-eksporten, se _kappeLineNote.) Kontekst-forskjellene sendes inn
 // via opts. Endrer du skallet HER, endres BEGGE steder samtidig — ingen parallell
 // duplisering (se CLAUDE.md / feedback_unified_structure_over_parallel).
 //   opts.cardClass   – ekstra klasse(r) på kortet ('iso-card-block' / 'kappe-line-card')
@@ -14139,35 +14143,59 @@ function _createIsoSection(data) {
 //   opts.hasProduct  – om produkt er valgt (styrer .iso-group-card--no-product)
 //   opts.productHtml – markup for produkt-velger-slot (kontekst-spesifikk)
 //   opts.removeCall  – JS i slett-knappen (f.eks. 'removeKappeLine(this)')
-//   opts.withMerknad – inkluder Merknad-felt (kun kappeskjema)
-//   opts.merknad     – merknad-verdi
+// Dra-håndtak (2×3 prikker) for sortering av gruppe-kort.
+var _ISO_DRAG_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
 function _createIsoGroupCard(opts) {
     opts = opts || {};
     var expanded = opts.expanded !== false;
     var card = document.createElement('div');
     card.className = ('iso-group-card mobile-order-card ' + (opts.cardClass || '')).trim();
     if (!opts.hasProduct) card.classList.add('iso-group-card--no-product');
-    var merknadHtml = opts.withMerknad
-        ? '<div class="mobile-field kappe-merknad-field">' +
-              '<label data-i18n="kappe_col_merknad">' + t('kappe_col_merknad') + '</label>' +
-              '<textarea class="kappe-line-merknad" rows="1" autocapitalize="sentences">' + escapeHtml(opts.merknad || '') + '</textarea>' +
-          '</div>'
-        : '';
     card.innerHTML =
         '<div class="mobile-order-header iso-group-header" onclick="_toggleGroupCard(this)">' +
             '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
-            '<input type="text" class="iso-group-name" placeholder="" value="' + escapeHtml(opts.title || '') + '" onclick="event.stopPropagation()" onkeydown="if(event.key===\'Enter\'){this.blur();}" oninput="_isoGroupTitleInput(this)">' +
+            // Textarea (ikke input): lange navn brytes, og Enter gir ny linje —
+            // headeren vokser med innholdet. Ferdig = tapp utenfor (site-wide).
+            '<textarea class="iso-group-name" rows="1" placeholder="" autocapitalize="sentences" onclick="event.stopPropagation()" oninput="_isoGroupTitleInput(this)">' + escapeHtml(_kappeNoteText(opts.title)) + '</textarea>' +
             '<button type="button" class="mobile-order-header-delete" onpointerdown="event.preventDefault()" onclick="event.stopPropagation(); ' + (opts.removeCall || '') + '" title="Fjern gruppe">' + deleteIcon + '</button>' +
+            '<span class="iso-group-drag" onpointerdown="_isoGroupDragStart(event, this)" onclick="event.stopPropagation()" title="' + t('iso_group_drag') + '">' + _ISO_DRAG_ICON + '</span>' +
         '</div>' +
         '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
         '<div class="mobile-order-body iso-group-body">' +
             (opts.productHtml || '') +
             '<div class="iso-group-pick-hint" data-i18n="kappe_pick_product_hint">' + t('kappe_pick_product_hint') + '</div>' +
             '<div class="iso-group-sections"></div>' +
-            merknadHtml +
         '</div>' +
         '</div>';
+    _isoGroupNameObserve(card.querySelector('.iso-group-name'));
     return card;
+}
+
+// ── Gruppenavn: auto-voksende én-avsnitts-tekst ───────────────────────────────
+// Høyden følger innholdet (lange navn brytes, headeren vokser). ResizeObserver
+// fanger bredde-endringer (rotasjon, view/popup blir synlig — scrollHeight er 0
+// mens elementet er skjult), så høyden alltid stemmer uten manuelle kall.
+var _isoGroupNameRO = (typeof ResizeObserver === 'function') ? new ResizeObserver(function(entries) {
+    entries.forEach(function(en) {
+        var w = Math.round(en.contentRect.width);
+        if (!w || en.target._isoNameW === w) return;   // bare bredde-endring (unngår løkke på egen høyde)
+        en.target._isoNameW = w;
+        _isoGroupNameResize(en.target);
+    });
+}) : null;
+function _isoGroupNameObserve(el) {
+    if (el && _isoGroupNameRO) _isoGroupNameRO.observe(el);
+}
+function _isoGroupNameResize(el) {
+    if (!el || !el.offsetParent) return;
+    el.style.height = 'auto';
+    var cs = getComputedStyle(el);
+    el.style.height = (el.scrollHeight + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth)) + 'px';
+}
+// Normalisert gruppenavn/merknad: linjeskift beholdes (bruker kan lage egne
+// linjer), CRLF → LF, mellomrom før linjeskift og tomt rundt fjernes.
+function _kappeNoteText(v) {
+    return String(v || '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').trim();
 }
 
 // ── Delt produkt-velger-knapp for gruppe-kort (ordreseddel + kappeskjema) ─────
@@ -14224,8 +14252,7 @@ function _createIsoCardBlock(data, expanded) {
         expanded: expanded,
         hasProduct: hasProduct,
         productHtml: productHtml,
-        removeCall: '_isoRemoveGroup(this)',
-        withMerknad: false
+        removeCall: '_isoRemoveGroup(this)'
     });
     block._sel = hasProduct ? {
         name: sel.name || '', enhet: sel.enhet || '',
@@ -14391,15 +14418,245 @@ function _isoGroupAutoTitle(card, idx) {
 }
 
 // Oppdater placeholder (nummerert navne-hint) på alle gruppe-titler i en kort-liste.
+// Skjuler også dra-håndtaket når det bare er én gruppe (ingenting å sortere) —
+// kalles etter enhver endring i begge kontekster, så state holdes i sync ett sted.
 function _isoRefreshGroupTitles(cards) {
+    var n = (cards || []).length;
     Array.prototype.forEach.call(cards || [], function(card, idx) {
         var inp = card.querySelector('.iso-group-name');
         if (inp) inp.placeholder = _isoGroupAutoTitle(card, idx);
+        var handle = card.querySelector('.iso-group-header .iso-group-drag');
+        if (handle) handle.hidden = n <= 1;
     });
 }
 
-// oninput på tittel-feltet: lagre i riktig kontekst (kappe vs popup).
-function _isoGroupTitleInput(inp) { _isoAfterChange(inp); }
+// ── Dra-for-å-sortere gruppe-kort (DELT av ordreseddel-popup og kappeskjema) ──
+// Draget starter KUN fra håndtaket (.iso-group-drag, CSS touch-action:none), så
+// vanlig scroll/åpne/lukke/navn-redigering på resten av kortet er urørt. Begge
+// kontekster serialiserer kortene i DOM-rekkefølge, så DOM-rekkefølgen ER den
+// lagrede rekkefølgen; _isoAfterChange lagrer + renummererer navne-hint.
+// Flyt: pointerdown på håndtak → (etter 4px bevegelse) alle kort lukkes
+// midlertidig (kompakt liste) → kortet følger fingeren (translateY), naboer
+// glir unna (FLIP) når midtpunktet krysses → auto-scroll nær kantene → slipp:
+// kortet glir på plass, tidligere åpne kort åpnes igjen.
+// window._isoGroupDragActive leses av scroll-for-å-lukke-tastatur-handleren så
+// et drag ikke tolkes som scroll (tastaturet beholdes, som ved knappe-tapp).
+var _isoDrag = null;
+var _ISO_DRAG_THRESHOLD = 4;     // px før draget starter (tapp på håndtak = ingenting)
+var _ISO_DRAG_EDGE = 56;         // px fra synlig kant der auto-scroll starter
+var _ISO_DRAG_MAX_SPEED = 14;    // px per frame ved kanten
+
+function _isoGroupScrollParent(el) {
+    var n = el.parentElement;
+    while (n && n !== document.body && n !== document.documentElement) {
+        var oy = getComputedStyle(n).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+        n = n.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+}
+
+// Synlig vertikalt område for scrolleren: begrenset av visual viewport
+// (tastatur) og en eventuell sticky header i viewet (dekker toppen).
+function _isoGroupVisibleBounds(st) {
+    var docScroll = st.scroller === (document.scrollingElement || document.documentElement);
+    var top = 0, bottom = window.innerHeight;
+    if (!docScroll) {
+        var r = st.scroller.getBoundingClientRect();
+        top = r.top; bottom = r.bottom;
+    }
+    var vv = window.visualViewport;
+    if (vv) { top = Math.max(top, vv.offsetTop); bottom = Math.min(bottom, vv.offsetTop + vv.height); }
+    var view = st.card.closest('.view');
+    var hdr = view ? view.querySelector('.modal-header') : null;
+    if (hdr) {
+        var hp = getComputedStyle(hdr).position;
+        if (hp === 'sticky' || hp === 'fixed') {
+            var hb = hdr.getBoundingClientRect().bottom;
+            if (hb > top && hb < bottom) top = hb;
+        }
+    }
+    return { top: top, bottom: bottom };
+}
+
+function _isoGroupCards(container) {
+    return Array.prototype.filter.call(container.children, function(el) {
+        return el.classList.contains('iso-group-card');
+    });
+}
+
+function _isoGroupDragStart(e, handle) {
+    if (e.button !== undefined && e.button !== 0) return;
+    if (_isoDrag) return;
+    // Behold fokus (tastaturet) og hindre tekst-markering — samme som knappene.
+    e.preventDefault();
+    e.stopPropagation();
+    var card = handle.closest('.iso-group-card');
+    var container = card ? card.parentElement : null;
+    if (!container || _isoGroupCards(container).length < 2) return;
+    try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    _isoDrag = {
+        handle: handle, card: card, container: container, pointerId: e.pointerId,
+        downY: e.clientY, lastY: e.clientY, started: false, raf: 0
+    };
+    handle.addEventListener('pointermove', _isoGroupDragMove);
+    handle.addEventListener('pointerup', _isoGroupDragEnd);
+    handle.addEventListener('pointercancel', _isoGroupDragEnd);
+    handle.addEventListener('lostpointercapture', _isoGroupDragEnd);
+}
+window._isoGroupDragStart = _isoGroupDragStart;
+
+function _isoGroupDragBegin(st) {
+    st.started = true;
+    window._isoGroupDragActive = true;
+    st.scroller = _isoGroupScrollParent(st.container);
+    // Lukk alle kort midlertidig (uten animasjon) så lista er kompakt. Hold
+    // kortet under fingeren på samme skjerm-posisjon ved å kompensere scroll.
+    var before = st.card.getBoundingClientRect().top;
+    st.container.classList.add('iso-group-sorting');
+    st.reopen = [];
+    _isoGroupCards(st.container).forEach(function(c) {
+        var wrap = c.querySelector('.mobile-order-body-wrap');
+        if (wrap && wrap.classList.contains('expanded')) {
+            st.reopen.push(c);
+            wrap.classList.remove('expanded');
+            var arrow = c.querySelector('.mobile-order-arrow');
+            if (arrow) arrow.innerHTML = '&#9660;';
+        }
+    });
+    st.scroller.scrollTop += st.card.getBoundingClientRect().top - before;
+    document.body.classList.add('iso-group-dragging');
+    st.card.classList.add('iso-group-card--dragging');
+    st.startTop = st.card.offsetTop;
+    st.startScroll = st.scroller.scrollTop;
+    st.startY = st.lastY;
+    if (st.card.closest('#iso-card-popup') && typeof window.applyKeyboardLayout === 'function') {
+        window.applyKeyboardLayout();
+    }
+    st.raf = requestAnimationFrame(function tick() {
+        if (_isoDrag !== st) return;
+        _isoGroupAutoScroll(st);
+        st.raf = requestAnimationFrame(tick);
+    });
+}
+
+function _isoGroupDragMove(e) {
+    var st = _isoDrag;
+    if (!st || e.pointerId !== st.pointerId) return;
+    e.preventDefault();
+    st.lastY = e.clientY;
+    if (!st.started) {
+        if (Math.abs(e.clientY - st.downY) < _ISO_DRAG_THRESHOLD) return;
+        _isoGroupDragBegin(st);
+    }
+    _isoGroupDragUpdate(st);
+}
+
+// Plasser kortet under fingeren og bytt plass med naboer når kortets midtpunkt
+// krysser naboens midtpunkt. Alt regnes i offsetTop (layout, uten transform),
+// så naboenes pågående FLIP-animasjon påvirker ikke beregningen.
+function _isoGroupDragUpdate(st) {
+    var card = st.card;
+    var desired = st.startTop + (st.lastY - st.startY) + (st.scroller.scrollTop - st.startScroll);
+    var cards = _isoGroupCards(st.container);
+    var first = cards[0], last = cards[cards.length - 1];
+    // Ikke dra kortet langt utenfor lista.
+    var minTop = first.offsetTop - card.offsetHeight / 2;
+    var maxTop = last.offsetTop + last.offsetHeight - card.offsetHeight / 2;
+    desired = Math.max(minTop, Math.min(maxTop, desired));
+    var center = desired + card.offsetHeight / 2;
+    var moved = true;
+    while (moved) {
+        moved = false;
+        cards = _isoGroupCards(st.container);
+        var i = cards.indexOf(card);
+        var prev = cards[i - 1], next = cards[i + 1];
+        // Flytt NABOEN (ikke det dratte kortet): å flytte elementet som holder
+        // pointer capture i DOM kan slippe capture og avbryte draget.
+        if (prev && center < prev.offsetTop + prev.offsetHeight / 2) {
+            _isoGroupFlipMove(prev, function() { st.container.insertBefore(prev, card.nextSibling); });
+            moved = true;
+        } else if (next && center > next.offsetTop + next.offsetHeight / 2) {
+            _isoGroupFlipMove(next, function() { st.container.insertBefore(next, card); });
+            moved = true;
+        }
+    }
+    card.style.transform = 'translateY(' + (desired - card.offsetTop) + 'px)';
+}
+
+// Flytt naboen i DOM og la den gli fra gammel til ny posisjon (FLIP). DOM-
+// flytting blurrer et fokusert felt i naboen → gjenopprett fokus (tastatur).
+function _isoGroupFlipMove(sib, domMove) {
+    var oldTop = sib.offsetTop;
+    var active = document.activeElement;
+    var refocus = active && sib.contains(active) ? active : null;
+    domMove();
+    if (refocus && document.activeElement !== refocus) {
+        try { refocus.focus({ preventScroll: true }); } catch (e) { refocus.focus(); }
+    }
+    var delta = oldTop - sib.offsetTop;
+    if (!delta) return;
+    sib.style.transition = 'none';
+    sib.style.transform = 'translateY(' + delta + 'px)';
+    void sib.offsetHeight;
+    sib.style.transition = 'transform 0.15s ease-out';
+    sib.style.transform = '';
+}
+
+function _isoGroupAutoScroll(st) {
+    var b = _isoGroupVisibleBounds(st);
+    var y = st.lastY, speed = 0;
+    if (y < b.top + _ISO_DRAG_EDGE) speed = -Math.min(1, (b.top + _ISO_DRAG_EDGE - y) / _ISO_DRAG_EDGE);
+    else if (y > b.bottom - _ISO_DRAG_EDGE) speed = Math.min(1, (y - (b.bottom - _ISO_DRAG_EDGE)) / _ISO_DRAG_EDGE);
+    if (!speed) return;
+    var before = st.scroller.scrollTop;
+    st.scroller.scrollTop = before + Math.round(speed * _ISO_DRAG_MAX_SPEED);
+    if (st.scroller.scrollTop !== before) _isoGroupDragUpdate(st);
+}
+
+function _isoGroupDragEnd(e) {
+    var st = _isoDrag;
+    if (!st || (e && e.pointerId !== undefined && e.pointerId !== st.pointerId)) return;
+    _isoDrag = null;
+    var h = st.handle;
+    h.removeEventListener('pointermove', _isoGroupDragMove);
+    h.removeEventListener('pointerup', _isoGroupDragEnd);
+    h.removeEventListener('pointercancel', _isoGroupDragEnd);
+    h.removeEventListener('lostpointercapture', _isoGroupDragEnd);
+    try { h.releasePointerCapture(st.pointerId); } catch (err) {}
+    if (!st.started) return;
+    cancelAnimationFrame(st.raf);
+    window._isoGroupDragActive = false;
+    document.body.classList.remove('iso-group-dragging');
+    var card = st.card;
+    // Gli på plass fra slipp-posisjonen.
+    card.classList.remove('iso-group-card--dragging');
+    card.style.transition = 'transform 0.15s ease-out';
+    card.style.transform = '';
+    setTimeout(function() { card.style.transition = ''; }, 160);
+    // Åpne kortene som var åpne igjen (uten animasjon), og hold det slupne
+    // kortet på samme skjerm-posisjon.
+    var before = card.getBoundingClientRect().top;
+    st.reopen.forEach(function(c) {
+        var wrap = c.querySelector('.mobile-order-body-wrap');
+        if (wrap) wrap.classList.add('expanded');
+        var arrow = c.querySelector('.mobile-order-arrow');
+        if (arrow) arrow.innerHTML = '&#9650;';
+    });
+    st.scroller.scrollTop += card.getBoundingClientRect().top - before;
+    void st.container.offsetHeight;
+    st.container.classList.remove('iso-group-sorting');
+    _isoAfterChange(card);
+    if (card.closest('#iso-card-popup') && typeof window.applyKeyboardLayout === 'function') {
+        window.applyKeyboardLayout();
+    }
+}
+
+// oninput på tittel-feltet: tilpass høyde + lagre i riktig kontekst (kappe vs popup).
+function _isoGroupTitleInput(inp) {
+    _isoGroupNameResize(inp);
+    _isoAfterChange(inp);
+}
 window._isoGroupTitleInput = _isoGroupTitleInput;
 
 // Toggle ekspander/kollaps for et gruppe-kort (DELT av begge kontekster).
@@ -14681,7 +14938,8 @@ function _createIsoCardFastenerRow(data) {
     var d = data || {};
     var nm = (d.name || '') + (d.enhet ? ' ' + _formatDimMm(d.enhet) : '');
     // Produkt+dimensjon velges i to-kolonne-velgeren (som isolasjon). Raden viser
-    // navnet + Stk/Eske-felt for mengde (enheten skrives der, som før).
+    // navnet + Stk/Eske-felt for mengde. Enheten står INNI feltet (høyrestilt
+    // suffiks) i stedet for som etikett over — sparer en hel linje per rad.
     var row = document.createElement('div');
     row.className = 'iso-card-row iso-card-fast-row';
     row.dataset.fname = d.name || '';
@@ -14691,10 +14949,12 @@ function _createIsoCardFastenerRow(data) {
     row.innerHTML =
         '<span class="iso-card-fast-name">' + escapeHtml(nm) + '</span>' +
         '<div class="kappe-quad-row">' +
-            '<div class="mobile-field"><label>' + escapeHtml(t('kappe_unit_stk')) + '</label>' +
-                '<input type="text" class="isc-fast-stk" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.stk || '') + '"></div>' +
-            '<div class="mobile-field"><label>' + escapeHtml(t('kappe_unit_eske')) + '</label>' +
-                '<input type="text" class="isc-fast-eske" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.eske || '') + '"></div>' +
+            '<div class="mobile-field isc-unit-field">' +
+                '<input type="text" class="isc-fast-stk" inputmode="numeric" pattern="[0-9]*" aria-label="' + escapeHtml(t('kappe_unit_stk')) + '" value="' + escapeHtml(d.stk || '') + '">' +
+                '<span class="isc-unit">' + escapeHtml(t('kappe_unit_stk').toLowerCase()) + '</span></div>' +
+            '<div class="mobile-field isc-unit-field">' +
+                '<input type="text" class="isc-fast-eske" inputmode="numeric" pattern="[0-9]*" aria-label="' + escapeHtml(t('kappe_unit_eske')) + '" value="' + escapeHtml(d.eske || '') + '">' +
+                '<span class="isc-unit">' + escapeHtml(t('kappe_unit_eske').toLowerCase()) + '</span></div>' +
         '</div>' +
         '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemoveFastenerRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
     return row;
@@ -17073,7 +17333,7 @@ function _getKappeLinePlateData(card) {
 
 // En kappe-linje er ENTEN en kapp-linje (Stk: bredde/LM/antall/sider, WN630)
 // ELLER en plate-linje (hele plater, ingen kapping). Ulike formål → egen
-// linje med egen merknad. Ingen toggle. Typen velges ved opprettelse og
+// linje med eget gruppenavn. Ingen toggle. Typen velges ved opprettelse og
 // utledes fra lagrede data ved lasting (data.type, ev. legacy specMode).
 function createKappeLineCard(lineData, expanded) {
     var data = lineData || {};
@@ -17105,7 +17365,8 @@ function createKappeLineCard(lineData, expanded) {
 
     // SAMME delte skall-bygger som ordreseddelen (_createIsoGroupCard). Forskjell
     // fra ordreseddel: produkt-velger åpner kappeskjemaets egen produkt-popup
-    // (skjult .kappe-line-product + plate-felt), OG kortet har Merknad-felt.
+    // (skjult .kappe-line-product + plate-felt). Gruppenavnet er linjens merknad
+    // i eksport; eldre data med separat merknad slås inn i navnet ved lasting.
     var hasProduct = !!(data.produkt && String(data.produkt).trim());
     var kappePlate = hasProduct ? { length: initialPlate.lengde, width: initialPlate.bredde } : null;
     var productHtml =
@@ -17117,13 +17378,11 @@ function createKappeLineCard(lineData, expanded) {
         '<input type="hidden" class="kappe-line-plate-width" value="' + escapeHtml(initialPlate.bredde) + '">';
     var card = _createIsoGroupCard({
         cardClass: 'kappe-line-card',
-        title: data.tittel || '',
+        title: _kappeLineNote(data),
         expanded: expanded,
         hasProduct: hasProduct,
         productHtml: productHtml,
-        removeCall: 'removeKappeLine(this)',
-        withMerknad: true,
-        merknad: data.merknad || ''
+        removeCall: 'removeKappeLine(this)'
     });
 
     // Bygg iso-seksjoner fra kapp[] (gruppert på steel-indeks). Hele plater
@@ -17140,26 +17399,16 @@ function createKappeLineCard(lineData, expanded) {
     card.dataset.specMode = 'bredde';
     card.querySelector('.kappe-line-product').addEventListener('change', renumberKappeLines);
 
-    var merknadEl = card.querySelector('.kappe-line-merknad');
-    if (merknadEl) {
-        merknadEl.addEventListener('focus', function() {
-            // Re-kalkuler høyde ved focus — fanger opp stale inline height.
-            // Kompenserer for intern scroll-redistribusjon så tappet linje
-            // står stille (se _focusResizeWithoutShift i script.js).
-            _focusResizeWithoutShift(this);
-        });
-        merknadEl.addEventListener('input', function() {
-            _autoResizeMerknadAndScroll(this);
-        });
-        merknadEl.addEventListener('blur', function() {
-            autoResizeTextarea(this);
-        });
-        requestAnimationFrame(function() {
-            _autoResizeMerknadAndScroll(merknadEl);
-        });
-    }
-
     return card;
+}
+
+// Linjens merknad i eksport = gruppenavnet. Eldre lagrede linjer kan ha et
+// separat merknad-felt (Merknad-feltet er fjernet fra UI) → slå sammen så
+// ingenting forsvinner, også ved eksport rett fra lista uten å åpne skjemaet.
+function _kappeLineNote(l) {
+    var navn = _kappeNoteText(l && l.tittel), m = _kappeNoteText(l && l.merknad);
+    if (navn && m && navn !== m) return navn + '\n' + m;
+    return navn || m;
 }
 
 function addKappeLine() {
@@ -17225,10 +17474,18 @@ function toggleKappeLine(headerEl) {
     }
 }
 
+var _kappeGroupNameRequired = false;
 function renumberKappeLines() {
     // Tittelen er nå et redigerbart felt (.iso-group-name); auto-sammendraget
     // vises som placeholder via den delte helperen (samme som ordreseddel).
-    _isoRefreshGroupTitles(document.querySelectorAll('#kappe-lines .kappe-line-card'));
+    var cards = document.querySelectorAll('#kappe-lines .kappe-line-card');
+    _isoRefreshGroupTitles(cards);
+    if (_kappeGroupNameRequired) {
+        cards.forEach(function(card) {
+            var inp = card.querySelector('.iso-group-name');
+            if (inp) inp.placeholder += ' *';
+        });
+    }
 }
 
 function updateKappeDeleteStates() {
@@ -17283,8 +17540,7 @@ function getKappeFormData() {
             plateLengde: (card.querySelector('.kappe-line-plate-length') || {}).value || '1200',
             plateBredde: (card.querySelector('.kappe-line-plate-width') || {}).value || '1000',
             specMode: 'bredde',
-            merknad: (card.querySelector('.kappe-line-merknad') || {}).value || '',
-            tittel: ((card.querySelector('.iso-group-name') || {}).value || '').trim()
+            tittel: _kappeNoteText((card.querySelector('.iso-group-name') || {}).value)
         };
         base.plateRader = _getKappeLinePlateData(card);
         base.kapp = _getKappeLineKappData(card);
@@ -17435,11 +17691,11 @@ function updateKappeRequiredIndicators() {
         if (req.stift === true) stiftSection.classList.add('field-required');
         else stiftSection.classList.remove('field-required');
     }
-    // Merknad per kappe-line
-    document.querySelectorAll('#kappe-lines .kappe-line-merknad').forEach(function(merknadEl) {
-        var f = merknadEl.closest('.mobile-field');
-        if (f) f.classList.toggle('field-required', req.merknad === true);
-    });
+    // Gruppenavn per kappe-linje (innstillings-nøkkel 'merknad' beholdt for
+    // lagrede innstillinger — gruppenavnet har overtatt merknadens rolle).
+    // Stjerne i placeholder («Gruppe 1 *») via renumberKappeLines.
+    _kappeGroupNameRequired = req.merknad === true;
+    renumberKappeLines();
     // Leveringsadresse-kort: stjerne på kort-tittel om noen av adressefeltene er obligatoriske
     var deliveryTitle = document.querySelector('#kappe-delivery-card .mobile-order-title');
     if (deliveryTitle) {
@@ -17514,14 +17770,9 @@ function validateKappeRequiredFields() {
     if (req.merknad === true) {
         var lineCards = document.querySelectorAll('#kappe-lines .kappe-line-card');
         for (var lc = 0; lc < lineCards.length; lc++) {
-            var mEl = lineCards[lc].querySelector('.kappe-line-merknad');
+            var mEl = lineCards[lc].querySelector('.iso-group-name');
             if (!mEl || !(mEl.value || '').trim()) {
-                showNotificationModal(t('validation_required_field') + ' ' + t('kappe_col_merknad') + ' (' + (lc + 1) + ')');
-                var wrap2 = lineCards[lc].querySelector('.mobile-order-body-wrap');
-                if (wrap2 && !wrap2.classList.contains('expanded')) {
-                    var hdr = lineCards[lc].querySelector('.mobile-order-header');
-                    if (hdr) hdr.click();
-                }
+                showNotificationModal(t('validation_required_field') + ' ' + t('kappe_group_name') + ' (' + (lc + 1) + ')');
                 if (mEl) mEl.focus();
                 return false;
             }
@@ -17995,7 +18246,7 @@ function buildKappeExportTable() {
                     fastAntall: frow.antall || '',
                     // Per-rad enhet; fall tilbake til eldre linje-fastUnit.
                     fastUnit: frow.unit === 'eske' ? 'eske' : (frow.unit === 'stk' ? 'stk' : legFUnit),
-                    merknad: fj === 0 ? (l.merknad || '') : '',
+                    merknad: fj === 0 ? _kappeLineNote(l) : '',
                     lineFirst: fj === 0,
                     lineSpan: fTotal
                 });
@@ -18066,7 +18317,7 @@ function buildKappeExportTable() {
                 lopemeter: grp.totalLm,
                 antall: '1',
                 antallSider: '1',
-                merknad: (si === 0) ? (l.merknad || '') : '',
+                merknad: (si === 0) ? _kappeLineNote(l) : '',
                 wn630: wn630,
                 totaltM2: best ? (best.antallStk * best.stripLengde * ((parseLocaleNum(grp.bredde) || 0) / 1000)) : '',
                 lineFirst: si === 0,
@@ -18089,7 +18340,7 @@ function buildKappeExportTable() {
                 plateWmm: pB,
                 isPlate: true,
                 plateAntall: prow.antall || '',
-                merknad: si === 0 ? (l.merknad || '') : '',
+                merknad: si === 0 ? _kappeLineNote(l) : '',
                 lineFirst: si === 0,
                 lineSpan: subTotal
             });
@@ -18111,7 +18362,7 @@ function buildKappeExportTable() {
                 lopemeter: '',
                 antall: '1',
                 antallSider: '1',
-                merknad: l.merknad || '',
+                merknad: _kappeLineNote(l),
                 wn630: null,
                 totaltM2: '',
                 lineFirst: true,
@@ -18162,7 +18413,8 @@ function buildKappeExportTable() {
         _curPlateKey = r.plateKey;
         _curPlateLabel = r.plateLabel || _curPlateLabel;
         var nrContent = r.nr ? ('#' + r.nr) : '';
-        if (r.merknad) nrContent += (r.nr ? ' · ' : '') + '<span class="ke-merknad">' + escapeHtml(r.merknad) + '</span>';
+        // Linjeskift i gruppenavnet → <br> (PDF-tabellen gjør <br> om til ny linje).
+        if (r.merknad) nrContent += (r.nr ? ' · ' : '') + '<span class="ke-merknad">' + escapeHtml(r.merknad).replace(/\n/g, '<br>') + '</span>';
 
         // Plate-modus: hele plater, ingen kapp/WN630 — vis "{N} plater".
         if (r.isPlate) {
@@ -18567,7 +18819,7 @@ function buildKappeSimpleText(data) {
         });
         if (plateSum > 0) rows.push('  ' + fmt(plateSum) + ' hele plater');
 
-        var merknad = String(l.merknad || '').trim();
+        var merknad = _kappeLineNote(l);
         var produkt = String(l.produkt || '').trim();
         if (!rows.length && !merknad && !produkt) return;
 
@@ -18576,7 +18828,7 @@ function buildKappeSimpleText(data) {
         // PDF-eksporten viser det fortsatt.
         out.push(produkt || '-');
         rows.forEach(function(r) { out.push(r); });
-        if (merknad) out.push('  Merknad: ' + merknad);
+        if (merknad) out.push('  Merknad: ' + merknad.split('\n').join('\n  '));
         out.push('');
     });
 
