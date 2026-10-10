@@ -2879,10 +2879,18 @@ function calculateRunningMeters(info, quantity) {
     return circumference * info.rounds * quantity / 1000;
 }
 
+// Rund OPP til hele tideler, robust mot flyttallsfeil: 2,7 × 6 = 16,200000000000003
+// i JS, og rå Math.ceil(x*10) ga da 16,3 (og 0,1 × 3 → 0,4). Toleransen (1e-9)
+// er langt under en tidel, så ekte overskudd (16,21 → 16,3) rundes fortsatt opp.
+// Returnerer antall TIDELER (heltall). Brukes overalt der meter rundes opp.
+function ceilTenths(num) {
+    return Math.ceil(num * 10 - 1e-9);
+}
+
 function formatRunningMeters(value) {
     var num = parseFloat(String(value).replace(',', '.'));
     if (!num || isNaN(num)) return '0,0';
-    var rounded = Math.ceil(num * 10) / 10;
+    var rounded = ceilTenths(num) / 10;
     return rounded.toFixed(1).replace('.', ',');
 }
 
@@ -2899,7 +2907,7 @@ function formatRunningMeters(value) {
 function meterTenths(value) {
     var num = parseFloat(String(value).replace(',', '.'));
     if (!num || isNaN(num)) return 0;
-    return Math.ceil(num * 10);
+    return ceilTenths(num);
 }
 
 // Formater en tidels-sum tilbake til visningsformat. Ingen ny opprunding — verdien

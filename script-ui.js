@@ -6225,14 +6225,21 @@ function _pdfTableFromEl(doc, table, x0, y0, totalW, opts) {
             while (occ[r + '_' + c]) c++;
             var cs = parseInt(td.getAttribute('colspan') || '1', 10);
             var rs = parseInt(td.getAttribute('rowspan') || '1', 10);
-            var html = td.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+            // Linjeskift: <br> OG blokk-elementer (<div>/<p>/<li>) er egne linjer
+            // i HTML-visningen — uten dette ble f.eks. WN630-cellens to retninger
+            // («langs 1200» / «langs 1000») og produkt+plate-mål limt sammen.
+            // Tomme blokker (skille-div) gir doble skift → slås sammen under.
+            var html = td.innerHTML.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p|li)>/gi, '\n');
             var text = html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&amp;/g, '&').replace(/&times;/g, '×').replace(/ /g, ' ');
-            text = text.replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+            text = text.replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/\n{2,}/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
             var isHeader = td.tagName === 'TH';
             var bold = isHeader || /<(strong|b)\b/i.test(td.innerHTML);
             try { if (!bold && (parseInt(getComputedStyle(td).fontWeight, 10) || 0) >= 600) bold = true; } catch (e) {}
             for (var rr = 0; rr < rs; rr++) for (var cc = 0; cc < cs; cc++) occ[(r + rr) + '_' + (c + cc)] = true;
-            cells.push({ r: r, c: c, rs: rs, cs: cs, text: text, bold: bold, header: isHeader });
+            // Brødtekst er venstrestilt i PDF; celler med klassen «ke-center»
+            // (f.eks. Stk/Eske-tall) midtstilles — samme klasse styrer HTML-en.
+            var center = td.classList && td.classList.contains('ke-center');
+            cells.push({ r: r, c: c, rs: rs, cs: cs, text: text, bold: bold, header: isHeader, center: center });
             c += cs;
             if (c > numCols) numCols = c;
         });
@@ -6245,6 +6252,24 @@ function _pdfTableFromEl(doc, table, x0, y0, totalW, opts) {
     for (var i = 0; i < numCols; i++) {
         if (pctSum > 0) widths[i] = totalW * (pct[i] || 0) / pctSum;
         else widths[i] = totalW / numCols;
+    }
+    // opts.autoWidth: kolonnebredde etter INNHOLD (lengste linje pr. kolonne +
+    // padding, min opts.minColW) i stedet for fast prosent — en tabell med kort
+    // tekst blir smal, lang tekst gjør den bredere. totalW er tak: blir summen
+    // større, skaleres kolonnene ned proporsjonalt (tekst brytes da).
+    if (opts.autoWidth) {
+        var nat = [];
+        for (var ni = 0; ni < numCols; ni++) nat[ni] = opts.minColW || 14;
+        cells.forEach(function(cell) {
+            if (cell.cs !== 1) return;
+            setF(cell.bold);
+            String(cell.text || '').split('\n').forEach(function(ln) {
+                nat[cell.c] = Math.max(nat[cell.c], doc.getTextWidth(ln) + 2 * pad + 2);
+            });
+        });
+        var natSum = nat.reduce(function(a, b) { return a + b; }, 0);
+        var k2 = natSum > totalW ? totalW / natSum : 1;
+        for (var nj = 0; nj < numCols; nj++) widths[nj] = nat[nj] * k2;
     }
     function colX(c) { var x = x0; for (var k = 0; k < c; k++) x += widths[k]; return x; }
     function spanW(c, cs) { var w = 0; for (var k = c; k < c + cs; k++) w += widths[k]; return w; }
@@ -6279,7 +6304,7 @@ function _pdfTableFromEl(doc, table, x0, y0, totalW, opts) {
         doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.3); doc.rect(cx, cyt, cw, ch);
         setF(cell.bold);
         doc.setTextColor(cell.header ? 255 : 0, cell.header ? 255 : 0, cell.header ? 255 : 0);
-        var align = cell.header ? 'center' : 'left';
+        var align = (cell.header || cell.center) ? 'center' : 'left';
         var tx = align === 'center' ? cx + cw / 2 : cx + pad;
         var ty = cyt + pad + lineH - 0.8;
         cell._lines.forEach(function(l) { doc.text(l, tx, ty, { align: align }); ty += lineH; });
@@ -6356,34 +6381,61 @@ async function _renderKappeInto(doc, measureOnly) {
     function text() { if (DRAW) doc.text.apply(doc, arguments); }
     function image() { if (DRAW) doc.addImage.apply(doc, arguments); }
 
-    // Logo + tittel + meta
+    // Topp: SAMME oppsett som HTML-/bilde-eksporten (.ke-header/.ke-info-grid):
+    // logo venstre · tittel MIDTSTILT · meta høyre, strek under, og to innrammede
+    // info-bokser (tittel m/ understrek, etikett venstre + verdi høyre i fet,
+    // prikket skille mellom radene, like høye bokser).
+    function hline(x1, y1, x2, w) { if (DRAW) { doc.setDrawColor(0, 0, 0); doc.setLineWidth(w); doc.line(x1, y1, x2, y1); } }
     var logo = await _pdfRasterizeSvgEl(cont.querySelector('.ke-header svg'), 1440, 490);
     if (logo) { var lw = 40, lh = lw * 85 / 250; image(logo, 'PNG', L, y, lw, lh); }
     setF(true, 16); doc.setTextColor(0, 0, 0);
-    text('KAPPESKJEMA', L + 46, y + 9);
+    text('KAPPESKJEMA', PW / 2, y + 9, { align: 'center' });
     setF(false, 8);
     var my = y + 2;
     cont.querySelectorAll('.ke-meta > div').forEach(function(d) {
         text(d.textContent.replace(/\s+/g, ' ').trim(), R, my, { align: 'right' });
         my += 4.5;
     });
-    y += 17;
+    y += Math.max(15, my - y + 1);
+    hline(L, y, R, 0.5);
+    y += 5;
 
-    // Info-grid: to kolonner (Prosjekt / Leveringsadresse).
-    var colW = W / 2, iy0 = y, maxIy = y;
-    Array.prototype.forEach.call(cont.querySelectorAll('.ke-info-col'), function(col, ci) {
-        var cx = L + ci * colW, iy = iy0;
+    var cols = Array.prototype.slice.call(cont.querySelectorAll('.ke-info-col'));
+    var gap = 4, colW = (W - gap) / 2, rowH = 5.2, padX = 3;
+    var maxRows = 0;
+    cols.forEach(function(col) { maxRows = Math.max(maxRows, col.querySelectorAll('.ke-info-row').length); });
+    var boxH = 11 + maxRows * rowH + 1.5;
+    cols.forEach(function(col, ci) {
+        var cx = L + ci * (colW + gap), iy = y;
         var title = col.querySelector('.ke-info-col-title');
-        setF(true, 9); text(title ? title.textContent.trim() : '', cx, iy + 3); iy += 6.5;
-        col.querySelectorAll('.ke-info-row').forEach(function(row) {
+        setF(true, 8.5); doc.setTextColor(0, 0, 0);
+        text(title ? title.textContent.trim().toUpperCase() : '', cx + padX, iy + 5);
+        hline(cx + padX, iy + 7, cx + colW - padX, 0.25);
+        iy += 7;
+        var rows = col.querySelectorAll('.ke-info-row');
+        Array.prototype.forEach.call(rows, function(row, ri) {
             var sp = row.querySelectorAll('span');
-            setF(true, 8); text(sp[0] ? sp[0].textContent.trim() : '', cx, iy);
-            setF(false, 8); text(sp[1] ? sp[1].textContent.trim() : '', cx + 24, iy);
-            iy += 4.6;
+            var lab = sp[0] ? sp[0].textContent.trim() : '';
+            var val = sp[1] ? sp[1].textContent.replace(/\s+/g, ' ').trim() : '';
+            setF(false, 7.5); doc.setTextColor(85, 85, 85);
+            text(lab, cx + padX, iy + 3.9);
+            setF(true, 7.5); doc.setTextColor(0, 0, 0);
+            if (val) {
+                var vLines = doc.splitTextToSize(val, colW * 0.55 - padX);
+                text(vLines[0] || '', cx + colW - padX, iy + 3.9, { align: 'right' });
+            }
+            if (ri < rows.length - 1 && DRAW) {
+                doc.setDrawColor(204, 204, 204); doc.setLineWidth(0.2);
+                if (doc.setLineDashPattern) doc.setLineDashPattern([0.4, 0.6], 0);
+                doc.line(cx + padX, iy + rowH, cx + colW - padX, iy + rowH);
+                if (doc.setLineDashPattern) doc.setLineDashPattern([], 0);
+            }
+            iy += rowH;
         });
-        if (iy > maxIy) maxIy = iy;
+        if (DRAW) { doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.4); doc.rect(cx, y, colW, boxH); }
     });
-    y = maxIy + 4;
+    doc.setTextColor(0, 0, 0);
+    y += boxH + 6;
 
     // Seksjonstitler + tabeller (Kappeliste, Festemidler).
     var titles = cont.querySelectorAll('.ke-section-title');
@@ -6391,7 +6443,16 @@ async function _renderKappeInto(doc, measureOnly) {
     Array.prototype.forEach.call(tables, function(tbl, ti) {
         var st = titles[ti];
         if (st) { setF(true, 10); doc.setTextColor(0, 0, 0); text(st.textContent.trim(), L, y + 3.5); y += 7; }
-        y = _pdfTableFromEl(doc, tbl, L, y, W, { fontSize: 6.5, minRowH: 6, measureOnly: measureOnly });
+        // Tabellbredde følger HTML-eksportens CSS max-width (f.eks. smal
+        // festemiddel-tabell), så PDF og bilde-eksport er like. Ellers full bredde.
+        var tw = W;
+        try {
+            var mw = /([\d.]+)%/.exec(getComputedStyle(tbl).maxWidth || '');
+            if (mw) tw = W * Math.min(100, parseFloat(mw[1])) / 100;
+        } catch (e) {}
+        // Tabeller merket data-pdf-autowidth (festemidler) får bredde etter innhold.
+        var auto = tbl.hasAttribute('data-pdf-autowidth');
+        y = _pdfTableFromEl(doc, tbl, L, y, tw, { fontSize: 6.5, minRowH: 6, measureOnly: measureOnly, autoWidth: auto, minColW: 16 });
         y += 7;
     });
     return y;
@@ -9972,6 +10033,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // Tappet et annet tekstfelt → ikke gjør noe; la native fokus-flytt +
         // focusin/focusout håndtere det (unngår blur→refokus-blink).
         if (isKeyboardOpeningElement(e.target)) return;
+        // Trykk på en <label> som omslutter et tekstfelt (f.eks. enhets-teksten
+        // i Stk/Eske-boksen) fokuserer det feltet → behandles som tapp på feltet,
+        // ellers blurres det først og tastaturet blinker.
+        var _lab = e.target && e.target.closest && e.target.closest('label');
+        var _labInp = _lab ? _lab.querySelector('input, textarea') : null;
+        if (_labInp && isKeyboardOpeningElement(_labInp)) return;
         // Knapper inni popups bruker onpointerdown="event.preventDefault()"
         // for å beholde input-fokus mens de utfører handlinger (f.eks. "+ Legg
         // til kapp" som legger til ny rad uten å lukke tastaturet). Når
@@ -14045,9 +14112,10 @@ function _createIsoSection(data) {
     var len0 = (data.lengths && data.lengths[0]) || {};
     section._isoLengths = (len0.lm || len0.antall) ? [{ lm: len0.lm || '', antall: len0.antall || '' }] : [];
     section.innerHTML =
-        // Seksjons-hode («Seksjon N» + «Fjern seksjon»): vises KUN når gruppen har
-        // 2+ seksjoner (_updateIsoSectionRemoveStates setter --multi + nummer).
-        // Tekst-knapp (ikke søppel-ikon) så den ikke forveksles med rad-slett.
+        // Seksjons-hode («Seksjon N» + «Fjern seksjon») — ALLTID vist (seksjonen er
+        // alltid et kort). «Fjern seksjon» er deaktivert når det bare er én
+        // seksjon (_updateIsoSectionRemoveStates). Tekst-knapp (ikke søppel-ikon)
+        // så den ikke forveksles med rad-slett.
         '<div class="iso-section-head">' +
             '<span class="iso-section-title"></span>' +
             '<button type="button" class="iso-section-remove" onpointerdown="event.preventDefault()" onclick="_isoRemoveSection(this)">' + escapeHtml(t('iso_section_remove')) + '</button>' +
@@ -14119,10 +14187,9 @@ function _createIsoGroupCard(opts) {
             (opts.productHtml || '') +
             '<div class="iso-group-pick-hint" data-i18n="kappe_pick_product_hint">' + t('kappe_pick_product_hint') + '</div>' +
             '<div class="iso-group-sections"></div>' +
-            // «+ Legg til seksjon» på GRUPPE-nivå (under alle seksjonene) — ikke
-            // inni hver seksjon, så hierarkiet er tydelig: rad-knapper (Stk/Plate)
-            // hører til seksjonen, seksjons-knappen til gruppen.
-            '<button type="button" class="kappe-add-kapp-btn iso-add-section-btn" onpointerdown="event.preventDefault()" onclick="_isoAddSection(this)">+ <span data-i18n="iso_add_section">' + t('iso_add_section') + '</span></button>' +
+            // «+ Seksjon»: flyttes inn i SISTE seksjons knapperad av
+            // _updateIsoSectionRemoveStates (én instans pr. gruppe).
+            '<button type="button" class="kappe-add-kapp-btn iso-add-section-btn" onpointerdown="event.preventDefault()" onclick="_isoAddSection(this)">+ <span data-i18n="iso_btn_section">' + t('iso_btn_section') + '</span></button>' +
         '</div>' +
         '</div>';
     _isoGroupNameObserve(card.querySelector('.iso-group-name'));
@@ -14236,31 +14303,23 @@ function _updateIsoSectionRemoveStates(el) {
     // 2+ seksjoner → hver seksjon blir en innrammet boks med «Seksjon N» +
     // «Fjern seksjon». Én seksjon → ingen ramme/hode (kompakt; gruppens egen
     // slett-knapp dekker «fjern alt»).
-    var multi = sections.length > 1;
-    sectionsEl.classList.toggle('iso-group-sections--multi', multi);
+    // Seksjonene ser LIKE ut uansett antall (kort + «Seksjon N» + «Fjern
+    // seksjon»). Eneste forskjell: ved ÉN seksjon er «Fjern seksjon» deaktivert
+    // (gruppens egen slett-knapp dekker «fjern alt»).
+    var single = sections.length <= 1;
     sections.forEach(function(sec, i) {
         var title = sec.querySelector('.iso-section-title');
         if (title) title.textContent = t('iso_btn_section') + ' ' + (i + 1);
+        var rm = sec.querySelector('.iso-section-remove');
+        if (rm) rm.disabled = single;
     });
-    // «+ Seksjon»-plassering (sparer en rad i det vanlige tilfellet):
-    //   • ÉN seksjon → som 3. knapp i seksjonens knapperad: [+Stk][+Plate][+Seksjon].
-    //   • 2+ seksjoner → under alle seksjons-boksene som «+ Legg til seksjon»
-    //     (inni siste boks ville den sett ut som den hører til DEN seksjonen).
+    // «+ Seksjon» står alltid som 3. knapp i SISTE seksjons knapperad:
+    // [+Stk][+Plate][+Seksjon] — én rad, likt for én og flere seksjoner.
     var body = sectionsEl.parentElement;
     var addBtn = body ? body.querySelector('.iso-add-section-btn') : null;
-    if (addBtn) {
-        var foot = (!multi && sections[0]) ? sections[0].querySelector('.iso-section-foot') : null;
-        var key = foot ? 'iso_btn_section' : 'iso_add_section';
-        var label = addBtn.querySelector('span');
-        if (label && label.getAttribute('data-i18n') !== key) {
-            label.setAttribute('data-i18n', key);
-            label.textContent = t(key);
-        }
-        if (foot) { if (addBtn.parentElement !== foot) foot.appendChild(addBtn); }
-        else if (addBtn.parentElement !== body || addBtn.previousElementSibling !== sectionsEl) {
-            sectionsEl.insertAdjacentElement('afterend', addBtn);
-        }
-    }
+    var last = sections[sections.length - 1];
+    var foot = last ? last.querySelector('.iso-section-foot') : null;
+    if (addBtn && foot && addBtn.parentElement !== foot) foot.appendChild(addBtn);
 }
 
 // Oppdater gruppens produkt-knapp: «Velg produkt» (tom) eller «Navn dim · LxB».
@@ -14820,6 +14879,13 @@ function _isoRemoveSection(btn) {
         _isoRemoveEl(section.closest('.iso-card-block'));
         return;
     }
+    // «+ Seksjon» bor i siste seksjons knapperad — flytt den ut før seksjonen
+    // fjernes, ellers forsvinner knappen med den (plasseres riktig på nytt av
+    // _updateIsoSectionRemoveStates).
+    var addBtn = section.querySelector('.iso-add-section-btn');
+    var other = section.previousElementSibling || section.nextElementSibling;
+    var otherFoot = other ? other.querySelector('.iso-section-foot') : null;
+    if (addBtn && otherFoot) otherFoot.appendChild(addBtn);
     _isoRemoveEl(section);
     if (container) _updateIsoSectionRemoveStates(container);
 }
@@ -14947,12 +15013,14 @@ function _createIsoCardFastenerRow(data) {
     row.innerHTML =
         '<span class="iso-card-fast-name">' + escapeHtml(nm) + '</span>' +
         '<div class="kappe-quad-row">' +
-            '<div class="mobile-field isc-unit-field">' +
+            // <label> som felt-boks: tall + enhet på SAMME grunnlinje, og trykk
+            // hvor som helst i boksen (også på enheten) fokuserer feltet.
+            '<label class="mobile-field isc-unit-field">' +
                 '<input type="text" class="isc-fast-stk" inputmode="numeric" pattern="[0-9]*" aria-label="' + escapeHtml(t('kappe_unit_stk')) + '" value="' + escapeHtml(d.stk || '') + '">' +
-                '<span class="isc-unit">' + escapeHtml(t('kappe_unit_stk').toLowerCase()) + '</span></div>' +
-            '<div class="mobile-field isc-unit-field">' +
+                '<span class="isc-unit">' + escapeHtml(t('kappe_unit_stk').toLowerCase()) + '</span></label>' +
+            '<label class="mobile-field isc-unit-field">' +
                 '<input type="text" class="isc-fast-eske" inputmode="numeric" pattern="[0-9]*" aria-label="' + escapeHtml(t('kappe_unit_eske')) + '" value="' + escapeHtml(d.eske || '') + '">' +
-                '<span class="isc-unit">' + escapeHtml(t('kappe_unit_eske').toLowerCase()) + '</span></div>' +
+                '<span class="isc-unit">' + escapeHtml(t('kappe_unit_eske').toLowerCase()) + '</span></label>' +
         '</div>' +
         '<button type="button" class="kappe-kapp-remove-btn" onclick="_isoCardRemoveFastenerRow(this)" title="Fjern rad">' + deleteIcon + '</button>';
     return row;
@@ -18107,7 +18175,7 @@ function _calcKappeWN630(bredde, lopemeter, antallSider, plateLengde, plateBredd
     var empty = { langs: [], kerf: k, stabel: stabelAntall };
     if (w <= 0 || lm <= 0 || sider <= 0) return empty;
 
-    var totalLm = Math.ceil(lm * sider * ant * 10) / 10;
+    var totalLm = ceilTenths(lm * sider * ant) / 10;
 
     function calcOrient(kuttDim, stripDimMm) {
         var stripes = Math.floor((kuttDim + k) / (w + k));
@@ -18422,15 +18490,8 @@ function buildKappeExportTable() {
             var pSpanAttr = r.lineSpan > 1 ? ' rowspan="' + r.lineSpan + '"' : '';
             var ppCellHtml = '';
             if (r.lineFirst) {
+                // Kun produktnavn (plate-målet vises ikke i eksporten).
                 ppCellHtml = '<div class="ke-produkt-name">' + escapeHtml(r.produkt) + '</div>';
-                if (r.plateLengde && r.plateBredde) {
-                    var ppLn = parseLocaleNum(r.plateLengde);
-                    var ppBn = parseLocaleNum(r.plateBredde);
-                    var ppDisp = (!isNaN(ppLn) && !isNaN(ppBn))
-                        ? formatLocaleNum(Math.max(ppLn, ppBn)) + '×' + formatLocaleNum(Math.min(ppLn, ppBn)) + 'mm'
-                        : escapeHtml(r.plateLengde) + '×' + escapeHtml(r.plateBredde) + 'mm';
-                    ppCellHtml += '<div class="ke-produkt-plate">' + ppDisp + '</div>';
-                }
             }
             // Samme kolonne-struktur som kapp-rader (konsistent, ~2 linjer
             // høyt). "N hele plater" i Bredde+Løpemeter, WN630 = leveres
@@ -18489,8 +18550,10 @@ function buildKappeExportTable() {
                     veilHtml += '<div class="ke-wn630-sep"></div>';
                 }
                 var sagkutt2 = Math.ceil(o.antallStk / 2);
+                // Ingen <strong>: PDF-tabellen gjør hele cellen fet ved <strong>,
+                // og «Leveres hele» er normal vekt — WN630 skal være lik overalt.
                 wn630Html += '<div class="ke-wn630-row">' +
-                    '<strong>' + o.antallStk + ' stk</strong>' +
+                    o.antallStk + ' stk' +
                     ' (' + sagkutt2 + ' stk i 2-stabel)' +
                     ' · langs ' + o.kuttLangsMm + 'mm' +
                     ' · rest ' + o.svinnPerPlate + 'mm' +
@@ -18515,7 +18578,7 @@ function buildKappeExportTable() {
         if (!isNaN(lmNum) && !isNaN(sdNum) && lmNum > 0 && sdNum > 0) {
             var totLm = lmNum * sdNum * antNum;
             // Rund opp til nærmeste tiendedel slik at vi aldri mangler materialer
-            totalLm = (Math.ceil(totLm * 10) / 10).toFixed(1).replace('.', ',');
+            totalLm = (ceilTenths(totLm) / 10).toFixed(1).replace('.', ',');
         }
         var breddeNum = parseLocaleNum(r.bredde);
         var breddeDisplay;
@@ -18532,20 +18595,8 @@ function buildKappeExportTable() {
         var spanAttr = r.lineSpan > 1 ? ' rowspan="' + r.lineSpan + '"' : '';
         var produktCell = '';
         if (r.lineFirst) {
+            // Kun produktnavn (plate-målet vises ikke i eksporten).
             produktCell = '<div class="ke-produkt-name">' + escapeHtml(r.produkt) + '</div>';
-            if (r.plateLengde && r.plateBredde) {
-                var pLn = parseLocaleNum(r.plateLengde);
-                var pBn = parseLocaleNum(r.plateBredde);
-                var plateDisplay;
-                if (!isNaN(pLn) && !isNaN(pBn)) {
-                    var hi = Math.max(pLn, pBn);
-                    var lo = Math.min(pLn, pBn);
-                    plateDisplay = formatLocaleNum(hi) + '×' + formatLocaleNum(lo) + 'mm';
-                } else {
-                    plateDisplay = escapeHtml(r.plateLengde) + '×' + escapeHtml(r.plateBredde) + 'mm';
-                }
-                produktCell += '<div class="ke-produkt-plate">' + plateDisplay + '</div>';
-            }
         }
         productRows +=
             '<tr>' +
@@ -18619,8 +18670,8 @@ function buildKappeExportTable() {
         stiftRows +=
             '<tr>' +
                 '<td class="ke-stift-size">' + escapeHtml(productName + (size ? ' ' + _formatDimMm(size) : '')) + '</td>' +
-                '<td class="ke-stift-antall">' + escapeHtml(stkV) + '</td>' +
-                '<td class="ke-stift-antall">' + escapeHtml(eskeV) + '</td>' +
+                '<td class="ke-stift-antall ke-center">' + escapeHtml(stkV) + '</td>' +
+                '<td class="ke-stift-antall ke-center">' + escapeHtml(eskeV) + '</td>' +
             '</tr>';
     });
 
@@ -18628,8 +18679,9 @@ function buildKappeExportTable() {
     // Egne kolonner Stk/Eske (konsistent med skjemaet, utvetydig).
     var stiftTable =
         '<div class="ke-section-title">' + escapeHtml(getKappeFastenerLabel()) + '</div>' +
-        '<table class="ke-stift-table">' +
-            '<colgroup><col style="width:60%"><col style="width:20%"><col style="width:20%"></colgroup>' +
+        // Bredde etter innhold (ingen faste kolonne-prosenter) — både i HTML
+        // (table-layout:auto) og PDF (data-pdf-autowidth). Tak: CSS max-width.
+        '<table class="ke-stift-table" data-pdf-autowidth>' +
             '<thead><tr><th>Produkt/dimensjon</th><th>' + escapeHtml(t('kappe_unit_stk')) + '</th><th>' + escapeHtml(t('kappe_unit_eske')) + '</th></tr></thead>' +
             '<tbody>' + stiftRows + '</tbody>' +
         '</table>';

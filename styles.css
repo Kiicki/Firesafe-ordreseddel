@@ -19,6 +19,13 @@ html {
     scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 4px);
 }
 
+/* Skjemafelt arver sidens skrift. Uten dette bruker nettleseren sin egen
+   standardskrift for input/knapper (Firefox/Windows: systemskrift m/ fot på «1»)
+   → tall i felt så annerledes ut enn teksten rundt. Gjelder hele appen. */
+input, textarea, select, button {
+    font-family: inherit;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -10388,17 +10395,15 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     flex-direction: column;
     gap: 10px;
 }
-/* Seksjons-hode skjult ved ÉN seksjon (kompakt). Ved 2+ seksjoner
-   (.iso-group-sections--multi): hver seksjon er en innrammet boks med
-   «Seksjon N» + «Fjern seksjon», så det er tydelig hvor en seksjon slutter. */
-.iso-section-head { display: none; }
-.iso-group-sections--multi .iso-section {
+/* Hver seksjon er ALLTID en innrammet boks med «Seksjon N» + «Fjern seksjon»
+   (likt for én og flere seksjoner; ved én er «Fjern seksjon» deaktivert). */
+.iso-section {
     border: 1px solid #d9d9df;
     border-radius: 12px;
     /* Smal side-padding: 4 kolonner må få plass også i den smale popupen. */
     padding: 8px 6px 10px;
 }
-.iso-group-sections--multi .iso-section-head {
+.iso-section-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -10462,10 +10467,8 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
 }
-/* «+ Legg til seksjon» under alle seksjonene (2+ seksjoner): full bredde. Ved
-   ÉN seksjon flyttes knappen inn i seksjonens knapperad og arver
-   .iso-section-foot-stilen (se _updateIsoSectionRemoveStates). */
-.iso-group-body > .iso-add-section-btn { width: 100%; margin: 0; }
+/* Deaktivert «Fjern seksjon» (kun én seksjon): grå, ikke trykkbar. */
+.iso-section-remove:disabled { color: #c7c7cc; cursor: default; }
 .iso-group-card--no-product .iso-add-section-btn { display: none; }
 /* Stram radavstand: nullstill arvet margin-bottom fra .iso-card-row. */
 .iso-section-bredder .iso-card-row { margin-bottom: 0; }
@@ -10680,21 +10683,43 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
 /* Slett-knappen: midtstilt (ingen bunn-padding — den var for å flukte med felt
    under en etikett-linje, som festemiddel-raden ikke har). */
 .iso-card-fast-row .kappe-kapp-remove-btn { padding-bottom: 0; }
-/* Felt med enhet inni (høyrestilt, grå). Suffikset slipper trykk gjennom til
-   feltet (pointer-events:none) så hele boksen er trykkflate. */
-.isc-unit-field { position: relative; }
+/* Felt med enhet inni: boksen er en <label> (hvit, avrundet) med tall-input +
+   grå enhet ved siden av hverandre på SAMME GRUNNLINJE (align-items:baseline +
+   lik line-height) — «1 eske» leses som én tekst. Input-en er gjennomsiktig og
+   rammeløs inni boksen; boksen får fokus-ringen. !important slår kontekst-
+   reglene for vanlige felt (.fastener-rows / #iso-card-popup .mobile-field input). */
+.isc-unit-field {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    box-sizing: border-box;
+    height: 38px;
+    padding: 0 9px 0 6px;
+    background: #fff;
+    border-radius: 10px;
+    cursor: text;
+}
+.isc-unit-field:focus-within { box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.35); }
 .isc-unit-field input {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none;
     text-align: right;
-    padding-right: 34px !important;
+    font-size: 15px;
+    line-height: 38px;
 }
 .isc-unit {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
+    flex: 0 0 auto;
+    font-size: 13px;
+    line-height: 38px;
     color: #8e8e93;
-    pointer-events: none;
 }
 /* Alle tre legg-til-rad-knappene (Stk/Plate/Festemiddel) skal ha identisk
    spacing — kun sheetens gap:10px, ingen egen margin. Ellers hopper knappen
@@ -11563,12 +11588,6 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
 .ke-produkt-name {
     font-weight: 600;
 }
-.ke-produkt-plate {
-    font-size: 10px;
-    color: #666;
-    margin-top: 2px;
-    font-weight: 400;
-}
 .ke-merknad {
     font-style: italic;
 }
@@ -11626,9 +11645,18 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     letter-spacing: 0;
 }
 .ke-stift-table {
-    max-width: 25%;
+    /* Bredde etter INNHOLD (kort produktnavn → smal tabell), tak 40 %. PDF-en
+       leser samme tak og beregner kolonner etter innhold (data-pdf-autowidth). */
+    width: auto;
+    table-layout: auto;
+    max-width: 40%;
     margin-top: 4px;
 }
+.ke-stift-table th,
+.ke-stift-table td { padding-left: 10px !important; padding-right: 10px !important; }
+.ke-stift-table td.ke-stift-size { text-align: left; }
+.ke-stift-table td.ke-stift-antall { min-width: 50px; }
+.ke-center { text-align: center !important; }
 .ke-stift-size {
     background: #fafafa;
 }
