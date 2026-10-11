@@ -17860,6 +17860,7 @@ async function saveKappeForm() {
         var data = getKappeFormData();
         var saved = safeParseJSON(KAPPE_STORAGE_KEY, []);
         var archived = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+        _kappeKeepCreatedAt(data, saved, archived);
 
         var wasSent = sessionStorage.getItem('firesafe_kappe_sent') === '1';
         if (wasSent && _kappeCurrentId) {
@@ -17907,15 +17908,26 @@ async function saveKappeForm() {
     }
 }
 
+// createdAt låses ved FØRSTE lagring og bevares ved senere lagring/«Merk sendt»
+// (getKappeFormData bygger data på nytt fra skjemaet og har ikke feltet).
+// Reserve-kilde for «Uke» i lista når ønsket leveringsdato mangler (_kappeItemWeek).
+function _kappeKeepCreatedAt(data, saved, archived) {
+    var prev = _kappeCurrentId
+        ? ((saved || []).concat(archived || []).find(function(it) { return it.id === _kappeCurrentId; }) || null)
+        : null;
+    data.createdAt = (prev && prev.createdAt) || new Date().toISOString();
+}
+
 function markKappeAsSent() {
     try {
         if (!validateKappeRequiredFields()) return;
         var data = getKappeFormData();
         var saved = safeParseJSON(KAPPE_STORAGE_KEY, []);
+        var archived = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
+        _kappeKeepCreatedAt(data, saved, archived);
         if (_kappeCurrentId) data.id = _kappeCurrentId;
         else { data.id = Date.now().toString(); }
 
-        var archived = safeParseJSON(KAPPE_ARCHIVE_KEY, []);
         var archExisting = archived.findIndex(function(item) { return item.id === data.id; });
         if (archExisting !== -1) archived[archExisting] = data;
         else archived.unshift(data);
@@ -18001,8 +18013,26 @@ function loadKappeTab() {
     }
 }
 
+// Uke for et kappeskjema i lista (skiller flere skjema fra samme prosjekt).
+// Kilde: Ønsket leveringsdato (bruker-satt, stabil, = leveranse-uka). Ikke
+// «Dato»-feltet — det settes til dagens ved hver åpning av et utkast. Mangler
+// leveringsdato: uka skjemaet ble opprettet (createdAt, låst ved første
+// lagring), ellers (eldre data) sist lagret.
+function _kappeItemWeek(item) {
+    var raw = item && item.onsketLeveringsdato ? String(item.onsketLeveringsdato) : '';
+    var iso = /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : _kappeParseDateNO(raw);
+    var d = iso ? new Date(iso + 'T12:00:00') : null;
+    if (!d || isNaN(d)) {
+        var ts = item && (item.createdAt || item.savedAt);
+        d = ts ? new Date(ts) : null;
+    }
+    return (d && !isNaN(d)) ? getWeekNumber(d) : '';
+}
+
 function _buildKappeItemHtml(item, index) {
     var title = item.prosjektnavn || item.prosjektnr || '';
+    var uke = _kappeItemWeek(item);
+    if (uke) title = t('label_uke') + ' ' + uke + ' · ' + (title || t('no_name'));
     var savedAtStr = formatDateWithTime(item.savedAt);
     // Prosjektnavnet er ofte langt → gi det HELE topplinjen alene; dato + prosjektnr
     // på undertittel. DATO FØR prosjektnr (samme rekkefølge som ordreseddel, der
@@ -18082,6 +18112,7 @@ function duplicateKappeForm(formData) {
     var copy = JSON.parse(JSON.stringify(formData));
     delete copy.id;
     delete copy._isSent;
+    delete copy.createdAt;   // kopien er et nytt skjema → ny createdAt ved lagring
     copy.savedAt = new Date().toISOString();
 
     _kappeCurrentId = null;
