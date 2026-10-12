@@ -9286,6 +9286,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // da knappene låst synlig nederst.
     var _popupKbdActive = false;
     var _popupKbdVVHandler = null;
+    var _popupKbdRO = null;
 
     function _popupKbdAnyActive() {
         var any = false;
@@ -9297,6 +9298,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function _popupKbdClearContent(content) {
         if (!content) return;
+        content._kbdTopOff = null;
+        content._kbdVVKey = null;
         content.style.removeProperty('position');
         content.style.removeProperty('left');
         content.style.removeProperty('right');
@@ -9339,10 +9342,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 content.style.setProperty('left', '50%', 'important');
                 content.style.setProperty('right', 'auto', 'important');
                 content.style.setProperty('transform', 'translateX(-50%)', 'important');
-                content.style.setProperty('top', (vv.offsetTop + mTop) + 'px', 'important');
-                content.style.setProperty('max-height', (vv.height - mTop - mBot) + 'px', 'important');
+                var avail = vv.height - mTop - mBot;
+                content.style.setProperty('max-height', avail + 'px', 'important');
                 content.style.setProperty('margin', '0', 'important');
                 content.style.setProperty('z-index', '101', 'important');
+                // Vertikal plass: SENTRERT i det synlige området over tastaturet
+                // (en liten dialog klistret 8px under toppen så klemt ut). Høye
+                // popuper fyller området → offset = mTop som før. Toppen STÅR
+                // FAST mens popupen er åpen og tastatur-høyden er uendret
+                // (Apple-prinsippet): krymper innholdet, blir toppen stående;
+                // vokser det, flyttes toppen bare opp så bunnen holder seg over
+                // tastaturet. Ny tastatur-høyde (animasjon, rotasjon) → beregn på nytt.
+                var vvKey = Math.round(vv.height);
+                if (content._kbdVVKey !== vvKey) { content._kbdVVKey = vvKey; content._kbdTopOff = null; }
+                var h = Math.min(content.offsetHeight, avail);
+                var off = mTop + Math.max(0, (avail - h) / 2);
+                if (content._kbdTopOff != null) off = Math.min(content._kbdTopOff, mTop + avail - h);
+                off = Math.max(mTop, Math.round(off));
+                content._kbdTopOff = off;
+                content.style.setProperty('top', (vv.offsetTop + off) + 'px', 'important');
             } else {
                 // Popup lukket ELLER tastatur lukket → la CSS sentrere normalt.
                 _popupKbdClearContent(content);
@@ -9365,6 +9383,18 @@ document.addEventListener('DOMContentLoaded', function() {
             window.visualViewport.addEventListener('resize', _popupKbdVVHandler);
             window.visualViewport.addEventListener('scroll', _popupKbdVVHandler);
         }
+        // Popupen er sentrert over tastaturet → vokser innholdet (ny rad o.l.)
+        // må toppen flyttes opp så bunnen ikke havner bak tastaturet. Én rAF-
+        // debouncet sync pr. frame (sync endrer bare top → ingen resize-løkke).
+        if (typeof ResizeObserver === 'function') {
+            var roPending = false;
+            _popupKbdRO = new ResizeObserver(function() {
+                if (roPending) return;
+                roPending = true;
+                requestAnimationFrame(function() { roPending = false; if (_popupKbdActive) _popupKbdSync(); });
+            });
+            document.querySelectorAll(POPUP_CONTENT_SELECTOR).forEach(function(c) { _popupKbdRO.observe(c); });
+        }
         // Sync nå + flere ganger så tastatur-åpne-animasjonen fanges.
         _popupKbdSync();
         requestAnimationFrame(_popupKbdSync);
@@ -9381,6 +9411,7 @@ document.addEventListener('DOMContentLoaded', function() {
             window.visualViewport.removeEventListener('scroll', _popupKbdVVHandler);
         }
         _popupKbdVVHandler = null;
+        if (_popupKbdRO) { _popupKbdRO.disconnect(); _popupKbdRO = null; }
         document.querySelectorAll(POPUP_CONTENT_SELECTOR).forEach(_popupKbdClearContent);
         // Restaurer overlaysContent — form-views er bygget rundt at det er på.
         if (_HAS_VKBD_API) {
