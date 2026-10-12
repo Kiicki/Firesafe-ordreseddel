@@ -14893,6 +14893,11 @@ window._isoRemoveSection = _isoRemoveSection;
 
 // Fjern hele gruppen (produkt + alle seksjoner).
 function _isoRemoveGroup(btn) {
+    // Bekreft alltid — samme som kappeskjemaets grupper (removeKappeLine), som
+    // bruker det samme gruppe-kortet. Bekreftelsen ligger over popupen (z-index).
+    showConfirmModal(t('iso_group_delete_confirm'), function() { _isoRemoveGroupNow(btn); }, t('btn_remove'), '#e74c3c');
+}
+function _isoRemoveGroupNow(btn) {
     var block = btn.closest('.iso-card-block');
     var c = document.getElementById('iso-card-blocks');
     // Siste gruppe: nullstill til én tom gruppe (samme som kappeskjema) i stedet
@@ -17514,7 +17519,7 @@ window.addKappeLine = addKappeLine;
 function removeKappeLine(btn) {
     var card = btn.closest('.kappe-line-card');
     var container = document.getElementById('kappe-lines');
-    showConfirmModal(t('kappe_line_delete_confirm'), function() {
+    showConfirmModal(t('iso_group_delete_confirm'), function() {
         if (container.querySelectorAll('.kappe-line-card').length <= 1) {
             // Siste gruppe: nullstill til én tom gruppe (samme som ordreseddel).
             container.innerHTML = '';
@@ -20044,3 +20049,108 @@ function _loadServiceDefaults() {
         }).catch(function(){});
     }
 }
+
+// ── «Lukk alle / Åpne alle» for lister med sammenleggbare kort ────────────────
+// SITE-WIDE: samme knapp på ALLE lister der kort åpnes/lukkes ett og ett
+// (ordreseddel-bestillinger, servicebil, kappeliste, Isolering-popupens grupper).
+// Knappen står RETT OVER kortene den styrer: i listens overskrift når kortene
+// følger rett etter den; ligger noe annet imellom (f.eks. ordreseddelens «Timer
+// uke»-kort, som ikke kan lukkes) får knappen egen høyrestilt rad rett over
+// kortene — ellers ser den ut til å gjelde også det mellomliggende elementet.
+// Den egne raden får en egen overskrift (cfg.label, f.eks. «Bestillinger») i
+// samme stil som «Kappeliste … Lukk alle», så den ikke står tom og alene.
+// Tekst: «Lukk alle» når minst ett kort er åpent, ellers «Åpne alle». Alltid
+// synlig; DEAKTIVERT ved færre enn 2 kort (pila på kortet gjør samme jobb). Holdes i sync via MutationObserver (kort lagt til/fjernet og
+// åpnet/lukket ett og ett), så ingen toggle-funksjon trenger å kalle den.
+// Alle korttypene har samme struktur: header (1. barn) + .mobile-order-body-wrap.
+var _COLLAPSE_ALL_LISTS = [
+    { container: 'mobile-orders',  title: '.mobile-section-title[data-i18n="section_work"]',          card: '.mobile-order-card',
+      label: 'orders_list_title',   // egen overskrift når knappen får egen rad (Timer-kortet står imellom)
+      after: function(card, open) {
+          if (open) { var d = card.querySelector('.mobile-order-desc'); if (d && d.style.display !== 'none') autoResizeTextarea(d); }
+          if (typeof updateOrderTitle === 'function') updateOrderTitle(card);
+      } },
+    { container: 'service-entries', title: '.mobile-section-title[data-i18n="service_entries_title"]', card: '.service-entry-card' },
+    { container: 'kappe-lines',     title: '.mobile-section-title[data-i18n="kappe_section_products"]', card: '.kappe-line-card' },
+    { container: 'iso-card-blocks', title: '.iso-card-section-head[data-i18n="material_isolation"]',    card: '.iso-card-block',
+      done: function() { if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout(); } }
+];
+
+function _collapseAllCards(cfg) {
+    var c = document.getElementById(cfg.container);
+    return c ? Array.prototype.filter.call(c.children, function(el) { return el.matches(cfg.card); }) : [];
+}
+function _collapseAllWrap(card) {
+    var w = card.children[1];
+    return (w && w.classList.contains('mobile-order-body-wrap')) ? w : card.querySelector('.mobile-order-body-wrap');
+}
+function _collapseAllUpdate(cfg) {
+    if (!cfg._btn) return;
+    var cards = _collapseAllCards(cfg);
+    var anyOpen = cards.some(function(card) { var w = _collapseAllWrap(card); return w && w.classList.contains('expanded'); });
+    cfg._btn.disabled = cards.length < 2;
+    var key = anyOpen ? 'collapse_all' : 'expand_all';
+    if (cfg._btn.getAttribute('data-i18n') !== key) {
+        cfg._btn.setAttribute('data-i18n', key);
+        cfg._btn.textContent = t(key);
+    }
+}
+function _collapseAllToggle(cfg) {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    var cards = _collapseAllCards(cfg);
+    var open = !cards.some(function(card) { var w = _collapseAllWrap(card); return w && w.classList.contains('expanded'); });
+    cards.forEach(function(card) {
+        var w = _collapseAllWrap(card);
+        if (!w) return;
+        w.classList.toggle('expanded', open);
+        var arrow = card.firstElementChild ? card.firstElementChild.querySelector('.mobile-order-arrow') : null;
+        if (arrow) arrow.innerHTML = open ? '&#9650;' : '&#9660;';
+        if (cfg.after) cfg.after(card, open);
+    });
+    if (cfg.done) cfg.done();
+    _collapseAllUpdate(cfg);
+}
+function _initCollapseAllToggles() {
+    _COLLAPSE_ALL_LISTS.forEach(function(cfg) {
+        var container = document.getElementById(cfg.container);
+        var title = document.querySelector(cfg.title);
+        if (!container || !title || cfg._btn) return;
+        var row = document.createElement('div');
+        if (title.nextElementSibling === container) {
+            // Pakk overskriften inn i en rad (overskriften selv beholder data-i18n
+            // og ev. påkrevd-stjerne — knappen kan ikke ligge INNI den, da ville
+            // applyTranslations overskrive den).
+            row.className = 'collapse-all-row';
+            title.parentNode.insertBefore(row, title);
+            row.appendChild(title);
+        } else {
+            row.className = 'collapse-all-row collapse-all-row--sub';
+            container.parentNode.insertBefore(row, container);
+            if (cfg.label) {
+                var lbl = document.createElement('div');
+                lbl.className = 'mobile-section-title';
+                lbl.setAttribute('data-i18n', cfg.label);
+                lbl.textContent = t(cfg.label);
+                row.appendChild(lbl);
+            } else {
+                row.classList.add('collapse-all-row--standalone');
+            }
+        }
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'collapse-all-btn';
+        btn.disabled = true;
+        btn.setAttribute('onpointerdown', 'event.preventDefault()');
+        btn.addEventListener('click', function() { _collapseAllToggle(cfg); });
+        row.appendChild(btn);
+        cfg._btn = btn;
+        var raf = 0;
+        new MutationObserver(function() {
+            if (raf) return;
+            raf = requestAnimationFrame(function() { raf = 0; _collapseAllUpdate(cfg); });
+        }).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+        _collapseAllUpdate(cfg);
+    });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initCollapseAllToggles);
+else _initCollapseAllToggles();

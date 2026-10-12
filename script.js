@@ -5243,7 +5243,9 @@ function updateOrderTitle(card) {
     if (isExpanded) {
         titleEl.textContent = t('order_title') + ' ' + num;
     } else if (trimmed) {
-        titleEl.textContent = num + '. ' + trimmed;
+        // Lukket kort: beskrivelsen som tittel, linjeskift → mellomrom (CSS kapper
+        // den til 2 linjer med «…», så lange beskrivelser ikke fyller kortet).
+        titleEl.textContent = num + '. ' + trimmed.replace(/\s*\n\s*/g, ' ');
     } else {
         titleEl.textContent = t('order_title') + ' ' + num;
     }

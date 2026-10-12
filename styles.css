@@ -2429,6 +2429,49 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     border-bottom: 1px solid #ddd;
 }
 
+/* Overskrift + «Lukk alle / Åpne alle» på én rad (site-wide, se
+   _initCollapseAllToggles). Raden overtar overskriftens understrek/luft;
+   overskriften inni mister sin egen, så det ser identisk ut som før. */
+.collapse-all-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ddd;
+}
+.collapse-all-row > .mobile-section-title,
+.collapse-all-row > .iso-card-section-head {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+.collapse-all-btn {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    padding: 0 0 0 8px;
+    color: #E8501A;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.collapse-all-btn:disabled { color: #c7c7cc; cursor: default; }
+/* Under-overskrift rett over kortene (f.eks. «Bestillinger» under Timer-kortet):
+   luft over så den ikke klistrer seg til elementet ovenfor. */
+.collapse-all-row--sub { margin-top: 16px; }
+/* Egen rad rett over kortene (når noe står mellom overskrift og kort): kun
+   høyrestilt knapp, ingen understrek. */
+.collapse-all-row--standalone {
+    justify-content: flex-end;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin: -2px 0 6px;
+}
+
 .mobile-field {
     margin-bottom: 12px;
 }
@@ -3964,7 +4007,18 @@ label.settings-default-label.field-required > span::after {
     font-weight: 500;
     color: #333;
     word-break: break-word;
-    white-space: pre-wrap;
+    /* Maks 2 linjer + «…»: et lukket ordrekort viser beskrivelsen som tittel,
+       og en lang beskrivelse skal ikke fylle hele kortet (hele teksten står i
+       Beskrivelse-feltet når kortet åpnes). */
+    white-space: normal;
+    /* Fast linjehøyde: med «normal» stakk toppen av 3. linje (å/Å-ringer) ut
+       under kappingen. */
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
 }
 
 .mobile-order-body-wrap {
