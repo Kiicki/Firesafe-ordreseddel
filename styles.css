@@ -10193,6 +10193,13 @@ body:has(#dag-timer-modal.active) .confirm-modal:not(#dag-timer-modal) { z-index
 
 /* Bekreftelse (f.eks. «Slette denne seksjonen?») må over Isolering-popupen. */
 body:has(#iso-card-popup.active) .confirm-modal { z-index: 80; }
+/* Generelt: de kortlivede dialogene (bekreft + tekst-input, f.eks. «+ Ny
+   dimensjon» i produkt-/dimensjons-velgeren) åpnes ALLTID fra det som ligger
+   øverst, så de må over ENHVER aktiv popup (.spec-popup-backdrop z55–60), ikke
+   bare de som er listet enkeltvis her. Kun disse to — andre .confirm-modal-
+   baserte vinduer (f.eks. #dag-timer-modal) kan selv være forelder til en
+   popup og skal ikke heves. */
+body:has(.spec-popup-backdrop.active) :is(#confirm-modal, #input-modal) { z-index: 80; }
 /* «+ Ny dimensjon» (showInputModal/confirm-modal) må over festemiddel-popupene. */
 body:has(#fastener-popup.active) .confirm-modal,
 body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
@@ -10536,13 +10543,16 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     padding-top: 6px;
     margin-top: 2px;
 }
-/* Antall/LM i rad 2+ = låst speil av rad 1 (seksjonens felles verdi): grått så
-   det leses som «følger raden over», ikke et eget felt å fylle ut. Høy
-   spesifisitet slår kontekst-reglene for hvite felt (kappe + popup). */
+/* Antall/LM i rad 2+ = ARVET fra rad 1 (seksjonens felles verdi): stiplet ramme,
+   ingen fyll, dempet tekst → leses som «automatisk, kan endres» — verken som
+   deaktivert (grå fyll) eller som et vanlig hvitt felt. Trykk = egen verdi for
+   raden (.iso-len-ov → vanlig hvitt felt). Høy spesifisitet slår kontekst-
+   reglene for hvite felt (kappe + popup). */
 #kappe-lines .iso-section .mobile-field input.iso-len-mirror,
 #iso-card-popup .iso-section .mobile-field input.iso-len-mirror {
-    background: #e9e9ee;
-    color: #9a9aa0;
+    background: transparent;
+    border: 1.5px dashed #c4c4cc;
+    color: #6e6e76;
     cursor: pointer;
     box-shadow: none;
 }

@@ -10007,7 +10007,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var tgt = e.target;
         if (tgt && tgt.closest
             && document.querySelector(_POPUP_ACTIVE_SELECTOR)
-            && tgt.closest(_POPUP_SCROLLABLE_SELECTOR)) {
+            && _isPopupScrollTarget(tgt)) {
             return;
         }
         // Ekte scroll-gest utenfor popup-scroll-context: blur én gang per
@@ -10085,11 +10085,28 @@ document.addEventListener('DOMContentLoaded', function() {
     // ble dratt opp og bort. Disse interne scrollerne har overscroll-behavior:
     // contain så de chainer aldri ut.
     var _POPUP_SCROLLABLE_SELECTOR = '.spec-popup-body, .confirm-modal-content, .fakturaadresse-popup-body, .picker-overlay-list, .modal-body, #iso-card-scroll, #kappe-lm-scroll, #kappe-maal-scroll';
+    // Er touch-målet inni en intern scrollflate i en popup? Kjente flater (lista
+    // over) ELLER — generisk, så nye lister ikke må huskes her — en forelder med
+    // overflow-y auto/scroll som FAKTISK har mer innhold enn plass (f.eks.
+    // produkt-/dimensjons-kolonnene i produkt-velgeren). Kravet om reelt
+    // overløp holder header/knapper/padding (ingen overløp) blokkert som før.
+    function _isPopupScrollTarget(tgt) {
+        if (!tgt || !tgt.closest) return false;
+        if (tgt.closest(_POPUP_SCROLLABLE_SELECTOR)) return true;
+        var root = tgt.closest(_POPUP_ACTIVE_SELECTOR);
+        for (var el = tgt; el && el !== root && el !== document.body; el = el.parentElement) {
+            if (el.scrollHeight <= el.clientHeight + 1) continue;
+            var oy = '';
+            try { oy = getComputedStyle(el).overflowY; } catch (err) {}
+            if (oy === 'auto' || oy === 'scroll') return true;
+        }
+        return false;
+    }
     document.addEventListener('touchmove', function(e) {
         if (!document.querySelector(_POPUP_ACTIVE_SELECTOR)) return;
         var tgt = e.target;
         // Scroll inni popupens egen scrollflate (liste/innhold) → tillat.
-        if (tgt && tgt.closest && tgt.closest(_POPUP_SCROLLABLE_SELECTOR)) return;
+        if (_isPopupScrollTarget(tgt)) return;
         // Alt annet (sheet-header/padding/knapper, backdrop-dim, skjema bak,
         // toolbar) → blokker fullstendig.
         if (e.cancelable) e.preventDefault();
@@ -13968,10 +13985,11 @@ var _isoCardSelected = null; // { name, enhet, dim, plate:{length,width}, source
 
 // Én rad pr. bredde: Bredde · Sider · LM · Antall. Per-rad-feltene (hvite) til
 // venstre, seksjonens felles felt til høyre → de grå speilene i rad 2+ danner én
-// samlet blokk. Antall + LM er FELLES for hele SEKSJONEN (section._isoLengths):
-// kun FØRSTE rad har dem redigerbare; rad 2+ viser samme verdi grået ut (låst
-// speil, _isoSyncLenRows). Trykk på et grått
-// felt → fokus flyttes til rad 1. Ulik LM/antall = ny seksjon.
+// samlet blokk. Antall + LM ARVES fra seksjonen (section._isoLengths, skrives i
+// rad 1): rad 2+ viser verdien grået ut (speil, _isoSyncLenRows). Trykk på et
+// grått felt → det blir et eget, hvitt felt for DENNE raden (overstyring,
+// .iso-len-ov); tømmes det / settes likt rad 1, arver det igjen.
+// d.lm / d.antall (fra lasting) → overstyring når de avviker fra seksjonens.
 function _createIsoBreddeRow(data) {
     var d = data || {};
     var row = document.createElement('div');
@@ -13987,57 +14005,133 @@ function _createIsoBreddeRow(data) {
                     '<input type="text" class="isc-bredde" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.bredde || '') + '" oninput="_isoAfterChange(this)"></div>' +
                 '<div class="mobile-field">' +
                     '<input type="text" class="isc-sider" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.sider || '') + '" oninput="_isoAfterChange(this)"></div>' +
-                '<div class="mobile-field"><input type="text" class="isc-len-lm" inputmode="decimal" pattern="[0-9,.]*" placeholder="m" oninput="_isoSectionLenInput(this)" onpointerdown="_isoLenMirrorDown(event, this)" onclick="_isoLenMirrorTap(this)"></div>' +
-                '<div class="mobile-field"><input type="text" class="isc-len-antall" inputmode="numeric" pattern="[0-9]*" placeholder="1" oninput="_isoSectionLenInput(this)" onpointerdown="_isoLenMirrorDown(event, this)" onclick="_isoLenMirrorTap(this)"></div>' +
+                '<div class="mobile-field"><input type="text" class="isc-len-lm" inputmode="decimal" pattern="[0-9,.]*" placeholder="m" oninput="_isoSectionLenInput(this)" onpointerdown="_isoLenMirrorDown(event, this)" onclick="_isoLenMirrorTap(this)" onblur="_isoLenOvBlur(this)"></div>' +
+                '<div class="mobile-field"><input type="text" class="isc-len-antall" inputmode="numeric" pattern="[0-9]*" placeholder="1" oninput="_isoSectionLenInput(this)" onpointerdown="_isoLenMirrorDown(event, this)" onclick="_isoLenMirrorTap(this)" onblur="_isoLenOvBlur(this)"></div>' +
             '</div>' +
             '<button type="button" class="kappe-kapp-remove-btn" onpointerdown="event.preventDefault()" onclick="_isoRemoveBredde(this)" title="Fjern">' + deleteIcon + '</button>' +
         '</div>' +
         '<div class="iso-card-row-plates"></div>';
+    // Lastet rad-verdi: legges i feltet + merkes som overstyring; _isoSyncLenRows
+    // (kalles av _createIsoSection) gjør den om til speil hvis den er lik
+    // seksjonens / står i rad 1.
+    [['.isc-len-lm', d.lm], ['.isc-len-antall', d.antall]].forEach(function(pair) {
+        if (pair[1] == null || pair[1] === '') return;
+        var inp = row.querySelector(pair[0]);
+        inp.value = String(pair[1]);
+        inp.classList.add('iso-len-ov');
+    });
     return row;
 }
 
 function _isoFmtNum(v) { return String(Math.round(v * 100) / 100).replace('.', ','); }
 
 
-// Antall/LM-feltene (oninput, kun rad 1 er redigerbar): seksjonens felles
-// lengde = [{lm, antall}] (tom når begge er tomme). section._isoLengths er
-// datakilden for lagring/beregning — alltid maks ÉN linje.
+// Antall/LM-feltene (oninput). Rad 1 eier seksjonens felles lengde =
+// [{lm, antall}] (tom når begge er tomme) — section._isoLengths er datakilden
+// for lagring/beregning, alltid maks ÉN linje. En overstyring i rad 2+ gjelder
+// bare sin egen rad (leses via _isoRowLen).
 function _isoSectionLenInput(inp) {
     var section = inp.closest('.iso-section');
     var row = section ? section.querySelector('.iso-section-bredder .iso-bredde-row') : null;
     if (!row) return;
-    var lm = String((row.querySelector('.isc-len-lm') || {}).value || '').trim();
-    var an = String((row.querySelector('.isc-len-antall') || {}).value || '').trim();
-    section._isoLengths = (lm || an) ? [{ lm: lm, antall: an }] : [];
+    if (inp.closest('.iso-bredde-row') === row) {
+        var lm = String((row.querySelector('.isc-len-lm') || {}).value || '').trim();
+        var an = String((row.querySelector('.isc-len-antall') || {}).value || '').trim();
+        section._isoLengths = (lm || an) ? [{ lm: lm, antall: an }] : [];
+    }
     _isoAfterChange(inp);   // → _isoSyncLenRows oppdaterer speilene i rad 2+
 }
 window._isoSectionLenInput = _isoSectionLenInput;
 
-// Sett Antall/LM i alle bredde-rader fra seksjonens felles verdi: rad 1 =
-// redigerbar, rad 2+ = låst grått speil (readonly, ikke i tab-rekkefølgen).
-// Kalles ved bygging og fra _isoAfterChange (dekker legg til/fjern rad — slettes
-// rad 1, blir neste rad redigerbar). Skriver kun ved faktisk endring, så
-// markøren i feltet man skriver i ikke flyttes.
+var _ISO_LEN_FIELDS = [['.isc-len-lm', 'lm', 'm'], ['.isc-len-antall', 'antall', '1']];
+
+// Seksjonens felles lengde (rad 1) som {lm, antall}.
+function _isoSectionBaseLen(section) {
+    var L = (section && section._isoLengths && section._isoLengths[0]) || {};
+    return { lm: String(L.lm || '').trim(), antall: String(L.antall || '').trim() };
+}
+
+// EFFEKTIV LM/antall for én bredde-rad: radens overstyring hvis den har en
+// (ikke-tom og ulik seksjonens), ellers seksjonens felles verdi. Kanonisk —
+// et overstyrt felt med samme verdi som rad 1 / tomt teller som arv, så
+// trykk-og-forlat aldri gir falsk «ulagret».
+function _isoRowLen(section, row) {
+    var base = _isoSectionBaseLen(section);
+    var out = { lm: base.lm, antall: base.antall, ov: false };
+    _ISO_LEN_FIELDS.forEach(function(f) {
+        var inp = row.querySelector(f[0]);
+        if (!inp || !inp.classList.contains('iso-len-ov')) return;
+        var v = String(inp.value || '').trim();
+        if (v && v !== base[f[1]]) { out[f[1]] = v; out.ov = true; }
+    });
+    return out;
+}
+
+// Har seksjonen minst én rad med egen LM/antall? Styrer om lagringen tagger
+// rad-indeks (bare da trengs den — uten overstyring er formatet uendret).
+function _isoSectionHasOv(section) {
+    var rows = section.querySelectorAll('.iso-section-bredder .iso-bredde-row');
+    return Array.prototype.some.call(rows, function(r) { return _isoRowLen(section, r).ov; });
+}
+
+// Sett Antall/LM i alle bredde-rader: rad 1 = redigerbar (seksjonens verdi),
+// rad 2+ = grått speil (readonly, ikke i tab-rekkefølgen) ELLER eget hvitt felt
+// når raden er overstyrt (.iso-len-ov; placeholder = arvet verdi). Kalles ved
+// bygging og fra _isoAfterChange (dekker legg til/fjern rad). Skriver kun ved
+// faktisk endring, så markøren i feltet man skriver i ikke flyttes.
 function _isoSyncLenRows(section) {
     if (!section) return;
-    var L = (section._isoLengths && section._isoLengths[0]) || {};
-    var rows = section.querySelectorAll('.iso-section-bredder .iso-bredde-row');
-    Array.prototype.forEach.call(rows, function(row, i) {
-        [['.isc-len-lm', L.lm || ''], ['.isc-len-antall', L.antall || '']].forEach(function(pair) {
-            var inp = row.querySelector(pair[0]);
+    var rows = Array.prototype.slice.call(section.querySelectorAll('.iso-section-bredder .iso-bredde-row'));
+    if (!rows.length) return;
+    // Rad 1 med overstyring = forrige rad 1 ble slettet (eller lastet data). Bevar
+    // ALLE raders synlige verdier: ny felles verdi = denne radens effektive; rader
+    // som arvet den gamle verdien og nå ville endret seg, blir overstyrt med den.
+    if (rows[0].querySelector('.iso-len-ov')) {
+        var eff = rows.map(function(r) { return _isoRowLen(section, r); });
+        var nb = eff[0];
+        section._isoLengths = (nb.lm || nb.antall) ? [{ lm: nb.lm, antall: nb.antall }] : [];
+        rows.forEach(function(r, i) {
+            _ISO_LEN_FIELDS.forEach(function(f) {
+                var inp = r.querySelector(f[0]);
+                if (!inp) return;
+                var v = eff[i][f[1]];
+                inp.classList.toggle('iso-len-ov', i > 0 && v !== nb[f[1]]);
+                if (inp.value !== v) inp.value = v;
+            });
+        });
+    }
+    var base = _isoSectionBaseLen(section);
+    rows.forEach(function(row, i) {
+        _ISO_LEN_FIELDS.forEach(function(f) {
+            var inp = row.querySelector(f[0]);
             if (!inp) return;
-            if (inp.value !== pair[1]) inp.value = pair[1];
+            var bv = base[f[1]];
+            if (i > 0 && inp.classList.contains('iso-len-ov')) {
+                var v = String(inp.value || '').trim();
+                // Tom / lik rad 1 (og ikke under redigering) → tilbake til arv.
+                if ((!v || v === bv) && document.activeElement !== inp) {
+                    inp.classList.remove('iso-len-ov');
+                } else {
+                    inp.readOnly = false;
+                    inp.tabIndex = 0;
+                    inp.classList.remove('iso-len-mirror');
+                    inp.placeholder = bv || f[2];
+                    return;
+                }
+            }
+            if (inp.value !== bv) inp.value = bv;
             var mirror = i > 0;
             inp.readOnly = mirror;
             inp.tabIndex = mirror ? -1 : 0;
             inp.classList.toggle('iso-len-mirror', mirror);
+            inp.placeholder = f[2];
         });
     });
 }
 
-// Låst speil-felt (rad 2+): ikke la det få fokus (pointerdown preventDefault,
-// samme mønster som knappene — beholder ev. åpent tastatur), og send trykket
-// videre til tilsvarende felt i rad 1 der verdien redigeres.
+// Grått speil-felt (rad 2+): ikke la det få fokus på pointerdown (samme mønster
+// som knappene — beholder ev. åpent tastatur og fanger ikke scroll-start). Selve
+// trykket (click) gjør feltet om til en overstyring for denne raden.
 function _isoLenMirrorDown(e, inp) {
     if (inp.classList.contains('iso-len-mirror')) e.preventDefault();
 }
@@ -14045,11 +14139,31 @@ window._isoLenMirrorDown = _isoLenMirrorDown;
 function _isoLenMirrorTap(inp) {
     if (!inp.classList.contains('iso-len-mirror')) return;
     var section = inp.closest('.iso-section');
-    var first = section ? section.querySelector('.iso-section-bredder .iso-bredde-row') : null;
-    var target = first ? first.querySelector(inp.classList.contains('isc-len-lm') ? '.isc-len-lm' : '.isc-len-antall') : null;
-    if (target) { try { target.focus({ preventScroll: true }); } catch (err) { target.focus(); } }
+    inp.classList.remove('iso-len-mirror');
+    inp.classList.add('iso-len-ov');
+    inp.readOnly = false;
+    inp.tabIndex = 0;
+    var f = inp.classList.contains('isc-len-lm') ? _ISO_LEN_FIELDS[0] : _ISO_LEN_FIELDS[1];
+    inp.placeholder = _isoSectionBaseLen(section)[f[1]] || f[2];
+    // Fokus i click (bruker-gest) åpner tastaturet. Markøren settes til slutt
+    // (som ved vanlig trykk i rad 1) — ingen markering av verdien.
+    try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+    try { var n = inp.value.length; inp.setSelectionRange(n, n); } catch (err) {}
 }
 window._isoLenMirrorTap = _isoLenMirrorTap;
+
+// Forlater et overstyrt felt: tomt eller lik rad 1 → tilbake til arv (grått).
+function _isoLenOvBlur(inp) {
+    if (!inp.classList.contains('iso-len-ov') || !inp.isConnected) return;
+    var section = inp.closest('.iso-section');
+    if (!section) return;
+    var key = inp.classList.contains('isc-len-lm') ? 'lm' : 'antall';
+    var v = String(inp.value || '').trim();
+    if (v && v !== _isoSectionBaseLen(section)[key]) return;
+    inp.classList.remove('iso-len-ov');
+    _isoAfterChange(inp);
+}
+window._isoLenOvBlur = _isoLenOvBlur;
 
 // Én LM/antall pr. seksjon. Eldre data kunne ha FLERE lengde-linjer i én seksjon
 // (via den fjernede LM-popupen) → del opp i én seksjon pr. lengde med samme
@@ -14069,6 +14183,18 @@ function _isoSplitSectionsByLength(sections) {
         });
     });
     return out;
+}
+
+// Rader med hver sin lengde (rad-tagget lagring) → seksjon-data: rad 1 sin
+// lengde blir seksjonens felles; øvrige rader bærer egen lm/antall, som
+// _createIsoBreddeRow/_isoSyncLenRows gjør om til overstyring der den avviker.
+function _isoSectionFromRows(rows, plates) {
+    var r0 = rows[0] || {};
+    return {
+        breddes: rows,
+        lengths: (r0.lm || r0.antall) ? [{ lm: r0.lm || '', antall: r0.antall || '' }] : [],
+        plates: plates || []
+    };
 }
 
 // Generisk: scroll popup-scrolleren slik at en nettopp lagt-til rad blir synlig.
@@ -14100,9 +14226,10 @@ function _isoCardBlockOf(el) {
     return (el && el.closest) ? el.closest('.iso-card-block') : null;
 }
 
-// En SEKSJON (= ett stål-element) inni en gruppe: FELLES LM + Antall (ett sett,
+// En SEKSJON (= ett stål-element) inni en gruppe: FELLES LM + Antall (arves av radene,
 // section._isoLengths) + egne bredde-rader + ev. hele-plate-rader.
-// data = { breddes:[{bredde,sider,kappeOrient}], lengths:[{lm,antall}], plates:[antall] }.
+// data = { breddes:[{bredde,sider,kappeOrient,lm?,antall?}], lengths:[{lm,antall}], plates:[antall] }
+// (lm/antall pr. bredde = radens egen lengde fra rad-tagget lagring).
 function _createIsoSection(data) {
     data = data || {};
     var section = document.createElement('div');
@@ -15100,7 +15227,10 @@ function _isoCardBuildFromEntries(entries) {
             ? ('grp:' + rawId.split('-')[0])
             : ('prod:' + (e.name || '').toLowerCase() + '|' + (e.enhet || '').toLowerCase() +
                 '|' + (plate ? plate.length + 'x' + plate.width : ''));
-        var sectionKey = rawId || ('__s' + groupKey);
+        // Valgfri 3. del = rad-indeks (seksjon med overstyrte rader) — hører til
+        // seksjonen «gruppe-seksjon».
+        var idParts = rawId ? rawId.split('-') : [];
+        var sectionKey = rawId ? idParts.slice(0, 2).join('-') : ('__s' + groupKey);
         var g = gmap[groupKey];
         if (!g) {
             g = gmap[groupKey] = {
@@ -15114,7 +15244,7 @@ function _isoCardBuildFromEntries(entries) {
         if (!g.title && e.kappeIsoGroupName) g.title = e.kappeIsoGroupName;
         var sec = g.smap[sectionKey];
         if (!sec) {
-            sec = g.smap[sectionKey] = { breddes: [], bk: {}, lengths: [], lk: {}, plates: [] };
+            sec = g.smap[sectionKey] = { breddes: [], bk: {}, lengths: [], lk: {}, plates: [], rows: [] };
             g.sections.push(sec);
         }
         if (e.specMode === 'plate') {
@@ -15125,6 +15255,13 @@ function _isoCardBuildFromEntries(entries) {
         // + unike FELLES lengder (LM+Antall) for seksjonen.
         var bredde = e.bredde ? String(e.bredde).replace(/mm$/i, '') : '';
         var sider = e.sider != null ? String(e.sider) : '';
+        // Rad-tagget (seksjon med overstyringer): ett entry = én rad m/ egen lengde.
+        if (idParts.length > 2) {
+            sec.rows.push({ bredde: bredde, sider: sider, kappeOrient: e.kappeOrient || '',
+                lm: e.lmPerSide != null ? String(e.lmPerSide) : '',
+                antall: e.antallObjekter != null ? String(e.antallObjekter) : '' });
+            return;
+        }
         var bkey = bredde + '|' + sider;
         if (bredde && !sec.bk[bkey]) {
             sec.bk[bkey] = 1;
@@ -15142,6 +15279,7 @@ function _isoCardBuildFromEntries(entries) {
     if (blocksC) {
         groups.forEach(function(g) {
             var sections = _isoSplitSectionsByLength(g.sections.map(function(sec) {
+                if (sec.rows.length) return _isoSectionFromRows(sec.rows, sec.plates);
                 return {
                     breddes: sec.breddes.length ? sec.breddes : (sec.plates.length ? [] : [{}]),
                     lengths: sec.lengths,
@@ -15615,20 +15753,18 @@ function _updateIsoCardPlateLines() {
         var sel = block._sel || {};
         var plate = sel.plate || null;
         block.querySelectorAll('.iso-group-sections .iso-section').forEach(function(section) {
-            // Seksjonens FELLES lengde-linjer → liste av (lm × antall).
-            var lengths = [];
-            (section._isoLengths || []).forEach(function(l) {
-                var lNum = parseLocaleNum(l.lm);
-                var aNum = parseLocaleNum(l.antall);
-                if (!aNum || aNum <= 0 || isNaN(aNum)) aNum = 1;
-                if (lNum && lNum > 0 && !isNaN(lNum)) lengths.push(lNum * aNum);
-            });
-            // Plate-tall PER BREDDE-RAD = Σ over seksjonens lengde-linjer av
-            // (LM × Antall × Sider). Hver kombinasjon bredde×lengde er ett separat
-            // material-entry ved lagring, så summen her matcher eksportens per-rad.
+            // Plate-tall PER BREDDE-RAD = radens effektive (LM × Antall) × Sider —
+            // seksjonens felles lengde eller radens egen (_isoRowLen). Hver rad er
+            // ett material-entry ved lagring, så tallet matcher eksportens per-rad.
             section.querySelectorAll('.iso-section-bredder .iso-bredde-row').forEach(function(row) {
                 var out = row.querySelector('.iso-card-row-plates');
                 if (!out) return;
+                var lengths = [];
+                var rl = _isoRowLen(section, row);
+                var lNum = parseLocaleNum(rl.lm);
+                var aNum = parseLocaleNum(rl.antall);
+                if (!aNum || aNum <= 0 || isNaN(aNum)) aNum = 1;
+                if (lNum && lNum > 0 && !isNaN(lNum)) lengths.push(lNum * aNum);
                 var bVal = String((row.querySelector('.isc-bredde') || {}).value || '').trim();
                 var sNum = parseLocaleNum((row.querySelector('.isc-sider') || {}).value || '');
                 if (!sNum || sNum <= 0 || isNaN(sNum)) sNum = 1;
@@ -15861,24 +15997,28 @@ function confirmIsoCardPopup() {
         var titleEl = block.querySelector('.iso-group-name');
         var blockTitle = titleEl ? String(titleEl.value || '').trim() : '';
         // En blokk = én gruppe (produkt) med én eller flere SEKSJONER. Hver seksjon
-        // har FELLES LM/Antall-linjer (section._isoLengths) delt av sine bredder.
-        // Hver kombinasjon bredde×lengde blir ett entry, tagget med id «gruppe-seksjon»
-        // (f.eks. «0-1») så grupper og seksjoner gjenskapes ved gjenåpning.
+        // har FELLES LM/Antall (section._isoLengths) som radene arver, med ev.
+        // egen LM/antall pr. rad (_isoRowLen). Hver bredde-rad blir ett entry,
+        // tagget med id «gruppe-seksjon» (f.eks. «0-1») så grupper og seksjoner
+        // gjenskapes ved gjenåpning (+ «-rad» når seksjonen har overstyringer).
         var sectionEls = Array.prototype.slice.call(block.querySelectorAll('.iso-group-sections .iso-section'));
         for (var si = 0; si < sectionEls.length; si++) {
             var section = sectionEls[si];
             var groupId = bi + '-' + si;
-            var secLengths = (section._isoLengths || []).filter(function(l) {
-                return String(l.lm || '').trim() || String(l.antall || '').trim();
-            });
+            // Rader med egen LM/antall: tagg rad-indeks («gruppe-seksjon-rad») så
+            // de gjenskapes som overstyrte rader i SAMME seksjon. Uten overstyring
+            // er id-en uendret («gruppe-seksjon»).
+            var tagRows = _isoSectionHasOv(section);
             var bRows = Array.prototype.slice.call(section.querySelectorAll('.iso-section-bredder .iso-bredde-row'));
             for (var bri = 0; bri < bRows.length; bri++) {
                 var brEl = bRows[bri];
                 var bVal = String((brEl.querySelector('.isc-bredde') || {}).value || '').trim();
                 var sVal = String((brEl.querySelector('.isc-sider') || {}).value || '').trim();
                 if (!bVal) continue;  // tom rad
-                if (!secLengths.length) { showNotificationModal('Trykk LM/Antall og fyll inn minst én lengde for seksjonen.'); return; }
+                var rowLen = _isoRowLen(section, brEl);
+                if (!rowLen.lm && !rowLen.antall) { showNotificationModal('Fyll inn LM for seksjonen.'); return; }
                 var orient = brEl.dataset.iscOrient || '';
+                var secLengths = [rowLen];
                 for (var lx = 0; lx < secLengths.length; lx++) {
                     var L = secLengths[lx];
                     var lNum = parseLocaleNum(L.lm);
@@ -15894,7 +16034,7 @@ function confirmIsoCardPopup() {
                         bredde: bVal, lmPerSide: L.lm, antallObjekter: L.antall, sider: sVal,
                         computedTotalLm: ctl,
                         kappeOrient: orient,
-                        kappeIsoGroup: groupId,
+                        kappeIsoGroup: tagRows ? groupId + '-' + bri : groupId,
                         kappeIsoGroupName: blockTitle
                     });
                 }
@@ -17343,6 +17483,19 @@ function _kappeKappToSections(kappArr) {
         ? _kappeGroupKappToSteels(kappArr || [])
         : [{ rows: kappArr || [] }];
     return steels.map(function(steel) {
+        // Rad-taggede seksjoner (overstyrte rader): hver kapp-rad = én bredde-rad.
+        if ((steel.rows || []).some(function(k) { return k && k.row != null; })) {
+            return _isoSectionFromRows(steel.rows.map(function(k) {
+                return {
+                    bredde: k.bredde ? String(k.bredde).replace(/mm$/i, '') : '',
+                    sider: k.antallSider != null ? String(k.antallSider) : '',
+                    kappeOrient: k.kappeOrient || '',
+                    lm: (k.lopemeter != null && k.lopemeter !== '') ? String(k.lopemeter)
+                        : (k['løpemeter'] != null ? String(k['løpemeter']) : ''),
+                    antall: k.antall != null ? String(k.antall) : ''
+                };
+            }));
+        }
         var breddes = [], bk = {}, lengths = [], lk = {};
         (steel.rows || []).forEach(function(k) {
             var bredde = k.bredde ? String(k.bredde).replace(/mm$/i, '') : '';
@@ -17373,24 +17526,24 @@ function _getKappeLineKappData(card) {
     var sectionEls = Array.prototype.slice.call(card.querySelectorAll('.iso-group-sections .iso-section'));
     for (var si = 0; si < sectionEls.length; si++) {
         var section = sectionEls[si];
-        var lengths = (section._isoLengths || []).filter(function(l) {
-            return String(l.lm || '').trim() || String(l.antall || '').trim();
-        });
-        section.querySelectorAll('.iso-section-bredder .iso-bredde-row').forEach(function(brEl) {
+        // Rad-indeks (`row`) tagges kun når seksjonen har rader med egen LM/antall,
+        // så de gjenskapes som overstyrte rader i samme seksjon.
+        var tagRows = _isoSectionHasOv(section);
+        section.querySelectorAll('.iso-section-bredder .iso-bredde-row').forEach(function(brEl, ri) {
             var bredde = String((brEl.querySelector('.isc-bredde') || {}).value || '').trim();
             if (!bredde) return;
             var sider = String((brEl.querySelector('.isc-sider') || {}).value || '').trim();
-            var lns = lengths.length ? lengths : [{ lm: '', antall: '1' }];
-            lns.forEach(function(L) {
-                kapp.push({
-                    bredde: bredde,
-                    lopemeter: L.lm || '',
-                    antall: L.antall || '1',
-                    antallSider: sider,
-                    kappeOrient: brEl.dataset.iscOrient || '',
-                    steel: si
-                });
-            });
+            var L = _isoRowLen(section, brEl);
+            var k = {
+                bredde: bredde,
+                lopemeter: L.lm || '',
+                antall: L.antall || '1',
+                antallSider: sider,
+                kappeOrient: brEl.dataset.iscOrient || '',
+                steel: si
+            };
+            if (tagRows) k.row = ri;
+            kapp.push(k);
         });
     }
     return kapp;
