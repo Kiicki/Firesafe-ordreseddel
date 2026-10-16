@@ -276,8 +276,8 @@ function showSavedItemMenu(savedItem) {
         if (type === 'delete') return;   // slett legges sist
         opts.push({ icon: iconMap[type], label: t(labelMap[type]), onClick: function() { closeActionPopup(); b.click(); } });
     });
-    // «Merk som» — kun ordreseddel (status er ordreseddel-funksjon).
-    if (tab === 'own' && form) {
+    // «Merk som» — alle skjematyper (kappe/service: 2 statuser, se _statusOptionsForTab).
+    if (form) {
         opts.push({ icon: _menuMarkIcon, label: t('bulk_mark_btn'), onClick: function() { _showSingleStatusMenu(savedItem); } });
     }
     // «Eksporter» — alle faner. Åpner eksport-popup (last ned / del × PDF / PNG).
@@ -306,26 +306,35 @@ function showSavedItemMenu(savedItem) {
 }
 window.showSavedItemMenu = showSavedItemMenu;
 
-// «Merk som» for ÉN ordreseddel (samme statuser som fler-valg-menyen).
+// «Merk som» for ÉTT skjema (samme statuser som fler-valg-menyen for typen).
 function _showSingleStatusMenu(savedItem) {
     var form = savedItem && savedItem._formData;
     if (!form) return;
     _actionPopupBack(function() { showSavedItemMenu(savedItem); });   // tilbake → 3-prikker
     var titleEl = document.getElementById('action-popup-title');
     if (titleEl) titleEl.textContent = t('bulk_mark_btn');
-    function opt(target, color, key) {
-        return '<button class="bulk-status-option" data-target="' + target + '">' +
-            '<span class="bulk-status-option-dot" style="background:' + color + '"></span>' + t(key) + '</button>';
-    }
+    var tab = _savedItemTab(savedItem);
     document.getElementById('action-popup-buttons').innerHTML =
         '<div class="bulk-status-menu">' +
-            opt('lagret', _STATUS_COLORS.lagret, 'status_lagret') +
-            opt('sendt', _STATUS_COLORS.sendt, 'status_sendt') +
-            opt('ferdig', _STATUS_COLORS.ferdig, 'status_ferdig') +
+            _statusOptionsForTab(tab).map(function(target) {
+                return '<button class="bulk-status-option" data-target="' + target + '">' +
+                    '<span class="bulk-status-option-dot" style="background:' + _STATUS_COLORS[target] + '"></span>' + t(_STATUS_LABEL_KEYS[target]) + '</button>';
+            }).join('') +
         '</div>';
     var popup = document.getElementById('action-popup');
     popup.querySelectorAll('.bulk-status-option').forEach(function(b) {
-        b.addEventListener('click', function() { closeActionPopup(); _applySingleStatus(form, b.getAttribute('data-target')); });
+        b.addEventListener('click', function() {
+            closeActionPopup();
+            var target = b.getAttribute('data-target');
+            if (_isTwoStateTab(tab)) {
+                try { _applyTwoStateStatus(form, tab, target); } catch (e) { console.error('Single status (' + tab + '):', e); }
+                _lastLocalSaveTs = Date.now();
+                _showSavedFormsDirectly(tab);
+                showNotificationModal(t('bulk_marked', 1, t(_STATUS_LABEL_KEYS[target]).toLowerCase()), true);
+                return;
+            }
+            _applySingleStatus(form, target);
+        });
     });
     popup.classList.add('active');
 }
@@ -5423,11 +5432,12 @@ function updateSelectionUI() {
     var exportBtn = document.getElementById('bulk-export-btn');
     if (exportBtn) exportBtn.disabled = count === 0;
 
-    // «Merk som»-menyen gjelder KUN ordreseddel (3-tilstands-status). Skjul på
-    // service/kappe. Deaktiver når ingenting er valgt.
+    // «Merk som»-menyen gjelder ALLE skjematyper: ordreseddel får 3 statuser,
+    // kappe/servicebil sine 2 (Lagret/Sendt — se _statusOptionsForTab).
+    // Deaktiver når ingenting er valgt.
     var markBtn = document.getElementById('bulk-mark-btn');
     if (markBtn) {
-        markBtn.style.display = (_selectTab === 'own') ? '' : 'none';
+        markBtn.style.display = '';
         markBtn.disabled = count === 0;
     }
 
@@ -5485,18 +5495,15 @@ function _applyFormStatus(form, target, saved, archived, ops) {
 // «Merk som»-meny: tre status-valg med fargeprikk (i action-popup). Valget i
 // menyen ER handlingen → ingen ekstra bekreftelse (reversibelt + toast).
 function showBulkStatusMenu() {
-    if (!_selectMode || _selectTab !== 'own' || _selectedSet.size === 0) return;
+    if (!_selectMode || _selectedSet.size === 0) return;
     var titleEl = document.getElementById('action-popup-title');
     if (titleEl) titleEl.textContent = t('bulk_mark_btn');
-    function opt(target, color, key) {
-        return '<button class="bulk-status-option" onclick="closeActionPopup(); bulkSetStatus(\'' + target + '\')">' +
-            '<span class="bulk-status-option-dot" style="background:' + color + '"></span>' + t(key) + '</button>';
-    }
     document.getElementById('action-popup-buttons').innerHTML =
         '<div class="bulk-status-menu">' +
-            opt('lagret', _STATUS_COLORS.lagret, 'status_lagret') +
-            opt('sendt', _STATUS_COLORS.sendt, 'status_sendt') +
-            opt('ferdig', _STATUS_COLORS.ferdig, 'status_ferdig') +
+            _statusOptionsForTab(_selectTab).map(function(target) {
+                return '<button class="bulk-status-option" onclick="closeActionPopup(); bulkSetStatus(\'' + target + '\')">' +
+                    '<span class="bulk-status-option-dot" style="background:' + _STATUS_COLORS[target] + '"></span>' + t(_STATUS_LABEL_KEYS[target]) + '</button>';
+            }).join('') +
         '</div>';
     document.getElementById('action-popup').classList.add('active');
 }
@@ -5505,7 +5512,8 @@ window.showBulkStatusMenu = showBulkStatusMenu;
 // Sett valgt status på ALLE markerte ordresedler. Batch: oppdater localStorage
 // én gang, enqueue Firestore per form, så ÉN re-render.
 function bulkSetStatus(target) {
-    if (!_selectMode || _selectTab !== 'own') return;
+    if (!_selectMode) return;
+    if (_isTwoStateTab(_selectTab)) { _bulkSetTwoStateStatus(target); return; }
     var forms = [];
     _selectedSet.forEach(function(i) { var f = window.loadedForms[i]; if (f) forms.push(f); });
     if (!forms.length) return;
@@ -5527,6 +5535,65 @@ function bulkSetStatus(target) {
     showNotificationModal(t('bulk_marked', n, label.toLowerCase()), true);
 }
 window.bulkSetStatus = bulkSetStatus;
+
+// ── «Merk som» for kappeskjema + servicebil (2 tilstander) ──────────────────
+// Typen avgjør statusene: ordreseddel har 3 (Lagret·Sendt·Lukket); kappe og
+// servicebil har bare 2 (Lagret·Sendt) — «sendt» = ligger i arkiv-samlingen,
+// ingen status-felt (se _statusDotClass). Samme meny-oppsett for alle.
+var _STATUS_LABEL_KEYS = { lagret: 'status_lagret', sendt: 'status_sendt', ferdig: 'status_ferdig' };
+function _isTwoStateTab(tab) { return tab === 'kappe' || tab === 'service' || tab === 'servicebil'; }
+function _statusOptionsForTab(tab) {
+    return _isTwoStateTab(tab) ? ['lagret', 'sendt'] : ['lagret', 'sendt', 'ferdig'];
+}
+
+// Flytt ÉTT kappe-/service-skjema mellom utkast- og arkiv-samlingen (lokalt +
+// Firestore). Sendt gjenbruker de eksisterende mark-sent-hjelperne (samme vei
+// som deling bruker); tilbake til utkast er den speilvendte flyttingen.
+// Returnerer true hvis noe ble endret (allerede i mål-tilstand → no-op).
+function _applyTwoStateStatus(form, tab, target, ops) {
+    var isService = (tab === 'service' || tab === 'servicebil');
+    if (target === 'sendt') {
+        if (form._isSent) return false;
+        if (isService) _markServiceFormDataAsSent(form, ops);
+        else _markKappeFormDataAsSent(form, ops);
+        form._isSent = true;
+        return true;
+    }
+    if (!form._isSent) return false;                         // allerede utkast
+    var localKey = isService ? SERVICE_STORAGE_KEY : KAPPE_STORAGE_KEY;
+    var archKey = isService ? SERVICE_ARCHIVE_KEY : KAPPE_ARCHIVE_KEY;
+    var coll = isService ? 'serviceforms' : 'kappeforms';
+    var archColl = isService ? 'serviceArchive' : 'kappeArchive';
+    var data = JSON.parse(JSON.stringify(form));
+    delete data._isSent;
+    delete data.status;                                       // fremmed felt fra import/duplisering
+    if (!data.id) data.id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+    var archived = safeParseJSON(archKey, []);
+    var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
+    if (aIdx !== -1) { archived.splice(aIdx, 1); safeSetItem(archKey, JSON.stringify(archived)); }
+    var saved = safeParseJSON(localKey, []);
+    var sIdx = saved.findIndex(function(f) { return f.id === data.id; });
+    if (sIdx !== -1) saved[sIdx] = data; else saved.unshift(data);
+    safeSetItem(localKey, JSON.stringify(saved));
+    if (ops) ops.push({ target: coll, source: archColl, id: data.id, data: data });
+    else enqueueUserDocMove(coll, archColl, data.id, data, 'Status → lagret (' + tab + ')');
+    form._isSent = false;
+    return true;
+}
+
+function _bulkSetTwoStateStatus(target) {
+    var tab = _selectTab;
+    var forms = _getSelectedForms();
+    if (!forms.length) return;
+    var ops = [];
+    forms.forEach(function(f) { try { _applyTwoStateStatus(f, tab, target, ops); } catch (e) { console.error('Bulk status (' + tab + '):', e); } });
+    enqueueUserDocMoveBatch(ops, 'Bulk → ' + target + ' (' + tab + ')');
+    _lastLocalSaveTs = Date.now();
+    var n = forms.length;
+    toggleSelectMode();                                       // ut av fler-valg
+    _showSavedFormsDirectly(tab);
+    showNotificationModal(t('bulk_marked', n, t(_STATUS_LABEL_KEYS[target]).toLowerCase()), true);
+}
 
 function toggleSelectAllVisible() {
     if (!_selectMode) return;
