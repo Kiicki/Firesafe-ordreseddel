@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=966">
+    <link rel="stylesheet" href="styles.css?v=970">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -380,11 +380,15 @@
                     <span id="saved-modal-title" data-i18n="modal_load_title">Hent skjema</span>
                     <button class="header-select-btn" id="saved-select-btn" onclick="toggleSelectMode()" data-i18n="btn_select">Velg</button>
                 </div>
-                <div class="modal-tabs">
-                    <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
-                    <button class="modal-tab" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
-                    <button class="modal-tab" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappeskjema</button>
-                    <button class="modal-tab" onclick="switchHentTab('kvittering')" data-i18n="tab_kvittering">Kvittering</button>
+                <div class="modal-tabs-wrap" id="saved-tabs-wrap">
+                    <div class="modal-tabs">
+                        <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
+                        <button class="modal-tab" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
+                        <button class="modal-tab" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappeskjema</button>
+                        <button class="modal-tab" onclick="switchHentTab('kvittering')" data-i18n="tab_kvittering">Kvittering</button>
+                    </div>
+                    <button type="button" class="modal-tabs-more modal-tabs-more--left" tabindex="-1" aria-label="Flere til venstre" onclick="_scrollSavedTabs(-1)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                    <button type="button" class="modal-tabs-more modal-tabs-more--right" tabindex="-1" aria-label="Flere til høyre" onclick="_scrollSavedTabs(1)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
                     <div class="search-input-wrap">
@@ -2202,7 +2206,7 @@
 
     <script src="lang.js?v=304"></script>
     <script src="script.js?v=538"></script>
-    <script src="script-ui.js?v=1157"></script>
+    <script src="script-ui.js?v=1159"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

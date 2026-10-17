@@ -1068,32 +1068,78 @@ body:has(:is(
 
 
 .modal-tabs {
+    /* Skjematype-velger som «chips» på én lav rad (fulle navn). Får de ikke
+       plass (smal telefon) kan raden dras sidelengs; aktiv chip rulles inn i
+       synsfeltet av switchHentTab. */
     display: flex;
-    border-bottom: 2px solid #eee;
+    gap: 8px;
+    padding: 10px 15px 2px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
 }
+.modal-tabs::-webkit-scrollbar { display: none; }
+
+/* «Det finnes flere»-hint: når chip-raden er bredere enn skjermen toner den ut
+   mot kanten der det skjuler seg flere chips, med en pil man kan trykke på.
+   Klassene more-left/more-right settes av _updateSavedTabsHint (JS). */
+.modal-tabs-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+.modal-tabs-more {
+    display: none;
+    position: absolute;
+    top: 8px;
+    bottom: 0;
+    width: 44px;
+    border: none;
+    padding: 0;
+    color: #E8501A;
+    cursor: pointer;
+    align-items: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.modal-tabs-more--right {
+    right: 0;
+    justify-content: flex-end;
+    padding-right: 6px;
+    background: linear-gradient(to right, rgba(255,255,255,0), #fff 60%);
+}
+.modal-tabs-more--left {
+    left: 0;
+    justify-content: flex-start;
+    padding-left: 6px;
+    background: linear-gradient(to left, rgba(255,255,255,0), #fff 60%);
+}
+.modal-tabs-wrap.more-right .modal-tabs-more--right,
+.modal-tabs-wrap.more-left .modal-tabs-more--left { display: flex; }
 
 .modal-tab {
-    flex: 1;
-    padding: 12px;
-    border: none;
-    background: transparent;
+    flex: 0 0 auto;
+    padding: 7px 14px;
+    border: 1px solid #dcdce0;
+    border-radius: 999px;
+    background: #fff;
     font-size: 14px;
-    font-weight: 500;
-    color: #888;
+    font-weight: 600;
+    color: #555;
+    white-space: nowrap;
     cursor: pointer;
-    transition: all 0.15s;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .modal-tab.active {
-    color: #333;
-    border-bottom-color: #333;
+    background: #E8501A;
+    border-color: #E8501A;
+    color: #fff;
 }
 
 .modal-tab:hover:not(.active) {
-    color: #555;
-    background: #f8f8f8;
+    border-color: #c4c4cc;
+    color: #333;
 }
 
 .modal-body {
@@ -9498,16 +9544,6 @@ body.kvittering-view-open #view-form { display: none; }
 .kv-editor .kv-seg-btn { color: #bbb; }
 .kv-editor .kv-seg-btn.active { background: #48484a; color: #fff; box-shadow: none; }
 .kv-strength-label { font-size: 13px; color: #bbb; flex-shrink: 0; width: 52px; }
-
-/* Lagret-fanene: fire faner må få plass på smal telefon. */
-.modal-tabs .modal-tab {
-    padding-left: 4px;
-    padding-right: 4px;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
 
 /* Kappe-linjekort (bruker mobile-order-card-mønster) */
 .kappe-line-header .kappe-line-title {

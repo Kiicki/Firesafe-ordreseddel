@@ -975,12 +975,53 @@ function switchHentTab(tab) {
         if (kvSearch) kvSearch.style.display = '';
         loadKvitteringTab();
     }
+    // Chip-raden kan være bredere enn skjermen → rull aktiv chip helt inn
+    // (bare horisontalt i raden; siden selv skal ikke flytte seg).
+    var activeTab = document.querySelector('#saved-modal .modal-tab.active');
+    var tabRow = activeTab && activeTab.parentElement;
+    if (tabRow && tabRow.scrollWidth > tabRow.clientWidth) {
+        var pad = 15;
+        var left = activeTab.offsetLeft - tabRow.offsetLeft;
+        if (left - pad < tabRow.scrollLeft) tabRow.scrollLeft = left - pad;
+        else if (left + activeTab.offsetWidth + pad > tabRow.scrollLeft + tabRow.clientWidth) {
+            tabRow.scrollLeft = left + activeTab.offsetWidth + pad - tabRow.clientWidth;
+        }
+    }
+    _updateSavedTabsHint();
     // Tab-switch endrer modal-body display via inline-style. MutationObserveren
     // i tastatur-handleren overvåker class, ikke style — så vi må eksplisitt
     // trigge applyKeyboardLayout for å re-evaluere hvilken modal-body toolbar
     // skal være i. Uten dette ville toolbar bli stuck i forrige aktive modal-body.
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
+
+// Chip-raden i Skjemaer: vis tone + pil mot den kanten der flere chips skjuler
+// seg (ellers er det umulig å vite at det finnes en fjerde type). Ingenting
+// vises når alt får plass (PC/bred skjerm).
+function _updateSavedTabsHint() {
+    var wrap = document.getElementById('saved-tabs-wrap');
+    var row = wrap && wrap.querySelector('.modal-tabs');
+    if (!row) return;
+    var max = row.scrollWidth - row.clientWidth;
+    wrap.classList.toggle('more-left', max > 2 && row.scrollLeft > 2);
+    wrap.classList.toggle('more-right', max > 2 && row.scrollLeft < max - 2);
+}
+function _scrollSavedTabs(dir) {
+    var row = document.querySelector('#saved-tabs-wrap .modal-tabs');
+    if (!row) return;
+    var step = Math.max(80, row.clientWidth * 0.6);
+    try { row.scrollBy({ left: dir * step, behavior: 'smooth' }); }
+    catch (e) { row.scrollLeft += dir * step; }
+}
+window._scrollSavedTabs = _scrollSavedTabs;
+(function() {
+    var row = document.querySelector('#saved-tabs-wrap .modal-tabs');
+    if (!row) return;
+    row.addEventListener('scroll', _updateSavedTabsHint, { passive: true });
+    window.addEventListener('resize', _updateSavedTabsHint);
+    // Første visning (prescript kan ha vist Skjemaer før switchHentTab kjører).
+    requestAnimationFrame(_updateSavedTabsHint);
+})();
 
 // Tilbake-pil i action-popup-header. onBack=funksjon → vis + koble; null → skjul.
 function _actionPopupBack(onBack) {
