@@ -126,7 +126,7 @@ function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     _bilHistoryRendered = false;
-    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'calculator-modal-open', 'timebok-view-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'kvittering-view-open', 'calculator-modal-open', 'timebok-view-open');
     // Servicebil-inntak/uttak-modus + picker-overlay må også lukkes —
     // ellers blir picker-overlay synlig over hjem/lagrede når brukeren
     // navigerer vekk fra Servicebil Inntak via toolbar (Hjem etc.).
@@ -140,6 +140,7 @@ function closeAllModals() {
     sessionStorage.removeItem('firesafe_defaults_tab');
     sessionStorage.removeItem('firesafe_service_current');
     sessionStorage.removeItem('firesafe_kappe_current');
+    sessionStorage.removeItem('firesafe_kvittering_current');
     sessionStorage.removeItem('firesafe_servicebil_mode');
     showView('view-form');
 }
@@ -150,6 +151,7 @@ function isModalOpen() {
         || document.body.classList.contains('settings-modal-open')
         || document.body.classList.contains('service-view-open')
         || document.body.classList.contains('kappe-view-open')
+        || document.body.classList.contains('kvittering-view-open')
         || document.body.classList.contains('calculator-modal-open')
         || document.body.classList.contains('timebok-view-open');
 }
@@ -194,7 +196,7 @@ function _statusDotClass(item, tab) {
     if (!item || !item._isSent) return 's-draft';
     // Typen vinner over feltet: et kappe-dokument som via duplisering eller
     // import har fått et fremmed status-felt skal aldri rendres som lukket.
-    if (tab === 'service' || tab === 'servicebil' || tab === 'kappe') return 's-sent';
+    if (tab === 'service' || tab === 'servicebil' || tab === 'kappe' || tab === 'kvittering') return 's-sent';
     if (item.status === 'sendt') return 's-sent';
     return 's-done';
 }
@@ -255,6 +257,7 @@ var _menuMarkIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="curre
 function _savedItemTab(savedItem) {
     if (savedItem.closest && savedItem.closest('#service-list')) return 'service';
     if (savedItem.closest && savedItem.closest('#kappe-list')) return 'kappe';
+    if (savedItem.closest && savedItem.closest('#kvittering-list')) return 'kvittering';
     return 'own';
 }
 
@@ -354,11 +357,12 @@ function _applySingleStatus(form, target) {
 
 // ── Eksport av ÉN lagret skjema (fra 3-prikker-menyen) ──────────────────────
 // Samme valg som eksport-popupen ellers: Last ned / Del × PDF / PNG.
-function _tabFormType(tab) { return tab === 'service' ? 'service' : tab === 'kappe' ? 'kappe' : 'ordreseddel'; }
+function _tabFormType(tab) { return tab === 'service' ? 'service' : tab === 'kappe' ? 'kappe' : tab === 'kvittering' ? 'kvittering' : 'ordreseddel'; }
 
 // Bygg PDF-doc for et lagret skjema (uavhengig av fane). Service/kappe laster
 // data midlertidig inn i DOM (build leser DOM) og gjenoppretter etterpå.
 async function _buildPdfForTab(form, tab) {
+    if (tab === 'kvittering') return await buildKvitteringPdfDoc(form);
     if (tab === 'service') {
         var prevS = null; try { prevS = getServiceFormData(); } catch (e) {}
         setServiceFormData(form);
@@ -465,14 +469,16 @@ function _showSingleExportMenu(savedItem) {
               escapeHtml(t('export_mark_ferdig_label')) +
           '</label>'
         : '';
+    // Kvittering er selv et bilde i en PDF → bare PDF (PNG gir ingen mening).
+    var pdfOnly = _singleExportCtx.tab === 'kvittering';
     document.getElementById('action-popup-buttons').innerHTML = ferdigCheckboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, false)">' + dl + ' PDF</button>' +
-            '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, true)">' + dl + ' PNG</button>' +
+            (pdfOnly ? '' : '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, true)">' + dl + ' PNG</button>') +
         '</div>' +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
-        '<div class="confirm-modal-buttons">' + shareBtn(false) + shareBtn(true) + '</div>' +
+        '<div class="confirm-modal-buttons">' + shareBtn(false) + (pdfOnly ? '' : shareBtn(true)) + '</div>' +
         textSectionHtml;
     popup.classList.add('active');
 }
@@ -655,8 +661,12 @@ function _showSavedFormsDirectly(tab) {
     if (savedSearch) savedSearch.value = '';
     var serviceSearch = document.getElementById('service-search');
     if (serviceSearch) serviceSearch.value = '';
+    var kvSearchEl = document.getElementById('kvittering-search');
+    if (kvSearchEl) kvSearchEl.value = '';
+    _kvFormsAll = null;
     updateSearchClearBtn('saved-search');
     updateSearchClearBtn('service-search');
+    updateSearchClearBtn('kvittering-search');
 
     // Show cached data immediately
     const cachedSaved = safeParseJSON(STORAGE_KEY, []);
@@ -921,6 +931,8 @@ function switchHentTab(tab) {
     const ownSearch = document.getElementById('own-search-wrap');
     const serviceSearch = document.getElementById('service-search-wrap');
     const kappeSearch = document.getElementById('kappe-search-wrap');
+    const kvList = document.getElementById('kvittering-list');
+    const kvSearch = document.getElementById('kvittering-search-wrap');
 
     savedList.style.display = 'none';
     if (serviceList) serviceList.style.display = 'none';
@@ -929,6 +941,8 @@ function switchHentTab(tab) {
     ownSearch.style.display = 'none';
     if (serviceSearch) serviceSearch.style.display = 'none';
     if (kappeSearch) kappeSearch.style.display = 'none';
+    if (kvList) kvList.style.display = 'none';
+    if (kvSearch) kvSearch.style.display = 'none';
 
     if (tab === 'own') {
         tabs[0].classList.add('active');
@@ -955,6 +969,11 @@ function switchHentTab(tab) {
         if (kappeList) { kappeList.style.display = ''; kappeList.scrollTop = 0; }
         if (kappeSearch) kappeSearch.style.display = '';
         loadKappeTab();
+    } else if (tab === 'kvittering') {
+        if (tabs[3]) tabs[3].classList.add('active');
+        if (kvList) { kvList.style.display = ''; kvList.scrollTop = 0; }
+        if (kvSearch) kvSearch.style.display = '';
+        loadKvitteringTab();
     }
     // Tab-switch endrer modal-body display via inline-style. MutationObserveren
     // i tastatur-handleren overvåker class, ikke style — så vi må eksplisitt
@@ -1126,6 +1145,21 @@ function navigateBack() {
         var target = (prev === 'saved-modal')
             ? function() { closeKappeView(); _showSavedFormsDirectly(kappeBackTab); }
             : function() { closeKappeView(); showTemplateModal(); };
+        if (isOnFormPage() && hasUnsavedChanges()) {
+            showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
+        } else {
+            target();
+        }
+        return;
+    }
+    // From kvittering view: tilbake dit vi kom fra (Lagret-fanen, Verktøy eller hjem).
+    if (currentId === 'kvittering-view') {
+        var kvBackTab = sessionStorage.getItem('firesafe_hent_tab') || 'kvittering';
+        var target = (prev === 'saved-modal')
+            ? function() { closeKvitteringView(); _showSavedFormsDirectly(kvBackTab); }
+            : (prev === 'calculator-modal')
+                ? function() { closeKvitteringView(); _showCalculatorDirectly(); }
+                : function() { closeKvitteringView(); showTemplateModal(); };
         if (isOnFormPage() && hasUnsavedChanges()) {
             showConfirmModal(t('unsaved_warning'), target, t('btn_continue'), '#E8501A');
         } else {
@@ -1568,6 +1602,8 @@ function filterList(listId, searchId) {
                        (f.prosjektnr || '').toLowerCase().startsWith(term);
             });
             _renderTemplatePickerList(filteredPicker, pickerListEl);
+        } else if (listId === 'kvittering-list') {
+            _kvFilterList(term);
         } else if (listId === 'service-list') {
             if (!_serviceFormsAll) _serviceFormsAll = window.loadedServiceForms ? window.loadedServiceForms.slice() : [];
             if (!term) { var all4 = _serviceFormsAll; _serviceFormsAll = null; renderServiceFormsList(all4); return; }
@@ -1801,7 +1837,8 @@ function _promoteListFormToSent(form, tab, markFerdig) {
         return true;
     }
     if (form._isSent) return false;            // allerede sendt/lukket → aldri nedgrader
-    if (tab === 'service') _markServiceFormDataAsSent(form);
+    if (tab === 'kvittering') _applyTwoStateStatus(form, tab, 'sendt');
+    else if (tab === 'service') _markServiceFormDataAsSent(form);
     else if (tab === 'kappe') _markKappeFormDataAsSent(form);
     else _markOwnFormDataAsSent(form);
     form._isSent = true;                       // lista holder samme objekt
@@ -4217,7 +4254,9 @@ function _projectSnapshotStores() {
         { key: SERVICE_STORAGE_KEY, col: 'serviceforms',   fields: _PROJECT_IDENTITY_FIELDS, inEntries: true },
         { key: SERVICE_ARCHIVE_KEY, col: 'serviceArchive', fields: _PROJECT_IDENTITY_FIELDS, inEntries: true },
         { key: KAPPE_STORAGE_KEY,   col: 'kappeforms',     fields: _PROJECT_IDENTITY_FIELDS },
-        { key: KAPPE_ARCHIVE_KEY,   col: 'kappeArchive',   fields: _PROJECT_IDENTITY_FIELDS }
+        { key: KAPPE_ARCHIVE_KEY,   col: 'kappeArchive',   fields: _PROJECT_IDENTITY_FIELDS },
+        { key: KVITTERING_STORAGE_KEY, col: 'kvitteringer',      fields: _PROJECT_IDENTITY_FIELDS },
+        { key: KVITTERING_ARCHIVE_KEY, col: 'kvitteringArchive', fields: _PROJECT_IDENTITY_FIELDS }
     ];
 }
 
@@ -4309,6 +4348,7 @@ function _correctProjectInLocalStores(rules) {
     (window.loadedForms || []).forEach(function(f) { _correctProjectInForm(f, rules, _PROJECT_SNAPSHOT_FIELDS); });
     (window.loadedServiceForms || []).forEach(function(f) { _correctProjectInForm(f, rules, _PROJECT_IDENTITY_FIELDS); });
     (window.loadedKappeForms || []).forEach(function(f) { _correctProjectInForm(f, rules, _PROJECT_IDENTITY_FIELDS); });
+    (window.loadedKvitteringForms || []).forEach(function(f) { _correctProjectInForm(f, rules, _PROJECT_IDENTITY_FIELDS); });
 }
 
 // ── Timebok ──
@@ -4409,7 +4449,17 @@ function _correctProjectInOpenForms(rules) {
     });
     if (serviceChanged && typeof renumberServiceEntries === 'function') renumberServiceEntries();
 
-    if (!ordChanged && !kappeChanged && !serviceChanged) return;
+    // Kvittering
+    var KV_IDS = { prosjektnr: 'kvittering-prosjektnr', prosjektnavn: 'kvittering-prosjektnavn' };
+    var kv = {};
+    for (k in KV_IDS) { el = document.getElementById(KV_IDS[k]); kv[k] = el ? el.value : ''; }
+    var kvChanged = _applyProjectRules(kv, rules, _PROJECT_IDENTITY_FIELDS);
+    if (kvChanged) {
+        for (k in KV_IDS) { el = document.getElementById(KV_IDS[k]); if (el) el.value = kv[k]; }
+        if (typeof _kvSessionPersist === 'function') _kvSessionPersist();
+    }
+
+    if (!ordChanged && !kappeChanged && !serviceChanged && !kvChanged) return;
 
     // Sesjons-gjenopprettingen holder sin egen kopi av skjemaet.
     try {
@@ -4436,6 +4486,9 @@ function _correctProjectInOpenForms(rules) {
         if (kappeChanged && _kappeLastSavedData !== null && typeof getKappeFormDataSnapshot === 'function') {
             _kappeLastSavedData = getKappeFormDataSnapshot();
             sessionStorage.setItem('firesafe_kappe_current', _kappeLastSavedData);
+        }
+        if (kvChanged && _kvLastSavedData !== null && typeof getKvitteringFormDataSnapshot === 'function') {
+            _kvLastSavedData = getKvitteringFormDataSnapshot();
         }
     } catch (e) {}
 }
@@ -5254,6 +5307,9 @@ function hasUnsavedChanges() {
     if (document.getElementById('kappe-view').classList.contains('active')) {
         return hasUnsavedKappeChanges();
     }
+    if (document.getElementById('kvittering-view').classList.contains('active')) {
+        return hasUnsavedKvitteringChanges();
+    }
     const currentData = getFormDataSnapshot();
     return lastSavedData !== null
         ? currentData !== lastSavedData
@@ -5268,7 +5324,8 @@ function isOnFormPage() {
     }
     return document.getElementById('view-form').classList.contains('active')
         || document.getElementById('service-view').classList.contains('active')
-        || document.getElementById('kappe-view').classList.contains('active');
+        || document.getElementById('kappe-view').classList.contains('active')
+        || document.getElementById('kvittering-view').classList.contains('active');
 }
 
 function hasAnyFormData() {
@@ -5384,6 +5441,7 @@ function toggleSelectMode() {
         document.querySelectorAll(
             '#saved-list .saved-item.selected, ' +
             '#kappe-list .saved-item.selected, ' +
+            '#kvittering-list .saved-item.selected, ' +
             '#bil-history-list .bil-card-uttak.selected'
         ).forEach(function(el) { el.classList.remove('selected'); });
     }
@@ -5415,6 +5473,9 @@ function _getSelectableItems() {
     }
     if (_selectTab === 'kappe') {
         return document.querySelectorAll('#kappe-list .saved-item[data-index]');
+    }
+    if (_selectTab === 'kvittering') {
+        return document.querySelectorAll('#kvittering-list .saved-item[data-index]');
     }
     return document.querySelectorAll('#saved-list .saved-item[data-index]');
 }
@@ -5541,43 +5602,45 @@ window.bulkSetStatus = bulkSetStatus;
 // servicebil har bare 2 (Lagret·Sendt) — «sendt» = ligger i arkiv-samlingen,
 // ingen status-felt (se _statusDotClass). Samme meny-oppsett for alle.
 var _STATUS_LABEL_KEYS = { lagret: 'status_lagret', sendt: 'status_sendt', ferdig: 'status_ferdig' };
-function _isTwoStateTab(tab) { return tab === 'kappe' || tab === 'service' || tab === 'servicebil'; }
+function _isTwoStateTab(tab) { return tab === 'kappe' || tab === 'service' || tab === 'servicebil' || tab === 'kvittering'; }
 function _statusOptionsForTab(tab) {
     return _isTwoStateTab(tab) ? ['lagret', 'sendt'] : ['lagret', 'sendt', 'ferdig'];
 }
 
-// Flytt ÉTT kappe-/service-skjema mellom utkast- og arkiv-samlingen (lokalt +
-// Firestore). Sendt gjenbruker de eksisterende mark-sent-hjelperne (samme vei
-// som deling bruker); tilbake til utkast er den speilvendte flyttingen.
-// Returnerer true hvis noe ble endret (allerede i mål-tilstand → no-op).
+// Lagring pr. 2-tilstands-type: localStorage-nøkler + Firestore-samlinger.
+function _twoStateStore(tab) {
+    if (tab === 'service' || tab === 'servicebil') return { local: SERVICE_STORAGE_KEY, arch: SERVICE_ARCHIVE_KEY, coll: 'serviceforms', archColl: 'serviceArchive' };
+    if (tab === 'kvittering') return { local: KVITTERING_STORAGE_KEY, arch: KVITTERING_ARCHIVE_KEY, coll: 'kvitteringer', archColl: 'kvitteringArchive' };
+    return { local: KAPPE_STORAGE_KEY, arch: KAPPE_ARCHIVE_KEY, coll: 'kappeforms', archColl: 'kappeArchive' };
+}
+
+// Flytt ÉTT kappe-/service-/kvitterings-skjema mellom utkast- og arkiv-
+// samlingen (lokalt + Firestore). Speilvendt i begge retninger. Kappe/service
+// til sendt gjenbruker de eksisterende mark-sent-hjelperne (samme vei som
+// deling bruker). Returnerer true hvis noe ble endret (allerede i mål → no-op).
 function _applyTwoStateStatus(form, tab, target, ops) {
-    var isService = (tab === 'service' || tab === 'servicebil');
-    if (target === 'sendt') {
-        if (form._isSent) return false;
-        if (isService) _markServiceFormDataAsSent(form, ops);
-        else _markKappeFormDataAsSent(form, ops);
-        form._isSent = true;
-        return true;
-    }
-    if (!form._isSent) return false;                         // allerede utkast
-    var localKey = isService ? SERVICE_STORAGE_KEY : KAPPE_STORAGE_KEY;
-    var archKey = isService ? SERVICE_ARCHIVE_KEY : KAPPE_ARCHIVE_KEY;
-    var coll = isService ? 'serviceforms' : 'kappeforms';
-    var archColl = isService ? 'serviceArchive' : 'kappeArchive';
+    var toSent = (target === 'sendt');
+    if (toSent === !!form._isSent) return false;
+    if (toSent && (tab === 'service' || tab === 'servicebil')) { _markServiceFormDataAsSent(form, ops); form._isSent = true; return true; }
+    if (toSent && tab === 'kappe') { _markKappeFormDataAsSent(form, ops); form._isSent = true; return true; }
+    var st = _twoStateStore(tab);
+    var fromKey = toSent ? st.local : st.arch, toKey = toSent ? st.arch : st.local;
+    var fromColl = toSent ? st.coll : st.archColl, toColl = toSent ? st.archColl : st.coll;
     var data = JSON.parse(JSON.stringify(form));
     delete data._isSent;
     delete data.status;                                       // fremmed felt fra import/duplisering
     if (!data.id) data.id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
-    var archived = safeParseJSON(archKey, []);
-    var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
-    if (aIdx !== -1) { archived.splice(aIdx, 1); safeSetItem(archKey, JSON.stringify(archived)); }
-    var saved = safeParseJSON(localKey, []);
-    var sIdx = saved.findIndex(function(f) { return f.id === data.id; });
-    if (sIdx !== -1) saved[sIdx] = data; else saved.unshift(data);
-    safeSetItem(localKey, JSON.stringify(saved));
-    if (ops) ops.push({ target: coll, source: archColl, id: data.id, data: data });
-    else enqueueUserDocMove(coll, archColl, data.id, data, 'Status → lagret (' + tab + ')');
-    form._isSent = false;
+    if (toSent) data.savedAt = new Date().toISOString();
+    var from = safeParseJSON(fromKey, []);
+    var fIdx = from.findIndex(function(f) { return f.id === data.id; });
+    if (fIdx !== -1) { from.splice(fIdx, 1); safeSetItem(fromKey, JSON.stringify(from)); }
+    var to = safeParseJSON(toKey, []);
+    var tIdx = to.findIndex(function(f) { return f.id === data.id; });
+    if (tIdx !== -1) to[tIdx] = data; else to.unshift(data);
+    safeSetItem(toKey, JSON.stringify(to));
+    if (ops) ops.push({ target: toColl, source: fromColl, id: data.id, data: data });
+    else enqueueUserDocMove(toColl, fromColl, data.id, data, 'Status → ' + target + ' (' + tab + ')');
+    form._isSent = toSent;
     return true;
 }
 
@@ -5645,13 +5708,14 @@ function _getSelectedForms() {
     var src;
     if (_selectTab === 'service') src = window.loadedServiceForms || [];
     else if (_selectTab === 'kappe') src = window.loadedKappeForms || [];
+    else if (_selectTab === 'kvittering') src = window.loadedKvitteringForms || [];
     else src = window.loadedForms || [];
     var out = [];
     for (var i = 0; i < src.length; i++) {
         if (_selectedSet.has(i)) out.push(src[i]);
     }
     // Sorter etter ordreseddelNr (kun relevant for ordreseddel) for konsistent rekkefølge i PDF
-    if (_selectTab !== 'service' && _selectTab !== 'kappe') {
+    if (!_isTwoStateTab(_selectTab)) {
         out.sort(function(a, b) {
             var na = parseInt(a.ordreseddelNr, 10) || 0;
             var nb = parseInt(b.ordreseddelNr, 10) || 0;
@@ -6778,7 +6842,8 @@ function _ukeYearForKappeForm(data) {
 }
 
 function _ukeYearForFormByType(data, type) {
-    return type === 'kappe' ? _ukeYearForKappeForm(data) : _ukeYearForForm(data);
+    // Kvittering har samme Dato-format (DD.MM.ÅÅÅÅ) som kappe.
+    return (type === 'kappe' || type === 'kvittering') ? _ukeYearForKappeForm(data) : _ukeYearForForm(data);
 }
 
 // Bulk-samlet uke-rekkevidde for kappe (samme min/max-mønster som ordreseddel).
@@ -6806,11 +6871,12 @@ function _sharedUkeYearOrRangeKappe() {
 function _typePrefix(type) {
     return type === 'service' ? 'lageruttak'
          : type === 'kappe'   ? 'kappeskjema'
+         : type === 'kvittering' ? 'kvittering'
          :                       'ordreseddel';
 }
 
 function _bulkFilename(ext, type) {
-    var range = (type === 'kappe') ? _sharedUkeYearOrRangeKappe() : _sharedUkeYearOrRange();
+    var range = (type === 'kappe' || type === 'kvittering') ? _sharedUkeYearOrRangeKappe() : _sharedUkeYearOrRange();
     return _typePrefix(type) + '_samlet_' + range + '.' + (ext || 'pdf');
 }
 
@@ -6905,11 +6971,11 @@ function _buildShareMeta(labelPlural, ids, subject) {
 }
 
 function _shareLabelPlural(type) {
-    return type === 'service' ? 'Lageruttak' : type === 'kappe' ? 'Kappeskjema' : 'Ordresedler';
+    return type === 'service' ? 'Lageruttak' : type === 'kappe' ? 'Kappeskjema' : type === 'kvittering' ? 'Kvitteringer' : 'Ordresedler';
 }
 
 function _shareLabelSingular(type) {
-    return type === 'service' ? 'Lageruttak' : type === 'kappe' ? 'Kappeskjema' : 'Ordreseddel';
+    return type === 'service' ? 'Lageruttak' : type === 'kappe' ? 'Kappeskjema' : type === 'kvittering' ? 'Kvittering' : 'Ordreseddel';
 }
 
 // Søkbar delings-metadata for samlet/bulk deling. Filnavnet forblir «samlet» (rent),
@@ -6922,7 +6988,7 @@ function _bulkShareText(type) {
         v = (v == null ? '' : String(v)).trim();
         if (v && ids.indexOf(v) === -1) ids.push(v);
     };
-    if (type === 'service' || type === 'kappe') {
+    if (type === 'service' || type === 'kappe' || type === 'kvittering') {
         for (var i = 0; i < forms.length; i++) push(_formProsjektId(forms[i], type));
     } else {
         for (var j = 0; j < forms.length; j++) push(forms[j] && forms[j].ordreseddelNr);
@@ -6936,7 +7002,7 @@ function _bulkShareText(type) {
     var ukeLabels = forms.map(function (f) { return _shareUkeLabel(f, type); });
     var allSame = ukeLabels[0] && ukeLabels.every(function (u) { return u === ukeLabels[0]; });
     var uke = allSame ? ukeLabels[0] : _formatUkeForSubject(
-        type === 'kappe' ? _sharedUkeYearOrRangeKappe() : _sharedUkeYearOrRange()
+        (type === 'kappe' || type === 'kvittering') ? _sharedUkeYearOrRangeKappe() : _sharedUkeYearOrRange()
     );
     var subject = _buildShareSubject(label, _shareProsjektNames(forms, type), uke);
     return _buildShareMeta(label, ids, subject);
@@ -6948,7 +7014,7 @@ function _bulkShareText(type) {
 function _singleShareText(data, type) {
     var id;
     var label = _shareLabelSingular(type);
-    if (type === 'service' || type === 'kappe') {
+    if (type === 'service' || type === 'kappe' || type === 'kvittering') {
         id = _formProsjektId(data, type);
     } else {
         id = (data && data.ordreseddelNr != null) ? data.ordreseddelNr : '';
@@ -6993,6 +7059,17 @@ function _filenameForForm(data, fallbackIdx, type, ext) {
         name = _formProsjektId(data, type);
         if (!name) name = 'skjema_' + (fallbackIdx + 1);
     }
+    if (type === 'kvittering') {
+        // Flere kvitteringer pr. prosjekt og uke → prosjektnavn + butikk + dato
+        // (DD-MM-YYYY), menneskelig gjenkjennelig og uten kollisjon.
+        var kvParts = [];
+        var kvProj = (data && (data.prosjektnavn || data.prosjektnr)) || '';
+        if (kvProj) kvParts.push(_sanitizeFilenamePart(kvProj));
+        if (data && data.butikk) kvParts.push(_sanitizeFilenamePart(data.butikk));
+        var dm = String((data && data.dato) || '').match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/);
+        kvParts.push(dm ? (dm[1].padStart(2, '0') + '-' + dm[2].padStart(2, '0') + '-' + dm[3]) : ('skjema_' + (fallbackIdx + 1)));
+        return prefix + '_' + kvParts.filter(Boolean).join('_') + '.' + ext;
+    }
     var uke = _ukeYearForFormByType(data, type);
     return prefix + '_' + _sanitizeFilenamePart(name) + '_' + uke + '.' + ext;
 }
@@ -7034,6 +7111,16 @@ async function _bulkBuildServicePDFsSeparate() {
         }
     } finally {
         if (prev) { try { setServiceFormData(prev); } catch (e) {} }
+    }
+    return files;
+}
+
+async function _bulkBuildKvitteringPDFsSeparate() {
+    var forms = _getSelectedForms();
+    var files = [];
+    for (var i = 0; i < forms.length; i++) {
+        var pdf = await buildKvitteringPdfDoc(forms[i]);
+        files.push(new File([pdf.output('blob')], _pdfFilenameForForm(forms[i], i, 'kvittering'), { type: 'application/pdf' }));
     }
     return files;
 }
@@ -7206,7 +7293,7 @@ function _bulkMarkSelectedAsSent(tab, markFerdig) {
     // enkeltskjema (_promoteListFormToSent): kun ordreseddel har 3-tilstands
     // status, både utkast OG sendt kan lukkes, og et allerede lukket skjema
     // røres ikke. _applyFormStatus håndterer forms→archive-flyttingen selv.
-    if (markFerdig && tab !== 'service' && tab !== 'kappe') {
+    if (markFerdig && !_isTwoStateTab(tab)) {
         var saved = safeParseJSON(STORAGE_KEY, []);
         var archived = safeParseJSON(ARCHIVE_KEY, []);
         var changed = false;
@@ -7231,11 +7318,12 @@ function _bulkMarkSelectedAsSent(tab, markFerdig) {
         if (forms[i]._isSent) continue; // already sent
         if (tab === 'service') _markServiceFormDataAsSent(forms[i], ops);
         else if (tab === 'kappe') _markKappeFormDataAsSent(forms[i], ops);
+        else if (tab === 'kvittering') _applyTwoStateStatus(forms[i], tab, 'sendt', ops);
         else _markOwnFormDataAsSent(forms[i], ops);
         // Hold list-objektet i synk (samme som _promoteListFormToSent gjør), så
         // en re-kjøring/re-render ikke tror skjemaet fortsatt er utkast.
         forms[i]._isSent = true;
-        if (tab !== 'service' && tab !== 'kappe') forms[i].status = 'sendt';
+        if (!_isTwoStateTab(tab)) forms[i].status = 'sendt';
     }
     enqueueUserDocMoveBatch(ops, 'Bulk mark-sent (' + (tab || 'own') + ')');
     _lastLocalSaveTs = Date.now();
@@ -7255,7 +7343,7 @@ function showBulkExportMenu() {
     // «Merk som ferdig» — samme avkrysning som i enkeltskjema-eksporten
     // (_showSingleExportMenu), bare for hele utvalget. Kun ordreseddel har
     // 3-tilstands status, og bare når minst ETT valgt skjema kan lukkes.
-    var showFerdig = _selectTab !== 'service' && _selectTab !== 'kappe' &&
+    var showFerdig = !_isTwoStateTab(_selectTab) &&
         _getSelectedForms().some(function(f) { return !_isFormClosed(f); });
     var mf = showFerdig ? "document.getElementById('bulk-export-mark-ferdig')?.checked" : 'false';
     var ferdigCheckboxHtml = showFerdig
@@ -7293,6 +7381,8 @@ function showBulkExportMenu() {
             shareBtnPDF + shareBtnPNG +
         '</div>';
     buttonsEl.innerHTML = html;
+    // Kvittering er bilder i PDF → ingen PNG-eksport.
+    if (_selectTab === 'kvittering') buttonsEl.querySelectorAll('.bulk-png-btn').forEach(function(b) { b.remove(); });
     popup.classList.add('active');
     _updateBulkPngState();
 }
@@ -7340,7 +7430,7 @@ async function doBulkExportPDF() {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : (_selectTab === 'kappe' ? await _bulkBuildKappePDF() : await _bulkBuildOwnPDF());
+        var pdf = _selectTab === 'kvittering' ? await buildKvitteringPdfDocMulti(_getSelectedForms()) : _selectTab === 'service' ? await _bulkBuildServicePDF() : (_selectTab === 'kappe' ? await _bulkBuildKappePDF() : await _bulkBuildOwnPDF());
         if (pdf) pdf.save(_bulkFilename('pdf', _selectTab));
         await _bulkFinishAfterExport(false);   // last ned ≠ sendt
     } catch (e) {
@@ -7389,7 +7479,7 @@ async function doBulkSharePDF(markFerdig) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var pdf = _selectTab === 'service' ? await _bulkBuildServicePDF() : (_selectTab === 'kappe' ? await _bulkBuildKappePDF() : await _bulkBuildOwnPDF());
+        var pdf = _selectTab === 'kvittering' ? await buildKvitteringPdfDocMulti(_getSelectedForms()) : _selectTab === 'service' ? await _bulkBuildServicePDF() : (_selectTab === 'kappe' ? await _bulkBuildKappePDF() : await _bulkBuildOwnPDF());
         if (!pdf) return;
         var blob = pdf.output('blob');
         var file = new File([blob], _bulkFilename('pdf', _selectTab), { type: 'application/pdf' });
@@ -7442,7 +7532,7 @@ async function doBulkExportPDFSeparate() {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : (_selectTab === 'kappe' ? await _bulkBuildKappePDFsSeparate() : await _bulkBuildOwnPDFsSeparate());
+        var files = _selectTab === 'kvittering' ? await _bulkBuildKvitteringPDFsSeparate() : _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : (_selectTab === 'kappe' ? await _bulkBuildKappePDFsSeparate() : await _bulkBuildOwnPDFsSeparate());
         for (var i = 0; i < files.length; i++) {
             var url = URL.createObjectURL(files[i]);
             var a = document.createElement('a');
@@ -7473,7 +7563,7 @@ async function doBulkSharePDFSeparate(markFerdig) {
     var loading = document.getElementById('loading');
     loading.classList.add('active');
     try {
-        var files = _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : (_selectTab === 'kappe' ? await _bulkBuildKappePDFsSeparate() : await _bulkBuildOwnPDFsSeparate());
+        var files = _selectTab === 'kvittering' ? await _bulkBuildKvitteringPDFsSeparate() : _selectTab === 'service' ? await _bulkBuildServicePDFsSeparate() : (_selectTab === 'kappe' ? await _bulkBuildKappePDFsSeparate() : await _bulkBuildOwnPDFsSeparate());
         if (!files.length) return;
         if (!navigator.canShare({ files: files })) {
             showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -10313,6 +10403,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (stiftEl && stiftEl.children.length === 0) {
             renderKappeStiftRows();
         }
+    } else if (hash === 'kvittering') {
+        showView('kvittering-view');
+        document.body.classList.add('kvittering-view-open');
+        document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open', 'kappe-view-open');
+        _kvRestoreFromSession();
     } else if (hash === 'service') {
         // Show service view
         showView('service-view');
@@ -10410,6 +10505,14 @@ function _applyHashNavigation(hash) {
             document.body.classList.add('kappe-view-open');
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open');
         }
+    } else if (hash === 'kvittering') {
+        if (!document.body.classList.contains('kvittering-view-open')) {
+            showView('kvittering-view');
+            document.body.classList.add('kvittering-view-open');
+            document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open', 'kappe-view-open');
+            if (!sessionStorage.getItem('firesafe_kvittering_current')) openNewKvitteringForm();
+            else _kvRestoreFromSession();
+        }
     } else if (hash === 'calc') {
         if (!document.body.classList.contains('calculator-modal-open')) {
             _showCalculatorDirectly();
@@ -10437,6 +10540,7 @@ function _viewIdForHash(hash) {
     if (hash === 'skjema') return 'view-form';
     if (hash === 'service') return 'service-view';
     if (hash === 'kappe') return 'kappe-view';
+    if (hash === 'kvittering') return 'kvittering-view';
     if (hash === 'calc') return 'calculator-modal';
     if (hash === 'timebok') return 'timebok-view';
     return 'template-modal';
@@ -10465,6 +10569,7 @@ function _dismissOverlaysOnNavigation() {
     if (actionPopup) actionPopup.classList.remove('active');
     var kappePicker = document.getElementById('kappe-product-picker-overlay');
     if (kappePicker) kappePicker.classList.remove('active');
+    if (typeof _kvEd !== 'undefined' && _kvEd && typeof closeKvEditor === 'function') closeKvEditor(false);
 }
 
 window.addEventListener('hashchange', function() {
@@ -10489,10 +10594,13 @@ window.addEventListener('hashchange', function() {
     // Detect if this hashchange leaves a form view with unsaved data
     var leavingFormView = (currentId === 'view-form' && hash !== 'skjema')
         || (currentId === 'service-view' && hash !== 'service')
-        || (currentId === 'kappe-view' && hash !== 'kappe');
+        || (currentId === 'kappe-view' && hash !== 'kappe')
+        || (currentId === 'kvittering-view' && hash !== 'kvittering');
 
     if (leavingFormView && hasUnsavedChanges()) {
-        var previousHash = currentId === 'view-form' ? 'skjema' : (currentId === 'kappe-view' ? 'kappe' : 'service');
+        var previousHash = currentId === 'view-form' ? 'skjema'
+            : currentId === 'kappe-view' ? 'kappe'
+            : currentId === 'kvittering-view' ? 'kvittering' : 'service';
         var newHash = hash;
         // Rollback URL silently (replaceState does NOT fire hashchange)
         history.replaceState(null, '', '#' + previousHash);
@@ -10509,6 +10617,7 @@ window.addEventListener('hashchange', function() {
                 _dismissOverlaysOnNavigation();
                 if (currentId === 'service-view' && typeof closeServiceView === 'function') closeServiceView();
                 if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
+                if (currentId === 'kvittering-view' && typeof closeKvitteringView === 'function') closeKvitteringView();
                 _applyHashNavigation('');
             }
         }, t('btn_continue'), '#E8501A');
@@ -10522,6 +10631,7 @@ window.addEventListener('hashchange', function() {
         if (leavingFormView) {
             if (currentId === 'service-view' && typeof closeServiceView === 'function') closeServiceView();
             if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
+            if (currentId === 'kvittering-view' && typeof closeKvitteringView === 'function') closeKvitteringView();
         }
     }
     _applyHashNavigation(hash);
@@ -12782,6 +12892,7 @@ function closeTemplatePicker() {
         overlay.classList.remove('active');
     }, 150);
     _kappeTemplateActive = false;
+    _kvTemplateActive = false;
 }
 
 function _renderTemplatePickerList(templates, listEl) {
@@ -12833,6 +12944,7 @@ var _serviceTemplateTargetCard = null;
 var _kappeTemplateActive = false;
 
 function openKappeTemplatePicker() {
+    _kvTemplateActive = false;
     _kappeTemplateActive = true;
     _serviceTemplateTargetCard = null;
     openTemplatePicker();
@@ -12840,6 +12952,7 @@ function openKappeTemplatePicker() {
 
 function openServiceTemplatePicker(btn) {
     _kappeTemplateActive = false;
+    _kvTemplateActive = false;
     // Find the first expanded entry card, or the first one
     var cards = document.querySelectorAll('#service-entries .service-entry-card');
     _serviceTemplateTargetCard = null;
@@ -12859,7 +12972,13 @@ function openServiceTemplatePicker(btn) {
 function _applyTemplateToForm(template) {
     if (!template) return;
 
-    if (_kappeTemplateActive) {
+    if (_kvTemplateActive) {
+        // Kvittering — kun prosjekt-identitet (samme som kappe).
+        if (template.prosjektnr) document.getElementById('kvittering-prosjektnr').value = template.prosjektnr;
+        if (template.prosjektnavn) document.getElementById('kvittering-prosjektnavn').value = template.prosjektnavn;
+        _kvSessionPersist();
+        _kvTemplateActive = false;
+    } else if (_kappeTemplateActive) {
         // Apply to kappe form — kun prosjekt-info (leveringsadresse fylles manuelt)
         if (template.prosjektnr) document.getElementById('kappe-prosjektnr').value = template.prosjektnr;
         if (template.prosjektnavn) document.getElementById('kappe-prosjektnavn').value = template.prosjektnavn;
@@ -20405,3 +20524,1294 @@ function _initCollapseAllToggles() {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initCollapseAllToggles);
 else _initCollapseAllToggles();
+
+// ============================================================================
+// KVITTERING
+// Bilde av kvittering (kamera/fil/PDF) + prosjekt + noen felt → PDF/deling.
+// Samme skjema-mønster som kappeskjema (utkast/sendt, Lagret-fane, «Merk som»).
+// Bilde-justering er REN pikselaritmetikk (rotasjon, beskjæring, gråtoner,
+// skann-filter) — deterministisk, ingen AI, så tall/tekst kan aldri endres.
+//
+// Lagring: metadata (lett) i kvitteringer/kvitteringArchive + localStorage;
+// hvert bilde som komprimert JPEG i et EGET dokument i kvitteringBilder (holder
+// lista rask og hvert dokument langt under Firestores 1 MB-grense) + lokal
+// IndexedDB-cache (localStorage er for lite for bilder).
+// ============================================================================
+
+var _kvCurrentId = null;
+var _kvLastSavedData = null;
+var _kvImages = [];            // [{ id }] i visningsrekkefølge (det åpne skjemaet)
+var _kvSavedImageIds = [];     // imageIds i LAGRET versjon → fjernede slettes ved lagring
+var _kvSessionNewIds = [];     // bilder laget i denne økten som ikke er lagret ennå
+var _kvBetaling = 'firmakort';
+var _kvTemplateActive = false;
+var _KV_IMG_COLLECTION = 'kvitteringBilder';
+var _KV_MAX_EDGE_WORK = 2000;  // arbeids-oppløsning i editoren
+var _KV_MAX_EDGE_OUT = 1800;   // lagret bilde, lengste side
+var _KV_MAX_DATAURL = 700000;  // ~520 KB binært — god margin under 1 MB-grensen
+
+// ── Bilde-lager: minne → IndexedDB → Firestore ──────────────────────────────
+var _kvImgMem = {};
+var _kvDbPromise = null;
+function _kvDb() {
+    if (_kvDbPromise) return _kvDbPromise;
+    _kvDbPromise = new Promise(function(resolve, reject) {
+        if (!window.indexedDB) { reject(new Error('IndexedDB mangler')); return; }
+        var req = indexedDB.open('firesafe-kvittering', 1);
+        req.onupgradeneeded = function() {
+            if (!req.result.objectStoreNames.contains('images')) req.result.createObjectStore('images', { keyPath: 'id' });
+        };
+        req.onsuccess = function() { resolve(req.result); };
+        req.onerror = function() { reject(req.error); };
+    });
+    _kvDbPromise.catch(function() { _kvDbPromise = null; });
+    return _kvDbPromise;
+}
+function _kvIdb(mode, fn) {
+    return _kvDb().then(function(dbh) {
+        return new Promise(function(resolve, reject) {
+            var tx = dbh.transaction('images', mode);
+            var r = fn(tx.objectStore('images'));
+            tx.oncomplete = function() { resolve(r ? r.result : undefined); };
+            tx.onerror = function() { reject(tx.error); };
+            tx.onabort = function() { reject(tx.error); };
+        });
+    });
+}
+function _kvImgPutLocal(rec) {
+    _kvImgMem[rec.id] = rec;
+    return _kvIdb('readwrite', function(st) { return st.put(rec); }).catch(function(e) { console.error('Kvittering IDB put:', e); });
+}
+function _kvImgDelLocal(id) {
+    delete _kvImgMem[id];
+    return _kvIdb('readwrite', function(st) { return st.delete(id); }).catch(function() {});
+}
+function _kvImgClearAll() {
+    _kvImgMem = {};
+    return _kvIdb('readwrite', function(st) { return st.clear(); }).catch(function() {});
+}
+window._kvImgClearAll = _kvImgClearAll;
+
+// Hent ett bilde: minne → IndexedDB → Firestore (lagres så lokalt). null hvis borte.
+async function _kvGetImage(id) {
+    if (!id) return null;
+    if (_kvImgMem[id]) return _kvImgMem[id];
+    var rec = null;
+    try { rec = await _kvIdb('readonly', function(st) { return st.get(id); }); } catch (e) {}
+    if (rec) { _kvImgMem[id] = rec; return rec; }
+    if (currentUser && db) {
+        try {
+            var snap = await db.collection('users').doc(currentUser.uid).collection(_KV_IMG_COLLECTION).doc(id).get();
+            if (snap.exists) {
+                rec = Object.assign({ id: id }, snap.data());
+                await _kvImgPutLocal(rec);
+                return rec;
+            }
+        } catch (e) { console.error('Kvittering bilde-henting:', e); }
+    }
+    return null;
+}
+
+function _kvNewImageId() { return 'kv' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// Canvas → komprimert JPEG-post. Kvaliteten trappes ned (og til slutt
+// oppløsningen) til data-URL-en er under grensen.
+function _kvCanvasToRecord(canvas) {
+    var c = _kvScaleCanvas(canvas, _KV_MAX_EDGE_OUT);
+    var q = 0.82, url = c.toDataURL('image/jpeg', q);
+    while (url.length > _KV_MAX_DATAURL && q > 0.45) { q -= 0.08; url = c.toDataURL('image/jpeg', q); }
+    while (url.length > _KV_MAX_DATAURL && Math.max(c.width, c.height) > 800) {
+        c = _kvScaleCanvas(c, Math.round(Math.max(c.width, c.height) * 0.8));
+        url = c.toDataURL('image/jpeg', q);
+    }
+    return { id: _kvNewImageId(), data: url, w: c.width, h: c.height, createdAt: new Date().toISOString() };
+}
+
+function _kvScaleCanvas(src, maxEdge) {
+    var w = src.width, h = src.height;
+    var s = Math.min(1, maxEdge / Math.max(w, h));
+    if (s >= 1) return src;
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
+    var ctx = c.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    return c;
+}
+
+function _kvSaveSessionIds() {
+    try { sessionStorage.setItem('firesafe_kvittering_newimgs', JSON.stringify(_kvSessionNewIds)); } catch (e) {}
+}
+// Forkast bilder fra en økt som ble avbrutt uten lagring (ellers blir de
+// liggende i IndexedDB). Lagrede bilder røres aldri her.
+function _kvDiscardSessionImages() {
+    _kvSessionNewIds.forEach(function(id) { _kvImgDelLocal(id); });
+    _kvSessionNewIds = [];
+    _kvSaveSessionIds();
+}
+
+// ── Skjema-data ─────────────────────────────────────────────────────────────
+function _kvTodayNO() { return _kappeFormatDateNO(_kappeTodayISO()); }
+function _kvVal(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
+
+function getKvitteringFormData() {
+    return {
+        type: 'kvittering',
+        prosjektnr: _kvVal('kvittering-prosjektnr'),
+        prosjektnavn: _kvVal('kvittering-prosjektnavn'),
+        dato: _kvVal('kvittering-dato'),
+        butikk: _kvVal('kvittering-butikk'),
+        belop: _kvVal('kvittering-belop'),
+        betaling: _kvBetaling,
+        beskrivelse: _kvVal('kvittering-beskrivelse'),
+        imageIds: _kvImages.map(function(im) { return im.id; }),
+        savedAt: new Date().toISOString()
+    };
+}
+function getKvitteringFormDataSnapshot() {
+    return _kvSnapshotOf(getKvitteringFormData());
+}
+function setKvitteringFormData(data) {
+    data = syncOneFormWithProjects(data || {}, 'identity');
+    document.getElementById('kvittering-prosjektnr').value = data.prosjektnr || '';
+    document.getElementById('kvittering-prosjektnavn').value = data.prosjektnavn || '';
+    document.getElementById('kvittering-dato').value = data.dato || _kvTodayNO();
+    document.getElementById('kvittering-butikk').value = data.butikk || '';
+    document.getElementById('kvittering-belop').value = data.belop || '';
+    document.getElementById('kvittering-beskrivelse').value = data.beskrivelse || '';
+    setKvitteringBetaling(data.betaling === 'privat' ? 'privat' : 'firmakort', true);
+    _kvImages = (data.imageIds || []).map(function(id) { return { id: id }; });
+    _kvRenderThumbs();
+    var ta = document.getElementById('kvittering-beskrivelse');
+    if (ta && typeof autoResizeTextarea === 'function') autoResizeTextarea(ta);
+}
+
+function hasUnsavedKvitteringChanges() {
+    var current = getKvitteringFormDataSnapshot();
+    if (_kvLastSavedData === null) {
+        var d = JSON.parse(current);
+        return !!(d.prosjektnr || d.prosjektnavn || d.butikk || d.belop || d.beskrivelse || d.imageIds.length);
+    }
+    return current !== _kvLastSavedData;
+}
+
+function setKvitteringBetaling(val, silent) {
+    _kvBetaling = (val === 'privat') ? 'privat' : 'firmakort';
+    document.querySelectorAll('#kvittering-betaling .kv-seg-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-val') === _kvBetaling);
+    });
+    if (!silent) _kvSessionPersist();
+}
+window.setKvitteringBetaling = setKvitteringBetaling;
+
+// Sesjons-kopi (overlever reload, som kappe).
+function _kvSessionPersist() {
+    try { sessionStorage.setItem('firesafe_kvittering_current', JSON.stringify(Object.assign(getKvitteringFormData(), { id: _kvCurrentId }))); } catch (e) {}
+}
+
+function _kvSetSentUi(isSent) {
+    document.getElementById('kvittering-sent-banner').style.display = isSent ? 'block' : 'none';
+    document.getElementById('btn-kvittering-sent').style.display = isSent ? 'none' : '';
+    sessionStorage.setItem('firesafe_kvittering_sent', isSent ? '1' : '');
+}
+
+function _kvShowView() {
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'calculator-modal-open');
+    showView('kvittering-view');
+    document.body.classList.add('kvittering-view-open');
+    window.location.hash = 'kvittering';
+    requestAnimationFrame(function() {
+        var v = document.getElementById('kvittering-view');
+        if (v) v.scrollTop = 0;
+        window.scrollTo(0, 0);
+    });
+}
+
+function openNewKvitteringForm() {
+    _kvDiscardSessionImages();
+    _kvCurrentId = null;
+    _kvSavedImageIds = [];
+    setKvitteringFormData({ dato: _kvTodayNO() });
+    _kvSetSentUi(false);
+    document.getElementById('kvittering-save-btn').disabled = false;
+    _kvLastSavedData = getKvitteringFormDataSnapshot();
+    _kvSessionPersist();
+    _kvShowView();
+}
+window.openNewKvitteringForm = openNewKvitteringForm;
+
+function closeKvitteringView() {
+    document.body.classList.remove('kvittering-view-open');
+    _kvDiscardSessionImages();
+    _kvCurrentId = null;
+    sessionStorage.removeItem('firesafe_kvittering_current');
+    sessionStorage.removeItem('firesafe_kvittering_sent');
+}
+
+// Snapshot-streng for en lagret post — SAMME felt og rekkefølge som
+// getKvitteringFormDataSnapshot, så en uendret gjenopprettet økt er «ren».
+function _kvSnapshotOf(d) {
+    d = d || {};
+    return JSON.stringify({
+        type: 'kvittering',
+        prosjektnr: d.prosjektnr || '', prosjektnavn: d.prosjektnavn || '',
+        dato: d.dato || '', butikk: d.butikk || '', belop: d.belop || '',
+        betaling: d.betaling === 'privat' ? 'privat' : 'firmakort',
+        beskrivelse: d.beskrivelse || '',
+        imageIds: (d.imageIds || []).slice()
+    });
+}
+
+// Gjenopprett etter reload (hash #kvittering).
+function _kvRestoreFromSession() {
+    try { _kvSessionNewIds = JSON.parse(sessionStorage.getItem('firesafe_kvittering_newimgs') || '[]') || []; } catch (e) { _kvSessionNewIds = []; }
+    var raw = sessionStorage.getItem('firesafe_kvittering_current');
+    var data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch (e) {}
+    if (!data) { openNewKvitteringForm(); return; }
+    _kvCurrentId = data.id || null;
+    var stored = _kvCurrentId ? safeParseJSON(KVITTERING_STORAGE_KEY, []).concat(safeParseJSON(KVITTERING_ARCHIVE_KEY, []))
+        .find(function(f) { return f.id === _kvCurrentId; }) : null;
+    _kvSavedImageIds = stored ? (stored.imageIds || []).slice() : [];
+    setKvitteringFormData(data);   // inkl. ev. ulagrede endringer fra økten
+    _kvLastSavedData = stored ? _kvSnapshotOf(stored) : null;
+    _kvSetSentUi(sessionStorage.getItem('firesafe_kvittering_sent') === '1');
+}
+
+// Lagre metadata + nye bilder til lokal cache og Firestore, og slett bilder som
+// er fjernet siden forrige lagring. toArchive=true → «sendt».
+async function _kvCommit(toArchive) {
+    var data = getKvitteringFormData();
+    var saved = safeParseJSON(KVITTERING_STORAGE_KEY, []);
+    var archived = safeParseJSON(KVITTERING_ARCHIVE_KEY, []);
+    var prev = _kvCurrentId ? saved.concat(archived).find(function(f) { return f.id === _kvCurrentId; }) : null;
+    data.createdAt = (prev && prev.createdAt) || new Date().toISOString();
+    data.id = _kvCurrentId || _newFormId();
+    var wasInArchive = archived.some(function(f) { return f.id === data.id; });
+    var wasInSaved = saved.some(function(f) { return f.id === data.id; });
+    saved = saved.filter(function(f) { return f.id !== data.id; });
+    archived = archived.filter(function(f) { return f.id !== data.id; });
+    if (toArchive) archived.unshift(data); else saved.unshift(data);
+    if (saved.length > 50) saved.length = 50;
+    if (archived.length > 50) archived.length = 50;
+    safeSetItem(KVITTERING_STORAGE_KEY, JSON.stringify(saved));
+    safeSetItem(KVITTERING_ARCHIVE_KEY, JSON.stringify(archived));
+
+    // Bilder: nye opp (før metadata — køen er sekvensiell), fjernede ned.
+    for (var i = 0; i < data.imageIds.length; i++) {
+        var id = data.imageIds[i];
+        if (_kvSessionNewIds.indexOf(id) === -1) continue;
+        var rec = await _kvGetImage(id);
+        if (!rec) continue;
+        rec.kvitteringId = data.id;
+        _kvImgPutLocal(rec);
+        enqueueUserDocSet(_KV_IMG_COLLECTION, id, { kvitteringId: data.id, data: rec.data, w: rec.w, h: rec.h, createdAt: rec.createdAt }, 'Kvittering bilde');
+    }
+    _kvSavedImageIds.forEach(function(id) {
+        if (data.imageIds.indexOf(id) !== -1) return;
+        enqueueUserDocDelete(_KV_IMG_COLLECTION, id, 'Kvittering bilde slett');
+        _kvImgDelLocal(id);
+    });
+    _kvSessionNewIds = [];
+    _kvSaveSessionIds();
+    _kvSavedImageIds = data.imageIds.slice();
+
+    var target = toArchive ? 'kvitteringArchive' : 'kvitteringer';
+    var source = toArchive ? (wasInSaved ? 'kvitteringer' : null) : (wasInArchive ? 'kvitteringArchive' : null);
+    if (source) enqueueUserDocMove(target, source, data.id, data, 'Kvittering lagre');
+    else enqueueUserDocSet(target, data.id, data, 'Kvittering lagre');
+
+    _kvCurrentId = data.id;
+    _kvLastSavedData = getKvitteringFormDataSnapshot();
+    _lastLocalSaveTs = Date.now();
+    return data;
+}
+
+async function saveKvitteringForm() {
+    var btn = document.getElementById('kvittering-save-btn');
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    try {
+        await _kvCommit(false);
+        _kvSetSentUi(false);
+        showNotificationModal(t('kvittering_save_success'), true);
+        closeKvitteringView();
+        _showSavedFormsDirectly('kvittering');
+    } catch (e) {
+        console.error('Kvittering lagre:', e);
+        showNotificationModal(t('kvittering_save_error'));
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+window.saveKvitteringForm = saveKvitteringForm;
+
+function _kvRequireImage() {
+    if (_kvImages.length) return true;
+    showNotificationModal(t('kvittering_need_image'));
+    return false;
+}
+
+async function markKvitteringAsSent(stay) {
+    if (!_kvRequireImage()) return;
+    try {
+        await _kvCommit(true);
+        _kvSetSentUi(true);
+        showNotificationModal(t('marked_as_sent'), true);
+        if (!stay) {
+            closeKvitteringView();
+            _showSavedFormsDirectly('kvittering');
+        }
+    } catch (e) { console.error('Kvittering merk sendt:', e); }
+}
+window.markKvitteringAsSent = markKvitteringAsSent;
+
+// ── Prosjektvelger ──────────────────────────────────────────────────────────
+function openKvitteringTemplatePicker() {
+    _kappeTemplateActive = false;
+    _serviceTemplateTargetCard = null;
+    _kvTemplateActive = true;
+    openTemplatePicker();
+}
+window.openKvitteringTemplatePicker = openKvitteringTemplatePicker;
+
+// ── Miniatyrer ──────────────────────────────────────────────────────────────
+function _kvRenderThumbs() {
+    var el = document.getElementById('kvittering-images');
+    if (!el) return;
+    if (!_kvImages.length) {
+        el.innerHTML = '<div class="kv-thumbs-empty">' + escapeHtml(t('kvittering_no_images')) + '</div>';
+        return;
+    }
+    el.innerHTML = _kvImages.map(function(im, i) {
+        return '<div class="kv-thumb" data-i="' + i + '">' +
+            '<img alt="" data-id="' + escapeHtml(im.id) + '">' +
+            '<span class="kv-thumb-num">' + (i + 1) + '</span>' +
+            '<button type="button" class="kv-thumb-del" onpointerdown="event.preventDefault()" title="' + escapeHtml(t('delete_btn')) + '">' + deleteIcon + '</button>' +
+        '</div>';
+    }).join('');
+    el.querySelectorAll('.kv-thumb').forEach(function(th) {
+        var i = parseInt(th.getAttribute('data-i'), 10);
+        var img = th.querySelector('img');
+        _kvGetImage(_kvImages[i] && _kvImages[i].id).then(function(rec) {
+            if (rec && img.isConnected) img.src = rec.data;
+            else if (img.isConnected) th.classList.add('kv-thumb-missing');
+        });
+        th.addEventListener('click', function(e) {
+            if (e.target.closest('.kv-thumb-del')) { _kvRemoveImage(i); return; }
+            _kvEditExisting(i);
+        });
+    });
+}
+
+function _kvRemoveImage(i) {
+    showConfirmModal(t('kvittering_delete_image_confirm'), function() {
+        var im = _kvImages[i];
+        if (!im) return;
+        _kvImages.splice(i, 1);
+        // Ulagret bilde fra denne økten → fjern lokalt med en gang. Lagrede
+        // bilder slettes først når skjemaet lagres (angre = ikke lagre).
+        var si = _kvSessionNewIds.indexOf(im.id);
+        if (si !== -1) { _kvSessionNewIds.splice(si, 1); _kvSaveSessionIds(); _kvImgDelLocal(im.id); }
+        _kvRenderThumbs();
+        _kvSessionPersist();
+    }, t('btn_remove'), '#e74c3c');
+}
+
+async function _kvAddCanvasAsImage(canvas, replaceIndex) {
+    var rec = _kvCanvasToRecord(canvas);
+    await _kvImgPutLocal(rec);
+    _kvSessionNewIds.push(rec.id);
+    _kvSaveSessionIds();
+    if (replaceIndex != null && _kvImages[replaceIndex]) {
+        var old = _kvImages[replaceIndex].id;
+        var si = _kvSessionNewIds.indexOf(old);
+        if (si !== -1) { _kvSessionNewIds.splice(si, 1); _kvSaveSessionIds(); _kvImgDelLocal(old); }
+        _kvImages[replaceIndex] = { id: rec.id };
+    } else {
+        _kvImages.push({ id: rec.id });
+    }
+    _kvRenderThumbs();
+    _kvSessionPersist();
+}
+
+// ── Filer inn (kamera / bilde / PDF) ────────────────────────────────────────
+var _kvQueue = [];
+var _kvQueueBusy = false;
+
+function onKvitteringFilesPicked(input) {
+    var files = Array.prototype.slice.call(input.files || []);
+    input.value = '';   // samme fil kan velges på nytt
+    if (!files.length) return;
+    _kvQueue = _kvQueue.concat(files);
+    _kvProcessQueue();
+}
+window.onKvitteringFilesPicked = onKvitteringFilesPicked;
+
+async function _kvProcessQueue() {
+    if (_kvQueueBusy) return;
+    _kvQueueBusy = true;
+    var loading = document.getElementById('loading');
+    try {
+        while (_kvQueue.length) {
+            var file = _kvQueue.shift();
+            var isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+            if (isPdf) {
+                // Digitale PDF-kvitteringer er allerede rene → legg sidene rett inn
+                // (Original). Trykk på miniatyren for å justere en side.
+                if (loading) loading.classList.add('active');
+                try {
+                    var pages = await _kvPdfToCanvases(file);
+                    for (var p = 0; p < pages.length; p++) await _kvAddCanvasAsImage(pages[p]);
+                } finally { if (loading) loading.classList.remove('active'); }
+                continue;
+            }
+            var src;
+            try { src = await _kvLoadImageFile(file); }
+            catch (e) { showNotificationModal(t('kvittering_image_error')); continue; }
+            var result = await _kvOpenEditor(src, { mode: 'scan' });
+            if (result) await _kvAddCanvasAsImage(result);
+        }
+    } finally {
+        _kvQueueBusy = false;
+    }
+}
+
+// Bildefil → canvas (≤ arbeids-oppløsning). Nettleseren følger EXIF-
+// orienteringen når et <img> tegnes på canvas.
+function _kvLoadImageFile(file) {
+    return new Promise(function(resolve, reject) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function() {
+            try {
+                var s = Math.min(1, _KV_MAX_EDGE_WORK / Math.max(img.naturalWidth, img.naturalHeight));
+                var c = document.createElement('canvas');
+                c.width = Math.max(1, Math.round(img.naturalWidth * s));
+                c.height = Math.max(1, Math.round(img.naturalHeight * s));
+                var ctx = c.getContext('2d');
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, c.width, c.height);
+                resolve(c);
+            } catch (e) { reject(e); }
+            finally { URL.revokeObjectURL(url); }
+        };
+        img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('bilde')); };
+        img.src = url;
+    });
+}
+function _kvLoadDataUrl(url) {
+    return new Promise(function(resolve, reject) {
+        var img = new Image();
+        img.onload = function() {
+            var c = document.createElement('canvas');
+            c.width = img.naturalWidth; c.height = img.naturalHeight;
+            c.getContext('2d').drawImage(img, 0, 0);
+            resolve(c);
+        };
+        img.onerror = reject;
+        img.src = url;
+    });
+}
+
+// PDF → én canvas pr. side (pdf.js, samme oppsett som forhåndsvisningen).
+async function _kvPdfToCanvases(file) {
+    var lib = window.pdfjsLib;
+    if (!lib) throw new Error('pdf.js mangler');
+    try { lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {}
+    var buf = await file.arrayBuffer();
+    var pdf = await lib.getDocument({ data: buf }).promise;
+    var out = [];
+    for (var p = 1; p <= Math.min(pdf.numPages, 10); p++) {
+        var page = await pdf.getPage(p);
+        var base = page.getViewport({ scale: 1 });
+        var scale = _KV_MAX_EDGE_OUT / Math.max(base.width, base.height);
+        var vp = page.getViewport({ scale: scale });
+        var c = document.createElement('canvas');
+        c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        out.push(c);
+    }
+    return out;
+}
+
+async function _kvEditExisting(i) {
+    var im = _kvImages[i];
+    if (!im) return;
+    var rec = await _kvGetImage(im.id);
+    if (!rec) { showNotificationModal(t('kvittering_image_error')); return; }
+    var src = await _kvLoadDataUrl(rec.data);
+    // Lagret bilde er allerede behandlet → start i Original (ingen dobbel-filtrering).
+    var result = await _kvOpenEditor(src, { mode: 'original' });
+    if (result) await _kvAddCanvasAsImage(result, i);
+}
+
+// ── Bildebehandling (ren, deterministisk pikselaritmetikk) ──────────────────
+// Roter en canvas (90°-steg + fin vinkel i grader). Hjørnene som oppstår ved
+// fin-rotasjon fylles HVITE (papirfarge) — beskjæringen fjerner dem uansett.
+function _kvRotateCanvas(src, rot90, fineDeg) {
+    var ang = ((rot90 || 0) * 90 + (fineDeg || 0)) * Math.PI / 180;
+    var w = src.width, h = src.height;
+    var c = Math.abs(Math.cos(ang)), s = Math.abs(Math.sin(ang));
+    var W = Math.max(1, Math.round(w * c + h * s)), H = Math.max(1, Math.round(w * s + h * c));
+    var out = document.createElement('canvas');
+    out.width = W; out.height = H;
+    var ctx = out.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(ang);
+    ctx.drawImage(src, -w / 2, -h / 2);
+    return out;
+}
+
+// Prosentil (0..1) av verdier 0..255 i et histogram med `total` elementer.
+function _kvHistPct(hist, total, p) {
+    var target = total * p, acc = 0;
+    for (var v = 0; v < 256; v++) { acc += hist[v]; if (acc >= target) return v; }
+    return 255;
+}
+
+// FILTERET. rgba = Uint8ClampedArray (endres på plass), w×h piksler.
+//   mode 'original' → urørt.
+//   mode 'gray'     → luminans + kontraststrekk (1.–99. prosentil).
+//   mode 'scan'     → luminans, delt på lokalt PAPIR-nivå (skygger/gult papir →
+//                     hvitt), så strekk der `strength` (0..100) avgjør hvor hardt
+//                     lyse nyanser presses til rent hvitt.
+// Papir-nivået estimeres pr. blokk som 95. prosentil (blekk er mørkt og teller
+// ikke), glattes, og interpoleres bilineært. Gulv mot globalt papir-nivå så en
+// blokk som er nesten bare blekk (fet total) ikke tolkes som «papir».
+// Alle steg er monotone pr. piksel innen et nabolag → rekkefølgen lys/mørk
+// bevares; filteret kan aldri skape eller fjerne et tegn.
+// stats = { x0, y0, x1, y1 } (piksler) — området prosentilene måles i (beskjæringen).
+// blockRef = lengste side av HELE det roterte bildet i samme oppløsning, så
+// blokkstørrelsen står i samme forhold til innholdet i forhåndsvisning og
+// ferdig bilde (ellers kunne et lite utsnitt fått annerledes resultat).
+function _kvFilterPixels(rgba, w, h, mode, strength, stats, blockRef) {
+    if (mode !== 'gray' && mode !== 'scan') return;
+    var n = w * h, i, x, y;
+    var g = new Float32Array(n);
+    for (i = 0; i < n; i++) {
+        var o = i * 4;
+        g[i] = 0.299 * rgba[o] + 0.587 * rgba[o + 1] + 0.114 * rgba[o + 2];
+    }
+    var sx0 = 0, sy0 = 0, sx1 = w, sy1 = h;
+    if (stats) {
+        sx0 = Math.max(0, Math.min(w - 1, Math.floor(stats.x0))); sy0 = Math.max(0, Math.min(h - 1, Math.floor(stats.y0)));
+        sx1 = Math.max(sx0 + 1, Math.min(w, Math.ceil(stats.x1))); sy1 = Math.max(sy0 + 1, Math.min(h, Math.ceil(stats.y1)));
+    }
+    function statHist(arr) {
+        var hist = new Uint32Array(256), cnt = 0;
+        var step = Math.max(1, Math.floor(Math.sqrt(((sx1 - sx0) * (sy1 - sy0)) / 250000)));
+        for (var yy = sy0; yy < sy1; yy += step) {
+            for (var xx = sx0; xx < sx1; xx += step) {
+                var v = arr[yy * w + xx]; hist[v < 0 ? 0 : v > 255 ? 255 : (v | 0)]++; cnt++;
+            }
+        }
+        return { hist: hist, cnt: cnt };
+    }
+    var out;
+    if (mode === 'gray') {
+        var hs = statHist(g);
+        var lo = _kvHistPct(hs.hist, hs.cnt, 0.01), hi = _kvHistPct(hs.hist, hs.cnt, 0.99);
+        if (hi - lo < 16) { lo = Math.max(0, lo - 8); hi = Math.min(255, hi + 8); }
+        var k = 255 / Math.max(1, hi - lo);
+        out = new Float32Array(n);
+        for (i = 0; i < n; i++) out[i] = (g[i] - lo) * k;
+    } else {
+        // 1) Papir-nivå pr. blokk (95. prosentil).
+        var B = Math.max(16, Math.round((blockRef || Math.max(w, h)) / 24));
+        var gw = Math.ceil(w / B), gh = Math.ceil(h / B);
+        var bg = new Float32Array(gw * gh);
+        var bh = new Uint32Array(256);
+        var globalHist = new Uint32Array(256), gCnt = 0;
+        for (var by = 0; by < gh; by++) {
+            for (var bx = 0; bx < gw; bx++) {
+                bh.fill(0);
+                var cnt = 0;
+                var yEnd = Math.min(h, (by + 1) * B), xEnd = Math.min(w, (bx + 1) * B);
+                for (y = by * B; y < yEnd; y += 2) {
+                    for (x = bx * B; x < xEnd; x += 2) { bh[g[y * w + x] | 0]++; cnt++; }
+                }
+                var p95 = _kvHistPct(bh, cnt, 0.95);
+                bg[by * gw + bx] = p95;
+                // Typisk papir-nivå måles bare i utsnittet (ikke bordet rundt).
+                var bcx = (bx + 0.5) * B, bcy = (by + 0.5) * B;
+                if (bcx >= sx0 && bcx <= sx1 && bcy >= sy0 && bcy <= sy1) { globalHist[p95]++; gCnt++; }
+            }
+        }
+        // 2) Gulv: aldri lavere enn 55 % av typisk papir (median av blokkene).
+        var paper = gCnt ? _kvHistPct(globalHist, gCnt, 0.5) : 200;
+        var floor = Math.max(40, paper * 0.55);
+        // 3) Glatt blokk-gridet (3×3 middel) så overgangene blir myke.
+        var bg2 = new Float32Array(gw * gh);
+        for (by = 0; by < gh; by++) {
+            for (bx = 0; bx < gw; bx++) {
+                var sum = 0, c = 0;
+                for (var dy = -1; dy <= 1; dy++) {
+                    var yy2 = by + dy; if (yy2 < 0 || yy2 >= gh) continue;
+                    for (var dx = -1; dx <= 1; dx++) {
+                        var xx2 = bx + dx; if (xx2 < 0 || xx2 >= gw) continue;
+                        sum += Math.max(floor, bg[yy2 * gw + xx2]); c++;
+                    }
+                }
+                bg2[by * gw + bx] = sum / c;
+            }
+        }
+        // 4) Del på papir-nivået (bilineært interpolert mellom blokk-sentre).
+        out = new Float32Array(n);
+        for (y = 0; y < h; y++) {
+            var fy = (y + 0.5) / B - 0.5; var y0 = Math.floor(fy); var ty = fy - y0;
+            var y0c = Math.max(0, Math.min(gh - 1, y0)), y1c = Math.max(0, Math.min(gh - 1, y0 + 1));
+            for (x = 0; x < w; x++) {
+                var fx = (x + 0.5) / B - 0.5; var x0 = Math.floor(fx); var tx = fx - x0;
+                var x0c = Math.max(0, Math.min(gw - 1, x0)), x1c = Math.max(0, Math.min(gw - 1, x0 + 1));
+                var a = bg2[y0c * gw + x0c], b = bg2[y0c * gw + x1c], c2 = bg2[y1c * gw + x0c], d = bg2[y1c * gw + x1c];
+                var bgv = (a * (1 - tx) + b * tx) * (1 - ty) + (c2 * (1 - tx) + d * tx) * ty;
+                var v = 255 * g[y * w + x] / bgv;
+                out[y * w + x] = v > 255 ? 255 : v;
+            }
+        }
+        // 5) Strekk: mørkeste blekk → svart; alt over hvitpunktet → rent hvitt.
+        var s = Math.max(0, Math.min(100, strength == null ? 60 : strength)) / 100;
+        var hs2 = statHist(out);
+        var lo2 = Math.min(_kvHistPct(hs2.hist, hs2.cnt, 0.01), 160);
+        var white = 255 - s * 70;               // 255 (svak) … 185 (sterk)
+        var k2 = 255 / Math.max(20, white - lo2);
+        for (i = 0; i < n; i++) out[i] = (out[i] - lo2) * k2;
+    }
+    for (i = 0; i < n; i++) {
+        var vv = out[i]; vv = vv < 0 ? 0 : vv > 255 ? 255 : vv;
+        var oo = i * 4;
+        rgba[oo] = rgba[oo + 1] = rgba[oo + 2] = vv;
+    }
+}
+
+// Canvas → ny canvas med filter (stats = beskjærings-rektangel i piksler).
+function _kvFilterCanvas(src, mode, strength, stats, blockRef) {
+    var out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    var ctx = out.getContext('2d');
+    ctx.drawImage(src, 0, 0);
+    if (mode === 'gray' || mode === 'scan') {
+        var id = ctx.getImageData(0, 0, out.width, out.height);
+        _kvFilterPixels(id.data, out.width, out.height, mode, strength, stats, blockRef);
+        ctx.putImageData(id, 0, 0);
+    }
+    return out;
+}
+
+// ── Editor ──────────────────────────────────────────────────────────────────
+// Promise-basert: _kvOpenEditor(srcCanvas, {mode}) → ferdig canvas eller null.
+var _kvEd = null;
+
+function _kvOpenEditor(srcCanvas, opts) {
+    opts = opts || {};
+    return new Promise(function(resolve) {
+        var small = _kvScaleCanvas(srcCanvas, 1200);   // forhåndsvisning (rask)
+        _kvEd = {
+            src: srcCanvas, small: small, rot: 0, fine: 0,
+            crop: { x0: 0, y0: 0, x1: 1, y1: 1 },
+            mode: opts.mode || 'scan', strength: 60,
+            rotated: null, filtered: null, dirtyFilter: true, dirtyRotate: true,
+            gridUntil: 0, drag: null, resolve: resolve, fit: null
+        };
+        document.getElementById('kv-fine').value = '0';
+        document.getElementById('kv-strength').value = '60';
+        _kvUpdateEditorControls();
+        var ov = document.getElementById('kv-editor');
+        ov.classList.add('active');
+        ov.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('kv-editor-open');
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        requestAnimationFrame(function() { _kvRenderEditor(); });
+    });
+}
+
+function closeKvEditor(use) {
+    var ed = _kvEd;
+    var ov = document.getElementById('kv-editor');
+    ov.classList.remove('active');
+    ov.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('kv-editor-open');
+    _kvEd = null;
+    if (!ed) return;
+    if (!use) { ed.resolve(null); return; }
+    var loading = document.getElementById('loading');
+    if (loading) loading.classList.add('active');
+    // La loading-indikatoren tegnes før det tunge full-oppløsnings-arbeidet.
+    setTimeout(function() {
+        try { ed.resolve(_kvRenderFinal(ed)); }
+        catch (e) { console.error('Kvittering editor:', e); ed.resolve(null); }
+        finally { if (loading) loading.classList.remove('active'); }
+    }, 30);
+}
+window.closeKvEditor = closeKvEditor;
+
+// Full oppløsning: roter → beskjær → filtrer (prosentiler fra selve utsnittet).
+function _kvRenderFinal(ed) {
+    var rot = _kvRotateCanvas(ed.src, ed.rot, ed.fine);
+    var cx0 = Math.round(ed.crop.x0 * rot.width), cy0 = Math.round(ed.crop.y0 * rot.height);
+    var cw = Math.max(1, Math.round((ed.crop.x1 - ed.crop.x0) * rot.width));
+    var ch = Math.max(1, Math.round((ed.crop.y1 - ed.crop.y0) * rot.height));
+    var crop = document.createElement('canvas');
+    crop.width = cw; crop.height = ch;
+    var ctx = crop.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(rot, cx0, cy0, cw, ch, 0, 0, cw, ch);
+    return _kvFilterCanvas(crop, ed.mode, ed.strength, null, Math.max(rot.width, rot.height));
+}
+
+function _kvUpdateEditorControls() {
+    if (!_kvEd) return;
+    var lbl = document.getElementById('kv-angle-label');
+    if (lbl) lbl.textContent = (_kvEd.fine >= 0 ? '' : '−') + Math.abs(_kvEd.fine).toFixed(1).replace('.', ',') + '°';
+    document.querySelectorAll('#kv-mode-seg .kv-seg-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-mode') === _kvEd.mode);
+    });
+    var sr = document.getElementById('kv-strength-row');
+    if (sr) sr.style.visibility = (_kvEd.mode === 'scan') ? '' : 'hidden';
+}
+
+var _kvRenderPending = false;
+function _kvScheduleRender() {
+    if (_kvRenderPending) return;
+    _kvRenderPending = true;
+    requestAnimationFrame(function() { _kvRenderPending = false; _kvRenderEditor(); });
+}
+
+function kvRotate90(dir) {
+    if (!_kvEd) return;
+    _kvEd.rot = (_kvEd.rot + (dir > 0 ? 1 : 3)) % 4;
+    // Beskjæringen følger bildet rundt.
+    var c = _kvEd.crop;
+    _kvEd.crop = dir > 0
+        ? { x0: 1 - c.y1, x1: 1 - c.y0, y0: c.x0, y1: c.x1 }
+        : { x0: c.y0, x1: c.y1, y0: 1 - c.x1, y1: 1 - c.x0 };
+    _kvEd.dirtyRotate = true;
+    _kvScheduleRender();
+}
+window.kvRotate90 = kvRotate90;
+
+function kvSetFine(v) {
+    if (!_kvEd) return;
+    var f = Math.round(Math.max(-20, Math.min(20, parseFloat(v) || 0)) * 10) / 10;
+    _kvEd.fine = f;
+    document.getElementById('kv-fine').value = String(f);
+    _kvEd.gridUntil = Date.now() + 1500;   // rutenett mens man retter opp
+    _kvEd.dirtyRotate = true;
+    _kvUpdateEditorControls();
+    _kvScheduleRender();
+    setTimeout(_kvScheduleRender, 1600);   // skjul rutenettet igjen
+}
+window.kvSetFine = kvSetFine;
+function kvFineStep(d) { if (_kvEd) kvSetFine(_kvEd.fine + d); }
+window.kvFineStep = kvFineStep;
+
+function kvSetMode(m) {
+    if (!_kvEd) return;
+    _kvEd.mode = m;
+    _kvEd.dirtyFilter = true;
+    _kvUpdateEditorControls();
+    _kvScheduleRender();
+}
+window.kvSetMode = kvSetMode;
+function kvSetStrength(v) {
+    if (!_kvEd) return;
+    _kvEd.strength = parseInt(v, 10) || 0;
+    _kvEd.dirtyFilter = true;
+    _kvScheduleRender();
+}
+window.kvSetStrength = kvSetStrength;
+
+// Tegn editoren: (rotert + filtrert) forhåndsvisning, mørklagt utenfor
+// beskjæringen, ramme + hjørnehåndtak, rutenett.
+function _kvRenderEditor() {
+    var ed = _kvEd;
+    if (!ed) return;
+    var stage = document.getElementById('kv-editor-stage');
+    var cv = document.getElementById('kv-editor-canvas');
+    var cssW = stage.clientWidth, cssH = stage.clientHeight;
+    if (!cssW || !cssH) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) {
+        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+        cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+    }
+    if (ed.dirtyRotate || !ed.rotated) {
+        ed.rotated = _kvRotateCanvas(ed.small, ed.rot, ed.fine);
+        ed.dirtyRotate = false;
+        ed.dirtyFilter = true;
+    }
+    if (ed.dirtyFilter || !ed.filtered) {
+        var R = ed.rotated;
+        ed.filtered = _kvFilterCanvas(R, ed.mode, ed.strength, {
+            x0: ed.crop.x0 * R.width, y0: ed.crop.y0 * R.height, x1: ed.crop.x1 * R.width, y1: ed.crop.y1 * R.height
+        }, Math.max(R.width, R.height));
+        ed.dirtyFilter = false;
+    }
+    var img = ed.filtered;
+    var pad = 22;
+    var sc = Math.min((cssW - 2 * pad) / img.width, (cssH - 2 * pad) / img.height);
+    var dw = img.width * sc, dh = img.height * sc;
+    var ox = (cssW - dw) / 2, oy = (cssH - dh) / 2;
+    ed.fit = { ox: ox, oy: oy, dw: dw, dh: dh };
+
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, ox, oy, dw, dh);
+
+    var cx0 = ox + ed.crop.x0 * dw, cy0 = oy + ed.crop.y0 * dh;
+    var cx1 = ox + ed.crop.x1 * dw, cy1 = oy + ed.crop.y1 * dh;
+    // Mørklegg utenfor utsnittet.
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(ox, oy, dw, cy0 - oy);
+    ctx.fillRect(ox, cy1, dw, oy + dh - cy1);
+    ctx.fillRect(ox, cy0, cx0 - ox, cy1 - cy0);
+    ctx.fillRect(cx1, cy0, ox + dw - cx1, cy1 - cy0);
+    // Rutenett: tett mens vinkelen justeres (rette linjer å sikte etter),
+    // ellers tredjedeler.
+    var dense = Date.now() < ed.gridUntil;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = dense ? 'rgba(232,80,26,0.75)' : 'rgba(255,255,255,0.45)';
+    ctx.beginPath();
+    var nx = dense ? Math.max(4, Math.round((cx1 - cx0) / 36)) : 3;
+    var ny = dense ? Math.max(4, Math.round((cy1 - cy0) / 36)) : 3;
+    for (var gx = 1; gx < nx; gx++) { var xx = cx0 + (cx1 - cx0) * gx / nx; ctx.moveTo(xx, cy0); ctx.lineTo(xx, cy1); }
+    for (var gy = 1; gy < ny; gy++) { var yy = cy0 + (cy1 - cy0) * gy / ny; ctx.moveTo(cx0, yy); ctx.lineTo(cx1, yy); }
+    ctx.stroke();
+    // Ramme + hjørnehåndtak.
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
+    ctx.strokeStyle = '#E8501A';
+    ctx.lineWidth = 4;
+    var L = 18;
+    [[cx0, cy0, 1, 1], [cx1, cy0, -1, 1], [cx0, cy1, 1, -1], [cx1, cy1, -1, -1]].forEach(function(p) {
+        ctx.beginPath();
+        ctx.moveTo(p[0], p[1] + p[3] * L); ctx.lineTo(p[0], p[1]); ctx.lineTo(p[0] + p[2] * L, p[1]);
+        ctx.stroke();
+    });
+}
+
+// Dra hjørner (beskjæring) eller hele utsnittet. Pointer events → mus + touch.
+(function() {
+    var cv = document.getElementById('kv-editor-canvas');
+    if (!cv) return;
+    function pt(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    cv.addEventListener('pointerdown', function(e) {
+        var ed = _kvEd;
+        if (!ed || !ed.fit) return;
+        var p = pt(e), f = ed.fit;
+        var corners = {
+            tl: [f.ox + ed.crop.x0 * f.dw, f.oy + ed.crop.y0 * f.dh],
+            tr: [f.ox + ed.crop.x1 * f.dw, f.oy + ed.crop.y0 * f.dh],
+            bl: [f.ox + ed.crop.x0 * f.dw, f.oy + ed.crop.y1 * f.dh],
+            br: [f.ox + ed.crop.x1 * f.dw, f.oy + ed.crop.y1 * f.dh]
+        };
+        var best = null, bestD = 34;
+        for (var k in corners) {
+            var d = Math.hypot(p.x - corners[k][0], p.y - corners[k][1]);
+            if (d < bestD) { bestD = d; best = k; }
+        }
+        var inside = p.x > corners.tl[0] && p.x < corners.br[0] && p.y > corners.tl[1] && p.y < corners.br[1];
+        if (!best && !inside) return;
+        e.preventDefault();
+        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+        ed.drag = { kind: best || 'move', start: p, crop: Object.assign({}, ed.crop) };
+    });
+    cv.addEventListener('pointermove', function(e) {
+        var ed = _kvEd;
+        if (!ed || !ed.drag) return;
+        var p = pt(e), f = ed.fit, d = ed.drag;
+        var dx = (p.x - d.start.x) / f.dw, dy = (p.y - d.start.y) / f.dh;
+        var c = Object.assign({}, d.crop), MIN = 0.06;
+        if (d.kind === 'move') {
+            var w = c.x1 - c.x0, h = c.y1 - c.y0;
+            c.x0 = Math.max(0, Math.min(1 - w, c.x0 + dx)); c.x1 = c.x0 + w;
+            c.y0 = Math.max(0, Math.min(1 - h, c.y0 + dy)); c.y1 = c.y0 + h;
+        } else {
+            if (d.kind === 'tl' || d.kind === 'bl') c.x0 = Math.max(0, Math.min(c.x1 - MIN, c.x0 + dx));
+            if (d.kind === 'tr' || d.kind === 'br') c.x1 = Math.min(1, Math.max(c.x0 + MIN, c.x1 + dx));
+            if (d.kind === 'tl' || d.kind === 'tr') c.y0 = Math.max(0, Math.min(c.y1 - MIN, c.y0 + dy));
+            if (d.kind === 'bl' || d.kind === 'br') c.y1 = Math.min(1, Math.max(c.y0 + MIN, c.y1 + dy));
+        }
+        ed.crop = c;
+        _kvScheduleRender();   // filteret beregnes på nytt først ved slipp (glatt dra)
+    });
+    function end() {
+        var ed = _kvEd;
+        if (!ed || !ed.drag) return;
+        ed.drag = null;
+        ed.dirtyFilter = true;   // prosentilene måles i det nye utsnittet
+        _kvScheduleRender();
+    }
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', end);
+    window.addEventListener('resize', function() { if (_kvEd) _kvScheduleRender(); });
+})();
+
+// ── Lagret-fanen ────────────────────────────────────────────────────────────
+function _kvSortForms(list) {
+    return list.sort(function(a, b) {
+        if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
+        return (b.savedAt || '').localeCompare(a.savedAt || '');
+    });
+}
+function _kvCombined(saved, sent) {
+    return _kvSortForms(saved.map(function(f) { return Object.assign({}, f, { _isSent: false }); })
+        .concat(sent.map(function(f) { return Object.assign({}, f, { _isSent: true }); })));
+}
+
+function loadKvitteringTab() {
+    renderKvitteringFormsList(_kvCombined(safeParseJSON(KVITTERING_STORAGE_KEY, []), safeParseJSON(KVITTERING_ARCHIVE_KEY, [])));
+    if (currentUser && db) {
+        Promise.all([getKvitteringForms(), getKvitteringSentForms()]).then(function(results) {
+            if (Date.now() - _lastLocalSaveTs < 5000) return;
+            var fbSaved = results[0].forms || [], fbSent = results[1].forms || [];
+            var localSaved = safeParseJSON(KVITTERING_STORAGE_KEY, []), localSent = safeParseJSON(KVITTERING_ARCHIVE_KEY, []);
+            // Migreringssikker: tomt Firebase overskriver aldri lokal data.
+            if (fbSaved.length > 0) safeSetItem(KVITTERING_STORAGE_KEY, JSON.stringify(fbSaved.slice(0, 50)));
+            else if (localSaved.length > 0) {
+                localSaved.forEach(function(f) { if (f && f.id) enqueueUserDocSet('kvitteringer', f.id, f, 'Migrate kvittering save'); });
+                fbSaved = localSaved;
+            }
+            if (fbSent.length > 0) safeSetItem(KVITTERING_ARCHIVE_KEY, JSON.stringify(fbSent.slice(0, 50)));
+            else if (localSent.length > 0) {
+                localSent.forEach(function(f) { if (f && f.id) enqueueUserDocSet('kvitteringArchive', f.id, f, 'Migrate kvittering sent'); });
+                fbSent = localSent;
+            }
+            if (document.body.classList.contains('saved-modal-open') &&
+                sessionStorage.getItem('firesafe_hent_tab') === 'kvittering') {
+                var searchEl = document.getElementById('kvittering-search');
+                if (!searchEl || !searchEl.value) renderKvitteringFormsList(_kvCombined(fbSaved, fbSent));
+            }
+        }).catch(function(e) { console.error('Kvittering refresh:', e); });
+    }
+}
+window.loadKvitteringTab = loadKvitteringTab;
+
+// Beløp «1234,5» → «1 234,50 kr». Ugjenkjennelig tekst vises som skrevet.
+function _kvFmtBelop(v) {
+    var raw = String(v || '').trim();
+    if (!raw) return '';
+    var n = parseLocaleNum(raw.replace(/\s|kr/gi, ''));
+    if (isNaN(n)) return raw;
+    var parts = Math.abs(n).toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return (n < 0 ? '-' : '') + parts[0] + ',' + parts[1] + ' kr';
+}
+
+function _buildKvitteringItemHtml(item, index) {
+    var title = item.butikk || item.prosjektnavn || item.prosjektnr || t('kvittering_title');
+    var belop = _kvFmtBelop(item.belop);
+    if (belop) title += ' · ' + belop;
+    var parts = [];
+    if (item.dato) parts.push(escapeHtml(item.dato));
+    var proj = item.prosjektnavn || item.prosjektnr;
+    if (proj && proj !== item.butikk) parts.push(escapeHtml(proj));
+    var nImg = (item.imageIds || []).length;
+    if (nImg > 1) parts.push(escapeHtml(t('kvittering_n_images', nImg)));
+    var subtitle = parts.length
+        ? '<div class="saved-item-subtitle">' + parts.join('<span class="bil-history-sep"></span>') + '</div>'
+        : '';
+    var dot = '<span class="status-dot ' + _statusDotClass(item, 'kvittering') + '"></span>';
+    var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
+    var deleteBtn = '<button class="saved-item-action-btn delete' + (item._isSent ? ' disabled' : '') + '" title="' + t('delete_btn') + '">' + deleteIcon + '</button>';
+    return '<div class="saved-item" data-index="' + index + '">' +
+        '<div class="saved-item-info">' +
+            '<div class="saved-item-header">' +
+                '<div class="saved-item-row1">' + dot + escapeHtml(title) + '</div>' +
+            '</div>' +
+            subtitle +
+        '</div>' +
+        _savedItemActionsHtml(dupBtn + deleteBtn) +
+    '</div>';
+}
+
+var _kvFormsAll = null;   // usøkt liste mens søkefeltet er i bruk
+function renderKvitteringFormsList(forms) {
+    forms = syncFormsWithProjects(forms || [], 'identity');
+    var listEl = document.getElementById('kvittering-list');
+    if (!listEl) return;
+    if (!forms.length) {
+        listEl.innerHTML = '<div class="no-saved">' + t('kvittering_no_saved') + '</div>';
+        window.loadedKvitteringForms = [];
+        if (_selectMode) updateSelectionUI();
+        return;
+    }
+    window.loadedKvitteringForms = forms;
+    listEl.innerHTML = forms.map(function(item, i) { return _buildKvitteringItemHtml(item, i); }).join('');
+    listEl.querySelectorAll('.saved-item').forEach(function(el, i) { el._formData = window.loadedKvitteringForms[i]; });
+    if (_selectMode && _selectTab === 'kvittering') {
+        listEl.querySelectorAll('.saved-item').forEach(function(el) {
+            var idx = parseInt(el.getAttribute('data-index'), 10);
+            if (!isNaN(idx) && _selectedSet.has(idx)) el.classList.add('selected');
+        });
+        updateSelectionUI();
+    }
+}
+
+function _kvFilterList(term) {
+    if (!_kvFormsAll) _kvFormsAll = (window.loadedKvitteringForms || []).slice();
+    if (!term) { var all = _kvFormsAll; _kvFormsAll = null; renderKvitteringFormsList(all); return; }
+    renderKvitteringFormsList(_kvFormsAll.filter(function(f) {
+        return ['butikk', 'prosjektnavn', 'prosjektnr', 'beskrivelse', 'dato', 'belop'].some(function(k) {
+            return String(f[k] || '').toLowerCase().indexOf(term) !== -1;
+        });
+    }));
+}
+
+function loadKvitteringFormDirect(formData) {
+    if (!formData) return;
+    _kvDiscardSessionImages();
+    _kvCurrentId = formData.id || null;
+    _kvSavedImageIds = (formData.imageIds || []).slice();
+    setKvitteringFormData(formData);
+    _kvSetSentUi(!!formData._isSent);
+    _kvLastSavedData = getKvitteringFormDataSnapshot();
+    _kvSessionPersist();
+    _kvShowView();
+}
+
+// Duplikat: bildene KOPIERES til nye id-er (ellers ville sletting av den ene
+// kvitteringen fjernet bildene til den andre).
+async function duplicateKvitteringForm(formData) {
+    if (!formData) return;
+    _kvDiscardSessionImages();
+    var copy = JSON.parse(JSON.stringify(formData));
+    delete copy.id; delete copy._isSent; delete copy.createdAt;
+    var newIds = [];
+    for (var i = 0; i < (formData.imageIds || []).length; i++) {
+        var rec = await _kvGetImage(formData.imageIds[i]);
+        if (!rec) continue;
+        var nrec = { id: _kvNewImageId(), data: rec.data, w: rec.w, h: rec.h, createdAt: new Date().toISOString() };
+        await _kvImgPutLocal(nrec);
+        _kvSessionNewIds.push(nrec.id);
+        newIds.push(nrec.id);
+    }
+    _kvSaveSessionIds();
+    copy.imageIds = newIds;
+    _kvCurrentId = null;
+    _kvSavedImageIds = [];
+    setKvitteringFormData(copy);
+    _kvSetSentUi(false);
+    _kvLastSavedData = null;   // kopien er ulagret
+    _kvSessionPersist();
+    _kvShowView();
+    showNotificationModal(t('duplicated_success'), true);
+}
+
+function deleteKvitteringForm(formData) {
+    if (!formData) return;
+    var isSent = formData._isSent;
+    showConfirmModal(t(isSent ? 'delete_sent_confirm' : 'delete_confirm'), function() {
+        var lsKey = isSent ? KVITTERING_ARCHIVE_KEY : KVITTERING_STORAGE_KEY;
+        var list = safeParseJSON(lsKey, []);
+        var idx = list.findIndex(function(f) { return f.id === formData.id; });
+        if (idx !== -1) { list.splice(idx, 1); safeSetItem(lsKey, JSON.stringify(list)); }
+        var li = (window.loadedKvitteringForms || []).findIndex(function(f) { return f.id === formData.id; });
+        if (li !== -1) window.loadedKvitteringForms.splice(li, 1);
+        renderKvitteringFormsList(window.loadedKvitteringForms);
+        _lastLocalSaveTs = Date.now();
+        (formData.imageIds || []).forEach(function(id) {
+            enqueueUserDocDelete(_KV_IMG_COLLECTION, id, 'Kvittering bilde slett');
+            _kvImgDelLocal(id);
+        });
+        enqueueUserDocDelete(isSent ? 'kvitteringArchive' : 'kvitteringer', formData.id, 'Kvittering slett');
+    });
+}
+
+(function() {
+    var listEl = document.getElementById('kvittering-list');
+    if (!listEl) return;
+    listEl.addEventListener('click', function(e) {
+        var item = e.target.closest('.saved-item');
+        if (!item) return;
+        if (_selectMode && _selectTab === 'kvittering') {
+            e.preventDefault(); e.stopPropagation();
+            var idx = parseInt(item.dataset.index, 10);
+            if (!isNaN(idx)) toggleFormSelection(idx, item);
+            return;
+        }
+        var formData = item._formData;
+        if (!formData) return;
+        var btn = e.target.closest('button');
+        if (btn) {
+            e.stopPropagation();
+            if (btn.classList.contains('saved-item-menu-btn')) { showSavedItemMenu(item); return; }
+            if (btn.classList.contains('disabled')) return;
+            if (btn.classList.contains('copy')) duplicateKvitteringForm(formData);
+            else if (btn.classList.contains('delete')) deleteKvitteringForm(formData);
+            return;
+        }
+        loadKvitteringFormDirect(formData);
+    });
+})();
+
+// ── PDF ─────────────────────────────────────────────────────────────────────
+// A4 stående. Side 1: logo + tittel, feltene som ekte tekst, så første bilde.
+// Hvert øvrige bilde får egen side. Bildene er de lagrede JPEG-ene (ingen
+// ny-komprimering).
+async function _kvAddPdfPages(doc, data) {
+    data = data || {};
+    var PW = 210, PH = 297, M = 12, W = PW - 2 * M;
+    doc.addPage([PW, PH], 'p');
+    var y = M;
+    var logo = await _pdfGetLogo();
+    if (logo) doc.addImage(logo, 'PNG', M, y, 36, 36 * 85 / 250);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+    doc.text('KVITTERING', PW - M, y + 7, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    if (data.dato) doc.text(String(data.dato), PW - M, y + 12.5, { align: 'right' });
+    y += 17;
+    doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.5); doc.line(M, y, PW - M, y);
+    y += 6;
+
+    var rows = [
+        [t('label_prosjektnr'), data.prosjektnr],
+        [t('label_prosjektnavn'), data.prosjektnavn],
+        [t('kappe_label_dato'), data.dato],
+        [t('kvittering_label_butikk'), data.butikk],
+        [t('kvittering_label_belop'), _kvFmtBelop(data.belop)],
+        [t('kvittering_label_betaling'), t(data.betaling === 'privat' ? 'kvittering_betaling_privat' : 'kvittering_betaling_firmakort')],
+        [t('kvittering_label_beskrivelse'), data.beskrivelse]
+    ];
+    var LABW = 42;
+    rows.forEach(function(r) {
+        var val = String(r[1] == null ? '' : r[1]).trim();
+        if (!val) return;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(100, 100, 100);
+        doc.text(String(r[0]).replace(/\s*\.\s*$/, ''), M, y + 4);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(0, 0, 0);
+        var lines = doc.splitTextToSize(val, W - LABW);
+        doc.text(lines, M + LABW, y + 4);
+        y += Math.max(1, lines.length) * 4.6 + 2;
+        doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2); doc.line(M, y, PW - M, y);
+        y += 2;
+    });
+    y += 4;
+
+    var ids = data.imageIds || [];
+    for (var i = 0; i < ids.length; i++) {
+        var rec = await _kvGetImage(ids[i]);
+        if (!rec || !rec.data) continue;
+        var top = y;
+        if (i > 0 || (PH - M - y) < 90) { doc.addPage([PW, PH], 'p'); top = M; }
+        var maxH = PH - M - top - (ids.length > 1 ? 5 : 0);
+        var iw = rec.w || 1000, ih = rec.h || 1400;
+        var s = Math.min(W / iw, maxH / ih);
+        var w = iw * s, h = ih * s, x = M + (W - w) / 2;
+        doc.addImage(rec.data, 'JPEG', x, top, w, h);
+        doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.2); doc.rect(x, top, w, h);
+        if (ids.length > 1) {
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+            doc.text(t('kvittering_image_n_of', i + 1, ids.length), PW / 2, top + h + 4, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+        }
+        y = top + h;
+    }
+}
+async function buildKvitteringPdfDoc(data) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'p', unit: 'mm', format: 'a4' });
+    await _kvAddPdfPages(doc, data);
+    doc.deletePage(1);
+    return doc;
+}
+async function buildKvitteringPdfDocMulti(forms) {
+    var doc = new (window.jspdf.jsPDF)({ orientation: 'p', unit: 'mm', format: 'a4' });
+    for (var i = 0; i < forms.length; i++) await _kvAddPdfPages(doc, forms[i]);
+    doc.deletePage(1);
+    return doc;
+}
+
+// ── Eksport / deling / forhåndsvisning (åpent skjema) ───────────────────────
+function _kvCurrentDataWithId() { return Object.assign(getKvitteringFormData(), { id: _kvCurrentId }); }
+
+function openKvitteringPreview() {
+    if (!_kvRequireImage()) return;
+    window._kappePreviewActive = false;
+    window._servicePreviewActive = false;
+    var signBtn = document.querySelector('.preview-sign-btn');
+    if (signBtn) signBtn.style.display = 'none';
+    window._previewSavedScroll = _saveScrollPositions();
+    var loading = document.getElementById('loading');
+    if (loading) loading.classList.add('active');
+    buildKvitteringPdfDoc(getKvitteringFormData()).then(function(doc) {
+        if (loading) loading.classList.remove('active');
+        return _showPdfInPreview(doc);
+    }).catch(function(e) {
+        if (loading) loading.classList.remove('active');
+        showNotificationModal(t('export_pdf_error') + (e && e.message ? e.message : e));
+    });
+}
+window.openKvitteringPreview = openKvitteringPreview;
+
+function showKvitteringExportMenu() {
+    if (!_kvRequireImage()) return;
+    var popup = document.getElementById('action-popup');
+    _actionPopupBack(null);
+    document.getElementById('action-popup-title').textContent = t('export_title');
+    var dl = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
+    var sh = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var canShare = !!(navigator.share && navigator.canShare);
+    var shareBtn = canShare
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); doKvitteringExport(true)">' + sh + ' PDF</button>'
+        : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + sh + ' PDF</button>';
+    document.getElementById('action-popup-buttons').innerHTML =
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); doKvitteringExport(false)">' + dl + ' PDF</button>' +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
+        '<div class="confirm-modal-buttons">' + shareBtn + '</div>';
+    popup.classList.add('active');
+}
+window.showKvitteringExportMenu = showKvitteringExportMenu;
+
+async function doKvitteringExport(share) {
+    if (!_kvRequireImage()) return;
+    var loading = document.getElementById('loading');
+    if (loading) loading.classList.add('active');
+    try {
+        var data = _kvCurrentDataWithId();
+        var pdf = await buildKvitteringPdfDoc(data);
+        var name = _filenameForForm(data, 0, 'kvittering', 'pdf');
+        if (!share) { pdf.save(name); return; }
+        var file = new File([pdf.output('blob')], name, { type: 'application/pdf' });
+        if (loading) loading.classList.remove('active');
+        var result = await _safeShare([file], _singleShareText(data, 'kvittering'));
+        // Fullført deling → sendt (aldri nedgrader); nedlasting endrer ikke status.
+        if (result === 'shared' && sessionStorage.getItem('firesafe_kvittering_sent') !== '1') {
+            await markKvitteringAsSent(true);
+        }
+    } catch (e) {
+        showNotificationModal(t('export_pdf_error') + (e && e.message ? e.message : e));
+    } finally {
+        if (loading) loading.classList.remove('active');
+    }
+}
+window.doKvitteringExport = doKvitteringExport;
+
+// Skjema-felt: dato normaliseres ved blur (samme format som kappe), og økten
+// speiles til sessionStorage mens man skriver (overlever reload).
+(function() {
+    var form = document.getElementById('kvittering-form');
+    if (!form) return;
+    var tmr = null;
+    form.addEventListener('input', function() {
+        clearTimeout(tmr);
+        tmr = setTimeout(_kvSessionPersist, 300);
+    });
+    var dato = document.getElementById('kvittering-dato');
+    if (dato) dato.addEventListener('blur', function() {
+        var iso = _kappeParseDateNO(dato.value);
+        if (iso) dato.value = _kappeFormatDateNO(iso);
+    });
+})();

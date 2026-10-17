@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=965">
+    <link rel="stylesheet" href="styles.css?v=966">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -384,6 +384,7 @@
                     <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
                     <button class="modal-tab" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
                     <button class="modal-tab" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappeskjema</button>
+                    <button class="modal-tab" onclick="switchHentTab('kvittering')" data-i18n="tab_kvittering">Kvittering</button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
                     <div class="search-input-wrap">
@@ -409,10 +410,19 @@
                         </button>
                     </div>
                 </div>
+                <div class="modal-search" id="kvittering-search-wrap" style="display:none;">
+                    <div class="search-input-wrap">
+                        <input type="text" id="kvittering-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('kvittering-list', 'kvittering-search'); updateSearchClearBtn('kvittering-search')">
+                        <button type="button" class="search-clear-btn" id="kvittering-search-clear" onclick="clearSearchInput('kvittering-search', 'kvittering-list')" aria-label="Tøm søk">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
             <div class="modal-body" id="service-list" style="display:none;"></div>
             <div class="modal-body" id="kappe-list" style="display:none;"></div>
+            <div class="modal-body" id="kvittering-list" style="display:none;"></div>
             <div class="modal-body" id="bil-history-list" style="display:none;"></div>
         </div>
     </div>
@@ -1203,6 +1213,128 @@
         <div id="kappe-export-container" style="display:none;"></div>
     </div>
 
+    <!-- Kvittering view -->
+    <div class="container kvittering-view view" id="kvittering-view">
+        <div class="modal-content">
+            <div class="modal-header" id="kvittering-header">
+                <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                <span data-i18n="kvittering_title">Kvittering</span>
+                <button class="header-save-btn" id="kvittering-save-btn" onclick="saveKvitteringForm()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
+            </div>
+            <div id="kvittering-sent-banner" class="sent-banner" style="display:none;">
+                <span data-i18n="sent_banner_text">Dette skjemaet er sendt</span>
+            </div>
+            <div class="mobile-form" id="kvittering-form">
+                <div class="mobile-section">
+                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openKvitteringTemplatePicker()" data-i18n="template_pick">Velg prosjektmal</button>
+                </div>
+                <div class="mobile-section">
+                    <div class="mobile-section-title" data-i18n="kappe_section_project">Prosjekt</div>
+                    <div class="mobile-field">
+                        <label data-i18n="label_prosjektnr">Prosjektnr.</label>
+                        <input type="text" id="kvittering-prosjektnr" inputmode="numeric">
+                    </div>
+                    <div class="mobile-field">
+                        <label data-i18n="label_prosjektnavn">Prosjektnavn</label>
+                        <input type="text" id="kvittering-prosjektnavn" autocapitalize="sentences">
+                    </div>
+                </div>
+                <div class="mobile-section">
+                    <div class="mobile-section-title" data-i18n="kvittering_section_info">Kvittering</div>
+                    <div class="mobile-field">
+                        <label data-i18n="kappe_label_dato">Dato</label>
+                        <input type="text" id="kvittering-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ" autocomplete="off">
+                    </div>
+                    <div class="mobile-field">
+                        <label data-i18n="kvittering_label_butikk">Butikk / leverandør</label>
+                        <input type="text" id="kvittering-butikk" autocapitalize="sentences">
+                    </div>
+                    <div class="mobile-field">
+                        <label data-i18n="kvittering_label_belop">Beløp (kr)</label>
+                        <input type="text" id="kvittering-belop" inputmode="decimal" autocomplete="off">
+                    </div>
+                    <div class="mobile-field">
+                        <label data-i18n="kvittering_label_betaling">Betaling</label>
+                        <div class="kv-seg" id="kvittering-betaling" role="radiogroup">
+                            <button type="button" class="kv-seg-btn active" data-val="firmakort" onclick="setKvitteringBetaling('firmakort')" data-i18n="kvittering_betaling_firmakort">Firmakort</button>
+                            <button type="button" class="kv-seg-btn" data-val="privat" onclick="setKvitteringBetaling('privat')" data-i18n="kvittering_betaling_privat">Privat utlegg</button>
+                        </div>
+                    </div>
+                    <div class="mobile-field">
+                        <label data-i18n="kvittering_label_beskrivelse">Beskrivelse</label>
+                        <textarea id="kvittering-beskrivelse" rows="2" autocapitalize="sentences"></textarea>
+                    </div>
+                </div>
+                <div class="mobile-section">
+                    <div class="mobile-section-title" data-i18n="kvittering_section_images">Bilder</div>
+                    <div class="kv-thumbs" id="kvittering-images"></div>
+                    <div class="kv-add-row">
+                        <button type="button" class="kv-add-btn" onclick="document.getElementById('kvittering-camera-input').click()">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                            <span data-i18n="kvittering_take_photo">Ta bilde</span>
+                        </button>
+                        <button type="button" class="kv-add-btn" onclick="document.getElementById('kvittering-file-input').click()">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                            <span data-i18n="kvittering_add_file">Legg til fil</span>
+                        </button>
+                    </div>
+                    <input type="file" id="kvittering-camera-input" accept="image/*" capture="environment" hidden onchange="onKvitteringFilesPicked(this)">
+                    <input type="file" id="kvittering-file-input" accept="image/*,application/pdf" multiple hidden onchange="onKvitteringFilesPicked(this)">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="form-action-btn" onclick="openKvitteringPreview()">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span data-i18n="btn_preview">Vis</span>
+                    </button>
+                    <button type="button" class="form-action-btn btn-form-export" onclick="showKvitteringExportMenu()">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        <span data-i18n="toolbar_export">Eksport</span>
+                    </button>
+                    <button type="button" class="form-action-btn btn-form-sent" id="btn-kvittering-sent" onclick="markKvitteringAsSent()">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                        <span data-i18n="btn_mark_sent">Merk sendt</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kvittering bilde-editor (fullskjerm). Kun deterministisk piksel-
+         behandling (rotasjon, beskjæring, gråtoner/skann-filter) — ingen AI. -->
+    <div class="kv-editor" id="kv-editor" aria-hidden="true">
+        <div class="kv-editor-header">
+            <button type="button" class="kv-editor-cancel" onclick="closeKvEditor(false)" data-i18n="btn_cancel">Avbryt</button>
+            <span class="kv-editor-title" id="kv-editor-title" data-i18n="kvittering_editor_title">Juster bilde</span>
+            <button type="button" class="kv-editor-done" onclick="closeKvEditor(true)" data-i18n="kvittering_editor_use">Bruk</button>
+        </div>
+        <div class="kv-editor-stage" id="kv-editor-stage">
+            <canvas id="kv-editor-canvas"></canvas>
+        </div>
+        <div class="kv-editor-controls">
+            <div class="kv-editor-row">
+                <button type="button" class="kv-icon-btn" onclick="kvRotate90(-1)" aria-label="Roter mot klokka">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                </button>
+                <button type="button" class="kv-icon-btn kv-step-btn" onclick="kvFineStep(-0.1)" aria-label="-0,1°">−</button>
+                <input type="range" id="kv-fine" class="kv-range" min="-20" max="20" step="0.1" value="0" oninput="kvSetFine(this.value)">
+                <button type="button" class="kv-icon-btn kv-step-btn" onclick="kvFineStep(0.1)" aria-label="+0,1°">+</button>
+                <button type="button" class="kv-icon-btn" onclick="kvRotate90(1)" aria-label="Roter med klokka">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                </button>
+            </div>
+            <div class="kv-editor-angle"><span id="kv-angle-label">0,0°</span> <button type="button" class="kv-link-btn" onclick="kvSetFine(0)" data-i18n="kvittering_editor_reset_angle">Nullstill</button></div>
+            <div class="kv-seg kv-mode-seg" id="kv-mode-seg">
+                <button type="button" class="kv-seg-btn" data-mode="original" onclick="kvSetMode('original')" data-i18n="kvittering_mode_original">Original</button>
+                <button type="button" class="kv-seg-btn" data-mode="gray" onclick="kvSetMode('gray')" data-i18n="kvittering_mode_gray">Gråtoner</button>
+                <button type="button" class="kv-seg-btn active" data-mode="scan" onclick="kvSetMode('scan')" data-i18n="kvittering_mode_scan">Skann</button>
+            </div>
+            <div class="kv-editor-row kv-strength-row" id="kv-strength-row">
+                <span class="kv-strength-label" data-i18n="kvittering_editor_strength">Styrke</span>
+                <input type="range" id="kv-strength" class="kv-range" min="0" max="100" step="1" value="60" oninput="kvSetStrength(this.value)">
+            </div>
+        </div>
+    </div>
+
     <!-- Bil (Vehicle inventory) view -->
     <!-- Material picker overlay -->
     <div class="picker-overlay" id="picker-overlay" onclick="if(event.target===this)closePickerOverlay()">
@@ -1650,6 +1782,7 @@
             else if (h === 'settings' || h.indexOf('settings/') === 0) { v = 'settings-modal'; b = 'settings-modal-open'; }
             else if (h === 'service') { v = 'service-view'; b = 'service-view-open'; }
             else if (h === 'kappe') { v = 'kappe-view'; b = 'kappe-view-open'; }
+            else if (h === 'kvittering') { v = 'kvittering-view'; b = 'kvittering-view-open'; }
             else if (h === 'calc') { v = 'calculator-modal'; b = 'calculator-modal-open'; }
             else if (h === 'timebok') { v = 'timebok-view'; b = 'timebok-view-open'; }
             else if (h === 'skjema') { v = 'view-form'; }
@@ -1757,6 +1890,14 @@
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_gpg_title">GPG stein</div>
                             <div class="calc-card-desc" data-i18n="calc_gpg_desc">Antall stein og esker</div>
+                        </div>
+                        <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="calc-card" onclick="openNewKvitteringForm()">
+                        <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M5 3h14v18l-2.33-1.5L14.33 21 12 19.5 9.67 21 7.33 19.5 5 21z"/><line x1="8.5" y1="8" x2="15.5" y2="8"/><line x1="8.5" y1="11.5" x2="15.5" y2="11.5"/><line x1="8.5" y1="15" x2="12.5" y2="15"/></svg></div>
+                        <div class="calc-card-text">
+                            <div class="calc-card-title" data-i18n="calc_kvittering_title">Kvittering</div>
+                            <div class="calc-card-desc" data-i18n="calc_kvittering_desc">Ta bilde av kvittering og knytt til prosjekt</div>
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
@@ -2059,9 +2200,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=303"></script>
-    <script src="script.js?v=537"></script>
-    <script src="script-ui.js?v=1156"></script>
+    <script src="lang.js?v=304"></script>
+    <script src="script.js?v=538"></script>
+    <script src="script-ui.js?v=1157"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

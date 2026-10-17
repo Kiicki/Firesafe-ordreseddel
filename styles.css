@@ -646,9 +646,9 @@ body:has(.spec-popup-backdrop.active),
 body:has(.fakturaadresse-popup-backdrop.active) {
     overflow: hidden;
 }
-body:has(.confirm-modal.active) :is(#view-form, #service-view, #kappe-view).view.active,
-body:has(.spec-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view).view.active,
-body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view).view.active {
+body:has(.confirm-modal.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view).view.active,
+body:has(.spec-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view).view.active,
+body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view).view.active {
     overflow: hidden !important;
 }
 
@@ -1200,6 +1200,7 @@ body.template-modal-open:not(.keyboard-open) #template-modal.view.active .modal-
 #view-form.view.active,
 #service-view.view.active,
 #kappe-view.view.active,
+#kvittering-view.view.active,
 #timebok-view.view.active {
     position: fixed;
     top: 0;
@@ -1212,7 +1213,8 @@ body.template-modal-open:not(.keyboard-open) #template-modal.view.active .modal-
 
 
 #service-header,
-#kappe-header {
+#kappe-header,
+#kvittering-header {
     position: sticky;
     top: 0;
     z-index: 10;
@@ -1510,10 +1512,12 @@ body.keyboard-focus .confirm-modal {
 body.keyboard-focus #view-form.view.active,
 body.keyboard-focus #service-view.view.active,
 body.keyboard-focus #kappe-view.view.active,
+body.keyboard-focus #kvittering-view.view.active,
 body.keyboard-focus #timebok-view.view.active,
 body.kbd-editing #view-form.view.active,
 body.kbd-editing #service-view.view.active,
 body.kbd-editing #kappe-view.view.active,
+body.kbd-editing #kvittering-view.view.active,
 body.kbd-editing #timebok-view.view.active {
     position: static;
     top: auto;
@@ -1528,10 +1532,12 @@ body.kbd-editing #timebok-view.view.active {
 body.keyboard-focus .container.form-view,
 body.keyboard-focus .container.service-view,
 body.keyboard-focus .container.kappe-view,
+body.keyboard-focus .container.kvittering-view,
 body.keyboard-focus .container.timebok-view,
 body.kbd-editing .container.form-view,
 body.kbd-editing .container.service-view,
 body.kbd-editing .container.kappe-view,
+body.kbd-editing .container.kvittering-view,
 body.kbd-editing .container.timebok-view {
     overflow-y: visible;
 }
@@ -7389,6 +7395,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     html.device-pc #view-form.view.active,
     html.device-pc #service-view.view.active,
     html.device-pc #kappe-view.view.active,
+    html.device-pc #kvittering-view.view.active,
     html.device-pc #timebok-view.view.active {
         position: static;
         bottom: auto;
@@ -7410,6 +7417,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     html.device-pc .container.form-view,
     html.device-pc .container.service-view,
     html.device-pc .container.kappe-view,
+    html.device-pc .container.kvittering-view,
     html.device-pc .container.timebok-view {
         overflow-y: visible;
     }
@@ -7417,6 +7425,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     /* Service- og Kappe-view: skygge rundt sentrert 800px-kort, samme som modaler. */
     html.device-pc .container.service-view,
     html.device-pc .container.kappe-view,
+    html.device-pc .container.kvittering-view,
     html.device-pc .container.timebok-view {
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
@@ -9267,6 +9276,237 @@ body.kappe-view-open #view-form { display: none; }
 .kappe-view > .modal-content {
     overflow: visible;
     flex: none;
+}
+
+/* Kvittering-view shell (samme mønster som kappe-view) */
+body.kvittering-view-open #view-form { display: none; }
+.container.kvittering-view {
+    flex: 1;
+    background: #fff;
+    margin: 0 auto;
+    padding: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overflow-anchor: none;
+}
+.kvittering-view > .modal-content {
+    overflow: visible;
+    flex: none;
+}
+#kvittering-beskrivelse {
+    resize: none;
+    min-height: 44px;
+}
+
+/* Segmentkontroll (betaling + filtermodus i editoren). */
+.kv-seg {
+    display: flex;
+    background: #f0f0f2;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+}
+.kv-seg-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 9px 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.kv-seg-btn.active {
+    background: #fff;
+    color: #E8501A;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* Miniatyrer av kvitteringsbildene. */
+.kv-thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.kv-thumbs-empty {
+    grid-column: 1 / -1;
+    font-size: 13px;
+    color: #999;
+    text-align: center;
+    padding: 14px 0;
+}
+.kv-thumb {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f0f0f2;
+    border: 1px solid #e3e3e8;
+    cursor: pointer;
+}
+.kv-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.kv-thumb-missing { background: repeating-linear-gradient(45deg, #f4f4f6, #f4f4f6 6px, #e9e9ee 6px, #e9e9ee 12px); }
+.kv-thumb-num {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 6px;
+}
+.kv-thumb-del {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.92);
+    color: #e74c3c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+}
+.kv-thumb-del svg { width: 18px; height: 18px; }
+.kv-add-row {
+    display: flex;
+    gap: 10px;
+}
+.kv-add-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border: 1px dashed #f47b20;
+    border-radius: 8px;
+    background: #fff;
+    color: #E8501A;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.kv-add-btn:active { background: #fff5f0; }
+
+/* Bilde-editor (fullskjerm). Over alt annet unntatt loading-spinneren. */
+.kv-editor {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    background: #111;
+    color: #fff;
+    flex-direction: column;
+}
+.kv-editor.active { display: flex; }
+.kv-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    flex-shrink: 0;
+}
+.kv-editor-title { font-weight: 700; font-size: 16px; }
+.kv-editor-cancel,
+.kv-editor-done {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.kv-editor-cancel { background: transparent; color: #ddd; }
+.kv-editor-done { background: #E8501A; color: #fff; }
+.kv-editor-stage {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+#kv-editor-canvas {
+    position: absolute;
+    inset: 0;
+    touch-action: none;
+}
+.kv-editor-controls {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #1c1c1e;
+}
+.kv-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.kv-icon-btn {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 10px;
+    background: #2c2c2e;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.kv-step-btn { font-size: 22px; font-weight: 600; width: 36px; }
+.kv-range {
+    flex: 1;
+    min-width: 0;
+    accent-color: #E8501A;
+    height: 32px;
+}
+.kv-editor-angle {
+    text-align: center;
+    font-size: 13px;
+    color: #bbb;
+    margin-top: -4px;
+}
+.kv-link-btn {
+    border: none;
+    background: transparent;
+    color: #f47b20;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+.kv-editor .kv-seg { background: #2c2c2e; }
+.kv-editor .kv-seg-btn { color: #bbb; }
+.kv-editor .kv-seg-btn.active { background: #48484a; color: #fff; box-shadow: none; }
+.kv-strength-label { font-size: 13px; color: #bbb; flex-shrink: 0; width: 52px; }
+
+/* Lagret-fanene: fire faner må få plass på smal telefon. */
+.modal-tabs .modal-tab {
+    padding-left: 4px;
+    padding-right: 4px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Kappe-linjekort (bruker mobile-order-card-mønster) */

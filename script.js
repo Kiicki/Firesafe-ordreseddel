@@ -12,6 +12,10 @@ const SERVICE_ARCHIVE_KEY = 'firesafe_service_arkiv';
 const BIL_STORAGE_KEY = 'firesafe_bil_pafylling';
 const KAPPE_STORAGE_KEY = 'firesafe_kappe';
 const KAPPE_ARCHIVE_KEY = 'firesafe_kappe_arkiv';
+// Kvittering: metadata (lett) i localStorage; selve bildene ligger i IndexedDB
+// (for store for localStorage) + Firestore-samlingen kvitteringBilder.
+const KVITTERING_STORAGE_KEY = 'firesafe_kvittering';
+const KVITTERING_ARCHIVE_KEY = 'firesafe_kvittering_arkiv';
 const KAPPE_DEFAULTS_KEY = 'firesafe_defaults_kappe';
 const KAPPE_CATALOG_KEY = 'firesafe_kappe_catalog';
 const KAPPE_PRODUCTS_KEY = 'firesafe_kappe_products';
@@ -1696,11 +1700,14 @@ if (auth) {
              STORAGE_KEY, ARCHIVE_KEY, TEMPLATE_KEY, PLANS_KEY, BIL_STORAGE_KEY,
              SERVICE_STORAGE_KEY, SERVICE_ARCHIVE_KEY, SERVICE_DEFAULTS_KEY,
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
+             KVITTERING_STORAGE_KEY, KVITTERING_ARCHIVE_KEY,
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY,
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
+            // Kvitteringsbildene (IndexedDB) tilhører forrige bruker.
+            if (typeof _kvImgClearAll === 'function') _kvImgClearAll();
             cachedRequiredSettings = null;
             if (typeof cachedMaterialOptions !== 'undefined') cachedMaterialOptions = null;
             if (typeof cachedPlanOptions !== 'undefined') cachedPlanOptions = [];
@@ -1787,6 +1794,31 @@ if (auth) {
                             if (form && form.id) {
                                 enqueueUserDocSet('kappeArchive', form.id, form, 'Migrate kappe sent');
                             }
+                        });
+                    }
+                }).catch(function() {}) : Promise.resolve(),
+                // Sync Kvitteringer fra Firebase ved innlogging (samme mønster som
+                // kappe). Kun metadata — bildene hentes ved behov (_kvGetImage).
+                typeof getKvitteringForms === 'function' ? Promise.all([
+                    getKvitteringForms().catch(function() { return { forms: [] }; }),
+                    getKvitteringSentForms().catch(function() { return { forms: [] }; })
+                ]).then(function(kvResults) {
+                    var fbSaved = kvResults[0].forms || [];
+                    var fbSent = kvResults[1].forms || [];
+                    var localSaved = safeParseJSON(KVITTERING_STORAGE_KEY, []);
+                    var localSent = safeParseJSON(KVITTERING_ARCHIVE_KEY, []);
+                    if (fbSaved.length > 0) {
+                        safeSetItem(KVITTERING_STORAGE_KEY, JSON.stringify(fbSaved.slice(0, 50)));
+                    } else if (localSaved.length > 0) {
+                        localSaved.forEach(function(form) {
+                            if (form && form.id) enqueueUserDocSet('kvitteringer', form.id, form, 'Migrate kvittering save');
+                        });
+                    }
+                    if (fbSent.length > 0) {
+                        safeSetItem(KVITTERING_ARCHIVE_KEY, JSON.stringify(fbSent.slice(0, 50)));
+                    } else if (localSent.length > 0) {
+                        localSent.forEach(function(form) {
+                            if (form && form.id) enqueueUserDocSet('kvitteringArchive', form.id, form, 'Migrate kvittering sent');
                         });
                     }
                 }).catch(function() {}) : Promise.resolve(),
@@ -7054,6 +7086,38 @@ async function getKappeSentForms(lastDoc) {
         } catch(e) { console.error('getKappeSentForms error:', e); }
     }
     return { forms: safeParseJSON(KAPPE_ARCHIVE_KEY, []), lastDoc: null };
+}
+
+async function getKvitteringForms(lastDoc) {
+    if (currentUser && db) {
+        try {
+            var q = db.collection('users').doc(currentUser.uid).collection('kvitteringer')
+                .orderBy('savedAt', 'desc').limit(50);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return {
+                forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }),
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
+            };
+        } catch(e) { console.error('getKvitteringForms error:', e); }
+    }
+    return { forms: safeParseJSON(KVITTERING_STORAGE_KEY, []), lastDoc: null };
+}
+
+async function getKvitteringSentForms(lastDoc) {
+    if (currentUser && db) {
+        try {
+            var q = db.collection('users').doc(currentUser.uid).collection('kvitteringArchive')
+                .orderBy('savedAt', 'desc').limit(50);
+            if (lastDoc) q = q.startAfter(lastDoc);
+            var snapshot = await q.get();
+            return {
+                forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }),
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
+            };
+        } catch(e) { console.error('getKvitteringSentForms error:', e); }
+    }
+    return { forms: safeParseJSON(KVITTERING_ARCHIVE_KEY, []), lastDoc: null };
 }
 
 // Get all orders data from mobile form
