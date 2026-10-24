@@ -2195,11 +2195,13 @@ function settingsBack() {
 function showSettingsPage(page, replace) {
     // Backward-compat: ordrenr og plans er nå innebygde collapsibles på Ordreseddel-siden
     if (page === 'ordrenr' || page === 'plans') page = 'form-ordreseddel';
-    // Backward-compat: Timebok Satser/Prosjekter var egne undersider — nå faner på Timebok.
-    if (page === 'timebok-satser' || page === 'timebok-projects') {
-        sessionStorage.setItem('firesafe_timebok_settings_tab', page === 'timebok-satser' ? 'satser' : 'prosjekter');
+    // Backward-compat: Timebok Satser var egen underside — nå fane på Timebok.
+    // Timebok-prosjekter finnes ikke lenger separat → Prosjekter & lager.
+    if (page === 'timebok-satser') {
+        sessionStorage.setItem('firesafe_timebok_settings_tab', 'satser');
         page = 'timebok';
     }
+    if (page === 'timebok-projects') page = 'templates';
     var pageEl2 = document.getElementById('settings-page-' + page);
     if (!pageEl2) {
         showSettingsMenu();
@@ -2353,8 +2355,6 @@ function showSettingsPage(page, replace) {
             renderMaterialSettingsItems();
         });
     } else if (page === 'timebok') {
-        var _pSearch = document.getElementById('settings-timebok-proj-search');
-        if (_pSearch) _pSearch.value = '';
         _renderTimebokSettingsAll();
         switchTimebokSettingsTab(sessionStorage.getItem('firesafe_timebok_settings_tab') || 'satser');
         // Cache-først, deretter frisk kopi fra Firestore (andre enheter kan ha endret).
@@ -2362,8 +2362,7 @@ function showSettingsPage(page, replace) {
             var _uSet = db.collection('users').doc(currentUser.uid).collection('settings');
             Promise.all([
                 _uSet.doc('timebok_tariffs').get().then(function (d) { if (d.exists) safeSetItem(TIMEBOK_TARIFFS_KEY, JSON.stringify(d.data())); }),
-                _uSet.doc('timebok_settings').get().then(function (d) { if (d.exists) safeSetItem(TIMEBOK_SETTINGS_KEY, JSON.stringify(d.data())); }),
-                _uSet.doc('timebok_projects').get().then(function (d) { if (d.exists) safeSetItem(TIMEBOK_PROJECTS_KEY, JSON.stringify(d.data())); })
+                _uSet.doc('timebok_settings').get().then(function (d) { if (d.exists) safeSetItem(TIMEBOK_SETTINGS_KEY, JSON.stringify(d.data())); })
             ]).then(function () {
                 var pg = document.getElementById('settings-page-timebok');
                 // Ikke tegn om midt i redigering (fokus i et felt på siden).
@@ -2374,11 +2373,10 @@ function showSettingsPage(page, replace) {
 }
 
 // ── Timebok-innstillinger ───────────────────────────────────────────────────
-// Én side, tre faner (Satser · Prosjekter · Generelt). Alle tre rendres ved åpning
-// så fanebytte bare viser/skjuler — valgt fane huskes i økta.
+// Én side, to faner (Satser · Personlig). Begge rendres ved åpning så fanebytte bare
+// viser/skjuler — valgt fane huskes i økta. Prosjektene eies av Prosjekter & lager.
 function _renderTimebokSettingsAll() {
     renderTimebokSatser();
-    renderTimebokProjectSettings();
     renderTimebokSettings();
 }
 function switchTimebokSettingsTab(tab) {
@@ -2399,7 +2397,6 @@ function _syncTimebokSetting(localKey, fbDoc, data) {
     if (typeof enqueueUserDocSet === 'function') enqueueUserDocSet('settings', fbDoc, data, 'Sync ' + fbDoc);
 }
 function _timebokSaveTariffs(list) { _syncTimebokSetting(TIMEBOK_TARIFFS_KEY, 'timebok_tariffs', { list: list }); }
-function _timebokSaveProjects(list) { _syncTimebokSetting(TIMEBOK_PROJECTS_KEY, 'timebok_projects', { list: list }); }
 // ── Kolleger ────────────────────────────────────────────────────────────────
 // Navnene du kan føre timer på ved siden av deg selv, i Arbeidstid-popupen.
 // Egen liste framfor fritekst i popupen: samme kollega skrevet «Ola», «ola» og
@@ -2433,8 +2430,8 @@ function renderKollegerSettings() {
 }
 
 // Legger til og returnerer kollegaen. Navne-treff (uansett skrivemåte) gir den
-// eksisterende tilbake i stedet for en duplikat — samme regel som
-// _timebokAddProject, så en kollega ikke kan finnes i to varianter.
+// eksisterende tilbake i stedet for en duplikat, så en kollega ikke kan finnes
+// i to varianter.
 function _addKollegaNamed(navn) {
     navn = String(navn || '').trim();
     if (!navn) return null;
@@ -2501,7 +2498,7 @@ window.addKollegaFromPicker = addKollegaFromPicker;
 
 function _timebokGenId(prefix) { return prefix + '_' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36); }
 
-// Timesats vises øverst på Satser-siden (personlig, felles for alle tariffer).
+// Timesats vises øverst i Personlig-fanen (din egen timelønn, felles for alle tariffer).
 function saveTimebokTimesats(val) {
     var v = parseLocaleNum(val);
     _timebokSaveSettings({ timesats: isNaN(v) ? null : v });
@@ -2514,24 +2511,30 @@ function _timebokSaveSettings(patch) {
     _syncTimebokSetting(TIMEBOK_SETTINGS_KEY, 'timebok_settings', d);
 }
 
-// ── Innstillinger → Timebok: standard transport, reise-stil, auto-fyll ──
+// ── Innstillinger → Timebok → Personlig: timesats, standard transport, reise-stil, auto-fyll ──
+// Alt her er brukerens egne valg (Satser = tariffen, felles for alle).
 function renderTimebokSettings() {
     var host = document.getElementById('tb-settings');
     if (!host) return;
     var st = getTimebokSettings();
     var opt = function (v, label, cur) { return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + escapeHtml(label) + '</option>'; };
-    var h = '<div class="tb-sat-card">' +
-        '<div class="tb-sat-h">' + escapeHtml(t('timebok_day_travel')) + '</div>' +
-        '<label class="tb-set-field"><span class="tb-set-label">' + escapeHtml(t('tb_set_transport')) + '</span>' +
-            '<select class="tb-sat-select" onchange="_timebokSaveSettings({ transport: this.value })">' +
-                opt('firma', t('timebok_firma'), st.transport) + opt('privat', t('timebok_privat'), st.transport) +
-            '</select></label>' +
-        '<label class="tb-set-field"><span class="tb-set-label">' + escapeHtml(t('tb_set_style')) + '</span>' +
+    // Ett kompakt kort, etikett over hvert felt (som referansen). Rekkefølge:
+    // timesats → reise-stil (+ forklaring) → transport → auto-fyll.
+    var field = function (label, ctrl) {
+        return '<label class="tb-set-field"><span class="tb-set-label">' + escapeHtml(label) + '</span>' + ctrl + '</label>';
+    };
+    var h = '<div class="tb-sat-card tb-set-card">' +
+        field(t('tb_set_timesats'), _tbNumInput(getTimebokTimesats(), "saveTimebokTimesats(this.value)", 'tb-set-input')) +
+        field(t('tb_set_style'),
             '<select class="tb-sat-select" onchange="_tbSetTravelStyle(this.value)">' +
                 opt('firesafe', 'Firesafe', st.travelStyle) + opt('damsgard', 'Damsgård Brannsikring', st.travelStyle) +
-            '</select></label>' +
-        '<div class="tb-sat-sub">' + escapeHtml(t('tb_set_style_hint')) + '</div>' +
-    '</div>';
+            '</select>') +
+        // Én linje per stil — lettere å lese enn én sammenhengende setning.
+        '<div class="tb-set-hint"><div>' + escapeHtml(t('tb_set_style_hint_fs')) + '</div><div>' + escapeHtml(t('tb_set_style_hint_dg')) + '</div></div>' +
+        field(t('tb_set_transport'),
+            '<select class="tb-sat-select" onchange="_timebokSaveSettings({ transport: this.value })">' +
+                opt('firma', t('timebok_firma'), st.transport) + opt('privat', t('timebok_privat'), st.transport) +
+            '</select>');
     // Auto-fyll: samme koder (og grupper) som «+ Legg til kode», fra dagens tariff.
     var on = {};
     st.autofill.forEach(function (id) { on[id] = true; });
@@ -2539,25 +2542,17 @@ function renderTimebokSettings() {
         return '<label class="tb-af-item"><input type="checkbox"' + (on[id] ? ' checked' : '') +
             ' onchange="_tbToggleAutofill(\'' + escapeHtml(id) + '\', this.checked)"><span>' + escapeHtml(label) + '</span></label>';
     };
-    var types = _timebokCodeTypes(_timebokTodayId());
-    var groups = [
-        { key: 'reise', title: t('tb_sat_travel'), extra: [{ id: '__travel', label: t('timebok_day_travel') }] },
-        { key: 'arbeid', title: t('tb_sat_work') },
-        { key: 'tillegg', title: t('tb_sat_supplements') },
-        { key: 'variabel', title: t('tb_sat_variables') },
-        { key: 'fravaer', title: t('tb_sat_absence') }
-    ];
+    var types = _timebokOrderedCodeTypes(_timebokTodayId());
     var gh = '';
-    groups.forEach(function (g) {
-        var items = (g.extra || []).concat(types.filter(function (x) { return x.group === g.key; }));
+    TIMEBOK_CODE_GROUPS.forEach(function (g) {
+        var items = types.filter(function (x) { return x.group === g; });
         if (!items.length) return;
-        gh += '<div class="tb-af-group">' + escapeHtml(g.title) + '</div><div class="tb-af-grid">' +
+        gh += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div><div class="tb-af-grid">' +
             items.map(function (x) { return cb(x.id, x.label); }).join('') + '</div>';
     });
-    h += '<div class="tb-sat-card">' +
-        '<div class="tb-sat-h">' + escapeHtml(t('tb_set_autofill')) + '</div>' +
-        '<div class="tb-sat-desc">' + escapeHtml(t('tb_set_autofill_desc')) + '</div>' +
-        '<div class="tb-af-box" lang="nb">' + gh + '</div>' +
+    h += '<div class="tb-set-field"><span class="tb-set-label">' + escapeHtml(t('tb_set_autofill')) + '</span>' +
+            '<span class="tb-set-hint">' + escapeHtml(t('tb_set_autofill_desc')) + '</span>' +
+            '<div class="tb-af-box" lang="nb">' + gh + '</div></div>' +
     '</div>';
     host.innerHTML = h;
 }
@@ -2610,12 +2605,13 @@ function _tbFlagsRef(t, path) {
     var parts = path.split(':');
     if (parts.length === 1) { if (!Array.isArray(t[path])) t[path] = []; return t[path]; }
     var kind = parts[0], id = parts[1];
-    if (kind === 'rule') { t.rules = t.rules || {}; if (!Array.isArray(t.rules[id])) t.rules[id] = (_timebokRuleById(id) || { flags: [] }).flags.slice(); return t.rules[id]; }
-    var arr = kind === 'sup' ? t.supplements : t.variables;
-    var it = (arr || []).filter(function (x) { return x.id === id; })[0];
-    if (!it) return null;
-    if (!Array.isArray(it.flags)) it.flags = [];
-    return it.flags;
+    if (kind === 'rule') {
+        var def = _timebokCodeDef(id);
+        t.rules = t.rules || {};
+        if (!Array.isArray(t.rules[id])) t.rules[id] = def ? _timebokCodeFlags(def, t).slice() : [];
+        return t.rules[id];
+    }
+    return null;
 }
 function _tbSatToggleFlag(btn, path, f) {
     var on = !btn.classList.contains('on');
@@ -2632,20 +2628,45 @@ function _tbSatSet(field, val) { _tbSatUpdate(function (t) { t[field] = _tbNum(v
 function _tbSatSetBracket(id, field, val) {
     _tbSatUpdate(function (t) { (t.brackets || []).forEach(function (b) { if (b.id === id) b[field] = _tbNum(val); }); });
 }
-function _tbSatSetItem(kind, id, field, val) {
-    _tbSatUpdate(function (t) {
-        var arr = kind === 'sup' ? t.supplements : t.variables;
-        (arr || []).forEach(function (x) { if (x.id === id) x[field] = (field === 'rate') ? _tbNum(val) : val; });
-    });
-}
 function _tbNumInput(val, onchange, cls) {
     return '<input type="text" class="tb-sat-input' + (cls ? ' ' + cls : '') + '" inputmode="decimal" pattern="[0-9,.]*" value="' + escapeHtml(val != null ? formatLocaleNum(val, 2) : '') + '" onchange="' + onchange + '">';
 }
-function _tbRuleDesc(r) {
-    if (r.mult === 0) return t('tb_sat_rule_none');
-    if (r.otgPct != null) return 'Timesats + ' + Math.round(r.otgPct * 100) + '% × overtidsgrunnlag';
-    if (r.mult === 1) return 'Lønn × 1';
-    return 'Timesats × ' + formatLocaleNum(r.mult, 2);
+// Hvordan en kode uten egen sats beregnes (vises under navnet i Satser).
+function _tbCodeDesc(def) {
+    if (def.zero) return t('tb_sat_rule_none');
+    if (def.amount) return t('tb_sat_per_reg');
+    if (def.otgPct != null) return 'Timesats + ' + Math.round(def.otgPct * 100) + '% × overtidsgrunnlag';
+    if (def.base) return (_timebokCodeDef(def.base) || { label: def.base }).label + ' × ' + formatLocaleNum(def.mult, 2);
+    return 'Timesats × ' + formatLocaleNum(def.mult, 2);
+}
+var _TB_RATE_UNIT = { clock: 'kr/t', hours: 'kr/t', count: 'kr/stk', km: 'kr/km' };
+// Én kode i Satser: navn + egen sats (kr/t, kr/stk, kr/km — kr/time|kr/reg. når
+// koden har valgbar enhet) ELLER hvordan den beregnes, og flaggene.
+function _tbCodeSatHtml(tf, def) {
+    var row;
+    if (def.own) {
+        var unit = def.unitSel
+            ? '<select class="tb-sat-unitsel" onchange="_tbSatSetUnit(\'' + def.id + '\', this.value)">' +
+                '<option value="hour"' + (_timebokCodeInput(def, tf) === 'hours' ? ' selected' : '') + '>kr/time</option>' +
+                '<option value="reg"' + (_timebokCodeInput(def, tf) === 'count' ? ' selected' : '') + '>kr/reg.</option>' +
+              '</select>'
+            : '<span class="tb-sat-unit">' + _TB_RATE_UNIT[def.input] + '</span>';
+        row = '<div class="tb-sat-row"><span class="tb-sat-name">' + escapeHtml(def.label) + '</span>' +
+            _tbNumInput(_timebokOwnRate(def.id, tf), "_tbSatSetRate('" + def.id + "', this.value)") + unit + '</div>';
+    } else {
+        row = '<div class="tb-sat-name">' + escapeHtml(def.label) + '</div><div class="tb-sat-sub"><i>' + escapeHtml(_tbCodeDesc(def)) + '</i></div>';
+    }
+    return '<div class="tb-sat-item">' + row + _tbFlagsHtml('rule:' + def.id, _timebokCodeFlags(def, tf)) + '</div>';
+}
+function _tbSatSetRate(id, val) {
+    _tbSatUpdate(function (t) {
+        t.rates = t.rates || {};
+        t.rates[id] = _tbNum(val);
+        if (id === 'km') delete t.kmRate;   // eldre felt — rates.km er kilden nå
+    });
+}
+function _tbSatSetUnit(id, val) {
+    _tbSatUpdate(function (t) { t.units = t.units || {}; t.units[id] = val === 'reg' ? 'reg' : 'hour'; });
 }
 function renderTimebokSatser() {
     var host = document.getElementById('tb-satser');
@@ -2658,13 +2679,13 @@ function renderTimebokSatser() {
     var status = (active && active.id === tf.id) ? '<span class="tb-sat-status active">● ' + escapeHtml(t('tb_sat_active')) + '</span>'
         : (String(tf.validFrom) > today ? '<span class="tb-sat-status">' + escapeHtml(t('tb_sat_future')) + '</span>'
         : '<span class="tb-sat-status">' + escapeHtml(t('tb_sat_history')) + '</span>');
-    var h = '';
-    // Timesats — din personlige timelønn, gjelder uansett tariff.
-    h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('settings_timebok_timesats')) + '</div>' +
-        '<div class="tb-sat-item"><div class="tb-sat-row"><span class="tb-sat-name">' + escapeHtml(t('tb_sat_timesats_name')) + '</span>' +
-            _tbNumInput(getTimebokTimesats(), "saveTimebokTimesats(this.value)") + '<span class="tb-sat-unit">kr/t</span></div>' +
-            '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_timesats_hint')) + '</div></div>' +
-    '</div>';
+    // To tydelige deler: TARIFF (velger + trekk og grunnlag) og TILLEGGSKODER (én boks
+    // pr. kodegruppe, samme rekkefølge som i Timebok). Begge gjelder valgt tariff.
+    var section = function (title, desc) {
+        return '<div class="tb-sat-section"><div class="tb-sat-section-title">' + escapeHtml(title) + '</div>' +
+            '<div class="tb-sat-section-desc">' + escapeHtml(desc) + '</div></div>';
+    };
+    var h = section(t('tb_sat_sec_tariff'), t('tb_sat_sec_tariff_desc'));
     // Tariff-velger
     h += '<div class="tb-sat-card tb-sat-tariff">' +
         '<div class="tb-sat-h">' + escapeHtml(t('tb_sat_tariff')) + '</div>' +
@@ -2691,6 +2712,7 @@ function renderTimebokSatser() {
         '<div class="tb-sat-item"><div class="tb-sat-row"><span class="tb-sat-name">Overtidsgrunnlag</span>' + _tbNumInput(tf.overtidsgrunnlag, "_tbSatSet('overtidsgrunnlag', this.value)") + '<span class="tb-sat-unit">kr/t</span></div>' +
             '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_otg_hint')) + '</div></div>' +
     '</div>';
+    h += section(t('tb_sat_sec_codes'), t('tb_sat_sec_codes_desc').replace('{0}', tf.name));
     // Reise
     h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('tb_sat_travel')) + '</div>' +
         '<div class="tb-sat-desc">' + escapeHtml(t('tb_sat_travel_desc')) + '</div>' +
@@ -2703,84 +2725,29 @@ function renderTimebokSatser() {
         }).join('') +
         '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'br\')">' + escapeHtml(t('tb_sat_add_bracket')) + '</button>' +
         '<div class="tb-sat-item tb-sat-shared"><div class="tb-sat-name">' + escapeHtml(t('tb_sat_bracket_shared')) + '</div>' + _tbFlagsHtml('bracketFlags', tf.bracketFlags) + '</div>' +
-        '<div class="tb-sat-item"><div class="tb-sat-row"><span class="tb-sat-name">Km-godtgjørelse</span>' + _tbNumInput(tf.kmRate, "_tbSatSet('kmRate', this.value)") + '<span class="tb-sat-unit">kr/km</span></div>' +
-            _tbFlagsHtml('kmFlags', tf.kmFlags) + '</div>' +
-        '<div class="tb-sat-item"><div class="tb-sat-name">Reiseutgifter/bompasseringer</div><div class="tb-sat-sub"><i>' + escapeHtml(t('tb_sat_per_reg')) + '</i></div>' +
-            _tbFlagsHtml('reiseutgFlags', tf.reiseutgFlags) + '</div>' +
+        TIMEBOK_CODES.filter(function (c) { return c.group === 'reise'; }).map(function (c) { return _tbCodeSatHtml(tf, c); }).join('') +
     '</div>';
-    // Tariff-bestemte tillegg
-    h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('tb_sat_supplements')) + '</div>' +
-        '<div class="tb-sat-desc">' + escapeHtml(t('tb_sat_supplements_desc')) + '</div>' +
-        (tf.supplements || []).map(function (sp) {
-            return '<div class="tb-sat-item"><div class="tb-sat-row">' +
-                '<button type="button" class="tb-sat-name tb-sat-rename" onclick="_tbSatRename(\'sup\', \'' + sp.id + '\')">' + escapeHtml(sp.label) + '</button>' +
-                _tbNumInput(sp.rate, "_tbSatSetItem('sup', '" + sp.id + "', 'rate', this.value)") +
-                '<select class="tb-sat-unitsel" onchange="_tbSatSetItem(\'sup\', \'' + sp.id + '\', \'unit\', this.value)">' +
-                    '<option value="hour"' + (sp.unit !== 'reg' ? ' selected' : '') + '>kr/time</option>' +
-                    '<option value="reg"' + (sp.unit === 'reg' ? ' selected' : '') + '>kr/reg.</option>' +
-                '</select>' +
-                '<button type="button" class="tb-sat-del" onclick="_tbSatRemove(\'sup\', \'' + sp.id + '\')" aria-label="Fjern">&times;</button>' +
-                '</div>' + _tbFlagsHtml('sup:' + sp.id, sp.flags) + '</div>';
-        }).join('') +
-        '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'sup\')">' + escapeHtml(t('tb_sat_add_supplement')) + '</button>' +
-    '</div>';
-    // Variable beløp
-    h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('tb_sat_variables')) + '</div>' +
-        '<div class="tb-sat-desc">' + escapeHtml(t('tb_sat_variables_desc')) + '</div>' +
-        (tf.variables || []).map(function (v) {
-            return '<div class="tb-sat-item"><div class="tb-sat-row">' +
-                '<button type="button" class="tb-sat-name tb-sat-rename" onclick="_tbSatRename(\'var\', \'' + v.id + '\')">' + escapeHtml(v.label) + '</button>' +
-                '<button type="button" class="tb-sat-del" onclick="_tbSatRemove(\'var\', \'' + v.id + '\')" aria-label="Fjern">&times;</button>' +
-                '</div><div class="tb-sat-sub"><i>' + escapeHtml(t('tb_sat_per_reg')) + '</i></div>' + _tbFlagsHtml('var:' + v.id, v.flags) + '</div>';
-        }).join('') +
-        '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'var\')">' + escapeHtml(t('tb_sat_add_variable')) + '</button>' +
-    '</div>';
-    // Faste regler: Arbeid og overtid + Fravær
-    [['arbeid', 'tb_sat_work', 'tb_sat_work_desc'], ['fravaer', 'tb_sat_absence', 'tb_sat_absence_desc']].forEach(function (g) {
-        h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t(g[1])) + '</div>' +
-            '<div class="tb-sat-desc">' + escapeHtml(t(g[2])) + '</div>' +
-            TIMEBOK_RULES.filter(function (r) { return r.group === g[0]; }).map(function (r) {
-                var fl = (tf.rules && tf.rules[r.id]) || r.flags;
-                return '<div class="tb-sat-item"><div class="tb-sat-name">' + escapeHtml(r.label) + '</div>' +
-                    '<div class="tb-sat-sub"><i>' + escapeHtml(_tbRuleDesc(r)) + ' ' + escapeHtml(t('tb_sat_fixed')) + '</i></div>' +
-                    _tbFlagsHtml('rule:' + r.id, fl) + '</div>';
-            }).join('') +
+    // Resten av kodene, én boks pr. gruppe (samme grupper/rekkefølge som i Timebok).
+    TIMEBOK_CODE_GROUPS.forEach(function (g) {
+        if (g === 'reise') return;
+        h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' +
+            TIMEBOK_CODES.filter(function (c) { return c.group === g; }).map(function (c) { return _tbCodeSatHtml(tf, c); }).join('') +
         '</div>';
     });
     host.innerHTML = h;
 }
-// Legg til avstand / tillegg / variabelt beløp (navn via input-popup).
+// Legg til / fjern avstand (navn via input-popup).
 function _tbSatAdd(kind) {
-    var title = t(kind === 'br' ? 'tb_sat_add_bracket_title' : kind === 'sup' ? 'tb_sat_add_supplement_title' : 'tb_sat_add_variable_title');
-    showInputModal(title, '', function (val) {
+    showInputModal(t('tb_sat_add_bracket_title'), '', function (val) {
         var name = String(val || '').trim();
         if (!name) return;
-        _tbSatUpdate(function (tf) {
-            if (kind === 'br') (tf.brackets = tf.brackets || []).push({ id: _timebokGenId('br'), label: name, rate: null, ratePrivat: null });
-            else if (kind === 'sup') (tf.supplements = tf.supplements || []).push({ id: _timebokGenId('sup'), label: name, rate: null, unit: 'hour', flags: ['lonn', 'ferie', 'skatt'] });
-            else (tf.variables = tf.variables || []).push({ id: _timebokGenId('var'), label: name, flags: ['lonn', 'ferie', 'skatt'] });
-        });
-        renderTimebokSatser();
-    });
-}
-function _tbSatRename(kind, id) {
-    var tf = _tbSatserTariff();
-    var arr = kind === 'sup' ? tf.supplements : tf.variables;
-    var it = (arr || []).filter(function (x) { return x.id === id; })[0];
-    if (!it) return;
-    showInputModal(t('tb_sat_rename'), it.label, function (val) {
-        var name = String(val || '').trim();
-        if (!name) return;
-        _tbSatSetItem(kind, id, 'label', name);
+        _tbSatUpdate(function (tf) { (tf.brackets = tf.brackets || []).push({ id: _timebokGenId('br'), label: name, rate: null, ratePrivat: null }); });
         renderTimebokSatser();
     });
 }
 function _tbSatRemove(kind, id) {
     showConfirmModal(t('tb_sat_remove_confirm'), function () {
-        _tbSatUpdate(function (tf) {
-            var key = kind === 'br' ? 'brackets' : kind === 'sup' ? 'supplements' : 'variables';
-            tf[key] = (tf[key] || []).filter(function (x) { return x.id !== id; });
-        });
+        _tbSatUpdate(function (tf) { tf.brackets = (tf.brackets || []).filter(function (x) { return x.id !== id; }); });
         renderTimebokSatser();
     });
 }
@@ -2838,12 +2805,14 @@ function deleteTbTariff() {
 //   "feriepenger": 12, "fagforening": 1.8, "forsikring": 99.33, "forsikringFlags": ["lonn","skatt"],
 //   "overtidsgrunnlag": 332.31,
 //   "brackets": [{ "label": "7,5–15 km", "firma": 70.7, "privat": 114.6 }], "bracketFlags": [...],
-//   "km": 5, "kmFlags": [...], "reiseutgFlags": [...],
-//   "supplements": [{ "label": "Bastillegg", "rate": 10, "unit": "hour"|"reg", "flags": [...] }],
-//   "variables": [{ "label": "Restakkord beløp", "flags": [...] }],
-//   "rules": { "ord": ["lonn","ferie","skatt"], ... } }   (flagg: lonn/ferie/skatt/reise/org)
-// Avstander/tillegg/variable matches på navn mot eksisterende id-er (så prosjekter og
-// gamle registreringer fortsatt peker riktig); nye navn får nye id-er.
+//   "rates": { "km": 5, "passasjer": 1, "tilhenger": 1, "timelonnfi": 250, "sats7": 280,
+//              "bastillegg": 10, "kaffe": 25, "smuss": 5, "tarifftillegg": 40, "matpenger": 120 },
+//   "units": { "bastillegg": "hour"|"reg", "kaffe": ..., "smuss": ... },
+//   "rules": { "<kode-id>": ["lonn","ferie","skatt"], ... } }   (flagg: lonn/ferie/skatt/reise/org)
+// Kode-id-ene står i TIMEBOK_CODES (script.js). Eldre filer godtas også: "km",
+// "kmFlags", "reiseutgFlags", og "supplements"/"variables" matches på navn mot kodelista.
+// Avstander matches på navn mot eksisterende id-er (så prosjekter og gamle
+// registreringer fortsatt peker riktig); nye navn får nye id-er.
 function _tbImportTariff(input) {
     var file = input.files && input.files[0];
     input.value = '';
@@ -2864,6 +2833,9 @@ function _tbImportTariff(input) {
             }
             return null;
         };
+        var codeByLabel = function (label) {
+            return TIMEBOK_CODES.filter(function (c) { return norm(c.label) === norm(label); })[0] || null;
+        };
         var fl = function (a) { return Array.isArray(a) ? a.filter(function (f) { return TIMEBOK_FLAGS.indexOf(f) !== -1; }) : []; };
         var num = function (v) { var n = (typeof v === 'number') ? v : parseLocaleNum(v); return (n == null || isNaN(n)) ? null : n; };
         var tf = _timebokNewTariff(String(obj.name), obj.validFrom);
@@ -2874,16 +2846,22 @@ function _tbImportTariff(input) {
             return { id: findId('brackets', b.label) || _timebokGenId('br'), label: String(b.label || ''), rate: num(b.firma), ratePrivat: num(b.privat) };
         });
         if (obj.bracketFlags) tf.bracketFlags = fl(obj.bracketFlags);
-        tf.kmRate = num(obj.km);
-        if (obj.kmFlags) tf.kmFlags = fl(obj.kmFlags);
-        if (obj.reiseutgFlags) tf.reiseutgFlags = fl(obj.reiseutgFlags);
-        tf.supplements = (obj.supplements || []).map(function (sp) {
-            return { id: findId('supplements', sp.label) || _timebokGenId('sup'), label: String(sp.label || ''), rate: num(sp.rate), unit: sp.unit === 'reg' ? 'reg' : 'hour', flags: fl(sp.flags) };
+        var isCode = function (id) { return TIMEBOK_CODES.some(function (c) { return c.id === id; }); };
+        // Eldre format.
+        if (obj.km != null) tf.rates.km = num(obj.km);
+        if (obj.kmFlags) tf.rules.km = fl(obj.kmFlags);
+        if (obj.reiseutgFlags) tf.rules.reiseutg = fl(obj.reiseutgFlags);
+        (obj.supplements || []).concat(obj.variables || []).forEach(function (sp) {
+            var c = codeByLabel(sp.label);
+            if (!c) return;
+            if (c.own && sp.rate != null) tf.rates[c.id] = num(sp.rate);
+            if (c.unitSel && sp.unit) tf.units[c.id] = sp.unit === 'reg' ? 'reg' : 'hour';
+            if (sp.flags) tf.rules[c.id] = fl(sp.flags);
         });
-        tf.variables = (obj.variables || []).map(function (v) {
-            return { id: findId('variables', v.label) || _timebokGenId('var'), label: String(v.label || ''), flags: fl(v.flags) };
-        });
-        if (obj.rules && typeof obj.rules === 'object') Object.keys(obj.rules).forEach(function (k) { if (_timebokRuleById(k)) tf.rules[k] = fl(obj.rules[k]); });
+        // Nytt format.
+        if (obj.rates && typeof obj.rates === 'object') Object.keys(obj.rates).forEach(function (k) { if (isCode(k)) tf.rates[k] = num(obj.rates[k]); });
+        if (obj.units && typeof obj.units === 'object') Object.keys(obj.units).forEach(function (k) { if (isCode(k)) tf.units[k] = obj.units[k] === 'reg' ? 'reg' : 'hour'; });
+        if (obj.rules && typeof obj.rules === 'object') Object.keys(obj.rules).forEach(function (k) { if (isCode(k)) tf.rules[k] = fl(obj.rules[k]); });
         var doSave = function (replaceId) {
             var l2 = getTimebokTariffs().filter(function (x) { return x.id !== replaceId; });
             l2.push(tf);
@@ -2900,104 +2878,86 @@ function _tbImportTariff(input) {
     reader.readAsText(file);
 }
 
-// Prosjekter
-// Innstillinger → Timebok → Prosjekter: full oversikt. Samme rader som prosjekt-
-// velgeren (navn over avstand, navn brytes — kuttes aldri); trykk = rediger i samme
-// skjema som i Timebok (navn + reiseavstand), her også med «Slett prosjekt».
-function renderTimebokProjectSettings() {
-    var list = getTimebokProjects();
-    var c = document.getElementById('settings-timebok-project-items');
-    if (!c) return;
-    var searchEl = document.getElementById('settings-timebok-proj-search');
-    var q = (searchEl && searchEl.value || '').trim().toLowerCase();
-    var filtered = q ? list.filter(function (p) { return String(p.name || '').toLowerCase().indexOf(q) !== -1; }) : list;
-    var html = filtered.map(function (p) {
-        return '<div class="timebok-proj-row">' +
-            '<button type="button" class="timebok-proj-pick" data-id="' + escapeHtml(p.id) + '" onclick="openTimebokProjectEditFromSettings(this.getAttribute(\'data-id\'))">' +
-                '<span class="timebok-proj-text">' +
-                    '<span class="timebok-proj-name">' + escapeHtml(p.name) + '</span>' +
-                    '<span class="timebok-proj-dist">' + escapeHtml(_timebokBracketLabel(p.bracketId)) + '</span>' +
-                '</span>' +
-                '<span class="timebok-proj-edit">' + _TIMEBOK_PENCIL_SVG + '</span>' +
-            '</button>' +
-        '</div>';
-    }).join('');
-    if (!html) html = '<div class="timebok-picker-empty">' + escapeHtml(t(list.length ? 'timebok_no_project_matches' : 'timebok_no_projects_hint')) + '</div>';
-    c.innerHTML = html;
+// ── Timebok-prosjekter = Prosjekter & lager ──
+// Timebok har ingen egen prosjektliste lenger: getTimebokProjects() leser malene, og
+// reiseavstanden lagres på malen (`timebokBracketId`). Nytt/rediger går via samme
+// prosjektskjema som Innstillinger → Prosjekter & lager (showTemplateEditor).
+
+// Oppdater én mal lokalt (cache + minne) og i Firestore (merge).
+function _timebokPatchTemplate(id, patch) {
+    var list = safeParseJSON(TEMPLATE_KEY, []);
+    list.forEach(function (tpl) { if (tpl.id === id) Object.assign(tpl, patch); });
+    safeSetItem(TEMPLATE_KEY, JSON.stringify(list));
+    (window.loadedTemplates || []).forEach(function (tpl) { if (tpl.id === id) Object.assign(tpl, patch); });
+    enqueueUserDocSet('templates', id, patch, 'Update template', { merge: true });
 }
-function openTimebokProjectNewFromSettings() {
-    var raw = (document.getElementById('settings-timebok-proj-search').value || '').trim();
-    _timebokPickerTarget = null;
-    _timebokOpenProjForm('add', { name: _timebokFindProjectByName(raw) ? '' : raw, bracketId: null }, 'settings');
-}
-function openTimebokProjectEditFromSettings(id) {
-    var proj = _timebokProjectById(id);
-    if (!proj) return;
-    _timebokPickerTarget = null;
-    _timebokOpenProjForm('edit', proj, 'settings');
-}
-function deleteTimebokProjFromForm() {
-    var id = _timebokProjForm.id;
-    var proj = _timebokProjectById(id);
-    if (!proj) return;
-    showConfirmModal(t('timebok_delete_project_confirm').replace('{name}', proj.name), function () {
-        _timebokSaveProjects(getTimebokProjects().filter(function (p) { return p.id !== id; }));
-        _timebokCloseProjForm();
-        renderTimebokProjectSettings();
-    });
-}
-// Felles add: returnerer prosjektet (nytt eller eksisterende ved navne-treff).
-function _timebokAddProject(name, source) {
-    name = (name || '').trim();
-    if (!name) return null;
-    var list = getTimebokProjects();
-    for (var i = 0; i < list.length; i++) if (String(list[i].name || '').toLowerCase() === name.toLowerCase()) return list[i];
-    var proj = { id: _timebokGenId('p'), name: name, bracketId: null, source: source || 'manual' };
-    list.push(proj);
-    _timebokSaveProjects(list);
-    return proj;
-}
-// Speil timebok-prosjektlista mot Innstillinger → Prosjekter & lager (maler).
-// KUN maler er kilde — IKKE ordresedler (brukeren vil ikke ha tilfeldige prosjektnavn
-// fra lagrede/arkiverte skjemaer inn her). Legger til nye maler og fjerner tidligere
-// auto-importerte prosjekter som ikke lenger finnes som mal. Manuelle prosjekter (lagt
-// til direkte i timebok) og bracket-koblinger bevares alltid.
-function syncTimebokProjectsFromForms(showFeedback) {
-    var list = getTimebokProjects();
-    // Gyldige mal-navn fra Innstillinger → Prosjekter & lager (TEMPLATE_KEY).
-    var templateNames = {};
-    safeParseJSON(TEMPLATE_KEY, []).forEach(function (f) {
-        var nm = (f && f.prosjektnavn ? String(f.prosjektnavn) : '').trim();
-        if (nm) templateNames[nm.toLowerCase()] = nm;
-    });
-    var hasTemplates = Object.keys(templateNames).length > 0;
-    var changed = false, added = 0, removed = 0;
-    // Fjern gamle auto-importerte prosjekter som ikke er en mal lenger. Behold manuelle.
-    // Sikkerhet: prune ALDRI når mallista er tom/ikke lastet (unngå å tømme lista mens
-    // Firestore-cachen ikke er klar — jf. «aldri overskriv lokal data med tomt svar»).
-    if (hasTemplates) {
-        list = list.filter(function (p) {
-            if (p.source === 'manual') return true;
-            if (templateNames[String(p.name || '').toLowerCase()]) return true;
-            removed++; changed = true;
-            return false;
+
+// Frisk kopi av ALLE maler fra Firestore inn i TEMPLATE_KEY (velgeren åpnes →
+// andre enheter kan ha lagt til/endret prosjekter). Sortert som getTemplates.
+function _timebokFetchAllTemplates() {
+    if (!(currentUser && db)) return Promise.resolve(null);
+    return db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get()
+        .then(function (snap) {
+            var list = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+            safeSetItem(TEMPLATE_KEY, JSON.stringify(list));
+            return list;
         });
-    }
-    // Legg til maler som mangler i lista.
-    var have = {};
-    list.forEach(function (p) { have[String(p.name || '').toLowerCase()] = true; });
-    Object.keys(templateNames).forEach(function (key) {
-        if (have[key]) return;
-        have[key] = true;
-        list.push({ id: _timebokGenId('p'), name: templateNames[key], bracketId: null, source: 'mal' });
-        added++; changed = true;
-    });
-    if (changed) _timebokSaveProjects(list);
-    if (showFeedback) {
-        if (typeof showNotificationModal === 'function')
-            showNotificationModal(added > 0 ? (added + ' ' + t('timebok_projects_added')) : t('timebok_projects_none_new'), added > 0);
-        renderTimebokProjectSettings();
-    }
+}
+
+// Engangs-flytting: den gamle egne Timebok-prosjektlista (settings/timebok_projects)
+// flyttes inn i Prosjekter & lager. Finnes prosjektet der fra før (samme navn), får
+// det bare reiseavstanden. Ellers opprettes det med SAMME id som i Timebok, så
+// dagene som peker på projectId fortsatt treffer (og en ny kjøring på en annen
+// enhet skriver samme dokument — aldri duplikat). Etterpå tømmes den gamle lista.
+// Navnet beholdes for kallet i innloggings-flyten (script.js).
+var _timebokMigrating = false;
+function syncTimebokProjectsFromForms() {
+    var legacy = safeParseJSON(TIMEBOK_PROJECTS_KEY, null);
+    var old = legacy && Array.isArray(legacy.list) ? legacy.list : [];
+    if (!old.length || _timebokMigrating) return;
+    _timebokMigrating = true;
+    var run = function (templates) {
+        var byId = {}, byName = {};
+        templates.forEach(function (tpl) {
+            byId[tpl.id] = tpl;
+            var nm = String(tpl.prosjektnavn || '').trim().toLowerCase();
+            if (nm && !byName[nm]) byName[nm] = tpl;
+        });
+        var created = [];
+        old.forEach(function (p) {
+            var nm = String(p.name || '').trim();
+            if (!nm) return;
+            var tpl = byId[p.id] || byName[nm.toLowerCase()];
+            if (tpl) {
+                if (p.bracketId && !tpl.timebokBracketId) _timebokPatchTemplate(tpl.id, { timebokBracketId: p.bracketId });
+                return;
+            }
+            var data = {
+                id: p.id, prosjektnavn: nm, prosjektnr: '', oppdragsgiver: '', kundensRef: '',
+                fakturaadresse: '', leveringsadresse: '', timebokBracketId: p.bracketId || null,
+                active: true, createdAt: new Date().toISOString(), createdBy: currentUser ? currentUser.uid : 'local'
+            };
+            byName[nm.toLowerCase()] = data;
+            created.push(data);
+            if (window.loadedTemplates) window.loadedTemplates.push(Object.assign({}, data));
+            enqueueUserDocSet('templates', data.id, data, 'Timebok project → template', { merge: true });
+        });
+        // Leses ETTER løkka — _timebokPatchTemplate over har allerede skrevet til cachen.
+        var local = safeParseJSON(TEMPLATE_KEY, []).concat(created);
+        local.sort(function (a, b) { return String(a.prosjektnavn || '').localeCompare(String(b.prosjektnavn || ''), 'nb'); });
+        safeSetItem(TEMPLATE_KEY, JSON.stringify(local));
+        _syncTimebokSetting(TIMEBOK_PROJECTS_KEY, 'timebok_projects', { list: [], migratedToTemplates: true });
+        if (typeof _renderSettingsTemplateListFromData === 'function' && document.getElementById('settings-template-list')) {
+            _renderSettingsTemplateListFromData(local);
+        }
+    };
+    // Innlogget: sammenlign mot ALLE maler i Firestore (ikke bare cachen), ellers
+    // kunne et prosjekt utenfor cachen blitt opprettet på nytt. Feiler hentingen
+    // (offline) prøves det igjen neste gang — den gamle lista står urørt til da.
+    var p = (currentUser && db) ? _timebokFetchAllTemplates() : Promise.resolve(safeParseJSON(TEMPLATE_KEY, []));
+    p.then(function (templates) { run(templates || []); })
+        .catch(function (e) { console.error('Timebok project migration:', e); })
+        .then(function () { _timebokMigrating = false; });
 }
 
 // Cache-first helpers for settings
@@ -3833,6 +3793,108 @@ function closeMatTypeDropdown() {
     }, 150);
 }
 
+// ── Mobil-nedtrekksliste for <select> (hele appen) ──
+// På mobil/nettbrett (ingen html.device-pc) åpnes ALLE <select> som appens egen
+// liste-popup (samme utseende som Type-velgeren over) i stedet for nettleserens
+// PC-liste. Native <select> beholdes som datakilde: valg setter .value og sender
+// 'change', så eksisterende onchange-kode virker uendret. PC beholder native liste.
+// Unntak: <select data-native> (ingen i dag).
+function _openSelectSheet(sel) {
+    if (!sel || sel.disabled || document.querySelector('.mat-type-backdrop')) return;
+    // Som native: et åpent tastatur lukkes når lista åpnes.
+    var ae = document.activeElement;
+    if (ae && ae !== sel && ae.blur && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) ae.blur();
+    // Tittel = feltets etikett: omsluttende <label> sin første span, ellers nærmeste
+    // forrige søsken som er en etikett (label / *-label-klasse).
+    var lbl = sel.closest('label'), titleEl = lbl ? lbl.querySelector('span') : null;
+    for (var p = sel.previousElementSibling; !titleEl && p; p = p.previousElementSibling) {
+        if (p.tagName === 'LABEL' || /label/.test(p.className)) titleEl = p;
+    }
+    var title = titleEl ? titleEl.textContent.trim() : (sel.getAttribute('aria-label') || '');
+    var backdrop = document.createElement('div');
+    backdrop.className = 'mat-type-backdrop';
+    backdrop.onclick = function () { closeMatTypeDropdown(); };
+    var dd = document.createElement('div');
+    dd.className = 'mat-type-dropdown select-sheet';
+    if (title) {
+        var th = document.createElement('div');
+        th.className = 'mat-type-dropdown-title';
+        th.textContent = title;
+        dd.appendChild(th);
+    }
+    var list = document.createElement('div');
+    list.className = 'select-sheet-list';
+    Array.prototype.forEach.call(sel.children, function (node) {
+        var opts = node.tagName === 'OPTGROUP' ? node.children : [node];
+        if (node.tagName === 'OPTGROUP') {
+            var g = document.createElement('div');
+            g.className = 'mat-type-dropdown-title';
+            g.textContent = node.label;
+            list.appendChild(g);
+        }
+        Array.prototype.forEach.call(opts, function (o) {
+            if (o.tagName !== 'OPTION' || o.hidden) return;
+            var active = o.selected;
+            var item = document.createElement('div');
+            item.className = 'mat-type-dropdown-item' + (active ? ' active' : '') + (o.disabled ? ' disabled' : '');
+            item.innerHTML = '<div class="mat-type-text"><div class="mat-type-label"></div></div><div class="mat-type-check">' + (active ? '✓' : '') + '</div>';
+            item.querySelector('.mat-type-label').textContent = o.textContent;
+            item.onclick = function (e) {
+                e.stopPropagation();
+                if (o.disabled) return;
+                closeMatTypeDropdown();
+                if (active) return;
+                sel.value = o.value;
+                sel.dispatchEvent(new Event('input', { bubbles: true }));
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+            list.appendChild(item);
+        });
+    });
+    dd.appendChild(list);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dd);
+    var act = list.querySelector('.active');
+    if (act) list.scrollTop = Math.max(0, act.offsetTop - list.clientHeight / 2 + act.offsetHeight / 2);
+    requestAnimationFrame(function () {
+        backdrop.classList.add('visible');
+        dd.classList.add('visible');
+    });
+}
+(function () {
+    // Nettleserens liste kan ikke stoppes pålitelig i en touch-hendelse (Chrome Android
+    // åpner den uansett). Derfor er <select> gjort utrykkbar på mobil/nettbrett i CSS
+    // (html:not(.device-pc) select { pointer-events: none }) — trykket lander på
+    // forelderen, og vi finner selecten under fingeren via posisjon.
+    function useSheet(sel) {
+        return sel && !sel.multiple && !sel.disabled && !sel.hasAttribute('data-native') && !document.documentElement.classList.contains('device-pc');
+    }
+    document.addEventListener('click', function (e) {
+        if (document.documentElement.classList.contains('device-pc') || !e.target || !e.target.querySelectorAll) return;
+        var x = e.clientX, y = e.clientY;
+        var cands = e.target.tagName === 'SELECT' ? [e.target] : e.target.querySelectorAll('select');
+        for (var i = 0; i < cands.length; i++) {
+            var sel = cands[i];
+            if (!useSheet(sel)) continue;
+            var r = sel.getBoundingClientRect();
+            if (r.width && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+                e.preventDefault();   // label-klikk skal ikke fokusere selecten
+                _openSelectSheet(sel);
+                return;
+            }
+        }
+    }, true);
+    // Tastatur (Enter/Space/Alt+pil) på fokusert select.
+    document.addEventListener('keydown', function (e) {
+        var sel = e.target && e.target.tagName === 'SELECT' ? e.target : null;
+        if (!useSheet(sel)) return;
+        if (e.key === 'Enter' || e.key === ' ' || (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp'))) {
+            e.preventDefault();
+            _openSelectSheet(sel);
+        }
+    }, true);
+})();
+
 async function changeMaterialType(idx, type, fixedSize) {
     if (!isAdmin) return;
     settingsMaterials[idx].type = type;
@@ -4502,6 +4564,8 @@ function showTemplateEditor(templateId) {
     updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', '');
     document.getElementById('tpl-edit-leveringsadresse').value = '';
     updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', '');
+    // Reiseavstand for Timebok (sonene fra dagens tariff).
+    document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(null);
 
     // Mark required fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
@@ -4537,6 +4601,7 @@ function showTemplateEditor(templateId) {
                 updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
                 document.getElementById('tpl-edit-leveringsadresse').value = tpl.leveringsadresse || '';
                 updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', tpl.leveringsadresse || '');
+                document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(tpl.timebokBracketId || null);
                 if (deactBtn) {
                     deactBtn.textContent = tpl.active === false ? t('settings_template_activate') : t('settings_template_deactivate');
                 }
@@ -4558,6 +4623,11 @@ function closeTemplateEditor() {
         _templateEditorFromPicker = false;
         _setTemplatePickerHidden(false);
     }
+    // Avbrutt fra Timebok-velgeren → tilbake til den (blokk-målet er beholdt).
+    if (_templateEditorFromTimebok) {
+        _templateEditorFromTimebok = false;
+        if (_timebokPickerTarget) _timebokShowProjectPicker();
+    }
 }
 
 async function duplicateTemplateFromSettings(templateId) {
@@ -4572,6 +4642,7 @@ async function duplicateTemplateFromSettings(templateId) {
     updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
     document.getElementById('tpl-edit-leveringsadresse').value = tpl.leveringsadresse || '';
     updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', tpl.leveringsadresse || '');
+    document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(tpl.timebokBracketId || null);
 }
 
 async function toggleActiveFromEditor() {
@@ -4745,10 +4816,8 @@ function _correctProjectInLocalStores(rules) {
 }
 
 // ── Timebok ──
-// Prosjektlista speiles på NAVN (syncTimebokProjectsFromForms), og dag-docene lagrer
-// navnet som snapshot ved siden av projectId. Navnet må rettes PÅ PLASS i lista:
-// lot vi speilingen slette + legge til på nytt, ville prosjektet fått ny id og alle
-// dag-linjer mistet koblingen (bl.a. reise-sonen).
+// Prosjektlista ER malene (getTimebokProjects), men dag-docene lagrer navnet som
+// snapshot ved siden av projectId — det må rettes her.
 // `renames` = [{ from: <gammelt navn>, to: <nytt navn> }] — `from` matches uten
 // hensyn til store/små bokstaver, så normaliseringsregelen (from === to) også virker.
 function _applyTimebokRenames(obj, renames) {
@@ -4767,12 +4836,6 @@ function _applyTimebokRenames(obj, renames) {
 
 function _correctProjectInTimebokLocal(renames) {
     var anyChanged = false;
-    if (typeof getTimebokProjects === 'function' && typeof _timebokSaveProjects === 'function') {
-        var list = getTimebokProjects();
-        var listChanged = false;
-        list.forEach(function(p) { if (_applyTimebokRenames(p, renames)) listChanged = true; });
-        if (listChanged) { _timebokSaveProjects(list); anyChanged = true; }
-    }
     if (typeof _timebokGetCache === 'function' && typeof _timebokSetCache === 'function') {
         var cache = _timebokGetCache();
         var cacheChanged = false;
@@ -5157,7 +5220,8 @@ async function saveTemplateFromEditor() {
         oppdragsgiver: document.getElementById('tpl-edit-oppdragsgiver').value.trim(),
         kundensRef: document.getElementById('tpl-edit-kundensRef').value.trim(),
         fakturaadresse: document.getElementById('tpl-edit-fakturaadresse').value.trim(),
-        leveringsadresse: document.getElementById('tpl-edit-leveringsadresse').value.trim()
+        leveringsadresse: document.getElementById('tpl-edit-leveringsadresse').value.trim(),
+        timebokBracketId: document.getElementById('tpl-edit-timebok-dist').value || null
     };
     // Validate required template fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
@@ -5224,8 +5288,12 @@ async function saveTemplateFromEditor() {
     // et øyeblikk før vi lukker den — en synlig blink.
     var fromPicker = _templateEditorFromPicker;
     _templateEditorFromPicker = false;
+    var fromTimebok = _templateEditorFromTimebok;
+    _templateEditorFromTimebok = false;
+    var editedId = _editingTemplateId;
     closeTemplateEditor();
     _renderSettingsTemplateListFromData(templates);
+    if (fromTimebok) _timebokAfterTemplateSave(!editedId, Object.assign({ id: editedId || data.id }, data), oldTemplate ? oldTemplate.prosjektnavn : '');
     // Opprettet fra «Velg prosjekt»: ta det i bruk med det samme. Man åpner jo
     // velgeren fordi et prosjekt skal brukes NÅ — samme resonnement som
     // addPlanFromPicker, der den nye etasjen hukes av direkte.
@@ -11543,14 +11611,13 @@ function createTimebokProjectBlock(proj) {
             '<button type="button" class="timebok-add-code-btn" onclick="addTimebokCode(this)">' + escapeHtml(t('timebok_add_code')) + '</button>' +
         '</div>' +
         '<div class="timebok-codes"></div>' +
-        '<div class="timebok-pb-sections"></div>' +
         '</div>';
-    var codesC = block.querySelector('.timebok-codes');
-    // Første ordinære kode vises i «Ordinære timer»-seksjonen; resten som vanlige rader.
+    // Alle koder er kort i samme liste, sortert som kodelista (_timebokInsertCard).
     var ordId = _timebokOrdinaryTypeId(), ordShown = false;
     (proj.codes || []).forEach(function (c) {
-        if (!ordShown && ordId && c.typeId === ordId) { ordShown = true; _timebokSetOrdinarySection(block, c); return; }
-        codesC.appendChild(createTimebokCodeRow(c));
+        if (!c.typeId) return;
+        if (c.typeId === ordId) ordShown = true;
+        _timebokInsertCard(block, createTimebokCodeCard(c));
     });
     // Reise: eksplisitt på dagen, eller (eldre dager uten felt) prosjektets avstand.
     var travel = proj.travel;
@@ -11562,10 +11629,10 @@ function createTimebokProjectBlock(proj) {
     // Valgt prosjekt → «Ordinære timer» vises (tom seksjon lagres ikke, så den må
     // gjenskapes ved innlasting) når den er med i auto-fyll — med mindre brukeren har
     // fjernet den med × (noOrdinary).
+    // (Eldre dager: tomt ordinær-kort ble ikke lagret.)
     if (!ordShown && ordId && (proj.projectId || proj.name) && !proj.noOrdinary &&
         getTimebokSettings().autofill.indexOf(ordId) !== -1) {
-        var hasOrdRow = (proj.codes || []).some(function (c) { return c.typeId === ordId; });
-        if (!hasOrdRow) _timebokSetOrdinarySection(block, {});
+        _timebokInsertCard(block, createTimebokCodeCard({ typeId: ordId }));
     }
     return block;
 }
@@ -11574,17 +11641,108 @@ function createTimebokProjectBlock(proj) {
 function _timebokOrdinaryTypeId() { return 'ord'; }
 function _timebokCurDayId() { return _timebokDateId(_timebokAnchor || new Date()); }
 
-// ── Seksjon: Reisegodtgjørelse (transport + avstand) ──
-// Rekkefølge i blokka: reise først, så ordinære timer (som referansen).
+// ── Tilleggskoder: ÉTT kort-format for alle koder ──
+// Hver kode (også Reisegodtgjørelse) er et kort: navn + ×, og feltene koden trenger:
+//   Arbeidstid + Overtid → Start · Slutt · Lunsj · Timer
+//   Fravær, sykefravær + tillegg pr. time → Timer · tillegg pr. reg. → Antall
+//   Beløp (restakkord, reiseutgifter) → Beløp (kr) · km/passasjer/tilhenger → Km
+//   Reisegodtgjørelse → Transport · Avstand
+// (feltene = `input` i TIMEBOK_CODES, script.js).
+// Kortene står ALLTID i samme rekkefølge som kodelista (Innstillinger → Auto-fyll og
+// «+ Legg til kode»): Reise → Arbeidstid → Overtid → Tillegg → Fravær → Sykefravær —
+// uansett om de kom fra auto-fyll, ble lagt til senere eller lastes fra en lagret dag.
+var _TB_GROUP_ORDER = TIMEBOK_CODE_GROUPS;
+function _timebokGroupTitle(g) { return t('tb_grp_' + g); }
+// Kodelista i visningsrekkefølge (Reisegodtgjørelse først i Reise-gruppa).
+function _timebokOrderedCodeTypes(dateId) {
+    var types = _timebokCodeTypes(dateId);
+    var out = [{ id: '__travel', label: t('timebok_day_travel'), group: 'reise' }];
+    _TB_GROUP_ORDER.forEach(function (g) {
+        types.forEach(function (tt) { if (tt.group === g) out.push(tt); });
+    });
+    return out;
+}
+function _timebokCodeSortKey(typeId) {
+    var list = _timebokOrderedCodeTypes(_timebokCurDayId());
+    for (var i = 0; i < list.length; i++) if (list[i].id === typeId) return i;
+    // Kode som ikke finnes i dagens tariff (fjernet tillegg o.l.): sist i sin gruppe.
+    var tt = _timebokTypeById(typeId, _timebokCurDayId());
+    var g = tt ? _TB_GROUP_ORDER.indexOf(tt.group) : -1;
+    if (g < 0) return 100000;
+    var last = -1;
+    list.forEach(function (x, j) { if (_TB_GROUP_ORDER.indexOf(x.group) <= g) last = j; });
+    return last + 0.5;
+}
+// Hvilke felt kortet har (se oversikten over).
+function _timebokCardKind(typeId) {
+    if (typeId === '__travel') return 'travel';
+    var tt = _timebokTypeById(typeId, _timebokCurDayId());
+    return tt ? tt.input : 'hours';
+}
+// Sett inn kortet på riktig plass (etter kort med samme eller lavere plass → stabil).
+function _timebokInsertCard(block, card) {
+    var host = block.querySelector('.timebok-codes');
+    var key = _timebokCodeSortKey(card.getAttribute('data-type-id'));
+    var cards = host.querySelectorAll('.tb-code-card');
+    for (var i = 0; i < cards.length; i++) {
+        if (_timebokCodeSortKey(cards[i].getAttribute('data-type-id')) > key) { host.insertBefore(card, cards[i]); return card; }
+    }
+    host.appendChild(card);
+    return card;
+}
+function _timebokCardHead(title) {
+    return '<div class="tb-sec-head"><span class="tb-sec-title">' + escapeHtml(title) + '</span>' +
+        '<button type="button" class="tb-sec-remove" onclick="removeTimebokCard(this)" aria-label="Fjern">&times;</button></div>';
+}
+function createTimebokCodeCard(code) {
+    code = code || {};
+    var id = _timebokCanonTypeId(code.typeId || '');
+    var tt = _timebokTypeById(id, _timebokCurDayId());
+    var kind = _timebokCardKind(id);
+    var card = document.createElement('div');
+    card.className = 'tb-sec tb-code-card tb-card-' + kind;
+    card.setAttribute('data-type-id', id);
+    var numField = function (label, onInput) {
+        return '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(label) + '</span>' +
+            '<input type="text" class="tb-input tb-c-val" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" oninput="' + (onInput || '_timebokOnDayInput()') + '"></label>';
+    };
+    var grid;
+    if (kind === 'clock') {
+        // Start/Slutt: knapp som åpner klokke-popupen (verdien ligger i data-value).
+        var timeField = function (cls, label) {
+            return '<div class="tb-field"><span class="tb-field-label">' + escapeHtml(label) + '</span>' +
+                '<button type="button" class="tb-input tb-time-btn empty ' + cls + '" data-value="" data-label="' + escapeHtml(label) + '" onclick="openTimebokClock(this)">' +
+                escapeHtml(t('timebok_pick_time')) + '</button></div>';
+        };
+        grid = timeField('tb-c-start', t('timebok_start')) + timeField('tb-c-end', t('timebok_end')) +
+            '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_lunch')) + '</span>' +
+                '<input type="text" class="tb-input tb-c-lunch" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" oninput="_timebokRecalcCard(this)"></label>' +
+            numField(t('timebok_hours_label'));
+    } else {
+        var lbl = kind === 'kr' ? t('timebok_amount_kr') : kind === 'km' ? t('timebok_km') : kind === 'count' ? t('timebok_count') : t('timebok_hours_label');
+        grid = numField(lbl);
+    }
+    // Samme 4-kolonners rutenett i alle kort → feltene står i samme spalter overalt.
+    card.innerHTML = _timebokCardHead(tt ? tt.label : id) + '<div class="tb-sec-grid tb-grid-4">' + grid + '</div>';
+    var hasVal = code.hours != null && code.hours !== '' && Number(code.hours) !== 0;
+    card.querySelector('.tb-c-val').value = hasVal ? formatLocaleNum(code.hours, 2) : '';
+    if (kind === 'clock') {
+        _tbSetTimeVal(card.querySelector('.tb-c-start'), code.start || '');
+        _tbSetTimeVal(card.querySelector('.tb-c-end'), code.end || '');
+        // Ordinære timer: lunsj 0,5 som standard; andre arbeidskoder 0.
+        var lunch = code.lunch != null ? code.lunch : (id === _timebokOrdinaryTypeId() ? 0.5 : null);
+        card.querySelector('.tb-c-lunch').value = lunch != null ? formatLocaleNum(lunch, 2) : '';
+    }
+    return card;
+}
+// Reisegodtgjørelse-kortet (maks ett pr. prosjekt): opprett eller oppdater.
 function _timebokSetTravelSection(block, travel) {
-    var host = block.querySelector('.timebok-pb-sections');
-    var sec = block.querySelector('.tb-sec-travel');
+    var sec = block.querySelector('.tb-card-travel');
     if (!sec) {
         sec = document.createElement('div');
-        sec.className = 'tb-sec tb-sec-travel';
-        sec.innerHTML =
-            '<div class="tb-sec-head"><span class="tb-sec-title">' + escapeHtml(t('timebok_day_travel')) + '</span>' +
-                '<button type="button" class="tb-sec-remove" onclick="removeTimebokSection(this)" aria-label="Fjern">&times;</button></div>' +
+        sec.className = 'tb-sec tb-code-card tb-card-travel';
+        sec.setAttribute('data-type-id', '__travel');
+        sec.innerHTML = _timebokCardHead(t('timebok_day_travel')) +
             '<div class="tb-sec-grid tb-grid-2">' +
                 '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_transport')) + '</span>' +
                     '<select class="tb-input tb-travel-transport" onchange="_timebokOnDayInput()">' +
@@ -11594,7 +11752,7 @@ function _timebokSetTravelSection(block, travel) {
                 '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_distance')) + '</span>' +
                     '<select class="tb-input tb-travel-bracket" onchange="_timebokOnDayInput()"></select></label>' +
             '</div>';
-        host.insertBefore(sec, host.firstChild);
+        _timebokInsertCard(block, sec);
     }
     sec.querySelector('.tb-travel-transport').value = (travel && travel.transport === 'privat') ? 'privat' : 'firma';
     var bid = (travel && travel.bracketId) || '';
@@ -11605,42 +11763,6 @@ function _timebokSetTravelSection(block, travel) {
         }).join('');
     return sec;
 }
-
-// ── Seksjon: Ordinære timer (start · slutt · lunsj · timer) ──
-// Timer = slutt − start − lunsj regnes ut når start+slutt er satt; kan overstyres
-// ved å skrive timer direkte (gjelder til start/slutt/lunsj endres igjen).
-function _timebokSetOrdinarySection(block, code) {
-    var host = block.querySelector('.timebok-pb-sections');
-    var sec = block.querySelector('.tb-sec-ord');
-    if (!sec) {
-        sec = document.createElement('div');
-        sec.className = 'tb-sec tb-sec-ord';
-        // Start/Slutt: knapp som åpner klokke-popupen (verdien ligger i data-value).
-        var timeField = function (cls, label) {
-            return '<div class="tb-field"><span class="tb-field-label">' + escapeHtml(label) + '</span>' +
-                '<button type="button" class="tb-input tb-time-btn empty ' + cls + '" data-value="" data-label="' + escapeHtml(label) + '" onclick="openTimebokClock(this)">' +
-                escapeHtml(t('timebok_pick_time')) + '</button></div>';
-        };
-        sec.innerHTML =
-            '<div class="tb-sec-head"><span class="tb-sec-title">' + escapeHtml(t('timebok_ord_title')) + '</span>' +
-                '<button type="button" class="tb-sec-remove" onclick="removeTimebokSection(this)" aria-label="Fjern">&times;</button></div>' +
-            '<div class="tb-sec-grid tb-grid-4">' +
-                timeField('tb-ord-start', t('timebok_start')) +
-                timeField('tb-ord-end', t('timebok_end')) +
-                '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_lunch')) + '</span>' +
-                    '<input type="text" class="tb-input tb-ord-lunch" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" oninput="_timebokRecalcOrd(this)"></label>' +
-                '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_hours_label')) + '</span>' +
-                    '<input type="text" class="tb-input tb-ord-hours" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" oninput="_timebokOnDayInput()"></label>' +
-            '</div>';
-        host.appendChild(sec);
-    }
-    code = code || {};
-    _tbSetTimeVal(sec.querySelector('.tb-ord-start'), code.start || '');
-    _tbSetTimeVal(sec.querySelector('.tb-ord-end'), code.end || '');
-    sec.querySelector('.tb-ord-lunch').value = formatLocaleNum(code.lunch != null ? code.lunch : 0.5, 2);
-    sec.querySelector('.tb-ord-hours').value = (code.hours != null && code.hours !== '' && Number(code.hours) !== 0) ? formatLocaleNum(code.hours, 2) : '';
-    return sec;
-}
 // Tidsknapp: verdi «HH:MM» i data-value, viser «Velg» når tom.
 function _tbSetTimeVal(btn, v) {
     if (!btn) return;
@@ -11649,17 +11771,19 @@ function _tbSetTimeVal(btn, v) {
     btn.classList.toggle('empty', !v);
 }
 function _tbTimeVal(btn) { return (btn && btn.getAttribute('data-value')) || ''; }
-function _timebokRecalcOrd(el) {
-    var sec = el.closest('.tb-sec-ord');
+// Timer = slutt − start − lunsj når start+slutt er satt; kan overstyres ved å skrive
+// timer direkte (gjelder til start/slutt/lunsj endres igjen).
+function _timebokRecalcCard(el) {
+    var sec = el.closest('.tb-code-card');
     if (!sec) return;
-    var st = _tbTimeVal(sec.querySelector('.tb-ord-start')), en = _tbTimeVal(sec.querySelector('.tb-ord-end'));
+    var st = _tbTimeVal(sec.querySelector('.tb-c-start')), en = _tbTimeVal(sec.querySelector('.tb-c-end'));
     if (st && en) {
         var toH = function (v) { var p = v.split(':'); return (+p[0]) + (+p[1]) / 60; };
         var span = toH(en) - toH(st);
         if (span < 0) span += 24;   // over midnatt
-        var lunch = parseLocaleNum(sec.querySelector('.tb-ord-lunch').value);
+        var lunch = parseLocaleNum(sec.querySelector('.tb-c-lunch').value);
         var h = Math.max(0, span - (isNaN(lunch) ? 0 : lunch));
-        sec.querySelector('.tb-ord-hours').value = formatLocaleNum(Math.round(h * 100) / 100, 2);
+        sec.querySelector('.tb-c-val').value = formatLocaleNum(Math.round(h * 100) / 100, 2);
     }
     _timebokOnDayInput();
 }
@@ -11669,10 +11793,11 @@ function _timebokRecalcOrd(el) {
 var _tbClock = { btn: null, h: 8, m: 0, mode: 'h', drag: false };
 function openTimebokClock(btn) {
     var v = _tbTimeVal(btn);
-    var def = btn.classList.contains('tb-ord-end') ? '16:00' : '08:00';
+    var def = btn.classList.contains('tb-c-end') ? '16:00' : '08:00';
     var p = (v || def).split(':');
     _tbClock = { btn: btn, h: +p[0] || 0, m: +p[1] || 0, mode: 'h', drag: false };
-    document.getElementById('tb-clock-title').textContent = (btn.getAttribute('data-label') || '') + ' (' + t('timebok_ord_title') + ')';
+    var cardTitle = btn.closest('.tb-code-card') && btn.closest('.tb-code-card').querySelector('.tb-sec-title');
+    document.getElementById('tb-clock-title').textContent = (btn.getAttribute('data-label') || '') + (cardTitle ? ' (' + cardTitle.textContent + ')' : '');
     _tbClockRender();
     document.getElementById('timebok-clock-popup').classList.add('active');
 }
@@ -11684,7 +11809,7 @@ function confirmTimebokClock() {
     var btn = _tbClock.btn;
     var v = _timebokPad2(_tbClock.h) + ':' + _timebokPad2(_tbClock.m);
     closeTimebokClock();
-    if (btn) { _tbSetTimeVal(btn, v); _timebokRecalcOrd(btn); }
+    if (btn) { _tbSetTimeVal(btn, v); _timebokRecalcCard(btn); }
 }
 function _tbClockMode(mode) { _tbClock.mode = mode; _tbClockRender(); }
 // Posisjon på urskiva i % av skiva: vinkel (grader fra kl. 12, med klokka) + radius.
@@ -11742,52 +11867,33 @@ function _tbClockUp() {
     _tbClock.drag = false;
     if (_tbClock.mode === 'h') { _tbClock.mode = 'm'; _tbClockRender(); }
 }
-function removeTimebokSection(btn) {
-    var sec = btn.closest('.tb-sec');
-    if (sec) sec.remove();
+function removeTimebokCard(btn) {
+    var card = btn.closest('.tb-code-card');
+    if (card) card.remove();
     _timebokOnDayInput();
 }
 // Prosjekt valgt på blokka. Ny registrering (blokka hadde ikke prosjekt) → auto-fyll fra
-// Innstillinger → Timebok: Reisegodtgjørelse (prosjektets avstand + standard transport),
-// Ordinære timer (lunsj 0,5) og øvrige avkryssede koder som tomme rader. Bytter man
+// Innstillinger → Timebok: avkryssede koder som tomme kort (Reisegodtgjørelse med
+// prosjektets avstand + standard transport; Ordinære timer med lunsj 0,5). Bytter man
 // prosjekt, legges ingenting til på nytt (brukeren kan ha fjernet noe) — bare avstanden
 // følger det nye prosjektet.
 function _timebokApplyProjectDefaults(block, proj, isNew) {
     if (!block || !proj) return;
     var st = getTimebokSettings();
     var af = isNew ? st.autofill : [];
-    var sec = block.querySelector('.tb-sec-travel');
+    var sec = block.querySelector('.tb-card-travel');
     if (sec) {
         sec.querySelector('.tb-travel-bracket').value = proj.bracketId || '';
     } else if (af.indexOf('__travel') !== -1) {
         _timebokSetTravelSection(block, { transport: st.transport, bracketId: proj.bracketId || null });
     }
-    var have = {};
-    block.querySelectorAll('.timebok-code-type-id').forEach(function (h) { if (h.value) have[h.value] = true; });
-    var ordId = _timebokOrdinaryTypeId();
-    if (af.indexOf(ordId) !== -1 && !block.querySelector('.tb-sec-ord') && !have[ordId]) _timebokSetOrdinarySection(block, {});
-    var codesC = block.querySelector('.timebok-codes'), dayId = _timebokCurDayId();
+    var have = {}, dayId = _timebokCurDayId();
+    block.querySelectorAll('.tb-code-card').forEach(function (c) { have[c.getAttribute('data-type-id')] = true; });
     af.forEach(function (id) {
-        if (id === '__travel' || id === ordId || have[id] || !_timebokTypeById(id, dayId)) return;
+        if (id === '__travel' || have[id] || !_timebokIsActiveCode(id)) return;
         have[id] = true;
-        codesC.appendChild(createTimebokCodeRow({ typeId: id }));
+        _timebokInsertCard(block, createTimebokCodeCard({ typeId: id }));
     });
-}
-function createTimebokCodeRow(code) {
-    code = code || {};
-    var type = _timebokTypeById(code.typeId, _timebokCurDayId());
-    var label = type ? type.label : '';
-    var row = document.createElement('div');
-    row.className = 'timebok-code-row';
-    row.innerHTML =
-        '<button type="button" class="timebok-pick timebok-pick-type' + (label ? ' filled' : '') + '" onclick="openTimebokTypePicker(this)">' + (label ? escapeHtml(label) : escapeHtml(t('timebok_pick_type'))) + '</button>' +
-        '<div class="timebok-code-val">' +
-            '<input type="text" class="timebok-hours" inputmode="decimal" pattern="[0-9,.]*" placeholder="0,0" value="' + (code.hours != null && code.hours !== '' ? escapeHtml(formatLocaleNum(code.hours, 2)) : '') + '" oninput="_timebokOnDayInput()">' +
-            '<span class="timebok-code-unit">' + escapeHtml(_timebokUnitForType(code.typeId)) + '</span>' +
-        '</div>' +
-        '<button type="button" class="timebok-line-remove" onclick="removeTimebokCode(this)" aria-label="Fjern">&times;</button>' +
-        '<input type="hidden" class="timebok-code-type-id" value="' + escapeHtml(code.typeId || '') + '">';
-    return row;
 }
 function createTimebokReceiptRow(rec) {
     rec = rec || {};
@@ -11802,11 +11908,6 @@ function createTimebokReceiptRow(rec) {
         '<button type="button" class="timebok-line-remove" onclick="removeTimebokReceipt(this)" aria-label="Fjern">&times;</button>';
     return row;
 }
-// Enhet for verdien: t (timer), stk (kr per registrering), kr (beløp), km.
-function _timebokUnitForType(typeId) {
-    var type = _timebokTypeById(typeId, _timebokCurDayId());
-    return type ? type.unit : 't';
-}
 
 // Les dagsvisning fra DOM → dag-doc (ny modell).
 function _timebokReadDayView() {
@@ -11815,35 +11916,37 @@ function _timebokReadDayView() {
     document.querySelectorAll('#timebok-day-projects .timebok-project-block').forEach(function (block) {
         var projectId = block.getAttribute('data-project-id') || '';
         var name = block.getAttribute('data-name') || '';
-        var codes = [];
-        var ord = block.querySelector('.tb-sec-ord');
-        if (ord) {
-            var oSt = _tbTimeVal(ord.querySelector('.tb-ord-start')), oEn = _tbTimeVal(ord.querySelector('.tb-ord-end'));
-            var oH = parseLocaleNum(ord.querySelector('.tb-ord-hours').value);
-            var oL = parseLocaleNum(ord.querySelector('.tb-ord-lunch').value);
-            var ordId = _timebokOrdinaryTypeId();
-            if (ordId && (oSt || oEn || (!isNaN(oH) && oH > 0))) {
-                codes.push({ typeId: ordId, hours: isNaN(oH) ? 0 : oH, start: oSt || '', end: oEn || '', lunch: isNaN(oL) ? 0 : oL });
+        var codes = [], anyValue = false, ordId = _timebokOrdinaryTypeId(), hasOrd = false;
+        // Alle kort i visningsrekkefølge. Tomme kort lagres også (så auto-fylte kort
+        // ikke forsvinner), men gjør alene ikke dagen til en registrering (se under).
+        block.querySelectorAll('.tb-code-card').forEach(function (card) {
+            var typeId = card.getAttribute('data-type-id');
+            if (!typeId || typeId === '__travel') return;
+            var h = parseLocaleNum(card.querySelector('.tb-c-val').value);
+            var c = { typeId: typeId, hours: isNaN(h) ? 0 : h };
+            if (!isNaN(h) && h > 0) anyValue = true;
+            if (card.classList.contains('tb-card-clock')) {
+                var st = _tbTimeVal(card.querySelector('.tb-c-start')), en = _tbTimeVal(card.querySelector('.tb-c-end'));
+                var l = parseLocaleNum(card.querySelector('.tb-c-lunch').value);
+                c.start = st || ''; c.end = en || ''; c.lunch = isNaN(l) ? 0 : l;
+                if (st || en) anyValue = true;
             }
-        }
-        block.querySelectorAll('.timebok-code-row').forEach(function (row) {
-            var typeId = (row.querySelector('.timebok-code-type-id') || {}).value || '';
-            var rawH = (row.querySelector('.timebok-hours') || {}).value || '';
-            if (!typeId && !String(rawH).trim()) return;
-            var h = parseLocaleNum(rawH);
-            codes.push({ typeId: typeId, hours: isNaN(h) ? 0 : h });
+            if (typeId === ordId) hasOrd = true;
+            codes.push(c);
         });
-        var trSec = block.querySelector('.tb-sec-travel');
+        var trSec = block.querySelector('.tb-card-travel');
         var travel = trSec ? {
             transport: trSec.querySelector('.tb-travel-transport').value === 'privat' ? 'privat' : 'firma',
             bracketId: trSec.querySelector('.tb-travel-bracket').value || null
         } : null;
-        // Lagres når prosjektet har koder ELLER valgt reise (prosjekt + reise er en registrering).
+        // Lagres når prosjektet er valgt og har kort, når et kort har verdi, eller
+        // ved valgt reise (prosjekt + reise er en registrering).
         var hasTravel = !!(travel && travel.bracketId && (projectId || name));
-        if (!codes.length && !hasTravel) return;
+        var hasProject = !!(projectId || name);
+        if (!anyValue && !hasTravel && !(hasProject && (codes.length || trSec))) return;
         var pdoc = { projectId: projectId, name: name, codes: codes, travel: hasTravel ? travel : null };
-        // «Ordinære timer» fjernet med × → husk det, ellers kommer seksjonen tilbake ved innlasting.
-        if (!ord) pdoc.noOrdinary = true;
+        // «Ordinære timer» fjernet med × → husk det, ellers legges kortet til igjen ved innlasting.
+        if (!hasOrd) pdoc.noOrdinary = true;
         projects.push(pdoc);
     });
     var receipts = [];
@@ -11871,7 +11974,7 @@ function _timebokUpdateDayTotals() {
         // Nummerér kortene når det er flere prosjekter samme dag.
         var num = block.querySelector('.timebok-pb-num');
         if (num) num.textContent = blocks.length > 1 ? ' ' + (bi + 1) : '';
-        var hasCodes = block.querySelectorAll('.timebok-code-row, .tb-sec-ord').length > 0;
+        var hasCodes = block.querySelectorAll('.tb-code-card').length > 0;
         var hint = block.querySelector('.timebok-pb-hint');
         if (hint) hint.style.display = hasCodes ? 'none' : '';
         var rm = block.querySelector('.timebok-pb-remove');
@@ -11947,19 +12050,9 @@ function removeTimebokProjectBlock(btn) {
     if (!pc.querySelector('.timebok-project-block')) pc.appendChild(createTimebokProjectBlock({ projectId: '', name: '', codes: [] }));
     _timebokOnDayInput();
 }
+// «+ Legg til kode»: velg kode → kortet settes inn på sin faste plass.
 function addTimebokCode(btn) {
-    var block = btn.closest('.timebok-project-block');
-    var codesC = block.querySelector('.timebok-codes');
-    var row = createTimebokCodeRow({});
-    codesC.appendChild(row);
-    _timebokUpdateDayTotals();
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
-}
-function removeTimebokCode(btn) {
-    var row = btn.closest('.timebok-code-row');
-    if (row) row.remove();
-    _timebokOnDayInput();
+    openTimebokTypePicker(btn.closest('.timebok-project-block'));
 }
 function addTimebokReceipt() {
     var rc = document.getElementById('timebok-receipts-list');
@@ -11977,24 +12070,18 @@ function removeTimebokReceipt(btn) {
 }
 
 // ── Pickere ──
-function openTimebokTypePicker(btn) {
-    _timebokPickerTarget = btn.closest('.timebok-code-row');
+function openTimebokTypePicker(block) {
+    _timebokPickerTarget = block;
     _timebokPickerKind = 'type';
     var listEl = document.getElementById('timebok-type-list');
-    // Kodene kommer fra tariffen som gjelder dagen (regler + tillegg + variable + reise).
-    var types = _timebokCodeTypes(_timebokCurDayId());
-    var html = '';
-    // Reisegodtgjørelse kan legges til igjen (etter ×) via samme «+ Legg til kode».
-    var blk = _timebokPickerTarget && _timebokPickerTarget.closest('.timebok-project-block');
-    if (blk && !blk.querySelector('.tb-sec-travel')) {
-        html += '<button type="button" class="plan-popup-row" data-id="__travel" data-label="" onclick="_selectTimebokType(this)">' +
-            '<span class="plan-popup-name">' + escapeHtml(t('timebok_day_travel')) + '</span></button>';
-    }
-    var groupTitles = { arbeid: t('tb_sat_work'), fravaer: t('tb_sat_absence'), tillegg: t('tb_sat_supplements'), variabel: t('tb_sat_variables'), reise: t('tb_sat_travel') };
-    var lastGroup = null;
-    types.forEach(function (tt) {
-        if (tt.group !== lastGroup) { lastGroup = tt.group; html += '<div class="tb-type-group">' + escapeHtml(groupTitles[tt.group] || '') + '</div>'; }
-        html += '<button type="button" class="plan-popup-row" data-id="' + escapeHtml(tt.id) + '" data-label="' + escapeHtml(tt.label) + '" onclick="_selectTimebokType(this)">' +
+    // Kodene fra tariffen som gjelder dagen, gruppert og sortert som kortene og
+    // Innstillinger → Auto-fyll. Reisegodtgjørelse kun når kortet ikke finnes.
+    var hasTravel = !!(block && block.querySelector('.tb-card-travel'));
+    var html = '', lastGroup = null;
+    _timebokOrderedCodeTypes(_timebokCurDayId()).forEach(function (tt) {
+        if (tt.id === '__travel' && hasTravel) return;
+        if (tt.group !== lastGroup) { lastGroup = tt.group; html += '<div class="tb-type-group">' + escapeHtml(_timebokGroupTitle(tt.group)) + '</div>'; }
+        html += '<button type="button" class="plan-popup-row" data-id="' + escapeHtml(tt.id) + '" onclick="_selectTimebokType(this)">' +
             '<span class="plan-popup-name">' + escapeHtml(tt.label) + '</span></button>';
     });
     listEl.innerHTML = html;
@@ -12002,32 +12089,20 @@ function openTimebokTypePicker(btn) {
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 function _selectTimebokType(btn) {
-    var id = btn.getAttribute('data-id'), label = btn.getAttribute('data-label');
-    var row = _timebokPickerTarget;
-    var blk = row && row.closest('.timebok-project-block');
-    // Reise / (første) Ordinær → egen seksjon i stedet for en kode-rad.
-    if (blk && (id === '__travel' || (id === _timebokOrdinaryTypeId() && !blk.querySelector('.tb-sec-ord')))) {
-        var prevVal = parseLocaleNum((row.querySelector('.timebok-hours') || {}).value);
-        row.remove();
-        if (id === '__travel') {
-            var pr = _timebokProject({ projectId: blk.getAttribute('data-project-id'), project: blk.getAttribute('data-name') });
-            _timebokSetTravelSection(blk, { transport: getTimebokSettings().transport, bracketId: pr ? pr.bracketId : null });
-        } else {
-            _timebokSetOrdinarySection(blk, { hours: isNaN(prevVal) ? null : prevVal });
-        }
-        closeTimebokTypePicker();
-        _timebokOnDayInput();
-        return;
-    }
-    if (row) {
-        var tb = row.querySelector('.timebok-pick-type');
-        tb.textContent = label; tb.classList.add('filled');
-        row.querySelector('.timebok-code-type-id').value = id;
-        var unitEl = row.querySelector('.timebok-code-unit');
-        if (unitEl) unitEl.textContent = _timebokUnitForType(id);
-        _timebokOnDayInput();
-    }
+    var id = btn.getAttribute('data-id');
+    var blk = _timebokPickerTarget;
     closeTimebokTypePicker();
+    if (!blk) return;
+    var card;
+    if (id === '__travel') {
+        var pr = _timebokProject({ projectId: blk.getAttribute('data-project-id'), project: blk.getAttribute('data-name') });
+        card = _timebokSetTravelSection(blk, { transport: getTimebokSettings().transport, bracketId: pr ? pr.bracketId : null });
+    } else {
+        card = _timebokInsertCard(blk, createTimebokCodeCard({ typeId: id }));
+    }
+    _timebokOnDayInput();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+    if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
 }
 function closeTimebokTypePicker() {
     var p = document.getElementById('timebok-type-popup');
@@ -12038,18 +12113,21 @@ function closeTimebokTypePicker() {
 // ── Prosjekt-velger + prosjekt-skjema ──
 // Velgeren: søkefelt som KUN filtrerer (popupen endrer aldri form mens man skriver),
 // «+» ved siden av = nytt prosjekt, én rad pr. prosjekt (trykk = velg + lukk), ✎ =
-// rediger. Nytt og rediger bruker SAMME skjema (navn + reiseavstand).
+// rediger. Lista = Prosjekter & lager (aktive); nytt og rediger åpner SAMME
+// prosjektskjema som Innstillinger (showTemplateEditor, inkl. reiseavstand).
 var _timebokPickerCurrentId = null;   // prosjektet blokka har (markert med ✓)
 var _TIMEBOK_CHECK_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 var _TIMEBOK_PENCIL_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>';
 function openTimebokProjectPicker(btn) {
     _timebokPickerTarget = btn.closest('.timebok-project-block');
     _timebokPickerKind = 'project';
-    // Slå sammen prosjekter fra maler (Innstillinger → Prosjekter & lager) inn i
-    // timebok-lista HVER gang picker-en åpnes — ikke bare ved innlogging. Ellers viser
-    // picker-en tom liste selv om brukeren har prosjekter i innstillingene.
-    // Leser localStorage (cache-first) → funker offline og uten ny innlogging.
-    if (typeof syncTimebokProjectsFromForms === 'function') syncTimebokProjectsFromForms();
+    syncTimebokProjectsFromForms();   // engangs-flytting av gammel Timebok-liste (no-op når tom)
+    // Cache-først; frisk liste fra Firestore i bakgrunnen (andre enheter kan ha endret).
+    // Tegnes bare om mens velgeren er åpen og ingen skriver i søkefeltet.
+    _timebokFetchAllTemplates().then(function (list) {
+        var pop = document.getElementById('timebok-project-popup');
+        if (list && pop && pop.classList.contains('active')) _timebokRenderProjectPickerList();
+    }).catch(function (e) { console.error('Timebok projects refresh:', e); });
     var cur = _timebokPickerTarget && _timebokProject({
         projectId: _timebokPickerTarget.getAttribute('data-project-id'),
         project: _timebokPickerTarget.getAttribute('data-name')
@@ -12094,7 +12172,7 @@ function _timebokBracketLabel(bracketId) {
 function _timebokRenderProjectPickerList() {
     var listEl = document.getElementById('timebok-project-list');
     if (!listEl) return;
-    var projects = getTimebokProjects();
+    var projects = getTimebokProjects().filter(function (p) { return p.active || p.id === _timebokPickerCurrentId; });
     var searchEl = document.getElementById('timebok-project-search');
     var raw = (searchEl && searchEl.value || '').trim();
     var q = raw.toLowerCase();
@@ -12160,127 +12238,47 @@ function _timebokHideProjectPicker() {
     _clearPopupTopAnchor('timebok-project-popup');
 }
 
-// ── Skjema: nytt prosjekt / rediger prosjekt ──
-var _timebokProjForm = { mode: 'add', id: null };
+// ── Nytt / rediger prosjekt: samme prosjektskjema som Prosjekter & lager ──
+// Velgeren (spec-popup, z 60) skjules mens skjemaet (confirm-modal, z 20) er åpent —
+// samme grep som newTemplateFromPicker. Blokk-målet (_timebokPickerTarget) beholdes.
+var _templateEditorFromTimebok = false;
 // «+» ved søkefeltet: nytt prosjekt. Navnet fra søket (om noe er skrevet) fylles inn.
 function openTimebokProjectNew() {
     var raw = (document.getElementById('timebok-project-search').value || '').trim();
     _timebokHideProjectPicker();
-    _timebokOpenProjForm('add', { name: _timebokFindProjectByName(raw) ? '' : raw, bracketId: null });
+    _templateEditorFromTimebok = true;
+    showTemplateEditor();
+    if (raw && !_timebokFindProjectByName(raw)) document.getElementById('tpl-edit-prosjektnavn').value = raw;
 }
 function openTimebokProjectEdit(id) {
-    var proj = _timebokProjectById(id);
-    if (!proj) return;
+    if (!_timebokProjectById(id)) return;
     _timebokHideProjectPicker();
-    _timebokOpenProjForm('edit', proj);
+    _templateEditorFromTimebok = true;
+    showTemplateEditor(id);
 }
-function _timebokOpenProjForm(mode, proj, ctx) {
-    _timebokProjForm = { mode: mode, id: proj.id || null, ctx: ctx || 'picker' };
-    var isEdit = (mode === 'edit');
-    var del = document.getElementById('timebok-projform-delete');
-    if (del) del.style.display = (isEdit && ctx === 'settings') ? '' : 'none';
-    // Prosjekter fra Innstillinger → Prosjekter & lager: navnet eies der. Endres det
-    // her, ville synkroniseringen fjerne det og legge inn det gamle navnet igjen.
-    var locked = isEdit && proj.source === 'mal';
-    document.getElementById('timebok-projform-title').textContent = t(isEdit ? 'timebok_edit_project' : 'timebok_new_project_title');
-    var nameInp = document.getElementById('timebok-projform-name');
-    nameInp.value = proj.name || '';
-    nameInp.readOnly = locked;
-    nameInp.classList.toggle('locked', locked);
-    _timebokProjFormHint(locked ? t('timebok_name_locked') : '', false);
-    document.getElementById('timebok-projform-dist').innerHTML = _timebokDistOptionsHtml(proj.bracketId);
-    document.getElementById('timebok-projform-popup').classList.add('active');
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    // Nytt prosjekt uten navn: rett i navnefeltet. (Etter forhåndsløftet i neste frame,
-    // så popupen allerede står der den skal når tastaturet kommer.)
-    if (!isEdit && !nameInp.value) setTimeout(function () { nameInp.focus(); }, 60);
-}
-function _timebokProjFormHint(msg, isError) {
-    var h = document.getElementById('timebok-projform-hint');
-    if (!h) return;
-    h.textContent = msg || '';
-    h.style.display = msg ? '' : 'none';
-    h.classList.toggle('error', !!isError);
-}
-function confirmTimebokProjForm() {
-    var f = _timebokProjForm;
-    var nameInp = document.getElementById('timebok-projform-name');
-    var name = (nameInp.value || '').trim();
-    if (!name) { nameInp.focus(); return; }
-    var bracketId = document.getElementById('timebok-projform-dist').value || null;
-    var dup = _timebokFindProjectByName(name);
-    if (dup && dup.id !== f.id) { _timebokProjFormHint(t('timebok_name_exists'), true); return; }
-    var list = getTimebokProjects(), proj = null, i;
-    if (f.mode === 'add') {
-        proj = { id: _timebokGenId('p'), name: name, bracketId: bracketId, source: 'manual' };
-        list.push(proj);
-        _timebokSaveProjects(list);
-        _timebokCloseProjForm();
-        // Fra Timebok: velg det nye prosjektet på blokka (lukker også velgeren helt).
-        if (f.ctx !== 'settings') _selectTimebokProject(proj.id);
-        renderTimebokProjectSettings();
+// Kalles fra saveTemplateFromEditor når skjemaet ble åpnet fra Timebok.
+// Nytt → velg det på blokka. Rediger → oppdater navnet på åpne blokker (rettelsen i
+// lagrede dager tar _propagateProjectCorrection seg av), reise i totalene, og vis
+// velgeren igjen.
+function _timebokAfterTemplateSave(isNew, data, oldName) {
+    if (isNew) {
+        if (_timebokPickerTarget) _selectTimebokProject(data.id);
         return;
     }
-    for (i = 0; i < list.length; i++) if (list[i].id === f.id) { proj = list[i]; break; }
-    if (!proj) { closeTimebokProjForm(); return; }
-    var oldName = proj.name;
-    proj.bracketId = bracketId;
-    if (proj.source !== 'mal') proj.name = name;
-    _timebokSaveProjects(list);
-    if (proj.name !== oldName) _timebokRenameProjectInDays(proj.id, oldName, proj.name);
-    // Avstand/navn endret → reisegodtgjørelse i dagens totaler + innstillings-lista.
-    _timebokUpdateDayTotals();
-    renderTimebokProjectSettings();
-    closeTimebokProjForm();
-}
-function _timebokCloseProjForm() {
-    var ae = document.activeElement;
-    if (ae && ae.id === 'timebok-projform-name') ae.blur();
-    var p = document.getElementById('timebok-projform-popup');
-    if (p) p.classList.remove('active');
-}
-// Avbryt / ferdig redigert → tilbake til velgeren (som fortsatt har blokk-målet).
-function closeTimebokProjForm() {
-    _timebokCloseProjForm();
-    if (_timebokProjForm.ctx !== 'settings' && _timebokPickerTarget) _timebokShowProjectPicker();
-}
-// Nytt prosjektnavn skal gjelde OVERALT: åpne dag-blokker, lokal cache og ALLE
-// dag-dokumenter i Firestore (også eldre enn cachen) — så feilskrevet navn ikke
-// lever videre på dager som allerede har timer.
-function _timebokRenameProjectInDays(projectId, oldName, newName) {
-    var oldLc = String(oldName || '').toLowerCase();
-    var hit = function (id, nm) { return id ? id === projectId : String(nm || '').toLowerCase() === oldLc; };
-    // Navnet rettes også i lagrede dager under → en ellers lagret dag skal ikke bli «ulagret».
-    var wasDirty = _timebokIsDirty();
-    var fixDoc = function (doc) {
-        var changed = false;
-        (doc.projects || []).forEach(function (p) {
-            if (hit(p.projectId, p.name)) { p.name = newName; p.projectId = projectId; changed = true; }
+    var newName = data.prosjektnavn || '';
+    if (oldName && newName && oldName !== newName) {
+        var wasDirty = _timebokIsDirty();
+        var oldLc = oldName.toLowerCase();
+        document.querySelectorAll('#timebok-day-projects .timebok-project-block').forEach(function (b) {
+            var bid = b.getAttribute('data-project-id');
+            if (bid === data.id || String(b.getAttribute('data-name') || '').toLowerCase() === oldLc) {
+                _timebokSetProjectOnBlock(b, data.id, newName);
+            }
         });
-        (doc.lines || []).forEach(function (l) {
-            if (hit(l.projectId, l.project)) { l.project = newName; l.projectId = projectId; changed = true; }
-        });
-        return changed;
-    };
-    document.querySelectorAll('#timebok-day-projects .timebok-project-block').forEach(function (b) {
-        if (hit(b.getAttribute('data-project-id'), b.getAttribute('data-name'))) _timebokSetProjectOnBlock(b, projectId, newName);
-    });
-    if (!wasDirty && _timebokViewMode === 'day' && _timebokBaseline != null) _timebokSetBaseline();
-    var cache = _timebokGetCache(), done = {};
-    cache.forEach(function (d) {
-        var id = d.id || d.date;
-        if (fixDoc(d)) { done[id] = true; enqueueUserDocSet('timebok', id, d, 'Timebok rename'); }
-    });
-    _timebokSetCache(cache);
-    if (currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('timebok').get().then(function (snap) {
-            snap.forEach(function (ds) {
-                if (done[ds.id]) return;
-                var d = ds.data();
-                if (fixDoc(d)) enqueueUserDocSet('timebok', ds.id, d, 'Timebok rename');
-            });
-        }).catch(function (e) { console.error('Timebok rename fetch error:', e); });
+        if (!wasDirty && _timebokViewMode === 'day' && _timebokBaseline != null) _timebokSetBaseline();
     }
+    if (document.getElementById('timebok-day-projects')) _timebokUpdateDayTotals();
+    if (_timebokPickerTarget) _timebokShowProjectPicker();
 }
 
 // ── Lagring (autolagre dag, debounced) ──

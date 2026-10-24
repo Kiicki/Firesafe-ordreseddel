@@ -6078,6 +6078,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .mat-type-dropdown-item:active {
     background: #f8f8f8;
 }
+/* Mobil-nedtrekksliste for <select> (_openSelectSheet): samme popup som Type-velgeren,
+   lista scroller internt når den har mange valg (aldri utenfor skjermen). */
+/* Mobil/nettbrett: selecten selv tar ikke imot trykk, så nettleserens liste aldri
+   åpnes — klikket fanges på forelderen og åpner select-sheet (se _openSelectSheet). */
+html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events: none; }
+.select-sheet { display: flex; flex-direction: column; max-height: 80vh; }
+.select-sheet-list { overflow-y: auto; overscroll-behavior: contain; }
+.select-sheet .mat-type-dropdown-item { padding: 13px 16px; }
+.select-sheet .mat-type-dropdown-item.disabled { opacity: 0.4; }
 
 /* Material settings — grouped card layout */
 .settings-material-group {
@@ -6864,12 +6873,15 @@ body.settings-subpage-open #settings-header .modal-close-btn {
 .settings-group > .settings-add-template-btn:not(:last-child) {
     border-bottom: 2px dashed #ddd;
 }
+/* Kompakt rad: høyden følger innholdet. Bare navn → én lav linje; prosjektnr./
+   oppdragsgiver gir linje 2 kun når de finnes (_renderSettingsTemplateListFromData).
+   Knappene (36px) setter minstehøyden, ikke ekstra padding. */
 .settings-template-item {
     display: flex;
     align-items: center;
     border: none;
     border-radius: 0;
-    padding: 10px 4px 10px 12px;
+    padding: 4px 2px 4px 12px;
     margin-bottom: 0;
     cursor: pointer;
 }
@@ -6911,7 +6923,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     align-items: center;
     justify-content: center;
     width: 40px;
-    height: 44px;
+    height: 36px;
 }
 .settings-template-delete-btn svg {
     width: 20px;
@@ -6945,7 +6957,7 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     align-items: center;
     justify-content: center;
     width: 40px;
-    height: 44px;
+    height: 36px;
 }
 .settings-template-duplicate-btn svg {
     width: 20px;
@@ -7510,13 +7522,26 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     font-size: 20px;
     color: #999;
 }
-/* Template editor: matcher settings-default-label input */
+/* Prosjektskjemaet: alle felt like høye og like — tekstfelt, adresse-knappene
+   (åpner egen popup, derav ›) og nedtrekkslista. Kun ikonet til høyre skiller dem. */
+.template-editor-body .settings-default-label input,
+.template-editor-body .settings-default-label .settings-select,
 .tpl-fakturaadresse-display {
+    height: 40px;
+    min-height: 0;
     margin-top: 4px;
-    padding: 8px 10px;
-    font-size: 14px;
-    min-height: auto;
+    padding: 0 10px;
+    font-size: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
 }
+.tpl-fakturaadresse-display { overflow: hidden; }
+.tpl-fakturaadresse-display .fakturaadresse-display-text,
+.tpl-fakturaadresse-display .fakturaadresse-display-placeholder {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tpl-fakturaadresse-display .fakturaadresse-chevron { font-size: 18px; line-height: 1; padding-left: 8px; }
 
 /* Fakturaadresse popup */
 .fakturaadresse-popup-backdrop {
@@ -9126,8 +9151,10 @@ body.timebok-view-open #view-form { display: none; }
 }
 .timebok-add-code-btn:active { background: #f5f5f7; }
 .timebok-codes { margin-top: 6px; }
-/* Seksjoner i prosjekt-blokka: Reisegodtgjørelse + Ordinære timer. */
+/* Tilleggskoder: ett kort pr. kode (samme hode + 4-kolonners felt-rutenett for alle).
+   Tynn skillelinje mellom kortene så hver kode er tydelig avgrenset. */
 .tb-sec { margin-top: 10px; }
+.tb-code-card + .tb-code-card { padding-top: 10px; border-top: 1px solid #ededf0; }
 .tb-sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .tb-sec-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
 .tb-sec-remove {
@@ -9176,15 +9203,8 @@ body.timebok-view-open #view-form { display: none; }
 }
 .tb-clock-num.inner { font-size: 13px; color: #444; }
 .tb-clock-num.sel { background: #E8501A; color: #fff; font-weight: 700; }
-.timebok-code-row {
-    display: grid;
-    grid-template-columns: 1fr auto 26px;
-    gap: 8px;
-    align-items: center;
-    padding: 7px 0;
-}
 .timebok-code-val { display: flex; align-items: center; gap: 5px; }
-.timebok-code-val .timebok-hours, .timebok-code-val .timebok-receipt-amount { width: 72px; }
+.timebok-code-val .timebok-receipt-amount { width: 72px; }
 .timebok-code-unit { font-size: 13px; color: #8a8a90; min-width: 18px; }
 .timebok-add-project {
     display: block; width: 100%; margin: 0 0 8px;
@@ -9234,31 +9254,6 @@ body.timebok-view-open #view-form { display: none; }
 #timebok-form.mobile-form { padding: 12px; }
 #timebok-day-totals { margin-bottom: 8px; }
 
-.timebok-pick {
-    text-align: left;
-    background: #fff;
-    border: 1px solid #d8d8de;
-    border-radius: 8px;
-    padding: 9px 10px;
-    font-size: 13px;
-    color: #999;
-    cursor: pointer;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.timebok-pick.filled { color: #111; font-weight: 600; }
-.timebok-pick:active { background: #f5f5f7; }
-.timebok-hours {
-    width: 100%;
-    border: 1px solid #d8d8de;
-    border-radius: 8px;
-    padding: 9px 6px;
-    font-size: 14px;
-    text-align: center;
-    box-sizing: border-box;
-}
-.timebok-hours:focus { outline: none; border-color: #E8501A; box-shadow: 0 0 0 2px rgba(232,80,26,0.25); }
 .timebok-line-remove {
     background: none;
     border: none;
@@ -9339,22 +9334,6 @@ body.timebok-view-open #view-form { display: none; }
     border-radius: 8px;
 }
 .timebok-picker-empty { padding: 16px 8px; text-align: center; color: #888; font-size: 13px; }
-/* Prosjekt-skjema */
-.timebok-projform-hint { font-size: 12px; color: #8a8a90; padding-left: 2px; }
-.timebok-projform-hint.error { color: #c0392b; }
-#timebok-projform-name.locked { background: #f4f4f6; color: #666; }
-/* Reiseavstand-nedtrekk — samme mål som .spec-popup-body input. */
-.timebok-dist-select {
-    width: 100%;
-    padding: 12px;
-    font-size: 16px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background: #fff;
-    color: #1a1a1a;
-    box-sizing: border-box;
-}
-.timebok-dist-select:focus { outline: none; border-color: #E8501A; }
 
 /* Innstillinger: tidstyper/brackets/prosjekter-rader */
 .timebok-setting-row {
@@ -9379,6 +9358,11 @@ body.timebok-view-open #view-form { display: none; }
 #tb-satser { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
 .tb-sat-card { background: #fff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 14px; }
 .tb-sat-tariff { background: #f7f7f9; }
+.tb-sat-section { padding: 6px 2px 0; }
+.tb-sat-section + .tb-sat-card { margin-top: -4px; }
+#tb-satser > .tb-sat-section:not(:first-child) { margin-top: 14px; padding-top: 16px; border-top: 2px solid #e3e3e8; }
+.tb-sat-section-title { font-size: 18px; font-weight: 800; color: #1a1a1a; }
+.tb-sat-section-desc { font-size: 13px; color: #6b6b73; line-height: 1.4; margin-top: 2px; }
 .tb-sat-h { font-size: 12px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; margin-bottom: 8px; }
 .tb-sat-desc { font-size: 13px; color: #6b6b73; line-height: 1.4; margin-bottom: 8px; }
 .tb-sat-info { font-size: 12px; color: #6b6b73; line-height: 1.4; margin-top: 10px; }
@@ -9416,11 +9400,15 @@ body.timebok-view-open #view-form { display: none; }
 }
 .tb-sat-add:active { background: #f6f6f8; }
 /* Reise-tabell: Avstand | Firma | Privat | × */
-.tb-sat-brhead, .tb-sat-br { display: grid; grid-template-columns: 1fr 84px 84px 22px; gap: 8px; align-items: center; }
-.tb-sat-brhead { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 4px 0; }
+/* Avstandstabell: avstanden på ÉN linje (fast px-kolonne, nowrap — px og ikke em,
+   så overskrift og rader med ulik skriftstørrelse får samme kolonner), satsene deler
+   resten. Overskriften har samme sidepadding som radene så kolonnene står rett. */
+.tb-sat-brhead, .tb-sat-br { display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr) 22px; gap: 6px; align-items: center; }
+.tb-sat-brhead { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 2px 6px 2px 8px; }
 .tb-sat-brhead span:nth-child(2), .tb-sat-brhead span:nth-child(3) { text-align: center; }
-.tb-sat-br { background: #f5f5f7; border-radius: 10px; padding: 8px 8px 8px 10px; margin-bottom: 6px; }
-.tb-sat-br .tb-sat-input { width: 100%; }
+.tb-sat-br { background: #f5f5f7; border-radius: 10px; padding: 5px 6px 5px 8px; margin-bottom: 4px; }
+.tb-sat-br .tb-sat-name { font-size: 14px; white-space: nowrap; overflow-wrap: normal; }
+.tb-sat-br .tb-sat-input { width: 100%; padding: 7px 8px; }
 .tb-sat-shared { margin-top: 6px; }
 /* Flagg (Lønn/Ferie/Skatt/Reise/Org) */
 .tb-flags { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
@@ -9436,22 +9424,27 @@ body.timebok-view-open #view-form { display: none; }
 }
 .tb-tariff-delete:disabled { opacity: 0.4; cursor: default; }
 /* Innstillinger → Timebok: oppsett-kort (samme kort som Satser) */
-#tb-settings { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
+#tb-settings { padding-bottom: 24px; }
 /* Faner øverst på Innstillinger → Timebok (gjenbruker .modal-tab-chipsene fra Lagret). */
 .tb-set-tabs { padding: 0 0 12px; }
-.tb-set-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
-.tb-set-label { font-size: 13px; font-weight: 700; color: #1a1a1a; }
-.tb-af-box { background: #f5f5f7; border-radius: 12px; padding: 2px 10px 8px; }
-.tb-af-group { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 10px 0 4px; }
-.tb-af-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px; }
-.tb-af-item { display: flex; align-items: flex-start; gap: 7px; padding: 6px 0; font-size: 14px; color: #1a1a1a; line-height: 1.3; cursor: pointer; min-width: 0; }
+.tb-set-card { display: flex; flex-direction: column; gap: 12px; }
+.tb-set-field { display: flex; flex-direction: column; gap: 4px; }
+.tb-set-label { font-size: 13px; font-weight: 600; color: #444; }
+.tb-set-hint { font-size: 12px; color: #6b6b73; line-height: 1.4; margin-top: -6px; }
+.tb-set-field .tb-set-hint { margin: 0 0 4px; }
+/* Personlig: felt i full bredde, samme høyde/vekt på input og select. */
+.tb-set-card .tb-sat-select, .tb-sat-input.tb-set-input { padding: 10px 12px; font-size: 15px; font-weight: 500; }
+.tb-sat-input.tb-set-input { width: 100%; text-align: left; border-radius: 10px; }
+.tb-af-box { background: #f5f5f7; border-radius: 12px; padding: 0 8px 6px; }
+.tb-af-group { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 10px 0 2px; }
+/* To kolonner når de lengste kodenavnene («Reisegodtgjørelse») får plass på én linje,
+   ellers én kolonne — målt i em så det følger skriftstørrelsen, ikke en fast bredde. */
+.tb-af-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10em), 1fr)); column-gap: 6px; }
+.tb-af-item { display: flex; align-items: flex-start; gap: 6px; padding: 5px 0; font-size: 14px; color: #1a1a1a; line-height: 1.3; cursor: pointer; min-width: 0; }
 /* Bryt mellom ord (og ved «/»), aldri midt i et ord som «Reisegodtgjørels-e».
    Passer et langt ord ikke i kolonnen, orddeles det med bindestrek (lang="nb"). */
 .tb-af-item span { min-width: 0; overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; }
 .tb-af-item input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: #E8501A; }
-/* Innstillinger → Timebok → Prosjekter: full oversikt (rader som i prosjekt-velgeren) */
-.tb-proj-settings-list { background: #fff; border: 1px solid #e3e3e8; border-radius: 12px; padding: 0 10px; margin-bottom: 12px; }
-.tb-proj-settings-list .timebok-proj-pick { padding: 10px 0; }
 /* Kodevelger: gruppe-overskrifter */
 .tb-type-group { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #8a8a90; padding: 8px 2px 0; }
 .timebok-bracket-select {
@@ -9461,7 +9454,6 @@ body.timebok-view-open #view-form { display: none; }
     font-size: 13px;
     max-width: 130px;
 }
-.timebok-sync-projects-btn { margin-bottom: 10px; }
 
 /* Forklarende undertekst i en innstillings-seksjon (Kolleger m.fl.) */
 .settings-hint {

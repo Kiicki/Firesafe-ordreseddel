@@ -27,7 +27,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=993">
+    <link rel="stylesheet" href="styles.css?v=1003">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -618,9 +618,6 @@
                 <button class="template-editor-close" onclick="closeTemplateEditor()">&times;</button>
             </div>
             <div class="template-editor-body">
-                <div class="settings-static-header">
-                    <span data-i18n="kappe_section_project">Prosjekt</span>
-                </div>
                 <label class="settings-default-label"><span data-i18n="label_prosjektnavn">Prosjektnavn</span><input type="text" id="tpl-edit-prosjektnavn"></label>
                 <label class="settings-default-label"><span data-i18n="label_prosjektnr">Prosjektnr.</span><input type="text" id="tpl-edit-prosjektnr"></label>
                 <label class="settings-default-label"><span data-i18n="label_oppdragsgiver">Oppdragsgiver</span><input type="text" id="tpl-edit-oppdragsgiver"></label>
@@ -639,6 +636,8 @@
                     </div>
                     <input type="hidden" id="tpl-edit-leveringsadresse">
                 </label>
+                <!-- Timebok bruker disse prosjektene direkte; reiseavstand gir reisegodtgjørelse. -->
+                <label class="settings-default-label"><span data-i18n="timebok_travel_optional">Reiseavstand (valgfritt)</span><select id="tpl-edit-timebok-dist" class="settings-select"></select></label>
             </div>
             <div class="template-editor-buttons">
                 <button class="template-editor-save-btn" onclick="saveTemplateFromEditor()" data-i18n="toolbar_save">Lagre</button>
@@ -939,8 +938,7 @@
                 <div id="settings-page-timebok" class="settings-page" style="display:none;">
                     <div class="modal-tabs tb-set-tabs">
                         <button type="button" class="modal-tab" data-tab="satser" onclick="switchTimebokSettingsTab('satser')" data-i18n="timebok_menu_satser">Satser</button>
-                        <button type="button" class="modal-tab" data-tab="prosjekter" onclick="switchTimebokSettingsTab('prosjekter')" data-i18n="settings_timebok_projects">Prosjekter</button>
-                        <button type="button" class="modal-tab" data-tab="generelt" onclick="switchTimebokSettingsTab('generelt')" data-i18n="tb_set_tab_general">Generelt</button>
+                        <button type="button" class="modal-tab" data-tab="personlig" onclick="switchTimebokSettingsTab('personlig')" data-i18n="tb_set_tab_personal">Personlig</button>
                     </div>
 
                     <!-- Satser (tariffer) — rendres av renderTimebokSatser() -->
@@ -951,17 +949,8 @@
 
                     <!-- Prosjekter: full oversikt. Søk (filtrerer), «+» = nytt prosjekt, trykk på rad =
                          rediger (samme skjema som i Timebok: navn + reiseavstand, her også slett). -->
-                    <div class="tb-set-panel" data-tab="prosjekter">
-                        <div class="timebok-search-row">
-                            <input type="text" id="settings-timebok-proj-search" class="timebok-project-search" data-i18n-placeholder="timebok_search_ph" placeholder="Søk prosjekt" oninput="renderTimebokProjectSettings()" autocapitalize="sentences" autocomplete="off">
-                            <button type="button" class="timebok-search-add" onclick="openTimebokProjectNewFromSettings()" aria-label="Nytt prosjekt">+</button>
-                        </div>
-                        <div id="settings-timebok-project-items" class="tb-proj-settings-list"></div>
-                        <button type="button" class="settings-add-btn timebok-sync-projects-btn" onclick="syncTimebokProjectsFromForms(true)" data-i18n="timebok_sync_projects">Hent fra Prosjekter & lager</button>
-                    </div>
-
-                    <!-- Generelt: standard transport, reise-stil og auto-fyll — rendres av renderTimebokSettings() -->
-                    <div class="tb-set-panel" data-tab="generelt">
+                    <!-- Personlig: timesats, reise-stil, standard transport og auto-fyll — rendres av renderTimebokSettings() -->
+                    <div class="tb-set-panel" data-tab="personlig">
                         <div id="tb-settings"></div>
                     </div>
                 </div>
@@ -1654,32 +1643,6 @@
         </div>
     </div>
 
-    <!-- Timebok: prosjekt-skjema, nytt («+») og rediger (✎): navn + reiseavstand. Avbryt → tilbake til velgeren. -->
-    <div class="spec-popup-backdrop" id="timebok-projform-popup" onclick="if(event.target===this)closeTimebokProjForm()">
-        <div class="spec-popup-sheet">
-            <div class="spec-popup-header">
-                <span id="timebok-projform-title">Rediger prosjekt</span>
-            </div>
-            <div class="spec-popup-body">
-                <div class="spec-popup-field">
-                    <span class="spec-popup-label"><span data-i18n="timebok_project_name">Prosjektnavn</span><span class="spec-required-star">*</span></span>
-                    <input type="text" id="timebok-projform-name" autocapitalize="sentences" autocomplete="off" oninput="_timebokProjFormHint('', false)" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmTimebokProjForm();}">
-                    <span class="timebok-projform-hint" id="timebok-projform-hint" style="display:none"></span>
-                </div>
-                <div class="spec-popup-field">
-                    <span class="spec-popup-label" data-i18n="timebok_travel_optional">Reiseavstand (valgfritt)</span>
-                    <select id="timebok-projform-dist" class="timebok-dist-select"></select>
-                </div>
-                <!-- Kun når skjemaet er åpnet fra Innstillinger → Prosjekter. -->
-                <button type="button" class="tb-tariff-delete" id="timebok-projform-delete" onclick="deleteTimebokProjFromForm()" style="display:none" data-i18n="timebok_delete_project">Slett prosjekt</button>
-            </div>
-            <div class="spec-popup-buttons">
-                <button type="button" class="spec-popup-cancel" onclick="closeTimebokProjForm()" data-i18n="btn_cancel">Avbryt</button>
-                <button type="button" class="spec-popup-ok" onclick="confirmTimebokProjForm()" data-i18n="btn_save">Lagre</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Timebok: klokke-velger for Start/Slutt i Ordinære timer (24-timers urskive). -->
     <div class="spec-popup-backdrop" id="timebok-clock-popup" onclick="if(event.target===this)closeTimebokClock()">
         <div class="spec-popup-sheet tb-clock-sheet">
@@ -2250,9 +2213,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=317"></script>
-    <script src="script.js?v=543"></script>
-    <script src="script-ui.js?v=1181"></script>
+    <script src="lang.js?v=327"></script>
+    <script src="script.js?v=546"></script>
+    <script src="script-ui.js?v=1191"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

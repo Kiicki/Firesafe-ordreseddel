@@ -37,32 +37,63 @@ const TIMEBOK_STORAGE_KEY = 'firesafe_timebok';              // array av dag-doc
 const TIMEBOK_SETTINGS_KEY = 'firesafe_timebok_settings';   // { timesats }
 const TIMEBOK_TIMETYPES_KEY = 'firesafe_timebok_timetypes'; // { list } — UTGÅTT (erstattet av tariffer); ryddes kun ved bruker-bytte
 const TIMEBOK_BRACKETS_KEY = 'firesafe_timebok_brackets';   // { list } — UTGÅTT; leses kun ved migrering til første tariff
-const TIMEBOK_PROJECTS_KEY = 'firesafe_timebok_projects';   // { list }
+const TIMEBOK_PROJECTS_KEY = 'firesafe_timebok_projects';   // UTGÅTT: gammel egen prosjektliste — kun lest for engangs-flytting til maler (syncTimebokProjectsFromForms)
 const TIMEBOK_TARIFFS_KEY = 'firesafe_timebok_tariffs';     // { list: [tariff] } — Satser (hamburger-meny)
 // Flagg på hver sats: hvilke totaler beløpet inngår i (eksport/summering).
 const TIMEBOK_FLAGS = ['lonn', 'ferie', 'skatt', 'reise', 'org'];
-// Faste lønnsregler (tariff/lov) — satsene kan ikke redigeres, kun flaggene pr. tariff.
-// mult: timesats × mult. otgPct: timesats + otgPct × overtidsgrunnlag (Org-OT).
-const TIMEBOK_RULES = [
-    { id: 'ord',       group: 'arbeid',  label: 'Ordinære timer',                 mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'ot50',      group: 'arbeid',  label: 'Overtid 50%',                    mult: 1.5, flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'ot50org',   group: 'arbeid',  label: 'Overtid 50% (Org.)',             otgPct: 0.5, flags: ['lonn', 'ferie', 'skatt', 'org'] },
-    { id: 'ot100',     group: 'arbeid',  label: 'Overtid 100%',                   mult: 2,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'ot100org',  group: 'arbeid',  label: 'Overtid 100% (Org.)',            otgPct: 1, flags: ['lonn', 'ferie', 'skatt', 'org'] },
-    { id: 'reisetid',  group: 'arbeid',  label: 'Reisetid',                       mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'akkord',    group: 'arbeid',  label: 'Akkordtimer',                    mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'kurs',      group: 'arbeid',  label: 'Kurs/oppl./møte',                mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'tillitsv',  group: 'arbeid',  label: 'Timer Tillitsvalgt/Verneombud',  mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'vedlikeh',  group: 'arbeid',  label: 'Vedlikehold ikke prosjekt',      mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'permorg',   group: 'fravaer', label: 'Permisjon lønnet (Org.)',        mult: 1,   flags: ['lonn', 'ferie', 'skatt', 'org'] },
-    { id: 'permuorg',  group: 'fravaer', label: 'Permisjon lønnet (Uorg.)',       mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'friavtale', group: 'fravaer', label: 'Fri ihht arb.avtale',            mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'ferie',     group: 'fravaer', label: 'Ferie',                          mult: 1,   flags: ['lonn', 'skatt'] },
-    { id: 'syk',       group: 'fravaer', label: 'Sykemelding',                    mult: 1,   flags: ['lonn', 'skatt'] },
-    { id: 'egenm',     group: 'fravaer', label: 'Egenmelding',                    mult: 1,   flags: ['lonn', 'skatt'] },
-    { id: 'barnsyk',   group: 'fravaer', label: 'Barns sykdom',                   mult: 1,   flags: ['lonn', 'skatt'] },
-    { id: 'permuten',  group: 'fravaer', label: 'Permisjon uten lønn',            mult: 0,   flags: [] },
-    { id: 'fridag',    group: 'fravaer', label: 'Offentlig fridag',               mult: 1,   flags: ['lonn', 'ferie', 'skatt'] }
+// ── Tilleggskodene (fast liste, brukerens valg 25-10-2026) ──
+// group: gruppe i lister og rekkefølge på kortene (TIMEBOK_CODE_GROUPS).
+// input: feltene på kortet — clock = Start·Slutt·Lunsj·Timer, hours = Timer,
+//   count = Antall, km = Km, kr = Beløp (kr). unitSel: satsen kan være kr/time
+//   ELLER kr/reg. (velges i Satser; kr/reg. gir Antall i stedet for Timer).
+// Beregning: mult = timesats × mult · otgPct = timesats + pct × overtidsgrunnlag ·
+//   own = egen sats i tariffen (tariff.rates[id], pr. time/stk/km) · base+mult = satsen
+//   til `base`-koden × mult · amount = verdien ER beløpet (kr) · zero = ingen lønn
+//   (Pause — teller heller ikke med i timer).
+// flags: standard-flagg; hver tariff kan overstyre (tariff.rules[id]).
+// Oppmøtetillegg føres med Reisegodtgjørelse-kortet (Transport + Avstand), ikke som koder.
+const TIMEBOK_CODE_GROUPS = ['reise', 'arbeid', 'overtid', 'tillegg', 'fravaer', 'syk'];
+const TIMEBOK_CODES = [
+    { id: 'km',            group: 'reise',   label: 'Km-godtgjørelse',                input: 'km',    own: true, flags: ['lonn', 'ferie', 'skatt', 'reise'] },
+    { id: 'passasjer',     group: 'reise',   label: 'Passasjertillegg',               input: 'km',    own: true, flags: ['lonn', 'ferie', 'skatt', 'reise'] },
+    { id: 'tilhenger',     group: 'reise',   label: 'Tilhengertillegg',               input: 'km',    own: true, flags: ['lonn', 'ferie', 'skatt', 'reise'] },
+    { id: 'reiseutg',      group: 'reise',   label: 'Reiseutgifter/Bompassering',     input: 'kr',    amount: true, flags: ['lonn', 'ferie', 'skatt', 'reise'] },
+    { id: 'ord',           group: 'arbeid',  label: 'Ordinære timer',                 input: 'clock', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'akkord',        group: 'arbeid',  label: 'Akkord timer',                   input: 'clock', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'reisetid',      group: 'arbeid',  label: 'Reisetid Thermax',               input: 'clock', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'tillitsv',      group: 'arbeid',  label: 'Timer Tillitsvalgt/Verneombud',  input: 'clock', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'kurs',          group: 'arbeid',  label: 'Kurs/oppl./møte',                input: 'clock', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'timelonnfi',    group: 'arbeid',  label: 'Timelønn Finland',               input: 'clock', own: true, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'sats7',         group: 'arbeid',  label: 'Timelønn sats 7 - A121',         input: 'clock', own: true, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'pause',         group: 'arbeid',  label: 'Pause',                          input: 'clock', zero: true, flags: [] },
+    { id: 'ot50',          group: 'overtid', label: 'Overtid 50%',                    input: 'clock', mult: 1.5, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ot50org',       group: 'overtid', label: 'Overtid 50% (Org.)',             input: 'clock', otgPct: 0.5, flags: ['lonn', 'ferie', 'skatt', 'org'] },
+    { id: 'ot100',         group: 'overtid', label: 'Overtid 100%',                   input: 'clock', mult: 2,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ot100org',      group: 'overtid', label: 'Overtid 100% (Org.)',            input: 'clock', otgPct: 1, flags: ['lonn', 'ferie', 'skatt', 'org'] },
+    { id: 'ot50s7',        group: 'overtid', label: 'Overtid 50% sats 7 - A121',      input: 'clock', base: 'sats7', mult: 1.5, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ot100s7',       group: 'overtid', label: 'Overtid 100% sats 7 - A121',     input: 'clock', base: 'sats7', mult: 2,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'bastillegg',    group: 'tillegg', label: 'Bastillegg',                     input: 'hours', own: true, unitSel: 'hour', flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'kaffe',         group: 'tillegg', label: 'Kaffepenger',                    input: 'count', own: true, unitSel: 'reg',  flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'smuss',         group: 'tillegg', label: 'Smusstillegg Fellesforb.',       input: 'hours', own: true, unitSel: 'hour', flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'tarifftillegg', group: 'tillegg', label: 'Tarifftillegg - prosjekt A121',  input: 'count', own: true, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'matpenger',     group: 'tillegg', label: 'Matpenger §2-5 Fellesforbundet', input: 'count', own: true, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'restakkord',    group: 'tillegg', label: 'Restakkord beløp',               input: 'kr',    amount: true, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'friavtale',     group: 'fravaer', label: 'Fri ihht arb.avtale',            input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ferie',         group: 'fravaer', label: 'Ferie',                          input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
+    { id: 'perm',          group: 'fravaer', label: 'Permisjon lønnet',               input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'permuten',      group: 'fravaer', label: 'Permisjon uten lønn',            input: 'hours', zero: true, flags: [] },
+    { id: 'fridag',        group: 'fravaer', label: 'Offentlig fridag',               input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'permittering',  group: 'fravaer', label: 'Lønn v/permittering',            input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'barnsyk',       group: 'syk',     label: 'Sykt barn',                      input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
+    { id: 'egenm',         group: 'syk',     label: 'Egenmelding',                    input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
+    { id: 'syk',           group: 'syk',     label: 'Sykelønn',                       input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] }
+];
+// Koder som er fjernet fra lista, men kan finnes på eldre dager: beholdes KUN for navn
+// og beregning der (vises aldri i velgere, auto-fyll eller Satser).
+const TIMEBOK_LEGACY_CODES = [
+    { id: 'vedlikeh',  group: 'arbeid',  label: 'Vedlikehold ikke prosjekt',  input: 'clock', mult: 1, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'permorg',   group: 'fravaer', label: 'Permisjon lønnet (Org.)',    input: 'hours', mult: 1, flags: ['lonn', 'ferie', 'skatt', 'org'] },
+    { id: 'permuorg',  group: 'fravaer', label: 'Permisjon lønnet (Uorg.)',   input: 'hours', mult: 1, flags: ['lonn', 'ferie', 'skatt'] }
 ];
 // Gamle tidstype-id-er (før tariffer) → regel/kode-id.
 const TIMEBOK_TYPE_ALIASES = { tt_ordinaer: 'ord', tt_overtid50: 'ot50', tt_overtid100: 'ot100', tt_reisetid: 'reisetid', tt_km: 'km' };
@@ -148,9 +179,24 @@ function getTimebokTimesats() {
     var v = d && d.timesats != null ? parseLocaleNum(d.timesats) : NaN;
     return isNaN(v) ? null : v;
 }
+// Timebok-prosjektene ER prosjektene i Innstillinger → Prosjekter & lager (maler) —
+// én liste, ingen kopi. Reiseavstanden ligger på malen (`timebokBracketId`).
+// Deaktiverte tas med (oppslag for eldre dager), men skjules i velgeren (`active`).
+// TEMPLATE_KEY først (friskest, oppdateres ved refresh), loadedTemplates fyller på
+// prosjekter utenfor cache-grensen.
 function getTimebokProjects() {
-    var d = safeParseJSON(TIMEBOK_PROJECTS_KEY, null);
-    return d && Array.isArray(d.list) ? d.list : [];
+    var seen = {}, out = [];
+    var add = function (tpl) {
+        if (!tpl || !tpl.id || seen[tpl.id]) return;
+        var nm = String(tpl.prosjektnavn || '').trim();
+        if (!nm) return;
+        seen[tpl.id] = true;
+        out.push({ id: tpl.id, name: nm, bracketId: tpl.timebokBracketId || null, active: tpl.active !== false });
+    };
+    safeParseJSON(TEMPLATE_KEY, []).forEach(add);
+    (window.loadedTemplates || []).forEach(add);
+    out.sort(function (a, b) { return a.name.localeCompare(b.name, 'nb'); });
+    return out;
 }
 
 // ─── Timebok: tariffer ──────────────────────────────────────────────────────
@@ -159,15 +205,16 @@ function getTimebokProjects() {
 // satser påvirker kun dager fra «gyldig fra» og fremover.
 function _timebokNewTariff(name, validFrom) {
     var rules = {};
-    TIMEBOK_RULES.forEach(function (r) { rules[r.id] = r.flags.slice(); });
+    TIMEBOK_CODES.forEach(function (c) { rules[c.id] = c.flags.slice(); });
     return {
         id: 'tf_' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36),
         name: name || 'Tariff', validFrom: validFrom || _timebokTodayId(),
         feriepenger: null, fagforening: null, forsikring: null, forsikringFlags: [], overtidsgrunnlag: null,
         brackets: TIMEBOK_DEFAULT_BRACKETS.map(function (b) { return Object.assign({}, b); }),
         bracketFlags: ['lonn', 'ferie', 'skatt', 'reise'],
-        kmRate: null, kmFlags: ['lonn', 'ferie', 'skatt', 'reise'], reiseutgFlags: ['lonn', 'ferie', 'skatt', 'reise'],
-        supplements: [], variables: [], rules: rules
+        // rates: egne satser (koder med `own`); units: kr/time|kr/reg. (koder med `unitSel`);
+        // rules: flagg pr. kode.
+        rates: {}, units: {}, rules: rules
     };
 }
 // Alle tariffer, nyeste «gyldig fra» først. Finnes ingen: opprett «Initiell tariff»
@@ -205,39 +252,69 @@ function getTimebokBrackets(dateId) {
 function _timebokFlagsHas(flags, f) { return Array.isArray(flags) && flags.indexOf(f) !== -1; }
 
 // ─── Timebok: koder (tilleggskoder) ─────────────────────────────────────────
-// Kode-typer for en dato: faste regler (arbeid/fravær) + tariffens tillegg og
-// variable beløp + km-godtgjørelse + reiseutgifter. unit: 't' | 'stk' | 'kr' | 'km'.
+// Definisjonen til en kode (aktiv liste først, så fjernede for eldre dager).
+function _timebokCodeDef(id) {
+    id = _timebokCanonTypeId(id);
+    for (var i = 0; i < TIMEBOK_CODES.length; i++) if (TIMEBOK_CODES[i].id === id) return TIMEBOK_CODES[i];
+    for (var j = 0; j < TIMEBOK_LEGACY_CODES.length; j++) if (TIMEBOK_LEGACY_CODES[j].id === id) return TIMEBOK_LEGACY_CODES[j];
+    return null;
+}
+function _timebokIsActiveCode(id) {
+    return id === '__travel' || TIMEBOK_CODES.some(function (c) { return c.id === id; });
+}
+// Feltene koden har på kortet med en gitt tariff (unitSel: kr/reg. → Antall).
+function _timebokCodeInput(def, tariff) {
+    if (!def.unitSel) return def.input;
+    var u = (tariff && tariff.units && tariff.units[def.id]) || def.unitSel;
+    return u === 'reg' ? 'count' : 'hours';
+}
+function _timebokTypeInfo(def, tariff) {
+    return { id: def.id, label: def.label, group: def.group, input: _timebokCodeInput(def, tariff) };
+}
+// Kodene som kan velges (dagens tariff avgjør bare kr/time vs kr/reg.).
 function _timebokCodeTypes(dateId) {
     var t = _timebokTariffFor(dateId);
-    var out = TIMEBOK_RULES.map(function (r) { return { id: r.id, label: r.label, kind: 'rule', group: r.group, unit: 't' }; });
-    if (t) {
-        (t.supplements || []).forEach(function (sp) { out.push({ id: sp.id, label: sp.label, kind: 'sup', group: 'tillegg', unit: sp.unit === 'reg' ? 'stk' : 't' }); });
-        (t.variables || []).forEach(function (v) { out.push({ id: v.id, label: v.label, kind: 'var', group: 'variabel', unit: 'kr' }); });
-    }
-    out.push({ id: 'km', label: 'Km-godtgjørelse', kind: 'km', group: 'reise', unit: 'km' });
-    out.push({ id: 'reiseutg', label: 'Reiseutgifter/bompasseringer', kind: 'utlegg', group: 'reise', unit: 'kr' });
-    return out;
+    return TIMEBOK_CODES.map(function (c) { return _timebokTypeInfo(c, t); });
 }
 function _timebokCanonTypeId(id) { return TIMEBOK_TYPE_ALIASES[id] || id; }
-// Oppslag på kode-id (også eldre tt_*-id-er). Tillegg/variable søkes i alle tariffer
-// så en registrering beholder navnet sitt selv om tillegget er fjernet senere.
+// Oppslag på kode-id (også eldre tt_*-id-er og fjernede koder). Eldre tariffers egne
+// tillegg/variable søkes i alle tariffer så en registrering beholder navnet sitt.
 function _timebokTypeById(id, dateId) {
     if (!id) return null;
     id = _timebokCanonTypeId(id);
-    var list = _timebokCodeTypes(dateId);
-    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    var def = _timebokCodeDef(id);
+    if (def) return _timebokTypeInfo(def, _timebokTariffFor(dateId));
     var tfs = getTimebokTariffs();
     for (var j = 0; j < tfs.length; j++) {
         var sp = (tfs[j].supplements || []).filter(function (x) { return x.id === id; })[0];
-        if (sp) return { id: sp.id, label: sp.label, kind: 'sup', group: 'tillegg', unit: sp.unit === 'reg' ? 'stk' : 't' };
+        if (sp) return { id: sp.id, label: sp.label, group: 'tillegg', input: sp.unit === 'reg' ? 'count' : 'hours' };
         var v = (tfs[j].variables || []).filter(function (x) { return x.id === id; })[0];
-        if (v) return { id: v.id, label: v.label, kind: 'var', group: 'variabel', unit: 'kr' };
+        if (v) return { id: v.id, label: v.label, group: 'tillegg', input: 'kr' };
     }
     return null;
 }
-function _timebokRuleById(id) {
-    id = _timebokCanonTypeId(id);
-    for (var i = 0; i < TIMEBOK_RULES.length; i++) if (TIMEBOK_RULES[i].id === id) return TIMEBOK_RULES[i];
+// Flaggene en kode har i en tariff (eldre tariffer: kmFlags/reiseutgFlags).
+function _timebokCodeFlags(def, tariff) {
+    var t = tariff || {};
+    if (t.rules && Array.isArray(t.rules[def.id])) return t.rules[def.id];
+    if (def.id === 'km' && Array.isArray(t.kmFlags)) return t.kmFlags;
+    if (def.id === 'reiseutg' && Array.isArray(t.reiseutgFlags)) return t.reiseutgFlags;
+    return def.flags;
+}
+// Egen sats (koder med `own`) i en tariff. Km: eldre tariffer har `kmRate`.
+function _timebokOwnRate(id, tariff) {
+    var t = tariff || {};
+    if (t.rates && t.rates[id] != null) return t.rates[id];
+    if (id === 'km' && t.kmRate != null) return t.kmRate;
+    return null;
+}
+// Kr pr. enhet (time/stk/km) for en kode. null = ikke beregnbart (sats mangler).
+function _timebokCodeRate(def, tariff, timesats) {
+    if (def.zero) return 0;
+    if (def.base) { var r = _timebokOwnRate(def.base, tariff); return r != null ? r * (def.mult || 1) : null; }
+    if (def.own) return _timebokOwnRate(def.id, tariff);
+    if (def.otgPct != null) return (timesats != null && tariff && tariff.overtidsgrunnlag != null) ? timesats + def.otgPct * tariff.overtidsgrunnlag : null;
+    if (def.mult != null) return timesats != null ? timesats * def.mult : null;
     return null;
 }
 function _timebokBracketById(id, dateId) {
@@ -264,17 +341,14 @@ function _timebokCodeItem(code, tariff, timesats) {
     var v = parseLocaleNum(code.hours);
     if (isNaN(v)) v = 0;
     var t = tariff || {};
-    var rule = _timebokRuleById(id);
-    if (rule) {
-        var flags = (t.rules && t.rules[id]) || rule.flags;
-        if (rule.mult === 0) return { amount: 0, flags: flags, hours: v };
-        var rate = null;
-        if (rule.otgPct != null) rate = (timesats != null && t.overtidsgrunnlag != null) ? timesats + rule.otgPct * t.overtidsgrunnlag : null;
-        else rate = (timesats != null) ? timesats * rule.mult : null;
-        return { amount: rate != null ? rate * v : null, flags: flags, hours: v };
+    var def = _timebokCodeDef(id);
+    if (def) {
+        var flags = _timebokCodeFlags(def, t);
+        if (def.amount) return { amount: v, flags: flags };
+        var rate = _timebokCodeRate(def, t, timesats);
+        return { amount: rate != null ? rate * v : null, flags: flags };
     }
-    if (id === 'km') return { amount: t.kmRate != null ? t.kmRate * v : null, flags: t.kmFlags || [] };
-    if (id === 'reiseutg') return { amount: v, flags: t.reiseutgFlags || [] };
+    // Eldre tariffers egne tillegg/variable (før den faste kodelista).
     var sp = (t.supplements || []).filter(function (x) { return x.id === id; })[0];
     if (sp) return { amount: sp.rate != null ? sp.rate * v : null, flags: sp.flags || [] };
     var vr = (t.variables || []).filter(function (x) { return x.id === id; })[0];
@@ -367,8 +441,10 @@ function _timebokDayTravelComp(dayDoc) {
 // Sum timer: kun arbeid/fravær-regler (tillegg pr. time gjelder de samme timene).
 function _timebokDayHours(dayDoc) {
     var total = 0;
+    // Timer = arbeidstid, overtid, fravær og sykefravær (ikke Pause, ikke tillegg/reise).
     _timebokDayLines(dayDoc).forEach(function (l) {
-        if (!_timebokRuleById(l.timeType)) return;
+        var def = _timebokCodeDef(l.timeType);
+        if (!def || def.zero || ['arbeid', 'overtid', 'fravaer', 'syk'].indexOf(def.group) === -1) return;
         var h = parseLocaleNum(l.hours);
         if (!isNaN(h)) total += h;
     });
