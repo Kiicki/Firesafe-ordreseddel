@@ -35,25 +35,45 @@ const LEVERINGSADRESSE_KEY = 'firesafe_leveringsadresser';
 // ─── Timebok ────────────────────────────────────────────────────────────────
 const TIMEBOK_STORAGE_KEY = 'firesafe_timebok';              // array av dag-docs (cache, 50-vindu)
 const TIMEBOK_SETTINGS_KEY = 'firesafe_timebok_settings';   // { timesats }
-const TIMEBOK_TIMETYPES_KEY = 'firesafe_timebok_timetypes'; // { list }
-const TIMEBOK_BRACKETS_KEY = 'firesafe_timebok_brackets';   // { list }
+const TIMEBOK_TIMETYPES_KEY = 'firesafe_timebok_timetypes'; // { list } — UTGÅTT (erstattet av tariffer); ryddes kun ved bruker-bytte
+const TIMEBOK_BRACKETS_KEY = 'firesafe_timebok_brackets';   // { list } — UTGÅTT; leses kun ved migrering til første tariff
 const TIMEBOK_PROJECTS_KEY = 'firesafe_timebok_projects';   // { list }
-// Forhåndsfylte tidstyper (blanke satser — fylles fra tariff senere). Tillegg/
-// oppmøte ligger KUN i brackets (under) for å unngå dobbelttelling.
-const TIMEBOK_DEFAULT_TIMETYPES = [
-    { id: 'tt_ordinaer', label: 'Ordinær', kind: 'ordinary', rate: null, multiplier: null },
-    { id: 'tt_overtid50', label: 'Overtid 50%', kind: 'overtime', rate: null, multiplier: 1.5 },
-    { id: 'tt_overtid100', label: 'Overtid 100%', kind: 'overtime', rate: null, multiplier: 2 },
-    { id: 'tt_reisetid', label: 'Reisetid', kind: 'travel', rate: null, multiplier: null },
-    { id: 'tt_km', label: 'Km-godtgjørelse', kind: 'km', rate: null, multiplier: null }
+const TIMEBOK_TARIFFS_KEY = 'firesafe_timebok_tariffs';     // { list: [tariff] } — Satser (hamburger-meny)
+// Flagg på hver sats: hvilke totaler beløpet inngår i (eksport/summering).
+const TIMEBOK_FLAGS = ['lonn', 'ferie', 'skatt', 'reise', 'org'];
+// Faste lønnsregler (tariff/lov) — satsene kan ikke redigeres, kun flaggene pr. tariff.
+// mult: timesats × mult. otgPct: timesats + otgPct × overtidsgrunnlag (Org-OT).
+const TIMEBOK_RULES = [
+    { id: 'ord',       group: 'arbeid',  label: 'Ordinære timer',                 mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ot50',      group: 'arbeid',  label: 'Overtid 50%',                    mult: 1.5, flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ot50org',   group: 'arbeid',  label: 'Overtid 50% (Org.)',             otgPct: 0.5, flags: ['lonn', 'ferie', 'skatt', 'org'] },
+    { id: 'ot100',     group: 'arbeid',  label: 'Overtid 100%',                   mult: 2,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ot100org',  group: 'arbeid',  label: 'Overtid 100% (Org.)',            otgPct: 1, flags: ['lonn', 'ferie', 'skatt', 'org'] },
+    { id: 'reisetid',  group: 'arbeid',  label: 'Reisetid',                       mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'akkord',    group: 'arbeid',  label: 'Akkordtimer',                    mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'kurs',      group: 'arbeid',  label: 'Kurs/oppl./møte',                mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'tillitsv',  group: 'arbeid',  label: 'Timer Tillitsvalgt/Verneombud',  mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'vedlikeh',  group: 'arbeid',  label: 'Vedlikehold ikke prosjekt',      mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'permorg',   group: 'fravaer', label: 'Permisjon lønnet (Org.)',        mult: 1,   flags: ['lonn', 'ferie', 'skatt', 'org'] },
+    { id: 'permuorg',  group: 'fravaer', label: 'Permisjon lønnet (Uorg.)',       mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'friavtale', group: 'fravaer', label: 'Fri ihht arb.avtale',            mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
+    { id: 'ferie',     group: 'fravaer', label: 'Ferie',                          mult: 1,   flags: ['lonn', 'skatt'] },
+    { id: 'syk',       group: 'fravaer', label: 'Sykemelding',                    mult: 1,   flags: ['lonn', 'skatt'] },
+    { id: 'egenm',     group: 'fravaer', label: 'Egenmelding',                    mult: 1,   flags: ['lonn', 'skatt'] },
+    { id: 'barnsyk',   group: 'fravaer', label: 'Barns sykdom',                   mult: 1,   flags: ['lonn', 'skatt'] },
+    { id: 'permuten',  group: 'fravaer', label: 'Permisjon uten lønn',            mult: 0,   flags: [] },
+    { id: 'fridag',    group: 'fravaer', label: 'Offentlig fridag',               mult: 1,   flags: ['lonn', 'ferie', 'skatt'] }
 ];
-// Avstands-brackets for reisegodtgjørelse (oppmøtetillegg). Sats per dag/prosjekt.
+// Gamle tidstype-id-er (før tariffer) → regel/kode-id.
+const TIMEBOK_TYPE_ALIASES = { tt_ordinaer: 'ord', tt_overtid50: 'ot50', tt_overtid100: 'ot100', tt_reisetid: 'reisetid', tt_km: 'km' };
+// Avstandsintervaller for oppmøtetillegg (struktur for første tariff; satser tomme).
+// `rate` = med firmabil, `ratePrivat` = med privat bil.
 const TIMEBOK_DEFAULT_BRACKETS = [
-    { id: 'br_0715', label: '7,5–15 km', rate: null },
-    { id: 'br_1530', label: '15–30 km', rate: null },
-    { id: 'br_3045', label: '30–45 km', rate: null },
-    { id: 'br_4560', label: '45–60 km', rate: null },
-    { id: 'br_6075', label: '60–75 km', rate: null }
+    { id: 'br_0715', label: '7,5–15 km', rate: null, ratePrivat: null },
+    { id: 'br_1530', label: '15–30 km', rate: null, ratePrivat: null },
+    { id: 'br_3045', label: '30–45 km', rate: null, ratePrivat: null },
+    { id: 'br_4560', label: '45–60 km', rate: null, ratePrivat: null },
+    { id: 'br_6075', label: '60–75 km', rate: null, ratePrivat: null }
 ];
 const MIN_INFO_KEY = 'firesafe_min_info';
 const KOLLEGER_KEY = 'firesafe_kolleger';        // { list: [{id, navn}] }
@@ -111,36 +131,118 @@ function formatLocaleNum(n, decimals) {
 }
 
 // ─── Timebok: gettere (cache-først) ─────────────────────────────────────────
+// Timebok-oppsett (samme dokument som timesats): standard transport, reisegodtgjørelse-
+// stil og auto-fyll (kodene som legges til når et prosjekt velges på en ny registrering).
+// '__travel' = Reisegodtgjørelse-seksjonen, 'ord' = Ordinære timer; ellers kode-id-er.
+const TIMEBOK_AUTOFILL_DEFAULT = ['__travel', 'ord'];
+function getTimebokSettings() {
+    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
+    return {
+        transport: d.transport === 'privat' ? 'privat' : 'firma',
+        travelStyle: d.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe',
+        autofill: Array.isArray(d.autofill) ? d.autofill.slice() : TIMEBOK_AUTOFILL_DEFAULT.slice()
+    };
+}
 function getTimebokTimesats() {
     var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null);
     var v = d && d.timesats != null ? parseLocaleNum(d.timesats) : NaN;
     return isNaN(v) ? null : v;
-}
-function getTimebokTimeTypes() {
-    var d = safeParseJSON(TIMEBOK_TIMETYPES_KEY, null);
-    if (d && Array.isArray(d.list) && d.list.length) return d.list;
-    return TIMEBOK_DEFAULT_TIMETYPES.map(function (t) { return Object.assign({}, t); });
-}
-function getTimebokBrackets() {
-    var d = safeParseJSON(TIMEBOK_BRACKETS_KEY, null);
-    if (d && Array.isArray(d.list) && d.list.length) return d.list;
-    return TIMEBOK_DEFAULT_BRACKETS.map(function (b) { return Object.assign({}, b); });
 }
 function getTimebokProjects() {
     var d = safeParseJSON(TIMEBOK_PROJECTS_KEY, null);
     return d && Array.isArray(d.list) ? d.list : [];
 }
 
-// ─── Timebok: oppslag ───────────────────────────────────────────────────────
-function _timebokTypeById(id) {
-    if (!id) return null;
-    var list = getTimebokTimeTypes();
+// ─── Timebok: tariffer ──────────────────────────────────────────────────────
+// Tariff = én versjon av satsene, gyldig fra en dato. En registrering beregnes
+// ALLTID med tariffen som var aktiv på dagen (siste validFrom ≤ dato), så nye
+// satser påvirker kun dager fra «gyldig fra» og fremover.
+function _timebokNewTariff(name, validFrom) {
+    var rules = {};
+    TIMEBOK_RULES.forEach(function (r) { rules[r.id] = r.flags.slice(); });
+    return {
+        id: 'tf_' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36),
+        name: name || 'Tariff', validFrom: validFrom || _timebokTodayId(),
+        feriepenger: null, fagforening: null, forsikring: null, forsikringFlags: [], overtidsgrunnlag: null,
+        brackets: TIMEBOK_DEFAULT_BRACKETS.map(function (b) { return Object.assign({}, b); }),
+        bracketFlags: ['lonn', 'ferie', 'skatt', 'reise'],
+        kmRate: null, kmFlags: ['lonn', 'ferie', 'skatt', 'reise'], reiseutgFlags: ['lonn', 'ferie', 'skatt', 'reise'],
+        supplements: [], variables: [], rules: rules
+    };
+}
+// Alle tariffer, nyeste «gyldig fra» først. Finnes ingen: opprett «Initiell tariff»
+// (struktur, tomme satser) — med evt. reise-satser brukeren allerede hadde lagt inn
+// under det gamle «Reise-tillegg», så ingen innlagte data forsvinner.
+function getTimebokTariffs() {
+    var d = safeParseJSON(TIMEBOK_TARIFFS_KEY, null);
+    if (d && Array.isArray(d.list) && d.list.length) {
+        return d.list.slice().sort(function (a, b) { return String(b.validFrom).localeCompare(String(a.validFrom)); });
+    }
+    var t = _timebokNewTariff('Initiell tariff', '2020-01-01');
+    t.id = 'tf_initial';   // fast id: standard-tariffen leses flere ganger før første lagring
+    var old = safeParseJSON(TIMEBOK_BRACKETS_KEY, null);
+    if (old && Array.isArray(old.list) && old.list.length) {
+        t.brackets = old.list.map(function (b) { return { id: b.id, label: b.label, rate: b.rate != null ? b.rate : null, ratePrivat: b.ratePrivat != null ? b.ratePrivat : null }; });
+    }
+    return [t];
+}
+function _timebokTariffById(id) {
+    var list = getTimebokTariffs();
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
 }
-function _timebokBracketById(id) {
+// Tariffen som gjelder en dato (dag-id «YYYY-MM-DD»). Før første tariff: den eldste.
+function _timebokTariffFor(dateId) {
+    var list = getTimebokTariffs();   // nyeste først
+    var id = dateId || _timebokTodayId();
+    for (var i = 0; i < list.length; i++) if (String(list[i].validFrom) <= id) return list[i];
+    return list[list.length - 1] || null;
+}
+function getTimebokBrackets(dateId) {
+    var t = _timebokTariffFor(dateId);
+    return (t && Array.isArray(t.brackets)) ? t.brackets : [];
+}
+function _timebokFlagsHas(flags, f) { return Array.isArray(flags) && flags.indexOf(f) !== -1; }
+
+// ─── Timebok: koder (tilleggskoder) ─────────────────────────────────────────
+// Kode-typer for en dato: faste regler (arbeid/fravær) + tariffens tillegg og
+// variable beløp + km-godtgjørelse + reiseutgifter. unit: 't' | 'stk' | 'kr' | 'km'.
+function _timebokCodeTypes(dateId) {
+    var t = _timebokTariffFor(dateId);
+    var out = TIMEBOK_RULES.map(function (r) { return { id: r.id, label: r.label, kind: 'rule', group: r.group, unit: 't' }; });
+    if (t) {
+        (t.supplements || []).forEach(function (sp) { out.push({ id: sp.id, label: sp.label, kind: 'sup', group: 'tillegg', unit: sp.unit === 'reg' ? 'stk' : 't' }); });
+        (t.variables || []).forEach(function (v) { out.push({ id: v.id, label: v.label, kind: 'var', group: 'variabel', unit: 'kr' }); });
+    }
+    out.push({ id: 'km', label: 'Km-godtgjørelse', kind: 'km', group: 'reise', unit: 'km' });
+    out.push({ id: 'reiseutg', label: 'Reiseutgifter/bompasseringer', kind: 'utlegg', group: 'reise', unit: 'kr' });
+    return out;
+}
+function _timebokCanonTypeId(id) { return TIMEBOK_TYPE_ALIASES[id] || id; }
+// Oppslag på kode-id (også eldre tt_*-id-er). Tillegg/variable søkes i alle tariffer
+// så en registrering beholder navnet sitt selv om tillegget er fjernet senere.
+function _timebokTypeById(id, dateId) {
     if (!id) return null;
-    var list = getTimebokBrackets();
+    id = _timebokCanonTypeId(id);
+    var list = _timebokCodeTypes(dateId);
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    var tfs = getTimebokTariffs();
+    for (var j = 0; j < tfs.length; j++) {
+        var sp = (tfs[j].supplements || []).filter(function (x) { return x.id === id; })[0];
+        if (sp) return { id: sp.id, label: sp.label, kind: 'sup', group: 'tillegg', unit: sp.unit === 'reg' ? 'stk' : 't' };
+        var v = (tfs[j].variables || []).filter(function (x) { return x.id === id; })[0];
+        if (v) return { id: v.id, label: v.label, kind: 'var', group: 'variabel', unit: 'kr' };
+    }
+    return null;
+}
+function _timebokRuleById(id) {
+    id = _timebokCanonTypeId(id);
+    for (var i = 0; i < TIMEBOK_RULES.length; i++) if (TIMEBOK_RULES[i].id === id) return TIMEBOK_RULES[i];
+    return null;
+}
+function _timebokBracketById(id, dateId) {
+    if (!id) return null;
+    var list = getTimebokBrackets(dateId);
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
 }
@@ -154,33 +256,43 @@ function _timebokProject(line) {
     return null;
 }
 
-// ─── Timebok: beregninger (null = ikke beregnbart → vis «—») ─────────────────
-// Effektiv kr/time for en linje sin tidstype. timesats kan være null.
-function _timebokEffectiveRate(type, timesats) {
-    if (!type) return null;
-    switch (type.kind) {
-        case 'ordinary': return timesats;
-        case 'overtime':
-            if (type.rate != null) return type.rate;
-            if (timesats != null && type.multiplier != null) return timesats * type.multiplier;
-            return null;
-        case 'travel': return type.rate != null ? type.rate : timesats;
-        case 'km': return type.rate;          // kr/km; «hours»-feltet tolkes som km
-        case 'supplement': return type.rate;
-        case 'absence': return null;
-        default: return type.rate != null ? type.rate : timesats;
+// ─── Timebok: beregninger (null = ikke beregnbart) ──────────────────────────
+// Beløp + flagg for én kode med tariffen for dagen. Verdien («hours») er timer,
+// antall (stk), kr eller km avhengig av kode-type.
+function _timebokCodeItem(code, tariff, timesats) {
+    var id = _timebokCanonTypeId(code.typeId);
+    var v = parseLocaleNum(code.hours);
+    if (isNaN(v)) v = 0;
+    var t = tariff || {};
+    var rule = _timebokRuleById(id);
+    if (rule) {
+        var flags = (t.rules && t.rules[id]) || rule.flags;
+        if (rule.mult === 0) return { amount: 0, flags: flags, hours: v };
+        var rate = null;
+        if (rule.otgPct != null) rate = (timesats != null && t.overtidsgrunnlag != null) ? timesats + rule.otgPct * t.overtidsgrunnlag : null;
+        else rate = (timesats != null) ? timesats * rule.mult : null;
+        return { amount: rate != null ? rate * v : null, flags: flags, hours: v };
     }
+    if (id === 'km') return { amount: t.kmRate != null ? t.kmRate * v : null, flags: t.kmFlags || [] };
+    if (id === 'reiseutg') return { amount: v, flags: t.reiseutgFlags || [] };
+    var sp = (t.supplements || []).filter(function (x) { return x.id === id; })[0];
+    if (sp) return { amount: sp.rate != null ? sp.rate * v : null, flags: sp.flags || [] };
+    var vr = (t.variables || []).filter(function (x) { return x.id === id; })[0];
+    if (vr) return { amount: v, flags: vr.flags || [] };
+    return { amount: null, flags: [] };
 }
-function _timebokLineWage(line, timesats) {
-    if (!line) return null;
-    var type = _timebokTypeById(line.timeType);
-    var r = _timebokEffectiveRate(type, timesats);
-    var h = parseLocaleNum(line.hours);
-    if (r == null || isNaN(h)) return null;
-    return r * h;
+// Sats for et avstandsintervall med gitt transport i en tariff.
+function _timebokBracketRate(bracketId, transport, tariff) {
+    var br = null, list = (tariff && tariff.brackets) || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === bracketId) { br = list[i]; break; }
+    if (!br) return null;
+    var r = (transport === 'privat') ? br.ratePrivat : br.rate;
+    return r != null ? r : null;
 }
-// Normaliser en dag-doc til flat liste pseudo-linjer for time/lønn-math.
-// Ny modell: projects[].codes[] (kode = {typeId, hours}). Eldre modell: lines[].
+function _timebokDayId(dayDoc) { return (dayDoc && (dayDoc.id || dayDoc.date)) || _timebokTodayId(); }
+// Normaliser en dag-doc til flat liste pseudo-linjer.
+// Ny modell: projects[].codes[] (kode = {typeId, hours[, start, end, lunch]}) +
+// projects[].travel ({transport:'firma'|'privat', bracketId} | null). Eldre modell: lines[].
 function _timebokDayLines(dayDoc) {
     if (!dayDoc) return [];
     if (Array.isArray(dayDoc.projects)) {
@@ -194,37 +306,73 @@ function _timebokDayLines(dayDoc) {
     }
     return dayDoc.lines || [];
 }
-function _timebokDayWage(dayDoc, timesats) {
-    var total = 0, any = false;
+// Alle beløps-poster for en dag (koder + oppmøtetillegg) med flagg, beregnet med
+// dagens tariff. Totaler: Reise = poster med reise-flagg; Lønn = lønn-flagg uten
+// reise-flagg (ellers telles oppmøte/km dobbelt); Sum = alle poster + kvitteringer.
+function _timebokDayItems(dayDoc) {
+    var tariff = _timebokTariffFor(_timebokDayId(dayDoc));
+    var timesats = getTimebokTimesats();
+    var items = [];
     _timebokDayLines(dayDoc).forEach(function (l) {
-        var w = _timebokLineWage(l, timesats);
-        if (w != null) { total += w; any = true; }
+        items.push(_timebokCodeItem({ typeId: l.timeType, hours: l.hours }, tariff, timesats));
     });
+    var seen = {}, travels = [];
+    var addTravel = function (key, bracketId, transport) {
+        if (!key || seen[key]) return;   // én gang pr. prosjekt pr. dag
+        seen[key] = true;
+        var r = _timebokBracketRate(bracketId, transport, tariff);
+        if (r != null) travels.push(r);
+    };
+    if (dayDoc && Array.isArray(dayDoc.projects)) {
+        dayDoc.projects.forEach(function (p) {
+            var key = (p.projectId || p.name || '');
+            if ('travel' in p) { if (p.travel) addTravel(key, p.travel.bracketId, p.travel.transport); }
+            else {
+                // Eldre dager uten `travel`-felt: prosjektets avstand med firma-sats.
+                var proj = _timebokProject({ projectId: p.projectId, project: p.name });
+                if (proj && (p.codes || []).length) addTravel(key, proj.bracketId, 'firma');
+            }
+        });
+    } else {
+        _timebokDayLines(dayDoc).forEach(function (l) {
+            var proj = _timebokProject(l);
+            if (proj) addTravel(l.projectId || l.project, proj.bracketId, 'firma');
+        });
+    }
+    _timebokTravelByStyle(travels).forEach(function (a) {
+        items.push({ amount: a, flags: (tariff && tariff.bracketFlags) || [] });
+    });
+    return items;
+}
+// Flere prosjekter med reise samme dag (i rekkefølgen på dagen):
+//   Firesafe: første + siste reise × 0,5 (de i midten teller ikke).
+//   Damsgård Brannsikring: kun den høyeste reisen × 1.
+// Ett prosjekt → full sats uansett stil.
+function _timebokTravelByStyle(travels) {
+    if (travels.length <= 1) return travels.slice();
+    if (getTimebokSettings().travelStyle === 'damsgard') return [Math.max.apply(null, travels)];
+    return [travels[0] * 0.5, travels[travels.length - 1] * 0.5];
+}
+function _timebokSumItems(items, pred) {
+    var total = 0, any = false;
+    items.forEach(function (it) { if (it.amount != null && pred(it)) { total += it.amount; any = true; } });
     return any ? total : null;
 }
-// Sum timer (ekskl. km-type — der er «hours» en distanse, ikke timer).
+function _timebokDayWage(dayDoc) {
+    return _timebokSumItems(_timebokDayItems(dayDoc), function (it) { return _timebokFlagsHas(it.flags, 'lonn') && !_timebokFlagsHas(it.flags, 'reise'); });
+}
+function _timebokDayTravelComp(dayDoc) {
+    return _timebokSumItems(_timebokDayItems(dayDoc), function (it) { return _timebokFlagsHas(it.flags, 'reise'); });
+}
+// Sum timer: kun arbeid/fravær-regler (tillegg pr. time gjelder de samme timene).
 function _timebokDayHours(dayDoc) {
     var total = 0;
     _timebokDayLines(dayDoc).forEach(function (l) {
-        var type = _timebokTypeById(l.timeType);
-        if (type && type.kind === 'km') return;
+        if (!_timebokRuleById(l.timeType)) return;
         var h = parseLocaleNum(l.hours);
         if (!isNaN(h)) total += h;
     });
     return total;
-}
-// Reisegodtgjørelse for en dag: ÉN gang per distinkt prosjekt med data.
-function _timebokDayTravelComp(dayDoc) {
-    var seen = {}, total = 0, any = false;
-    _timebokDayLines(dayDoc).forEach(function (l) {
-        var key = (l.projectId || l.project || '');
-        if (!key || seen[key]) return;
-        seen[key] = true;
-        var proj = _timebokProject(l);
-        var br = proj && proj.bracketId ? _timebokBracketById(proj.bracketId) : null;
-        if (br && br.rate != null) { total += br.rate; any = true; }
-    });
-    return any ? total : null;
 }
 // Sum kvitteringer (utlegg) for en dag.
 function _timebokDayReceipts(dayDoc) {
@@ -236,34 +384,32 @@ function _timebokDayReceipts(dayDoc) {
     });
     return any ? total : null;
 }
-// Dagstotal (utbetaling): lønn + reise + kvitteringer.
-function _timebokDayTotal(dayDoc, timesats) {
-    var w = _timebokDayWage(dayDoc, timesats);
-    var tr = _timebokDayTravelComp(dayDoc);
+// Dagstotal (utbetaling): alle beløps-poster + kvitteringer.
+function _timebokDayTotal(dayDoc) {
+    var it = _timebokSumItems(_timebokDayItems(dayDoc), function () { return true; });
     var rc = _timebokDayReceipts(dayDoc);
-    if (w == null && tr == null && rc == null) return null;
-    return (w || 0) + (tr || 0) + (rc || 0);
+    if (it == null && rc == null) return null;
+    return (it || 0) + (rc || 0);
 }
-// Har dagen noen registrering (linjer eller kvitteringer)?
+// Har dagen noen registrering (linjer, reise eller kvitteringer)?
 function _timebokDayHasData(dayDoc) {
     return _timebokDayLines(dayDoc).length > 0 ||
+        (dayDoc && Array.isArray(dayDoc.projects) && dayDoc.projects.some(function (p) { return !!p.travel; })) ||
         (dayDoc && Array.isArray(dayDoc.receipts) && dayDoc.receipts.length > 0);
 }
 // Periode-aggregat over flere dag-docs.
 function _timebokPeriodSummary(dayDocs) {
-    var timesats = getTimebokTimesats();
-    var hours = 0, wage = 0, travel = 0, receipts = 0, days = 0;
-    var anyW = false, anyT = false, anyR = false;
+    var hours = 0, wage = 0, travel = 0, receipts = 0, total = 0, days = 0;
+    var anyW = false, anyT = false, anyR = false, anyS = false;
     (dayDocs || []).forEach(function (d) {
         if (_timebokDayHasData(d)) days++;
         hours += _timebokDayHours(d);
-        var w = _timebokDayWage(d, timesats); if (w != null) { wage += w; anyW = true; }
+        var w = _timebokDayWage(d); if (w != null) { wage += w; anyW = true; }
         var t = _timebokDayTravelComp(d); if (t != null) { travel += t; anyT = true; }
         var r = _timebokDayReceipts(d); if (r != null) { receipts += r; anyR = true; }
+        var s = _timebokDayTotal(d); if (s != null) { total += s; anyS = true; }
     });
-    var wageV = anyW ? wage : null, travelV = anyT ? travel : null, recV = anyR ? receipts : null;
-    var total = (wageV == null && travelV == null && recV == null) ? null : (wage + travel + receipts);
-    return { hours: hours, wage: wageV, travel: travelV, receipts: recV, total: total, days: days };
+    return { hours: hours, wage: anyW ? wage : null, travel: anyT ? travel : null, receipts: anyR ? receipts : null, total: anyS ? total : null, days: days };
 }
 
 // ─── Timebok: dato-hjelpere ─────────────────────────────────────────────────
@@ -288,11 +434,6 @@ function _timebokFormatDateId(id) {
 var _TIMEBOK_WEEKDAYS_FULL = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
 var _TIMEBOK_MONTHS_FULL = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 var _TIMEBOK_MONTHS_SHORT = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
-// Kort dato fra Date-objekt: «29. jun»
-function _timebokShortDate(dateObj) {
-    if (!dateObj) return '';
-    return dateObj.getDate() + '. ' + _TIMEBOK_MONTHS_SHORT[dateObj.getMonth()];
-}
 // Deler for dag-kort: { date:'29. juni', weekday:'Mandag', isWeekend, isToday }
 function _timebokDayParts(id) {
     var d = _timebokParseId(id);
@@ -1702,7 +1843,7 @@ if (auth) {
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
              KVITTERING_STORAGE_KEY, KVITTERING_ARCHIVE_KEY,
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
-             TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY,
+             TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY,
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
@@ -1847,6 +1988,8 @@ if (auth) {
                     .then(function(d) { if (d.exists) safeSetItem(TIMEBOK_BRACKETS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('timebok_projects').get()
                     .then(function(d) { if (d.exists) safeSetItem(TIMEBOK_PROJECTS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
+                db.collection('users').doc(user.uid).collection('settings').doc('timebok_tariffs').get()
+                    .then(function(d) { if (d.exists) safeSetItem(TIMEBOK_TARIFFS_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                 // Sync min_info, leveringsadresser, plate_size (autofyll-data — må være tilgjengelig før bruker åpner skjema)
                 db.collection('users').doc(user.uid).collection('settings').doc('min_info').get()
                     .then(function(d) { if (d.exists) safeSetItem(MIN_INFO_KEY, JSON.stringify(d.data())); }).catch(function() {}),
@@ -2098,6 +2241,21 @@ function closeConfirmModal(confirmed) {
     }
     pendingConfirmAction = null;
 
+}
+
+// «Ulagrede endringer»: Avbryt (bli) / Forkast (gå uten å lagre) / Lagre (lagre, så gå).
+// handlers = { onSave, onDiscard }.
+let _pendingUnsaved = null;
+function showUnsavedModal(handlers) {
+    _pendingUnsaved = handlers || {};
+    document.getElementById('unsaved-modal').classList.add('active');
+}
+function closeUnsavedModal(choice) {
+    document.getElementById('unsaved-modal').classList.remove('active');
+    var h = _pendingUnsaved || {};
+    _pendingUnsaved = null;
+    if (choice === 'save' && h.onSave) h.onSave();
+    else if (choice === 'discard' && h.onDiscard) h.onDiscard();
 }
 
 let pendingInputAction = null;

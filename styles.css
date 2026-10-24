@@ -5341,6 +5341,12 @@ body.picker-active .confirm-modal {
     background: #c0392b;
 }
 
+/* Ulagrede endringer (Avbryt / Forkast / Lagre) */
+.unsaved-modal-title { font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+.unsaved-modal-text { font-size: 15px; color: #555; line-height: 1.4; margin-bottom: 18px; }
+.confirm-btn-ok.unsaved-btn-save { background: #2196F3; }   /* samme blå som «sendt»-status */
+.confirm-btn-ok.unsaved-btn-save:active { background: #1976D2; }
+
 /* Notification modal */
 .toast {
     position: fixed;
@@ -8895,9 +8901,8 @@ body.timebok-view-open #view-form { display: none; }
     padding: 0 6px;
     gap: 2px;
     overflow: visible;
-    position: relative;   /* ankerpunkt for .tb-head-dropdown */
 }
-.tb-head-toggle, .tb-head-menu {
+.tb-head-toggle, .tb-head-spacer {
     background: none;
     border: none;
     color: #555;
@@ -8910,12 +8915,13 @@ body.timebok-view-open #view-form { display: none; }
     border-radius: 8px;
     flex-shrink: 0;
 }
-.tb-head-toggle:active, .tb-head-menu:active, .tb-head-nav:active { background: rgba(0,0,0,0.06); }
-/* Skyv ‹/›-navigasjonspilene innover mot tittelen (bort fra toggle/hamburger)
-   så de ikke ligger klint inntil de andre knappene — lettere å treffe riktig.
-   Symmetrisk margin holder tittelen midtstilt. */
-.tb-head-toggle { margin-right: 16px; }
-.tb-head-menu { margin-left: 16px; }
+.tb-head-toggle:active, .tb-head-nav:active { background: rgba(0,0,0,0.06); }
+/* Litt luft mellom ‹/› og toggle så de ikke ligger klint inntil hverandre.
+   Holdt lav (6px, som referanse-appen) så tittelen får plass til fullt
+   månedsnavn («Uke 43 · 19.–25. oktober») på mobil. Tom spacer til høyre
+   (samme bredde + margin som toggle) holder tittelen midtstilt. */
+.tb-head-toggle { margin-right: 6px; }
+.tb-head-spacer { margin-left: 6px; }
 .tb-head-nav {
     background: none;
     border: none;
@@ -8944,52 +8950,32 @@ body.timebok-view-open #view-form { display: none; }
     color: #1a1a1a;
     height: 40px;
     font-size: 15px;
-    font-weight: 800;
+    font-weight: 700;   /* 700 (ikke 800) som referansen — smalere, uke-teksten får plass */
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 0 4px;
+    padding: 0;   /* ‹/›-knappene har egen luft — all bredde går til teksten */
 }
-/* Highlight av header-tittelen kun når nåværende uke/dag vises. */
-.timebok-header-bar.tb-current-period .tb-head-label { color: #E8501A; }
+/* Highlight av HELE dato-baren (ikke bare teksten) kun når nåværende uke/dag
+   vises: lys oransje bakgrunn + oransje underkant + oransje tittel/piler.
+   Underkanten tykkes med inset-skygge (ikke border-width) så baren ikke endrer høyde. */
+.timebok-header-bar.tb-current-period {
+    background: #FFF1EA;
+    border-bottom-color: #E8501A;
+    box-shadow: inset 0 -1px 0 #E8501A;
+}
+.timebok-header-bar.tb-current-period .tb-head-label,
+.timebok-header-bar.tb-current-period .tb-head-nav { color: #E8501A; }
 .tb-head-toggle .tb-icon-week, .tb-head-toggle .tb-icon-day { display: none; }
 .tb-mode-week .tb-head-toggle .tb-icon-day { display: block; }
 .tb-mode-day .tb-head-toggle .tb-icon-week { display: block; }
-/* Hamburger-dropdown */
-.tb-head-dropdown {
-    position: absolute;
-    top: 44px;
-    right: 6px;
-    z-index: 30;
-    background: #fff;
-    border: 1px solid #e3e3e8;
-    border-radius: 10px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-    min-width: 180px;
-    padding: 6px;
-    display: none;
-}
-.tb-head-dropdown.open { display: block; }
-.tb-head-dropdown button {
-    display: block;
-    width: 100%;
-    text-align: left;
-    background: none;
-    border: none;
-    padding: 11px 12px;
-    font-size: 14px;
-    color: #222;
-    cursor: pointer;
-    border-radius: 7px;
-}
-.tb-head-dropdown button:active { background: #f3f3f5; }
 /* Ukesammendrag-kort (bunn) */
 .timebok-summary-card {
     /* Bunn-margin er normal: #timebok-view er fixed med bottom: var(--toolbar-h),
        så scroll-området stopper allerede over toolbaren — ingen ekstra klaring trengs. */
-    margin: 14px 12px 14px;
-    padding: 14px 14px 16px;
+    margin: 8px 0;
+    padding: 12px;
     background: #fafafa;
     border: 1px solid #e3e3e8;
     border-radius: 14px;
@@ -9000,36 +8986,46 @@ body.timebok-view-open #view-form { display: none; }
     justify-content: space-between;
     gap: 8px;
 }
-.timebok-summary-title { font-size: 16px; font-weight: 800; color: #1a1a1a; }
+.timebok-summary-title { font-size: 15px; font-weight: 700; color: #1a1a1a; }
 .timebok-summary-badge {
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: 0.06em;
-    color: #fff;
-    background: #E8501A;
+    color: #E8501A;
+    background: #fff1ea;
     padding: 3px 8px;
     border-radius: 999px;
 }
 .timebok-summary-sub { margin-top: 3px; font-size: 12px; font-style: italic; color: #888; }
+/* Totaler: 3 kolonner med små fliser (som referanse-appen) i stedet for 2 brede
+   kolonner med store tall — kortet blir omtrent halvparten så høyt. */
 .timebok-summary-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px 14px;
-    margin-top: 14px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
 }
-.timebok-metric { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.timebok-metric {
+    display: flex; flex-direction: column; gap: 2px; min-width: 0;
+    padding: 7px 8px;
+    background: #f0f0f3;
+    border-radius: 8px;
+}
 .timebok-metric > span {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #8a8a90;
 }
-.timebok-metric > b { font-size: 21px; font-weight: 800; color: #1a1a1a; line-height: 1.1; }
+.timebok-metric > b {
+    font-size: 14px; font-weight: 700; color: #1a1a1a; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* Dag-kort */
 .timebok-day-card {
-    margin: 0 12px 10px;
+    margin: 0 0 8px;
     border: 1px solid #e3e3e8;
     border-radius: 14px;
     background: #fff;
@@ -9042,7 +9038,7 @@ body.timebok-view-open #view-form { display: none; }
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 14px;
+    padding: 10px 12px;
     cursor: pointer;
 }
 .timebok-day-datecol { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -9071,22 +9067,30 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-day-card.nav.weekend:active { background: #eef0f4; }
 /* Sammendrag-linje */
 .timebok-day-summary {
-    padding: 0 14px 12px;
+    padding: 0 12px 10px;
     font-size: 13px;
     color: #555;
 }
 .timebok-day-summary.empty { color: #a0a0a8; }
 
 /* ════ Dagsvisning ════ */
+/* Prosjekt-kort: nøytralt grått overskriftsfelt + ramme/skygge/luft, så flere
+   prosjekter samme dag er tydelig adskilt uten mer oransje på siden. */
 .timebok-project-block {
-    margin: 0 12px 12px;
-    padding: 14px;
+    margin: 0 0 14px;
     background: #fff;
-    border: 1px solid #e3e3e8;
+    border: 1px solid #dcdce2;
     border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    overflow: hidden;
 }
-.timebok-pb-head { display: flex; align-items: center; justify-content: space-between; }
+.timebok-pb-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 12px;
+    background: #f5f5f7;
+    border-bottom: 1px solid #e6e6ea;
+}
+.timebok-pb-body { padding: 10px 12px 12px; }
 .timebok-pb-label { font-size: 14px; font-weight: 700; color: #1a1a1a; }
 .timebok-req { color: #E8501A; }
 .timebok-pb-remove {
@@ -9096,34 +9100,82 @@ body.timebok-view-open #view-form { display: none; }
 /* Disabled = eneste prosjekt-blokk: fortsatt synlig og rød, bare dempet (opacity)
    for å signalisere at den ikke er trykkbar. Ikke gjør den grå. */
 .timebok-pb-remove:disabled { opacity: 0.3; cursor: default; }
-.timebok-pb-selectrow { display: flex; gap: 8px; margin-top: 8px; }
+.timebok-pb-selectrow { display: flex; gap: 8px; }
 .timebok-project-select {
     flex: 1; min-width: 0;
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     background: #fff; border: 1px solid #d8d8de; border-radius: 9px;
-    padding: 11px 12px; font-size: 14px; color: #999; cursor: pointer;
+    padding: 11px 12px; font-size: 14px; color: #999; cursor: pointer; text-align: left;
 }
 .timebok-project-select.filled { color: #111; font-weight: 600; }
-.timebok-project-select .timebok-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Prosjektnavn kuttes aldri («…») — lange navn brytes over flere linjer. */
+.timebok-project-select .timebok-project-name { min-width: 0; overflow-wrap: anywhere; }
 .timebok-project-select svg { color: #999; flex-shrink: 0; }
-.timebok-pb-add {
-    width: 46px; flex-shrink: 0;
-    background: #fff; border: 1px solid #d8d8de; border-radius: 9px;
-    font-size: 22px; color: #333; cursor: pointer;
-}
-.timebok-pb-add:active, .timebok-project-select:active { background: #f5f5f7; }
-.timebok-pb-hint { margin-top: 10px; font-size: 13px; color: #c0392b; }
+.timebok-project-select:active { background: #f5f5f7; }
+.timebok-pb-hint { margin-top: 6px; font-size: 13px; color: #c0392b; }
 .timebok-pb-codes-head {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: 14px; padding-top: 12px; border-top: 1px solid #ededf0;
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e3e3e8;
 }
 .timebok-pb-codes-label { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #8a8a90; }
+/* «+ Legg til»-knapper er nøytrale (hvit/grå/mørk) — oransje er reservert for
+   det som betyr noe (dagens dato, ulagret «Lagre endringer», valgt, fokus). */
 .timebok-add-code-btn {
-    background: #fff5f0; border: 1px solid #f3d3c4; border-radius: 8px;
-    color: #E8501A; font-weight: 700; font-size: 13px; padding: 7px 11px; cursor: pointer;
+    background: #fff; border: 1px solid #d8d8de; border-radius: 8px;
+    color: #1a1a1a; font-weight: 600; font-size: 13px; padding: 6px 10px; cursor: pointer;
 }
-.timebok-add-code-btn:active { background: #ffe9dd; }
+.timebok-add-code-btn:active { background: #f5f5f7; }
 .timebok-codes { margin-top: 6px; }
+/* Seksjoner i prosjekt-blokka: Reisegodtgjørelse + Ordinære timer. */
+.tb-sec { margin-top: 10px; }
+.tb-sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.tb-sec-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+.tb-sec-remove {
+    background: none; border: none; color: #c0392b;
+    font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.tb-sec-grid { display: grid; gap: 8px; }
+.tb-grid-2 { grid-template-columns: 1fr 1fr; }
+.tb-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tb-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tb-field-label { font-size: 12px; color: #8a8a90; text-align: center; }
+.tb-input {
+    width: 100%; box-sizing: border-box; min-width: 0;
+    height: 42px; padding: 0 6px;
+    border: 1px solid #d8d8de; border-radius: 9px; background: #fff;
+    font-size: 15px; color: #1a1a1a; text-align: center; text-align-last: center;
+    font-family: inherit;
+}
+.tb-input:focus { outline: none; border-color: #E8501A; box-shadow: 0 0 0 2px rgba(232,80,26,0.25); }
+/* Tidsknapp (Start/Slutt) — åpner klokke-velgeren. */
+.tb-time-btn { cursor: pointer; }
+.tb-time-btn.empty { color: #a0a0a8; }
+/* Klokke-velger: 24-timers urskive (ytre 00–11, indre 12–23). */
+.tb-clock-display { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 14px; flex-shrink: 0; }
+.tb-clock-part {
+    background: none; border: none; border-radius: 10px;
+    font-size: 44px; font-weight: 700; line-height: 1; padding: 8px 10px;
+    color: #9a9aa2; cursor: pointer; font-family: inherit;
+}
+.tb-clock-part.active { background: #fff1ea; color: #E8501A; }
+.tb-clock-colon { font-size: 40px; font-weight: 700; color: #9a9aa2; }
+.tb-clock-dial {
+    position: relative; width: 100%; aspect-ratio: 1 / 1;
+    border-radius: 50%; background: #f3f3f6;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    flex-shrink: 0; margin-bottom: 4px;
+}
+.tb-clock-hand { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.tb-clock-hand line { stroke: #E8501A; stroke-width: 0.8; }
+.tb-clock-hand circle { fill: #E8501A; }
+.tb-clock-num {
+    position: absolute; transform: translate(-50%, -50%);
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: #1a1a1a; pointer-events: none;
+}
+.tb-clock-num.inner { font-size: 13px; color: #444; }
+.tb-clock-num.sel { background: #E8501A; color: #fff; font-weight: 700; }
 .timebok-code-row {
     display: grid;
     grid-template-columns: 1fr auto 26px;
@@ -9135,24 +9187,24 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-code-val .timebok-hours, .timebok-code-val .timebok-receipt-amount { width: 72px; }
 .timebok-code-unit { font-size: 13px; color: #8a8a90; min-width: 18px; }
 .timebok-add-project {
-    display: block; width: calc(100% - 24px); margin: 0 12px 14px;
+    display: block; width: 100%; margin: 0 0 8px;
     background: #fff; border: 1px dashed #d0d0d6; border-radius: 12px;
-    color: #333; font-weight: 700; font-size: 14px; padding: 13px; cursor: pointer;
+    color: #333; font-weight: 700; font-size: 14px; padding: 11px; cursor: pointer;
 }
 .timebok-add-project:active { background: #f6f6f8; }
 /* Kvitteringer */
 .timebok-receipts-card {
-    margin: 0 12px 14px; padding: 14px;
+    margin: 0 0 8px; padding: 12px;
     background: #fff; border: 1px solid #e3e3e8; border-radius: 14px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 .timebok-receipts-head { display: flex; align-items: center; justify-content: space-between; }
-.timebok-receipts-head > span { font-size: 15px; font-weight: 800; color: #1a1a1a; }
+.timebok-receipts-head > span { font-size: 15px; font-weight: 700; color: #1a1a1a; }
 .timebok-add-receipt-btn {
-    background: #fff5f0; border: 1px solid #f3d3c4; border-radius: 8px;
-    color: #E8501A; font-weight: 700; font-size: 13px; padding: 7px 11px; cursor: pointer;
+    background: #fff; border: 1px solid #d8d8de; border-radius: 8px;
+    color: #1a1a1a; font-weight: 600; font-size: 13px; padding: 6px 10px; cursor: pointer;
 }
-.timebok-add-receipt-btn:active { background: #ffe9dd; }
+.timebok-add-receipt-btn:active { background: #f5f5f7; }
 .timebok-receipt-row {
     display: grid; grid-template-columns: 1fr auto 26px; gap: 8px; align-items: center;
     padding: 8px 0; border-top: 1px solid #ededf0; margin-top: 4px;
@@ -9168,22 +9220,19 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-receipt-label:focus, .timebok-receipt-amount:focus { outline: none; border-color: #E8501A; box-shadow: 0 0 0 2px rgba(232,80,26,0.25); }
 /* Lagret-status-knapp */
 .timebok-save-status {
-    display: block; width: calc(100% - 24px); margin: 4px 12px 90px;
+    display: block; width: 100%; margin: 4px 0 90px;
     background: #2e9e5b; border: none; border-radius: 12px;
-    color: #fff; font-weight: 800; font-size: 15px; padding: 15px; cursor: pointer;
+    color: #fff; font-weight: 700; font-size: 15px; padding: 12px; cursor: pointer;
     transition: background 0.15s;
 }
-.timebok-save-status.saving { background: #c98a2e; }
-.timebok-save-status:active { opacity: 0.85; }
-#timebok-week, #timebok-day { padding-top: 4px; }
-#timebok-day-totals { margin-bottom: 12px; }
-.timebok-summary-grid .timebok-metric.tb-metric-total {
-    grid-column: 1 / -1;
-    border-top: 1px solid #e3e3e8;
-    padding-top: 12px;
-    margin-top: 2px;
-}
-.timebok-metric.tb-metric-total > b { color: #2e9e5b; }
+/* Ulagrede endringer → «Lagre endringer» (oransje, trykkbar). Lagret → «Alt er lagret» (grønn, inaktiv). */
+.timebok-save-status.dirty { background: #E8501A; }
+.timebok-save-status:disabled { cursor: default; }
+.timebok-save-status.dirty:active { opacity: 0.85; }
+/* Timebok er tett (som referanse-appen): 12px rundt innholdet i stedet for
+   .mobile-form sine 15px, og ingen ekstra topp-luft over første kort. */
+#timebok-form.mobile-form { padding: 12px; }
+#timebok-day-totals { margin-bottom: 8px; }
 
 .timebok-pick {
     text-align: left;
@@ -9244,26 +9293,68 @@ body.timebok-view-open #view-form { display: none; }
 }
 .timebok-day-footer b { color: #111; }
 
-/* Picker-tomtekst */
-.timebok-picker-empty { padding: 16px 8px; text-align: center; color: #888; font-size: 13px; }
-/* Søkefelt i prosjekt-picker (filtrerer lista mens man skriver). */
-.timebok-project-search-wrap { padding: 0 0 8px; }
+/* Prosjekt-velger: søkefelt + liste (trykk rad = velg, ✎ = rediger).
+   Søkefeltet har samme mål som .spec-popup-body input. */
 .timebok-project-search {
     width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
     box-sizing: border-box;
-    border: 1px solid #d8d8de;
-    border-radius: 8px;
-    padding: 9px 12px;
-    font-size: 14px;
+    flex: 1; min-width: 0;
 }
-.timebok-new-project-input {
-    flex: 1;
-    min-width: 0;
-    border: 1px solid #d8d8de;
-    border-radius: 8px;
-    padding: 9px 10px;
-    font-size: 14px;
+.timebok-project-search:focus { outline: none; border-color: #E8501A; }
+/* Søkefelt + «+» (nytt prosjekt) på én rad. */
+.timebok-search-row { display: flex; gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
+.timebok-search-add {
+    width: 48px; flex-shrink: 0;
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 24px; line-height: 1; color: #1a1a1a; cursor: pointer;
 }
+.timebok-search-add:active { background: #f5f5f7; }
+.timebok-proj-list { gap: 0; max-height: 45vh; }
+.timebok-proj-row {
+    display: flex; align-items: stretch;
+    border-bottom: 1px solid #ededf0;
+}
+.timebok-proj-row:last-child { border-bottom: none; }
+.timebok-proj-pick {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 8px;
+    background: none; border: none; text-align: left;
+    padding: 9px 4px; cursor: pointer; color: #1a1a1a;
+}
+.timebok-proj-pick:active, .timebok-proj-edit:active { background: #f5f5f7; }
+.timebok-proj-check { width: 16px; flex-shrink: 0; display: flex; color: #E8501A; }
+/* Navn på første linje (full bredde, brytes — kuttes aldri), avstand under. */
+.timebok-proj-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.timebok-proj-name { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+.timebok-proj-row.current .timebok-proj-name { color: #E8501A; font-weight: 700; }
+.timebok-proj-dist { font-size: 12px; color: #8a8a90; }
+.timebok-proj-edit {
+    flex-shrink: 0; width: 44px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: #8a8a90; cursor: pointer;
+    border-radius: 8px;
+}
+.timebok-picker-empty { padding: 16px 8px; text-align: center; color: #888; font-size: 13px; }
+/* Prosjekt-skjema */
+.timebok-projform-hint { font-size: 12px; color: #8a8a90; padding-left: 2px; }
+.timebok-projform-hint.error { color: #c0392b; }
+#timebok-projform-name.locked { background: #f4f4f6; color: #666; }
+/* Reiseavstand-nedtrekk — samme mål som .spec-popup-body input. */
+.timebok-dist-select {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    color: #1a1a1a;
+    box-sizing: border-box;
+}
+.timebok-dist-select:focus { outline: none; border-color: #E8501A; }
 
 /* Innstillinger: tidstyper/brackets/prosjekter-rader */
 .timebok-setting-row {
@@ -9273,7 +9364,7 @@ body.timebok-view-open #view-form { display: none; }
     padding: 7px 0;
     border-bottom: 1px solid #ededf0;
 }
-.timebok-setting-name { flex: 1; min-width: 0; font-size: 14px; color: #222; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timebok-setting-name { flex: 1; min-width: 0; font-size: 14px; color: #222; overflow-wrap: anywhere; }   /* navn kuttes aldri — brytes over flere linjer */
 .timebok-rate-input, .timebok-mult-input {
     width: 72px;
     border: 1px solid #d8d8de;
@@ -9284,6 +9375,85 @@ body.timebok-view-open #view-form { display: none; }
     box-sizing: border-box;
 }
 .timebok-mult-input { width: 54px; text-align: center; }
+/* ── Satser (tariffer) ── nøytrale kort; oransje kun for aktive flagg/fokus. */
+#tb-satser { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
+.tb-sat-card { background: #fff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 14px; }
+.tb-sat-tariff { background: #f7f7f9; }
+.tb-sat-h { font-size: 12px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; margin-bottom: 8px; }
+.tb-sat-desc { font-size: 13px; color: #6b6b73; line-height: 1.4; margin-bottom: 8px; }
+.tb-sat-info { font-size: 12px; color: #6b6b73; line-height: 1.4; margin-top: 10px; }
+.tb-sat-select {
+    width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 15px; font-weight: 600;
+    border: 1px solid #d8d8de; border-radius: 10px; background: #fff; color: #1a1a1a;
+}
+.tb-sat-status { display: block; margin-top: 8px; font-size: 13px; color: #6b6b73; }
+.tb-sat-status.active { color: #2e9e5b; font-weight: 700; }
+.tb-sat-btnrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.tb-sat-btn {
+    background: #fff; border: 1px solid #d8d8de; border-radius: 10px;
+    padding: 10px 6px; font-size: 14px; font-weight: 600; color: #1a1a1a; cursor: pointer;
+}
+.tb-sat-btn:active { background: #f5f5f7; }
+.tb-sat-item { padding: 10px 0; border-top: 1px solid #ededf0; }
+.tb-sat-h + .tb-sat-item, .tb-sat-desc + .tb-sat-item { border-top: none; padding-top: 2px; }
+.tb-sat-row { display: flex; align-items: center; gap: 8px; }
+.tb-sat-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: #1a1a1a; overflow-wrap: anywhere; }
+.tb-sat-rename { background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-family: inherit; }
+.tb-sat-sub { font-size: 13px; color: #6b6b73; margin-top: 3px; }
+.tb-sat-unit { font-size: 13px; color: #6b6b73; min-width: 44px; }
+.tb-sat-input {
+    width: 84px; flex-shrink: 0; box-sizing: border-box;
+    border: 1px solid #d8d8de; border-radius: 9px; padding: 9px 8px;
+    font-size: 15px; text-align: right; background: #fff;
+}
+.tb-sat-input:focus, .tb-sat-select:focus, .tb-sat-unitsel:focus { outline: none; border-color: #E8501A; }
+.tb-sat-unitsel { flex-shrink: 0; border: 1px solid #d8d8de; border-radius: 9px; padding: 9px 4px; font-size: 13px; background: #fff; color: #444; }
+.tb-sat-del { flex-shrink: 0; background: none; border: none; color: #c0392b; font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.tb-sat-add {
+    display: block; width: 100%; margin-top: 8px;
+    background: #fff; border: 1px dashed #d0d0d6; border-radius: 10px;
+    padding: 10px; font-size: 14px; font-weight: 600; color: #333; cursor: pointer;
+}
+.tb-sat-add:active { background: #f6f6f8; }
+/* Reise-tabell: Avstand | Firma | Privat | × */
+.tb-sat-brhead, .tb-sat-br { display: grid; grid-template-columns: 1fr 84px 84px 22px; gap: 8px; align-items: center; }
+.tb-sat-brhead { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 4px 0; }
+.tb-sat-brhead span:nth-child(2), .tb-sat-brhead span:nth-child(3) { text-align: center; }
+.tb-sat-br { background: #f5f5f7; border-radius: 10px; padding: 8px 8px 8px 10px; margin-bottom: 6px; }
+.tb-sat-br .tb-sat-input { width: 100%; }
+.tb-sat-shared { margin-top: 6px; }
+/* Flagg (Lønn/Ferie/Skatt/Reise/Org) */
+.tb-flags { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.tb-flag {
+    border: 1px solid #e3e3e8; background: #f3f3f6; color: #8a8a90;
+    border-radius: 999px; padding: 6px 2px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.tb-flag.on { border-color: #E8501A; background: #fff1ea; color: #E8501A; }
+/* Tariff-skjema: slett-knapp */
+.tb-tariff-delete {
+    margin-top: 4px; background: none; border: 1px solid #f0c4bd; border-radius: 8px;
+    color: #c0392b; font-weight: 600; font-size: 14px; padding: 10px; cursor: pointer;
+}
+.tb-tariff-delete:disabled { opacity: 0.4; cursor: default; }
+/* Innstillinger → Timebok: oppsett-kort (samme kort som Satser) */
+#tb-settings { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
+/* Faner øverst på Innstillinger → Timebok (gjenbruker .modal-tab-chipsene fra Lagret). */
+.tb-set-tabs { padding: 0 0 12px; }
+.tb-set-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+.tb-set-label { font-size: 13px; font-weight: 700; color: #1a1a1a; }
+.tb-af-box { background: #f5f5f7; border-radius: 12px; padding: 2px 10px 8px; }
+.tb-af-group { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 10px 0 4px; }
+.tb-af-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px; }
+.tb-af-item { display: flex; align-items: flex-start; gap: 7px; padding: 6px 0; font-size: 14px; color: #1a1a1a; line-height: 1.3; cursor: pointer; min-width: 0; }
+/* Bryt mellom ord (og ved «/»), aldri midt i et ord som «Reisegodtgjørels-e».
+   Passer et langt ord ikke i kolonnen, orddeles det med bindestrek (lang="nb"). */
+.tb-af-item span { min-width: 0; overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; }
+.tb-af-item input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: #E8501A; }
+/* Innstillinger → Timebok → Prosjekter: full oversikt (rader som i prosjekt-velgeren) */
+.tb-proj-settings-list { background: #fff; border: 1px solid #e3e3e8; border-radius: 12px; padding: 0 10px; margin-bottom: 12px; }
+.tb-proj-settings-list .timebok-proj-pick { padding: 10px 0; }
+/* Kodevelger: gruppe-overskrifter */
+.tb-type-group { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #8a8a90; padding: 8px 2px 0; }
 .timebok-bracket-select {
     border: 1px solid #d8d8de;
     border-radius: 7px;
@@ -9291,7 +9461,6 @@ body.timebok-view-open #view-form { display: none; }
     font-size: 13px;
     max-width: 130px;
 }
-.timebok-unit-suffix { font-size: 13px; color: #888; align-self: center; }
 .timebok-sync-projects-btn { margin-bottom: 10px; }
 
 /* Forklarende undertekst i en innstillings-seksjon (Kolleger m.fl.) */
@@ -10475,7 +10644,7 @@ body:has(#iso-card-popup.active) .confirm-modal { z-index: 80; }
    bare de som er listet enkeltvis her. Kun disse to — andre .confirm-modal-
    baserte vinduer (f.eks. #dag-timer-modal) kan selv være forelder til en
    popup og skal ikke heves. */
-body:has(.spec-popup-backdrop.active) :is(#confirm-modal, #input-modal) { z-index: 80; }
+body:has(.spec-popup-backdrop.active) :is(#confirm-modal, #input-modal, #unsaved-modal) { z-index: 80; }
 /* «+ Ny dimensjon» (showInputModal/confirm-modal) må over festemiddel-popupene. */
 body:has(#fastener-popup.active) .confirm-modal,
 body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
