@@ -682,7 +682,7 @@ function _showSavedFormsDirectly(tab) {
     updateToolbarState();
     document.getElementById('saved-list').scrollTop = 0;
 
-    switchHentTab(tab || 'own');
+    switchHentTab(_accHentTab(tab || 'own'));
 
     // Refresh from Firestore in background
     if (currentUser && db) {
@@ -1986,6 +1986,8 @@ function _buildTemplateItemHtml(item, index) {
 
 var _bilHistoryRendered = false;
 function showTemplateModal() {
+    // Uten tilgang til Hjem (ordreseddel/servicebil/kappe) → første del brukeren har.
+    if (!_accAllowed('hjem')) { _accGoStart(); return; }
     closeAllModals();
     history.replaceState(null, '', window.location.pathname);
 
@@ -2128,7 +2130,8 @@ function getSettingsPageTitle(page) {
         'form-kappe': t('kappe_title'),
         templates: t('settings_templates_and_addresses'),
         materials: t('settings_materials'),
-        timebok: t('settings_timebok')
+        timebok: t('settings_timebok'),
+        'admin-users': t('settings_admin_users')
     };
     return titles[page] || '';
 }
@@ -2151,17 +2154,15 @@ function _showSettingsDirectly() {
     updateToolbarState();
 }
 
-function openLanguagePopup() {
-    // Oppdater haker basert på currentLang
-    var checkNo = document.getElementById('lang-check-no');
-    var checkEn = document.getElementById('lang-check-en');
-    if (checkNo) checkNo.textContent = currentLang === 'no' ? '✓' : '';
-    if (checkEn) checkEn.textContent = currentLang === 'en' ? '✓' : '';
-    document.getElementById('language-popup').classList.add('active');
+// Språk ligger på Profil-siden (Min info) som valg Norsk | English.
+function setProfileLanguage(lang) {
+    setLanguage(lang);
+    _syncProfileLangSeg();
 }
-
-function closeLanguagePopup() {
-    document.getElementById('language-popup').classList.remove('active');
+function _syncProfileLangSeg() {
+    document.querySelectorAll('#profile-lang-seg .tb-seg-btn').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-lang') === currentLang);
+    });
 }
 
 function closeSettingsModal() {
@@ -2173,7 +2174,25 @@ function closeSettingsModal() {
     history.replaceState(null, '', window.location.pathname);
 }
 
+// Profilkortet øverst i Innstillinger: navn (Profil → fornavn + etternavn, ellers navnet
+// fra Google/Microsoft), innloggings-e-post og Admin-merke.
+function _renderSettingsProfileCard() {
+    var mi = getMinInfo();
+    var name = ((mi.fornavn || '') + ' ' + (mi.etternavn || '')).trim() || (currentUser && currentUser.displayName) || '';
+    var email = (currentUser && currentUser.email) || localStorage.getItem('firesafe_email') || '';
+    var initials = String(name || email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(function (x) { return x[0].toUpperCase(); }).join('');
+    var av = document.getElementById('set-profile-avatar');
+    var nm = document.getElementById('set-profile-name');
+    var em = document.getElementById('set-profile-email');
+    if (!av || !nm || !em) return;
+    av.textContent = initials || '?';
+    nm.innerHTML = escapeHtml(name || email || t('settings_min_info')) + (_acc && _acc.admin ? '<span class="adm-badge">' + escapeHtml(t('adm_badge_admin')) + '</span>' : '');
+    em.textContent = name ? email : '';
+    em.style.display = name && email ? '' : 'none';
+}
+
 function showSettingsMenu() {
+    _renderSettingsProfileCard();
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     document.getElementById('settings-page-menu').style.display = 'block';
     document.getElementById('settings-header-title').textContent = t('settings_title');
@@ -2203,7 +2222,8 @@ function showSettingsPage(page, replace) {
     }
     if (page === 'timebok-projects') page = 'templates';
     var pageEl2 = document.getElementById('settings-page-' + page);
-    if (!pageEl2) {
+    // Tilgang (Admin → Brukere): skjulte deler / admin-siden for ikke-admin → menyen.
+    if (!pageEl2 || !_accSettingsPageAllowed(page)) {
         showSettingsMenu();
         return;
     }
@@ -2237,6 +2257,7 @@ function showSettingsPage(page, replace) {
 
     if (page === 'min-info') {
         _loadMinInfoSettings();
+        _syncProfileLangSeg();
     } else if (page === 'form-ordreseddel') {
         _loadMinInfoSettings();
         // Obligatoriske felt
@@ -2354,6 +2375,8 @@ function showSettingsPage(page, replace) {
             _sortSettingsMaterials(settingsMaterials);
             renderMaterialSettingsItems();
         });
+    } else if (page === 'admin-users') {
+        renderAdminUsers();
     } else if (page === 'timebok') {
         _tbSatserEmp = null; _tbSatserSelId = null;   // Satser starter på arbeidsgiveren i Personlig
         _renderTimebokSettingsAll();
@@ -2673,7 +2696,9 @@ function _tbNumInput(val, onchange, cls) {
 function _tbCodeDesc(def) {
     if (def.zero) return t('tb_sat_rule_none');
     if (def.amount) return t('tb_sat_per_reg');
-    if (def.otgPct != null) return 'Timesats + ' + Math.round(def.otgPct * 100) + '% × overtidsgrunnlag';
+    // Kort (OTG = overtidsgrunnlag, forklart på Overtidsgrunnlag-raden) så «Overtid 100% (Org.)»
+    // og beregningen får plass på samme linje.
+    if (def.otgPct != null) return 'Timesats + ' + Math.round(def.otgPct * 100) + '% OTG';
     if (def.base) return (_timebokCodeDef(def.base) || { label: def.base }).label + ' × ' + formatLocaleNum(def.mult, 2);
     return 'Timesats × ' + formatLocaleNum(def.mult, 2);
 }
@@ -2700,19 +2725,14 @@ function _tbSatRow(name, flagsPath, flags, right, extraBody, sub, toggle) {
 function _tbCodeSatHtml(tf, def) {
     var right;
     if (def.own) {
-        var unit = def.unitSel
-            ? '<select class="tb-sat-unitsel" onchange="_tbSatSetUnit(\'' + def.id + '\', this.value)">' +
-                '<option value="hour"' + (_timebokCodeInput(def, tf) === 'hours' ? ' selected' : '') + '>kr/t</option>' +
-                '<option value="reg"' + (_timebokCodeInput(def, tf) === 'count' ? ' selected' : '') + '>kr/reg.</option>' +
-              '</select>'
-            : '<span class="tb-sat-unit">' + _TB_RATE_UNIT[def.input] + '</span>';
+        var unit = '<span class="tb-sat-unit">' + _TB_RATE_UNIT[def.input] + '</span>';
         right = '<span class="tb-satc-rate">' + _tbNumInput(_timebokOwnRate(def.id, tf), "_tbSatSetRate('" + def.id + "', this.value)") + unit + '</span>';
     } else {
         right = '<span class="tb-satc-desc">' + escapeHtml(_tbCodeDesc(def)) + '</span>';
     }
     // Bryter: koden aktiv/deaktivert for arbeidsgiveren som vises (alle koder vises alltid).
     var toggle = { id: def.id, on: _timebokDisabledCodes(_tbSatEmp()).indexOf(def.id) === -1 };
-    // Koder uten lønn (Pause, Ferie, Permisjon uten lønn): flagg har ingen betydning → skjult.
+    // Koder uten lønn (Ferie, Permisjon uten lønn): flagg har ingen betydning → skjult.
     if (def.zero) return _tbSatRow(def.label, null, null, right, '', '', toggle);
     return _tbSatRow(def.label, 'rule:' + def.id, _timebokCodeFlags(def, tf), right, '', '', toggle);
 }
@@ -2734,9 +2754,6 @@ function _tbSatSetRate(id, val) {
         t.rates[id] = _tbNum(val);
         if (id === 'km') delete t.kmRate;   // eldre felt — rates.km er kilden nå
     });
-}
-function _tbSatSetUnit(id, val) {
-    _tbSatUpdate(function (t) { t.units = t.units || {}; t.units[id] = val === 'reg' ? 'reg' : 'hour'; });
 }
 function renderTimebokSatser() {
     var host = document.getElementById('tb-satser');
@@ -2771,8 +2788,10 @@ function renderTimebokSatser() {
         '<div class="tb-af-group">' + escapeHtml(t('tb_sat_tariff')) + '</div>' +
         '<div class="tb-satc tb-sat-tariffrow">' +
             '<select class="tb-sat-select tb-satc-select" onchange="_tbSatserSelId=this.value;renderTimebokSatser()">' +
+                // Bare navnet i feltet (plass til hele navnet); gyldig-fra står i lista
+                // (data-desc) og i linja under.
                 list.map(function (x) {
-                    return '<option value="' + escapeHtml(x.id) + '"' + (x.id === tf.id ? ' selected' : '') + '>' + escapeHtml(x.name + ' · ' + _tbFmtDate(x.validFrom)) + '</option>';
+                    return '<option value="' + escapeHtml(x.id) + '" data-desc="' + escapeHtml(t('tb_sat_valid_from') + ' ' + _tbFmtDate(x.validFrom)) + '"' + (x.id === tf.id ? ' selected' : '') + '>' + escapeHtml(x.name) + '</option>';
                 }).join('') +
             '</select>' +
             '<div class="tb-sat-tariffbar">' + status +
@@ -2782,7 +2801,7 @@ function renderTimebokSatser() {
                     '<button type="button" class="tb-sat-minibtn" onclick="openTbTariffForm(\'edit\')">' + escapeHtml(t('tb_sat_edit')) + '</button>' +
                 '</span>' +
             '</div>' +
-            '<div class="tb-satc-sub">' + escapeHtml(t('tb_sat_info')) + '</div>' +
+            '<div class="tb-satc-sub">' + escapeHtml(t('tb_sat_info').replace('{0}', _tbFmtDate(tf.validFrom))) + '</div>' +
         '</div>' +
         '<div class="tb-af-group">' + escapeHtml(t('tb_sat_deductions')) + '</div>' +
         _tbSatRow('Feriepenger', null, null, num('feriepenger', '%'), '', t('tb_sat_of_ferie')) +
@@ -2814,6 +2833,31 @@ function renderTimebokSatser() {
     });
     h += '<div class="tb-satc-box">' + box + '</div>';
     host.innerHTML = h;
+    _tbFitSelectText(host.querySelector('.tb-satc-select'));
+}
+// Hele tariffnavnet skal synes på én linje: krymp skrifta (14 → min. 11 px) til teksten
+// får plass i feltet. Måles med canvas (select har ingen scrollWidth for teksten).
+// ResizeObserver: tilpass på nytt når feltet får bredde (fanen vises) eller endrer bredde.
+function _tbFitSelectText(sel) {
+    if (!sel) return;
+    if (window.ResizeObserver && !sel._tbFitRO) {
+        sel._tbFitRO = new ResizeObserver(function () {
+            if (sel.clientWidth && sel.clientWidth !== sel._tbFitW) _tbFitSelectText(sel);
+        });
+        sel._tbFitRO.observe(sel);
+    }
+    if (!sel.clientWidth) return;
+    sel._tbFitW = sel.clientWidth;
+    sel.style.fontSize = '';
+    var cs = getComputedStyle(sel);
+    var avail = sel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 22;   // 22 = pil
+    var txt = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+    var ctx = (_tbFitSelectText._c = _tbFitSelectText._c || document.createElement('canvas')).getContext('2d');
+    for (var px = parseFloat(cs.fontSize); px >= 11; px -= 0.5) {
+        ctx.font = cs.fontWeight + ' ' + px + 'px ' + cs.fontFamily;
+        if (ctx.measureText(txt).width <= avail) break;
+    }
+    sel.style.fontSize = Math.max(px, 11) + 'px';
 }
 // Legg til / fjern avstand (navn via input-popup).
 function _tbSatAdd(kind) {
@@ -2886,9 +2930,8 @@ function deleteTbTariff() {
 //   "feriepenger": 12, "fagforening": 1.8, "forsikring": 99.33, "forsikringFlags": ["lonn","skatt"],
 //   "overtidsgrunnlag": 332.31,
 //   "brackets": [{ "label": "7,5–15 km", "firma": 70.7, "privat": 114.6 }], "bracketFlags": [...],
-//   "rates": { "km": 5, "passasjer": 1, "tilhenger": 1, "timelonnfi": 250, "sats7": 280,
-//              "bastillegg": 10, "kaffe": 25, "smuss": 5, "tarifftillegg": 40, "matpenger": 120 },
-//   "units": { "bastillegg": "hour"|"reg", "kaffe": ..., "smuss": ... },
+//   "rates": { "km": 5, "passasjer": 1, "tilhenger": 1,
+//              "bastillegg": 10, "kaffe": 25, "smuss": 5, "matpenger": 120 },
 //   "rules": { "<kode-id>": ["lonn","ferie","skatt"], ... } }   (flagg: lonn/ferie/skatt/reise/org)
 // Kode-id-ene står i TIMEBOK_CODES (script.js). Eldre filer godtas også: "km",
 // "kmFlags", "reiseutgFlags", og "supplements"/"variables" matches på navn mot kodelista.
@@ -2938,12 +2981,10 @@ function _tbImportTariff(input) {
             var c = codeByLabel(sp.label);
             if (!c) return;
             if (c.own && sp.rate != null) tf.rates[c.id] = num(sp.rate);
-            if (c.unitSel && sp.unit) tf.units[c.id] = sp.unit === 'reg' ? 'reg' : 'hour';
             if (sp.flags) tf.rules[c.id] = fl(sp.flags);
         });
         // Nytt format.
         if (obj.rates && typeof obj.rates === 'object') Object.keys(obj.rates).forEach(function (k) { if (isCode(k)) tf.rates[k] = num(obj.rates[k]); });
-        if (obj.units && typeof obj.units === 'object') Object.keys(obj.units).forEach(function (k) { if (isCode(k)) tf.units[k] = obj.units[k] === 'reg' ? 'reg' : 'hour'; });
         if (obj.rules && typeof obj.rules === 'object') Object.keys(obj.rules).forEach(function (k) { if (isCode(k)) tf.rules[k] = fl(obj.rules[k]); });
         var doSave = function (replaceId) {
             var l2 = getTimebokTariffs(emp).filter(function (x) { return x.id !== replaceId; });
@@ -3923,6 +3964,13 @@ function _openSelectSheet(sel) {
             item.className = 'mat-type-dropdown-item' + (active ? ' active' : '') + (o.disabled ? ' disabled' : '');
             item.innerHTML = '<div class="mat-type-text"><div class="mat-type-label"></div></div><div class="mat-type-check">' + (active ? '✓' : '') + '</div>';
             item.querySelector('.mat-type-label').textContent = o.textContent;
+            // data-desc på <option> = grå undertekst i lista (f.eks. tariffens gyldig-fra).
+            if (o.getAttribute('data-desc')) {
+                var desc = document.createElement('div');
+                desc.className = 'mat-type-desc';
+                desc.textContent = o.getAttribute('data-desc');
+                item.querySelector('.mat-type-text').appendChild(desc);
+            }
             item.onclick = function (e) {
                 e.stopPropagation();
                 if (o.disabled) return;
@@ -11137,6 +11185,8 @@ document.addEventListener('DOMContentLoaded', function() {
 var _suppressHashGuard = false;
 
 function _applyHashNavigation(hash) {
+    // Tilgang: en del brukeren ikke har (Admin → Brukere) byttes med startsiden.
+    hash = _accFilterHash(hash);
     // Don't close modals for hent/settings - those functions handle it themselves
     if (hash === 'hent') {
         if (!document.body.classList.contains('saved-modal-open')) showSavedForms();
@@ -22437,6 +22487,10 @@ function _saveMinInfo() {
         var cb = document.getElementById('mininfo-autofill-' + k);
         if (cb) data['autofill_' + k] = cb.checked;
     });
+    // Behold hvilken admin-revisjon av personalia som er brukt (Admin → Brukere), ellers
+    // ville admin-verdiene overskrevet brukerens egne endringer ved neste innlogging.
+    var prevRev = getMinInfo().adminRev;
+    if (prevRev) data.adminRev = prevRev;
     safeSetItem(MIN_INFO_KEY, JSON.stringify(data));
     enqueueUserDocSet('settings', 'min_info', data, 'Save min_info');
 }
@@ -23980,3 +24034,576 @@ window.doKvitteringExport = doKvitteringExport;
         if (iso) dato.value = _kappeFormatDateNO(iso);
     });
 })();
+
+// ═══ Admin: brukere + tilgang pr. bruker ═════════════════════════════════════
+// Innlogging er fortsatt KUN Google/Microsoft (auth-koden i script.js er urørt —
+// dette er en egen auth-lytter). Admin LEGGER INN brukere på forhånd med e-post
+// (userAccess/{e-post med små bokstaver}): navn, hvilke deler av appen de ser
+// (modules: null = alt) og om de er deaktivert. Tilgangen gjelder fra første gang
+// personen logger inn med Google/Microsoft på den e-posten — admin trenger ikke
+// vente på innlogging. Hver innlogging skrives også til userDirectory/{uid} (navn,
+// innloggingsmåte, sist aktiv) så admin ser hvem som faktisk bruker appen.
+// Bare personer admin har lagt inn slipper inn (brukerens valg 25-10-2026: «jeg ønsker
+// ikke at hvem som helst logger seg inn») — andre logges ut med en melding og vises i
+// lista som «Ikke lagt inn», så admin kan legge dem til. Admin har alltid full tilgang: enten
+// hovedadmin (admins/{uid}, settes i Firebase) eller admin satt i appen
+// (userAccess/{e-post}.admin = true — Firestore-regelen isAdmin() godtar begge). Data er uansett per bruker (users/{uid}/…) — tilgang styrer hvilke DELER
+// av appen som vises, ikke data.
+//
+// Håndheving (generisk, ett sted): <html> får klassen acc-off-<del> for hver del
+// brukeren ikke har; alle innganger er merket data-acc="<del>" i index.html og
+// skjules av CSS. Navigasjon via hash/hjem/settings-side sjekkes i _accFilterHash /
+// showTemplateModal / showSettingsPage, så en skjult del ikke kan åpnes via URL,
+// tilbake-knapp eller gjenopprettet økt. Avledede deler: hjem = ordreseddel|servicebil|
+// kappe (Hjem-siden er de tre «+»-knappene), lagret = de tre + kvittering, calc =
+// verktøy|kvittering (kvittering ligger på Verktøy-siden).
+//
+// Firestore-regler (må legges inn i Firebase-konsollen):
+//   function isAdmin() { return request.auth != null && (
+//     exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+//     (request.auth.token.email != null &&
+//      exists(/databases/$(database)/documents/userAccess/$(request.auth.token.email.lower())) &&
+//      get(/databases/$(database)/documents/userAccess/$(request.auth.token.email.lower())).data.get('admin', false) == true)); }
+//   match /userAccess/{email}  { allow read: if request.auth != null && (request.auth.token.email.lower() == email || isAdmin());
+//                                allow write: if isAdmin(); }
+//   match /userDirectory/{uid} { allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+//                                allow create, update: if request.auth != null && request.auth.uid == uid;
+//                                allow delete: if isAdmin(); }
+// Uten reglene feiler lesingen stille → alle har full tilgang (som før).
+var ACC_MODULES = ['ordreseddel', 'servicebil', 'kappe', 'kvittering', 'verktoy', 'timebok'];
+var _ACC_DERIVED = { hjem: ['ordreseddel', 'servicebil', 'kappe'], lagret: ['ordreseddel', 'servicebil', 'kappe', 'kvittering'], calc: ['verktoy', 'kvittering'] };
+var ACC_CACHE_KEY = 'firesafe_access';
+// entry: userAccess-dokumentet (null = ikke lagt inn → ingen tilgang).
+// admin = effektiv admin (fbAdmin = admins/{uid} ELLER entry.admin satt i appen).
+var _acc = { entry: null, admin: false, fbAdmin: false, adminKnown: false, entryKnown: false, uid: null };
+var _accUnsubs = [];
+(function () {
+    var c = safeParseJSON(ACC_CACHE_KEY, null);
+    if (c && c.uid && c.uid === localStorage.getItem('firesafe_last_uid')) {
+        _acc.uid = c.uid; _acc.entry = c.entry || null; _acc.admin = !!c.admin; _acc.fbAdmin = !!c.fbAdmin;
+    }
+})();
+// Effektiv admin. Admin satt i appen får også script.js sin isAdmin (materialer,
+// obligatoriske felt osv.), så de to admin-typene oppfører seg likt.
+function _accRecalcAdmin() {
+    _acc.admin = !!(_acc.fbAdmin || (_acc.entry && _acc.entry.admin));
+    if (_acc.admin && typeof isAdmin !== 'undefined' && !isAdmin) { isAdmin = true; safeSetItem('firesafe_admin', '1'); }
+}
+function _accEmailKey(email) { return String(email || '').trim().toLowerCase(); }
+function _accUserEmail(user) {
+    var pd = user && user.providerData && user.providerData[0];
+    return _accEmailKey((user && user.email) || (pd && pd.email) || '');
+}
+// Modulene brukeren har: null = alt.
+function _accModules() {
+    if (_acc.admin) return null;
+    if (_acc.entry) return Array.isArray(_acc.entry.modules) ? _acc.entry.modules : null;
+    return [];
+}
+function _accBlocked() {
+    if (_acc.admin) return false;
+    if (_acc.entry) return !!_acc.entry.disabled;
+    return true;
+}
+function _accAllowed(m) {
+    var mods = _accModules();
+    if (!mods) return true;
+    if (_ACC_DERIVED[m]) return _ACC_DERIVED[m].some(function (x) { return mods.indexOf(x) !== -1; });
+    return mods.indexOf(m) !== -1;
+}
+// Første del brukeren har, i fast rekkefølge (Hjem → Timebok → Lagret → Verktøy → Meny).
+function _accStartHash() {
+    if (_accAllowed('hjem')) return '';
+    if (_accAllowed('timebok')) return 'timebok';
+    if (_accAllowed('lagret')) return 'hent';
+    if (_accAllowed('calc')) return 'calc';
+    return 'settings';
+}
+var _ACC_HASH_MODULE = { '': 'hjem', hent: 'lagret', skjema: 'ordreseddel', service: 'servicebil', kappe: 'kappe', kvittering: 'kvittering', calc: 'calc', timebok: 'timebok' };
+var _ACC_SETTINGS_MODULE = { 'form-ordreseddel': 'ordreseddel', 'form-service': 'servicebil', 'form-kappe': 'kappe', timebok: 'timebok' };
+function _accSettingsPageAllowed(page) {
+    if (page === 'admin-users') return !!_acc.admin;
+    var m = _ACC_SETTINGS_MODULE[page];
+    return !m || _accAllowed(m);
+}
+// Brukes først i _applyHashNavigation: en skjult del byttes med startsiden (URL rettes).
+function _accFilterHash(hash) {
+    hash = hash || '';
+    if (hash === 'settings' || hash.indexOf('settings/') === 0) {
+        var sub = hash.split('/')[1];
+        if (sub && !_accSettingsPageAllowed(sub)) { history.replaceState(null, '', '#settings'); return 'settings'; }
+        return hash;
+    }
+    var m = _ACC_HASH_MODULE[hash];
+    if (!m || _accAllowed(m)) return hash;
+    var start = _accStartHash();
+    history.replaceState(null, '', start ? '#' + start : window.location.pathname);
+    return start;
+}
+function _accGoStart() {
+    var start = _accStartHash();
+    if (!start) { showTemplateModal(); return; }
+    if (window.location.hash === '#' + start) _applyHashNavigation(start);
+    else window.location.hash = start;
+}
+// Lagret-fanen: ønsket fane hvis tillatt, ellers første tillatte.
+var _ACC_HENT_TABS = [['own', 'ordreseddel'], ['servicebil', 'servicebil'], ['kappe', 'kappe'], ['kvittering', 'kvittering']];
+function _accHentTab(tab) {
+    if (tab === 'service') tab = 'servicebil';
+    var hit = _ACC_HENT_TABS.filter(function (x) { return x[0] === tab; })[0];
+    if (!hit || _accAllowed(hit[1])) return tab;
+    var first = _ACC_HENT_TABS.filter(function (x) { return _accAllowed(x[1]); })[0];
+    return first ? first[0] : tab;
+}
+// Sett klasser på <html> + cache (head-snutten i index.html leser cachen før første
+// tegning, så skjulte deler ikke blinker), og flytt brukeren hvis den står i en skjult del.
+function _accApply() {
+    var html = document.documentElement;
+    var all = ACC_MODULES.concat(Object.keys(_ACC_DERIVED));
+    var off = all.filter(function (m) { return !_accAllowed(m); });
+    all.forEach(function (m) { html.classList.toggle('acc-off-' + m, off.indexOf(m) !== -1); });
+    html.classList.toggle('is-admin', !!_acc.admin);
+    _renderSettingsProfileCard();   // Admin-merket på profilkortet følger admin-status
+    if (_acc.uid) safeSetItem(ACC_CACHE_KEY, JSON.stringify({ uid: _acc.uid, entry: _acc.entry, admin: _acc.admin, fbAdmin: _acc.fbAdmin, off: off }));
+    _accEnforce();
+}
+var _ACC_VIEW_MODULE = { 'template-modal': 'hjem', 'saved-modal': 'lagret', 'view-form': 'ordreseddel', 'service-view': 'servicebil', 'kappe-view': 'kappe', 'kvittering-view': 'kvittering', 'calculator-modal': 'calc', 'timebok-view': 'timebok' };
+function _accEnforce() {
+    if (!currentUser) return;
+    // Første innlogging (ingen cache): vent på svaret fra lista før brukeren flyttes —
+    // ellers havner en godkjent bruker i Meny mens tilgangen fortsatt lastes.
+    if (!_acc.admin && !_acc.entry && !_acc.entryKnown) return;
+    var v = document.querySelector('.view.active');
+    if (!v || v.id === 'login-view') return;
+    if (v.id === 'settings-modal') {
+        var page = sessionStorage.getItem('firesafe_settings_page');
+        if (page && !_accSettingsPageAllowed(page)) showSettingsMenu();
+        return;
+    }
+    if (v.id === 'saved-modal') {
+        var cur = sessionStorage.getItem('firesafe_hent_tab') || 'own';
+        if (_accAllowed('lagret') && _accHentTab(cur) !== cur) { switchHentTab(_accHentTab(cur)); return; }
+    }
+    var m = _ACC_VIEW_MODULE[v.id];
+    if (m && !_accAllowed(m)) _accGoStart();
+}
+// Deaktivert / ikke lagt inn (når appen er lukket for ukjente) → ut. Venter til både
+// admin-status og tilgangsdokumentet er kjent, så en admin aldri kastes ut ved et uhell.
+function _accCheckBlocked() {
+    // Offline: admin-sjekken kan feile (gir «ikke admin») — kast aldri ut uten nett.
+    if (!_acc.adminKnown || !_acc.entryKnown || !currentUser || !_accBlocked() || navigator.onLine === false) return;
+    showNotificationModal(t(_acc.entry ? 'adm_kicked' : 'adm_kicked_unknown'), false);
+    auth.signOut();
+}
+// Personalia admin har lagt inn → brukerens Min info (users/{uid}/settings/min_info).
+// Kun når admin har endret dem (profileRev ≠ adminRev i Min info), så brukerens egne
+// endringer i Min info står til admin endrer noe igjen. Tomme felt hos admin rører ikke
+// det brukeren har skrevet. Leser Firestore først (lokal cache kan være utdatert).
+var _ACC_PROFILE_FIELDS = ['fornavn', 'etternavn', 'avdeling', 'mobil', 'epost'];
+function _accSyncProfile(uid, entry) {
+    if (!entry || !entry.profileRev || !db) return;
+    var ref = db.collection('users').doc(uid).collection('settings').doc('min_info');
+    ref.get().then(function (d) {
+        var mi = d.exists ? (d.data() || {}) : (safeParseJSON(MIN_INFO_KEY, {}) || {});
+        if (mi.adminRev === entry.profileRev) return;
+        _ACC_PROFILE_FIELDS.forEach(function (f) { if (entry[f]) mi[f] = entry[f]; });
+        if (entry.fornavn) mi.montor = entry.fornavn;   // Montør = fornavn (som _saveMinInfo)
+        mi.adminRev = entry.profileRev;
+        safeSetItem(MIN_INFO_KEY, JSON.stringify(mi));
+        enqueueUserDocSet('settings', 'min_info', mi, 'Admin profile → min_info');
+        var pg = document.getElementById('settings-page-min-info');
+        if (pg && pg.style.display !== 'none' && typeof _loadMinInfoSettings === 'function') _loadMinInfoSettings();
+    }).catch(function () {});
+}
+// Navn/e-post/innloggingsmåte/sist aktiv → userDirectory (firstSeen kun første gang).
+function _accRecordUser(user) {
+    var ref = db.collection('userDirectory').doc(user.uid);
+    var pd = user.providerData && user.providerData[0];
+    var data = {
+        uid: user.uid, email: _accUserEmail(user), name: user.displayName || (pd && pd.displayName) || '',
+        provider: (pd && pd.providerId) || '', device: document.documentElement.classList.contains('device-pc') ? 'pc' : 'mobil',
+        lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    ref.get().then(function (d) {
+        if (!d.exists) data.firstSeen = firebase.firestore.FieldValue.serverTimestamp();
+        return ref.set(data, { merge: true });
+    }).catch(function () {});
+}
+if (typeof auth !== 'undefined' && auth) {
+    auth.onAuthStateChanged(function (user) {
+        _accUnsubs.forEach(function (u) { u(); });
+        _accUnsubs = [];
+        // Lokal test (index.html / localhost = DEV_MODE): ingen ekte innlogging, script.js
+        // setter isAdmin = true med en falsk bruker — vis admin-delen også her.
+        if (!user && typeof DEV_MODE !== 'undefined' && DEV_MODE) { _acc.admin = _acc.fbAdmin = true; _acc.adminKnown = true; _accApply(); return; }
+        if (!user || !db) return;
+        if (_acc.uid !== user.uid) _acc = { entry: null, admin: false, fbAdmin: false, adminKnown: false, entryKnown: false, uid: user.uid };
+        _acc.adminKnown = false; _acc.entryKnown = false;
+        _accApply();
+        _accRecordUser(user);
+        checkAdminStatus(user.uid).then(function (a) {
+            _acc.fbAdmin = !!a; _acc.adminKnown = true;
+            _accRecalcAdmin(); _accApply(); _accCheckBlocked();
+        });
+        // Live: endrer admin tilgangen, gjelder det med en gang (uten omstart).
+        var key = _accUserEmail(user);
+        if (key) _accUnsubs.push(db.collection('userAccess').doc(key).onSnapshot(function (d) {
+            _acc.entry = d.exists ? d.data() : null;
+            _acc.entryKnown = true;
+            _accRecalcAdmin(); _accApply(); _accCheckBlocked();
+            _accSyncProfile(user.uid, _acc.entry);
+        }, function () { /* lesefeil (regler/nett): ingen utkasting på usikkert grunnlag */ }));
+        else _acc.entryKnown = true;
+    });
+}
+
+// ── Innstillinger → Admin → Brukere ──
+// Lista = brukerne admin har lagt inn (userAccess) + alle som har logget inn
+// (userDirectory), slått sammen på e-post.
+var _admUsers = {};      // e-post → { email, name, entry, dir, admin }
+var _admEditKey = null;  // null = ny bruker
+var _admTab = 'users';   // 'users' | 'attempts' — fanen huskes mens appen er åpen
+function _admSetTab(tab) { _admTab = tab; renderAdminUsers(true); }
+var _ACC_LABEL_KEYS = { ordreseddel: 'form_title', servicebil: 'tab_servicebil', kappe: 'kappe_title', kvittering: 'tab_kvittering', verktoy: 'adm_mod_verktoy', timebok: 'settings_timebok' };
+function _admFmtTs(ts) {
+    var d = ts && ts.toDate ? ts.toDate() : null;
+    if (!d) return '';
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function _admProvider(id) {
+    if (/google/.test(id || '')) return 'Google';
+    if (/microsoft/.test(id || '')) return 'Microsoft';
+    return id || '';
+}
+// Tilgangen slik brukeren faktisk får den (inkl. regelen for ikke-innlagte).
+function _admEffective(u) {
+    if (u.admin) return { cls: '', label: t('adm_full') };
+    if (u.entry) {
+        if (u.entry.disabled) return { cls: ' off', label: t('adm_disabled') };
+        if (!Array.isArray(u.entry.modules)) return { cls: '', label: t('adm_full') };
+        return { cls: ' limited', label: t('adm_limited').replace('{0}', u.entry.modules.length).replace('{1}', ACC_MODULES.length) };
+    }
+    return { cls: ' off', label: t('adm_not_added') };
+}
+// Datalaget for admin-siden. Lokal test (index.html = DEV_MODE, falsk bruker
+// 'dev-local', ingen Firebase-innlogging) bruker eksempelbrukere i localStorage, så
+// hele siden kan prøves uten å publisere. Ellers Firestore.
+var ADM_DEV_KEY = 'firesafe_dev_admin';
+function _admDev() { return !!(currentUser && currentUser.uid === 'dev-local'); }
+function _admStamp() { return _admDev() ? Date.now() : firebase.firestore.FieldValue.serverTimestamp(); }
+function _admDevData() {
+    var d = safeParseJSON(ADM_DEV_KEY, null);
+    if (d) return d;
+    var now = Date.now(), H = 3600000, D = 24 * H;
+    d = {
+        admins: { 'dev-local': true },
+        access: {
+            'ola.nordmann@firesafe.no': { email: 'ola.nordmann@firesafe.no', name: 'Ola Nordmann', fornavn: 'Ola', etternavn: 'Nordmann', avdeling: 'Bergen', mobil: '912 34 567', epost: 'ola@firesafe.no', modules: ['timebok'], disabled: false, admin: false, createdAt: now - 20 * D },
+            'kari.hansen@gmail.com': { email: 'kari.hansen@gmail.com', name: 'Kari Hansen', fornavn: 'Kari', etternavn: 'Hansen', modules: ['timebok', 'kvittering'], disabled: false, admin: false, createdAt: now - 2 * H },
+            'lise.berg@outlook.com': { email: 'lise.berg@outlook.com', name: 'Lise Berg', fornavn: 'Lise', etternavn: 'Berg', modules: null, disabled: true, admin: false, createdAt: now - 90 * D }
+        },
+        dir: {
+            'dev-local': { uid: 'dev-local', email: 'dev@localhost', name: 'Dev Mode', provider: 'google.com', device: 'pc', firstSeen: now - 200 * D, lastSeen: now },
+            'u-ola': { uid: 'u-ola', email: 'ola.nordmann@firesafe.no', name: 'Ola Nordmann', provider: 'microsoft.com', device: 'mobil', firstSeen: now - 19 * D, lastSeen: now - 3 * H },
+            'u-per': { uid: 'u-per', email: 'per.olsen@gmail.com', name: 'Per Olsen', provider: 'google.com', device: 'mobil', firstSeen: now - 40 * D, lastSeen: now - 45 * D },
+            'u-lise': { uid: 'u-lise', email: 'lise.berg@outlook.com', name: 'Lise Berg', provider: 'microsoft.com', device: 'pc', firstSeen: now - 89 * D, lastSeen: now - 60 * D }
+        }
+    };
+    safeSetItem(ADM_DEV_KEY, JSON.stringify(d));
+    return d;
+}
+// Lokale tall-tidsstempler → samme form som Firestore Timestamp (toDate/toMillis).
+function _admDevTs(o) {
+    var r = Object.assign({}, o);
+    ['createdAt', 'updatedAt', 'firstSeen', 'lastSeen'].forEach(function (k) {
+        if (typeof r[k] === 'number') { var n = r[k]; r[k] = { toDate: function () { return new Date(n); }, toMillis: function () { return n; } }; }
+    });
+    return r;
+}
+var _admStore = {
+    // [userAccess, userDirectory, admins] — samme form som Firestore-svarene.
+    load: function () {
+        if (_admDev()) {
+            var d = _admDevData();
+            var snap = function (obj) { return { docs: Object.keys(obj).map(function (k) { return { id: k, data: function () { return _admDevTs(obj[k]); } }; }) }; };
+            return Promise.resolve([snap(d.access), snap(d.dir), snap(d.admins)]);
+        }
+        var safe = function (p) { return p.catch(function () { return null; }); };
+        return Promise.all([
+            db.collection('userAccess').get(),
+            safe(db.collection('userDirectory').get()),
+            safe(db.collection('admins').get())
+        ]);
+    },
+    setAccess: function (key, data) {
+        if (_admDev()) { var d = _admDevData(); d.access[key] = Object.assign(d.access[key] || {}, data); safeSetItem(ADM_DEV_KEY, JSON.stringify(d)); return Promise.resolve(); }
+        return db.collection('userAccess').doc(key).set(data, { merge: true });
+    },
+    delAccess: function (key) {
+        if (_admDev()) { var d = _admDevData(); delete d.access[key]; safeSetItem(ADM_DEV_KEY, JSON.stringify(d)); return Promise.resolve(); }
+        return db.collection('userAccess').doc(key).delete();
+    },
+    delDir: function (uid) {
+        if (_admDev()) { var d = _admDevData(); delete d.dir[uid]; safeSetItem(ADM_DEV_KEY, JSON.stringify(d)); return Promise.resolve(); }
+        return db.collection('userDirectory').doc(uid).delete();
+    }
+};
+// cached = bare tegn på nytt fra sist hentede data (fanebytte), uten ny henting.
+var _admLastRes = null;
+function renderAdminUsers(cached) {
+    var host = document.getElementById('adm-users');
+    if (!host) return;
+    if (!_acc.admin || !currentUser || !db) { host.innerHTML = ''; return; }
+    if (!(cached && _admLastRes)) host.innerHTML = '<div class="adm-info">' + escapeHtml(t('adm_loading')) + '</div>';
+    (cached && _admLastRes ? Promise.resolve(_admLastRes) : _admStore.load()).then(function (res) {
+        _admLastRes = res;
+        var admins = {};
+        if (res[2]) res[2].docs.forEach(function (d) { admins[d.id] = true; });
+        admins[currentUser.uid] = true;
+        _admUsers = {};
+        var get = function (key) { return _admUsers[key] || (_admUsers[key] = { email: key, name: '', entry: null, dir: null, admin: false, fbAdmin: false }); };
+        res[0].docs.forEach(function (d) { var u = get(d.id); u.entry = d.data(); u.name = u.entry.name || ((u.entry.fornavn || '') + ' ' + (u.entry.etternavn || '')).trim(); if (u.entry.admin) u.admin = true; });
+        if (res[1]) res[1].docs.forEach(function (d) {
+            var x = d.data(), key = _accEmailKey(x.email) || d.id;
+            var u = get(key);
+            u.dir = Object.assign({ uid: d.id }, x);
+            if (x.name && !u.name) u.name = x.name;   // navnet admin har skrevet vinner
+            if (admins[d.id]) { u.admin = true; u.fbAdmin = true; }
+        });
+        var ms = function (u) { return u.dir && u.dir.lastSeen && u.dir.lastSeen.toMillis ? u.dir.lastSeen.toMillis() : 0; };
+        var list = Object.keys(_admUsers).map(function (k) { return _admUsers[k]; });
+        // Ikke innlogget ennå (nylig lagt inn) øverst, deretter sist aktiv.
+        list.sort(function (a, b) { return (a.dir ? 1 : 0) - (b.dir ? 1 : 0) || ms(b) - ms(a) || String(a.name || a.email).localeCompare(String(b.name || b.email), 'nb'); });
+        // To faner (samme chips som Timebok-innstillingene): «Brukere» = de admin har lagt inn
+        // (+ admins), «Prøvde å logge inn» = personer som logget inn uten å være lagt inn —
+        // ryddig til vanlig, men tilgjengelig når noen «ikke kommer inn» (f.eks. feil e-post).
+        var attempts = list.filter(function (u) { return !u.entry && !u.admin; });
+        list = list.filter(function (u) { return u.entry || u.admin; });
+        var month = Date.now() - 30 * 86400000;
+        var active = list.filter(function (u) { return ms(u) >= month; }).length;
+        var h = _admDev() ? '<div class="adm-dev">' + escapeHtml(t('adm_dev_mode')) + ' <button type="button" class="adm-dev-reset" onclick="_admDevReset()">' + escapeHtml(t('adm_dev_reset')) + '</button></div>' : '';
+        var tab = _admTab === 'attempts' ? 'attempts' : 'users';
+        h += '<div class="modal-tabs tb-set-tabs adm-tabs">' +
+            [['users', t('adm_tab_users'), list.length], ['attempts', t('adm_attempts_title'), attempts.length]].map(function (x) {
+                return '<button type="button" class="modal-tab' + (x[0] === tab ? ' active' : '') + '" onclick="_admSetTab(\'' + x[0] + '\')">' +
+                    escapeHtml(x[1]) + ' <span class="adm-tab-count">' + x[2] + '</span></button>';
+            }).join('') + '</div>';
+        var row = function (u) {
+            var name = u.name || u.email;
+            var initials = String(name).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(function (x) { return x[0].toUpperCase(); }).join('');
+            var meta = u.dir
+                ? [_admProvider(u.dir.provider), u.dir.device === 'pc' ? 'PC' : (u.dir.device ? t('adm_device_mobile') : ''), u.dir.lastSeen ? t('adm_last_seen').replace('{0}', _admFmtTs(u.dir.lastSeen)) : ''].filter(Boolean).join(' · ')
+                : [t('adm_never'), _admInvitedLabel(u)].filter(Boolean).join(' · ');
+            var eff = _admEffective(u);
+            return '<div class="settings-menu-item adm-user" onclick="openAdmUser(\'' + escapeHtml(u.email) + '\')">' +
+                '<span class="adm-avatar">' + escapeHtml(initials) + '</span>' +
+                '<span class="adm-main">' +
+                    '<span class="adm-name">' + escapeHtml(name) + (u.admin ? '<span class="adm-badge">' + escapeHtml(t('adm_badge_admin')) + '</span>' : '') + '</span>' +
+                    (u.name ? '<span class="adm-sub">' + escapeHtml(u.email) + '</span>' : '') +
+                    '<span class="adm-sub">' + escapeHtml(meta) + '</span>' +
+                '</span>' +
+                '<span class="adm-access' + eff.cls + '">' + escapeHtml(eff.label) + '</span>' +
+                '<span class="settings-menu-arrow">&rsaquo;</span>' +
+            '</div>';
+        };
+        if (tab === 'users') {
+            h += '<button type="button" class="adm-add" onclick="openAdmUser(null)">' + escapeHtml(t('adm_add')) + '</button>';
+            h += '<div class="adm-info">' + escapeHtml(t('adm_summary').replace('{0}', list.length).replace('{1}', active)) + '</div>';
+            if (list.length) h += '<div class="settings-group">' + list.map(row).join('') + '</div>';
+        } else {
+            h += '<div class="adm-info">' + escapeHtml(t(attempts.length ? 'adm_attempts_hint' : 'adm_attempts_empty')) + '</div>';
+            if (attempts.length) h += '<div class="settings-group">' + attempts.map(row).join('') + '</div>';
+        }
+        host.innerHTML = h;
+    }).catch(function () {
+        host.innerHTML = '<div class="adm-info adm-error">' + escapeHtml(t('adm_load_error')) + '</div>';
+    });
+}
+// key = e-post (eksisterende) eller null (ny bruker). Samme skjema for ny og
+// eksisterende: navn, e-post, telefon, notat, tilgang, admin, deaktivert.
+function openAdmUser(key) {
+    var u = key ? _admUsers[key] : null;
+    if (key && !u) return;
+    _admEditKey = key;
+    var isNew = !u;
+    var self = !!(u && u.dir && currentUser && u.dir.uid === currentUser.uid);
+    var e = (u && u.entry) || {};
+    var mods = Array.isArray(e.modules) ? e.modules : null;
+    var on = function (m) { return !u || u.admin || !mods || mods.indexOf(m) !== -1; };
+    var sw = function (id, checked, disabled, onchange) {
+        return '<label class="tb-switch"><input type="checkbox" data-adm="' + id + '"' + (checked ? ' checked' : '') + (disabled ? ' disabled' : '') +
+            (onchange ? ' onchange="' + onchange + '"' : '') + '><span></span></label>';
+    };
+    var field = function (id, label, val, type, attrs, req) {
+        return '<div class="spec-popup-field"><span class="spec-popup-label"><span>' + escapeHtml(label) + '</span>' + (req ? '<span class="spec-required-star">*</span>' : '') + '</span>' +
+            '<input type="' + type + '" id="' + id + '" value="' + escapeHtml(val || '') + '" autocomplete="off" ' + attrs + '></div>';
+    };
+    var h = '';
+    if (!isNew) {
+        var meta = u.dir
+            ? [_admProvider(u.dir.provider), u.dir.firstSeen ? t('adm_first_seen').replace('{0}', _admFmtTs(u.dir.firstSeen)) : '', u.dir.lastSeen ? t('adm_last_seen').replace('{0}', _admFmtTs(u.dir.lastSeen)) : ''].filter(Boolean).join(' · ')
+            : [t('adm_never'), _admInvitedLabel(u)].filter(Boolean).join(' · ');
+        h += '<div class="adm-pop-sub">' + escapeHtml(meta) + '</div>';
+        if (u.fbAdmin) h += '<div class="adm-pop-note">' + escapeHtml(t('adm_fbadmin_note')) + '</div>';
+        else if (!u.entry) h += '<div class="adm-pop-note">' + escapeHtml(t('adm_not_added_block_note')) + '</div>';
+    }
+    // Innlogging (nøkkelen) + Personalia = de samme feltene som Min info. Personalia fylles
+    // inn i brukerens Min info ved innlogging (se _accSyncProfile).
+    var nm = _admSplitName(u);
+    h += field('adm-f-email', t('adm_field_email'), u ? u.email : '', 'email', 'inputmode="email" autocapitalize="off" placeholder="navn@firma.no"' + (u && (u.fbAdmin || self || u.dir) ? ' disabled' : ''), true) +
+        (isNew || (u && !u.dir) ? '<div class="adm-pop-sub">' + escapeHtml(t('adm_email_hint')) + '</div>' : '') +
+        '<div class="tb-af-group">' + escapeHtml(t('adm_profile_title')) + '</div>' +
+        '<div class="adm-pop-sub adm-access-hint">' + escapeHtml(t('adm_profile_hint')) + '</div>' +
+        // Korte felt to og to (Fornavn|Etternavn, Avdeling|Mobil) — e-post og notat i full bredde.
+        '<div class="adm-grid2">' +
+            field('adm-f-fornavn', t('settings_min_info_fornavn'), nm.fornavn, 'text', 'autocapitalize="words"') +
+            field('adm-f-etternavn', t('settings_min_info_etternavn'), nm.etternavn, 'text', 'autocapitalize="words"') +
+            field('adm-f-avdeling', t('label_avdeling'), e.avdeling, 'text', '') +
+            field('adm-f-mobil', t('settings_min_info_mobil'), e.mobil || e.phone, 'tel', 'inputmode="tel"') +
+        '</div>' +
+        field('adm-f-epost', t('settings_min_info_epost'), e.epost, 'email', 'inputmode="email" autocapitalize="off"' + (u ? ' placeholder="' + escapeHtml(u.email) + '"' : '')) +
+        field('adm-f-note', t('adm_field_note'), e.note, 'text', 'autocapitalize="sentences"');
+    // Hver bryter forteller HVOR delen vises (knapper nederst, Lagret-faner, Meny), så
+    // det er tydelig at én bryter styrer både verktøylinja og innstillingene.
+    h += '<div class="tb-af-group">' + escapeHtml(t('adm_access_title')) + '</div>' +
+        '<div class="adm-pop-sub adm-access-hint">' + escapeHtml(t('adm_access_hint')) + '</div>' +
+        '<div id="adm-mods" class="' + (u && u.admin ? 'adm-mods-locked' : '') + '">' +
+        ACC_MODULES.map(function (m) {
+            return '<div class="adm-row"><span>' + escapeHtml(t(_ACC_LABEL_KEYS[m])) + '<span class="adm-pop-sub">' + escapeHtml(t('adm_where_' + m)) + '</span></span>' + sw(m, on(m), u && u.admin) + '</div>';
+        }).join('') + '</div>';
+    h += '<div class="tb-af-group">' + escapeHtml(t('adm_status_title')) + '</div>';
+    // Admin: hovedadmin (Firebase) kan ikke endres her; du kan ikke fjerne deg selv som admin.
+    h += '<div class="adm-row"><span>' + escapeHtml(t('adm_make_admin')) + '<span class="adm-pop-sub">' + escapeHtml(t('adm_make_admin_hint')) + '</span></span>' +
+        sw('__admin', !!(u && u.admin), !!(u && (u.fbAdmin || self)), '_admAdminToggled(this)') + '</div>';
+    if (!(u && (u.fbAdmin || self))) {
+        h += '<div class="adm-row" id="adm-dis-row"' + (u && u.admin ? ' style="display:none"' : '') + '><span>' + escapeHtml(t('adm_disable')) + '<span class="adm-pop-sub">' + escapeHtml(t('adm_disable_hint')) + '</span></span>' +
+            sw('__disabled', !!e.disabled, false) + '</div>';
+    }
+    // Invitasjon (lagret bruker som ikke er seg selv): delingsmeny / e-post med lenke + konto.
+    if (u && u.entry && !self) h += '<button type="button" class="adm-add adm-invite" onclick="sendAdmInvite(\'' + escapeHtml(u.email) + '\')">' + escapeHtml(t('adm_invite_btn')) + '</button>';
+    if (u && (u.entry || u.dir) && !u.fbAdmin && !self) h += '<button type="button" class="tb-tariff-delete adm-delete" onclick="deleteAdmUser()">' + escapeHtml(t(u.entry ? 'adm_delete' : 'adm_delete_attempt')) + '</button>';
+    document.getElementById('adm-user-title').textContent = isNew ? t('adm_add_title') : (u.name || u.email);
+    document.getElementById('adm-user-body').innerHTML = h;
+    document.getElementById('adm-user-popup').classList.add('active');
+}
+// Fornavn/etternavn: fra admin-oppføringen, ellers delt fra navnet (Google/Microsoft).
+function _admSplitName(u) {
+    var e = (u && u.entry) || {};
+    if (e.fornavn || e.etternavn) return { fornavn: e.fornavn || '', etternavn: e.etternavn || '' };
+    var parts = String((u && u.name) || '').trim().split(/\s+/).filter(Boolean);
+    if (u && u.name && u.name.indexOf('@') !== -1) parts = [];
+    return { fornavn: parts.shift() || '', etternavn: parts.join(' ') };
+}
+// Admin = full tilgang: tilgangsbryterne låses (alle på) og «Deaktiver» skjules.
+function _admAdminToggled(cb) {
+    var body = document.getElementById('adm-user-body');
+    body.querySelectorAll('#adm-mods input').forEach(function (el) { if (cb.checked) el.checked = true; el.disabled = cb.checked; });
+    var dis = document.getElementById('adm-dis-row');
+    if (dis) dis.style.display = cb.checked ? 'none' : '';
+}
+function closeAdmUser() {
+    document.getElementById('adm-user-popup').classList.remove('active');
+    _admEditKey = null;
+}
+function saveAdmUser() {
+    if (!db) return;
+    var body = document.getElementById('adm-user-body');
+    var oldKey = _admEditKey;
+    var u = oldKey ? _admUsers[oldKey] : null;
+    var emEl = document.getElementById('adm-f-email');
+    var key = _accEmailKey(emEl.value);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) { emEl.focus(); return; }
+    if (key !== oldKey && _admUsers[key]) { showNotificationModal(t('adm_email_exists'), false); return; }
+    var val = function (id) { return document.getElementById(id).value.trim(); };
+    var mods = ACC_MODULES.filter(function (m) { var el = body.querySelector('[data-adm="' + m + '"]'); return el && el.checked; });
+    var dis = body.querySelector('[data-adm="__disabled"]');
+    var adm = body.querySelector('[data-adm="__admin"]');
+    var stamp = _admStamp();
+    var by = (currentUser && currentUser.email) || '';
+    var data = {
+        email: key, note: val('adm-f-note'),
+        fornavn: val('adm-f-fornavn'), etternavn: val('adm-f-etternavn'), avdeling: val('adm-f-avdeling'), mobil: val('adm-f-mobil'), epost: val('adm-f-epost'),
+        modules: mods.length === ACC_MODULES.length ? null : mods,   // alt valgt = full tilgang (også nye deler senere)
+        disabled: !!(dis && dis.checked && !(adm && adm.checked)),
+        admin: !!(adm && adm.checked && !(u && u.fbAdmin)),        // hovedadmin styres i Firebase, ikke her
+        updatedAt: stamp, updatedBy: by
+    };
+    data.name = (data.fornavn + ' ' + data.etternavn).trim();   // visningsnavn i lista
+    // Personalia endret → ny revisjon, så brukerens Min info oppdateres ved neste innlogging/live.
+    var pe = (u && u.entry) || {};
+    if (_ACC_PROFILE_FIELDS.some(function (f) { return (pe[f] || '') !== data[f]; })) data.profileRev = Date.now();
+    if (!u || !u.entry || key !== oldKey) { data.createdAt = (u && u.entry && u.entry.createdAt) || stamp; data.createdBy = (u && u.entry && u.entry.createdBy) || by; }
+    var ops = [_admStore.setAccess(key, data)];
+    // Ny e-post (før personen har logget inn): flytt oppføringen til den nye nøkkelen.
+    if (oldKey && key !== oldKey && u && u.entry) ops.push(_admStore.delAccess(oldKey));
+    var wasNew = !u || !u.entry;
+    Promise.all(ops).then(function () {
+        closeAdmUser();
+        renderAdminUsers();
+        // Ny bruker: tilby invitasjon med en gang. Via bekreft-knappen, fordi delingsmenyen
+        // (Web Share) krever et trykk fra brukeren — den kan ikke åpnes etter lagringen alene.
+        if (wasNew) {
+            var invite = Object.assign({}, data, { email: key });
+            showConfirmModal(t('adm_invite_ask').replace('{0}', data.name || key), function () { _admShareInvite(invite); }, t('adm_invite_btn'), '#E8501A');
+        }
+    }).catch(function () {
+        showNotificationModal(t('adm_save_error'), false);
+    });
+}
+function _admInvitedLabel(u) {
+    return u && u.entry && u.entry.invitedAt ? t('adm_invited').replace('{0}', _admFmtTs(u.entry.invitedAt).split(' ')[0]) : '';
+}
+// ── Invitasjon ──
+// Ingen automatisk e-post (krever betalt e-posttjeneste) — admin sender selv via
+// telefonens delingsmeny (SMS, e-post, WhatsApp …), ellers e-postprogrammet (mailto,
+// f.eks. Firefox på PC uten Web Share). Teksten: lenke, hvilken konto, hva de har
+// tilgang til, og tips om å legge appen på startskjermen.
+var ADM_APP_URL = 'https://kiicki.github.io/Firesafe-ordreseddel/';
+function _admGuessProvider(email, dir) {
+    if (dir && dir.provider) return _admProvider(dir.provider);
+    if (/@(gmail|googlemail)\./i.test(email)) return 'Google';
+    if (/@(outlook|hotmail|live|msn)\./i.test(email)) return 'Microsoft';
+    return '';
+}
+function _admInviteText(entry, dir) {
+    var mods = entry.admin || !Array.isArray(entry.modules) ? null : entry.modules;
+    var access = mods ? mods.map(function (m) { return t(_ACC_LABEL_KEYS[m]); }).join(', ') : t('adm_invite_all');
+    var prov = _admGuessProvider(entry.email, dir);
+    var me = (typeof getMinInfo === 'function' && getMinInfo().fornavn) || '';
+    return t('adm_invite_text')
+        .replace('{name}', entry.fornavn || (entry.name || '').split(' ')[0] || '')
+        .replace('{url}', ADM_APP_URL)
+        .replace('{account}', prov ? t('adm_invite_account').replace('{0}', prov) : t('adm_invite_account_any'))
+        .replace('{email}', entry.email)
+        .replace('{access}', access) + (me ? '\n\n' + t('adm_invite_sign').replace('{0}', me) : '');
+}
+function _admShareInvite(entry, dir) {
+    var text = _admInviteText(entry, dir);
+    var title = t('adm_invite_subject');
+    var mark = function () { _admStore.setAccess(entry.email, { invitedAt: _admStamp() }).then(renderAdminUsers).catch(function () {}); };
+    if (navigator.share) {
+        navigator.share({ title: title, text: text }).then(mark).catch(function () {});   // avbrutt = ikke sendt
+        return;
+    }
+    window.location.href = 'mailto:' + encodeURIComponent(entry.email) + '?subject=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(text);
+    mark();
+}
+function sendAdmInvite(key) {
+    var u = _admUsers[key];
+    if (!u || !u.entry) return;
+    _admShareInvite(Object.assign({}, u.entry, { email: key }), u.dir);
+}
+// Fjern brukeren fra lista: tilgangsoppføringen slettes (og innloggingshistorikken).
+// Logger personen inn igjen senere, gjelder regelen for personer som ikke er lagt inn.
+function deleteAdmUser() {
+    var u = _admEditKey ? _admUsers[_admEditKey] : null;
+    if (!u || !db) return;
+    showConfirmModal(t(u.entry ? 'adm_delete_confirm' : 'adm_delete_attempt_confirm').replace('{0}', u.name || u.email), function () {
+        var ops = u.entry ? [_admStore.delAccess(u.email)] : [];
+        if (u.dir && u.dir.uid) ops.push(_admStore.delDir(u.dir.uid).catch(function () {}));
+        Promise.all(ops).then(function () { closeAdmUser(); renderAdminUsers(); })
+            .catch(function () { showNotificationModal(t('adm_save_error'), false); });
+    }, t('btn_remove'), '#c0392b');
+}
+function _admDevReset() { localStorage.removeItem(ADM_DEV_KEY); renderAdminUsers(); }

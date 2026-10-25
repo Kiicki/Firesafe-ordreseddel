@@ -26,8 +26,18 @@
             if (!(mobileUA && touchSignal)) document.documentElement.classList.add('device-pc');
         } catch (e) {}
     })();
+    /* Tilgang (Admin → Brukere): skjul deler brukeren ikke har FØR første tegning.
+       Cachen skrives av _accApply i script-ui.js; gjelder kun samme bruker. */
+    (function () {
+        try {
+            var a = JSON.parse(localStorage.getItem('firesafe_access') || 'null');
+            if (!a || a.uid !== localStorage.getItem('firesafe_last_uid')) return;
+            (a.off || []).forEach(function (m) { document.documentElement.classList.add('acc-off-' + m); });
+            if (a.admin) document.documentElement.classList.add('is-admin');
+        } catch (e) {}
+    })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1040">
+    <link rel="stylesheet" href="styles.css?v=1060">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -395,10 +405,10 @@
                 </div>
                 <div class="modal-tabs-wrap" id="saved-tabs-wrap">
                     <div class="modal-tabs">
-                        <button class="modal-tab" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
-                        <button class="modal-tab" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
-                        <button class="modal-tab" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappeskjema</button>
-                        <button class="modal-tab" onclick="switchHentTab('kvittering')" data-i18n="tab_kvittering">Kvittering</button>
+                        <button class="modal-tab" data-acc="ordreseddel" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
+                        <button class="modal-tab" data-acc="servicebil" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
+                        <button class="modal-tab" data-acc="kappe" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappeskjema</button>
+                        <button class="modal-tab" data-acc="kvittering" onclick="switchHentTab('kvittering')" data-i18n="tab_kvittering">Kvittering</button>
                     </div>
                     <button type="button" class="modal-tabs-more modal-tabs-more--left" tabindex="-1" aria-label="Flere til venstre" onclick="_scrollSavedTabs(-1)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <button type="button" class="modal-tabs-more modal-tabs-more--right" tabindex="-1" aria-label="Flere til høyre" onclick="_scrollSavedTabs(1)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
@@ -458,9 +468,9 @@
                     </div>
                 </div>
                 <div class="modal-footer-skip home-actions" onclick="event.stopPropagation()">
-                    <button class="btn-skip-template" onclick="closeTemplateModal()" data-i18n="template_blank_form">+ Ordreseddel</button>
-                    <button class="btn-skip-template bil-btn-pafylling" onclick="openServicebilView()" data-i18n="bil_add_pafylling">+ Servicebil</button>
-                    <button class="btn-skip-template" onclick="openNewKappeForm()" data-i18n="kappe_new_form">+ Kappeskjema</button>
+                    <button class="btn-skip-template" data-acc="ordreseddel" onclick="closeTemplateModal()" data-i18n="template_blank_form">+ Ordreseddel</button>
+                    <button data-acc="servicebil" class="btn-skip-template bil-btn-pafylling" onclick="openServicebilView()" data-i18n="bil_add_pafylling">+ Servicebil</button>
+                    <button data-acc="kappe" class="btn-skip-template" onclick="openNewKappeForm()" data-i18n="kappe_new_form">+ Kappeskjema</button>
                 </div>
             </div>
             <div class="modal-body">
@@ -657,56 +667,86 @@
             </div>
             <div class="modal-body" style="padding: 16px;">
                                 <!-- Hovedmeny -->
+                <!-- Hovedmeny. Profilkort øverst (Profil = personalia + språk), deretter grupper:
+                     Skjemaer (innstillinger pr. skjematype) · Timer og register (Timebok + felles
+                     prosjekter/materialer) · Admin. data-acc skjuler rader brukeren ikke har tilgang til. -->
                 <div id="settings-page-menu" class="settings-page">
-                    <div class="settings-static-header">
-                        <span data-i18n="settings_section_skjemaer">Skjemaer</span>
+                    <div class="set-profile" onclick="showSettingsPage('min-info')">
+                        <span class="set-avatar" id="set-profile-avatar"></span>
+                        <span class="set-text">
+                            <span class="set-profile-name" id="set-profile-name"></span>
+                            <span class="set-desc" id="set-profile-email"></span>
+                            <span class="set-desc" data-i18n="settings_desc_profile">Personalia og språk</span>
+                        </span>
+                        <span class="set-chev">&rsaquo;</span>
                     </div>
-                    <div class="settings-group">
-                        <div class="settings-menu-item" onclick="showSettingsPage('form-ordreseddel')">
-                            <span data-i18n="form_title">Ordreseddel</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
+
+                    <div class="set-section" data-acc="hjem">
+                        <div class="set-section-title" data-i18n="settings_section_skjemaer">Skjemaer</div>
+                        <div class="set-card">
+                        <div class="set-row" data-acc="ordreseddel" onclick="showSettingsPage('form-ordreseddel')">
+                            <span class="set-ico set-ico--orange"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="form_title">Ordreseddel</span><span class="set-desc" data-i18n="settings_desc_ordreseddel">Obligatoriske felt, ordrenummer, etasjer</span></span>
+                            <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('form-service')">
-                            <span data-i18n="tab_service">Lageruttak</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        <div class="set-row" data-acc="servicebil" onclick="showSettingsPage('form-service')">
+                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="tab_service">Lageruttak</span><span class="set-desc" data-i18n="settings_desc_service">Obligatoriske felt, uke og dato</span></span>
+                            <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('form-kappe')">
-                            <span data-i18n="kappe_title">Kappeskjema</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        <div class="set-row" data-acc="kappe" onclick="showSettingsPage('form-kappe')">
+                            <span class="set-ico set-ico--purple"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="kappe_title">Kappeskjema</span><span class="set-desc" data-i18n="settings_desc_kappe">Obligatoriske felt, plate og kapp</span></span>
+                            <span class="set-chev">&rsaquo;</span>
+                        </div>
                         </div>
                     </div>
 
-                    <div class="settings-static-header" style="margin-top: 16px;">
-                        <span data-i18n="settings_section_global">Global</span>
-                    </div>
-                    <div class="settings-group">
-                        <div class="settings-menu-item" onclick="showSettingsPage('min-info')">
-                            <span data-i18n="settings_min_info">Min info</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
+                    <div class="set-section">
+                        <div class="set-section-title" data-i18n="settings_section_work">Timer og register</div>
+                        <div class="set-card">
+                        <div class="set-row" data-acc="timebok" onclick="showSettingsPage('timebok')">
+                            <span class="set-ico set-ico--green"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_timebok">Timebok</span><span class="set-desc" data-i18n="settings_desc_timebok">Satser, tariff og arbeidsgiver</span></span>
+                            <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('templates')">
-                            <span data-i18n="settings_templates_and_addresses">Maler</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        <div class="set-row" onclick="showSettingsPage('templates')">
+                            <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_templates_and_addresses">Prosjekter & lager</span><span class="set-desc" data-i18n="settings_desc_templates">Prosjekter, adresser og avstand</span></span>
+                            <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('materials')">
-                            <span data-i18n="settings_materials">Materialer</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
+                        <div class="set-row" onclick="showSettingsPage('materials')">
+                            <span class="set-ico set-ico--amber"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_materials">Materialer</span><span class="set-desc" data-i18n="settings_desc_materials">Materialliste og enheter</span></span>
+                            <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="settings-menu-item" onclick="showSettingsPage('timebok')">
-                            <span data-i18n="settings_timebok">Timebok</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
-                        </div>
-                        <div class="settings-menu-item" onclick="openLanguagePopup()">
-                            <span data-i18n="settings_language">Språk / Language</span>
-                            <span class="settings-menu-arrow">&rsaquo;</span>
                         </div>
                     </div>
-                    <div class="settings-menu-item settings-logout" onclick="handleAuth()">
-                        <span data-i18n="logout">Logg ut</span>
+
+                    <!-- Admin (kun admin): brukeroversikt + tilgang -->
+                    <div class="set-section admin-only">
+                        <div class="set-section-title" data-i18n="settings_section_admin">Admin</div>
+                        <div class="set-card">
+                        <div class="set-row" onclick="showSettingsPage('admin-users')">
+                            <span class="set-ico set-ico--slate"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_users">Brukere</span><span class="set-desc" data-i18n="settings_desc_admin_users">Tilgang og invitasjoner</span></span>
+                            <span class="set-chev">&rsaquo;</span>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="set-card set-logout" onclick="handleAuth()">
+                        <span class="set-ico set-ico--red"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+                        <span class="set-title" data-i18n="logout">Logg ut</span>
                     </div>
                 </div>
 
-                <!-- Min info-side (kun personlig identitet) -->
+                <!-- Admin → Brukere: alle som har brukt appen + tilgang pr. bruker -->
+                <div id="settings-page-admin-users" class="settings-page" style="display:none;">
+                    <div id="adm-users"></div>
+                </div>
+
+                <!-- Profil-side (Min info: personlig identitet + språk) -->
                 <div id="settings-page-min-info" class="settings-page" style="display:none;">
                     <div class="settings-static-header">
                         <span data-i18n="settings_min_info_section_personalia">Personalia</span>
@@ -736,6 +776,16 @@
                                 <label class="settings-default-label"><span data-i18n="settings_min_info_epost">E-post</span><input type="email" id="mininfo-epost" inputmode="email" autocapitalize="off"></label>
                             </div>
                             <label class="settings-toggle settings-autofill-toggle"><input type="checkbox" id="mininfo-autofill-epost" checked><span class="settings-toggle-slider"></span></label>
+                        </div>
+                    </div>
+                    <!-- Språk (var egen meny-rad + popup — nå en del av Profil) -->
+                    <div class="settings-static-header" style="margin-top: 16px;">
+                        <span data-i18n="settings_language">Språk</span>
+                    </div>
+                    <div class="settings-group profile-lang">
+                        <div class="tb-seg" id="profile-lang-seg">
+                            <button type="button" class="tb-seg-btn" data-lang="no" onclick="setProfileLanguage('no')">Norsk</button>
+                            <button type="button" class="tb-seg-btn" data-lang="en" onclick="setProfileLanguage('en')">English</button>
                         </div>
                     </div>
                 </div>
@@ -1687,6 +1737,18 @@
     </div>
 
     <!-- Timebok: ny / rediger tariff (navn + gyldig fra). Ny = kopi av valgt tariff. -->
+    <!-- Admin: tilgang for én bruker -->
+    <div class="spec-popup-backdrop" id="adm-user-popup" onclick="if(event.target===this)closeAdmUser()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header"><span id="adm-user-title"></span></div>
+            <div class="spec-popup-body" id="adm-user-body"></div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeAdmUser()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-ok" id="adm-user-save" onclick="saveAdmUser()" data-i18n="btn_save">Lagre</button>
+            </div>
+        </div>
+    </div>
+
     <div class="spec-popup-backdrop" id="tb-tariff-popup" onclick="if(event.target===this)closeTbTariffForm()">
         <div class="spec-popup-sheet">
             <div class="spec-popup-header"><span id="tb-tariff-form-title">Ny tariff</span></div>
@@ -1755,27 +1817,6 @@
     </div>
 
     <!-- Språk / Language popup -->
-    <div class="spec-popup-backdrop" id="language-popup" onclick="if(event.target===this)closeLanguagePopup()">
-        <div class="spec-popup-sheet">
-            <div class="spec-popup-header">
-                <span data-i18n="settings_language">Språk / Language</span>
-            </div>
-            <div class="spec-popup-body">
-                <div class="settings-lang-option" onclick="setLanguage('no');closeLanguagePopup()">
-                    <span>Norsk</span>
-                    <span class="settings-lang-check" id="lang-check-no">&#10003;</span>
-                </div>
-                <div class="settings-lang-option" onclick="setLanguage('en');closeLanguagePopup()">
-                    <span>English</span>
-                    <span class="settings-lang-check" id="lang-check-en"></span>
-                </div>
-            </div>
-            <div class="spec-popup-buttons">
-                <button type="button" class="spec-popup-cancel" onclick="closeLanguagePopup()" data-i18n="btn_cancel">Avbryt</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Signature overlay -->
     <div class="signature-overlay" id="signature-overlay">
         <div class="signature-rotate-message" id="signature-rotate-message">
@@ -1827,6 +1868,15 @@
             else if (h === 'timebok') { v = 'timebok-view'; b = 'timebok-view-open'; }
             else if (h === 'skjema') { v = 'view-form'; }
             else { v = 'template-modal'; b = 'template-modal-open'; }
+            // Uten tilgang til Hjem: start på første del brukeren har (som _accStartHash).
+            var hc = document.documentElement.classList;
+            if (v === 'template-modal' && hc.contains('acc-off-hjem')) {
+                // Hash settes også, så resten av oppstarten behandler det som en vanlig reload der.
+                var sh = !hc.contains('acc-off-timebok') ? 'timebok' : !hc.contains('acc-off-lagret') ? 'hent' : !hc.contains('acc-off-calc') ? 'calc' : 'settings';
+                v = { timebok: 'timebok-view', hent: 'saved-modal', calc: 'calculator-modal', settings: 'settings-modal' }[sh];
+                b = { timebok: 'timebok-view-open', hent: 'saved-modal-open', calc: 'calculator-modal-open', settings: 'settings-modal-open' }[sh];
+                history.replaceState(null, '', '#' + sh);
+            }
             // Show cached email immediately
             var email = localStorage.getItem('firesafe_email');
             var btn = document.getElementById('btn-login-home');
@@ -1877,7 +1927,7 @@
             </div>
             <div class="modal-body">
                 <div class="calc-section">
-                    <div class="calc-card" onclick="showCalcPage('multicollar')">
+                    <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('multicollar')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title">Multicollar</div>
@@ -1885,7 +1935,7 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" onclick="showCalcPage('brannpakning')">
+                    <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('brannpakning')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="8" width="18" height="8" rx="2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="17" y1="8" x2="17" y2="16"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_bp_title">Brannpakning</div>
@@ -1893,7 +1943,7 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" onclick="showCalcPage('lysaapning')">
+                    <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('lysaapning')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="M5 12h3M16 12h3" stroke-dasharray="1 1.5"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_la_title">Lysåpning</div>
@@ -1901,7 +1951,7 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" onclick="showCalcPage('stopwatch')">
+                    <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('stopwatch')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="13" r="8"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="13" x2="15" y2="15"/><line x1="9" y1="2" x2="15" y2="2"/><line x1="12" y1="2" x2="12" y2="5"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_sw_title">Stoppeklokke</div>
@@ -1909,7 +1959,7 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" onclick="showCalcPage('isostift')">
+                    <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('isostift')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="1"/><circle cx="6" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="6" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_iso_title">Isolering stift</div>
@@ -1917,7 +1967,7 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" onclick="showCalcPage('brannplate')">
+                    <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('brannplate')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="1"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="5" x2="12" y2="19"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_plate_title">Brannplate</div>
@@ -1925,7 +1975,7 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" onclick="showCalcPage('gpg')">
+                    <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('gpg')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="1"/><line x1="3" y1="9.33" x2="21" y2="9.33"/><line x1="3" y1="14.66" x2="21" y2="14.66"/><line x1="9" y1="4" x2="9" y2="9.33"/><line x1="15" y1="4" x2="15" y2="9.33"/><line x1="6" y1="9.33" x2="6" y2="14.66"/><line x1="12" y1="9.33" x2="12" y2="14.66"/><line x1="18" y1="9.33" x2="18" y2="14.66"/><line x1="9" y1="14.66" x2="9" y2="20"/><line x1="15" y1="14.66" x2="15" y2="20"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_gpg_title">GPG stein</div>
@@ -1933,7 +1983,7 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" onclick="openNewKvitteringForm()">
+                    <div class="calc-card" data-acc="kvittering" onclick="openNewKvitteringForm()">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M5 3h14v18l-2.33-1.5L14.33 21 12 19.5 9.67 21 7.33 19.5 5 21z"/><line x1="8.5" y1="8" x2="15.5" y2="8"/><line x1="8.5" y1="11.5" x2="15.5" y2="11.5"/><line x1="8.5" y1="15" x2="12.5" y2="15"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_kvittering_title">Kvittering</div>
@@ -2271,16 +2321,16 @@
     </div>
 
     <div class="toolbar" role="toolbar" aria-label="Hovedhandlinger">
-        <button class="btn-new" onclick="newForm()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span data-i18n="toolbar_home">Hjem</span></button>
-        <button class="btn-load" onclick="showSavedForms()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg><span data-i18n="toolbar_forms">Skjemaer</span></button>
-        <button class="btn-calc" onclick="showCalculator()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg><span data-i18n="toolbar_calc">Verktøy</span></button>
-        <button class="btn-timebok" onclick="showTimebok()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span data-i18n="toolbar_timebok">Timebok</span></button>
+        <button class="btn-new" data-acc="hjem" onclick="newForm()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span data-i18n="toolbar_home">Hjem</span></button>
+        <button class="btn-load" data-acc="lagret" onclick="showSavedForms()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg><span data-i18n="toolbar_forms">Skjemaer</span></button>
+        <button class="btn-calc" data-acc="calc" onclick="showCalculator()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg><span data-i18n="toolbar_calc">Verktøy</span></button>
+        <button class="btn-timebok" data-acc="timebok" onclick="showTimebok()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span data-i18n="toolbar_timebok">Timebok</span></button>
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=355"></script>
-    <script src="script.js?v=556"></script>
-    <script src="script-ui.js?v=1232"></script>
+    <script src="lang.js?v=376"></script>
+    <script src="script.js?v=562"></script>
+    <script src="script-ui.js?v=1253"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

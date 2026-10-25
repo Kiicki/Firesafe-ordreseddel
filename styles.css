@@ -6771,12 +6771,6 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     border-radius: 0;
     margin-bottom: 0;
 }
-.settings-group .settings-lang-option {
-    border-radius: 0;
-}
-.settings-lang-options.settings-group {
-    gap: 0;
-}
 .settings-group .settings-template-item {
     border: none;
     border-radius: 0;
@@ -7026,37 +7020,9 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     opacity: 0.8;
 }
 
-/* Language settings */
-.settings-lang-options {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-}
-
-.settings-lang-option {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background: #fff;
-    border-radius: 0;
-    cursor: pointer;
-    font-size: 15px;
-    font-weight: 500;
-    transition: background 0.15s;
-}
-
-.settings-lang-option:active {
-    background: #f5f5f5;
-}
-
-.settings-lang-check {
-    color: #E8501A;
-    font-size: 18px;
-    font-weight: 700;
-    min-width: 20px;
-    text-align: center;
-}
+/* Profil → Språk: Norsk | English (samme segmentvalg som Timebok/Satser) */
+.settings-group.profile-lang { padding: 10px 12px; background: #f8f9fa; }
+.profile-lang .tb-seg { margin-bottom: 0; }
 
 /* ============================================
    SIGNATURE PAD
@@ -9502,25 +9468,26 @@ body.timebok-view-open #view-form { display: none; }
     border: 1px solid #d8d8de; border-radius: 9px; padding: 9px 8px;
     font-size: 15px; text-align: right; background: #fff;
 }
-.tb-sat-input:focus, .tb-sat-select:focus, .tb-sat-unitsel:focus { outline: none; border-color: #E8501A; }
-.tb-sat-unitsel { flex-shrink: 0; border: 1px solid #d8d8de; border-radius: 9px; padding: 9px 4px; font-size: 13px; background: #fff; color: #444; }
-.tb-sat-del { flex-shrink: 0; background: none; border: none; color: #c0392b; font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.tb-sat-input:focus, .tb-sat-select:focus { outline: none; border-color: #E8501A; }
+.tb-sat-del { flex-shrink: 0; background: none; border: none; color: #c0392b; font-size: 18px; line-height: 1; cursor: pointer; padding: 0; }
+/* «+ Legg til avstand»: liten knapp (samme stil som + Ny / Importer / Rediger). */
 .tb-sat-add {
-    display: block; width: 100%; margin-top: 8px;
-    background: #fff; border: 1px dashed #d0d0d6; border-radius: 10px;
-    padding: 10px; font-size: 14px; font-weight: 400; color: #333; cursor: pointer;
+    display: inline-block; margin-top: 6px; padding: 5px 10px;
+    background: #fff; border: 1px solid #d8d8de; border-radius: 8px;
+    font-size: 13px; font-weight: 400; color: #1a1a1a; cursor: pointer; font-family: inherit;
 }
-.tb-sat-add:active { background: #f6f6f8; }
-/* Reise-tabell: Avstand | Firma | Privat | × */
-/* Avstandstabell: avstanden på ÉN linje (fast px-kolonne, nowrap — px og ikke em,
-   så overskrift og rader med ulik skriftstørrelse får samme kolonner), satsene deler
-   resten. Overskriften har samme sidepadding som radene så kolonnene står rett. */
-.tb-sat-brhead, .tb-sat-br { display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr) 22px; gap: 6px; align-items: center; }
-.tb-sat-brhead { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 2px 6px 2px 8px; }
-.tb-sat-brhead span:nth-child(2), .tb-sat-brhead span:nth-child(3) { text-align: center; }
-.tb-sat-br { background: #f5f5f7; border-radius: 10px; padding: 5px 6px 5px 8px; margin-bottom: 4px; }
-.tb-sat-br .tb-sat-name { font-size: 14px; white-space: nowrap; overflow-wrap: normal; }
-.tb-sat-br .tb-sat-input { width: 100%; padding: 7px 8px; }
+.tb-sat-add:active { background: #f5f5f7; }
+/* Avstandstabell (inne i Reisegodtgjørelse-raden): samme liste-stil som koderadene —
+   tynne skillelinjer, ingen kort pr. rad, samme skrift/felt-høyde som sats-feltene.
+   Avstand | Firma | Privat | × ; avstanden på ÉN linje. */
+.tb-sat-brhead, .tb-sat-br { display: grid; grid-template-columns: minmax(0, 1fr) 76px 76px 16px; gap: 4px; align-items: center; }
+.tb-sat-brhead { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 4px 0 2px; }
+/* Kolonneoverskriftene over tallfeltene står til høyre, rett over tallene (9px = feltets
+   padding + ramme) — samme regel som resten av Satser: tall til høyre. */
+.tb-sat-brhead span:nth-child(2), .tb-sat-brhead span:nth-child(3) { text-align: right; padding-right: 9px; }
+.tb-sat-br { padding: 4px 0; border-top: 1px solid #e6e6ea; }
+.tb-sat-br .tb-sat-name { font-size: 14px; font-weight: 400; white-space: nowrap; overflow-wrap: normal; }
+.tb-sat-br .tb-sat-input { width: 100%; height: 34px; padding: 0 8px; font-size: 14px; }
 /* Flagg (Lønn/Ferie/Skatt/Reise/Org) */
 /* Satser → Tilleggskoder: én boks, kompakte rader (som Auto-fyll i Personlig).
    Flaggene står alltid synlige som små knapper under navnet. */
@@ -9552,18 +9519,25 @@ body.timebok-view-open #view-form { display: none; }
 /* Satser: boksene står rett på siden (ingen hvit ramme rundt), med luft mellom. */
 #tb-satser > .tb-satc-box { padding-bottom: 8px; }
 .tb-satc-sub { display: block; margin-top: 1px; font-size: 11px; line-height: 1.3; color: #8a8a90; }
-.tb-satc-desc { flex-shrink: 0; max-width: 50%; font-size: 12px; color: #6b6b73; text-align: right; }
+/* Beregningen står på ÉN linje (tekstene er korte); navnet til venstre tar resten og
+   brytes heller enn beregningen. */
+.tb-satc-desc { flex-shrink: 0; white-space: nowrap; font-size: 12px; color: #6b6b73; text-align: right; }
 .tb-satc-rate { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
-.tb-satc-rate .tb-sat-input { width: 76px; padding: 6px 8px; }
-/* Fast bredde på enheten (%, kr/t, kr/mnd, kr/reg. …) så alle felt står i samme
-   kolonne uansett hvor lang enheten er — både i Trekk og grunnlag og i kodene. */
-.tb-satc-rate .tb-sat-unit { width: 50px; min-width: 0; font-size: 12px; }
-.tb-satc-rate .tb-sat-unitsel { width: 50px; padding: 5px 2px; font-size: 12px; }
+/* Justering på hele Satser-siden (én regel): navn/etiketter til venstre · tall og
+   beregning (sats-felt, «Timesats × 1») til høyre · korte merker i egne bokser
+   (enhet, flagg) midtstilt.
+   Sats-felt + enhet: samme høyde på felt og enhetsboks, og enheten (kr/t, kr/stk, %,
+   kr/mnd …) i en boks med fast bredde — felt og enheter står på linje på alle rader. */
+.tb-satc-rate .tb-sat-input, .tb-satc-rate .tb-sat-unit { height: 34px; box-sizing: border-box; }
+.tb-satc-rate .tb-sat-input { width: 76px; padding: 0 8px; font-size: 14px; }
+.tb-satc-rate .tb-sat-unit {
+    display: flex; align-items: center; justify-content: center; width: 58px; min-width: 0; padding: 0 5px;
+    font-size: 12px; color: #444; white-space: nowrap;
+    border: 1px solid #d8d8de; border-radius: 9px; background: #fff;
+}
 .tb-satc-body .tb-flags { margin-top: 6px; gap: 4px; }
 .tb-satc-body .tb-flag { padding: 4px 0; font-size: 11px; font-weight: 500; border-radius: 999px; background: #fff; }
 .tb-satc-body .tb-flag.on { background: #fff1ea; }
-.tb-satc-body .tb-sat-brhead { margin-top: 4px; }
-.tb-satc-body .tb-sat-br { background: #fff; }
 .tb-flags { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .tb-flag {
     border: 1px solid #e3e3e8; background: #f3f3f6; color: #8a8a90;
@@ -12358,3 +12332,114 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     padding-left: 20px;
     padding-right: 20px;
 }
+
+/* ═══ Tilgang (Admin → Brukere) ═══
+   <html class="acc-off-<del>"> settes av _accApply (og head-snutten fra cache); alle
+   innganger til en del er merket data-acc="<del>" i index.html. Generisk: én regel pr.
+   del dekker verktøylinja, Hjem-knappene, Lagret-fanene, Verktøy-kortene og Meny. */
+html.acc-off-ordreseddel [data-acc="ordreseddel"],
+html.acc-off-servicebil [data-acc="servicebil"],
+html.acc-off-kappe [data-acc="kappe"],
+html.acc-off-kvittering [data-acc="kvittering"],
+html.acc-off-verktoy [data-acc="verktoy"],
+html.acc-off-timebok [data-acc="timebok"],
+html.acc-off-hjem [data-acc="hjem"],
+html.acc-off-lagret [data-acc="lagret"],
+html.acc-off-calc [data-acc="calc"] { display: none !important; }
+html:not(.is-admin) .admin-only { display: none !important; }
+
+/* Admin → Brukere */
+.adm-info { font-size: 13px; color: #6b6b73; line-height: 1.4; margin: 0 2px 12px; }
+.adm-error { color: #c0392b; }
+.settings-menu-item.adm-user { justify-content: flex-start; gap: 12px; padding: 12px 14px; cursor: pointer; }
+.adm-avatar {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: #fff1ea; color: #E8501A;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
+}
+.adm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.adm-name { font-size: 15px; font-weight: 500; color: #1a1a1a; overflow-wrap: anywhere; }
+.adm-sub { display: block; font-size: 12px; color: #6b6b73; overflow-wrap: anywhere; }
+.adm-badge {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; vertical-align: 1px;
+    background: #e8f0fe; color: #2f5fb3; font-size: 11px; font-weight: 600;
+}
+.adm-access { flex-shrink: 0; font-size: 12px; color: #2e9e5b; text-align: right; }
+.adm-access.limited { color: #E8501A; }
+.adm-access.off { color: #c0392b; }
+.adm-pop-sub { display: block; font-size: 12px; color: #6b6b73; line-height: 1.4; }
+.adm-pop-note { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #e8f0fe; color: #2f5fb3; font-size: 13px; }
+.adm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #ececf0; font-size: 14px; color: #1a1a1a; }
+.adm-row:last-child { border-bottom: none; }
+.adm-row .tb-switch input:disabled + span { opacity: 0.5; }
+/* Admin → Brukere: «+ Legg til bruker» (samme stil som + Ny / Importer) */
+.adm-add {
+    display: inline-block; margin: 0 0 10px; padding: 7px 12px;
+    background: #fff; border: 1px solid #d8d8de; border-radius: 8px;
+    font-size: 14px; font-weight: 400; color: #1a1a1a; cursor: pointer; font-family: inherit;
+}
+.adm-add:active { background: #f5f5f7; }
+.adm-delete { width: 100%; margin-top: 12px; }
+#settings-page-admin-users .tb-af-group { padding-left: 2px; }
+.adm-mods-locked .adm-row span { color: #8a8a90; }
+/* Admin → Brukere i lokal test (index.html): eksempeldata-merke */
+.adm-dev {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px;
+    padding: 8px 10px; border-radius: 8px; background: #fff7e6; color: #8a5a00; font-size: 12px; line-height: 1.4;
+}
+.adm-dev-reset { flex-shrink: 0; padding: 4px 9px; border: 1px solid #e8c98a; border-radius: 7px; background: #fff; color: #8a5a00; font-size: 12px; cursor: pointer; font-family: inherit; }
+.adm-access-hint { margin: 2px 0 4px; }
+.adm-invite { display: block; width: 100%; margin: 14px 0 0; text-align: center; }
+/* Admin → Brukere: faner Brukere | Prøvde å logge inn (chips som Timebok-innstillingene) */
+.adm-tabs { padding-left: 0; padding-right: 0; }
+.adm-tab-count { opacity: 0.7; font-size: 12px; }
+/* Admin-brukerpopup: kompakt skjema — korte felt to og to, lavere felt (16px tekst
+   beholdes så iOS ikke zoomer), mindre luft mellom feltene. */
+#adm-user-body input[type="text"], #adm-user-body input[type="email"], #adm-user-body input[type="tel"] { padding: 9px 10px; }
+.adm-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+
+/* ═══ Innstillinger → hovedmeny ═══
+   Grå side med hvite kort (som telefonens egne innstillinger): profilkort øverst,
+   små grå seksjonstitler, rader med farget ikon + tittel + én linje beskrivelse.
+   Kun hovedmenyen — undersidene beholder sin stil. */
+body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body { background: #f2f2f5; }
+#settings-page-menu { padding-bottom: 16px; }
+.set-profile, .set-card {
+    background: #fff; border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.04);
+}
+.set-profile { display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer; }
+.set-profile:active, .set-row:active, .set-logout:active { background: #f7f7f9; }
+.set-avatar {
+    flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%;
+    background: linear-gradient(135deg, #f26a35, #E8501A); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; letter-spacing: 0.02em;
+}
+.set-profile-name { display: block; font-size: 17px; font-weight: 600; color: #1a1a1a; overflow-wrap: anywhere; }
+.set-profile-name .adm-badge { font-size: 10px; }
+.set-section { margin-top: 22px; }
+.set-section-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: #8a8a90; padding: 0 4px 7px;
+}
+.set-card { overflow: hidden; }
+.set-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; cursor: pointer; position: relative; }
+/* Skillelinje mellom rader, innrykket forbi ikonet. */
+.set-row + .set-row::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; border-top: 1px solid #ececf0; }
+.set-ico {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+}
+.set-ico--orange { background: #fff1ea; color: #E8501A; }
+.set-ico--blue   { background: #e8f0fe; color: #2f5fb3; }
+.set-ico--purple { background: #f1eafd; color: #7c3aed; }
+.set-ico--green  { background: #e6f6ec; color: #2e9e5b; }
+.set-ico--teal   { background: #e3f4f6; color: #0f7c8c; }
+.set-ico--amber  { background: #fff4dc; color: #b7791f; }
+.set-ico--slate  { background: #eef0f4; color: #4a5568; }
+.set-ico--red    { background: #fdecea; color: #c0392b; }
+.set-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.set-title { font-size: 15px; font-weight: 500; color: #1a1a1a; }
+.set-desc { font-size: 12.5px; color: #8a8a90; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-chev { flex-shrink: 0; font-size: 22px; line-height: 1; color: #c4c4ca; font-weight: 300; }
+.set-logout { display: flex; align-items: center; gap: 12px; margin-top: 22px; padding: 11px 14px; cursor: pointer; }
+.set-logout .set-title { color: #c0392b; }
