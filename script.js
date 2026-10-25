@@ -81,14 +81,16 @@ const TIMEBOK_CODES = [
     { id: 'matpenger',     group: 'tillegg', label: 'Matpenger §2-5 Fellesforbundet', input: 'count', own: true, flags: ['lonn', 'ferie', 'skatt'] },
     { id: 'restakkord',    group: 'tillegg', label: 'Restakkord beløp',               input: 'kr',    amount: true, flags: ['lonn', 'ferie', 'skatt'] },
     { id: 'friavtale',     group: 'fravaer', label: 'Fri ihht arb.avtale',            input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'ferie',         group: 'fravaer', label: 'Ferie',                          input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
+    // Ferie: ingen timelønn — betales med feriepenger (opptjent på forhånd). Timene står
+    // på timelista (Damsgård-arket), men gir verken lønn eller teller som arbeidstimer.
+    { id: 'ferie',         group: 'fravaer', label: 'Ferie',                          input: 'hours', zero: true, flags: [] },
     { id: 'perm',          group: 'fravaer', label: 'Permisjon lønnet',               input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
     { id: 'permuten',      group: 'fravaer', label: 'Permisjon uten lønn',            input: 'hours', zero: true, flags: [] },
     { id: 'fridag',        group: 'fravaer', label: 'Offentlig fridag',               input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
     { id: 'permittering',  group: 'fravaer', label: 'Lønn v/permittering',            input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
     { id: 'barnsyk',       group: 'syk',     label: 'Sykt barn',                      input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
     { id: 'egenm',         group: 'syk',     label: 'Egenmelding',                    input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
-    { id: 'syk',           group: 'syk',     label: 'Sykelønn',                       input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] }
+    { id: 'syk',           group: 'syk',     label: 'Sykemelding',                       input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] }
 ];
 // Koder som er fjernet fra lista, men kan finnes på eldre dager: beholdes KUN for navn
 // og beregning der (vises aldri i velgere, auto-fyll eller Satser).
@@ -168,13 +170,31 @@ function formatLocaleNum(n, decimals) {
 // stil og auto-fyll (kodene som legges til når et prosjekt velges på en ny registrering).
 // '__travel' = Reisegodtgjørelse-seksjonen, 'ord' = Ordinære timer; ellers kode-id-er.
 const TIMEBOK_AUTOFILL_DEFAULT = ['__travel', 'ord'];
+// Lønnsperiode pr. arbeidsgiver: startdag i måneden (Firesafe 11.–10., Damsgård 26.–25.).
+const TIMEBOK_PAY_START_DEFAULT = { firesafe: 11, damsgard: 26 };
 function getTimebokSettings() {
     var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
+    var style = d.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe';
+    var ps = parseInt(d.payStart, 10);
     return {
         transport: d.transport === 'privat' ? 'privat' : 'firma',
-        travelStyle: d.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe',
+        // travelStyle = arbeidsgiver (styrer reise-regel, standard lønnsperiode og senere eksport-stil).
+        travelStyle: style,
+        // Egen startdag (1–28) overstyrer arbeidsgiverens standard; ellers følger den arbeidsgiver.
+        payStart: (ps >= 1 && ps <= 28) ? ps : TIMEBOK_PAY_START_DEFAULT[style],
+        payStartCustom: (ps >= 1 && ps <= 28),
         autofill: Array.isArray(d.autofill) ? d.autofill.slice() : TIMEBOK_AUTOFILL_DEFAULT.slice()
     };
+}
+// Lønnsperioden en dato hører til: { start, end } som dag-id-er. Start 11 → 11.–10.
+function _timebokPayPeriodFor(dateId) {
+    var start = getTimebokSettings().payStart;
+    var d = _timebokParseId(dateId) || new Date();
+    var y = d.getFullYear(), m = d.getMonth();
+    if (d.getDate() < start) m -= 1;
+    var from = new Date(y, m, start);
+    var to = new Date(y, m + 1, start - 1);
+    return { start: _timebokDateId(from), end: _timebokDateId(to) };
 }
 function getTimebokTimesats() {
     var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null);
@@ -205,7 +225,7 @@ function getTimebokProjects() {
 // Tariff = én versjon av satsene, gyldig fra en dato. En registrering beregnes
 // ALLTID med tariffen som var aktiv på dagen (siste validFrom ≤ dato), så nye
 // satser påvirker kun dager fra «gyldig fra» og fremover.
-function _timebokNewTariff(name, validFrom) {
+function _timebokNewTariff(name, validFrom, employer) {
     var rules = {};
     TIMEBOK_CODES.forEach(function (c) { rules[c.id] = c.flags.slice(); });
     return {
@@ -216,19 +236,54 @@ function _timebokNewTariff(name, validFrom) {
         bracketFlags: ['lonn', 'ferie', 'skatt', 'reise'],
         // rates: egne satser (koder med `own`); units: kr/time|kr/reg. (koder med `unitSel`);
         // rules: flagg pr. kode.
-        rates: {}, units: {}, rules: rules
+        rates: {}, units: {}, rules: rules,
+        employer: employer === 'damsgard' ? 'damsgard' : 'firesafe'
     };
 }
-// Alle tariffer, nyeste «gyldig fra» først. Finnes ingen: opprett «Initiell tariff»
-// (struktur, tomme satser) — med evt. reise-satser brukeren allerede hadde lagt inn
-// under det gamle «Reise-tillegg», så ingen innlagte data forsvinner.
-function getTimebokTariffs() {
+// ── Arbeidsgiver: Firesafe og Damsgård har HVER SINE tariffer og kodelister ──
+// Arbeidsgiver i Personlig (travelStyle) avgjør hvilke satser/koder Timebok bruker.
+// Hver tariff har `employer`; eldre tariffer uten felt tilhører Firesafe.
+function _timebokEmployer() { return getTimebokSettings().travelStyle; }
+// Samme kodeliste for begge arbeidsgivere, men hver arbeidsgiver kan DEAKTIVERE koder
+// (Satser → bryter pr. kode). Lagres i settings/timebok_settings → disabledCodes[emp].
+// Standard: Firesafe alle aktive; Damsgård bare det de bruker (brukerens liste 25-10-2026).
+var _TB_DG_ACTIVE = ['ord', 'kurs', 'ot50', 'ot100', 'ferie', 'fridag', 'egenm', 'syk'];
+function _timebokDisabledCodes(emp) {
+    emp = emp || _timebokEmployer();
+    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null);
+    if (d && d.disabledCodes && Array.isArray(d.disabledCodes[emp])) return d.disabledCodes[emp].slice();
+    if (emp === 'damsgard') return TIMEBOK_CODES.filter(function (c) { return _TB_DG_ACTIVE.indexOf(c.id) === -1; }).map(function (c) { return c.id; });
+    return [];
+}
+// Aktive koder for en arbeidsgiver (det som vises i «+ Legg til kode» og Auto-fyll).
+function _timebokCodesFor(emp) {
+    var off = _timebokDisabledCodes(emp);
+    return TIMEBOK_CODES.filter(function (c) { return off.indexOf(c.id) === -1; });
+}
+// Damsgårds reisetillegg fra deres timeliste (person/privat, firma) — forhåndsutfylt
+// i Damsgårds første tariff; kan endres i Satser.
+const TIMEBOK_DAMSGARD_BRACKET_RATES = { br_0715: [114.6, 70.7], br_1530: [189.9, 118.4], br_3045: [223.2, 141.5], br_4560: [255.7, 165.2], br_6075: [290.4, 189.7] };
+// Alle tariffer (alle arbeidsgivere), nyeste «gyldig fra» først.
+function getTimebokTariffsAll() {
     var d = safeParseJSON(TIMEBOK_TARIFFS_KEY, null);
-    if (d && Array.isArray(d.list) && d.list.length) {
-        return d.list.slice().sort(function (a, b) { return String(b.validFrom).localeCompare(String(a.validFrom)); });
+    var list = (d && Array.isArray(d.list)) ? d.list.slice() : [];
+    list.forEach(function (t) { if (t.employer !== 'damsgard') t.employer = 'firesafe'; });
+    return list.sort(function (a, b) { return String(b.validFrom).localeCompare(String(a.validFrom)); });
+}
+// Tariffene til én arbeidsgiver (standard: din i Personlig). Finnes ingen: «Initiell
+// tariff» (struktur; Firesafe tar med evt. gamle reise-satser, Damsgård får satsene fra
+// timelista deres) med fast id, så den leses likt flere ganger før første lagring.
+function getTimebokTariffs(emp) {
+    emp = emp || _timebokEmployer();
+    var list = getTimebokTariffsAll().filter(function (t) { return t.employer === emp; });
+    if (list.length) return list;
+    var t = _timebokNewTariff('Initiell tariff', '2020-01-01', emp);
+    if (emp === 'damsgard') {
+        t.id = 'tf_initial_damsgard';
+        t.brackets.forEach(function (b) { var r = TIMEBOK_DAMSGARD_BRACKET_RATES[b.id]; if (r) { b.ratePrivat = r[0]; b.rate = r[1]; } });
+        return [t];
     }
-    var t = _timebokNewTariff('Initiell tariff', '2020-01-01');
-    t.id = 'tf_initial';   // fast id: standard-tariffen leses flere ganger før første lagring
+    t.id = 'tf_initial';
     var old = safeParseJSON(TIMEBOK_BRACKETS_KEY, null);
     if (old && Array.isArray(old.list) && old.list.length) {
         t.brackets = old.list.map(function (b) { return { id: b.id, label: b.label, rate: b.rate != null ? b.rate : null, ratePrivat: b.ratePrivat != null ? b.ratePrivat : null }; });
@@ -236,13 +291,13 @@ function getTimebokTariffs() {
     return [t];
 }
 function _timebokTariffById(id) {
-    var list = getTimebokTariffs();
+    var list = getTimebokTariffsAll().concat(getTimebokTariffs('firesafe'), getTimebokTariffs('damsgard'));
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
 }
-// Tariffen som gjelder en dato (dag-id «YYYY-MM-DD»). Før første tariff: den eldste.
-function _timebokTariffFor(dateId) {
-    var list = getTimebokTariffs();   // nyeste først
+// Tariffen som gjelder en dato for en arbeidsgiver (standard: din). Før første: den eldste.
+function _timebokTariffFor(dateId, emp) {
+    var list = getTimebokTariffs(emp);   // nyeste først
     var id = dateId || _timebokTodayId();
     for (var i = 0; i < list.length; i++) if (String(list[i].validFrom) <= id) return list[i];
     return list[list.length - 1] || null;
@@ -262,7 +317,7 @@ function _timebokCodeDef(id) {
     return null;
 }
 function _timebokIsActiveCode(id) {
-    return id === '__travel' || TIMEBOK_CODES.some(function (c) { return c.id === id; });
+    return id === '__travel' || _timebokCodesFor().some(function (c) { return c.id === id; });
 }
 // Feltene koden har på kortet med en gitt tariff (unitSel: kr/reg. → Antall).
 function _timebokCodeInput(def, tariff) {
@@ -276,7 +331,7 @@ function _timebokTypeInfo(def, tariff) {
 // Kodene som kan velges (dagens tariff avgjør bare kr/time vs kr/reg.).
 function _timebokCodeTypes(dateId) {
     var t = _timebokTariffFor(dateId);
-    return TIMEBOK_CODES.map(function (c) { return _timebokTypeInfo(c, t); });
+    return _timebokCodesFor().map(function (c) { return _timebokTypeInfo(c, t); });
 }
 function _timebokCanonTypeId(id) { return TIMEBOK_TYPE_ALIASES[id] || id; }
 // Oppslag på kode-id (også eldre tt_*-id-er og fjernede koder). Eldre tariffers egne
@@ -286,7 +341,7 @@ function _timebokTypeById(id, dateId) {
     id = _timebokCanonTypeId(id);
     var def = _timebokCodeDef(id);
     if (def) return _timebokTypeInfo(def, _timebokTariffFor(dateId));
-    var tfs = getTimebokTariffs();
+    var tfs = getTimebokTariffsAll();
     for (var j = 0; j < tfs.length; j++) {
         var sp = (tfs[j].supplements || []).filter(function (x) { return x.id === id; })[0];
         if (sp) return { id: sp.id, label: sp.label, group: 'tillegg', input: sp.unit === 'reg' ? 'count' : 'hours' };
@@ -392,18 +447,21 @@ function _timebokDayItems(dayDoc) {
     _timebokDayLines(dayDoc).forEach(function (l) {
         items.push(_timebokCodeItem({ typeId: l.timeType, hours: l.hours }, tariff, timesats));
     });
-    var seen = {}, travels = [];
-    var addTravel = function (key, bracketId, transport) {
+    // Damsgård: «Tilleggsarbeid etter arbeidstid» (utkalling) gir egen reise — egen liste
+    // som beregnes for seg. Firesafe har ikke dette (alt i én liste).
+    var seen = {}, travels = [], extraTravels = [];
+    var dg = getTimebokSettings().travelStyle === 'damsgard';
+    var addTravel = function (key, bracketId, transport, extra) {
         if (!key || seen[key]) return;   // én gang pr. prosjekt pr. dag
         seen[key] = true;
         var r = _timebokBracketRate(bracketId, transport, tariff);
-        if (r != null) travels.push(r);
+        if (r != null) (extra && dg ? extraTravels : travels).push(r);
     };
     if (dayDoc && Array.isArray(dayDoc.projects)) {
         dayDoc.projects.forEach(function (p, pi) {
             // «Uten prosjekt»-kort har ingen navn → egen nøkkel pr. kort (ellers telles ikke reisen).
             var key = (p.projectId || p.name || (p.noProject ? '__noproj' + pi : ''));
-            if ('travel' in p) { if (p.travel) addTravel(key, p.travel.bracketId, p.travel.transport); }
+            if ('travel' in p) { if (p.travel) addTravel(key, p.travel.bracketId, p.travel.transport, !!p.afterHours); }
             else {
                 // Eldre dager uten `travel`-felt: prosjektets avstand med firma-sats.
                 var proj = _timebokProject({ projectId: p.projectId, project: p.name });
@@ -416,7 +474,7 @@ function _timebokDayItems(dayDoc) {
             if (proj) addTravel(l.projectId || l.project, proj.bracketId, 'firma');
         });
     }
-    _timebokTravelByStyle(travels).forEach(function (a) {
+    _timebokTravelByStyle(travels).concat(_timebokTravelByStyle(extraTravels)).forEach(function (a) {
         items.push({ amount: a, flags: (tariff && tariff.bracketFlags) || [] });
     });
     return items;
@@ -425,9 +483,12 @@ function _timebokDayItems(dayDoc) {
 //   Firesafe: første + siste reise × 0,5 (de i midten teller ikke).
 //   Damsgård Brannsikring: kun den høyeste reisen × 1.
 // Ett prosjekt → full sats uansett stil.
+// Reise for flere prosjekter samme dag (travels i prosjekt-rekkefølge).
+// Firesafe: første + siste × 0,5. Damsgård: den høyeste av FØRSTE og SISTE (som
+// Damsgårds timeliste-ark: MAX(første rad, siste rad) for dagen).
 function _timebokTravelByStyle(travels) {
     if (travels.length <= 1) return travels.slice();
-    if (getTimebokSettings().travelStyle === 'damsgard') return [Math.max.apply(null, travels)];
+    if (getTimebokSettings().travelStyle === 'damsgard') return [Math.max(travels[0], travels[travels.length - 1])];
     return [travels[0] * 0.5, travels[travels.length - 1] * 0.5];
 }
 function _timebokSumItems(items, pred) {

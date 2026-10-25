@@ -8948,8 +8948,56 @@ body.timebok-view-open #view-form { display: none; }
 .tb-head-toggle { margin-right: 6px; }
 .tb-head-spacer { margin-left: 6px; }
 /* Kopier-knappen (høyre i baren): kun i dagvisning; i ukevisning usynlig men plassholdende. */
-.tb-head-copy:active { background: rgba(0,0,0,0.06); }
-#timebok-view:not(.tb-mode-day) .tb-head-copy { visibility: hidden; pointer-events: none; }
+.tb-head-menu:active { background: rgba(0,0,0,0.06); }
+/* Timebok-meny: liten nedtrekksliste under ☰ (høyrejustert). */
+.tb-menu-wrap { position: relative; flex-shrink: 0; }
+.tb-menu {
+    position: absolute; top: calc(100% + 4px); right: 0; z-index: 50; min-width: 230px;
+    background: #fff; border: 1px solid #e3e3e8; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14); padding: 4px; display: flex; flex-direction: column;
+}
+.tb-menu[hidden] { display: none; }
+.tb-menu-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px;
+    background: none; border: none; border-radius: 8px; text-align: left;
+    font-size: 14px; font-weight: 400; color: #1a1a1a; cursor: pointer; font-family: inherit;
+}
+.tb-menu-item svg { flex-shrink: 0; color: #6b6b73; }
+.tb-menu-item:active { background: #f5f5f7; }
+.tb-menu-item:disabled { color: #a0a0a8; cursor: default; }
+.tb-menu-item:disabled svg { color: #c0c0c6; }
+.tb-menu-item small { margin-left: auto; font-size: 11px; color: #a0a0a8; }
+/* Eksport-siden */
+/* Segmentvalg (én rad, like brede felt) */
+.tb-seg { display: flex; background: #f0f0f3; border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 10px; }
+.tb-seg-btn {
+    flex: 1; min-width: 0; padding: 8px 4px; border: none; border-radius: 8px; background: none;
+    font-size: 14px; font-weight: 500; color: #444; cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.tb-sat-emp { margin-bottom: 4px; }
+.tb-seg-btn.active { background: #fff; color: #E8501A; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+/* Fra / Til — alltid synlig; datoen vises norsk, den usynlige date-inputen åpner kalenderen. */
+.tb-exp-range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.tb-exp-range .tb-field-label { text-align: left; }
+.tb-exp-date { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 10px; color: #1a1a1a; }
+.tb-exp-date svg { flex-shrink: 0; color: #8a8a90; }
+.tb-exp-date input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none; cursor: pointer; }
+.tb-exp-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+/* Nøytrale knapper (hvit + grå ramme) — ikke oransje, så de ikke dominerer siden. */
+.tb-exp-btn {
+    flex: 1; padding: 10px; border: 1px solid #d8d8de; border-radius: 10px; background: #fff; color: #1a1a1a;
+    font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+}
+.tb-exp-btn:active { background: #f5f5f7; }
+.tb-exp-btn:disabled { color: #a0a0a8; cursor: default; }
+.tb-exp-days-title { margin: 14px 2px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; }
+.tb-exp-grid { margin-top: 4px; }
+.tb-exp-codes { margin-top: 10px; padding: 8px 10px; background: #f5f5f7; border-radius: 10px; }
+.tb-exp-codes .tb-wk-code { font-size: 13px; color: #444; margin: 3px 0; }
+.tb-exp-empty { margin-top: 10px; font-size: 13px; color: #a0a0a8; text-align: center; }
+/* Prosjektkort (Damsgård): utkalling etter arbeidstid */
+.tb-pb-after { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: #444; cursor: pointer; }
+.tb-pb-after input { width: 18px; height: 18px; margin: 0; accent-color: #E8501A; }
 /* Kopier dagen: ukevelger */
 .tb-copy-weeknav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .tb-copy-weeknav > span { font-size: 14px; font-weight: 600; color: #1a1a1a; }
@@ -9032,9 +9080,12 @@ body.timebok-view-open #view-form { display: none; }
 }
 .timebok-header-bar.tb-current-period .tb-head-label,
 .timebok-header-bar.tb-current-period .tb-head-nav { color: #E8501A; }
-.tb-head-toggle .tb-icon-week, .tb-head-toggle .tb-icon-day { display: none; }
+.tb-head-toggle .tb-icon-week, .tb-head-toggle .tb-icon-day, .tb-head-toggle .tb-icon-back { display: none; }
 .tb-mode-week .tb-head-toggle .tb-icon-day { display: block; }
 .tb-mode-day .tb-head-toggle .tb-icon-week { display: block; }
+/* Eksport-siden: venstre knapp = tilbake; ‹ › er borte ved egendefinert periode. */
+.tb-mode-export .tb-head-toggle .tb-icon-back { display: block; }
+.tb-exp-custom-mode .tb-head-nav { visibility: hidden; }
 /* Ukesammendrag-kort (bunn) */
 .timebok-summary-card {
     /* Bunn-margin er normal: #timebok-view er fixed med bottom: var(--toolbar-h),
@@ -9098,7 +9149,8 @@ body.timebok-view-open #view-form { display: none; }
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 .timebok-day-card.weekend { background: #f4f5f8; border-color: #e2e4ea; }
-.timebok-day-card.today { border-color: #E8501A; box-shadow: 0 0 0 1px #E8501A; }
+.timebok-day-card.selected { border-color: #E8501A; box-shadow: 0 0 0 1px #E8501A; }
+.timebok-day-todaytxt { font-size: 12px; font-weight: 600; color: #E8501A; }
 .timebok-day-header {
     display: flex;
     align-items: center;
@@ -9431,33 +9483,19 @@ body.timebok-view-open #view-form { display: none; }
 /* ── Satser (tariffer) ── nøytrale kort; oransje kun for aktive flagg/fokus. */
 #tb-satser { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
 .tb-sat-card { background: #fff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 14px; }
-.tb-sat-tariff { background: #f7f7f9; }
-.tb-sat-section { padding: 6px 2px 0; }
-.tb-sat-section + .tb-sat-card { margin-top: -4px; }
-#tb-satser > .tb-sat-section:not(:first-child) { margin-top: 14px; padding-top: 16px; border-top: 2px solid #e3e3e8; }
-.tb-sat-section-title { font-size: 18px; font-weight: 700; color: #1a1a1a; }
-.tb-sat-section-desc { font-size: 13px; color: #6b6b73; line-height: 1.4; margin-top: 2px; }
-.tb-sat-h { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; margin-bottom: 8px; }
-.tb-sat-desc { font-size: 13px; color: #6b6b73; line-height: 1.4; margin-bottom: 8px; }
-.tb-sat-info { font-size: 12px; color: #6b6b73; line-height: 1.4; margin-top: 10px; }
+.tb-sat-section { padding: 4px 2px 0; }
+.tb-sat-section + .tb-satc-box, .tb-sat-section + .tb-sat-card { margin-top: -4px; }
+/* Skille mellom Tariff-delen og Tilleggskoder-delen. */
+#tb-satser > .tb-satc-box + .tb-sat-section { margin-top: 8px; padding-top: 12px; border-top: 2px solid #e3e3e8; }
+.tb-sat-section-title { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+.tb-sat-section-desc { font-size: 12px; color: #6b6b73; line-height: 1.4; margin-top: 1px; }
 .tb-sat-select {
     width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 15px; font-weight: 400;
     border: 1px solid #d8d8de; border-radius: 10px; background: #fff; color: #1a1a1a;
 }
 .tb-sat-status { display: block; margin-top: 8px; font-size: 13px; color: #6b6b73; }
 .tb-sat-status.active { color: #2e9e5b; font-weight: 600; }
-.tb-sat-btnrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-.tb-sat-btn {
-    background: #fff; border: 1px solid #d8d8de; border-radius: 10px;
-    padding: 10px 6px; font-size: 14px; font-weight: 400; color: #1a1a1a; cursor: pointer;
-}
-.tb-sat-btn:active { background: #f5f5f7; }
-.tb-sat-item { padding: 10px 0; border-top: 1px solid #ededf0; }
-.tb-sat-h + .tb-sat-item, .tb-sat-desc + .tb-sat-item { border-top: none; padding-top: 2px; }
-.tb-sat-row { display: flex; align-items: center; gap: 8px; }
 .tb-sat-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: #1a1a1a; overflow-wrap: anywhere; }
-.tb-sat-rename { background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-family: inherit; }
-.tb-sat-sub { font-size: 13px; color: #6b6b73; margin-top: 3px; }
 .tb-sat-unit { font-size: 13px; color: #6b6b73; min-width: 44px; }
 .tb-sat-input {
     width: 84px; flex-shrink: 0; box-sizing: border-box;
@@ -9483,8 +9521,49 @@ body.timebok-view-open #view-form { display: none; }
 .tb-sat-br { background: #f5f5f7; border-radius: 10px; padding: 5px 6px 5px 8px; margin-bottom: 4px; }
 .tb-sat-br .tb-sat-name { font-size: 14px; white-space: nowrap; overflow-wrap: normal; }
 .tb-sat-br .tb-sat-input { width: 100%; padding: 7px 8px; }
-.tb-sat-shared { margin-top: 6px; }
 /* Flagg (Lønn/Ferie/Skatt/Reise/Org) */
+/* Satser → Tilleggskoder: én boks, kompakte rader (som Auto-fyll i Personlig).
+   Flaggene står alltid synlige som små knapper under navnet. */
+.tb-satc-box { background: #f5f5f7; border-radius: 12px; padding: 0 10px 6px; }
+.tb-satc { border-bottom: 1px solid #e6e6ea; padding: 8px 0 9px; }
+.tb-satc:last-child { border-bottom: none; }
+.tb-satc-head { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.tb-satc-text { flex: 1; min-width: 0; }
+/* Av/på-bryter pr. kode (Satser). Deaktivert kode: dempet, men fortsatt redigerbar. */
+.tb-switch { position: relative; flex-shrink: 0; width: 34px; height: 20px; cursor: pointer; }
+.tb-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.tb-switch span { position: absolute; inset: 0; border-radius: 999px; background: #d0d0d6; transition: background 0.15s; pointer-events: none; }
+.tb-switch span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); transition: transform 0.15s; }
+.tb-switch input:checked + span { background: #E8501A; }
+.tb-switch input:checked + span::after { transform: translateX(14px); }
+.tb-satc.off .tb-satc-name { color: #a0a0a8; }
+.tb-satc.off .tb-satc-rate, .tb-satc.off .tb-satc-desc, .tb-satc.off .tb-satc-body { opacity: 0.45; }
+.tb-satc-name { font-size: 14px; color: #1a1a1a; overflow-wrap: anywhere; }
+.tb-sat-tariffrow { padding-top: 6px; }
+.tb-satc-select { padding: 8px 10px; font-size: 14px; }
+.tb-sat-tariffbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0 4px; }
+.tb-sat-tariffbar .tb-sat-status { margin: 0; font-size: 12px; }
+.tb-sat-minibtns { display: flex; gap: 6px; flex-shrink: 0; }
+.tb-sat-minibtn {
+    padding: 5px 10px; border: 1px solid #d8d8de; border-radius: 8px; background: #fff;
+    font-size: 13px; font-weight: 400; color: #1a1a1a; cursor: pointer; font-family: inherit;
+}
+.tb-sat-minibtn:active { background: #f5f5f7; }
+/* Satser: boksene står rett på siden (ingen hvit ramme rundt), med luft mellom. */
+#tb-satser > .tb-satc-box { padding-bottom: 8px; }
+.tb-satc-sub { display: block; margin-top: 1px; font-size: 11px; line-height: 1.3; color: #8a8a90; }
+.tb-satc-desc { flex-shrink: 0; max-width: 50%; font-size: 12px; color: #6b6b73; text-align: right; }
+.tb-satc-rate { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+.tb-satc-rate .tb-sat-input { width: 76px; padding: 6px 8px; }
+/* Fast bredde på enheten (%, kr/t, kr/mnd, kr/reg. …) så alle felt står i samme
+   kolonne uansett hvor lang enheten er — både i Trekk og grunnlag og i kodene. */
+.tb-satc-rate .tb-sat-unit { width: 50px; min-width: 0; font-size: 12px; }
+.tb-satc-rate .tb-sat-unitsel { width: 50px; padding: 5px 2px; font-size: 12px; }
+.tb-satc-body .tb-flags { margin-top: 6px; gap: 4px; }
+.tb-satc-body .tb-flag { padding: 4px 0; font-size: 11px; font-weight: 500; border-radius: 999px; background: #fff; }
+.tb-satc-body .tb-flag.on { background: #fff1ea; }
+.tb-satc-body .tb-sat-brhead { margin-top: 4px; }
+.tb-satc-body .tb-sat-br { background: #fff; }
 .tb-flags { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .tb-flag {
     border: 1px solid #e3e3e8; background: #f3f3f6; color: #8a8a90;

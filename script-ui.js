@@ -2355,6 +2355,7 @@ function showSettingsPage(page, replace) {
             renderMaterialSettingsItems();
         });
     } else if (page === 'timebok') {
+        _tbSatserEmp = null; _tbSatserSelId = null;   // Satser starter på arbeidsgiveren i Personlig
         _renderTimebokSettingsAll();
         switchTimebokSettingsTab(sessionStorage.getItem('firesafe_timebok_settings_tab') || 'satser');
         // Cache-først, deretter frisk kopi fra Firestore (andre enheter kan ha endret).
@@ -2396,7 +2397,13 @@ function _syncTimebokSetting(localKey, fbDoc, data) {
     safeSetItem(localKey, JSON.stringify(data));
     if (typeof enqueueUserDocSet === 'function') enqueueUserDocSet('settings', fbDoc, data, 'Sync ' + fbDoc);
 }
-function _timebokSaveTariffs(list) { _syncTimebokSetting(TIMEBOK_TARIFFS_KEY, 'timebok_tariffs', { list: list }); }
+// Lagre tariffene til ÉN arbeidsgiver — den andre arbeidsgiverens tariffer beholdes.
+function _timebokSaveTariffs(list, emp) {
+    emp = emp || _timebokEmployer();
+    list.forEach(function (t) { t.employer = emp; });
+    var others = getTimebokTariffsAll().filter(function (t) { return t.employer !== emp; });
+    _syncTimebokSetting(TIMEBOK_TARIFFS_KEY, 'timebok_tariffs', { list: others.concat(list) });
+}
 // ── Kolleger ────────────────────────────────────────────────────────────────
 // Navnene du kan føre timer på ved siden av deg selv, i Arbeidstid-popupen.
 // Egen liste framfor fritekst i popupen: samme kollega skrevet «Ola», «ola» og
@@ -2531,6 +2538,19 @@ function renderTimebokSettings() {
             '</select>') +
         // Én linje per stil — lettere å lese enn én sammenhengende setning.
         '<div class="tb-set-hint"><div>' + escapeHtml(t('tb_set_style_hint_fs')) + '</div><div>' + escapeHtml(t('tb_set_style_hint_dg')) + '</div></div>' +
+        // Lønnsperiode: startdag i måneden. Brukes av eksport/periode-totaler.
+        field(t('tb_set_payperiod'),
+            '<select class="tb-sat-select" onchange="_tbSetPayStart(this.value)">' +
+                (function () {
+                    var o = '';
+                    for (var d = 1; d <= 28; d++) {
+                        var lbl = d === 1 ? t('tb_set_pay_full_month') : (d + '. – ' + (d - 1) + '.');
+                        if (d === TIMEBOK_PAY_START_DEFAULT[st.travelStyle]) lbl += ' (' + t('tb_set_pay_default') + ')';
+                        o += '<option value="' + d + '"' + (d === st.payStart ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+                    }
+                    return o;
+                })() +
+            '</select>') +
         field(t('tb_set_transport'),
             '<select class="tb-sat-select" onchange="_timebokSaveSettings({ transport: this.value })">' +
                 opt('firma', t('timebok_firma'), st.transport) + opt('privat', t('timebok_privat'), st.transport) +
@@ -2559,6 +2579,13 @@ function renderTimebokSettings() {
 function _tbSetTravelStyle(v) {
     _timebokSaveSettings({ travelStyle: v === 'damsgard' ? 'damsgard' : 'firesafe' });
     if (typeof _timebokUpdateDayTotals === 'function' && document.getElementById('timebok-day-projects')) _timebokUpdateDayTotals();
+    renderTimebokSettings();   // lønnsperiodens «(standard)» følger arbeidsgiver
+}
+// Lik arbeidsgiverens standard → lagres som «følg arbeidsgiver» (null), så den bytter med.
+function _tbSetPayStart(v) {
+    var n = parseInt(v, 10);
+    var def = TIMEBOK_PAY_START_DEFAULT[getTimebokSettings().travelStyle];
+    _timebokSaveSettings({ payStart: (n >= 1 && n <= 28 && n !== def) ? n : null });
 }
 function _tbToggleAutofill(id, checked) {
     var list = getTimebokSettings().autofill.filter(function (x) { return x !== id; });
@@ -2580,19 +2607,30 @@ function _tbFmtDate(id) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(id || ''));
     return m ? (m[3] + '-' + m[2] + '-' + m[1]) : String(id || '');
 }
+// Satser viser én arbeidsgiver om gangen (valg øverst; starter på din i Personlig).
+var _tbSatserEmp = null;
+function _tbSatEmp() { return _tbSatserEmp || _timebokEmployer(); }
+function _tbSatSetEmp(emp) {
+    _tbSatserEmp = emp === 'damsgard' ? 'damsgard' : 'firesafe';
+    _tbSatserSelId = null;
+    renderTimebokSatser();
+}
 function _tbSatserTariff() {
+    var emp = _tbSatEmp();
     var t = _tbSatserSelId ? _timebokTariffById(_tbSatserSelId) : null;
-    if (!t) { t = _timebokTariffFor(_timebokTodayId()); _tbSatserSelId = t ? t.id : null; }
+    if (t && t.employer !== emp) t = null;
+    if (!t) { t = _timebokTariffFor(_timebokTodayId(), emp); _tbSatserSelId = t ? t.id : null; }
     return t;
 }
 // Endre valgt tariff: hent HELE lista (også den ulagrede standard-tariffen), endre, lagre.
 function _tbSatUpdate(fn) {
-    var list = getTimebokTariffs();
+    var emp = _tbSatEmp();
+    var list = getTimebokTariffs(emp);
     var t = null;
     for (var i = 0; i < list.length; i++) if (list[i].id === _tbSatserSelId) { t = list[i]; break; }
     if (!t) return;
     fn(t);
-    _timebokSaveTariffs(list);
+    _timebokSaveTariffs(list, emp);
     if (typeof _timebokUpdateDayTotals === 'function') _timebokUpdateDayTotals();
 }
 function _tbNum(v) { var n = parseLocaleNum(v); return isNaN(n) ? null : n; }
@@ -2642,21 +2680,53 @@ function _tbCodeDesc(def) {
 var _TB_RATE_UNIT = { clock: 'kr/t', hours: 'kr/t', count: 'kr/stk', km: 'kr/km' };
 // Én kode i Satser: navn + egen sats (kr/t, kr/stk, kr/km — kr/time|kr/reg. når
 // koden har valgbar enhet) ELLER hvordan den beregnes, og flaggene.
+// Én kode i Satser = kompakt rad (samme liste-stil som Auto-fyll i Personlig):
+// navn · sats-felt (egne satser) eller beregning til høyre, og små flagg-knapper
+// (Lønn/Ferie/Skatt/Reise/Org) rett under — alltid synlige, ingen sammenfolding.
+function _tbSatRow(name, flagsPath, flags, right, extraBody, sub, toggle) {
+    var body = (extraBody || '') + (flagsPath ? _tbFlagsHtml(flagsPath, flags) : '');
+    var off = toggle && !toggle.on;
+    return '<div class="tb-satc' + (off ? ' off' : '') + '">' +
+        '<div class="tb-satc-head">' +
+            (toggle ? '<label class="tb-switch" title="' + escapeHtml(t('tb_sat_code_active')) + '"><input type="checkbox"' + (toggle.on ? ' checked' : '') +
+                ' onchange="_tbSatToggleCode(\'' + toggle.id + '\', this.checked)"><span></span></label>' : '') +
+            '<div class="tb-satc-text"><span class="tb-satc-name">' + escapeHtml(name) + '</span>' +
+                (sub ? '<span class="tb-satc-sub">' + escapeHtml(sub) + '</span>' : '') + '</div>' +
+            right +
+        '</div>' +
+        (body ? '<div class="tb-satc-body">' + body + '</div>' : '') +
+    '</div>';
+}
 function _tbCodeSatHtml(tf, def) {
-    var row;
+    var right;
     if (def.own) {
         var unit = def.unitSel
             ? '<select class="tb-sat-unitsel" onchange="_tbSatSetUnit(\'' + def.id + '\', this.value)">' +
-                '<option value="hour"' + (_timebokCodeInput(def, tf) === 'hours' ? ' selected' : '') + '>kr/time</option>' +
+                '<option value="hour"' + (_timebokCodeInput(def, tf) === 'hours' ? ' selected' : '') + '>kr/t</option>' +
                 '<option value="reg"' + (_timebokCodeInput(def, tf) === 'count' ? ' selected' : '') + '>kr/reg.</option>' +
               '</select>'
             : '<span class="tb-sat-unit">' + _TB_RATE_UNIT[def.input] + '</span>';
-        row = '<div class="tb-sat-row"><span class="tb-sat-name">' + escapeHtml(def.label) + '</span>' +
-            _tbNumInput(_timebokOwnRate(def.id, tf), "_tbSatSetRate('" + def.id + "', this.value)") + unit + '</div>';
+        right = '<span class="tb-satc-rate">' + _tbNumInput(_timebokOwnRate(def.id, tf), "_tbSatSetRate('" + def.id + "', this.value)") + unit + '</span>';
     } else {
-        row = '<div class="tb-sat-name">' + escapeHtml(def.label) + '</div><div class="tb-sat-sub"><i>' + escapeHtml(_tbCodeDesc(def)) + '</i></div>';
+        right = '<span class="tb-satc-desc">' + escapeHtml(_tbCodeDesc(def)) + '</span>';
     }
-    return '<div class="tb-sat-item">' + row + _tbFlagsHtml('rule:' + def.id, _timebokCodeFlags(def, tf)) + '</div>';
+    // Bryter: koden aktiv/deaktivert for arbeidsgiveren som vises (alle koder vises alltid).
+    var toggle = { id: def.id, on: _timebokDisabledCodes(_tbSatEmp()).indexOf(def.id) === -1 };
+    // Koder uten lønn (Pause, Ferie, Permisjon uten lønn): flagg har ingen betydning → skjult.
+    if (def.zero) return _tbSatRow(def.label, null, null, right, '', '', toggle);
+    return _tbSatRow(def.label, 'rule:' + def.id, _timebokCodeFlags(def, tf), right, '', '', toggle);
+}
+// Slå en kode av/på for arbeidsgiveren som vises i Satser (fletter, rører ikke den andre).
+function _tbSatToggleCode(id, on) {
+    var emp = _tbSatEmp();
+    var off = _timebokDisabledCodes(emp).filter(function (x) { return x !== id; });
+    if (!on) off.push(id);
+    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
+    var all = Object.assign({}, d.disabledCodes || {});
+    all[emp] = off;
+    _timebokSaveSettings({ disabledCodes: all });
+    renderTimebokSatser();
+    if (typeof renderTimebokSettings === 'function') renderTimebokSettings();
 }
 function _tbSatSetRate(id, val) {
     _tbSatUpdate(function (t) {
@@ -2671,10 +2741,11 @@ function _tbSatSetUnit(id, val) {
 function renderTimebokSatser() {
     var host = document.getElementById('tb-satser');
     if (!host) return;
-    var list = getTimebokTariffs();
+    var emp = _tbSatEmp();
+    var list = getTimebokTariffs(emp);
     var tf = _tbSatserTariff();
     if (!tf) { host.innerHTML = ''; return; }
-    var active = _timebokTariffFor(_timebokTodayId());
+    var active = _timebokTariffFor(_timebokTodayId(), emp);
     var today = _timebokTodayId();
     var status = (active && active.id === tf.id) ? '<span class="tb-sat-status active">● ' + escapeHtml(t('tb_sat_active')) + '</span>'
         : (String(tf.validFrom) > today ? '<span class="tb-sat-status">' + escapeHtml(t('tb_sat_future')) + '</span>'
@@ -2685,56 +2756,63 @@ function renderTimebokSatser() {
         return '<div class="tb-sat-section"><div class="tb-sat-section-title">' + escapeHtml(title) + '</div>' +
             '<div class="tb-sat-section-desc">' + escapeHtml(desc) + '</div></div>';
     };
-    var h = section(t('tb_sat_sec_tariff'), t('tb_sat_sec_tariff_desc'));
-    // Tariff-velger
-    h += '<div class="tb-sat-card tb-sat-tariff">' +
-        '<div class="tb-sat-h">' + escapeHtml(t('tb_sat_tariff')) + '</div>' +
-        '<select class="tb-sat-select" onchange="_tbSatserSelId=this.value;renderTimebokSatser()">' +
-            list.map(function (x) {
-                return '<option value="' + escapeHtml(x.id) + '"' + (x.id === tf.id ? ' selected' : '') + '>' + escapeHtml(x.name + ' · ' + _tbFmtDate(x.validFrom)) + '</option>';
-            }).join('') +
-        '</select>' + status +
-        '<div class="tb-sat-btnrow">' +
-            '<button type="button" class="tb-sat-btn" onclick="openTbTariffForm(\'new\')">' + escapeHtml(t('tb_sat_new')) + '</button>' +
-            '<button type="button" class="tb-sat-btn" onclick="document.getElementById(\'tb-tariff-import\').click()">' + escapeHtml(t('tb_sat_import')) + '</button>' +
-            '<button type="button" class="tb-sat-btn" onclick="openTbTariffForm(\'edit\')">' + escapeHtml(t('tb_sat_edit')) + '</button>' +
+    // Arbeidsgiver: Firesafe og Damsgård har hver sine tariffer, satser og koder.
+    var h = '<div class="tb-seg tb-sat-emp">' +
+        [['firesafe', 'Firesafe'], ['damsgard', 'Damsgård Brannsikring']].map(function (e) {
+            return '<button type="button" class="tb-seg-btn' + (e[0] === emp ? ' active' : '') + '" onclick="_tbSatSetEmp(\'' + e[0] + '\')">' + escapeHtml(e[1]) + '</button>';
+        }).join('') + '</div>';
+    h += section(t('tb_sat_sec_tariff'), t('tb_sat_sec_tariff_desc'));
+    // Tariff-delen = ÉN grå boks (samme stil som Tilleggskoder): valgt tariff (nedtrekk,
+    // status + små knapper på én rad, kort forklaring) og Trekk og grunnlag under.
+    var num = function (field, unit) {
+        return '<span class="tb-satc-rate">' + _tbNumInput(tf[field], "_tbSatSet('" + field + "', this.value)") + '<span class="tb-sat-unit">' + unit + '</span></span>';
+    };
+    h += '<div class="tb-satc-box">' +
+        '<div class="tb-af-group">' + escapeHtml(t('tb_sat_tariff')) + '</div>' +
+        '<div class="tb-satc tb-sat-tariffrow">' +
+            '<select class="tb-sat-select tb-satc-select" onchange="_tbSatserSelId=this.value;renderTimebokSatser()">' +
+                list.map(function (x) {
+                    return '<option value="' + escapeHtml(x.id) + '"' + (x.id === tf.id ? ' selected' : '') + '>' + escapeHtml(x.name + ' · ' + _tbFmtDate(x.validFrom)) + '</option>';
+                }).join('') +
+            '</select>' +
+            '<div class="tb-sat-tariffbar">' + status +
+                '<span class="tb-sat-minibtns">' +
+                    '<button type="button" class="tb-sat-minibtn" onclick="openTbTariffForm(\'new\')">' + escapeHtml(t('tb_sat_new')) + '</button>' +
+                    '<button type="button" class="tb-sat-minibtn" onclick="document.getElementById(\'tb-tariff-import\').click()">' + escapeHtml(t('tb_sat_import')) + '</button>' +
+                    '<button type="button" class="tb-sat-minibtn" onclick="openTbTariffForm(\'edit\')">' + escapeHtml(t('tb_sat_edit')) + '</button>' +
+                '</span>' +
+            '</div>' +
+            '<div class="tb-satc-sub">' + escapeHtml(t('tb_sat_info')) + '</div>' +
         '</div>' +
-        '<div class="tb-sat-info">' + escapeHtml(t('tb_sat_info')) + '</div>' +
-    '</div>';
-    // Trekk og sosiale poster
-    h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('tb_sat_deductions')) + '</div>' +
-        '<div class="tb-sat-item"><div class="tb-sat-row"><span class="tb-sat-name">Feriepenger</span>' + _tbNumInput(tf.feriepenger, "_tbSatSet('feriepenger', this.value)") + '<span class="tb-sat-unit">%</span></div>' +
-            '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_of_ferie')) + '</div></div>' +
-        '<div class="tb-sat-item"><div class="tb-sat-row"><span class="tb-sat-name">Fagforening</span>' + _tbNumInput(tf.fagforening, "_tbSatSet('fagforening', this.value)") + '<span class="tb-sat-unit">%</span></div>' +
-            '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_of_ferie')) + '</div></div>' +
-        '<div class="tb-sat-item"><div class="tb-sat-row"><span class="tb-sat-name">Forsikring</span>' + _tbNumInput(tf.forsikring, "_tbSatSet('forsikring', this.value)") + '<span class="tb-sat-unit">kr/mnd</span></div>' +
-            '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_flags_hint')) + '</div>' + _tbFlagsHtml('forsikringFlags', tf.forsikringFlags) + '</div>' +
-        '<div class="tb-sat-item"><div class="tb-sat-row"><span class="tb-sat-name">Overtidsgrunnlag</span>' + _tbNumInput(tf.overtidsgrunnlag, "_tbSatSet('overtidsgrunnlag', this.value)") + '<span class="tb-sat-unit">kr/t</span></div>' +
-            '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_otg_hint')) + '</div></div>' +
+        '<div class="tb-af-group">' + escapeHtml(t('tb_sat_deductions')) + '</div>' +
+        _tbSatRow('Feriepenger', null, null, num('feriepenger', '%'), '', t('tb_sat_of_ferie')) +
+        _tbSatRow('Fagforening', null, null, num('fagforening', '%'), '', t('tb_sat_of_ferie')) +
+        _tbSatRow('Overtidsgrunnlag', null, null, num('overtidsgrunnlag', 'kr/t'), '', t('tb_sat_otg_hint')) +
+        // Forsikring sist: den eneste posten med flagg-knapper.
+        _tbSatRow('Forsikring', 'forsikringFlags', tf.forsikringFlags, num('forsikring', 'kr/mnd')) +
     '</div>';
     h += section(t('tb_sat_sec_codes'), t('tb_sat_sec_codes_desc').replace('{0}', tf.name));
-    // Én boks pr. gruppe, samme rekkefølge som i Timebok. Reise: km/passasjer/tilhenger/
-    // reiseutgifter, så Reisegodtgjørelse-tabellen (avstand × firma/privat) nederst.
+    // Tilleggskodene i ÉN boks med gruppe-overskrifter — samme grupper, rekkefølge og
+    // liste-stil som Auto-fyll i Personlig. Reisegodtgjørelse sist i Reise (avstandstabellen
+    // ligger inne i raden når den foldes ut).
+    var box = '';
     TIMEBOK_CODE_GROUPS.forEach(function (g) {
-        var codes = TIMEBOK_CODES.filter(function (c) { return c.group === g; }).map(function (c) { return _tbCodeSatHtml(tf, c); }).join('');
-        if (g !== 'reise') {
-            h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' + codes + '</div>';
-            return;
-        }
-        h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('tb_sat_travel')) + '</div>' + codes +
-            '<div class="tb-sat-item tb-sat-travelhead"><div class="tb-sat-name">' + escapeHtml(t('timebok_day_travel')) + '</div>' +
-                '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_travel_desc')) + '</div></div>' +
-            '<div class="tb-sat-brhead"><span>' + escapeHtml(t('timebok_distance')) + '</span><span>' + escapeHtml(t('timebok_firma')) + '</span><span>' + escapeHtml(t('timebok_privat')) + '</span><span></span></div>' +
+        var gc = TIMEBOK_CODES.filter(function (c) { return c.group === g; });   // alle — bryter pr. kode
+        box += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' +
+            gc.map(function (c) { return _tbCodeSatHtml(tf, c); }).join('');
+        if (g !== 'reise') return;
+        var table = '<div class="tb-sat-brhead"><span>' + escapeHtml(t('timebok_distance')) + '</span><span>' + escapeHtml(t('timebok_firma')) + '</span><span>' + escapeHtml(t('timebok_privat')) + '</span><span></span></div>' +
             (tf.brackets || []).map(function (b) {
                 return '<div class="tb-sat-br"><span class="tb-sat-name">' + escapeHtml(b.label) + '</span>' +
                     _tbNumInput(b.rate, "_tbSatSetBracket('" + b.id + "', 'rate', this.value)") +
                     _tbNumInput(b.ratePrivat, "_tbSatSetBracket('" + b.id + "', 'ratePrivat', this.value)") +
                     '<button type="button" class="tb-sat-del" onclick="_tbSatRemove(\'br\', \'' + b.id + '\')" aria-label="Fjern">&times;</button></div>';
             }).join('') +
-            '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'br\')">' + escapeHtml(t('tb_sat_add_bracket')) + '</button>' +
-            '<div class="tb-sat-item tb-sat-shared"><div class="tb-sat-name">' + escapeHtml(t('tb_sat_bracket_shared')) + '</div>' + _tbFlagsHtml('bracketFlags', tf.bracketFlags) + '</div>' +
-        '</div>';
+            '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'br\')">' + escapeHtml(t('tb_sat_add_bracket')) + '</button>';
+        box += _tbSatRow(t('timebok_day_travel'), 'bracketFlags', tf.bracketFlags,
+            '<span class="tb-satc-desc">' + escapeHtml(t('tb_sat_travel_table')) + '</span>', table);
     });
+    h += '<div class="tb-satc-box">' + box + '</div>';
     host.innerHTML = h;
 }
 // Legg til / fjern avstand (navn via input-popup).
@@ -2765,7 +2843,7 @@ function openTbTariffForm(mode) {
     document.getElementById('tb-tariff-date').value = isEdit && tf ? tf.validFrom : _timebokTodayId();
     var del = document.getElementById('tb-tariff-delete');
     del.style.display = isEdit ? '' : 'none';
-    del.disabled = getTimebokTariffs().length <= 1;   // siste tariff kan ikke slettes
+    del.disabled = getTimebokTariffs(_tbSatEmp()).length <= 1;   // siste tariff kan ikke slettes
     document.getElementById('tb-tariff-popup').classList.add('active');
 }
 function closeTbTariffForm() { document.getElementById('tb-tariff-popup').classList.remove('active'); }
@@ -2774,26 +2852,28 @@ function confirmTbTariffForm() {
     var date = document.getElementById('tb-tariff-date').value;
     if (!name) { document.getElementById('tb-tariff-name').focus(); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { document.getElementById('tb-tariff-date').focus(); return; }
-    var list = getTimebokTariffs();
+    var emp = _tbSatEmp();
+    var list = getTimebokTariffs(emp);
     if (_tbTariffFormMode === 'edit') {
         list.forEach(function (x) { if (x.id === _tbSatserSelId) { x.name = name; x.validFrom = date; } });
     } else {
         var src = _tbSatserTariff();
-        var copy = src ? JSON.parse(JSON.stringify(src)) : _timebokNewTariff(name, date);
+        var copy = src ? JSON.parse(JSON.stringify(src)) : _timebokNewTariff(name, date, emp);
         copy.id = _timebokGenId('tf'); copy.name = name; copy.validFrom = date;
         list.push(copy);
         _tbSatserSelId = copy.id;
     }
-    _timebokSaveTariffs(list);
+    _timebokSaveTariffs(list, emp);
     closeTbTariffForm();
     renderTimebokSatser();
     if (typeof _timebokUpdateDayTotals === 'function') _timebokUpdateDayTotals();
 }
 function deleteTbTariff() {
-    var list = getTimebokTariffs();
+    var emp = _tbSatEmp();
+    var list = getTimebokTariffs(emp);
     if (list.length <= 1) return;
     showConfirmModal(t('tb_sat_delete_confirm'), function () {
-        _timebokSaveTariffs(getTimebokTariffs().filter(function (x) { return x.id !== _tbSatserSelId; }));
+        _timebokSaveTariffs(getTimebokTariffs(emp).filter(function (x) { return x.id !== _tbSatserSelId; }), emp);
         _tbSatserSelId = null;
         closeTbTariffForm();
         renderTimebokSatser();
@@ -2802,7 +2882,7 @@ function deleteTbTariff() {
 }
 
 // Import av tariff-fil (JSON). Format (laget fra tariff-PDF):
-// { "firesafeTariff": 1, "name": "...", "validFrom": "YYYY-MM-DD",
+// { "firesafeTariff": 1, "employer": "firesafe"|"damsgard", "name": "...", "validFrom": "YYYY-MM-DD",
 //   "feriepenger": 12, "fagforening": 1.8, "forsikring": 99.33, "forsikringFlags": ["lonn","skatt"],
 //   "overtidsgrunnlag": 332.31,
 //   "brackets": [{ "label": "7,5–15 km", "firma": 70.7, "privat": 114.6 }], "bracketFlags": [...],
@@ -2825,7 +2905,9 @@ function _tbImportTariff(input) {
         if (!obj || obj.firesafeTariff !== 1 || !obj.name || !/^\d{4}-\d{2}-\d{2}$/.test(String(obj.validFrom || ''))) {
             showNotificationModal(t('tb_sat_import_bad'), false); return;
         }
-        var list = getTimebokTariffs();
+        // Fila kan angi arbeidsgiver («employer»: firesafe|damsgard); ellers den som vises i Satser.
+        var emp = (obj.employer === 'damsgard' || obj.employer === 'firesafe') ? obj.employer : _tbSatEmp();
+        var list = getTimebokTariffs(emp);
         var norm = function (x) { return String(x || '').trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+/g, ' '); };
         var findId = function (key, label) {
             for (var i = 0; i < list.length; i++) {
@@ -2839,7 +2921,7 @@ function _tbImportTariff(input) {
         };
         var fl = function (a) { return Array.isArray(a) ? a.filter(function (f) { return TIMEBOK_FLAGS.indexOf(f) !== -1; }) : []; };
         var num = function (v) { var n = (typeof v === 'number') ? v : parseLocaleNum(v); return (n == null || isNaN(n)) ? null : n; };
-        var tf = _timebokNewTariff(String(obj.name), obj.validFrom);
+        var tf = _timebokNewTariff(String(obj.name), obj.validFrom, emp);
         tf.feriepenger = num(obj.feriepenger); tf.fagforening = num(obj.fagforening);
         tf.forsikring = num(obj.forsikring); tf.forsikringFlags = fl(obj.forsikringFlags);
         tf.overtidsgrunnlag = num(obj.overtidsgrunnlag);
@@ -2864,9 +2946,10 @@ function _tbImportTariff(input) {
         if (obj.units && typeof obj.units === 'object') Object.keys(obj.units).forEach(function (k) { if (isCode(k)) tf.units[k] = obj.units[k] === 'reg' ? 'reg' : 'hour'; });
         if (obj.rules && typeof obj.rules === 'object') Object.keys(obj.rules).forEach(function (k) { if (isCode(k)) tf.rules[k] = fl(obj.rules[k]); });
         var doSave = function (replaceId) {
-            var l2 = getTimebokTariffs().filter(function (x) { return x.id !== replaceId; });
+            var l2 = getTimebokTariffs(emp).filter(function (x) { return x.id !== replaceId; });
             l2.push(tf);
-            _timebokSaveTariffs(l2);
+            _timebokSaveTariffs(l2, emp);
+            _tbSatserEmp = emp;
             _tbSatserSelId = tf.id;
             renderTimebokSatser();
             if (typeof _timebokUpdateDayTotals === 'function') _timebokUpdateDayTotals();
@@ -11350,7 +11433,11 @@ function _timebokRenderPeriodHeader() {
     var a = _timebokAnchor || new Date();
     var todayId = _timebokTodayId();
     var label, shortLabel = null, isCurrent;
-    if (_timebokViewMode === 'day') {
+    if (_timebokViewMode === 'export' && _tbExp) {
+        label = _tbExpPeriodLabel(false);
+        shortLabel = _tbExpPeriodLabel(true);
+        isCurrent = (todayId >= _tbExp.start && todayId <= _tbExp.end);
+    } else if (_timebokViewMode === 'day') {
         label = _timebokDayHeaderLabel(_timebokDateId(a));
         isCurrent = (_timebokDateId(a) === todayId);
     } else {
@@ -11399,6 +11486,7 @@ function _timebokDateIdsInRange(range) {
 // Alle måter å forlate en dag på (forrige/neste, uke-visning, i dag) går via
 // _timebokLeaveDay → varsel ved ulagrede endringer.
 function timebokShiftPeriod(dir) {
+    if (_timebokViewMode === 'export') { _tbExpShift(dir); return; }
     _timebokLeaveDay(function () {
         if (!_timebokAnchor) _timebokAnchor = new Date();
         var d = new Date(_timebokAnchor.getTime());
@@ -11409,6 +11497,7 @@ function timebokShiftPeriod(dir) {
 }
 // Venstre-knapp i header: veksle mellom dag- og ukevisning.
 function timebokToggleViewMode() {
+    if (_timebokViewMode === 'export') { closeTimebokExport(); return; }   // venstre knapp = tilbake
     _timebokLeaveDay(function () {
         _timebokViewMode = (_timebokViewMode === 'week') ? 'day' : 'week';
         _timebokRememberView();
@@ -11418,6 +11507,10 @@ function timebokToggleViewMode() {
 }
 // Midt i header / meny: hopp til i dag (og dagens uke).
 function timebokGoToday() {
+    if (_timebokViewMode === 'export') {
+        if (_tbExp && _tbExp.mode !== 'custom') { _tbExp.anchor = _timebokTodayId(); _tbExpComputeRange(); _tbExpRender(); }
+        return;
+    }
     // Står vi allerede på dagens dag, er det ingenting å forlate (og ingenting å tegne om).
     if (_timebokViewMode === 'day' && _timebokAnchor && _timebokDateId(_timebokAnchor) === _timebokTodayId()) return;
     _timebokLeaveDay(function () {
@@ -11473,12 +11566,19 @@ function renderTimebok() {
     var view = document.getElementById('timebok-view');
     var weekEl = document.getElementById('timebok-week');
     var dayEl = document.getElementById('timebok-day');
-    var isDay = (_timebokViewMode === 'day');
-    if (view) { view.classList.toggle('tb-mode-day', isDay); view.classList.toggle('tb-mode-week', !isDay); }
-    if (weekEl) weekEl.style.display = isDay ? 'none' : '';
+    var expEl = document.getElementById('timebok-export');
+    var mode = _timebokViewMode, isDay = (mode === 'day'), isExp = (mode === 'export');
+    if (view) {
+        view.classList.toggle('tb-mode-day', isDay);
+        view.classList.toggle('tb-mode-week', mode === 'week');
+        view.classList.toggle('tb-mode-export', isExp);
+        if (!isExp) view.classList.remove('tb-exp-custom-mode');
+    }
+    if (weekEl) weekEl.style.display = mode === 'week' ? '' : 'none';
     if (dayEl) dayEl.style.display = isDay ? '' : 'none';
+    if (expEl) expEl.style.display = isExp ? '' : 'none';
     _timebokRenderPeriodHeader();
-    if (isDay) renderTimebokDay(); else renderTimebokWeek();
+    if (isExp) _tbExpRender(); else if (isDay) renderTimebokDay(); else renderTimebokWeek();
     if (typeof applyTranslations === 'function') applyTranslations();
 }
 
@@ -11506,7 +11606,10 @@ function createTimebokWeekCard(dayDoc, dateId) {
     var total = _timebokDayTotal(dayDoc, timesats);
     var hasData = _timebokDayHasData(dayDoc);
     var card = document.createElement('div');
-    card.className = 'timebok-day-card nav' + (parts.isWeekend ? ' weekend' : '') + (parts.isToday ? ' today' : '') + (hasData ? '' : ' empty');
+    // Oransje ramme = VALGT dag (den dagvisningen åpner — _timebokAnchor), ikke «i dag».
+    // I dag markeres med liten oransje tekst ved ukedagen.
+    var isSel = !!_timebokAnchor && _timebokDateId(_timebokAnchor) === dateId;
+    card.className = 'timebok-day-card nav' + (parts.isWeekend ? ' weekend' : '') + (parts.isToday ? ' today' : '') + (isSel ? ' selected' : '') + (hasData ? '' : ' empty');
     card.setAttribute('data-date', dateId);
     card.setAttribute('onclick', "timebokOpenDay('" + dateId + "')");
     var right = hasData
@@ -11514,14 +11617,21 @@ function createTimebokWeekCard(dayDoc, dateId) {
         : '<span class="timebok-day-none">' + escapeHtml(t('timebok_no_entries')) + '</span>';
     card.innerHTML =
         '<div class="timebok-day-header">' +
+            // Kort dato («Søn 25. okt», samme rekkefølge som dagvisningens header) — måneden
+            // står allerede i uke-headeren, og summen til høyre trenger plassen.
             '<div class="timebok-day-dateline">' +
-                '<span class="timebok-day-date">' + escapeHtml(parts.date) + '</span>' +
-                '<span class="timebok-day-weekday">' + escapeHtml(parts.weekday) + '</span>' +
+                '<span class="timebok-day-date">' + escapeHtml(_timebokShortDayLabel(dateId)) + '</span>' +
+                (parts.isToday ? '<span class="timebok-day-todaytxt">' + escapeHtml(t('timebok_today')) + '</span>' : '') +
             '</div>' +
             '<span class="timebok-day-total">' + right + '</span>' +
             '<span class="timebok-day-arrow">&#8250;</span>' +
         '</div>' + (hasData ? _timebokWeekDayDetail(dayDoc, dateId) : '');
     return card;
+}
+function _timebokShortDayLabel(id) {
+    var d = _timebokParseId(id);
+    if (!d) return String(id || '');
+    return ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'][d.getDay()] + ' ' + d.getDate() + '. ' + _TIMEBOK_MONTHS_SHORT[d.getMonth()];
 }
 var _TB_TIME_GROUPS = ['arbeid', 'overtid', 'fravaer', 'syk'];
 function _timebokWeekDayDetail(dayDoc, dateId) {
@@ -11660,6 +11770,7 @@ function _timebokNormalizeDoc(doc, dateId) {
                 if (p.noOrdinary) out.noOrdinary = true;
                 if (p.note) out.note = String(p.note);
                 if (p.noProject) out.noProject = true;
+                if (p.afterHours) out.afterHours = true;
                 return out;
             }),
             receipts: (doc.receipts || []).map(function (r) {
@@ -11709,6 +11820,10 @@ function createTimebokProjectBlock(proj) {
         '</div>' +
         // Tilleggsinformasjon rett under prosjektet (f.eks. hvilket kurs) — vokser med teksten.
         '<textarea class="tb-input tb-textarea tb-pb-note" rows="1" autocapitalize="sentences" placeholder="' + escapeHtml(t('timebok_note_ph')) + '" oninput="autoResizeTextarea(this);_timebokOnDayInput()"></textarea>' +
+        // Damsgård: utkalling etter arbeidstid → egen tabell på timelista og EGEN reise.
+        (getTimebokSettings().travelStyle === 'damsgard'
+            ? '<label class="tb-pb-after"><input type="checkbox" class="tb-pb-after-cb"' + (proj.afterHours ? ' checked' : '') + ' onchange="_timebokOnDayInput()"><span>' + escapeHtml(t('timebok_after_hours')) + '</span></label>'
+            : '') +
         '<div class="timebok-pb-hint">' + escapeHtml(t('timebok_code_hint')) + '</div>' +
         '<div class="timebok-pb-codes-head">' +
             '<span class="timebok-pb-codes-label">' + escapeHtml(t('timebok_codes')) + '</span>' +
@@ -12209,6 +12324,8 @@ function _timebokReadDayView() {
         var pdoc = { projectId: projectId, name: name, codes: codes, travel: hasTravel ? travel : null };
         if (note) pdoc.note = note;
         if (noProject) pdoc.noProject = true;
+        var ah = block.querySelector('.tb-pb-after-cb');
+        if (ah && ah.checked) pdoc.afterHours = true;
         // «Ordinære timer» fjernet med × → husk det, ellers legges kortet til igjen ved innlasting.
         if (!hasOrd) pdoc.noOrdinary = true;
         projects.push(pdoc);
@@ -12308,6 +12425,533 @@ function _timebokLeaveDay(proceed) {
 }
 
 // ── Legg til / fjern prosjekt-blokk, kode, kvittering ──
+// ── Timebok-meny (☰ til høyre i baren) ──
+// Kopier dagen (kun dagvisning) · Eksporter (kommer) · snarvei til Innstillinger → Timebok.
+function timebokToggleMenu(e) {
+    if (e) e.stopPropagation();
+    var m = document.getElementById('timebok-menu');
+    if (!m) return;
+    if (!m.hidden) { _timebokCloseMenu(); return; }
+    var cp = document.getElementById('tb-menu-copy');
+    if (cp) cp.style.display = (_timebokViewMode === 'day') ? '' : 'none';
+    m.hidden = false;
+}
+function _timebokCloseMenu() {
+    var m = document.getElementById('timebok-menu');
+    if (m) m.hidden = true;
+}
+// Trykk utenfor menyen lukker den.
+document.addEventListener('click', function (e) {
+    var m = document.getElementById('timebok-menu');
+    if (m && !m.hidden && !e.target.closest('.tb-menu-wrap')) _timebokCloseMenu();
+});
+function timebokMenuCopy() {
+    _timebokCloseMenu();
+    openTimebokCopy();
+}
+// Snarvei til Innstillinger → Timebok (ulagret dag → samme Avbryt/Forkast/Lagre-varsel).
+function timebokOpenSettings() {
+    _timebokCloseMenu();
+    _timebokLeaveDay(function () {
+        _showSettingsDirectly();
+        showSettingsPage('timebok');
+    });
+}
+
+// ════ Timebok: eksport ════
+// ☰ → Eksporter: velg periode (lønnsperiode / uke / måned / egendefinert) → se totaler →
+// eksporter. Damsgård: timeliste som Excel (.xlsx) og PDF — samme oppsett som Damsgårds
+// eget ark, men UTEN formler: appen regner ut alt (timer, reise pr. dag, totaler) og
+// arket er bare visning. Firesafe-stil kommer senere.
+var _tbExp = null;   // { mode: 'pay'|'week'|'month'|'custom', anchor: dateId, start, end, docs }
+var _timebokPrevMode = 'week';   // visningen eksport-siden går tilbake til
+// Eksport er en egen side i Timebok (_timebokViewMode 'export'): baren øverst viser
+// perioden (‹ › blar), venstre knapp = tilbake. Ikke en popup — siden viser mange detaljer.
+function openTimebokExport() {
+    _timebokCloseMenu();
+    _timebokLeaveDay(function () {
+        if (_timebokViewMode !== 'export') _timebokPrevMode = _timebokViewMode;
+        _timebokViewMode = 'export';
+        _tbExp = { mode: 'pay', anchor: _timebokDateId(_timebokAnchor || new Date()), docs: [] };
+        _tbExpComputeRange();
+        renderTimebok();
+        var v = document.querySelector('#timebok-view .modal-content');
+        if (v) v.scrollTop = 0;
+    });
+}
+function closeTimebokExport() {
+    _timebokViewMode = _timebokPrevMode === 'day' ? 'day' : 'week';
+    _tbExp = null;
+    renderTimebok();
+}
+function _tbExpSetMode(mode) {
+    if (!_tbExp) return;
+    _tbExp.mode = mode;
+    if (mode === 'custom' && !_tbExp.customStart) { _tbExp.customStart = _tbExp.start; _tbExp.customEnd = _tbExp.end; }
+    _tbExpComputeRange();
+    _tbExpRender();
+}
+function _tbExpComputeRange() {
+    var e = _tbExp, d = _timebokParseId(e.anchor);
+    if (e.mode === 'pay') { var pp = _timebokPayPeriodFor(e.anchor); e.start = pp.start; e.end = pp.end; }
+    else if (e.mode === 'week') { var m = _timebokMonday(d); e.start = _timebokDateId(m); e.end = _timebokDateId(_timebokAddDays(m, 6)); }
+    else if (e.mode === 'month') { e.start = _timebokDateId(new Date(d.getFullYear(), d.getMonth(), 1)); e.end = _timebokDateId(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+    else { e.start = e.customStart; e.end = e.customEnd; if (e.end < e.start) { var x = e.start; e.start = e.end; e.end = x; } }
+}
+function _tbExpShift(dir) {
+    var e = _tbExp;
+    if (!e || e.mode === 'custom') return;
+    var d = _timebokParseId(e.anchor);
+    if (e.mode === 'week') d = _timebokAddDays(d, dir * 7);
+    else { d = new Date(d.getFullYear(), d.getMonth() + dir, Math.min(d.getDate(), 28)); }
+    e.anchor = _timebokDateId(d);
+    _tbExpComputeRange();
+    _tbExpRender();
+}
+function _tbExpCustomChanged() {
+    var f = document.getElementById('tb-exp-from').value, t2 = document.getElementById('tb-exp-to').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(t2)) return;
+    _tbExp.customStart = f; _tbExp.customEnd = t2;
+    _tbExp.mode = 'custom';   // endret dato = egendefinert periode
+    _tbExpComputeRange();
+    _tbExpRender(true);
+}
+function _tbFmtDMY(id) { var p = String(id).split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
+// Dager i perioden: cache først, så Firestore (eldre dager kan mangle i cachen).
+function _tbExpLoadDocs(start, end) {
+    var byId = {};
+    _timebokGetCache().forEach(function (d) { var id = d.id || d.date; if (id >= start && id <= end) byId[id] = d; });
+    var local = Object.keys(byId).map(function (k) { return byId[k]; });
+    if (!(currentUser && db)) return Promise.resolve(local);
+    var FP = firebase.firestore.FieldPath.documentId();
+    return db.collection('users').doc(currentUser.uid).collection('timebok').where(FP, '>=', start).where(FP, '<=', end).get()
+        .then(function (snap) {
+            snap.forEach(function (ds) { if (!byId[ds.id]) byId[ds.id] = Object.assign({ id: ds.id }, ds.data()); });
+            return Object.keys(byId).map(function (k) { return byId[k]; });
+        }).catch(function (err) { console.error('Timebok eksport-henting:', err); return local; });
+}
+function _tbExpRender(keepInputs) {
+    var e = _tbExp;
+    if (!e) return;
+    document.querySelectorAll('#timebok-export .tb-exp-modes .tb-seg-btn').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mode') === e.mode); });
+    var custom = e.mode === 'custom';
+    var view = document.getElementById('timebok-view');
+    if (view) view.classList.toggle('tb-exp-custom-mode', custom);
+    // Fra/Til vises alltid, i norsk format (uavhengig av nettleserens språk).
+    document.getElementById('tb-exp-from-txt').textContent = _tbFmtDMY(e.start);
+    document.getElementById('tb-exp-to-txt').textContent = _tbFmtDMY(e.end);
+    if (!keepInputs) { document.getElementById('tb-exp-from').value = e.start; document.getElementById('tb-exp-to').value = e.end; }
+    _timebokRenderPeriodHeader();
+    // Eksport-knappen: Damsgård har PDF + Excel; Firesafe-stil kommer senere.
+    var dg = getTimebokSettings().travelStyle === 'damsgard';
+    var expBtn = document.getElementById('tb-exp-btn');
+    expBtn.disabled = !dg;
+    expBtn.textContent = dg ? t('timebok_exp_btn') : t('timebok_export_fs_soon');
+    var key = e.start + '|' + e.end;
+    e.key = key;
+    var draw = function (docs) {
+        if (!_tbExp || _tbExp.key !== key) return;
+        _tbExp.docs = docs;
+        document.getElementById('tb-exp-totals').innerHTML = _tbExpTotalsHtml(docs);
+        // Detaljer: dagkortene fra ukevisningen (trykk = åpne dagen), eldste først.
+        var list = document.getElementById('tb-exp-days');
+        list.innerHTML = '';
+        docs.slice().sort(function (x, y) { return (x.id || x.date) < (y.id || y.date) ? -1 : 1; }).forEach(function (d) {
+            var id = d.id || d.date;
+            if (_timebokDayHasData(d)) list.appendChild(createTimebokWeekCard(d, id));
+        });
+        if (!list.children.length) list.innerHTML = '<div class="tb-exp-empty">' + escapeHtml(t('timebok_no_entries')) + '</div>';
+    };
+    draw(_timebokGetCache().filter(function (d) { var id = d.id || d.date; return id >= e.start && id <= e.end; }));
+    _tbExpLoadDocs(e.start, e.end).then(draw);
+}
+// Periode-tekst til baren øverst.
+function _tbExpPeriodLabel(short) {
+    var e = _tbExp, s0 = _timebokParseId(e.start), s1 = _timebokParseId(e.end);
+    if (e.mode === 'week') return 'Uke ' + getWeekNumber(s0) + ' · ' + _timebokRangeLabel(s0, s1, !!short);
+    return short ? _timebokRangeLabel(s0, s1, true) : (_tbFmtDMY(e.start) + ' – ' + _tbFmtDMY(e.end));
+}
+// Detaljerte totaler: samme fliser som ukesammendraget + timer/antall pr. kode.
+function _tbExpTotalsHtml(docs) {
+    var s = _timebokPeriodSummary(docs);
+    var tile = function (lbl, val) { return '<div class="timebok-metric"><span>' + escapeHtml(lbl) + '</span><b>' + escapeHtml(val) + '</b></div>'; };
+    var per = {}, order = [], travelDays = 0;
+    docs.forEach(function (d) {
+        var n = _timebokNormalizeDoc(d, d.id || d.date);
+        if (n.projects.some(function (p) { return p.travel && p.travel.bracketId; })) travelDays++;
+        n.projects.forEach(function (p) {
+            (p.codes || []).forEach(function (c) {
+                var v = parseLocaleNum(c.hours);
+                if (isNaN(v) || !v) return;
+                if (!per[c.typeId]) { per[c.typeId] = 0; order.push(c.typeId); }
+                per[c.typeId] += v;
+            });
+        });
+    });
+    order.sort(function (a, b) { return _timebokCodeSortKey(a) - _timebokCodeSortKey(b); });
+    var unit = { clock: 't', hours: 't', count: 'stk', km: 'km', kr: 'kr' };
+    var rows = order.map(function (id) {
+        var tt = _timebokTypeById(id, docs.length ? (docs[0].id || docs[0].date) : null);
+        var u = tt ? unit[tt.input] : 't';
+        var v = u === 'kr' ? _timebokKr(per[id]) : formatLocaleNum(per[id], 2) + ' ' + u;
+        return '<div class="tb-wk-code"><span>' + escapeHtml(tt ? tt.label : id) + '</span><span class="tb-wk-code-v">' + escapeHtml(v) + '</span></div>';
+    });
+    if (travelDays) rows.push('<div class="tb-wk-code"><span>' + escapeHtml(t('timebok_day_travel')) + '</span><span class="tb-wk-code-v">' + travelDays + ' ' + escapeHtml(t(travelDays === 1 ? 'timebok_exp_day' : 'timebok_exp_days')) + '</span></div>');
+    return '<div class="timebok-summary-grid tb-exp-grid">' +
+            tile(t('timebok_d_hours'), _timebokFixed2(s.hours)) + tile(t('timebok_d_wage'), _timebokTileKr(s.wage)) +
+            tile(t('timebok_d_travel'), _timebokTileKr(s.travel)) + tile(t('timebok_d_receipts'), _timebokTileKr(s.receipts)) +
+            tile(t('timebok_sum_total'), _timebokTileKr(s.total)) + tile(t('timebok_exp_daycount'), String(s.days)) +
+        '</div>' +
+        (rows.length ? '<div class="tb-exp-codes">' + rows.join('') + '</div>' : '<div class="tb-exp-empty">' + escapeHtml(t('timebok_no_entries')) + '</div>');
+}
+
+// ── Damsgård-timeliste: én modell (celler) → Excel og PDF tegnes fra samme modell ──
+var _TB_DG_DAYS = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
+// Kolonnebredder (Excel-tegn) A..X — som Damsgårds ark.
+var _TB_DG_COLS = [9.4, 5.6, 35.6, 8.1, 6.4, 6.4, 6.4, 6.4, 12.6, 10.6, 9.6, 9.9, 25.6, 1.6, 8.4, 6.6, 9.6, 9.6, 9.6, 1.6, 6.5, 9.6, 9.6, 9.6];
+function _tbDgOtPct(id) { return /^ot100/.test(id) ? 100 : (/^ot50/.test(id) ? 50 : ''); }
+// Rader for én dag. Ordinære/fravær/syk → rad; avtalt overtid → egen rad med Tillegg %;
+// tillegg/reise-koder står ikke på Damsgårds ark (reiseutgifter → kvittering).
+function _tbDgDayRows(doc, id) {
+    var n = _timebokNormalizeDoc(doc, id), tariff = _timebokTariffFor(id), d = _timebokParseId(id);
+    var out = { main: [], extra: [] };
+    var rcAmt = 0, rcAny = false, rcDesc = [];
+    (doc.receipts || []).forEach(function (r) {
+        var a = parseLocaleNum(r.amount);
+        if (_timebokRcCurrency(r) === 'NOK' && !isNaN(a)) { rcAmt += a; rcAny = true; }
+        else if (!isNaN(a) && a) rcDesc.push(_timebokRcCurrency(r) + ' ' + formatLocaleNum(a, 2));
+        if (r.label) rcDesc.push(r.label);
+    });
+    n.projects.forEach(function (p) {
+        var target = p.afterHours ? out.extra : out.main;
+        var tr = p.travel && p.travel.bracketId ? p.travel : null;
+        var brs = (tariff && tariff.brackets) || [], bi = -1;
+        if (tr) for (var i = 0; i < brs.length; i++) if (brs[i].id === tr.bracketId) bi = i;
+        var transport = tr ? (tr.transport === 'privat' ? 'Person' : 'Firma') : '';
+        var kmSum = tr ? _timebokBracketRate(tr.bracketId, tr.transport, tariff) : null;
+        var base = { dayName: _TB_DG_DAYS[d.getDay()], date: d.getDate(), id: id, transport: transport,
+            km: tr && bi >= 0 ? brs[bi].label : '', klasse: tr && bi >= 0 ? bi + 1 : (tr ? '' : 0), kmSum: kmSum };
+        var rows = [];
+        (p.codes || []).forEach(function (c) {
+            var def = _timebokCodeDef(c.typeId), v = parseLocaleNum(c.hours);
+            if (isNaN(v)) v = 0;
+            if (c.typeId === 'reiseutg' && v) { rcAmt += v; rcAny = true; rcDesc.push(def ? def.label : 'Reiseutgifter'); return; }
+            // Arket er rå timeliste: alt som er ført står (også ubetalt fravær som
+            // «Permisjon uten lønn» — regnskapsfører trenger det for normtiden). Kun
+            // Pause (ingen arbeidstid) og tillegg/reise-koder står ikke på arket.
+            if (!def || (def.zero && def.group === 'arbeid') || ['arbeid', 'overtid', 'fravaer', 'syk'].indexOf(def.group) === -1) return;
+            if (!v && !(c.start && c.end)) return;
+            var tt = _timebokTypeById(c.typeId, id);
+            var proj = p.name || (p.noProject ? (String(p.note || '').split('\n')[0] || (tt ? tt.label : '')) : '');
+            if (p.name === '' && !p.noProject) proj = tt ? tt.label : '';
+            rows.push(Object.assign({}, base, { project: proj, pct: def.group === 'overtid' ? _tbDgOtPct(c.typeId) : '',
+                start: c.start || '', end: c.end || '', lunch: c.start ? (c.lunch || 0) : '', hours: v }));
+        });
+        if (!rows.length && tr) rows.push(Object.assign({}, base, { project: p.name || String(p.note || '').split('\n')[0], pct: '', start: '', end: '', lunch: '', hours: '' }));
+        rows.forEach(function (r) { target.push(r); });
+    });
+    if (rcAny || rcDesc.length) {
+        var first = out.main[0] || out.extra[0];
+        if (!first) { first = { dayName: _TB_DG_DAYS[d.getDay()], date: d.getDate(), id: id, project: '', pct: '', start: '', end: '', lunch: '', hours: '', transport: '', km: '', klasse: '', kmSum: null }; out.main.push(first); }
+        first.receipt = rcAny ? rcAmt : null;
+        first.receiptDesc = rcDesc.join('; ');
+    }
+    return out;
+}
+// Reise pr. dag for én seksjon: høyeste av første og siste rad (som Damsgårds ark).
+function _tbDgDayTravel(rows) {
+    if (!rows.length) return null;
+    var f = rows[0], l = rows[rows.length - 1];
+    var pick = (l.kmSum || 0) > (f.kmSum || 0) ? l : f;
+    var anyT = rows.some(function (r) { return r.transport; });
+    // Klasse = avstandsintervallet (selv om satsen ikke er lagt inn ennå); 0 = ingen reise.
+    var withKm = (pick.km ? pick : (f.km ? f : (l.km ? l : null)));
+    return { klasse: withKm ? withKm.klasse : 0, transport: (f.transport === 'Person' || l.transport === 'Person') ? 'Person' : (anyT ? 'Firma' : ''),
+        kmSum: Math.max(f.kmSum || 0, l.kmSum || 0), km: pick.km || '' };
+}
+// Uker i perioden (man–søn), kun dager innenfor perioden.
+function _tbDgWeeks(docs, start, end) {
+    var byId = {};
+    docs.forEach(function (d) { byId[d.id || d.date] = d; });
+    var weeks = [], cur = null;
+    for (var d = _timebokParseId(start); _timebokDateId(d) <= end; d = _timebokAddDays(d, 1)) {
+        var id = _timebokDateId(d), mon = _timebokDateId(_timebokMonday(d));
+        if (!cur || cur.monday !== mon) { cur = { monday: mon, days: [] }; weeks.push(cur); }
+        cur.days.push(id);
+    }
+    return weeks.map(function (w) {
+        var mondayD = _timebokParseId(w.monday), thu = _timebokAddDays(mondayD, 3);
+        var wk = { week: getWeekNumber(mondayD), year: thu.getFullYear(), main: [], extra: [], perDay: [], tariff: _timebokTariffFor(w.days[0]) };
+        for (var i = 0; i < 7; i++) {
+            var id = _timebokDateId(_timebokAddDays(mondayD, i));
+            var rows = (w.days.indexOf(id) !== -1 && byId[id]) ? _tbDgDayRows(byId[id], id) : { main: [], extra: [] };
+            rows.main.forEach(function (r) { wk.main.push(r); });
+            rows.extra.forEach(function (r) { wk.extra.push(r); });
+            wk.perDay.push({ name: _TB_DG_DAYS[(i + 1) % 7], main: _tbDgDayTravel(rows.main), extra: _tbDgDayTravel(rows.extra) });
+        }
+        return wk;
+    });
+}
+// Arket som celleliste. r/c 1-basert. t: 'text'|'kr'|'h'|'time'|'int'.
+function _tbDgSheetModel(wk, montor) {
+    var cells = [], merges = [];
+    var put = function (r, c, v, o) { cells.push(Object.assign({ r: r, c: c, v: v }, o || {})); };
+    var H = { b: true, border: true };            // overskrift
+    var D = { border: true, fill: 'grey' };       // utfyllingsfelt
+    var B = { border: true };                     // beregnet felt
+    var hdr = ['Dag:', 'Dato:', 'Prosjekt:', 'Tillegg %', 'Start:', 'Stopp:', 'Lunsj:', 'Timer:', 'Transport:', 'Km sum:', 'Km:', 'Kvittering:', 'Kvittering beskrivelse:'];
+    var nMain = Math.max(20, wk.main.length), nExtra = Math.max(5, wk.extra.length);
+    put(1, 1, 'Montør:', H); put(1, 2, montor || '', D);
+    put(2, 1, 'Uke:', H); put(2, 2, wk.week, Object.assign({ t: 'int' }, D));
+    put(3, 1, 'År:', H); put(3, 2, wk.year, Object.assign({ t: 'int' }, D));
+    put(1, 3, 'TIMELISTE\nDAMSGÅRD BRANNSIKRING AS', { b: true, size: 16, wrap: true }); merges.push([1, 3, 3, 13]);
+    put(1, 15, 'Reisetillegg:', { b: true, size: 14 }); merges.push([1, 15, 3, 24]);
+    var table = function (top, rows, n) {
+        hdr.forEach(function (h, i) { put(top, i + 1, h, H); });
+        for (var k = 0; k < n; k++) {
+            var r = rows[k] || {}, rr = top + 1 + k;
+            put(rr, 1, r.dayName || '', D); put(rr, 2, r.date || '', Object.assign({ t: 'int' }, D));
+            put(rr, 3, r.project || '', D);
+            put(rr, 4, r.pct || '', Object.assign({ t: 'pct' }, D, r.pct === 100 ? { fill: 'red' } : (r.pct === 50 ? { fill: 'blue' } : {})));
+            put(rr, 5, r.start || '', Object.assign({ t: 'time' }, D)); put(rr, 6, r.end || '', Object.assign({ t: 'time' }, D));
+            put(rr, 7, r.lunch === '' || r.lunch == null ? '' : r.lunch, Object.assign({ t: 'h' }, D));
+            put(rr, 8, r.hours === '' || r.hours == null ? '' : r.hours, Object.assign({ t: 'h' }, B));
+            put(rr, 9, r.transport || '', D);
+            put(rr, 10, r.kmSum != null ? r.kmSum : '', Object.assign({ t: 'kr' }, B));
+            put(rr, 11, r.km || '', B);
+            put(rr, 12, r.receipt != null ? r.receipt : '', Object.assign({ t: 'kr' }, D));
+            put(rr, 13, r.receiptDesc || '', D);
+        }
+    };
+    table(4, wk.main, nMain);
+    var tTitle = 4 + nMain + 1;
+    put(tTitle, 1, 'Tilleggsarbeid etter normal arbeidstid', { b: true, size: 14 }); merges.push([tTitle, 1, tTitle + 1, 13]);
+    var tTop = tTitle + 2;
+    table(tTop, wk.extra, nExtra);
+    // Totaler
+    var tot = tTop + nExtra + 1;
+    var sumH = 0, sumRc = 0, sumKm = 0;
+    wk.main.concat(wk.extra).forEach(function (r) { if (typeof r.hours === 'number') sumH += r.hours; if (typeof r.receipt === 'number') sumRc += r.receipt; });
+    wk.perDay.forEach(function (pd) { if (pd.main) sumKm += pd.main.kmSum || 0; if (pd.extra) sumKm += pd.extra.kmSum || 0; });
+    put(tot, 1, 'TOTALT:', { b: true, border: true }); merges.push([tot, 1, tot + 1, 7]);
+    put(tot, 8, 'Timer:', H); merges.push([tot, 8, tot, 9]);
+    put(tot + 1, 8, sumH, Object.assign({ t: 'h' }, B)); merges.push([tot + 1, 8, tot + 1, 9]);
+    put(tot, 10, 'Km sum:', H); put(tot + 1, 10, sumKm, Object.assign({ t: 'kr' }, B));
+    put(tot, 11, 'Km:', H); put(tot + 1, 11, '', B);   // avstand står som intervall → ingen km-sum
+    put(tot, 12, 'Kvittering:', H); merges.push([tot, 12, tot, 13]);
+    put(tot + 1, 12, sumRc, Object.assign({ t: 'kr' }, B)); merges.push([tot + 1, 12, tot + 1, 13]);
+    // Høyre: reisetillegg pr. dag (Timeliste + Tillegg)
+    put(4, 15, 'Timeliste', H); merges.push([4, 15, 4, 19]);
+    put(4, 21, 'Tillegg', H); merges.push([4, 21, 4, 24]);
+    ['Dager:', 'Klasse:', 'Transport:', 'Km sum:', 'Km:'].forEach(function (h, i) { put(5, 15 + i, h, H); });
+    ['Klasse:', 'Transport:', 'Km sum:', 'Km:'].forEach(function (h, i) { put(5, 21 + i, h, H); });
+    var klasseFill = function (x) { return x && x.transport === 'Person' ? 'red' : (x && x.transport === 'Firma' ? 'blue' : null); };
+    wk.perDay.forEach(function (pd, i) {
+        var r = 6 + i, m = pd.main, x = pd.extra;
+        put(r, 15, pd.name, B);
+        put(r, 16, m ? m.klasse : '', Object.assign({ t: 'int' }, B, { fill: klasseFill(m) }));
+        put(r, 17, m ? m.transport : '', B); put(r, 18, m ? m.kmSum : '', Object.assign({ t: 'kr' }, B)); put(r, 19, m ? m.km : '', B);
+        put(r, 21, x ? x.klasse : '', Object.assign({ t: 'int' }, B, { fill: klasseFill(x) }));
+        put(r, 22, x ? x.transport : '', B); put(r, 23, x ? x.kmSum : '', Object.assign({ t: 'kr' }, B)); put(r, 24, x ? x.km : '', B);
+    });
+    // Opptelling: unike dagsbeløp × antall
+    put(14, 15, 'Timeliste', H); merges.push([14, 15, 14, 16]);
+    put(14, 17, 'Tillegg', H); merges.push([14, 17, 14, 18]);
+    put(15, 15, 'Km sum:', H); put(15, 16, 'Antall:', H); put(15, 17, 'Km sum:', H); put(15, 18, 'Antall:', H);
+    var tally = function (key) {
+        var m = {}, o = [];
+        wk.perDay.forEach(function (pd) { var x = pd[key]; if (x && x.kmSum) { if (!m[x.kmSum]) { m[x.kmSum] = 0; o.push(x.kmSum); } m[x.kmSum]++; } });
+        return o.map(function (v) { return [v, m[v]]; });
+    };
+    var tm = tally('main'), te = tally('extra');
+    for (var k = 0; k < 7; k++) {
+        put(16 + k, 15, tm[k] ? tm[k][0] : '', Object.assign({ t: 'kr' }, B)); put(16 + k, 16, tm[k] ? tm[k][1] : '', Object.assign({ t: 'int' }, B));
+        put(16 + k, 17, te[k] ? te[k][0] : '', Object.assign({ t: 'kr' }, B)); put(16 + k, 18, te[k] ? te[k][1] : '', Object.assign({ t: 'int' }, B));
+    }
+    // Sats-tabell fra tariffen
+    put(24, 15, 'Km', H); put(24, 16, 'Klasse', H); put(24, 17, 'Person', H); put(24, 18, 'Firma', H);
+    put(24, 19, 'Firma = Blå\nPerson = Rød', { italic: true, size: 10, wrap: true }); merges.push([24, 19, 25, 20]);
+    var brs = (wk.tariff && wk.tariff.brackets) || [];
+    put(25, 15, '0 - 7,5', B); put(25, 16, 0, Object.assign({ t: 'int' }, B)); put(25, 17, 0, Object.assign({ t: 'kr' }, B)); put(25, 18, 0, Object.assign({ t: 'kr' }, B));
+    brs.forEach(function (b, i) {
+        var r = 26 + i;
+        put(r, 15, String(b.label || '').replace(/\s*km$/i, '').replace(/[–—]/g, ' - '), B);
+        put(r, 16, i + 1, Object.assign({ t: 'int' }, B));
+        put(r, 17, b.ratePrivat != null ? b.ratePrivat : '', Object.assign({ t: 'kr' }, B));
+        put(r, 18, b.rate != null ? b.rate : '', Object.assign({ t: 'kr' }, B));
+    });
+    var lastR = 26 + brs.length;
+    put(lastR, 15, '75 +', B); put(lastR, 16, brs.length + 1, Object.assign({ t: 'int' }, B)); put(lastR, 17, 'Avtal', B); put(lastR, 18, 'Avtal', B);
+    return { cells: cells, merges: merges, rows: Math.max(tot + 1, lastR), cols: 24 };
+}
+function _tbDgMontor() {
+    var mi = safeParseJSON(MIN_INFO_KEY, {}) || {};
+    return stripEtternavn(mi.montor || '');
+}
+function _tbDgFilename(ext) {
+    var e = _tbExp, m = _tbDgMontor();
+    return 'Timeliste ' + (m ? m + ' ' : '') + _tbFmtDMY(e.start).replace(/\./g, '-') + ' til ' + _tbFmtDMY(e.end).replace(/\./g, '-') + '.' + ext;
+}
+// Tekst for PDF-celler (Excel får tallene med tallformat).
+function _tbDgText(cell) {
+    var v = cell.v;
+    if (v === '' || v == null) return '';
+    if (cell.t === 'kr') return typeof v === 'number' ? 'kr ' + v.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(v);
+    if (cell.t === 'pct') return typeof v === 'number' ? v + '%' : String(v);
+    if (cell.t === 'h') return typeof v === 'number' ? v.toLocaleString('nb-NO', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : String(v);
+    return String(v);
+}
+// ExcelJS lastes først når det trengs (stor fil).
+var _tbExcelJsPromise = null;
+function _tbLoadExcelJs() {
+    if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+    if (_tbExcelJsPromise) return _tbExcelJsPromise;
+    _tbExcelJsPromise = new Promise(function (resolve, reject) {
+        var sc = document.createElement('script');
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+        sc.integrity = 'sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz';
+        sc.crossOrigin = 'anonymous';
+        sc.onload = function () { window.ExcelJS ? resolve(window.ExcelJS) : reject(new Error('ExcelJS')); };
+        sc.onerror = function () { _tbExcelJsPromise = null; reject(new Error('ExcelJS kunne ikke lastes')); };
+        document.head.appendChild(sc);
+    });
+    return _tbExcelJsPromise;
+}
+function _tbDgBuildWorkbook(ExcelJS, weeks) {
+    var wb = new ExcelJS.Workbook();
+    var thin = { style: 'thin', color: { argb: 'FF000000' } };
+    var fills = { grey: 'FFF2F2F2', blue: 'FF0070C0', red: 'FFFF0000' };
+    var montor = _tbDgMontor();
+    weeks.forEach(function (wk) {
+        var ws = wb.addWorksheet('Uke ' + wk.week, {
+            pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+            properties: { defaultRowHeight: 15.75 }
+        });
+        _TB_DG_COLS.forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+        var m = _tbDgSheetModel(wk, montor);
+        m.cells.forEach(function (c) {
+            var cell = ws.getCell(c.r, c.c);
+            var v = c.v;
+            if (c.t === 'time' && v) { var p = String(v).split(':'); v = (+p[0] + (+p[1]) / 60) / 24; cell.numFmt = 'hh:mm'; }
+            else if (c.t === 'kr' && typeof v === 'number') cell.numFmt = '"kr" #,##0.00';
+            else if (c.t === 'h' && typeof v === 'number') cell.numFmt = '0.0';
+            else if (c.t === 'pct' && typeof v === 'number') { v = v / 100; cell.numFmt = '0%'; }
+            cell.value = (v === '' || v == null) ? null : v;
+            cell.font = { name: 'Calibri', size: c.size || 12, bold: !!c.b, italic: !!c.italic, color: c.white ? { argb: 'FFFFFFFF' } : undefined };
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: !!c.wrap };
+            if (c.border) cell.border = { top: thin, left: thin, bottom: thin, right: thin };
+            if (c.fill && fills[c.fill]) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fills[c.fill] } };
+        });
+        m.merges.forEach(function (g) { ws.mergeCells(g[0], g[1], g[2], g[3]); });
+    });
+    return wb;
+}
+function _tbDgBuildPdf(weeks) {
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    var montor = _tbDgMontor();
+    var totalW = _TB_DG_COLS.reduce(function (a, b) { return a + b; }, 0);
+    var x0 = 6, usableW = 297 - 12;
+    var xs = [x0];
+    _TB_DG_COLS.forEach(function (w) { xs.push(xs[xs.length - 1] + w / totalW * usableW); });
+    var fillRgb = { grey: [242, 242, 242], blue: [0, 112, 192], red: [255, 0, 0] };
+    weeks.forEach(function (wk, wi) {
+        if (wi) doc.addPage();
+        var m = _tbDgSheetModel(wk, montor);
+        var rowH = Math.min(5.6, (210 - 12) / m.rows), y0 = 6;
+        var yOf = function (r) { return y0 + (r - 1) * rowH; };
+        var spanOf = {}, hidden = {};
+        m.merges.forEach(function (g) {
+            spanOf[g[0] + ':' + g[1]] = g;
+            for (var r = g[0]; r <= g[2]; r++) for (var c = g[1]; c <= g[3]; c++) if (r !== g[0] || c !== g[1]) hidden[r + ':' + c] = true;
+        });
+        m.cells.forEach(function (c) {
+            if (hidden[c.r + ':' + c.c]) return;
+            var g = spanOf[c.r + ':' + c.c] || [c.r, c.c, c.r, c.c];
+            var x = xs[g[1] - 1], w = xs[g[3]] - x, y = yOf(g[0]), h = yOf(g[2] + 1) - y;
+            if (c.fill && fillRgb[c.fill]) { doc.setFillColor.apply(doc, fillRgb[c.fill]); doc.rect(x, y, w, h, 'F'); }
+            if (c.border) { doc.setDrawColor(0); doc.setLineWidth(0.15); doc.rect(x, y, w, h); }
+            var txt = _tbDgText(c);
+            if (!txt) return;
+            var fs = (c.size || 12) * 0.58;
+            doc.setFont('helvetica', c.b ? 'bold' : (c.italic ? 'italic' : 'normal'));
+            doc.setFontSize(fs);
+            doc.setTextColor(c.white ? 255 : 0);
+            var lines = String(txt).split('\n');
+            var lh = fs * 0.3528 * 1.15;
+            var ty = y + h / 2 - (lines.length - 1) * lh / 2;
+            lines.forEach(function (ln, li) {
+                var fit = doc.splitTextToSize(ln, w - 1)[0] || '';
+                doc.text(fit, x + w / 2, ty + li * lh, { align: 'center', baseline: 'middle' });
+            });
+        });
+        doc.setTextColor(0);
+    });
+    return doc;
+}
+// Samme meny som ordresedlenes eksport: Last ned (mørk) / Del (oransje) × PDF / Excel.
+function showTimebokExportMenu() {
+    if (!_tbExp) return;
+    var popup = document.getElementById('action-popup');
+    document.getElementById('action-popup-title').textContent = t('timebok_export_title');
+    var dl = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
+    var sh = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var canShare = !!(navigator.share && navigator.canShare);
+    var shareBtn = function (kind, lbl) {
+        return canShare
+            ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); timebokExportDamsgard(\'' + kind + '\', \'share\')">' + sh + ' ' + lbl + '</button>'
+            : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + sh + ' ' + lbl + '</button>';
+    };
+    document.getElementById('action-popup-buttons').innerHTML =
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
+        '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); timebokExportDamsgard(\'pdf\', \'download\')">' + dl + ' PDF</button>' +
+            '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); timebokExportDamsgard(\'xlsx\', \'download\')">' + dl + ' Excel</button>' +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
+        '<div class="confirm-modal-buttons">' + shareBtn('pdf', 'PDF') + shareBtn('xlsx', 'Excel') + '</div>';
+    popup.classList.add('active');
+}
+async function timebokExportDamsgard(kind, action) {
+    var e = _tbExp;
+    if (!e) return;
+    var loading = document.getElementById('loading');
+    if (loading) loading.classList.add('active');
+    try {
+        var docs = await _tbExpLoadDocs(e.start, e.end);
+        var weeks = _tbDgWeeks(docs, e.start, e.end);
+        var blob, name, type;
+        if (kind === 'xlsx') {
+            var ExcelJS = await _tbLoadExcelJs();
+            var buf = await _tbDgBuildWorkbook(ExcelJS, weeks).xlsx.writeBuffer();
+            type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            blob = new Blob([buf], { type: type });
+            name = _tbDgFilename('xlsx');
+        } else {
+            blob = _tbDgBuildPdf(weeks).output('blob');
+            type = 'application/pdf';
+            name = _tbDgFilename('pdf');
+        }
+        if (loading) loading.classList.remove('active');
+        var file = new File([blob], name, { type: type });
+        var title = name.replace(/\.(xlsx|pdf)$/, '');
+        if (action === 'share' && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            await _safeShare([file], { title: title, text: title });
+        } else {
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        }
+    } catch (err) {
+        console.error('Timebok eksport:', err);
+        showNotificationModal(t('timebok_export_error') + (err && err.message ? ' ' + err.message : ''));
+    } finally {
+        if (loading) loading.classList.remove('active');
+    }
+}
+
 // ── Kopier dagen til flere dager / kopier fra forrige dag ──
 // Det du fører samme hele uka, føres én gang: mandag fylles ut, ⧉ i headeren →
 // velg dagene (åpner på kildedagens uke, INGEN dager forhåndsvalgt — du velger selv,
@@ -12477,6 +13121,7 @@ function _timebokUpdateBlockSummary(block) {
     var head = name ? '<b>' + escapeHtml(name) + '</b>'
         : block.getAttribute('data-no-project') === '1' ? '<b>' + escapeHtml(t('timebok_without_project')) + '</b>'
         : '<b class="missing">' + escapeHtml(t('timebok_pick_project')) + '</b>';
+    if (block.querySelector('.tb-pb-after-cb:checked')) parts.unshift(t('timebok_after_hours_short'));
     el.innerHTML = head +
         (parts.length ? ' · ' + escapeHtml(parts.join(' · ')) : '');
 }
