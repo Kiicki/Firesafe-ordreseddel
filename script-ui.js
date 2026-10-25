@@ -11495,40 +11495,81 @@ function renderTimebokWeek() {
     });
     recalcTimebokWeekSummary();
 }
-// Dag-kort i ukevisning = navigerbart sammendrag (ikke inline-editor).
+// Dag-kort i ukevisning = navigerbart sammendrag (ikke inline-editor). Kompakt:
+// dato + ukedag på én linje, tom dag = bare den linja. Dager med registreringer viser
+// én blokk pr. prosjekt (navn + timer, grå kodelinje med klokkeslett/timer/avstand)
+// og en kvitteringslinje. Lunsj, flagg og beløp pr. kode hører hjemme i dagvisningen.
 function createTimebokWeekCard(dayDoc, dateId) {
     var parts = _timebokDayParts(dateId);
     var timesats = getTimebokTimesats();
     var hours = _timebokDayHours(dayDoc);
-    var wage = _timebokDayWage(dayDoc, timesats);
+    var total = _timebokDayTotal(dayDoc, timesats);
     var hasData = _timebokDayHasData(dayDoc);
     var card = document.createElement('div');
-    card.className = 'timebok-day-card nav' + (parts.isWeekend ? ' weekend' : '') + (parts.isToday ? ' today' : '');
+    card.className = 'timebok-day-card nav' + (parts.isWeekend ? ' weekend' : '') + (parts.isToday ? ' today' : '') + (hasData ? '' : ' empty');
     card.setAttribute('data-date', dateId);
     card.setAttribute('onclick', "timebokOpenDay('" + dateId + "')");
-    var totalTxt = hasData ? (formatLocaleNum(hours, 1) + ' t' + (wage != null ? ' · ' + _timebokKr(wage) : '')) : '';
-    var summary;
-    if (!hasData) summary = '<div class="timebok-day-summary empty">' + escapeHtml(t('timebok_no_entries')) + '</div>';
-    else {
-        var nLines = _timebokDayLines(dayDoc).length;
-        var travel = _timebokDayTravelComp(dayDoc);
-        var s = nLines + ' ' + (nLines === 1 ? t('timebok_line_one') : t('timebok_line_many')) + ' · ' + formatLocaleNum(hours, 1) + ' t';
-        if (travel != null && travel > 0) s += ' · ' + t('timebok_day_travel') + ' ' + _timebokKr(travel);
-        summary = '<div class="timebok-day-summary">' + escapeHtml(s) + '</div>';
-    }
+    var right = hasData
+        ? '<b>' + escapeHtml(formatLocaleNum(hours, 2) + ' t' + (total != null ? ' · ' + _timebokKr(total) : '')) + '</b>'
+        : '<span class="timebok-day-none">' + escapeHtml(t('timebok_no_entries')) + '</span>';
     card.innerHTML =
         '<div class="timebok-day-header">' +
-            '<div class="timebok-day-datecol">' +
-                '<div class="timebok-day-dateline">' +
-                    '<span class="timebok-day-date">' + escapeHtml(parts.date) + '</span>' +
-                    (parts.isToday ? '<span class="timebok-day-today">' + escapeHtml(t('timebok_today')) + '</span>' : '') +
-                '</div>' +
+            '<div class="timebok-day-dateline">' +
+                '<span class="timebok-day-date">' + escapeHtml(parts.date) + '</span>' +
                 '<span class="timebok-day-weekday">' + escapeHtml(parts.weekday) + '</span>' +
             '</div>' +
-            '<span class="timebok-day-total">' + (totalTxt ? '<b>' + escapeHtml(totalTxt) + '</b>' : '') + '</span>' +
+            '<span class="timebok-day-total">' + right + '</span>' +
             '<span class="timebok-day-arrow">&#8250;</span>' +
-        '</div>' + summary;
+        '</div>' + (hasData ? _timebokWeekDayDetail(dayDoc, dateId) : '');
     return card;
+}
+var _TB_TIME_GROUPS = ['arbeid', 'overtid', 'fravaer', 'syk'];
+function _timebokWeekDayDetail(dayDoc, dateId) {
+    var n = _timebokNormalizeDoc(dayDoc, dateId);
+    var h = '';
+    n.projects.forEach(function (p) {
+        var name = p.name || (p.noProject ? t('timebok_without_project') : t('timebok_pick_project'));
+        var note = p.note ? String(p.note).trim() : '';
+        var hrs = 0, anyH = false, bits = [];
+        var codes = (p.codes || []).slice().sort(function (a, b) { return _timebokCodeSortKey(a.typeId) - _timebokCodeSortKey(b.typeId); });
+        codes.forEach(function (c) {
+            var def = _timebokCodeDef(c.typeId), tt = _timebokTypeById(c.typeId, dateId);
+            var label = tt ? tt.label : c.typeId;
+            var v = parseLocaleNum(c.hours);
+            if (isNaN(v)) v = 0;
+            if (def && !def.zero && _TB_TIME_GROUPS.indexOf(def.group) !== -1 && v) { hrs += v; anyH = true; }
+            var inp = tt ? tt.input : 'hours', val;
+            if (inp === 'clock' && c.start && c.end) val = c.start + '–' + c.end;
+            else if (!v) return;   // tomt kort (f.eks. urørt auto-fyll) — ikke vis
+            else if (inp === 'kr') val = _timebokKr(v);
+            else if (inp === 'km') val = formatLocaleNum(v, 2) + ' km';
+            else if (inp === 'count') val = formatLocaleNum(v, 2) + ' stk';
+            else val = formatLocaleNum(v, 2) + ' t';
+            bits.push([label, val]);
+        });
+        if (p.travel && p.travel.bracketId) {
+            bits.push([t('timebok_wk_travel'), _timebokBracketLabel(p.travel.bracketId) + (p.travel.transport === 'privat' ? ' · ' + t('timebok_privat').toLowerCase() : '')]);
+        }
+        // Én kode pr. linje: navn til venstre, verdi til høyre (aldri brutt midt i et klokkeslett).
+        h += '<div class="tb-wk-proj">' +
+            '<div class="tb-wk-proj-head"><span class="tb-wk-proj-name">' + escapeHtml(name) + '</span>' +
+                (anyH ? '<span class="tb-wk-proj-h">' + escapeHtml(formatLocaleNum(hrs, 2)) + ' t</span>' : '') + '</div>' +
+            // Tilleggsinformasjon rett under prosjektnavnet (brukerens valg for ukevisningen).
+            (note ? '<div class="tb-wk-note">' + escapeHtml(note) + '</div>' : '') +
+            bits.map(function (b) {
+                return '<div class="tb-wk-code"><span>' + escapeHtml(b[0]) + '</span><span class="tb-wk-code-v">' + escapeHtml(b[1]) + '</span></div>';
+            }).join('') +
+        '</div>';
+    });
+    var rc = (dayDoc && dayDoc.receipts) || [];
+    if (rc.length) {
+        var nok = _timebokDayReceipts(dayDoc), fx = _timebokDayReceiptsForeign(dayDoc);
+        var amt = [];
+        if (nok != null) amt.push(_timebokKr(nok));
+        Object.keys(fx).forEach(function (c) { amt.push(c + ' ' + formatLocaleNum(fx[c], 2)); });
+        h += '<div class="tb-wk-receipts">' + escapeHtml(rc.length + ' ' + t(rc.length === 1 ? 'timebok_wk_receipt_one' : 'timebok_wk_receipt_many') + (amt.length ? ' · ' + amt.join(' · ') : '')) + '</div>';
+    }
+    return h ? '<div class="tb-wk-detail">' + h + '</div>' : '';
 }
 // Kvitt.-flisen: NOK-summen, og under den hver annen valuta for seg (summeres ikke).
 function _timebokSetReceiptTile(id, nok, foreign) {
@@ -11662,15 +11703,18 @@ function createTimebokProjectBlock(proj) {
                 '<span class="timebok-project-name">' + escapeHtml(proj.name || (block.getAttribute('data-no-project') ? t('timebok_without_project') : t('timebok_no_project'))) + '</span>' +
                 '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
             '</button>' +
+            // Internt prosjekt med ett trykk (hus-ikon, samme som Hjem i toolbaren; oransje når valgt).
+            // Eneste vei til Internt prosjekt — velgeren lister bare ekte prosjekter.
+            '<button type="button" class="timebok-internal-btn' + (block.getAttribute('data-no-project') ? ' on' : '') + '" onclick="_timebokSetInternal(this)" aria-label="' + escapeHtml(t('timebok_without_project')) + '" title="' + escapeHtml(t('timebok_without_project')) + '"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>' +
         '</div>' +
+        // Tilleggsinformasjon rett under prosjektet (f.eks. hvilket kurs) — vokser med teksten.
+        '<textarea class="tb-input tb-textarea tb-pb-note" rows="1" autocapitalize="sentences" placeholder="' + escapeHtml(t('timebok_note_ph')) + '" oninput="autoResizeTextarea(this);_timebokOnDayInput()"></textarea>' +
         '<div class="timebok-pb-hint">' + escapeHtml(t('timebok_code_hint')) + '</div>' +
         '<div class="timebok-pb-codes-head">' +
             '<span class="timebok-pb-codes-label">' + escapeHtml(t('timebok_codes')) + '</span>' +
             '<button type="button" class="timebok-add-code-btn" onclick="addTimebokCode(this)">' + escapeHtml(t('timebok_add_code')) + '</button>' +
         '</div>' +
         '<div class="timebok-codes"></div>' +
-        // Tilleggsinformasjon nederst — hører til kodene (f.eks. hvilket kurs), vokser med teksten.
-        '<textarea class="tb-input tb-textarea tb-pb-note" rows="1" autocapitalize="sentences" placeholder="' + escapeHtml(t('timebok_note_ph')) + '" oninput="autoResizeTextarea(this);_timebokOnDayInput()"></textarea>' +
         '</div>';
     block.querySelector('.tb-pb-note').value = proj.note || '';
     // Alle koder er kort i samme liste, sortert som kodelista (_timebokInsertCard).
@@ -12604,18 +12648,6 @@ function _timebokRenderProjectPickerList() {
     var q = raw.toLowerCase();
     var filtered = q ? projects.filter(function (p) { return String(p.name || '').toLowerCase().indexOf(q) !== -1; }) : projects;
     var html = '';
-    // «Uten prosjekt» øverst (skjules mens man søker etter et prosjekt).
-    if (!q) {
-        var onN = _timebokPickerCurrentId === '__none';
-        html += '<div class="timebok-proj-row timebok-proj-none' + (onN ? ' current' : '') + '">' +
-            '<button type="button" class="timebok-proj-pick" onclick="_selectTimebokNoProject()">' +
-                '<span class="timebok-proj-check">' + (onN ? _TIMEBOK_CHECK_SVG : '') + '</span>' +
-                '<span class="timebok-proj-text">' +
-                    '<span class="timebok-proj-name">' + escapeHtml(t('timebok_without_project')) + '</span>' +
-                    '<span class="timebok-proj-dist">' + escapeHtml(t('timebok_without_project_sub')) + '</span>' +
-                '</span>' +
-            '</button></div>';
-    }
     filtered.forEach(function (p) {
         var on = p.id === _timebokPickerCurrentId;
         html += '<div class="timebok-proj-row' + (on ? ' current' : '') + '">' +
@@ -12656,7 +12688,14 @@ function _selectTimebokProject(id) {
         _timebokOnDayInput();
     }
 }
-// «Uten prosjekt» (kurs, fravær …): ingen auto-fyll — du legger til kodene selv.
+// Hus-knappen ved prosjektvelgeren → Internt prosjekt.
+function _timebokSetInternal(btn) {
+    var block = btn.closest('.timebok-project-block');
+    if (!block || block.getAttribute('data-no-project') === '1') return;
+    _timebokPickerTarget = block;
+    _selectTimebokNoProject();
+}
+// «Internt prosjekt» (kurs, fravær …): ingen auto-fyll — du legger til kodene selv.
 function _selectTimebokNoProject() {
     var target = _timebokPickerTarget;
     closeTimebokProjectPicker();
@@ -12667,10 +12706,14 @@ function _selectTimebokNoProject() {
     var nm = target.querySelector('.timebok-project-name'), sel = target.querySelector('.timebok-project-select');
     if (nm) nm.textContent = t('timebok_without_project');
     if (sel) sel.classList.add('filled');
+    var ib = target.querySelector('.timebok-internal-btn');
+    if (ib) ib.classList.add('on');
     _timebokOnDayInput();
 }
 function _timebokSetProjectOnBlock(block, id, name) {
     if (!block) return;
+    var ib = block.querySelector('.timebok-internal-btn');
+    if (ib) ib.classList.remove('on');
     block.setAttribute('data-project-id', id || '');
     block.setAttribute('data-name', name || '');
     var sel = block.querySelector('.timebok-project-select');

@@ -9106,8 +9106,11 @@ body.timebok-view-open #view-form { display: none; }
     padding: 10px 12px;
     cursor: pointer;
 }
-.timebok-day-datecol { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.timebok-day-dateline { display: flex; align-items: center; gap: 8px; }
+.timebok-day-dateline { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 8px; row-gap: 2px; min-width: 0; }
+.timebok-day-dateline .timebok-day-today { align-self: center; }
+/* Tom dag: bare én lav linje (dato · ukedag … Ingen registreringer ›). */
+.timebok-day-card.empty .timebok-day-header { padding: 8px 12px; }
+.timebok-day-none { color: #a0a0a8; font-size: 13px; }
 .timebok-day-date { font-weight: 600; font-size: 16px; color: #1a1a1a; }
 .timebok-day-today {
     font-size: 10px;
@@ -9130,13 +9133,17 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-day-card.nav { cursor: pointer; }
 .timebok-day-card.nav:active { background: #fafafb; }
 .timebok-day-card.nav.weekend:active { background: #eef0f4; }
-/* Sammendrag-linje */
-.timebok-day-summary {
-    padding: 0 12px 10px;
-    font-size: 13px;
-    color: #555;
-}
-.timebok-day-summary.empty { color: #a0a0a8; }
+/* Dag med registreringer: én blokk pr. prosjekt (navn + timer, grå kodelinje) + kvitteringer. */
+.tb-wk-detail { padding: 0 12px 10px; display: flex; flex-direction: column; gap: 8px; }
+.tb-wk-proj + .tb-wk-proj { padding-top: 8px; border-top: 1px solid #ededf0; }
+.tb-wk-proj-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; color: #1a1a1a; }
+.tb-wk-proj-name { font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.tb-wk-note { margin: 1px 0 2px; font-size: 12px; line-height: 1.35; color: #6b6b73; font-style: italic; white-space: pre-line; overflow-wrap: anywhere; }
+.tb-wk-proj-h { flex-shrink: 0; color: #444; }
+.tb-wk-code { display: flex; justify-content: space-between; gap: 10px; margin-top: 2px; font-size: 12px; line-height: 1.35; color: #6b6b73; }
+.tb-wk-code > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-wk-code-v { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tb-wk-receipts { font-size: 12px; color: #6b6b73; }
 
 /* ════ Dagsvisning ════ */
 /* Prosjekt-kort: nøytralt grått overskriftsfelt + ramme/skygge/luft, så flere
@@ -9178,6 +9185,13 @@ body.timebok-view-open #view-form { display: none; }
    for å signalisere at den ikke er trykkbar. Ikke gjør den grå. */
 .timebok-pb-remove:disabled { opacity: 0.3; cursor: default; }
 .timebok-pb-selectrow { display: flex; gap: 8px; }
+/* Internt prosjekt ved velgeren: firkantet hus-knapp, oransje når valgt. */
+.timebok-internal-btn {
+    flex-shrink: 0; width: 46px; display: flex; align-items: center; justify-content: center;
+    background: #fff; border: 1px solid #d8d8de; border-radius: 9px; color: #6b6b73; cursor: pointer;
+}
+.timebok-internal-btn:active { background: #f5f5f7; }
+.timebok-internal-btn.on { background: #fff1ea; border-color: #E8501A; color: #E8501A; }
 .timebok-project-select {
     flex: 1; min-width: 0;
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -9282,8 +9296,8 @@ body.timebok-view-open #view-form { display: none; }
     background: #f5f5f7; border: 1px solid #e6e6ea; border-radius: 12px;
 }
 .tb-rc-head { margin-bottom: 6px; }
-/* Tilleggsinformasjon nederst i prosjektkortet, under tilleggskodene. */
-.tb-pb-note { margin-top: 12px; font-size: 14px; }
+/* Tilleggsinformasjon rett under prosjektvelgeren (dag) — og under prosjektnavnet i ukevisning. */
+.tb-pb-note { margin-top: 8px; font-size: 14px; }
 .tb-input.tb-textarea {
     display: block; height: auto; min-height: 42px; padding: 10px 12px;
     text-align: left; text-align-last: auto; line-height: 1.35; resize: none;
@@ -9374,8 +9388,6 @@ body.timebok-view-open #view-form { display: none; }
     border-bottom: 1px solid #ededf0;
 }
 .timebok-proj-row:last-child { border-bottom: none; }
-/* «Internt prosjekt» øverst i velgeren — tydeligere skille mot prosjektlista under. */
-.timebok-proj-row.timebok-proj-none { border-bottom: 2px solid #e3e3e8; }
 .timebok-proj-pick {
     flex: 1; min-width: 0;
     display: flex; align-items: center; gap: 8px;
