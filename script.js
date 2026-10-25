@@ -52,7 +52,9 @@ const TIMEBOK_FLAGS = ['lonn', 'ferie', 'skatt', 'reise', 'org'];
 //   (Pause — teller heller ikke med i timer).
 // flags: standard-flagg; hver tariff kan overstyre (tariff.rules[id]).
 // Oppmøtetillegg føres med Reisegodtgjørelse-kortet (Transport + Avstand), ikke som koder.
-const TIMEBOK_CODE_GROUPS = ['reise', 'arbeid', 'overtid', 'tillegg', 'fravaer', 'syk'];
+// Rekkefølge: arbeid/overtid (Start·Slutt·Lunsj·Timer) først, reise sist — Reisegodtgjørelse
+// er den eneste med Transport·Avstand og står helt nederst (brukerens ønske 25-10-2026).
+const TIMEBOK_CODE_GROUPS = ['arbeid', 'overtid', 'tillegg', 'fravaer', 'syk', 'reise'];
 const TIMEBOK_CODES = [
     { id: 'km',            group: 'reise',   label: 'Km-godtgjørelse',                input: 'km',    own: true, flags: ['lonn', 'ferie', 'skatt', 'reise'] },
     { id: 'passasjer',     group: 'reise',   label: 'Passasjertillegg',               input: 'km',    own: true, flags: ['lonn', 'ferie', 'skatt', 'reise'] },
@@ -398,8 +400,9 @@ function _timebokDayItems(dayDoc) {
         if (r != null) travels.push(r);
     };
     if (dayDoc && Array.isArray(dayDoc.projects)) {
-        dayDoc.projects.forEach(function (p) {
-            var key = (p.projectId || p.name || '');
+        dayDoc.projects.forEach(function (p, pi) {
+            // «Uten prosjekt»-kort har ingen navn → egen nøkkel pr. kort (ellers telles ikke reisen).
+            var key = (p.projectId || p.name || (p.noProject ? '__noproj' + pi : ''));
             if ('travel' in p) { if (p.travel) addTravel(key, p.travel.bracketId, p.travel.transport); }
             else {
                 // Eldre dager uten `travel`-felt: prosjektets avstand med firma-sats.
@@ -450,15 +453,31 @@ function _timebokDayHours(dayDoc) {
     });
     return total;
 }
-// Sum kvitteringer (utlegg) for en dag.
+// Kvitteringer kan være i annen valuta. Kun NOK summeres i totalene (ingen
+// automatisk kurs); andre valutaer summeres pr. valuta og vises ved siden av.
+const TIMEBOK_CURRENCIES = ['NOK', 'EUR', 'SEK', 'DKK', 'USD', 'GBP'];
+function _timebokRcCurrency(r) { return (r && r.currency && r.currency !== 'NOK') ? String(r.currency) : 'NOK'; }
+// Sum NOK-kvitteringer (utlegg) for en dag.
 function _timebokDayReceipts(dayDoc) {
     if (!dayDoc || !Array.isArray(dayDoc.receipts) || !dayDoc.receipts.length) return null;
     var total = 0, any = false;
     dayDoc.receipts.forEach(function (r) {
+        if (_timebokRcCurrency(r) !== 'NOK') return;
         var a = parseLocaleNum(r.amount);
         if (!isNaN(a)) { total += a; any = true; }
     });
     return any ? total : null;
+}
+// Kvitteringer i andre valutaer: { EUR: 12.5, ... } (tom når ingen).
+function _timebokDayReceiptsForeign(dayDoc, into) {
+    var out = into || {};
+    ((dayDoc && dayDoc.receipts) || []).forEach(function (r) {
+        var cur = _timebokRcCurrency(r);
+        if (cur === 'NOK') return;
+        var a = parseLocaleNum(r.amount);
+        if (!isNaN(a) && a) out[cur] = (out[cur] || 0) + a;
+    });
+    return out;
 }
 // Dagstotal (utbetaling): alle beløps-poster + kvitteringer.
 function _timebokDayTotal(dayDoc) {
@@ -475,7 +494,7 @@ function _timebokDayHasData(dayDoc) {
 }
 // Periode-aggregat over flere dag-docs.
 function _timebokPeriodSummary(dayDocs) {
-    var hours = 0, wage = 0, travel = 0, receipts = 0, total = 0, days = 0;
+    var hours = 0, wage = 0, travel = 0, receipts = 0, total = 0, days = 0, foreign = {};
     var anyW = false, anyT = false, anyR = false, anyS = false;
     (dayDocs || []).forEach(function (d) {
         if (_timebokDayHasData(d)) days++;
@@ -483,9 +502,10 @@ function _timebokPeriodSummary(dayDocs) {
         var w = _timebokDayWage(d); if (w != null) { wage += w; anyW = true; }
         var t = _timebokDayTravelComp(d); if (t != null) { travel += t; anyT = true; }
         var r = _timebokDayReceipts(d); if (r != null) { receipts += r; anyR = true; }
+        _timebokDayReceiptsForeign(d, foreign);
         var s = _timebokDayTotal(d); if (s != null) { total += s; anyS = true; }
     });
-    return { hours: hours, wage: anyW ? wage : null, travel: anyT ? travel : null, receipts: anyR ? receipts : null, total: anyS ? total : null, days: days };
+    return { hours: hours, wage: anyW ? wage : null, travel: anyT ? travel : null, receipts: anyR ? receipts : null, receiptsForeign: foreign, total: anyS ? total : null, days: days };
 }
 
 // ─── Timebok: dato-hjelpere ─────────────────────────────────────────────────

@@ -2713,25 +2713,26 @@ function renderTimebokSatser() {
             '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_otg_hint')) + '</div></div>' +
     '</div>';
     h += section(t('tb_sat_sec_codes'), t('tb_sat_sec_codes_desc').replace('{0}', tf.name));
-    // Reise
-    h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('tb_sat_travel')) + '</div>' +
-        '<div class="tb-sat-desc">' + escapeHtml(t('tb_sat_travel_desc')) + '</div>' +
-        '<div class="tb-sat-brhead"><span>' + escapeHtml(t('timebok_distance')) + '</span><span>' + escapeHtml(t('timebok_firma')) + '</span><span>' + escapeHtml(t('timebok_privat')) + '</span><span></span></div>' +
-        (tf.brackets || []).map(function (b) {
-            return '<div class="tb-sat-br"><span class="tb-sat-name">' + escapeHtml(b.label) + '</span>' +
-                _tbNumInput(b.rate, "_tbSatSetBracket('" + b.id + "', 'rate', this.value)") +
-                _tbNumInput(b.ratePrivat, "_tbSatSetBracket('" + b.id + "', 'ratePrivat', this.value)") +
-                '<button type="button" class="tb-sat-del" onclick="_tbSatRemove(\'br\', \'' + b.id + '\')" aria-label="Fjern">&times;</button></div>';
-        }).join('') +
-        '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'br\')">' + escapeHtml(t('tb_sat_add_bracket')) + '</button>' +
-        '<div class="tb-sat-item tb-sat-shared"><div class="tb-sat-name">' + escapeHtml(t('tb_sat_bracket_shared')) + '</div>' + _tbFlagsHtml('bracketFlags', tf.bracketFlags) + '</div>' +
-        TIMEBOK_CODES.filter(function (c) { return c.group === 'reise'; }).map(function (c) { return _tbCodeSatHtml(tf, c); }).join('') +
-    '</div>';
-    // Resten av kodene, én boks pr. gruppe (samme grupper/rekkefølge som i Timebok).
+    // Én boks pr. gruppe, samme rekkefølge som i Timebok. Reise: km/passasjer/tilhenger/
+    // reiseutgifter, så Reisegodtgjørelse-tabellen (avstand × firma/privat) nederst.
     TIMEBOK_CODE_GROUPS.forEach(function (g) {
-        if (g === 'reise') return;
-        h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' +
-            TIMEBOK_CODES.filter(function (c) { return c.group === g; }).map(function (c) { return _tbCodeSatHtml(tf, c); }).join('') +
+        var codes = TIMEBOK_CODES.filter(function (c) { return c.group === g; }).map(function (c) { return _tbCodeSatHtml(tf, c); }).join('');
+        if (g !== 'reise') {
+            h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' + codes + '</div>';
+            return;
+        }
+        h += '<div class="tb-sat-card"><div class="tb-sat-h">' + escapeHtml(t('tb_sat_travel')) + '</div>' + codes +
+            '<div class="tb-sat-item tb-sat-travelhead"><div class="tb-sat-name">' + escapeHtml(t('timebok_day_travel')) + '</div>' +
+                '<div class="tb-sat-sub">' + escapeHtml(t('tb_sat_travel_desc')) + '</div></div>' +
+            '<div class="tb-sat-brhead"><span>' + escapeHtml(t('timebok_distance')) + '</span><span>' + escapeHtml(t('timebok_firma')) + '</span><span>' + escapeHtml(t('timebok_privat')) + '</span><span></span></div>' +
+            (tf.brackets || []).map(function (b) {
+                return '<div class="tb-sat-br"><span class="tb-sat-name">' + escapeHtml(b.label) + '</span>' +
+                    _tbNumInput(b.rate, "_tbSatSetBracket('" + b.id + "', 'rate', this.value)") +
+                    _tbNumInput(b.ratePrivat, "_tbSatSetBracket('" + b.id + "', 'ratePrivat', this.value)") +
+                    '<button type="button" class="tb-sat-del" onclick="_tbSatRemove(\'br\', \'' + b.id + '\')" aria-label="Fjern">&times;</button></div>';
+            }).join('') +
+            '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'br\')">' + escapeHtml(t('tb_sat_add_bracket')) + '</button>' +
+            '<div class="tb-sat-item tb-sat-shared"><div class="tb-sat-name">' + escapeHtml(t('tb_sat_bracket_shared')) + '</div>' + _tbFlagsHtml('bracketFlags', tf.bracketFlags) + '</div>' +
         '</div>';
     });
     host.innerHTML = h;
@@ -11108,7 +11109,7 @@ function _applyHashNavigation(hash) {
             showView('timebok-view');
             document.body.classList.add('timebok-view-open');
             document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'calculator-modal-open', 'service-view-open', 'kappe-view-open');
-            if (!_timebokAnchor) _timebokAnchor = new Date();
+            _timebokPrepareOpen();
             renderTimebok();
             updateToolbarState();
         }
@@ -11410,6 +11411,7 @@ function timebokShiftPeriod(dir) {
 function timebokToggleViewMode() {
     _timebokLeaveDay(function () {
         _timebokViewMode = (_timebokViewMode === 'week') ? 'day' : 'week';
+        _timebokRememberView();
         if (_timebokViewMode === 'day' && !_timebokAnchor) _timebokAnchor = new Date();
         renderTimebok();
     });
@@ -11428,6 +11430,7 @@ function timebokOpenDay(dateId) {
     var d = _timebokParseId(dateId);
     if (d) _timebokAnchor = d;
     _timebokViewMode = 'day';
+    _timebokRememberView();
     renderTimebok();
 }
 // ── Navigasjon ──
@@ -11443,9 +11446,21 @@ function _showTimebokDirectly() {
     window.location.hash = 'timebok';
     showView('timebok-view');
     document.body.classList.add('timebok-view-open');
-    if (!_timebokAnchor) _timebokAnchor = new Date();
+    _timebokPrepareOpen();
     renderTimebok();
     updateToolbarState();
+}
+// Timebok åpnes i visningen du brukte sist (dag/uke — husket pr. enhet: telefon og PC
+// kan ha hver sin vane), men ALLTID på dagens dato så du aldri fører på en gammel dag.
+var _TIMEBOK_VIEW_KEY = 'firesafe_timebok_view';
+function _timebokPrepareOpen() {
+    var m = null;
+    try { m = localStorage.getItem(_TIMEBOK_VIEW_KEY); } catch (e) {}
+    _timebokViewMode = (m === 'week') ? 'week' : 'day';
+    _timebokAnchor = new Date();
+}
+function _timebokRememberView() {
+    try { localStorage.setItem(_TIMEBOK_VIEW_KEY, _timebokViewMode); } catch (e) {}
 }
 function closeTimebokView() {
     document.body.classList.remove('timebok-view-open');
@@ -11515,6 +11530,19 @@ function createTimebokWeekCard(dayDoc, dateId) {
         '</div>' + summary;
     return card;
 }
+// Kvitt.-flisen: NOK-summen, og under den hver annen valuta for seg (summeres ikke).
+function _timebokSetReceiptTile(id, nok, foreign) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var curs = Object.keys(foreign || {});
+    el.textContent = (nok == null && curs.length) ? '' : _timebokTileKr(nok);
+    curs.forEach(function (c) {
+        var sm = document.createElement('small');
+        sm.className = 'tb-metric-cur';
+        sm.textContent = c + ' ' + formatLocaleNum(foreign[c], 2);
+        el.appendChild(sm);
+    });
+}
 function recalcTimebokWeekSummary() {
     var range = _timebokPeriodRange();
     var s = _timebokPeriodSummary(_timebokDaysInRange(range));
@@ -11522,7 +11550,7 @@ function recalcTimebokWeekSummary() {
     setT('tb-sum-hours', _timebokFixed2(s.hours));
     setT('tb-sum-wage', _timebokTileKr(s.wage));
     setT('tb-sum-travel', _timebokTileKr(s.travel));
-    setT('tb-sum-receipts', _timebokTileKr(s.receipts));
+    _timebokSetReceiptTile('tb-sum-receipts', s.receipts, s.receiptsForeign);
     setT('tb-sum-days', String(s.days));
     setT('tb-sum-total', _timebokTileKr(s.total));
     var subEl = document.getElementById('tb-sum-sub');
@@ -11544,13 +11572,31 @@ function renderTimebokDay() {
     if (pc) {
         pc.innerHTML = '';
         var blocks = doc.projects.length ? doc.projects : [{ projectId: '', name: '', codes: [] }];
-        blocks.forEach(function (p) { pc.appendChild(createTimebokProjectBlock(p)); });
+        // Flere prosjekter → alle sammenlagt (oversikt over dagen); ett → åpent.
+        blocks.forEach(function (p) {
+            var b = createTimebokProjectBlock(p);
+            if (blocks.length > 1) b.classList.add('collapsed');
+            pc.appendChild(b);
+        });
     }
     var rc = document.getElementById('timebok-receipts-list');
     if (rc) {
         rc.innerHTML = '';
-        (doc.receipts || []).forEach(function (r) { rc.appendChild(createTimebokReceiptRow(r)); });
+        (doc.receipts || []).forEach(function (r) { rc.appendChild(createTimebokReceiptCard(r)); });
     }
+    // Vedlegg: lagret versjon = fasit. Ulagrede nye bilder fra en forkastet økt slettes lokalt.
+    var savedIds = [];
+    (doc.receipts || []).forEach(function (r) { savedIds = savedIds.concat(r.imageIds || []); });
+    _tbRcDiscardSession(savedIds);
+    _tbRcSavedIds = savedIds;
+    // «Kopier fra forrige dag»: kun tilbudt når dagen er tom (vises/skjules i _timebokUpdateDayTotals).
+    var cpBtn = document.getElementById('timebok-copy-prev');
+    if (cpBtn) {
+        var prev = doc.projects.length ? null : _timebokPrevDayWithProjects(dateId);
+        cpBtn.setAttribute('data-src', prev ? (prev.id || prev.date) : '');
+        if (prev) cpBtn.querySelector('span').textContent = t('timebok_copy_prev').replace('{0}', _timebokFormatDateId(prev.id || prev.date));
+    }
+    _tbRcResizeAll();
     _timebokUpdateDayTotals();
     _timebokSetBaseline();
 }
@@ -11571,9 +11617,13 @@ function _timebokNormalizeDoc(doc, dateId) {
                 // `travel` mangler på eldre dager (→ prosjektets avstand); null = fjernet.
                 if ('travel' in p) out.travel = p.travel ? { transport: p.travel.transport || 'firma', bracketId: p.travel.bracketId || null } : null;
                 if (p.noOrdinary) out.noOrdinary = true;
+                if (p.note) out.note = String(p.note);
+                if (p.noProject) out.noProject = true;
                 return out;
             }),
-            receipts: (doc.receipts || []).map(function (r) { return { label: r.label || '', amount: r.amount }; })
+            receipts: (doc.receipts || []).map(function (r) {
+                return { label: r.label || '', amount: r.amount, currency: _timebokRcCurrency(r), imageIds: Array.isArray(r.imageIds) ? r.imageIds.slice() : [] };
+            })
         };
     }
     var byProj = {}, order = [];
@@ -11591,17 +11641,25 @@ function createTimebokProjectBlock(proj) {
     block.className = 'timebok-project-block';
     block.setAttribute('data-project-id', proj.projectId || '');
     block.setAttribute('data-name', proj.name || '');
+    // «Uten prosjekt» (kurs, fravær …): bevisst valg, regnes som utfylt.
+    if (proj.noProject && !proj.projectId && !proj.name) block.setAttribute('data-no-project', '1');
     // Overskriftsfelt («Prosjekt 1», «Prosjekt 2» …) + innhold i egen body, så hvert
     // prosjekt er et tydelig avgrenset kort når det er flere på samme dag.
     block.innerHTML =
-        '<div class="timebok-pb-head">' +
-            '<span class="timebok-pb-label">' + escapeHtml(t('timebok_project')) + '<span class="timebok-pb-num"></span> <span class="timebok-req">*</span></span>' +
-            '<button type="button" class="timebok-pb-remove" onclick="removeTimebokProjectBlock(this)" aria-label="Fjern">&times;</button>' +
+        // Hodet er trykkbart: legger kortet sammen / åpner det (ett åpent om gangen).
+        // Sammenlagt viser det et sammendrag (prosjekt · timer · reise) i stedet for innholdet.
+        '<div class="timebok-pb-head" onclick="_timebokToggleBlock(this)">' +
+            '<div class="timebok-pb-headtxt">' +
+                '<span class="timebok-pb-label">' + escapeHtml(t('timebok_project')) + '<span class="timebok-pb-num"></span> <span class="timebok-req">*</span></span>' +
+                '<span class="timebok-pb-sum"></span>' +
+            '</div>' +
+            '<svg class="timebok-pb-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+            '<button type="button" class="timebok-pb-remove" onclick="event.stopPropagation();removeTimebokProjectBlock(this)" aria-label="Fjern">&times;</button>' +
         '</div>' +
         '<div class="timebok-pb-body">' +
         '<div class="timebok-pb-selectrow">' +
-            '<button type="button" class="timebok-project-select' + (proj.name ? ' filled' : '') + '" onclick="openTimebokProjectPicker(this)">' +
-                '<span class="timebok-project-name">' + escapeHtml(proj.name || t('timebok_no_project')) + '</span>' +
+            '<button type="button" class="timebok-project-select' + (proj.name || block.getAttribute('data-no-project') ? ' filled' : '') + '" onclick="openTimebokProjectPicker(this)">' +
+                '<span class="timebok-project-name">' + escapeHtml(proj.name || (block.getAttribute('data-no-project') ? t('timebok_without_project') : t('timebok_no_project'))) + '</span>' +
                 '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
             '</button>' +
         '</div>' +
@@ -11611,7 +11669,10 @@ function createTimebokProjectBlock(proj) {
             '<button type="button" class="timebok-add-code-btn" onclick="addTimebokCode(this)">' + escapeHtml(t('timebok_add_code')) + '</button>' +
         '</div>' +
         '<div class="timebok-codes"></div>' +
+        // Tilleggsinformasjon nederst — hører til kodene (f.eks. hvilket kurs), vokser med teksten.
+        '<textarea class="tb-input tb-textarea tb-pb-note" rows="1" autocapitalize="sentences" placeholder="' + escapeHtml(t('timebok_note_ph')) + '" oninput="autoResizeTextarea(this);_timebokOnDayInput()"></textarea>' +
         '</div>';
+    block.querySelector('.tb-pb-note').value = proj.note || '';
     // Alle koder er kort i samme liste, sortert som kodelista (_timebokInsertCard).
     var ordId = _timebokOrdinaryTypeId(), ordShown = false;
     (proj.codes || []).forEach(function (c) {
@@ -11649,16 +11710,17 @@ function _timebokCurDayId() { return _timebokDateId(_timebokAnchor || new Date()
 //   Reisegodtgjørelse → Transport · Avstand
 // (feltene = `input` i TIMEBOK_CODES, script.js).
 // Kortene står ALLTID i samme rekkefølge som kodelista (Innstillinger → Auto-fyll og
-// «+ Legg til kode»): Reise → Arbeidstid → Overtid → Tillegg → Fravær → Sykefravær —
+// «+ Legg til kode»): Arbeidstid → Overtid → Tillegg → Fravær → Sykefravær → Reise —
 // uansett om de kom fra auto-fyll, ble lagt til senere eller lastes fra en lagret dag.
 var _TB_GROUP_ORDER = TIMEBOK_CODE_GROUPS;
 function _timebokGroupTitle(g) { return t('tb_grp_' + g); }
-// Kodelista i visningsrekkefølge (Reisegodtgjørelse først i Reise-gruppa).
+// Kodelista i visningsrekkefølge (Reisegodtgjørelse sist i Reise-gruppa).
 function _timebokOrderedCodeTypes(dateId) {
-    var types = _timebokCodeTypes(dateId);
-    var out = [{ id: '__travel', label: t('timebok_day_travel'), group: 'reise' }];
+    var types = _timebokCodeTypes(dateId), out = [];
     _TB_GROUP_ORDER.forEach(function (g) {
         types.forEach(function (tt) { if (tt.group === g) out.push(tt); });
+        // Reisegodtgjørelse sist i Reise-gruppa (= helt nederst).
+        if (g === 'reise') out.push({ id: '__travel', label: t('timebok_day_travel'), group: 'reise' });
     });
     return out;
 }
@@ -11809,7 +11871,7 @@ function confirmTimebokClock() {
     var btn = _tbClock.btn;
     var v = _timebokPad2(_tbClock.h) + ':' + _timebokPad2(_tbClock.m);
     closeTimebokClock();
-    if (btn) { _tbSetTimeVal(btn, v); _timebokRecalcCard(btn); }
+    if (btn) { _tbSetTimeVal(btn, v); _timebokMarkTouched(btn); _timebokRecalcCard(btn); }
 }
 function _tbClockMode(mode) { _tbClock.mode = mode; _tbClockRender(); }
 // Posisjon på urskiva i % av skiva: vinkel (grader fra kl. 12, med klokka) + radius.
@@ -11885,30 +11947,184 @@ function _timebokApplyProjectDefaults(block, proj, isNew) {
     if (sec) {
         sec.querySelector('.tb-travel-bracket').value = proj.bracketId || '';
     } else if (af.indexOf('__travel') !== -1) {
-        _timebokSetTravelSection(block, { transport: st.transport, bracketId: proj.bracketId || null });
+        _timebokSetTravelSection(block, { transport: st.transport, bracketId: proj.bracketId || null }).setAttribute('data-autofill', '1');
     }
     var have = {}, dayId = _timebokCurDayId();
     block.querySelectorAll('.tb-code-card').forEach(function (c) { have[c.getAttribute('data-type-id')] = true; });
     af.forEach(function (id) {
         if (id === '__travel' || have[id] || !_timebokIsActiveCode(id)) return;
         have[id] = true;
-        _timebokInsertCard(block, createTimebokCodeCard({ typeId: id }));
+        _timebokInsertCard(block, createTimebokCodeCard({ typeId: id })).setAttribute('data-autofill', '1');
     });
 }
-function createTimebokReceiptRow(rec) {
-    rec = rec || {};
-    var row = document.createElement('div');
-    row.className = 'timebok-receipt-row';
-    row.innerHTML =
-        '<input type="text" class="timebok-receipt-label" placeholder="' + escapeHtml(t('timebok_receipt_label_ph')) + '" value="' + escapeHtml(rec.label || '') + '" oninput="_timebokOnDayInput()">' +
-        '<div class="timebok-code-val">' +
-            '<input type="text" class="timebok-receipt-amount" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" value="' + (rec.amount != null && rec.amount !== '' ? escapeHtml(formatLocaleNum(rec.amount, 2)) : '') + '" oninput="_timebokOnDayInput()">' +
-            '<span class="timebok-code-unit">kr</span>' +
-        '</div>' +
-        '<button type="button" class="timebok-line-remove" onclick="removeTimebokReceipt(this)" aria-label="Fjern">&times;</button>';
-    return row;
+// Auto-fylte kort er FORSLAG til du rører dem (data-autofill). Velges «Internt prosjekt»,
+// fjernes urørte forslag; alt du har skrevet/valgt i (og koder du la til selv) blir.
+// Rørt = input/endring i kortet (delegert lytter under) eller valgt klokkeslett.
+function _timebokMarkTouched(el) {
+    var card = el && el.closest && el.closest('.tb-code-card');
+    if (card) card.removeAttribute('data-autofill');
 }
-
+document.addEventListener('input', function (e) { if (e.target.closest && e.target.closest('#timebok-day-projects')) _timebokMarkTouched(e.target); }, true);
+document.addEventListener('change', function (e) { if (e.target.closest && e.target.closest('#timebok-day-projects')) _timebokMarkTouched(e.target); }, true);
+function _timebokDropUntouchedAutofill(block) {
+    block.querySelectorAll('.tb-code-card[data-autofill="1"]').forEach(function (c) { c.remove(); });
+}
+// ── Kvittering: Beskrivelse (egen rad, vokser med teksten) · Valuta · Beløp · Vedlegg ──
+// Vedlegg = bilder i samme lager som Verktøy → Kvittering (_kvGetImage / kvitteringBilder,
+// komprimert JPEG, IndexedDB-cache). Nye bilder lastes opp først ved «Lagre endringer»
+// (ingen autolagring); forkastes dagen, slettes de lokalt (_tbRcDiscardSession).
+var _tbRcSavedIds = [];      // vedlegg i LAGRET versjon av åpen dag
+var _tbRcSessionNew = [];    // vedlegg laget siden sist lagret (ikke lastet opp)
+var _tbRcTarget = null;      // kortet «+ Fil» ble trykket i
+function createTimebokReceiptCard(rec) {
+    rec = rec || {};
+    var cur = _timebokRcCurrency(rec);
+    var card = document.createElement('div');
+    card.className = 'tb-sec tb-receipt-card';
+    card.setAttribute('data-image-ids', (rec.imageIds || []).join(','));
+    card.innerHTML =
+        // Egen boks pr. kvittering med nummer (når det er flere), så de ikke flyter sammen.
+        '<div class="tb-sec-head tb-rc-head"><span class="tb-sec-title">' + escapeHtml(t('timebok_receipt')) + '<span class="tb-rc-num"></span></span>' +
+            '<button type="button" class="tb-sec-remove" onclick="removeTimebokReceipt(this)" aria-label="Fjern">&times;</button></div>' +
+        '<textarea class="tb-input tb-textarea tb-rc-desc" rows="1" autocapitalize="sentences" placeholder="' + escapeHtml(t('timebok_receipt_label_ph')) + '" oninput="autoResizeTextarea(this);_timebokOnDayInput()"></textarea>' +
+        '<div class="tb-sec-grid tb-rc-grid">' +
+            '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_currency')) + '</span>' +
+                '<select class="tb-input tb-rc-cur" onchange="_timebokOnDayInput()">' +
+                    TIMEBOK_CURRENCIES.map(function (c) { return '<option value="' + c + '"' + (c === cur ? ' selected' : '') + '>' + c + '</option>'; }).join('') +
+                '</select></label>' +
+            '<label class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_amount')) + '</span>' +
+                '<input type="text" class="tb-input tb-rc-amount" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" oninput="_timebokOnDayInput()"></label>' +
+            '<div class="tb-field"><span class="tb-field-label">' + escapeHtml(t('timebok_attachment')) + '</span>' +
+                '<button type="button" class="tb-input tb-rc-file" onclick="_tbRcPickFiles(this)">' + escapeHtml(t('timebok_add_file')) + '</button></div>' +
+        '</div>' +
+        '<div class="tb-rc-thumbs"></div>';
+    card.querySelector('.tb-rc-desc').value = rec.label || '';
+    card.querySelector('.tb-rc-amount').value = (rec.amount != null && rec.amount !== '' && Number(rec.amount) !== 0) ? formatLocaleNum(rec.amount, 2) : '';
+    _tbRcRenderThumbs(card);
+    return card;
+}
+function _tbRcIds(card) {
+    var v = card.getAttribute('data-image-ids') || '';
+    return v ? v.split(',') : [];
+}
+function _tbRcSetIds(card, ids) {
+    card.setAttribute('data-image-ids', ids.join(','));
+    _tbRcRenderThumbs(card);
+    _timebokOnDayInput();
+}
+// Fritekst-feltene (tilleggsinformasjon, kvittering-beskrivelse) får høyde etter
+// innholdet — må måles når de er i DOM og synlige.
+function _tbRcResizeAll() {
+    requestAnimationFrame(function () {
+        document.querySelectorAll('#timebok-day .tb-textarea').forEach(function (ta) { autoResizeTextarea(ta); });
+    });
+}
+function _tbRcRenderThumbs(card) {
+    var host = card.querySelector('.tb-rc-thumbs');
+    var ids = _tbRcIds(card);
+    host.innerHTML = ids.map(function (id) {
+        return '<div class="tb-rc-thumb" data-id="' + escapeHtml(id) + '">' +
+            '<img alt="">' +
+            '<button type="button" class="tb-rc-thumb-del" aria-label="' + escapeHtml(t('delete_btn')) + '">&times;</button></div>';
+    }).join('');
+    host.querySelectorAll('.tb-rc-thumb').forEach(function (th) {
+        var id = th.getAttribute('data-id'), img = th.querySelector('img');
+        _kvGetImage(id).then(function (r) {
+            if (r && img.isConnected) img.src = r.data;
+            else if (img.isConnected) th.classList.add('missing');
+        });
+        th.addEventListener('click', function (e) {
+            if (e.target.closest('.tb-rc-thumb-del')) _tbRcRemoveImage(card, id);
+            else _tbRcEditImage(card, id);
+        });
+    });
+}
+function _tbRcPickFiles(btn) {
+    _tbRcTarget = btn.closest('.tb-receipt-card');
+    var inp = document.getElementById('timebok-receipt-file');
+    if (inp) inp.click();
+}
+// Samme flyt som Kvittering-skjemaet: bilde → editor (rett opp / beskjær / skann),
+// PDF → én side pr. bilde (Original).
+async function _tbRcFilesPicked(input) {
+    var files = Array.prototype.slice.call(input.files || []);
+    input.value = '';
+    var card = _tbRcTarget;
+    if (!files.length || !card) return;
+    var loading = document.getElementById('loading');
+    for (var i = 0; i < files.length; i++) {
+        var file = files[i];
+        var isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+        try {
+            if (isPdf) {
+                if (loading) loading.classList.add('active');
+                try {
+                    var pages = await _kvPdfToCanvases(file);
+                    for (var p = 0; p < pages.length; p++) await _tbRcAddCanvas(card, pages[p]);
+                } finally { if (loading) loading.classList.remove('active'); }
+                continue;
+            }
+            var src = await _kvLoadImageFile(file);
+            var result = await _kvOpenEditor(src, { mode: 'scan' });
+            if (result) await _tbRcAddCanvas(card, result);
+        } catch (e) {
+            console.error('Timebok vedlegg:', e);
+            showNotificationModal(t('kvittering_image_error'));
+        }
+    }
+}
+async function _tbRcAddCanvas(card, canvas, replaceId) {
+    var rec = _kvCanvasToRecord(canvas);
+    await _kvImgPutLocal(rec);
+    _tbRcSessionNew.push(rec.id);
+    var ids = _tbRcIds(card);
+    var at = replaceId ? ids.indexOf(replaceId) : -1;
+    if (at !== -1) { ids[at] = rec.id; _tbRcDropIfNew(replaceId); }
+    else ids.push(rec.id);
+    _tbRcSetIds(card, ids);
+}
+// Ulagret bilde fra denne økten → fjernes lokalt med en gang. Lagrede bilder
+// slettes først ved «Lagre endringer» (forkast = de står urørt).
+function _tbRcDropIfNew(id) {
+    var i = _tbRcSessionNew.indexOf(id);
+    if (i !== -1) { _tbRcSessionNew.splice(i, 1); _kvImgDelLocal(id); }
+}
+function _tbRcRemoveImage(card, id) {
+    showConfirmModal(t('kvittering_delete_image_confirm'), function () {
+        _tbRcDropIfNew(id);
+        _tbRcSetIds(card, _tbRcIds(card).filter(function (x) { return x !== id; }));
+    }, t('btn_remove'), '#e74c3c');
+}
+async function _tbRcEditImage(card, id) {
+    var rec = await _kvGetImage(id);
+    if (!rec) { showNotificationModal(t('kvittering_image_error')); return; }
+    var src = await _kvLoadDataUrl(rec.data);
+    var result = await _kvOpenEditor(src, { mode: 'original' });
+    if (result) await _tbRcAddCanvas(card, result, id);
+}
+function _tbRcDiscardSession(keepIds) {
+    _tbRcSessionNew.forEach(function (id) { if ((keepIds || []).indexOf(id) === -1) _kvImgDelLocal(id); });
+    _tbRcSessionNew = [];
+}
+// Ved lagring: nye vedlegg opp (FØR dag-dokumentet i køen, så en annen enhet aldri
+// ser en kvittering som peker på et bilde som ikke finnes ennå), fjernede ned.
+function _tbRcSyncImages(dateId, ids) {
+    ids.forEach(function (id) {
+        if (_tbRcSavedIds.indexOf(id) !== -1) return;
+        var rec = _kvImgMem[id];
+        var put = function (r) {
+            if (r) enqueueUserDocSet(_KV_IMG_COLLECTION, id, { timebokDay: dateId, data: r.data, w: r.w, h: r.h, createdAt: r.createdAt }, 'Timebok vedlegg');
+        };
+        if (rec) put(rec); else _kvGetImage(id).then(put);
+    });
+    _tbRcSavedIds.forEach(function (id) {
+        if (ids.indexOf(id) !== -1) return;
+        enqueueUserDocDelete(_KV_IMG_COLLECTION, id, 'Timebok vedlegg slett');
+        _kvImgDelLocal(id);
+    });
+    _tbRcSavedIds = ids.slice();
+    _tbRcSessionNew = [];
+}
 // Les dagsvisning fra DOM → dag-doc (ny modell).
 function _timebokReadDayView() {
     var dateId = _timebokDateId(_timebokAnchor);
@@ -11942,20 +12158,25 @@ function _timebokReadDayView() {
         // Lagres når prosjektet er valgt og har kort, når et kort har verdi, eller
         // ved valgt reise (prosjekt + reise er en registrering).
         var hasTravel = !!(travel && travel.bracketId && (projectId || name));
-        var hasProject = !!(projectId || name);
-        if (!anyValue && !hasTravel && !(hasProject && (codes.length || trSec))) return;
+        var noProject = !projectId && !name && block.getAttribute('data-no-project') === '1';
+        var hasProject = !!(projectId || name || noProject);
+        var note = String(block.querySelector('.tb-pb-note').value || '').trim();
+        if (!anyValue && !hasTravel && !note && !(hasProject && (codes.length || trSec))) return;
         var pdoc = { projectId: projectId, name: name, codes: codes, travel: hasTravel ? travel : null };
+        if (note) pdoc.note = note;
+        if (noProject) pdoc.noProject = true;
         // «Ordinære timer» fjernet med × → husk det, ellers legges kortet til igjen ved innlasting.
         if (!hasOrd) pdoc.noOrdinary = true;
         projects.push(pdoc);
     });
     var receipts = [];
-    document.querySelectorAll('#timebok-receipts-list .timebok-receipt-row').forEach(function (row) {
-        var label = (row.querySelector('.timebok-receipt-label') || {}).value || '';
-        var rawA = (row.querySelector('.timebok-receipt-amount') || {}).value || '';
-        if (!String(label).trim() && !String(rawA).trim()) return;
+    document.querySelectorAll('#timebok-receipts-list .tb-receipt-card').forEach(function (card) {
+        var label = card.querySelector('.tb-rc-desc').value || '';
+        var rawA = card.querySelector('.tb-rc-amount').value || '';
+        var ids = _tbRcIds(card);
+        if (!String(label).trim() && !String(rawA).trim() && !ids.length) return;
         var a = parseLocaleNum(rawA);
-        receipts.push({ label: String(label).trim(), amount: isNaN(a) ? 0 : a });
+        receipts.push({ label: String(label).trim(), amount: isNaN(a) ? 0 : a, currency: card.querySelector('.tb-rc-cur').value || 'NOK', imageIds: ids });
     });
     return { date: dateId, projects: projects, receipts: receipts, savedAt: new Date().toISOString() };
 }
@@ -11967,13 +12188,14 @@ function _timebokUpdateDayTotals() {
     var wage = _timebokDayWage(doc, timesats), travel = _timebokDayTravelComp(doc), rec = _timebokDayReceipts(doc), total = _timebokDayTotal(doc, timesats);
     setT('tb-day-wage', _timebokTileKr(wage));
     setT('tb-day-travel', _timebokTileKr(travel));
-    setT('tb-day-receipts', _timebokTileKr(rec));
+    _timebokSetReceiptTile('tb-day-receipts', rec, _timebokDayReceiptsForeign(doc));
     setT('tb-day-total', _timebokTileKr(total));
     var blocks = document.querySelectorAll('#timebok-day-projects .timebok-project-block');
     blocks.forEach(function (block, bi) {
         // Nummerér kortene når det er flere prosjekter samme dag.
         var num = block.querySelector('.timebok-pb-num');
         if (num) num.textContent = blocks.length > 1 ? ' ' + (bi + 1) : '';
+        _timebokUpdateBlockSummary(block);
         var hasCodes = block.querySelectorAll('.tb-code-card').length > 0;
         var hint = block.querySelector('.timebok-pb-hint');
         if (hint) hint.style.display = hasCodes ? 'none' : '';
@@ -11981,6 +12203,18 @@ function _timebokUpdateDayTotals() {
         // Alltid synlig, men disabled når det bare er én prosjekt-blokk (kan ikke fjerne
         // den siste). Foretrukket framfor å skjule den helt.
         if (rm) rm.disabled = (blocks.length <= 1);
+    });
+    var cpBtn = document.getElementById('timebok-copy-prev');
+    if (cpBtn) {
+        var anyContent = Array.prototype.some.call(blocks, function (b) {
+            return b.getAttribute('data-project-id') || b.getAttribute('data-name') || b.getAttribute('data-no-project') || b.querySelector('.tb-code-card');
+        });
+        cpBtn.style.display = (cpBtn.getAttribute('data-src') && !anyContent) ? '' : 'none';
+    }
+    var rcs = document.querySelectorAll('#timebok-receipts-list .tb-receipt-card');
+    rcs.forEach(function (c, i) {
+        var n = c.querySelector('.tb-rc-num');
+        if (n) n.textContent = rcs.length > 1 ? ' ' + (i + 1) : '';
     });
 }
 // ── Ulagret-sporing (INGEN autolagring — kun «Lagre endringer»-knappen lagrer) ──
@@ -12006,14 +12240,11 @@ function _timebokOnDayInput() {
     _timebokUpdateDayTotals();
     _timebokSetSaveStatus(_timebokIsDirty() ? 'dirty' : 'saved');
 }
+// Lagre-knappen i headeren: aktiv kun når dagen har ulagrede endringer.
 function _timebokSetSaveStatus(state) {
     var btn = document.getElementById('timebok-save-status');
     if (!btn) return;
-    var dirty = (state === 'dirty');
-    btn.classList.toggle('dirty', dirty);
-    btn.disabled = !dirty;
-    var span = btn.querySelector('span');
-    if (span) span.textContent = dirty ? t('timebok_save_changes') : t('timebok_saved');
+    btn.disabled = (state !== 'dirty');
 }
 function saveTimebokCurrentDay() {
     if (!_timebokIsDirty()) return;
@@ -12033,10 +12264,183 @@ function _timebokLeaveDay(proceed) {
 }
 
 // ── Legg til / fjern prosjekt-blokk, kode, kvittering ──
+// ── Kopier dagen til flere dager / kopier fra forrige dag ──
+// Det du fører samme hele uka, føres én gang: mandag fylles ut, ⧉ i headeren →
+// velg dagene (åpner på kildedagens uke, INGEN dager forhåndsvalgt — du velger selv,
+// «Velg ma–fr» som snarvei) → lagres med én gang
+// (bevisst handling). Kopieres: prosjekter, koder (inkl. start/slutt/lunsj/timer), reise
+// og tilleggsinformasjon. Kvitteringer kopieres IKKE, og en målsdags egne kvitteringer
+// beholdes når innholdet erstattes. Hver dag beregnes med sin egen tariff.
+var _tbCopy = null;   // { src, weekStart: Date, sel: { dateId: true } }
+function _timebokCachedDay(id) {
+    var c = _timebokGetCache();
+    for (var i = 0; i < c.length; i++) if ((c[i].id || c[i].date) === id) return c[i];
+    return null;
+}
+function _timebokMonday(d) {
+    var dow = d.getDay(), diff = (dow === 0 ? -6 : 1 - dow);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
+}
+function _timebokAddDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function _timebokPrevDayWithProjects(beforeId) {
+    var c = _timebokSortDesc(_timebokGetCache().slice());
+    for (var i = 0; i < c.length; i++) {
+        var id = c[i].id || c[i].date;
+        if (id >= beforeId) continue;
+        var n = _timebokNormalizeDoc(c[i], id);
+        if (n.projects.length) return c[i];
+    }
+    return null;
+}
+function openTimebokCopy() {
+    if (_timebokViewMode !== 'day') return;
+    var src = _timebokDateId(_timebokAnchor);
+    if (!_timebokReadDayView().projects.length) { showNotificationModal(t('timebok_copy_empty')); return; }
+    // Åpner på uka dagen tilhører, ingenting valgt (målsdagene lagres direkte — da skal
+    // hver dag være et bevisst valg, ikke en gjetning som må fjernes).
+    _tbCopy = { src: src, weekStart: _timebokMonday(_timebokParseId(src)), sel: {} };
+    _tbCopyRender();
+    document.getElementById('timebok-copy-popup').classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+function closeTimebokCopy() {
+    document.getElementById('timebok-copy-popup').classList.remove('active');
+    _tbCopy = null;
+}
+function _tbCopyShiftWeek(dir) {
+    if (!_tbCopy) return;
+    _tbCopy.weekStart = _timebokAddDays(_tbCopy.weekStart, dir * 7);
+    _tbCopyRender();
+}
+// Snarvei: velg mandag–fredag i viste uke (unntatt kildedagen). Alle valgt → fjern dem.
+function _tbCopyWeekdays() {
+    if (!_tbCopy) return;
+    var ids = [];
+    for (var i = 0; i < 5; i++) {
+        var id = _timebokDateId(_timebokAddDays(_tbCopy.weekStart, i));
+        if (id !== _tbCopy.src) ids.push(id);
+    }
+    var all = ids.every(function (id) { return _tbCopy.sel[id]; });
+    ids.forEach(function (id) { if (all) delete _tbCopy.sel[id]; else _tbCopy.sel[id] = true; });
+    _tbCopyRender();
+}
+function _tbCopyToggle(id) {
+    if (!_tbCopy || id === _tbCopy.src) return;
+    if (_tbCopy.sel[id]) delete _tbCopy.sel[id]; else _tbCopy.sel[id] = true;
+    _tbCopyRender();
+}
+function _tbCopyRender() {
+    var c = _tbCopy, ws = c.weekStart, sun = _timebokAddDays(ws, 6);
+    document.getElementById('tb-copy-week').textContent = 'Uke ' + getWeekNumber(ws) + ' · ' + _timebokRangeLabel(ws, sun, true);
+    var short = ['Sø', 'Ma', 'Ti', 'On', 'To', 'Fr', 'Lø'], h = '';
+    for (var i = 0; i < 7; i++) {
+        var d = _timebokAddDays(ws, i), id = _timebokDateId(d), dow = d.getDay();
+        var cls = 'tb-copy-day' + (id === c.src ? ' src' : '') + (c.sel[id] ? ' sel' : '') +
+            ((dow === 0 || dow === 6) ? ' weekend' : '') + (_timebokDayHasData(_timebokCachedDay(id)) ? ' has' : '');
+        h += '<button type="button" class="' + cls + '" onclick="_tbCopyToggle(\'' + id + '\')"' + (id === c.src ? ' disabled' : '') + '>' +
+            '<span>' + short[dow] + '</span><b>' + d.getDate() + '</b></button>';
+    }
+    document.getElementById('tb-copy-days').innerHTML = h;
+    // Fast tekst («Kopier») — en tekst som endrer lengde ville endret høyden på popupen.
+    document.getElementById('tb-copy-ok').disabled = !Object.keys(c.sel).length;
+}
+function confirmTimebokCopy() {
+    if (!_tbCopy) return;
+    var ids = Object.keys(_tbCopy.sel).sort();
+    if (!ids.length) return;
+    var taken = ids.filter(function (id) { return _timebokDayHasData(_timebokCachedDay(id)); });
+    var run = function () { _timebokCopyDayTo(ids); };
+    if (taken.length) showConfirmModal(t('timebok_copy_replace').replace('{n}', taken.length), run, t('timebok_copy_replace_btn'), '#E8501A');
+    else run();
+}
+function _timebokCopyDayTo(ids) {
+    // Kilden lagres først hvis den har ulagrede endringer — det som kopieres er det du ser.
+    if (_timebokIsDirty()) saveTimebokCurrentDay();
+    var projects = JSON.parse(JSON.stringify(_timebokReadDayView().projects));
+    var cache = _timebokGetCache(), now = new Date().toISOString();
+    ids.forEach(function (id) {
+        var idx = -1;
+        for (var i = 0; i < cache.length; i++) if ((cache[i].id || cache[i].date) === id) { idx = i; break; }
+        var old = idx >= 0 ? cache[idx] : null;
+        var doc = { date: id, id: id, projects: JSON.parse(JSON.stringify(projects)),
+            receipts: (old && Array.isArray(old.receipts)) ? old.receipts : [], savedAt: now };
+        if (idx >= 0) cache[idx] = doc; else cache.push(doc);
+        if (typeof enqueueUserDocSet === 'function') enqueueUserDocSet('timebok', id, doc, 'Timebok kopier');
+    });
+    _timebokSortDesc(cache);
+    if (cache.length > 60) cache = cache.slice(0, 60);
+    _timebokSetCache(cache);
+    _lastLocalSaveTs = Date.now();
+    closeTimebokCopy();
+    showNotificationModal(t(ids.length === 1 ? 'timebok_copy_done_one' : 'timebok_copy_done').replace('{n}', ids.length), true);
+}
+// Tom dag → hent forrige dag med prosjekter inn i visningen (ulagret til Lagre).
+function timebokCopyFromPrevDay() {
+    var btn = document.getElementById('timebok-copy-prev');
+    var srcId = btn && btn.getAttribute('data-src');
+    var src = srcId && _timebokCachedDay(srcId);
+    var pc = document.getElementById('timebok-day-projects');
+    if (!src || !pc) return;
+    var n = _timebokNormalizeDoc(src, _timebokDateId(_timebokAnchor));
+    pc.innerHTML = '';
+    n.projects.forEach(function (p) {
+        var b = createTimebokProjectBlock(p);
+        if (n.projects.length > 1) b.classList.add('collapsed');
+        pc.appendChild(b);
+    });
+    _tbRcResizeAll();
+    _timebokOnDayInput();
+}
+
+// ── Sammenleggbare prosjektkort (ett åpent om gangen) ──
+function _timebokCollapseAllBlocks(except) {
+    var ae = document.activeElement;
+    document.querySelectorAll('#timebok-day-projects .timebok-project-block').forEach(function (b) {
+        if (b === except) return;
+        if (ae && b.contains(ae) && ae.blur) ae.blur();
+        b.classList.add('collapsed');
+    });
+}
+function _timebokToggleBlock(head) {
+    var block = head.closest('.timebok-project-block');
+    if (!block) return;
+    if (block.classList.contains('collapsed')) {
+        _timebokCollapseAllBlocks(block);
+        block.classList.remove('collapsed');
+        _tbRcResizeAll();
+        if (block.scrollIntoView) block.scrollIntoView({ block: 'nearest' });
+    } else {
+        _timebokCollapseAllBlocks();
+    }
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+// Sammendrag i hodet: prosjektnavn (rødt «Velg prosjekt» hvis mangler) · timer · reise.
+function _timebokUpdateBlockSummary(block) {
+    var el = block.querySelector('.timebok-pb-sum');
+    if (!el) return;
+    var name = block.getAttribute('data-name') || '';
+    var hours = 0, any = false;
+    block.querySelectorAll('.tb-code-card').forEach(function (c) {
+        var def = _timebokCodeDef(c.getAttribute('data-type-id'));
+        if (!def || def.zero || ['arbeid', 'overtid', 'fravaer', 'syk'].indexOf(def.group) === -1) return;
+        var h = parseLocaleNum(c.querySelector('.tb-c-val').value);
+        if (!isNaN(h)) { hours += h; any = true; }
+    });
+    var parts = [];
+    if (any) parts.push(formatLocaleNum(hours, 2) + ' t');
+    var tr = block.querySelector('.tb-card-travel .tb-travel-bracket');
+    if (tr && tr.value) parts.push(_timebokBracketLabel(tr.value));
+    var head = name ? '<b>' + escapeHtml(name) + '</b>'
+        : block.getAttribute('data-no-project') === '1' ? '<b>' + escapeHtml(t('timebok_without_project')) + '</b>'
+        : '<b class="missing">' + escapeHtml(t('timebok_pick_project')) + '</b>';
+    el.innerHTML = head +
+        (parts.length ? ' · ' + escapeHtml(parts.join(' · ')) : '');
+}
 function addTimebokProjectBlock() {
     var pc = document.getElementById('timebok-day-projects');
     if (!pc) return;
     var block = createTimebokProjectBlock({ projectId: '', name: '', codes: [] });
+    _timebokCollapseAllBlocks();
     pc.appendChild(block);
     _timebokUpdateDayTotals();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
@@ -12048,6 +12452,9 @@ function removeTimebokProjectBlock(btn) {
     if (!block || !pc) return;
     block.remove();
     if (!pc.querySelector('.timebok-project-block')) pc.appendChild(createTimebokProjectBlock({ projectId: '', name: '', codes: [] }));
+    // Bare ett kort igjen → åpne det (sammenlegging er bare nyttig med flere).
+    var rest = pc.querySelectorAll('.timebok-project-block');
+    if (rest.length === 1) rest[0].classList.remove('collapsed');
     _timebokOnDayInput();
 }
 // «+ Legg til kode»: velg kode → kortet settes inn på sin faste plass.
@@ -12057,52 +12464,71 @@ function addTimebokCode(btn) {
 function addTimebokReceipt() {
     var rc = document.getElementById('timebok-receipts-list');
     if (!rc) return;
-    var row = createTimebokReceiptRow({});
-    rc.appendChild(row);
+    var card = createTimebokReceiptCard({});
+    rc.appendChild(card);
     _timebokUpdateDayTotals();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(row);
+    if (typeof _scrollPopupRowIntoView === 'function') _scrollPopupRowIntoView(card);
+    card.querySelector('.tb-rc-desc').focus();
 }
 function removeTimebokReceipt(btn) {
-    var row = btn.closest('.timebok-receipt-row');
-    if (row) row.remove();
+    var card = btn.closest('.tb-receipt-card');
+    if (!card) return;
+    // Ulagrede vedlegg i kortet slettes lokalt; lagrede slettes ved «Lagre endringer».
+    _tbRcIds(card).forEach(_tbRcDropIfNew);
+    card.remove();
     _timebokOnDayInput();
 }
 
 // ── Pickere ──
+// «+ Legg til kode»: velg én eller flere (avkrysning, samme komponent og grupper som
+// Innstillinger → Auto-fyll). Koder som allerede står på kortet vises avhuket og låst.
 function openTimebokTypePicker(block) {
     _timebokPickerTarget = block;
     _timebokPickerKind = 'type';
     var listEl = document.getElementById('timebok-type-list');
-    // Kodene fra tariffen som gjelder dagen, gruppert og sortert som kortene og
-    // Innstillinger → Auto-fyll. Reisegodtgjørelse kun når kortet ikke finnes.
-    var hasTravel = !!(block && block.querySelector('.tb-card-travel'));
-    var html = '', lastGroup = null;
-    _timebokOrderedCodeTypes(_timebokCurDayId()).forEach(function (tt) {
-        if (tt.id === '__travel' && hasTravel) return;
-        if (tt.group !== lastGroup) { lastGroup = tt.group; html += '<div class="tb-type-group">' + escapeHtml(_timebokGroupTitle(tt.group)) + '</div>'; }
-        html += '<button type="button" class="plan-popup-row" data-id="' + escapeHtml(tt.id) + '" onclick="_selectTimebokType(this)">' +
-            '<span class="plan-popup-name">' + escapeHtml(tt.label) + '</span></button>';
+    var have = {};
+    if (block) block.querySelectorAll('.tb-code-card').forEach(function (c) { have[c.getAttribute('data-type-id')] = true; });
+    var types = _timebokOrderedCodeTypes(_timebokCurDayId()), html = '';
+    TIMEBOK_CODE_GROUPS.forEach(function (g) {
+        var items = types.filter(function (x) { return x.group === g; });
+        if (!items.length) return;
+        html += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div><div class="tb-af-grid">' +
+            items.map(function (x) {
+                var on = !!have[x.id];
+                return '<label class="tb-af-item' + (on ? ' tb-af-locked' : '') + '"><input type="checkbox" value="' + escapeHtml(x.id) + '"' +
+                    (on ? ' checked disabled' : '') + ' onchange="_tbTypeSelChanged()"><span>' + escapeHtml(x.label) + '</span></label>';
+            }).join('') + '</div>';
     });
-    listEl.innerHTML = html;
+    listEl.innerHTML = '<div class="tb-af-box" lang="nb">' + html + '</div>';
+    listEl.scrollTop = 0;
+    _tbTypeSelChanged();
     document.getElementById('timebok-type-popup').classList.add('active');
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
-function _selectTimebokType(btn) {
-    var id = btn.getAttribute('data-id');
+function _tbTypeSelChanged() {
+    var n = document.querySelectorAll('#timebok-type-list input:checked:not(:disabled)').length;
+    document.getElementById('timebok-type-ok').disabled = !n;
+}
+function confirmTimebokTypePicker() {
     var blk = _timebokPickerTarget;
+    var ids = Array.prototype.map.call(document.querySelectorAll('#timebok-type-list input:checked:not(:disabled)'), function (i) { return i.value; });
     closeTimebokTypePicker();
-    if (!blk) return;
-    var card;
-    if (id === '__travel') {
-        var pr = _timebokProject({ projectId: blk.getAttribute('data-project-id'), project: blk.getAttribute('data-name') });
-        card = _timebokSetTravelSection(blk, { transport: getTimebokSettings().transport, bracketId: pr ? pr.bracketId : null });
-    } else {
-        card = _timebokInsertCard(blk, createTimebokCodeCard({ typeId: id }));
-    }
+    if (!blk || !ids.length) return;
+    var first = null;
+    ids.forEach(function (id) {
+        var card;
+        if (id === '__travel') {
+            var pr = _timebokProject({ projectId: blk.getAttribute('data-project-id'), project: blk.getAttribute('data-name') });
+            card = _timebokSetTravelSection(blk, { transport: getTimebokSettings().transport, bracketId: pr ? pr.bracketId : null });
+        } else {
+            card = _timebokInsertCard(blk, createTimebokCodeCard({ typeId: id }));
+        }
+        if (!first) first = card;
+    });
     _timebokOnDayInput();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-    if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+    if (first && first.scrollIntoView) first.scrollIntoView({ block: 'nearest' });
 }
 function closeTimebokTypePicker() {
     var p = document.getElementById('timebok-type-popup');
@@ -12132,7 +12558,7 @@ function openTimebokProjectPicker(btn) {
         projectId: _timebokPickerTarget.getAttribute('data-project-id'),
         project: _timebokPickerTarget.getAttribute('data-name')
     });
-    _timebokPickerCurrentId = cur ? cur.id : null;
+    _timebokPickerCurrentId = cur ? cur.id : ((_timebokPickerTarget && _timebokPickerTarget.getAttribute('data-no-project') === '1') ? '__none' : null);
     var search = document.getElementById('timebok-project-search');
     if (search) search.value = '';
     _timebokShowProjectPicker();
@@ -12178,6 +12604,18 @@ function _timebokRenderProjectPickerList() {
     var q = raw.toLowerCase();
     var filtered = q ? projects.filter(function (p) { return String(p.name || '').toLowerCase().indexOf(q) !== -1; }) : projects;
     var html = '';
+    // «Uten prosjekt» øverst (skjules mens man søker etter et prosjekt).
+    if (!q) {
+        var onN = _timebokPickerCurrentId === '__none';
+        html += '<div class="timebok-proj-row timebok-proj-none' + (onN ? ' current' : '') + '">' +
+            '<button type="button" class="timebok-proj-pick" onclick="_selectTimebokNoProject()">' +
+                '<span class="timebok-proj-check">' + (onN ? _TIMEBOK_CHECK_SVG : '') + '</span>' +
+                '<span class="timebok-proj-text">' +
+                    '<span class="timebok-proj-name">' + escapeHtml(t('timebok_without_project')) + '</span>' +
+                    '<span class="timebok-proj-dist">' + escapeHtml(t('timebok_without_project_sub')) + '</span>' +
+                '</span>' +
+            '</button></div>';
+    }
     filtered.forEach(function (p) {
         var on = p.id === _timebokPickerCurrentId;
         html += '<div class="timebok-proj-row' + (on ? ' current' : '') + '">' +
@@ -12191,7 +12629,7 @@ function _timebokRenderProjectPickerList() {
             '<button type="button" class="timebok-proj-edit" data-id="' + escapeHtml(p.id) + '" onclick="openTimebokProjectEdit(this.getAttribute(\'data-id\'))" aria-label="' + escapeHtml(t('timebok_edit_project')) + '">' + _TIMEBOK_PENCIL_SVG + '</button>' +
         '</div>';
     });
-    if (!html) html = '<div class="timebok-picker-empty">' + escapeHtml(t(projects.length ? 'timebok_no_project_matches' : 'timebok_no_projects_hint')) + '</div>';
+    if (!filtered.length) html += '<div class="timebok-picker-empty">' + escapeHtml(t(projects.length ? 'timebok_no_project_matches' : 'timebok_no_projects_hint')) + '</div>';
     listEl.innerHTML = html;
 }
 // Enter i søkefeltet: velg eksakt treff, ellers åpne «Nytt prosjekt» med navnet utfylt.
@@ -12208,11 +12646,28 @@ function _selectTimebokProject(id) {
     var target = _timebokPickerTarget;
     closeTimebokProjectPicker();
     if (target) {
+        // Auto-fyll når kortet ikke hadde et ekte prosjekt fra før (tomt ELLER Internt prosjekt).
+        // Koder som allerede står der beholdes og dupliseres ikke. Bytte prosjekt → prosjekt
+        // legger ikke til igjen (du kan ha fjernet noe med vilje).
         var isNew = !(target.getAttribute('data-project-id') || target.getAttribute('data-name'));
+        target.removeAttribute('data-no-project');
         _timebokSetProjectOnBlock(target, proj.id, proj.name);
         _timebokApplyProjectDefaults(target, proj, isNew);
         _timebokOnDayInput();
     }
+}
+// «Uten prosjekt» (kurs, fravær …): ingen auto-fyll — du legger til kodene selv.
+function _selectTimebokNoProject() {
+    var target = _timebokPickerTarget;
+    closeTimebokProjectPicker();
+    if (!target) return;
+    _timebokSetProjectOnBlock(target, '', '');
+    target.setAttribute('data-no-project', '1');
+    _timebokDropUntouchedAutofill(target);
+    var nm = target.querySelector('.timebok-project-name'), sel = target.querySelector('.timebok-project-select');
+    if (nm) nm.textContent = t('timebok_without_project');
+    if (sel) sel.classList.add('filled');
+    _timebokOnDayInput();
 }
 function _timebokSetProjectOnBlock(block, id, name) {
     if (!block) return;
@@ -12289,6 +12744,9 @@ function saveTimebokDay(dateId) {
     var cache = _timebokGetCache();
     var idx = -1;
     for (var i = 0; i < cache.length; i++) if ((cache[i].id || cache[i].date) === dateId) { idx = i; break; }
+    var imgIds = [];
+    (doc.receipts || []).forEach(function (r) { imgIds = imgIds.concat(r.imageIds || []); });
+    _tbRcSyncImages(dateId, imgIds);
     if (!hasData) {
         if (idx >= 0) { cache.splice(idx, 1); _timebokSetCache(cache); }
         _lastLocalSaveTs = Date.now();
