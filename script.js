@@ -80,7 +80,6 @@ const TIMEBOK_CODES = [
     { id: 'permuten',      group: 'fravaer', label: 'Permisjon uten lønn',            input: 'hours', zero: true, flags: [] },
     { id: 'fridag',        group: 'fravaer', label: 'Offentlig fridag',               input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
     { id: 'permittering',  group: 'fravaer', label: 'Lønn v/permittering',            input: 'hours', mult: 1,   flags: ['lonn', 'ferie', 'skatt'] },
-    { id: 'barnsyk',       group: 'syk',     label: 'Sykt barn',                      input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
     { id: 'egenm',         group: 'syk',     label: 'Egenmelding',                    input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] },
     { id: 'syk',           group: 'syk',     label: 'Sykemelding',                       input: 'hours', mult: 1,   flags: ['lonn', 'skatt'] }
 ];
@@ -99,7 +98,9 @@ const TIMEBOK_LEGACY_CODES = [
     { id: 'ot100s7', group: 'overtid', label: 'Overtid 100% sats 7 - A121', input: 'clock', base: 'sats7', mult: 2, flags: ['lonn', 'ferie', 'skatt'] },
     { id: 'tarifftillegg', group: 'tillegg', label: 'Tarifftillegg - prosjekt A121', input: 'count', own: true, flags: ['lonn', 'ferie', 'skatt'] },
     // Fjernet 25-10-2026: timer på vervet føres som vanlige timer (ingen eget tillegg i FOB).
-    { id: 'tillitsv', group: 'arbeid', label: 'Timer Tillitsvalgt/Verneombud', input: 'clock', mult: 1, flags: ['lonn', 'ferie', 'skatt'] }
+    { id: 'tillitsv', group: 'arbeid', label: 'Timer Tillitsvalgt/Verneombud', input: 'clock', mult: 1, flags: ['lonn', 'ferie', 'skatt'] },
+    // Fjernet 25-10-2026 (brukerens valg).
+    { id: 'barnsyk', group: 'syk', label: 'Sykt barn', input: 'hours', mult: 1, flags: ['lonn', 'skatt'] }
 ];
 // Gamle tidstype-id-er (før tariffer) → regel/kode-id.
 const TIMEBOK_TYPE_ALIASES = { tt_ordinaer: 'ord', tt_overtid50: 'ot50', tt_overtid100: 'ot100', tt_reisetid: 'reisetid', tt_km: 'km' };
@@ -564,6 +565,107 @@ function _timebokPeriodSummary(dayDocs) {
         var s = _timebokDayTotal(d); if (s != null) { total += s; anyS = true; }
     });
     return { hours: hours, wage: anyW ? wage : null, travel: anyT ? travel : null, receipts: anyR ? receipts : null, receiptsForeign: foreign, total: anyS ? total : null, days: days };
+}
+
+// ─── Timebok: normtid (begge arbeidsgivere; laget for Damsgård) ────────────────────────────────────────────
+// Damsgård har ingen avtalt overtid pr. dag: overtid = timer ført i lønnsperioden UTOVER
+// normtiden. Normtid = arbeidsdager (man–fre) × timer pr. dag, minus timer på koder som
+// er satt til «Trekkes fra normtid» (brukerens eksempel: 20 dager = 150 t, 3 dager fri
+// uten lønn → 127,5 t). BRUKEREN STYRER det i Satser → Damsgård → Normtid (bryter pr.
+// kode, timer pr. dag) — ingen skjulte regler. Helligdager er BETALTE arbeidsdager: de er
+// med i normtiden og føres som «Offentlig fridag» (brukerens presisering 25-10-2026).
+// En kode som trekkes fra normtiden teller IKKE som ført tid (ellers telles den dobbelt).
+const TIMEBOK_NORM_DAY_HOURS = 7.5;
+const TIMEBOK_NORM_DEFAULT_CODES = ['ferie', 'permuten'];
+// Kodene det gir mening å velge: timer-koder i arbeid/fravær/syk (ikke overtid, tillegg, reise).
+function _timebokNormEligible() {
+    return TIMEBOK_CODES.filter(function (c) {
+        return ['arbeid', 'fravaer', 'syk'].indexOf(c.group) !== -1 && (c.input === 'hours' || c.input === 'clock');
+    });
+}
+// Oppsettet pr. arbeidsgiver (settings/timebok_settings → norm[emp]).
+function getTimebokNormSettings(emp) {
+    emp = emp || _timebokEmployer();
+    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
+    var n = (d.norm && d.norm[emp]) || {};
+    var dh = parseLocaleNum(n.dayHours);
+    return {
+        dayHours: (!isNaN(dh) && dh > 0) ? dh : TIMEBOK_NORM_DAY_HOURS,
+        codes: Array.isArray(n.codes) ? n.codes.slice() : TIMEBOK_NORM_DEFAULT_CODES.slice()
+    };
+}
+// Påskedag (gregoriansk, Meeus/Jones/Butcher).
+function _timebokEaster(y) {
+    var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+    var f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    var month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(y, month - 1, day);
+}
+// Norske helligdager et år: { 'YYYY-MM-DD': 'navn' }.
+var _timebokHolidayCache = {};
+function _timebokHolidays(y) {
+    if (_timebokHolidayCache[y]) return _timebokHolidayCache[y];
+    var out = {}, e = _timebokEaster(y);
+    var rel = function (n, name) { out[_timebokDateId(new Date(y, e.getMonth(), e.getDate() + n))] = name; };
+    var fix = function (m, d, name) { out[_timebokDateId(new Date(y, m - 1, d))] = name; };
+    fix(1, 1, 'Nyttårsdag');
+    rel(-3, 'Skjærtorsdag'); rel(-2, 'Langfredag'); rel(0, '1. påskedag'); rel(1, '2. påskedag');
+    fix(5, 1, '1. mai'); fix(5, 17, '17. mai');
+    rel(39, 'Kristi himmelfart'); rel(49, '1. pinsedag'); rel(50, '2. pinsedag');
+    fix(12, 25, '1. juledag'); fix(12, 26, '2. juledag');
+    return (_timebokHolidayCache[y] = out);
+}
+function _timebokHolidayName(id) {
+    var d = _timebokParseId(id);
+    return d ? (_timebokHolidays(d.getFullYear())[id] || null) : null;
+}
+// Normtid for et datospenn. ÉN regel, styrt av brukeren med «−Normtid»-knappen på koden
+// (ingen hardkodede regler pr. gruppe — brukerens krav):
+//   • −Normtid på → timene trekkes fra normtiden
+//   • −Normtid av → timene teller som ført
+// Gjelder koder som føres i timer (kr/stk/km har ingen timer). Normtid = hverdager
+// (man–fre) × timer pr. dag − «−Normtid»-timer. Helligdager er vanlige hverdager (betalt)
+// og vises bare som informasjon/varsel. Kortet lister begge deler pr. kode.
+function _timebokNorm(range, dayDocs, emp) {
+    var cfg = getTimebokNormSettings(emp);
+    var start = _timebokParseId(range.start), end = _timebokParseId(range.end);
+    var workdays = 0, holidays = [];
+    for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        var wd = d.getDay(), id = _timebokDateId(d);
+        if (wd === 0 || wd === 6) continue;
+        var hn = _timebokHolidayName(id);
+        if (hn) holidays.push({ id: id, name: hn, logged: false });
+        workdays++;
+    }
+    var ded = {}, log = {};
+    var add = function (bucket, k, h) { bucket[k] = (bucket[k] || 0) + h; };
+    (dayDocs || []).forEach(function (doc) {
+        var id = doc.id || doc.date;
+        if (id < range.start || id > range.end) return;
+        var any = false;
+        _timebokDayLines(doc).forEach(function (l) {
+            var def = _timebokCodeDef(l.timeType);
+            var h = parseLocaleNum(l.hours);
+            if (!def || isNaN(h) || !h) return;
+            if (def.input !== 'hours' && def.input !== 'clock') return;   // kr/stk/km er ikke timer
+            any = true;
+            add(cfg.codes.indexOf(def.id) !== -1 ? ded : log, def.id, h);
+        });
+        holidays.forEach(function (x) { if (x.id === id && any) x.logged = true; });
+    });
+    var list = function (bucket) {
+        return Object.keys(bucket).map(function (k) {
+            var def = _timebokCodeDef(k);
+            return { id: k, label: def ? def.label : k, hours: bucket[k] };
+        }).sort(function (a, b) { return b.hours - a.hours; });
+    };
+    var sum = function (bucket) { return Object.keys(bucket).reduce(function (t, k) { return t + bucket[k]; }, 0); };
+    var base = workdays * cfg.dayHours, deducted = sum(ded), logged = sum(log);
+    var norm = Math.max(0, base - deducted);
+    return { dayHours: cfg.dayHours, workdays: workdays, holidays: holidays, base: base,
+        deductions: list(ded), loggedBy: list(log),
+        unpaid: deducted, norm: norm, logged: logged, over: logged - norm };
 }
 
 // ─── Timebok: dato-hjelpere ─────────────────────────────────────────────────

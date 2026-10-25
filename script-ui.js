@@ -2578,23 +2578,31 @@ function renderTimebokSettings() {
             '<select class="tb-sat-select" onchange="_timebokSaveSettings({ transport: this.value })">' +
                 opt('firma', t('timebok_firma'), st.transport) + opt('privat', t('timebok_privat'), st.transport) +
             '</select>');
-    // Auto-fyll: samme koder (og grupper) som «+ Legg til kode», fra dagens tariff.
+    // Auto-fyll: ALLE koder vises (samme liste og rekkefølge som Satser — brukerens krav).
+    // Koder som er deaktivert for arbeidsgiveren står grå med «Ikke aktiv» og kan ikke
+    // hukes av: de kan ikke legges til på en dag, så auto-fyll av dem ville ikke gjort noe.
     var on = {};
     st.autofill.forEach(function (id) { on[id] = true; });
+    var activeIds = {};
+    _timebokCodesFor().forEach(function (c) { activeIds[c.id] = true; });
+    activeIds.__travel = true;
     var cb = function (id, label) {
-        return '<label class="tb-af-item"><input type="checkbox"' + (on[id] ? ' checked' : '') +
-            ' onchange="_tbToggleAutofill(\'' + escapeHtml(id) + '\', this.checked)"><span>' + escapeHtml(label) + '</span></label>';
+        var act = !!activeIds[id];
+        return '<label class="tb-af-item' + (act ? '' : ' tb-af-inactive') + '"><input type="checkbox"' + (on[id] && act ? ' checked' : '') + (act ? '' : ' disabled') +
+            ' onchange="_tbToggleAutofill(\'' + escapeHtml(id) + '\', this.checked)"><span>' + escapeHtml(label) +
+            (act ? '' : ' <small>' + escapeHtml(t('tb_set_autofill_inactive')) + '</small>') + '</span></label>';
     };
-    var types = _timebokOrderedCodeTypes(_timebokTodayId());
     var gh = '';
     TIMEBOK_CODE_GROUPS.forEach(function (g) {
-        var items = types.filter(function (x) { return x.group === g; });
+        var items = TIMEBOK_CODES.filter(function (c) { return c.group === g; }).map(function (c) { return { id: c.id, label: c.label }; });
+        if (g === 'reise') items.push({ id: '__travel', label: t('timebok_day_travel') });   // sist, som i Satser
         if (!items.length) return;
         gh += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div><div class="tb-af-grid">' +
             items.map(function (x) { return cb(x.id, x.label); }).join('') + '</div>';
     });
+    var empName = st.travelStyle === 'damsgard' ? 'Damsgård' : 'Firesafe';
     h += '<div class="tb-set-field"><span class="tb-set-label">' + escapeHtml(t('tb_set_autofill')) + '</span>' +
-            '<span class="tb-set-hint">' + escapeHtml(t('tb_set_autofill_desc')) + '</span>' +
+            '<span class="tb-set-hint">' + escapeHtml(t('tb_set_autofill_desc') + ' ' + t('tb_set_autofill_inactive_hint').replace('{0}', empName)) + '</span>' +
             '<div class="tb-af-box" lang="nb">' + gh + '</div></div>' +
     '</div>';
     host.innerHTML = h;
@@ -2732,9 +2740,34 @@ function _tbCodeSatHtml(tf, def) {
     }
     // Bryter: koden aktiv/deaktivert for arbeidsgiveren som vises (alle koder vises alltid).
     var toggle = { id: def.id, on: _timebokDisabledCodes(_tbSatEmp()).indexOf(def.id) === -1 };
-    // Koder uten lønn (Ferie, Permisjon uten lønn): flagg har ingen betydning → skjult.
-    if (def.zero) return _tbSatRow(def.label, null, null, right, '', '', toggle);
-    return _tbSatRow(def.label, 'rule:' + def.id, _timebokCodeFlags(def, tf), right, '', '', toggle);
+    // Samme rad for begge arbeidsgivere: tariff-flaggene + «−Normtid» på timekodene.
+    return _tbSatRow(def.label, null, null, right, _tbCodeFlagsHtml(tf, def), '', toggle);
+}
+// Flaggrad pr. kode — LIK for alle koder og begge arbeidsgivere (brukerens krav: alle
+// knapper på alle koder, knappene bestemmer): Lønn/Ferie/Skatt/Reise/Org + «−Normtid»
+// (på = timene trekkes fra normtiden og teller ikke som ført; lagres pr. arbeidsgiver i
+// settings.norm[emp].codes). Alltid ÉN rad.
+function _tbCodeFlagsHtml(tf, def) {
+    var flags = _timebokCodeFlags(def, tf);
+    var cells = TIMEBOK_FLAGS.map(function (f) {
+        return '<button type="button" class="tb-flag' + (_timebokFlagsHas(flags, f) ? ' on' : '') + '" onclick="_tbSatToggleFlag(this, \'rule:' + def.id + '\', \'' + f + '\')">' + _TB_FLAG_LABELS[f] + '</button>';
+    });
+    // −Normtid gjelder timer: på koder som føres i kr/stk/km står knappen grå og låst
+    // (synlig, med forklaring øverst) — aldri en knapp som kan trykkes uten å gjøre noe.
+    var isTime = def.input === 'hours' || def.input === 'clock';
+    var on = isTime && getTimebokNormSettings(_tbSatEmp()).codes.indexOf(def.id) !== -1;
+    cells.push('<button type="button" class="tb-flag tb-flag-norm' + (on ? ' on' : '') + '"' +
+        (isTime ? ' onclick="_tbNormToggleChip(this, \'' + def.id + '\')"' : ' disabled title="' + escapeHtml(t('tb_norm_flag_notime')) + '"') + '>' +
+        escapeHtml(t('tb_flag_norm')) + '</button>');
+    return '<div class="tb-flags">' + cells.join('') + '</div>';
+}
+function _tbNormToggleChip(btn, id) {
+    var on = !btn.classList.contains('on');
+    _tbNormSave(function (c) {
+        c.codes = c.codes.filter(function (x) { return x !== id; });
+        if (on) c.codes.push(id);
+    });
+    btn.classList.toggle('on', on);
 }
 // Slå en kode av/på for arbeidsgiveren som vises i Satser (fletter, rører ikke den andre).
 function _tbSatToggleCode(id, on) {
@@ -2807,10 +2840,16 @@ function renderTimebokSatser() {
         _tbSatRow('Feriepenger', null, null, num('feriepenger', '%'), '', t('tb_sat_of_ferie')) +
         _tbSatRow('Fagforening', null, null, num('fagforening', '%'), '', t('tb_sat_of_ferie')) +
         _tbSatRow('Overtidsgrunnlag', null, null, num('overtidsgrunnlag', 'kr/t'), '', t('tb_sat_otg_hint')) +
+        // Grunnlaget for normtiden (overtid = ført over normtiden i lønnsperioden) — begge arbeidsgivere.
+        (function () {
+            var nc = getTimebokNormSettings(emp);
+            return _tbSatRow(t('tb_norm_day_hours'), null, null,
+                    '<span class="tb-satc-rate">' + _tbNumInput(nc.dayHours, "_tbNormSet('dayHours', this.value)") + '<span class="tb-sat-unit">t</span></span>', '', t('tb_norm_day_hours_sub'));
+        })() +
         // Forsikring sist: den eneste posten med flagg-knapper.
         _tbSatRow('Forsikring', 'forsikringFlags', tf.forsikringFlags, num('forsikring', 'kr/mnd')) +
     '</div>';
-    h += section(t('tb_sat_sec_codes'), t('tb_sat_sec_codes_desc').replace('{0}', tf.name));
+    h += section(t('tb_sat_sec_codes'), t('tb_sat_sec_codes_desc').replace('{0}', tf.name) + ' ' + t('tb_norm_flag_hint'));
     // Tilleggskodene i ÉN boks med gruppe-overskrifter — samme grupper, rekkefølge og
     // liste-stil som Auto-fyll i Personlig. Reisegodtgjørelse sist i Reise (avstandstabellen
     // ligger inne i raden når den foldes ut).
@@ -2859,6 +2898,26 @@ function _tbFitSelectText(sel) {
     }
     sel.style.fontSize = Math.max(px, 11) + 'px';
 }
+// ── Satser → normtid (likt for begge arbeidsgivere) ──
+// «−Normtid»-flagget pr. kode (_tbCodeFlagsHtml) + Normtid pr. dag i Trekk og grunnlag.
+// Helligdager er vanlige (betalte) hverdager. Lagres pr. arbeidsgiver i
+// settings/timebok_settings → norm[emp] (arbeidsgiveren som vises i Satser).
+function _tbNormSave(fn) {
+    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
+    var all = Object.assign({}, d.norm || {});
+    var emp = _tbSatEmp();
+    var cur = getTimebokNormSettings(emp);
+    fn(cur);
+    all[emp] = cur;
+    _timebokSaveSettings({ norm: all });
+    if (typeof renderTimebokNormCard === 'function') renderTimebokNormCard();
+}
+function _tbNormSet(field, val) {
+    _tbNormSave(function (c) {
+        if (field === 'dayHours') { var n = _tbNum(val); c.dayHours = (n != null && n > 0) ? n : TIMEBOK_NORM_DAY_HOURS; }
+    });
+}
+
 // Legg til / fjern avstand (navn via input-popup).
 function _tbSatAdd(kind) {
     showInputModal(t('tb_sat_add_bracket_title'), '', function (val) {
@@ -11754,12 +11813,78 @@ function recalcTimebokWeekSummary() {
     _timebokSetReceiptTile('tb-sum-receipts', s.receipts, s.receiptsForeign);
     setT('tb-sum-days', String(s.days));
     setT('tb-sum-total', _timebokTileKr(s.total));
+    renderTimebokNormCard();
     var subEl = document.getElementById('tb-sum-sub');
     if (subEl) {
         var ts = getTimebokTimesats();
         subEl.textContent = (ts != null)
             ? t('timebok_calc_with') + ' ' + _timebokKr(ts) + ' ' + t('timebok_per_hour')
             : t('timebok_rates_unset');
+    }
+}
+
+// ── Normtid (begge arbeidsgivere): lønnsperiode, normtid og timer over normtid ──
+// Kortet viser hele utregningen så det er lett å følge: arbeidsdager × 7,5 t (helligdager
+// trukket fra automatisk) − ferie/uten lønn = normtid; ført; over normtid = overtid.
+// Samme blokk i ukevisningen (lønnsperioden uka ligger i) og på eksportsiden.
+function _timebokNormHtml(range, docs, title) {
+    var n = _timebokNorm(range, docs);
+    var h2 = function (v) { return formatLocaleNum(v, 2) + ' t'; };
+    var d0 = _timebokParseId(range.start), d1 = _timebokParseId(range.end);
+    var row = function (lbl, mid, val, cls) {
+        return '<div class="tb-norm-row' + (cls ? ' ' + cls : '') + '"><span>' + escapeHtml(lbl) + '</span><span class="tb-norm-mid">' + escapeHtml(mid || '') + '</span><b>' + escapeHtml(val) + '</b></div>';
+    };
+    var pct = n.norm > 0 ? Math.min(100, n.logged / n.norm * 100) : (n.logged > 0 ? 100 : 0);
+    var h = '<div class="timebok-summary-card tb-norm">' +
+        '<div class="timebok-summary-head"><span class="timebok-summary-title">' + escapeHtml(title || t('tb_norm_title')) + '</span>' +
+            '<span class="timebok-summary-badge">' + (_timebokEmployer() === 'damsgard' ? 'DAMSGÅRD' : 'FIRESAFE') + '</span></div>' +
+        '<div class="timebok-summary-sub">' + escapeHtml(_timebokRangeLabel(d0, d1, true)) + '</div>' +
+        '<div class="tb-norm-bar' + (n.over >= 0 && n.logged > 0 ? ' full' : '') + '"><span style="width:' + pct.toFixed(1) + '%"></span></div>' +
+        row(t('tb_norm_workdays'), n.workdays + ' × ' + formatLocaleNum(n.dayHours, 2) + ' t', h2(n.base));
+    // Helligdager er med i normtiden (betalt) og føres som «Offentlig fridag». Ikke ført ennå
+    // → varsel, så man ikke taper timer uten å merke det (bare for dager som har vært).
+    if (n.holidays.length) {
+        var today = _timebokTodayId();
+        var missing = n.holidays.filter(function (x) { return !x.logged && x.id <= today; });
+        h += '<div class="tb-norm-note">' + escapeHtml(t('tb_norm_holidays').replace('{0}', n.holidays.map(function (x) { return x.name; }).join(', '))) + '</div>';
+        if (missing.length) h += '<div class="tb-norm-note tb-norm-warn">' + escapeHtml(t('tb_norm_holiday_missing').replace('{0}', missing.map(function (x) { return x.name; }).join(', '))) + '</div>';
+    }
+    // Ett fradrag pr. kode (de som er satt til «Trekkes fra normtid» i Satser).
+    n.deductions.forEach(function (x) {
+        var days = x.hours / n.dayHours;
+        h += row('− ' + x.label, formatLocaleNum(days, 2) + ' ' + t(days === 1 ? 'tb_norm_day' : 'tb_norm_days'), '−' + h2(x.hours));
+    });
+    // Ført pr. kode — så man ser nøyaktig hvilke timer som teller.
+    var sub = function (items) {
+        return items.length ? '<div class="tb-norm-note tb-norm-list">' + escapeHtml(items.map(function (x) { return x.label + ' ' + formatLocaleNum(x.hours, 2) + ' t'; }).join(' · ')) + '</div>' : '';
+    };
+    h += row(t('tb_norm_norm'), '', h2(n.norm), 'tb-norm-sum') +
+        row(t('tb_norm_logged'), '', h2(n.logged)) + sub(n.loggedBy) +
+        (n.over > 0 ? row(t('tb_norm_over'), '', h2(n.over), 'tb-norm-over')
+                    : row(t('tb_norm_left'), '', h2(-n.over), 'tb-norm-left')) +
+        '<div class="tb-norm-note tb-norm-howto">' + escapeHtml(t('tb_norm_howto')) + '</div>' +
+        '</div>';
+    return h;
+}
+// Ukevisningen: kortet for lønnsperioden uka (anker-dagen) ligger i. Begge arbeidsgivere.
+// Lønnsperioden kan gå utenfor 60-dagers-cachen → hentes én gang fra Firestore og
+// holdes i minnet; cachen (nyeste lagrede) vinner for dager som finnes begge steder.
+var _tbNormDocs = {};
+function renderTimebokNormCard() {
+    var host = document.getElementById('timebok-norm');
+    if (!host) return;
+    var range = _timebokPayPeriodFor(_timebokDateId(_timebokAnchor || new Date()));
+    var key = range.start + '|' + range.end;
+    var byId = {};
+    (_tbNormDocs[key] || []).forEach(function (d) { byId[d.id || d.date] = d; });
+    _timebokDaysInRange(range).forEach(function (d) { byId[d.id || d.date] = d; });
+    host.innerHTML = _timebokNormHtml(range, Object.keys(byId).map(function (k) { return byId[k]; }));
+    if (!_tbNormDocs[key] && currentUser && db) {
+        _tbNormDocs[key] = [];
+        getTimebokDays(range.start, range.end).then(function (days) {
+            _tbNormDocs[key] = days || [];
+            renderTimebokNormCard();
+        }).catch(function () {});
     }
 }
 
@@ -12624,6 +12749,8 @@ function _tbExpPeriodLabel(short) {
 // Detaljerte totaler: samme fliser som ukesammendraget + timer/antall pr. kode.
 function _tbExpTotalsHtml(docs) {
     var s = _timebokPeriodSummary(docs);
+    // Normtid/overtid for perioden som eksporteres (samme kort som i ukevisningen).
+    var normHtml = _tbExp ? _timebokNormHtml({ start: _tbExp.start, end: _tbExp.end }, docs, t(_tbExp.mode === 'pay' ? 'tb_norm_title' : 'tb_norm_title_period')) : '';
     var tile = function (lbl, val) { return '<div class="timebok-metric"><span>' + escapeHtml(lbl) + '</span><b>' + escapeHtml(val) + '</b></div>'; };
     var per = {}, order = [], travelDays = 0;
     docs.forEach(function (d) {
@@ -12647,7 +12774,7 @@ function _tbExpTotalsHtml(docs) {
         return '<div class="tb-wk-code"><span>' + escapeHtml(tt ? tt.label : id) + '</span><span class="tb-wk-code-v">' + escapeHtml(v) + '</span></div>';
     });
     if (travelDays) rows.push('<div class="tb-wk-code"><span>' + escapeHtml(t('timebok_day_travel')) + '</span><span class="tb-wk-code-v">' + travelDays + ' ' + escapeHtml(t(travelDays === 1 ? 'timebok_exp_day' : 'timebok_exp_days')) + '</span></div>');
-    return '<div class="timebok-summary-grid tb-exp-grid">' +
+    return normHtml + '<div class="timebok-summary-grid tb-exp-grid">' +
             tile(t('timebok_d_hours'), _timebokFixed2(s.hours)) + tile(t('timebok_d_wage'), _timebokTileKr(s.wage)) +
             tile(t('timebok_d_travel'), _timebokTileKr(s.travel)) + tile(t('timebok_d_receipts'), _timebokTileKr(s.receipts)) +
             tile(t('timebok_sum_total'), _timebokTileKr(s.total)) + tile(t('timebok_exp_daycount'), String(s.days)) +
