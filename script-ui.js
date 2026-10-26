@@ -18879,13 +18879,9 @@ function _weekTimerTotals() {
     TIMER_DAY_KEYS.forEach(function(k) { tot[k] = 0; });
     document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
         var tm = _orderTimerObj(card);
-        TIMER_DAY_KEYS.forEach(function(k) {
-            var n = parseLocaleNum(tm[k]);
-            if (!isNaN(n)) tot[k] += n;
-        });
-        var g = (tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt
-            : ((tm._total != null && String(tm._total).trim() !== '') ? tm._total : null);
-        if (g != null) { var gn = parseLocaleNum(g); if (!isNaN(gn)) tot._generelt += gn; }
+        // Ordinære + overtid (timerDayHours) — timeoversikten teller alle timer.
+        TIMER_DAY_KEYS.forEach(function(k) { tot[k] += timerDayHours(tm, k); });
+        tot._generelt += timerDayHours(tm, '_generelt');
     });
     tot.total = TIMER_DAY_KEYS.reduce(function(a, k) { return a + tot[k]; }, 0) + tot._generelt;
     return tot;
@@ -19090,15 +19086,7 @@ window.updateTimerChip = updateTimerChip;
 
 // Sum timer for ÉN bestilling (alle dager + Annet).
 function _orderHoursSum(tm) {
-    var s = 0;
-    TIMER_DAY_KEYS.forEach(function(k) {
-        var n = parseLocaleNum(tm[k]);
-        if (!isNaN(n)) s += n;
-    });
-    var g = (tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt
-        : ((tm._total != null && String(tm._total).trim() !== '') ? tm._total : null);
-    if (g != null) { var gn = parseLocaleNum(g); if (!isNaN(gn)) s += gn; }
-    return s;
+    return orderTimerSum(tm);   // ordinære + overtid
 }
 function _orderDayPlansObj(card) {
     // Per-dag etasje-objekt: {ma: 'U3, U2', ti: 'U1'}. data-day-plans er nå
@@ -19120,22 +19108,13 @@ function _orderDayBreakdown(tm, plans, dayPlans) {
     function _hasVal(v) { return v != null && String(v).trim() !== ''; }
     var parts = [];
     // Timer per dag (etasjer er bestilling-nivå og vises ÉN gang til slutt).
+    // Timer pr. dag = ordinære + overtid (timerDayHours).
+    var fmtH = function(n) { return (Math.round(n * 10) / 10).toString().replace('.', ',') + 't'; };
     TIMER_DAY_KEYS.forEach(function(k) {
-        if (_hasVal(tm[k])) {
-            parts.push({
-                day: shortMap[k] || k,
-                hours: String(tm[k]).replace('.', ',') + 't',
-                plan: ''
-            });
-        }
+        if (timerDayHasHours(tm, k)) parts.push({ day: shortMap[k] || k, hours: fmtH(timerDayHours(tm, k)), plan: '' });
     });
-    var g = _hasVal(tm._generelt) ? tm._generelt : (_hasVal(tm._total) ? tm._total : '');
-    if (_hasVal(g)) {
-        parts.push({
-            day: t('timer_overview_other'),
-            hours: String(g).replace('.', ',') + 't',
-            plan: ''
-        });
+    if (timerDayHasHours(tm, '_generelt')) {
+        parts.push({ day: t('timer_overview_other'), hours: fmtH(timerDayHours(tm, '_generelt')), plan: '' });
     }
     // Etasjer — bestilling-nivå, vist som én egen del (ikke per dag).
     if (plans && plans.length) {
@@ -19216,10 +19195,8 @@ function _weekDayTotals() {
     TIMER_DAY_KEYS.forEach(function(k) { tot[k] = 0; });
     _weekBestillingEntries().entries.forEach(function(en) {
         var tm = en.timer || {};
-        TIMER_DAY_KEYS.forEach(function(k) { var n = parseLocaleNum(tm[k]); if (!isNaN(n)) tot[k] += n; });
-        var g = (tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt
-            : ((tm._total != null && String(tm._total).trim() !== '') ? tm._total : null);
-        if (g != null) { var gn = parseLocaleNum(g); if (!isNaN(gn)) tot._generelt += gn; }
+        TIMER_DAY_KEYS.forEach(function(k) { tot[k] += timerDayHours(tm, k); });   // ordinære + overtid
+        tot._generelt += timerDayHours(tm, '_generelt');
     });
     return tot;
 }
@@ -19229,11 +19206,8 @@ function _weekDayContributorsData(dayKey) {
     var contributors = [];
     _weekBestillingEntries().entries.forEach(function(en) {
         var tm = en.timer || {};
-        var raw = (dayKey === '_generelt')
-            ? ((tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt : tm._total)
-            : tm[dayKey];
-        var h = parseLocaleNum(raw);
-        if (isNaN(h) || h <= 0) return;
+        var h = timerDayHours(tm, dayKey);   // ordinære + overtid
+        if (!(h > 0)) return;
         total += h;
         contributors.push({ entry: en, hours: h });
     });

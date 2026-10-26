@@ -12473,3 +12473,16 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 .tb-af-item.tb-af-inactive { color: #a0a0a8; cursor: default; }
 .tb-af-item.tb-af-inactive small { font-size: 12px; }
 .tb-satc-body .tb-flag:disabled { opacity: 0.4; cursor: default; }
+
+/* ═══ Arbeidstid-popup: tre felt pr. dag (Ord. · 50% · 100%) ═══
+   Felt, kolonneoverskrift og totalrad bruker samme kolonnebredde (46px) og samme
+   mellomrom (6px), så tallene står rett under hverandre. Overtid merkes oransje. */
+.dag-timer-modal-row-top { gap: 6px; }
+.dag-timer-col-head { display: flex; align-items: center; gap: 6px; padding: 0 14px 2px; }
+.dag-timer-col { flex-shrink: 0; width: 46px; text-align: center; font-size: 12px; font-weight: 600; color: #8a8a8e; white-space: nowrap; }
+.dag-timer-col--ot { color: #E8501A; }
+.dag-timer-input-wrap.dag-timer-input-wrap--col { width: 46px; box-sizing: border-box; padding: 8px 4px; justify-content: center; }
+.dag-timer-input-wrap--col .dag-timer-modal-input { width: 100%; text-align: center; }
+.dag-timer-modal-total-value { display: flex; gap: 6px; font-size: 13px; }
+.dag-timer-modal-total-value .dag-timer-col { font-size: 13px; font-weight: 700; color: #1c1c1e; }
+.dag-timer-modal-total-value .dag-timer-col--ot { color: #E8501A; }

@@ -3208,9 +3208,7 @@ function _updateOrderSkipUI(card) {
         try { timer = JSON.parse(card.getAttribute('data-timer') || '{}') || {}; } catch (e) {}
         var plans = (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
         var dagOrder = ['ma','ti','on','to','fr','lo','so','_generelt'];
-        var hasTimer = dagOrder.some(function(d) {
-            return !!(timer[d] && String(timer[d]).trim());
-        });
+        var hasTimer = dagOrder.some(function(d) { return timerDayHasHours(timer, d); });   // ordinær eller overtid
         var hasContent = hasTimer || plans.length > 0;
         var dagLink = dagSection.querySelector('.section-skip-link');
         var dagStatus = dagSection.querySelector('.section-skip-status');
@@ -5769,7 +5767,9 @@ function timerWeekBuckets(timer, weeks) {
     // hvilken uke finnes ikke, så alt legges på FØRSTE uke. Totalen bevares, og
     // fordelingen kan rettes manuelt. Se kommentaren over parseUkeNumbers.
     var flat = {};
-    TIMER_DAY_KEYS_CORE.forEach(function(k) { if (timer && timer[k]) flat[k] = timer[k]; });
+    // Alle nøkler, også overtid (ukjent uke lagres bare flatt — uten dette forsvant
+    // overtiden ved neste åpning).
+    TIMER_BUCKET_KEYS_ALL.forEach(function(k) { if (timer && timer[k]) flat[k] = timer[k]; });
     var gen = timer && (timer._generelt || timer._total);
     if (gen) flat._generelt = gen;
     if (!known.length) return { '': flat };
@@ -5785,7 +5785,7 @@ function timerFromWeekBuckets(buckets) {
     Object.keys(buckets).forEach(function(w) {
         var b = buckets[w] || {};
         var kept = {};
-        TIMER_DAY_KEYS_CORE.concat(['_generelt']).forEach(function(k) {
+        TIMER_BUCKET_KEYS_ALL.forEach(function(k) {
             var v = String(b[k] == null ? '' : b[k]).trim();
             if (!v) return;
             kept[k] = v;
@@ -5821,6 +5821,75 @@ function timerFromWeekBuckets(buckets) {
 // migrering, og ingen falsk «ulagret» på eksisterende ordresedler.
 var TIMER_BUCKET_KEYS = TIMER_DAY_KEYS_CORE.concat(['_generelt']);
 
+// ── Overtid (50 % / 100 %) ──────────────────────────────────────────────────
+// Overtid føres i egne felt ved siden av de ordinære timene, pr. dag: nøkkelen er
+// dagnøkkelen + «@50» / «@100» (f.eks. «ma@50», «_generelt@100»). Firesafe betaler
+// overtid og må fakturere den, så den holdes adskilt hele veien (popup, kort,
+// eksport). De ordinære nøklene (ma…_generelt) beholder nøyaktig samme betydning
+// som før, så eldre ordresedler leses uendret. Alle lag (flate summer, .uker,
+// .personer) bærer overtidsnøklene på samme måte som de ordinære.
+var TIMER_OT_TYPES = ['50', '100'];
+function timerKey(day, ot) { return ot ? day + '@' + ot : day; }
+var TIMER_BUCKET_KEYS_ALL = TIMER_BUCKET_KEYS.slice();
+TIMER_OT_TYPES.forEach(function(ot) {
+    TIMER_BUCKET_KEYS.forEach(function(d) { TIMER_BUCKET_KEYS_ALL.push(timerKey(d, ot)); });
+});
+function _timerNum(v) {
+    var n = parseFloat(String(v == null ? '' : v).trim().replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+}
+// Timer på én dag (eller «_generelt») for én type: '' = ordinær, '50', '100'.
+// Ordinær «Annet» faller tilbake til eldre _total.
+function timerDayValue(tm, day, ot) {
+    if (!tm) return 0;
+    if (!ot && day === '_generelt') {
+        var g = (tm._generelt != null && String(tm._generelt).trim() !== '') ? tm._generelt : tm._total;
+        return _timerNum(g);
+    }
+    return _timerNum(tm[timerKey(day, ot)]);
+}
+// Alle timer på én dag: ordinær + overtid. Brukes av totaler/oversikter.
+function timerDayHours(tm, day) {
+    var s = timerDayValue(tm, day, '');
+    TIMER_OT_TYPES.forEach(function(ot) { s += timerDayValue(tm, day, ot); });
+    return s;
+}
+// Har dagen noen timer (ordinær eller overtid)?
+function timerDayHasHours(tm, day) {
+    if (!tm) return false;
+    return TIMER_BUCKET_KEYS_ALL.some(function(k) {
+        return (k === day || k.indexOf(day + '@') === 0) && String(tm[k] == null ? '' : tm[k]).trim() !== '';
+    }) || (day === '_generelt' && tm._total != null && String(tm._total).trim() !== '');
+}
+// Sum-radene i eksporten pr. bestilling: «Arbeidstid» (ordinære) + én rad pr.
+// overtidstype som har timer. tot (valgfri) samler summene for totalraden nederst.
+function orderTimerExportRows(timer, tot) {
+    var sp = orderTimerSplit(timer), rows = [];
+    var fmt = function(n) { return n.toFixed(1).replace('.', ','); };
+    if (sp.ord > 0) rows.push([t('order_days') + ':', fmt(sp.ord)]);
+    TIMER_OT_TYPES.forEach(function(ot) { if (sp[ot] > 0) rows.push(['Overtid ' + ot + '%:', fmt(sp[ot])]); });
+    if (tot) { tot.ord = (tot.ord || 0) + sp.ord; TIMER_OT_TYPES.forEach(function(ot) { tot[ot] = (tot[ot] || 0) + sp[ot]; }); }
+    return rows;
+}
+// Totalradene nederst (≥2 bestillinger): én pr. type som har timer.
+function orderTimerTotalRows(tot) {
+    var rows = [], fmt = function(n) { return n.toFixed(1).replace('.', ','); };
+    if (tot.ord > 0) rows.push(['Total ' + t('order_days').toLowerCase() + ':', fmt(tot.ord)]);
+    TIMER_OT_TYPES.forEach(function(ot) { if (tot[ot] > 0) rows.push(['Total overtid ' + ot + '%:', fmt(tot[ot])]); });
+    return rows;
+}
+// Sum pr. type for ett timer-objekt (flate nøkler): { ord, '50', '100' }.
+function orderTimerSplit(timer) {
+    var out = { ord: 0 };
+    TIMER_OT_TYPES.forEach(function(ot) { out[ot] = 0; });
+    if (!timer || typeof timer !== 'object') return out;
+    TIMER_BUCKET_KEYS.forEach(function(d) {
+        out.ord += timerDayValue(timer, d, '');
+        TIMER_OT_TYPES.forEach(function(ot) { out[ot] += timerDayValue(timer, d, ot); });
+    });
+    return out;
+}
+
 function _timerFmtNum(n) {
     // Hele tall uten desimal, ellers én desimal med komma — samme form som
     // brukeren selv skriver, og som timerFromWeekBuckets bruker.
@@ -5837,7 +5906,7 @@ function _mergeBucketMaps(maps) {
         Object.keys(m || {}).forEach(function(w) {
             var src = m[w] || {};
             var dst = out[w] || (out[w] = {});
-            TIMER_BUCKET_KEYS.forEach(function(d) {
+            TIMER_BUCKET_KEYS_ALL.forEach(function(d) {
                 var v = _timerTrim(src[d]);
                 if (!v) return;
                 var n = parseFloat(v.replace(',', '.'));
@@ -5857,7 +5926,7 @@ function _cleanBucketMap(map) {
     Object.keys(map || {}).forEach(function(w) {
         var src = map[w] || {};
         var kept = {};
-        TIMER_BUCKET_KEYS.forEach(function(d) {
+        TIMER_BUCKET_KEYS_ALL.forEach(function(d) {
             var v = _timerTrim(src[d]);
             if (v) kept[d] = v;
         });
@@ -5916,7 +5985,7 @@ function orderHoursForPerson(timer, personName, myName) {
     var want = _timerTrim(personName).toLowerCase();
     var sum = 0;
     var addBucket = function(b) {
-        TIMER_BUCKET_KEYS.forEach(function(d) {
+        TIMER_BUCKET_KEYS_ALL.forEach(function(d) {
             var n = parseFloat(_timerTrim(b[d]).replace(',', '.'));
             if (!isNaN(n)) sum += n;
         });
@@ -5976,7 +6045,7 @@ function orderHoursForWeekMine(timer, week, myName) {
         if (_timerTrim(p && p.navn).toLowerCase() !== want) return;
         var b = ((p && p.uker) || {})[String(week)];
         if (!b) return;
-        TIMER_BUCKET_KEYS.forEach(function(d) {
+        TIMER_BUCKET_KEYS_ALL.forEach(function(d) {
             var n = parseFloat(_timerTrim(b[d]).replace(',', '.'));
             if (!isNaN(n)) sum += n;
         });
@@ -6049,7 +6118,7 @@ function _applyWeekMapping(bucketMap, map) {
         if (dest !== k) changed = true;
         out[dest] = out[dest] || {};
         var src = bucketMap[k] || {};
-        TIMER_BUCKET_KEYS.forEach(function(d) {
+        TIMER_BUCKET_KEYS_ALL.forEach(function(d) {
             var v = _timerTrim(src[d]);
             if (!v) return;
             if (!out[dest][d]) { out[dest][d] = v; return; }
@@ -6190,16 +6259,21 @@ function orderArbeidstidMeta(order, fallbackWeeks) {
     // dokument, og konsistens veier tyngre enn å utnytte ledig plass.
     // Skilletegnet er «·» og ikke komma: verdiene inneholder selv komma som
     // desimalskille, så «Ma 2t, Ti 8t» ville vært flertydig.
-    var bygg = function(tm) {
+    // ot: '' = ordinære timer, '50' / '100' = overtid (nøklene «ma@50» osv.).
+    var bygg = function(tm, ot) {
         var parts = [];
         TIMER_DAY_KEYS_CORE.forEach(function(d) {
-            var tv = tm[d];
+            var tv = tm[timerKey(d, ot)];
             if (tv != null && String(tv).trim()) parts.push((dagShortMap[d] || d) + ' ' + String(tv).replace('.', ',') + 't');
         });
-        var g = tm._generelt || tm._total;
+        var g = ot ? tm[timerKey('_generelt', ot)] : (tm._generelt || tm._total);
         if (g != null && String(g).trim()) parts.push('Annet ' + String(g).replace('.', ',') + 't');
         return parts;
     };
+    // Overtid får egne linjer (Firesafe fakturerer den): etiketten «Overtid 50%» står
+    // der «Arbeidstid» står for de ordinære timene, så kunden ser hva som er hva.
+    var OT_TYPES = [''].concat(TIMER_OT_TYPES);
+    var otName = function(ot) { return 'Overtid ' + ot + '%'; };
     // Etiketten er «Arbeidstid uke N» — samme ord som total-raden nederst i
     // eksporten (t('order_days')), så dokumentet bruker ETT begrep om timer.
     // Den sto en periode som «Timer uke N» fordi linja brøt til to og etiketten
@@ -6236,14 +6310,16 @@ function orderArbeidstidMeta(order, fallbackWeeks) {
         });
         weekOrder.forEach(function(w) {
             timer.personer.forEach(function(p) {
-                var parts = bygg(((p && p.uker) || {})[w] || {});
-                if (!parts.length) return;
-                var navn = _timerTrim(p && p.navn);
-                var lbl;
-                if (navn && w) lbl = 'Uke ' + w + ' \u00b7 ' + navn + ': ';
-                else if (navn) lbl = navn + ': ';
-                else lbl = t('order_days') + (w ? ' uke ' + w : '') + ': ';
-                pOut.push({ label: lbl, value: parts.join(' \u00b7 ') });
+                OT_TYPES.forEach(function(ot) {
+                    var parts = bygg(((p && p.uker) || {})[w] || {}, ot);
+                    if (!parts.length) return;
+                    var navn = _timerTrim(p && p.navn);
+                    var lbl;
+                    if (navn && w) lbl = 'Uke ' + w + ' \u00b7 ' + navn + (ot ? ' \u00b7 ' + otName(ot) : '') + ': ';
+                    else if (navn) lbl = navn + (ot ? ' \u00b7 ' + otName(ot) : '') + ': ';
+                    else lbl = (ot ? otName(ot) : t('order_days')) + (w ? ' uke ' + w : '') + ': ';
+                    pOut.push({ label: lbl, value: parts.join(' \u00b7 ') });
+                });
             });
         });
         if (pOut.length) return pOut;
@@ -6255,17 +6331,22 @@ function orderArbeidstidMeta(order, fallbackWeeks) {
     if (uker.length) {
         var out = [];
         uker.forEach(function(w) {
-            var parts = bygg(timer.uker[w] || {});
-            if (parts.length) out.push({ label: t('order_days') + ' uke ' + w + ': ', value: parts.join(' \u00b7 ') });
+            OT_TYPES.forEach(function(ot) {
+                var parts = bygg(timer.uker[w] || {}, ot);
+                if (parts.length) out.push({ label: (ot ? otName(ot) : t('order_days')) + ' uke ' + w + ': ', value: parts.join(' \u00b7 ') });
+            });
         });
         if (out.length) return out;
     }
     // Ingen uke-fordeling (data lagret før uke-oppdelingen). Dekker skjemaet
     // bare ÉN uke, vet vi likevel hvilken timene hører til — se soleWeekOf.
-    var flat = bygg(timer);
-    if (!flat.length) return [];
     var sole = soleWeekOf(fallbackWeeks);
-    return [{ label: t('order_days') + (sole ? ' uke ' + sole : '') + ': ', value: flat.join(' \u00b7 ') }];
+    var res = [];
+    OT_TYPES.forEach(function(ot) {
+        var flat = bygg(timer, ot);
+        if (flat.length) res.push({ label: (ot ? otName(ot) : t('order_days')) + (sole ? ' uke ' + sole : '') + ': ', value: flat.join(' \u00b7 ') });
+    });
+    return res;
 }
 
 // Total timer i ett timer-objekt: de FLATE nøklene, som er summen på tvers av
@@ -6277,11 +6358,9 @@ function orderArbeidstidMeta(order, fallbackWeeks) {
 // Object]') blir NaN. Enhver ny nøkkel med et TALL i seg ville blitt talt med.
 function orderTimerSum(timer) {
     if (!timer || typeof timer !== 'object') return 0;
+    // Alle timer: ordinære + overtid (orderTimerSplit gir dem hver for seg).
     var sum = 0;
-    TIMER_DAY_KEYS_CORE.concat(['_generelt', '_total']).forEach(function(k) {
-        var n = parseFloat(String(timer[k] == null ? '' : timer[k]).replace(',', '.'));
-        if (!isNaN(n)) sum += n;
-    });
+    TIMER_BUCKET_KEYS.forEach(function(d) { sum += timerDayHours(timer, d); });
     return sum;
 }
 
@@ -6290,10 +6369,7 @@ function orderHoursForWeek(timer, week) {
     if (!timer || typeof timer !== 'object') return 0;
     var sum = 0;
     var addAll = function(obj) {
-        TIMER_DAY_KEYS_CORE.concat(['_generelt', '_total']).forEach(function(k) {
-            var n = parseFloat(String(obj[k] == null ? '' : obj[k]).replace(',', '.'));
-            if (!isNaN(n)) sum += n;
-        });
+        TIMER_BUCKET_KEYS.forEach(function(d) { sum += timerDayHours(obj, d); });   // ordinær + overtid
     };
     if (timer.uker && typeof timer.uker === 'object') {
         var b = timer.uker[String(week)];
@@ -6461,16 +6537,27 @@ function updateDagTimerSummary(card) {
     // Dag-delene for ETT sett timer — én uke, eller de flate nøklene for data
     // lagret før uke-oppdelingen. TIMER_DAY_KEYS_CORE er samme kilde som
     // eksporten bruker, så dagrekkefølgen kan ikke drive fra hverandre.
-    function _dayParts(tm) {
-        var out = TIMER_DAY_KEYS_CORE.filter(function(d) { return tm[d]; }).map(function(d) {
-            return _formatDayPart(dagShortMap[d] || d, tm[d]);
+    // ot: '' = ordinære timer, '50' / '100' = overtid (egne nøkler «ma@50» osv.).
+    function _dayParts(tm, ot) {
+        var out = TIMER_DAY_KEYS_CORE.filter(function(d) { return tm[timerKey(d, ot)]; }).map(function(d) {
+            return _formatDayPart(dagShortMap[d] || d, tm[timerKey(d, ot)]);
         });
-        var g = tm._generelt || tm._total;
+        var g = ot ? tm[timerKey('_generelt', ot)] : (tm._generelt || tm._total);
         if (g) out.push(_formatDayPart('Annet', g));
         return out;
     }
     var SEP = '<span class="dt-sep">•</span>';
     var lines = [];
+    // Én linje pr. timetype som har timer: ordinær med etiketten som før, overtid
+    // med «· Overtid 50%» / «· Overtid 100%» bak (eller alene når etiketten er tom).
+    function _pushTypeLines(lbl, tm) {
+        [''].concat(TIMER_OT_TYPES).forEach(function(ot) {
+            var parts = _dayParts(tm, ot);
+            if (!parts.length) return;
+            var l = ot ? (lbl ? lbl + ' \u00b7 ' : '') + 'Overtid ' + ot + '%' : lbl;
+            lines.push((l ? '<span class="dt-part"><b class="dt-label' + (ot ? ' dt-label-ot' : '') + '">' + escapeHtml(l) + '</b></span>' + SEP : '') + parts.join(SEP));
+        });
+    }
     // Flere personer: samme oppdeling som eksporten — én linje per (uke, person).
     // Kortet er der man leser tilbake det man har ført, så det MÅ vise samme
     // fordeling som dokumentet kunden signerer. Slo vi personene sammen her,
@@ -6491,12 +6578,9 @@ function updateDagTimerSummary(card) {
         });
         pWeeks.forEach(function(w) {
             timer.personer.forEach(function(p) {
-                var parts = _dayParts(((p && p.uker) || {})[w] || {});
-                if (!parts.length) return;
                 var navn = _timerTrim(p && p.navn);
                 var lbl = w ? ('Uke ' + w + (navn ? ' \u00b7 ' + navn : '')) : (navn || 'Arbeidstid');
-                lines.push('<span class="dt-part"><b class="dt-label">' + escapeHtml(lbl) + '</b></span>'
-                    + SEP + parts.join(SEP));
+                _pushTypeLines(lbl, ((p && p.uker) || {})[w] || {});
             });
         });
     }
@@ -6513,10 +6597,7 @@ function updateDagTimerSummary(card) {
         // Ukenummeret tas med OGSÅ når det bare er én uke — samme begrunnelse som
         // i orderArbeidstidMeta: én fast form, framfor å veksle etter antall uker.
         uker.forEach(function(w) {
-            var p = _dayParts(timer.uker[w] || {});
-            if (!p.length) return;
-            lines.push('<span class="dt-part"><b class="dt-label">Uke ' + escapeHtml(w) + '</b></span>'
-                + SEP + p.join(SEP));
+            _pushTypeLines('Uke ' + w, timer.uker[w] || {});
         });
     } else if (!lines.length) {
         // Uten fordeling: merk likevel linja når skjemaet dekker bare ÉN uke.
@@ -6524,13 +6605,8 @@ function updateDagTimerSummary(card) {
         // `!lines.length` er nødvendig fordi person-grenen over allerede kan ha
         // fylt lines — uten den la denne på en flat linje i tillegg, og kortet
         // viste både «Uke 30 · Igor: Ma 8t» og en samlet «Ma 16t» under.
-        var flat = _dayParts(timer);
-        if (flat.length) {
-            var sole = soleWeekOf(typeof currentFormUkeNumbers === 'function' ? currentFormUkeNumbers() : []);
-            lines.push(sole
-                ? '<span class="dt-part"><b class="dt-label">Uke ' + escapeHtml(sole) + '</b></span>' + SEP + flat.join(SEP)
-                : flat.join(SEP));
-        }
+        var sole = soleWeekOf(typeof currentFormUkeNumbers === 'function' ? currentFormUkeNumbers() : []);
+        _pushTypeLines(sole ? 'Uke ' + sole : '', timer);
     }
     // Etasjer — bestilling-nivå, vist ÉN gang. Egen linje: hengt på slutten av
     // siste uke-linje ville de sett ut som om de bare gjaldt den uka.
@@ -6979,69 +7055,70 @@ function _flushDagTimerInputs() {
 }
 
 // Dag-radene for den AKTIVE uka (eller den ene flate lista når uken er ukjent).
+// Tre felt pr. dag: Ord. · 50% · 100% (overtid — brukerens valg). Kolonneoverskrift
+// øverst; enheten «t» står i totalraden, ikke i hvert felt (plass til tre felt).
+var _DAG_TIMER_COLS = [{ ot: '', label: 'Ord.' }, { ot: '50', label: '50%' }, { ot: '100', label: '100%' }];
 function _renderDagTimerDayRows() {
     var wrap = document.getElementById('dag-timer-day-rows');
     if (!wrap) return;
     wrap.innerHTML = '';
     var bucket = _dagTimerActiveBuckets()[_dagTimerActiveWeek] || {};
+    var cells = function (topRow, day) {
+        _DAG_TIMER_COLS.forEach(function (c) {
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.className = 'dag-timer-modal-input';
+            inp.inputMode = 'decimal';
+            inp.placeholder = '0';
+            inp.dataset.dag = timerKey(day, c.ot);
+            inp.value = bucket[timerKey(day, c.ot)] || '';
+            if (day === '_generelt' && !c.ot) inp.id = 'dag-timer-generelt-input';
+            var w = document.createElement('div');
+            w.className = 'dag-timer-input-wrap dag-timer-input-wrap--col' + (c.ot ? ' dag-timer-input-wrap--ot' : '');
+            w.appendChild(inp);
+            topRow.appendChild(w);
+        });
+    };
+    // Kolonneoverskrift (Ord. · 50% · 100%), på linje med feltene.
+    var head = document.createElement('div');
+    head.className = 'dag-timer-col-head';
+    var sp = document.createElement('span');
+    sp.className = 'dag-timer-modal-name';
+    head.appendChild(sp);
+    _DAG_TIMER_COLS.forEach(function (c) {
+        var h = document.createElement('span');
+        h.className = 'dag-timer-col' + (c.ot ? ' dag-timer-col--ot' : '');
+        h.textContent = c.label;
+        head.appendChild(h);
+    });
+    wrap.appendChild(head);
     var dagOrder = ['ma','ti','on','to','fr','lo','so'];
-    dagOrder.forEach(function(dag) {
+    dagOrder.concat(['_generelt']).forEach(function(dag) {
         var row = document.createElement('div');
-        row.className = 'dag-timer-modal-row';
+        row.className = 'dag-timer-modal-row' + (dag === '_generelt' ? ' dag-timer-total-row' : '');
         row.dataset.dag = dag;
         var topRow = document.createElement('div');
         topRow.className = 'dag-timer-modal-row-top';
         var label = document.createElement('span');
         label.className = 'dag-timer-modal-name';
-        label.textContent = dagNameMap[dag];
-        var inp = document.createElement('input');
-        inp.type = 'text';
-        inp.className = 'dag-timer-modal-input';
-        inp.inputMode = 'decimal';
-        inp.placeholder = '0';
-        inp.dataset.dag = dag;
-        inp.value = bucket[dag] || '';
-        var inpWrap = document.createElement('div');
-        inpWrap.className = 'dag-timer-input-wrap';
-        var unit = document.createElement('span');
-        unit.className = 'dag-timer-unit';
-        unit.textContent = 't';
-        inpWrap.appendChild(inp);
-        inpWrap.appendChild(unit);
+        label.textContent = dag === '_generelt' ? 'Annet' : dagNameMap[dag];
         topRow.appendChild(label);
-        topRow.appendChild(inpWrap);
+        cells(topRow, dag);
         row.appendChild(topRow);
         wrap.appendChild(row);
     });
+}
 
-    // Annet-rad (additiv timer for uspesifisert dag, kun timer).
-    var genRow = document.createElement('div');
-    genRow.className = 'dag-timer-modal-row dag-timer-total-row';
-    genRow.dataset.dag = '_generelt';
-    var genTopRow = document.createElement('div');
-    genTopRow.className = 'dag-timer-modal-row-top';
-    var genLabel = document.createElement('span');
-    genLabel.className = 'dag-timer-modal-name';
-    genLabel.textContent = 'Annet';
-    var genInp = document.createElement('input');
-    genInp.type = 'text';
-    genInp.className = 'dag-timer-modal-input';
-    genInp.inputMode = 'decimal';
-    genInp.placeholder = '0';
-    genInp.id = 'dag-timer-generelt-input';
-    genInp.dataset.dag = '_generelt';
-    genInp.value = bucket._generelt || '';
-    var genInpWrap = document.createElement('div');
-    genInpWrap.className = 'dag-timer-input-wrap';
-    var genUnit = document.createElement('span');
-    genUnit.className = 'dag-timer-unit';
-    genUnit.textContent = 't';
-    genInpWrap.appendChild(genInp);
-    genInpWrap.appendChild(genUnit);
-    genTopRow.appendChild(genLabel);
-    genTopRow.appendChild(genInpWrap);
-    genRow.appendChild(genTopRow);
-    wrap.appendChild(genRow);
+// Sum for én type (''/'50'/'100') på tvers av alle personer og uker i kladden.
+function _dagTimerTypeSum(ot) {
+    var sum = 0;
+    _dagTimerPersons.forEach(function (p) {
+        Object.keys((p && p.buckets) || {}).forEach(function (w) {
+            var b = p.buckets[w] || {};
+            TIMER_BUCKET_KEYS.forEach(function (d) { sum += _timerNum(b[timerKey(d, ot)]); });
+        });
+    });
+    return sum;
 }
 
 // Summerer ALLE timefeltene i dag-timer-popupen (ukedagene + «Annet») og skriver
@@ -7056,9 +7133,11 @@ function _updateDagTimerTotal() {
     // totalen falt når man byttet til en tom uke.
     // ...og alle PERSONER: totalen er hele bestillingens arbeidstid, som er tallet
     // som havner på totalraden i eksporten.
-    var sum = 0;
-    _dagTimerPersons.forEach(function(p) { sum += _dagTimerPersonSum(p); });
-    valueEl.textContent = sum.toFixed(1).replace('.', ',') + ' t';
+    // Én sum pr. kolonne (Ord. · 50% · 100%), på linje med feltene over.
+    valueEl.innerHTML = _DAG_TIMER_COLS.map(function (c) {
+        var v = _dagTimerTypeSum(c.ot);
+        return '<span class="dag-timer-col' + (c.ot ? ' dag-timer-col--ot' : '') + '">' + (Math.round(v * 10) / 10).toString().replace('.', ',') + ' t</span>';
+    }).join('');
     _renderDagTimerTabs();        // delsummene på uke-fanene holdes i takt
     _renderDagTimerPersonRow();   // ...og på person-fanene
 }
@@ -7067,7 +7146,7 @@ function _updateDagTimerTotal() {
 // samme begrep som overalt ellers («Total arbeidstid»).
 function _bindDagTimerTotal() {
     var labelEl = document.getElementById('dag-timer-total-label');
-    if (labelEl) labelEl.textContent = 'Total ' + t('order_days').toLowerCase();
+    if (labelEl) labelEl.textContent = 'Total';
     var list = document.getElementById('dag-timer-modal-list');
     if (list) {
         list.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
@@ -7104,7 +7183,7 @@ function closeDagTimerModal(confirmed) {
     const timer = timerFromPersonList(_dagTimerPersons, _dagTimerMyName);
     // «dager» = ukedager det er ført timer på, på tvers av alle uker. Brukes til
     // sammendraget på kortet og til eksportens Arbeidstid-linje.
-    const dager = TIMER_DAY_KEYS_CORE.filter(function(k) { return timer[k]; });
+    const dager = TIMER_DAY_KEYS_CORE.filter(function(k) { return timerDayHasHours(timer, k); });
 
     // Etasjer (bestilling-nivå) fra den ene picker-knappen.
     var etBtn = list.querySelector('.dag-timer-etasje-btn');
@@ -7544,7 +7623,9 @@ function getOrdersData() {
         // popup og trykke OK uten å endre noe IKKE skal markere skjemaet ulagret.
         const timerObj = JSON.parse(card.getAttribute('data-timer') || '{}');
         var timerCanon = {};
-        ['ma','ti','on','to','fr','lo','so','_generelt','_total'].forEach(function(k) {
+        // Hvitelisten inkluderer overtidsnøklene (ma@50 …) — ellers ble overtiden
+        // stille kastet ved lagring. Fast rekkefølge (TIMER_BUCKET_KEYS_ALL) = kanonisk.
+        TIMER_BUCKET_KEYS_ALL.concat(['_total']).forEach(function(k) {
             if (timerObj[k] != null && String(timerObj[k]).trim()) timerCanon[k] = String(timerObj[k]).trim();
         });
         // .uker MÅ hvitelistes her. Hviteliste-filteret er selve mekanismen som gjør
@@ -7563,7 +7644,7 @@ function getOrdersData() {
                 .forEach(function(w) {
                     var src = timerObj.uker[w] || {};
                     var dst = {};
-                    ['ma','ti','on','to','fr','lo','so','_generelt'].forEach(function(k) {
+                    TIMER_BUCKET_KEYS_ALL.forEach(function(k) {
                         if (src[k] != null && String(src[k]).trim()) dst[k] = String(src[k]).trim();
                     });
                     if (Object.keys(dst).length) ukerCanon[w] = dst;
@@ -7587,7 +7668,7 @@ function getOrdersData() {
                     .forEach(function(w) {
                         var srcP = p.uker[w] || {};
                         var dstP = {};
-                        ['ma','ti','on','to','fr','lo','so','_generelt'].forEach(function(k) {
+                        TIMER_BUCKET_KEYS_ALL.forEach(function(k) {
                             if (srcP[k] != null && String(srcP[k]).trim()) dstP[k] = String(srcP[k]).trim();
                         });
                         if (Object.keys(dstP).length) ukerP[w] = dstP;
@@ -7598,7 +7679,7 @@ function getOrdersData() {
         }
         const timer = Object.keys(timerCanon).length > 0 ? timerCanon : '';
         // Arbeidsdager = dager med timer (avledet, ikke stale data-dager).
-        const dager = ['ma','ti','on','to','fr','lo','so'].filter(function(d) { return timerCanon[d]; });
+        const dager = ['ma','ti','on','to','fr','lo','so'].filter(function(d) { return timerDayHasHours(timerCanon, d); });
         // Etasjer = bestilling-nivå union (kanonisk via _getCardPlans). dayPlans
         // (per-dag) er avviklet → alltid tom, så representasjonen ikke gir drift.
         var plansArr = (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
@@ -8187,6 +8268,7 @@ function buildDesktopWorkLines() {
     }
 
     let totalTimer = 0;
+    var totalByType = { ord: 0 };   // ordinær + overtid hver for seg (totalradene)
     // Teller bestillingene som FAKTISK bidrar til timesummen. Sum-raden nederst
     // skjules når det bare er én — da ville den bare gjentatt bestillingens egen
     // Arbeidstid-rad med samme tall, og se ut som en feil.
@@ -8215,7 +8297,7 @@ function buildDesktopWorkLines() {
                 });
             }
 
-            var genVal = order.timer && typeof order.timer === 'object' ? (order.timer._generelt || order.timer._total) : null;
+            var genVal = order.timer && typeof order.timer === 'object' ? timerDayHasHours(order.timer, '_generelt') : null;
             const hasMeta = (order.dager && order.dager.length > 0) || genVal || order.plan || order.merknad;
             if (order.description && hasMeta) {
                 const spacer = document.createElement('div');
@@ -8443,12 +8525,14 @@ function buildDesktopWorkLines() {
         // ("Arbeidstid: Mandag (9,5t)…") — ett ord for ett begrep i dokumentet.
         // Fet + tom rad over: uten det klistret raden seg til siste material-
         // gruppe og så ut som en del av den (f.eks. under "Totalt: 8,5 meter").
+        // Arbeidstid + én rad pr. overtidstype (orderTimerExportRows).
         if (order.timer && typeof order.timer === 'object') {
             const orderTotal = orderTimerSum(order.timer);
             if (orderTotal > 0) {
-                const formatted = orderTotal.toFixed(1).replace('.', ',');
                 addRow('', '', '');
-                addRow(t('order_days') + ':', formatted, 'timer', { bold: true, alignRight: true });
+                orderTimerExportRows(order.timer, totalByType).forEach(function(r) {
+                    addRow(r[0], r[1], 'timer', { bold: true, alignRight: true });
+                });
                 totalTimer += orderTotal;
                 timerRows++;
             }
@@ -8457,7 +8541,7 @@ function buildDesktopWorkLines() {
             const formatted = isNaN(val) ? order.timer.replace('.', ',') : val.toFixed(1).replace('.', ',');
             addRow('', '', '');
             addRow(t('order_days') + ':', formatted, 'timer', { bold: true, alignRight: true });
-            if (!isNaN(val)) { totalTimer += val; timerRows++; }
+            if (!isNaN(val)) { totalTimer += val; totalByType.ord += val; timerRows++; }
         }
     });
 
@@ -8468,8 +8552,9 @@ function buildDesktopWorkLines() {
     // som ble summert og kolliderte med meter-summen i produktgruppene.
     if (totalTimer > 0 && timerRows > 1) {
         addRow('', '', '');
-        const formatted = totalTimer.toFixed(1).replace('.', ',');
-        addRow('Total ' + t('order_days').toLowerCase() + ':', formatted, 'timer', { bold: true, alignRight: true });
+        orderTimerTotalRows(totalByType).forEach(function(r) {
+            addRow(r[0], r[1], 'timer', { bold: true, alignRight: true });
+        });
     }
 
     // Ensure minimum rows to fill the page
@@ -8499,12 +8584,13 @@ function computeWorkRows(orders, minRows, weeks) {
         });
     }
     var totalTimer = 0;
+    var totalByType = { ord: 0 };   // ordinær + overtid hver for seg (totalradene)
     // Se kommentar i buildDesktopWorkLines — samme teller, må holdes i synk.
     var timerRows = 0;
 
     (orders || []).forEach(function(order) {
         // Beskrivelse-blokk (beskrivelse + Dager/Plan/Merknad med fete etiketter).
-        var genVal = order.timer && typeof order.timer === 'object' ? (order.timer._generelt || order.timer._total) : null;
+        var genVal = order.timer && typeof order.timer === 'object' ? timerDayHasHours(order.timer, '_generelt') : null;
         if (order.description || (order.dager && order.dager.length > 0) || order.plan || order.merknad) {
             var paragraphs = order.description ? String(order.description).split(/\n\n+/) : [];
             var meta = [];
@@ -8619,21 +8705,25 @@ function computeWorkRows(orders, minRows, weeks) {
             var orderTotal = orderTimerSum(order.timer);
             if (orderTotal > 0) {
                 addRow('', '', '');
-                addRow(t('order_days') + ':', orderTotal.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
+                orderTimerExportRows(order.timer, totalByType).forEach(function(r) {
+                    addRow(r[0], r[1], 'timer', { bold: true, alignRight: true });
+                });
                 totalTimer += orderTotal; timerRows++;
             }
         } else if (typeof order.timer === 'string' && order.timer) {
             var val2 = parseFloat(order.timer.replace(',', '.'));
             addRow('', '', '');
             addRow(t('order_days') + ':', isNaN(val2) ? order.timer.replace('.', ',') : val2.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
-            if (!isNaN(val2)) { totalTimer += val2; timerRows++; }
+            if (!isNaN(val2)) { totalTimer += val2; totalByType.ord += val2; timerRows++; }
         }
     });
 
     // Sum kun når ≥2 bestillinger bidrar — se kommentar i buildDesktopWorkLines.
     if (totalTimer > 0 && timerRows > 1) {
         addRow('', '', '');
-        addRow('Total ' + t('order_days').toLowerCase() + ':', totalTimer.toFixed(1).replace('.', ','), 'timer', { bold: true, alignRight: true });
+        orderTimerTotalRows(totalByType).forEach(function(r) {
+            addRow(r[0], r[1], 'timer', { bold: true, alignRight: true });
+        });
     }
     if (minRows) { for (var i = rows.length; i < minRows; i++) addRow('', '', ''); }
     return rows;
@@ -8847,10 +8937,9 @@ function validateRequiredFields() {
             const cardTimer = JSON.parse(card.getAttribute('data-timer') || '{}');
             const cardFloors = (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [];
             // Bestillingen må ha minst ÉN dag med timer (inkl. "Annet").
-            var anyWeekdayHours = dagOrder.some(function(d) {
-                return !!(cardTimer[d] && String(cardTimer[d]).trim());
-            });
-            var genVal = cardTimer._generelt || cardTimer._total;
+            // Ordinære ELLER overtid teller som timer på dagen.
+            var anyWeekdayHours = dagOrder.some(function(d) { return timerDayHasHours(cardTimer, d); });
+            var genVal = timerDayHasHours(cardTimer, '_generelt');
             if (!anyWeekdayHours && !genVal) {
                 showNotificationModal(t('required_field', t('order_days')) + ' (' + t('settings_req_beskrivelse') + ' ' + (i + 1) + ')');
                 return false;
