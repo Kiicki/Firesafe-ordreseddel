@@ -2131,7 +2131,8 @@ function getSettingsPageTitle(page) {
         templates: t('settings_templates_and_addresses'),
         materials: t('settings_materials'),
         timebok: t('settings_timebok'),
-        'admin-users': t('settings_admin_users')
+        'admin-users': t('settings_admin_users'),
+        'admin-employers': t('settings_admin_employers')
     };
     return titles[page] || '';
 }
@@ -2377,6 +2378,8 @@ function showSettingsPage(page, replace) {
         });
     } else if (page === 'admin-users') {
         renderAdminUsers();
+    } else if (page === 'admin-employers') {
+        renderAdminEmployers();
     } else if (page === 'timebok') {
         _tbSatserEmp = null; _tbSatserSelId = null;   // Satser starter på arbeidsgiveren i Personlig
         _renderTimebokSettingsAll();
@@ -2568,7 +2571,7 @@ function renderTimebokSettings() {
                     var o = '';
                     for (var d = 1; d <= 28; d++) {
                         var lbl = d === 1 ? t('tb_set_pay_full_month') : (d + '. – ' + (d - 1) + '.');
-                        if (d === TIMEBOK_PAY_START_DEFAULT[st.travelStyle]) lbl += ' (' + t('tb_set_pay_default') + ')';
+                        if (d === getTimebokPayStartDefault(st.travelStyle)) lbl += ' (' + t('tb_set_pay_default') + ')';
                         o += '<option value="' + d + '"' + (d === st.payStart ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
                     }
                     return o;
@@ -2615,7 +2618,7 @@ function _tbSetTravelStyle(v) {
 // Lik arbeidsgiverens standard → lagres som «følg arbeidsgiver» (null), så den bytter med.
 function _tbSetPayStart(v) {
     var n = parseInt(v, 10);
-    var def = TIMEBOK_PAY_START_DEFAULT[getTimebokSettings().travelStyle];
+    var def = getTimebokPayStartDefault(getTimebokSettings().travelStyle);
     _timebokSaveSettings({ payStart: (n >= 1 && n <= 28 && n !== def) ? n : null });
 }
 function _tbToggleAutofill(id, checked) {
@@ -24333,7 +24336,7 @@ function _accStartHash() {
 var _ACC_HASH_MODULE = { '': 'hjem', hent: 'lagret', skjema: 'ordreseddel', service: 'servicebil', kappe: 'kappe', kvittering: 'kvittering', calc: 'calc', timebok: 'timebok' };
 var _ACC_SETTINGS_MODULE = { 'form-ordreseddel': 'ordreseddel', 'form-service': 'servicebil', 'form-kappe': 'kappe', timebok: 'timebok' };
 function _accSettingsPageAllowed(page) {
-    if (page === 'admin-users') return !!_acc.admin;
+    if (page === 'admin-users' || page === 'admin-employers') return !!_acc.admin;
     var m = _ACC_SETTINGS_MODULE[page];
     return !m || _accAllowed(m);
 }
@@ -24411,6 +24414,28 @@ function _accCheckBlocked() {
 // endringer i Min info står til admin endrer noe igjen. Tomme felt hos admin rører ikke
 // det brukeren har skrevet. Leser Firestore først (lokal cache kan være utdatert).
 var _ACC_PROFILE_FIELDS = ['fornavn', 'etternavn', 'avdeling', 'mobil', 'epost'];
+// Timebok-innstillingene admin har satt → brukerens settings/timebok_settings (samme
+// mønster som personalia): bare når admin har endret dem (timebokRev ≠ adminRev), så
+// brukerens egne endringer i Timebok → Personlig står til admin endrer igjen. Timesats
+// som admin har latt stå tom rører ikke brukerens. Andre felt (auto-fyll, aktive koder
+// osv.) beholdes — dokumentet flettes.
+function _accSyncTimebok(uid, entry) {
+    if (!entry || !entry.timebokRev || !entry.timebok || !db) return;
+    var ref = db.collection('users').doc(uid).collection('settings').doc('timebok_settings');
+    ref.get().then(function (d) {
+        var st = d.exists ? (d.data() || {}) : (safeParseJSON(TIMEBOK_SETTINGS_KEY, {}) || {});
+        if (st.adminRev === entry.timebokRev) return;
+        var tb = entry.timebok;
+        if (tb.timesats != null) st.timesats = tb.timesats;
+        if (tb.travelStyle) st.travelStyle = tb.travelStyle;
+        st.payStart = tb.payStart != null ? tb.payStart : null;
+        if (tb.transport) st.transport = tb.transport;
+        st.adminRev = entry.timebokRev;
+        safeSetItem(TIMEBOK_SETTINGS_KEY, JSON.stringify(st));
+        enqueueUserDocSet('settings', 'timebok_settings', st, 'Admin timebok → timebok_settings');
+        if (typeof renderTimebokSettings === 'function') renderTimebokSettings();
+    }).catch(function () {});
+}
 function _accSyncProfile(uid, entry) {
     if (!entry || !entry.profileRev || !db) return;
     var ref = db.collection('users').doc(uid).collection('settings').doc('min_info');
@@ -24452,6 +24477,14 @@ if (typeof auth !== 'undefined' && auth) {
         _acc.adminKnown = false; _acc.entryKnown = false;
         _accApply();
         _accRecordUser(user);
+        // Felles arbeidsgiver-standarder (lønnsperiode) — live, så admin-endringer gjelder med en gang.
+        _accUnsubs.push(db.collection('settings').doc('timebok_employers').onSnapshot(function (d) {
+            if (d.exists) safeSetItem(TIMEBOK_EMPLOYERS_KEY, JSON.stringify(d.data()));
+            else localStorage.removeItem(TIMEBOK_EMPLOYERS_KEY);
+            if (typeof renderTimebokSettings === 'function') renderTimebokSettings();
+            var pg = document.getElementById('settings-page-admin-employers');
+            if (pg && pg.style.display !== 'none') renderAdminEmployers();
+        }, function () {}));
         checkAdminStatus(user.uid).then(function (a) {
             _acc.fbAdmin = !!a; _acc.adminKnown = true;
             _accRecalcAdmin(); _accApply(); _accCheckBlocked();
@@ -24463,6 +24496,7 @@ if (typeof auth !== 'undefined' && auth) {
             _acc.entryKnown = true;
             _accRecalcAdmin(); _accApply(); _accCheckBlocked();
             _accSyncProfile(user.uid, _acc.entry);
+            _accSyncTimebok(user.uid, _acc.entry);
         }, function () { /* lesefeil (regler/nett): ingen utkasting på usikkert grunnlag */ }));
         else _acc.entryKnown = true;
     });
@@ -24675,6 +24709,28 @@ function openAdmUser(key) {
         '</div>' +
         field('adm-f-epost', t('settings_min_info_epost'), e.epost, 'email', 'inputmode="email" autocapitalize="off"' + (u ? ' placeholder="' + escapeHtml(u.email) + '"' : '')) +
         field('adm-f-note', t('adm_field_note'), e.note, 'text', 'autocapitalize="sentences"');
+    // Timebok: de samme innstillingene som brukeren har i Timebok → Personlig (timesats,
+    // arbeidsgiver, lønnsperiode, transport). Står ferdig hos brukeren (se _accSyncTimebok).
+    var tbE = e.timebok || {};
+    var emp = tbE.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe';
+    var sel = function (id, label, opts, cur) {
+        return '<div class="spec-popup-field"><span class="spec-popup-label"><span>' + escapeHtml(label) + '</span></span>' +
+            '<select id="' + id + '" class="adm-select">' + opts.map(function (o) {
+                return '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + escapeHtml(o[1]) + '</option>';
+            }).join('') + '</select></div>';
+    };
+    var payOpts = [['', _admPayFollowLabel(emp)]];
+    for (var d = 1; d <= 28; d++) payOpts.push([d, d === 1 ? t('tb_set_pay_full_month') : (d + '. – ' + (d - 1) + '.')]);
+    h += '<div class="tb-af-group">' + escapeHtml(t('settings_timebok')) + '</div>' +
+        '<div class="adm-pop-sub adm-access-hint">' + escapeHtml(t('adm_tb_hint')) + '</div>' +
+        // Lange verdier (arbeidsgiver, lønnsperiode) i full bredde så teksten aldri kuttes;
+        // korte (timesats, transport) to og to.
+        sel('adm-f-tb-emp', t('tb_set_style'), [['firesafe', 'Firesafe'], ['damsgard', 'Damsgård Brannsikring']], emp).replace('<select ', '<select onchange="_admTbEmpChanged(this.value)" ') +
+        sel('adm-f-tb-pay', t('tb_set_payperiod'), payOpts, tbE.payStart != null ? tbE.payStart : '') +
+        '<div class="adm-grid2">' +
+            field('adm-f-tb-timesats', t('tb_set_timesats'), tbE.timesats != null ? String(tbE.timesats).replace('.', ',') : '', 'text', 'inputmode="decimal"') +
+            sel('adm-f-tb-transport', t('tb_set_transport'), [['firma', t('timebok_firma')], ['privat', t('timebok_privat')]], tbE.transport === 'privat' ? 'privat' : 'firma') +
+        '</div>';
     // Hver bryter forteller HVOR delen vises (knapper nederst, Lagret-faner, Meny), så
     // det er tydelig at én bryter styrer både verktøylinja og innstillingene.
     h += '<div class="tb-af-group">' + escapeHtml(t('adm_access_title')) + '</div>' +
@@ -24705,6 +24761,16 @@ function _admSplitName(u) {
     var parts = String((u && u.name) || '').trim().split(/\s+/).filter(Boolean);
     if (u && u.name && u.name.indexOf('@') !== -1) parts = [];
     return { fornavn: parts.shift() || '', etternavn: parts.join(' ') };
+}
+// «Standard for arbeidsgiver (26. – 25.)» — perioden står alltid i teksten, og følger
+// arbeidsgiveren som er valgt i skjemaet.
+function _admPayFollowLabel(emp) {
+    var d = getTimebokPayStartDefault(emp);
+    return t('adm_tb_pay_follow') + ' (' + d + '. – ' + (d - 1) + '.)';
+}
+function _admTbEmpChanged(emp) {
+    var o = document.querySelector('#adm-f-tb-pay option[value=""]');
+    if (o) o.textContent = _admPayFollowLabel(emp);
 }
 // Admin = full tilgang: tilgangsbryterne låses (alle på) og «Deaktiver» skjules.
 function _admAdminToggled(cb) {
@@ -24741,9 +24807,19 @@ function saveAdmUser() {
         updatedAt: stamp, updatedBy: by
     };
     data.name = (data.fornavn + ' ' + data.etternavn).trim();   // visningsnavn i lista
+    // Timebok-innstillinger (Personlig) — timesats tom = ikke satt (brukeren beholder sin).
+    var tsN = _tbNum(val('adm-f-tb-timesats'));
+    var payV = document.getElementById('adm-f-tb-pay').value;
+    data.timebok = {
+        timesats: tsN,
+        travelStyle: document.getElementById('adm-f-tb-emp').value === 'damsgard' ? 'damsgard' : 'firesafe',
+        payStart: payV ? parseInt(payV, 10) : null,
+        transport: document.getElementById('adm-f-tb-transport').value === 'privat' ? 'privat' : 'firma'
+    };
     // Personalia endret → ny revisjon, så brukerens Min info oppdateres ved neste innlogging/live.
     var pe = (u && u.entry) || {};
     if (_ACC_PROFILE_FIELDS.some(function (f) { return (pe[f] || '') !== data[f]; })) data.profileRev = Date.now();
+    if (JSON.stringify(pe.timebok || null) !== JSON.stringify(data.timebok)) data.timebokRev = Date.now();
     if (!u || !u.entry || key !== oldKey) { data.createdAt = (u && u.entry && u.entry.createdAt) || stamp; data.createdBy = (u && u.entry && u.entry.createdBy) || by; }
     var ops = [_admStore.setAccess(key, data)];
     // Ny e-post (før personen har logget inn): flytt oppføringen til den nye nøkkelen.
@@ -24818,3 +24894,40 @@ function deleteAdmUser() {
     }, t('btn_remove'), '#c0392b');
 }
 function _admDevReset() { localStorage.removeItem(ADM_DEV_KEY); renderAdminUsers(); }
+
+// ── Innstillinger → Admin → Arbeidsgivere ──
+// Standard lønnsperiode pr. arbeidsgiver, felles for alle brukere (settings/timebok_employers).
+// Brukere som står på «Standard for arbeidsgiver» følger den; egen startdag beholdes.
+var _ADM_EMPLOYERS = [['firesafe', 'Firesafe'], ['damsgard', 'Damsgård Brannsikring']];
+function renderAdminEmployers() {
+    var host = document.getElementById('adm-employers');
+    if (!host) return;
+    var opts = function (cur) {
+        var o = '';
+        for (var d = 1; d <= 28; d++) {
+            var lbl = d === 1 ? t('tb_set_pay_full_month') : (d + '. – ' + (d - 1) + '.');
+            o += '<option value="' + d + '"' + (d === cur ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+        }
+        return o;
+    };
+    host.innerHTML = '<div class="adm-info">' + escapeHtml(t('adm_emp_hint')) + '</div>' +
+        '<div class="settings-group adm-emp-group">' + _ADM_EMPLOYERS.map(function (e) {
+            return '<div class="adm-emp-row"><span class="adm-emp-name">' + escapeHtml(e[1]) + '</span>' +
+                '<label class="adm-emp-field"><span>' + escapeHtml(t('tb_set_payperiod')) + '</span>' +
+                    '<select class="adm-select" onchange="saveAdminEmployerPay(\'' + e[0] + '\', this.value)">' + opts(getTimebokPayStartDefault(e[0])) + '</select></label></div>';
+        }).join('') + '</div>';
+}
+function saveAdminEmployerPay(emp, val) {
+    var v = parseInt(val, 10);
+    if (!(v >= 1 && v <= 28)) return;
+    var d = safeParseJSON(TIMEBOK_EMPLOYERS_KEY, null) || {};
+    d.payStart = Object.assign({}, d.payStart || {});
+    d.payStart[emp] = v;
+    d.updatedBy = (currentUser && currentUser.email) || '';
+    safeSetItem(TIMEBOK_EMPLOYERS_KEY, JSON.stringify(d));
+    if (typeof renderTimebokSettings === 'function') renderTimebokSettings();
+    if (_admDev() || !db) { showNotificationModal(t('settings_defaults_saved'), true); return; }
+    db.collection('settings').doc('timebok_employers').set(d, { merge: true })
+        .then(function () { showNotificationModal(t('settings_defaults_saved'), true); })
+        .catch(function () { showNotificationModal(t('adm_save_error'), false); });
+}

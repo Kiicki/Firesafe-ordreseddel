@@ -175,6 +175,16 @@ function formatLocaleNum(n, decimals) {
 const TIMEBOK_AUTOFILL_DEFAULT = ['__travel', 'ord'];
 // Lønnsperiode pr. arbeidsgiver: startdag i måneden (Firesafe 11.–10., Damsgård 26.–25.).
 const TIMEBOK_PAY_START_DEFAULT = { firesafe: 11, damsgard: 26 };
+// Standard lønnsperiode pr. arbeidsgiver kan endres av admin (Meny → Admin → Arbeidsgivere).
+// Felles for alle brukere: Firestore settings/timebok_employers { payStart: {firesafe, damsgard} },
+// cachet lokalt. Uten egen verdi brukes konstanten over.
+const TIMEBOK_EMPLOYERS_KEY = 'firesafe_timebok_employers';
+function getTimebokPayStartDefault(emp) {
+    emp = emp === 'damsgard' ? 'damsgard' : 'firesafe';
+    var d = safeParseJSON(TIMEBOK_EMPLOYERS_KEY, null);
+    var v = d && d.payStart ? parseInt(d.payStart[emp], 10) : NaN;
+    return (v >= 1 && v <= 28) ? v : TIMEBOK_PAY_START_DEFAULT[emp];
+}
 function getTimebokSettings() {
     var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
     var style = d.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe';
@@ -184,7 +194,7 @@ function getTimebokSettings() {
         // travelStyle = arbeidsgiver (styrer reise-regel, standard lønnsperiode og senere eksport-stil).
         travelStyle: style,
         // Egen startdag (1–28) overstyrer arbeidsgiverens standard; ellers følger den arbeidsgiver.
-        payStart: (ps >= 1 && ps <= 28) ? ps : TIMEBOK_PAY_START_DEFAULT[style],
+        payStart: (ps >= 1 && ps <= 28) ? ps : getTimebokPayStartDefault(style),
         payStartCustom: (ps >= 1 && ps <= 28),
         autofill: Array.isArray(d.autofill) ? d.autofill.slice() : TIMEBOK_AUTOFILL_DEFAULT.slice()
     };

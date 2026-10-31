@@ -12574,3 +12574,12 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 .dag-timer-week-tab { padding: 6px 6px; gap: 4px; }
 #dag-timer-day-rows .dag-timer-modal-row { min-height: 40px; padding-top: 3px; padding-bottom: 3px; }
 #dag-timer-day-rows { padding-bottom: 6px; }
+/* Admin-brukerpopup: nedtrekkslister i samme stil som feltene. */
+#adm-user-body .adm-select { width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; }
+/* Admin → Arbeidsgivere */
+.adm-emp-group { background: #fff; padding: 4px 14px; }
+.adm-emp-row { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; }
+.adm-emp-row + .adm-emp-row { padding-top: 4px; }
+.adm-emp-name { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+.adm-emp-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8a8a90; }
+.adm-emp-field .adm-select { width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; }
