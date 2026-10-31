@@ -5772,6 +5772,8 @@ function timerWeekBuckets(timer, weeks) {
     TIMER_BUCKET_KEYS_ALL.forEach(function(k) { if (timer && timer[k]) flat[k] = timer[k]; });
     var gen = timer && (timer._generelt || timer._total);
     if (gen) flat._generelt = gen;
+    var fc = timer && timerCleanClocks(timer._klokke, flat);
+    if (fc) flat._klokke = fc;
     if (!known.length) return { '': flat };
     known.forEach(function(w, i) { out[w] = (i === 0) ? flat : {}; });
     return out;
@@ -5798,7 +5800,11 @@ function timerFromWeekBuckets(buckets) {
             // som brukeren selv skriver.
             timer[k] = (Math.round(sum * 10) / 10).toString().replace('.', ',');
         });
+        var kc = timerCleanClocks(b._klokke, kept);
+        if (kc) kept._klokke = kc;
         if (w && Object.keys(kept).length) { uker[w] = kept; anyWeek = true; }
+        // Ukjent uke ('') lagres bare flatt — da ligger klokkene på det flate laget.
+        if (!w && kc) timer._klokke = kc;
     });
     if (anyWeek) timer.uker = uker;
     return timer;
@@ -5830,6 +5836,20 @@ var TIMER_BUCKET_KEYS = TIMER_DAY_KEYS_CORE.concat(['_generelt']);
 // .personer) bærer overtidsnøklene på samme måte som de ordinære.
 var TIMER_OT_TYPES = ['50', '100'];
 function timerKey(day, ot) { return ot ? day + '@' + ot : day; }
+// Klokka (start/slutt/lunsj) pr. timefelt ligger i bøtta som _klokke[nøkkel]. Den er
+// bare informasjon for å kunne åpne feltet igjen — summer/eksport bruker timetallet.
+// Behold bare klokker for felt som fortsatt har timer, i fast nøkkelrekkefølge.
+function timerCleanClocks(clocks, bucket) {
+    if (!clocks || typeof clocks !== 'object') return null;
+    var out = {};
+    TIMER_BUCKET_KEYS_ALL.forEach(function(k) {
+        var c = clocks[k];
+        if (!c || !c.start || !c.end) return;
+        if (bucket && !String(bucket[k] == null ? '' : bucket[k]).trim()) return;
+        out[k] = { start: String(c.start), end: String(c.end), lunch: _timerNum(c.lunch) };
+    });
+    return Object.keys(out).length ? out : null;
+}
 var TIMER_BUCKET_KEYS_ALL = TIMER_BUCKET_KEYS.slice();
 TIMER_OT_TYPES.forEach(function(ot) {
     TIMER_BUCKET_KEYS.forEach(function(d) { TIMER_BUCKET_KEYS_ALL.push(timerKey(d, ot)); });
@@ -5902,6 +5922,14 @@ function _timerTrim(v) { return String(v == null ? '' : v).trim(); }
 // (uke, dag). Brukes til å utlede .uker fra personene.
 function _mergeBucketMaps(maps) {
     var out = {};
+    // Klokkene følger bare med når det er ÉN kilde (én person): summerte timer fra
+    // flere personer har ingen felles start/slutt (personlaget beholder dem).
+    if (maps && maps.length === 1) {
+        Object.keys(maps[0] || {}).forEach(function(w) {
+            var c = (maps[0][w] || {})._klokke;
+            if (c) (out[w] || (out[w] = {}))._klokke = JSON.parse(JSON.stringify(c));
+        });
+    }
     (maps || []).forEach(function(m) {
         Object.keys(m || {}).forEach(function(w) {
             var src = m[w] || {};
@@ -5930,6 +5958,8 @@ function _cleanBucketMap(map) {
             var v = _timerTrim(src[d]);
             if (v) kept[d] = v;
         });
+        var kc = timerCleanClocks(src._klokke, kept);
+        if (kc) kept._klokke = kc;
         if (Object.keys(kept).length) out[w] = kept;
     });
     return out;
@@ -6127,6 +6157,11 @@ function _applyWeekMapping(bucketMap, map) {
             var n = parseFloat(v.replace(',', '.'));
             if (isNaN(a) || isNaN(n)) { out[dest][d] = v; return; }
             out[dest][d] = _timerFmtNum(a + n);
+        });
+        // Klokka følger feltet når timetallet er uendret (ikke slått sammen med en annen uke).
+        Object.keys(src._klokke || {}).forEach(function(d) {
+            if (out[dest][d] !== _timerTrim(src[d])) return;
+            (out[dest]._klokke || (out[dest]._klokke = {}))[d] = src._klokke[d];
         });
     });
     return changed ? out : null;
@@ -6739,8 +6774,9 @@ function _renderDagTimerTabs() {
         // ord koster plass PER uke. Med fire uker ble «Timer uke 30» kuttet til
         // «Timer uk…». Ordet «Timer» er dessuten overflødig her — popupen heter
         // «Dager & tid», og delsummen rett under står med «t».
+        // Én linje: «Uke 30 · 300 t» (pille) — lettere enn kort med to linjer.
         btn.innerHTML = '<span class="dag-timer-week-tab-name">Uke ' + key + '</span>'
-            + '<span class="dag-timer-week-tab-sum">' + (sum ? _fmtDagTimerHours(sum) + ' t' : '—') + '</span>';
+            + (sum ? '<span class="dag-timer-week-tab-sum">' + _fmtDagTimerHours(sum) + ' t</span>' : '');
         btn.onclick = function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -6853,7 +6889,7 @@ function _copyDagTimerHoursFrom(src) {
     if (!active || !src) return;
     var copy = {};
     Object.keys(src.buckets || {}).forEach(function(w) {
-        copy[w] = Object.assign({}, src.buckets[w]);
+        copy[w] = JSON.parse(JSON.stringify(src.buckets[w] || {}));   // også klokkene (_klokke)
     });
     active.buckets = copy;
     _renderDagTimerPersonRow();
@@ -7047,11 +7083,16 @@ function _flushDagTimerInputs() {
     if (!wrap) return;
     var ab = _dagTimerActiveBuckets();
     var b = ab[_dagTimerActiveWeek] || (ab[_dagTimerActiveWeek] = {});
+    var clocks = b._klokke || {};   // start/slutt/lunsj pr. felt (settes av klokka)
     Object.keys(b).forEach(function(k) { delete b[k]; });
+    var keep = {};
     wrap.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
         var v = String(inp.value || '').trim();
-        if (v) b[inp.dataset.dag] = v;
+        if (!v) return;
+        b[inp.dataset.dag] = v;
+        if (clocks[inp.dataset.dag]) keep[inp.dataset.dag] = clocks[inp.dataset.dag];
     });
+    if (Object.keys(keep).length) b._klokke = keep;
 }
 
 // Dag-radene for den AKTIVE uka (eller den ene flate lista når uken er ukjent).
@@ -7065,16 +7106,23 @@ function _renderDagTimerDayRows() {
     var bucket = _dagTimerActiveBuckets()[_dagTimerActiveWeek] || {};
     var cells = function (topRow, day) {
         _DAG_TIMER_COLS.forEach(function (c) {
+            var key = timerKey(day, c.ot);
             var inp = document.createElement('input');
             inp.type = 'text';
             inp.className = 'dag-timer-modal-input';
-            inp.inputMode = 'decimal';
+            // Trykk åpner klokka (Start/Slutt/Lunsj → Timer, eller timer direkte) i
+            // stedet for tastaturet — ingen hoderegning (brukerens ønske).
+            inp.readOnly = true;
+            inp.inputMode = 'none';
             inp.placeholder = '0';
-            inp.dataset.dag = timerKey(day, c.ot);
-            inp.value = bucket[timerKey(day, c.ot)] || '';
+            inp.dataset.dag = key;
+            inp.value = bucket[key] || '';
+            inp.addEventListener('click', function () { openDtClock(inp); });
             if (day === '_generelt' && !c.ot) inp.id = 'dag-timer-generelt-input';
             var w = document.createElement('div');
-            w.className = 'dag-timer-input-wrap dag-timer-input-wrap--col' + (c.ot ? ' dag-timer-input-wrap--ot' : '');
+            var clk = bucket._klokke && bucket._klokke[key];
+            w.className = 'dag-timer-input-wrap dag-timer-input-wrap--col' + (c.ot ? ' dag-timer-input-wrap--ot' : '') + (clk ? ' has-clock' : '');
+            if (clk) w.title = clk.start + '–' + clk.end;
             w.appendChild(inp);
             topRow.appendChild(w);
         });
@@ -7109,6 +7157,47 @@ function _renderDagTimerDayRows() {
     });
 }
 
+// ── Klokke for ETT timefelt (dag × Ord./50%/100%) — det feltet man trykket på ──
+// Trykk på feltet åpner urskiva direkte (openTimeRange i script-ui): Start · Slutt ·
+// Lunsj og Timer i én popup. TIMER ER DET SOM TELLER; tiden er et valgfritt verktøy
+// som regner ut timene (slutt − start − lunsj), og timene kan skrives direkte. Endres
+// Timer for hånd, beholdes tiden. Ingen regler for hva som er ordinært eller overtid.
+// Tiden lagres i bøtta som _klokke[nøkkel] = { start, end, lunch } og vises igjen.
+function openDtClock(inp) {
+    var key = inp.dataset.dag;
+    var day = String(key || '').split('@')[0];
+    var ot = key.indexOf('@') !== -1 ? key.split('@')[1] : '';
+    var ab = _dagTimerActiveBuckets();
+    var b = ab[_dagTimerActiveWeek] || (ab[_dagTimerActiveWeek] = {});
+    var clk = (b._klokke || {})[key] || null;
+    var dayName = day === '_generelt' ? 'Annet' : dagNameMap[day];
+    var apply = function (hours, clock) {
+        if (hours && !_timerNum(hours)) hours = '';
+        b._klokke = b._klokke || {};
+        if (hours && clock) b._klokke[key] = clock; else delete b._klokke[key];
+        if (!Object.keys(b._klokke).length) delete b._klokke;
+        inp.value = hours;
+        var w = inp.parentNode;
+        if (w) {
+            w.classList.toggle('has-clock', !!(hours && clock));
+            w.title = hours && clock ? clock.start + '–' + clock.end : '';
+        }
+        _updateDagTimerTotal();
+    };
+    openTimeRange({
+        title: dayName + ' · ' + (ot ? 'Overtid ' + ot + '%' : t('dt_clock_ord')),
+        start: clk ? clk.start : '', end: clk ? clk.end : '',
+        // Lunsj: lagret verdi, ellers 0,5 i Ord. og 0 i overtid (synlig, kan endres).
+        lunch: clk ? clk.lunch : (ot ? 0 : 0.5),
+        hours: inp.value || '',
+        onDone: function (st, en, lunch, hours, timeSet) {
+            apply(hours, timeSet ? { start: st, end: en, lunch: lunch } : null);
+        },
+        onClear: function () { apply('', null); }   // Fjern: tømmer feltet (timer og tid)
+    });
+}
+window.openDtClock = openDtClock;
+
 // Sum for én type (''/'50'/'100') på tvers av alle personer og uker i kladden.
 function _dagTimerTypeSum(ot) {
     var sum = 0;
@@ -7133,11 +7222,18 @@ function _updateDagTimerTotal() {
     // totalen falt når man byttet til en tom uke.
     // ...og alle PERSONER: totalen er hele bestillingens arbeidstid, som er tallet
     // som havner på totalraden i eksporten.
-    // Én sum pr. kolonne (Ord. · 50% · 100%), på linje med feltene over.
+    // Én sum pr. kolonne (Ord. · 50% · 100%), på linje med feltene over, og
+    // totalen for alle timene ved siden av «Total».
+    var fmt = function (v) { return (Math.round(v * 10) / 10).toString().replace('.', ',') + ' t'; };
+    var grand = 0;
     valueEl.innerHTML = _DAG_TIMER_COLS.map(function (c) {
         var v = _dagTimerTypeSum(c.ot);
-        return '<span class="dag-timer-col' + (c.ot ? ' dag-timer-col--ot' : '') + '">' + (Math.round(v * 10) / 10).toString().replace('.', ',') + ' t</span>';
+        grand += v;
+        return '<span class="dag-timer-col' + (c.ot ? ' dag-timer-col--ot' : '') + '">' + fmt(v) + '</span>';
     }).join('');
+    var labelEl = document.getElementById('dag-timer-total-label');
+    if (labelEl) labelEl.innerHTML = 'Total <b class="dag-timer-grand">' + fmt(grand) + '</b>';
+    // Kolonnesummene vises ALLTID (brukerens valg), også når det ikke er overtid.
     _renderDagTimerTabs();        // delsummene på uke-fanene holdes i takt
     _renderDagTimerPersonRow();   // ...og på person-fanene
 }
@@ -7146,7 +7242,7 @@ function _updateDagTimerTotal() {
 // samme begrep som overalt ellers («Total arbeidstid»).
 function _bindDagTimerTotal() {
     var labelEl = document.getElementById('dag-timer-total-label');
-    if (labelEl) labelEl.textContent = 'Total';
+    if (labelEl) labelEl.textContent = 'Total';   // totalen settes av _updateDagTimerTotal
     var list = document.getElementById('dag-timer-modal-list');
     if (list) {
         list.querySelectorAll('.dag-timer-modal-input').forEach(function(inp) {
@@ -7628,6 +7724,9 @@ function getOrdersData() {
         TIMER_BUCKET_KEYS_ALL.concat(['_total']).forEach(function(k) {
             if (timerObj[k] != null && String(timerObj[k]).trim()) timerCanon[k] = String(timerObj[k]).trim();
         });
+        // Klokkene (start/slutt/lunsj pr. felt) — samme hviteliste-prinsipp, kanonisk form.
+        var flatClk = timerCleanClocks(timerObj._klokke, timerCanon);
+        if (flatClk) timerCanon._klokke = flatClk;
         // .uker MÅ hvitelistes her. Hviteliste-filteret er selve mekanismen som gjør
         // serialiseringen kanonisk, så et felt som ikke står her blir stille kastet
         // ved lagring. Uten den mistet en fler-ukes ordreseddel uke-fordelingen, og
@@ -7647,6 +7746,8 @@ function getOrdersData() {
                     TIMER_BUCKET_KEYS_ALL.forEach(function(k) {
                         if (src[k] != null && String(src[k]).trim()) dst[k] = String(src[k]).trim();
                     });
+                    var wClk = timerCleanClocks(src._klokke, dst);
+                    if (wClk) dst._klokke = wClk;
                     if (Object.keys(dst).length) ukerCanon[w] = dst;
                 });
             if (Object.keys(ukerCanon).length) timerCanon.uker = ukerCanon;
@@ -7671,6 +7772,8 @@ function getOrdersData() {
                         TIMER_BUCKET_KEYS_ALL.forEach(function(k) {
                             if (srcP[k] != null && String(srcP[k]).trim()) dstP[k] = String(srcP[k]).trim();
                         });
+                        var pClk = timerCleanClocks(srcP._klokke, dstP);
+                        if (pClk) dstP._klokke = pClk;
                         if (Object.keys(dstP).length) ukerP[w] = dstP;
                     });
                 if (Object.keys(ukerP).length) persCanon.push({ navn: navn, uker: ukerP });

@@ -12486,3 +12486,91 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 .dag-timer-modal-total-value { display: flex; gap: 6px; font-size: 13px; }
 .dag-timer-modal-total-value .dag-timer-col { font-size: 13px; font-weight: 700; color: #1c1c1e; }
 .dag-timer-modal-total-value .dag-timer-col--ot { color: #E8501A; }
+/* Arbeidstid-felt åpner klokka (ikke tastatur). Felt med lagret start/slutt får en
+   liten oransje strek nederst, så man ser at tiden er ført med klokke. */
+.dag-timer-input-wrap--col { cursor: pointer; position: relative; }
+.dag-timer-input-wrap--col .dag-timer-modal-input { cursor: pointer; caret-color: transparent; }
+.dag-timer-input-wrap--col.has-clock::after {
+    content: ''; position: absolute; left: 10px; right: 10px; bottom: 3px; height: 2px; border-radius: 2px; background: #E8501A; opacity: 0.55;
+}
+
+/* Urskiva i tidsrom-modus: Start · Slutt · Lunsj som tre like felt øverst, totalen
+   (Timer) i en tydelig stripe rett under — alt man fører og resultatet samlet. */
+.tb-clock-range { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0 0 8px; }
+.tb-clock-rbtn {
+    display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; min-width: 0;
+    border: 1px solid #d8d8de; border-radius: 10px; background: #fff; cursor: pointer; font-family: inherit;
+}
+.tb-clock-rbtn span { font-size: 12px; color: #8a8a90; }
+.tb-clock-rbtn b { display: flex; align-items: baseline; justify-content: center; gap: 2px; font-size: 17px; font-weight: 600; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+.tb-clock-rbtn.active { border-color: #E8501A; background: #fff1ea; }
+.tb-clock-rbtn.active b { color: #E8501A; }
+.tb-clock-rlunch { cursor: text; }
+.tb-clock-rlunch:focus-within { border-color: #E8501A; }
+.tb-clock-rlunch input {
+    width: 3.2ch; padding: 0; border: none; background: none; outline: none; text-align: right;
+    font: inherit; font-size: 17px; font-weight: 600; color: #1a1a1a;
+}
+.tb-clock-rlunch i { font-style: normal; font-size: 13px; font-weight: 500; color: #8a8a90; }
+/* Timer øverst: et tydelig, hvitt inputfelt (samme ramme som feltene i appen) —
+   det er timene som teller; tid under er valgfri. */
+.tb-clock-hours-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; font-size: 15px; font-weight: 600; color: #1a1a1a; }
+.tb-clock-hours-box {
+    display: flex; align-items: baseline; gap: 4px; width: 130px; padding: 9px 12px; box-sizing: border-box;
+    border: 1px solid #d8d8de; border-radius: 10px; background: #fff; cursor: text;
+}
+.tb-clock-hours-box:focus-within { border-color: #E8501A; box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2); }
+.tb-clock-hours-box input {
+    flex: 1; min-width: 0; padding: 0; border: none; background: none; outline: none; text-align: right;
+    font: inherit; font-size: 20px; font-weight: 700; color: #1a1a1a; font-variant-numeric: tabular-nums;
+}
+.tb-clock-hours-box i { font-style: normal; font-size: 14px; font-weight: 600; color: #8a8a90; }
+.tb-clock-range-cap { font-size: 12px; color: #8a8a90; margin: 0 0 6px; padding-top: 10px; border-top: 1px solid #ececf0; }
+.tb-clock-rbtn.empty b { color: #a0a0a8; font-weight: 500; }
+.tb-clock-clear { color: #c0392b; }
+/* Tidsrom-modus (Arbeidstid): uten det store TT:MM-tallet (tiden står i Start/Slutt, og
+   trykk på aktivt felt bytter timer/minutter), mindre urskive, og delen som endres
+   (timer eller minutter) understreket i det aktive feltet. */
+.tb-clock-rangemode .tb-clock-display { display: none; }
+.tb-clock-rangemode .tb-clock-dial { width: 76%; margin: 6px auto 4px; }
+.tb-clock-rbtn b span.cur { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.tb-clock-hours-box { gap: 6px; }
+.tb-clock-hours-box input { padding-right: 2px; }
+/* Arbeidstid: totalen for alle timene (ord. + overtid) ved siden av «Total». */
+.dag-timer-grand { margin-left: 6px; font-size: 17px; font-weight: 700; color: #1c1c1e; font-variant-numeric: tabular-nums; }
+
+/* Arbeidstid-popupen kompakt nok til at hele uka (etasjer, person, ukefaner, 8 dagrader,
+   total) får plass uten scroll: radene 44px (var 52px), feltene og ukefanene lavere.
+   Feltene er fortsatt store nok å treffe med tommelen (34px). */
+.dag-timer-modal-row, .dag-timer-etasje-row { min-height: 44px; padding-top: 5px; padding-bottom: 5px; }
+.dag-timer-input-wrap.dag-timer-input-wrap--col { padding-top: 6px; padding-bottom: 6px; }
+.dag-timer-week-tab { padding: 4px 6px; }
+.dag-timer-col-head { padding-bottom: 0; }
+
+/* ═══ Arbeidstid-popup, ryddigere (31-10-2026) ═══
+   1) Dagradene samlet i ÉTT kort (uten skillelinjer), ikke åtte separate klosser.
+      Kolonneoverskriften ligger øverst i kortet.
+   2) Ukefanene som lette piller på én linje: «Uke 30  300 t»; aktiv = fylt oransje.
+   4) Dagnavn i vanlig vekt (mindre fet tekst i hele appen). */
+#dag-timer-day-rows { display: flex; flex-direction: column; gap: 0; background: #f5f5f7; border-radius: 14px; overflow: hidden; }
+#dag-timer-day-rows .dag-timer-col-head { padding: 8px 14px 2px; }
+#dag-timer-day-rows .dag-timer-modal-row { margin: 0; border-radius: 0; background: transparent; }
+/* Ingen skillelinjer mellom dagene (brukeren: «ser rart og utdatert ut») — radene
+   skilles bare av luft; «Annet» får litt ekstra luft over seg. */
+#dag-timer-day-rows .dag-timer-modal-row.dag-timer-total-row { margin-top: 6px; }
+#dag-timer-day-rows .dag-timer-modal-name { font-weight: 500; }
+.dag-timer-week-tabs { grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr)); }
+.dag-timer-week-tab {
+    flex-direction: row; justify-content: center; align-items: baseline; gap: 6px;
+    padding: 6px 10px; border-radius: 999px; border-color: #e3e3e8; background: #fff;
+}
+.dag-timer-week-tab .dag-timer-week-tab-name { font-size: 13px; font-weight: 500; color: #444; }
+.dag-timer-week-tab .dag-timer-week-tab-sum { font-size: 12px; font-weight: 600; color: #8a8a90; }
+.dag-timer-week-tab.active { background: #E8501A; border-color: #E8501A; box-shadow: none; }
+.dag-timer-week-tab.active .dag-timer-week-tab-name, .dag-timer-week-tab.active .dag-timer-week-tab-sum { color: #fff; }
+/* Plass til hele lista uten scroll også med fem uker: tre ukepiller pr. rad (var to)
+   og litt lavere dagrader (40px). Kortet får luft i bunnen så «Annet» ikke ser kuttet ut. */
+.dag-timer-week-tabs { grid-template-columns: repeat(auto-fill, minmax(5.4rem, 1fr)); }
+.dag-timer-week-tab { padding: 6px 6px; gap: 4px; }
+#dag-timer-day-rows .dag-timer-modal-row { min-height: 40px; padding-top: 3px; padding-bottom: 3px; }
+#dag-timer-day-rows { padding-bottom: 6px; }

@@ -12186,7 +12186,68 @@ function _timebokRecalcCard(el) {
 // ── Klokke-velger (Start/Slutt) ──
 // 24-timers urskive: ytre ring 00–11, indre ring 12–23 (00 og 12 øverst). Trykk eller
 // dra for å velge; etter valgt time bytter den automatisk til minutter (5-min-steg).
-var _tbClock = { btn: null, h: 8, m: 0, mode: 'h', drag: false };
+var _tbClock = { btn: null, h: 8, m: 0, mode: 'h', drag: false, range: null };
+// Tidsrom-modus: ÉN popup for start + slutt + lunsj + timer. Fanene Start · Slutt over
+// urskiva bytter hva skiva endrer; etter valgt starttid (minutter) hopper den selv til
+// Slutt. Timer regnes ut (slutt − start − lunsj) så snart tiden røres, men kan skrives
+// direkte — det er timene som teller, tiden er et valgfritt verktøy.
+// opts = { title, start, end, lunch, hours, onDone(start, end, lunch, hours, timeSet), onClear }.
+// timeSet = false når tiden verken fantes fra før eller ble rørt (da lagres ingen tid).
+function openTimeRange(opts) {
+    var p = function (v, d) { var x = String(v || d).split(':'); return { h: +x[0] || 0, m: +x[1] || 0 }; };
+    var had = !!(opts.start && opts.end);
+    var st = p(opts.start, '07:00'), en = p(opts.end, '15:00');
+    // Urskiva vises MED EN GANG (brukerens krav — ingen mellomledd), klar for Start.
+    // Timer øverst kan likevel skrives direkte; tiden lagres bare om den røres/fantes.
+    _tbClock = { btn: null, h: st.h, m: st.m, mode: 'h', drag: false,
+        range: { which: 'start', start: st, end: en, had: had, touched: false, onDone: opts.onDone, onClear: opts.onClear } };
+    document.getElementById('tb-clock-title').textContent = opts.title || '';
+    // Tidsrom-modus: det store TT:MM-tallet skjules (tiden står i Start/Slutt-feltene) og
+    // urskiva gjøres mindre (CSS .tb-clock-rangemode).
+    document.querySelector('#timebok-clock-popup .tb-clock-sheet').classList.add('tb-clock-rangemode');
+    document.getElementById('tb-clock-range').hidden = false;
+    document.getElementById('tb-clock-range-cap').hidden = false;
+    document.getElementById('tb-clock-total').hidden = false;
+    document.getElementById('tb-clock-face').hidden = false;
+    document.getElementById('tb-clock-clear').hidden = !(had || String(opts.hours || '').trim());
+    document.getElementById('tb-clock-lunch').value = opts.lunch ? String(opts.lunch).replace('.', ',') : '';
+    document.getElementById('tb-clock-hours').value = opts.hours || '';
+    _tbClockRender();
+    document.getElementById('timebok-clock-popup').classList.add('active');
+}
+function _tbClockRangeSel(which) {
+    var r = _tbClock.range;
+    if (!r) return;
+    r.touched = true;
+    // Trykk på det aktive feltet igjen bytter mellom timer og minutter (erstatter TT:MM).
+    if (r.which === which) { _tbClock.mode = _tbClock.mode === 'h' ? 'm' : 'h'; _tbClockRender(); return; }
+    if (r.which) r[r.which] = { h: _tbClock.h, m: _tbClock.m };
+    r.which = which;
+    _tbClock.h = r[which].h; _tbClock.m = r[which].m; _tbClock.mode = 'h';
+    _tbClockRender();
+}
+function _tbClockRangeHours() {
+    var r = _tbClock.range;
+    var cur = { h: _tbClock.h, m: _tbClock.m };
+    var s0 = r.which === 'start' ? cur : r.start, e0 = r.which === 'end' ? cur : r.end;   // which null → lagret tid
+    var span = (e0.h + e0.m / 60) - (s0.h + s0.m / 60);
+    if (span < 0) span += 24;   // over midnatt
+    return Math.max(0, span - _timerNum(document.getElementById('tb-clock-lunch').value));
+}
+// Timer følger tiden når tiden finnes/er rørt; ellers står det man har skrevet.
+// Lunsj endrer timene bare når det finnes en tid (lagret eller valgt nå) — uten tid
+// regnes det aldri fra standardklokkeslett brukeren ikke har valgt.
+function _tbClockRangeSum(fromLunch) {
+    var r = _tbClock.range;
+    if (!r) return;
+    if (!r.touched && !(fromLunch && r.had)) return;   // åpning: vis lagrede/skrevne timer
+    document.getElementById('tb-clock-hours').value = (Math.round(_tbClockRangeHours() * 100) / 100).toString().replace('.', ',');
+}
+function _tbClockRangeClear() {
+    var r = _tbClock.range;
+    closeTimebokClock();
+    if (r && r.onClear) r.onClear();
+}
 function openTimebokClock(btn) {
     var v = _tbTimeVal(btn);
     var def = btn.classList.contains('tb-c-end') ? '16:00' : '08:00';
@@ -12200,12 +12261,32 @@ function openTimebokClock(btn) {
 function closeTimebokClock() {
     document.getElementById('timebok-clock-popup').classList.remove('active');
     _tbClock.btn = null;
+    _tbClock.range = null;
+    document.querySelector('#timebok-clock-popup .tb-clock-sheet').classList.remove('tb-clock-rangemode');
+    document.getElementById('tb-clock-face').hidden = false;   // Timebok-modus: urskiva alltid synlig
+    document.getElementById('tb-clock-range-cap').hidden = true;
+    document.getElementById('tb-clock-range').hidden = true;
+    document.getElementById('tb-clock-total').hidden = true;
+    document.getElementById('tb-clock-clear').hidden = true;
 }
 function confirmTimebokClock() {
+    var r = _tbClock.range;
+    if (r) {
+        if (r.which) r[r.which] = { h: _tbClock.h, m: _tbClock.m };
+        var fmt = function (x) { return _timebokPad2(x.h) + ':' + _timebokPad2(x.m); };
+        var lunch = _timerNum(document.getElementById('tb-clock-lunch').value);
+        var hours = String(document.getElementById('tb-clock-hours').value || '').trim();
+        var done = r.onDone, timeSet = r.had || r.touched;
+        closeTimebokClock();
+        if (done) done(fmt(r.start), fmt(r.end), lunch, hours, timeSet);
+        return;
+    }
     var btn = _tbClock.btn;
     var v = _timebokPad2(_tbClock.h) + ':' + _timebokPad2(_tbClock.m);
     closeTimebokClock();
-    if (btn) { _tbSetTimeVal(btn, v); _timebokMarkTouched(btn); _timebokRecalcCard(btn); }
+    if (!btn) return;
+    _tbSetTimeVal(btn, v);
+    _timebokMarkTouched(btn); _timebokRecalcCard(btn);
 }
 function _tbClockMode(mode) { _tbClock.mode = mode; _tbClockRender(); }
 // Posisjon på urskiva i % av skiva: vinkel (grader fra kl. 12, med klokka) + radius.
@@ -12220,6 +12301,7 @@ function _tbClockRender() {
     hh.textContent = _timebokPad2(c.h); mm.textContent = _timebokPad2(c.m);
     hh.classList.toggle('active', c.mode === 'h'); mm.classList.toggle('active', c.mode === 'm');
     var html = '', sel;
+    if (c.range && c.drag) c.range.touched = true;   // urskiva rørt → tiden gjelder
     if (c.mode === 'h') {
         for (var h = 0; h < 24; h++) {
             var inner = h >= 12, pos = _tbClockPos((h % 12) * 30, inner ? _TB_CLOCK_R_IN : _TB_CLOCK_R_OUT);
@@ -12236,6 +12318,23 @@ function _tbClockRender() {
     document.getElementById('tb-clock-nums').innerHTML = html;
     var line = document.getElementById('tb-clock-line');
     line.setAttribute('x2', sel.x); line.setAttribute('y2', sel.y);
+    var r = c.range;
+    if (r) {
+        if (r.which) r[r.which] = { h: c.h, m: c.m };
+        // Uten tid (ikke lagret, ikke rørt) står «Velg» — ingen falske standardtider.
+        var show = r.had || r.touched;
+        ['start', 'end'].forEach(function (w) {
+            var b = document.getElementById('tb-clock-r-' + w);
+            b.classList.toggle('active', r.which === w);
+            b.classList.toggle('empty', !show);
+            // Aktivt felt: delen urskiva endrer (timer/minutter) er uthevet.
+            var cur = r.which === w ? c.mode : '';
+            b.querySelector('b').innerHTML = show
+                ? '<span class="' + (cur === 'h' ? 'cur' : '') + '">' + _timebokPad2(r[w].h) + '</span>:<span class="' + (cur === 'm' ? 'cur' : '') + '">' + _timebokPad2(r[w].m) + '</span>'
+                : escapeHtml(t('timebok_pick_time'));
+        });
+        _tbClockRangeSum();
+    }
 }
 function _tbClockPick(e) {
     var dial = document.getElementById('tb-clock-dial');
@@ -12243,13 +12342,18 @@ function _tbClockPick(e) {
     var x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2;
     var deg = (Math.atan2(x, -y) * 180 / Math.PI + 360) % 360;
     var dist = Math.sqrt(x * x + y * y) / r.width * 100;   // i % av skiva, som radiusene
+    var before = _tbClock.h + ':' + _tbClock.m;
     if (_tbClock.mode === 'h') {
         var idx = Math.round(deg / 30) % 12;
         _tbClock.h = (dist < (_TB_CLOCK_R_IN + _TB_CLOCK_R_OUT) / 2) ? idx + 12 : idx;
     } else {
         _tbClock.m = (Math.round(deg / 30) * 5) % 60;
     }
-    _tbClockRender();
+    // Tegn bare på nytt når verdien endret seg: å bytte ut tallet fingeren står på midt i
+    // et trykk kan få nettleseren til å miste «slipp» — da hoppet den ikke videre når man
+    // trykket på verdien som allerede var valgt (f.eks. «00»).
+    if (_tbClock.h + ':' + _tbClock.m !== before) _tbClockRender();
+    else if (_tbClock.range) _tbClock.range.touched = true;
 }
 function _tbClockDown(e) {
     e.preventDefault();
@@ -12257,11 +12361,17 @@ function _tbClockDown(e) {
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
     _tbClockPick(e);
 }
+// Reserve: «slipp» fanges også på dokumentet, i tilfelle det ikke når fram til urskiva
+// (_tbClockUp gjør ingenting hvis slippet allerede er håndtert).
+document.addEventListener('pointerup', function () { if (_tbClock.drag) _tbClockUp(); }, true);
+document.addEventListener('pointercancel', function () { if (_tbClock.drag) _tbClockUp(); }, true);
 function _tbClockMove(e) { if (_tbClock.drag) _tbClockPick(e); }
 function _tbClockUp() {
     if (!_tbClock.drag) return;
     _tbClock.drag = false;
-    if (_tbClock.mode === 'h') { _tbClock.mode = 'm'; _tbClockRender(); }
+    if (_tbClock.mode === 'h') { _tbClock.mode = 'm'; _tbClockRender(); return; }
+    // Tidsrom: starttid ferdig (minutter valgt) → hopp til Slutt.
+    if (_tbClock.range && _tbClock.range.which === 'start') _tbClockRangeSel('end');
 }
 function removeTimebokCard(btn) {
     var card = btn.closest('.tb-code-card');
