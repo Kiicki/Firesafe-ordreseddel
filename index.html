@@ -37,7 +37,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1086">
+    <link rel="stylesheet" href="styles.css?v=1100">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -408,7 +408,7 @@
                         <button class="modal-tab" data-acc="ordreseddel" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
                         <button class="modal-tab" data-acc="servicebil" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
                         <button class="modal-tab" data-acc="kappe" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappeskjema</button>
-                        <button class="modal-tab" data-acc="kvittering" onclick="switchHentTab('kvittering')" data-i18n="tab_kvittering">Kvittering</button>
+                        <!-- Kvittering-fanen er fjernet: kvitteringer hører til Timebok (gamle flyttes dit, _tbMigrateOldReceipts). -->
                     </div>
                     <button type="button" class="modal-tabs-more modal-tabs-more--left" tabindex="-1" aria-label="Flere til venstre" onclick="_scrollSavedTabs(-1)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <button type="button" class="modal-tabs-more modal-tabs-more--right" tabindex="-1" aria-label="Flere til høyre" onclick="_scrollSavedTabs(1)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
@@ -705,11 +705,6 @@
                     <div class="set-section">
                         <div class="set-section-title" data-i18n="settings_section_work">Timer og register</div>
                         <div class="set-card">
-                        <div class="set-row" data-acc="timebok" onclick="showSettingsPage('timebok')">
-                            <span class="set-ico set-ico--green"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="settings_timebok">Timebok</span><span class="set-desc" data-i18n="settings_desc_timebok">Satser, tariff og arbeidsgiver</span></span>
-                            <span class="set-chev">&rsaquo;</span>
-                        </div>
                         <div class="set-row" onclick="showSettingsPage('templates')">
                             <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
                             <span class="set-text"><span class="set-title" data-i18n="settings_templates_and_addresses">Prosjekter & lager</span><span class="set-desc" data-i18n="settings_desc_templates">Prosjekter, adresser og avstand</span></span>
@@ -737,6 +732,11 @@
                             <span class="set-text"><span class="set-title" data-i18n="settings_admin_employers">Arbeidsgivere</span><span class="set-desc" data-i18n="settings_desc_admin_employers">Standard lønnsperiode</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
+                        <div class="set-row" onclick="showSettingsPage('admin-satser')">
+                            <span class="set-ico set-ico--slate"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_satser">Satser</span><span class="set-desc" data-i18n="settings_desc_admin_satser">Timebok: tariff, koder og flagg</span></span>
+                            <span class="set-chev">&rsaquo;</span>
+                        </div>
                         </div>
                     </div>
 
@@ -744,6 +744,12 @@
                         <span class="set-ico set-ico--red"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
                         <span class="set-title" data-i18n="logout">Logg ut</span>
                     </div>
+                </div>
+
+                <!-- Admin → Satser: firmaets Timebok-oppsett (felles for alle; tariffer, koder, flagg,
+                     normtid) — rendres av renderTimebokSatser(). Kun admin. -->
+                <div id="settings-page-admin-satser" class="settings-page" style="display:none;">
+                    <div id="tb-satser"></div>
                 </div>
 
                 <!-- Admin → Arbeidsgivere: felles standarder pr. arbeidsgiver (lønnsperiode) -->
@@ -797,6 +803,14 @@
                             <button type="button" class="tb-seg-btn" data-lang="no" onclick="setProfileLanguage('no')">Norsk</button>
                             <button type="button" class="tb-seg-btn" data-lang="en" onclick="setProfileLanguage('en')">English</button>
                         </div>
+                    </div>
+                    <!-- Timebok (personlige valg: timesats, arbeidsgiver, lønnsperiode, transport,
+                         auto-fyll) — rendres av renderTimebokSettings(). Kun med Timebok-tilgang. -->
+                    <div data-acc="timebok" id="profile-timebok">
+                        <div class="settings-static-header" style="margin-top: 16px;">
+                            <span data-i18n="settings_timebok">Timebok</span>
+                        </div>
+                        <div id="tb-settings"></div>
                     </div>
                 </div>
 
@@ -989,29 +1003,6 @@
                             <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 25" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
                             <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension()" data-i18n="btn_add">Legg til</button>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Timebok-innstillinger: ett hjem for alt Timebok-oppsett (som resten av appen).
-                     Én side med faner (samme chip-faner som Lagret-lista): Satser · Prosjekter · Generelt.
-                     Kun innholdet byttes — se switchTimebokSettingsTab(). -->
-                <div id="settings-page-timebok" class="settings-page" style="display:none;">
-                    <div class="modal-tabs tb-set-tabs">
-                        <button type="button" class="modal-tab" data-tab="satser" onclick="switchTimebokSettingsTab('satser')" data-i18n="timebok_menu_satser">Satser</button>
-                        <button type="button" class="modal-tab" data-tab="personlig" onclick="switchTimebokSettingsTab('personlig')" data-i18n="tb_set_tab_personal">Personlig</button>
-                    </div>
-
-                    <!-- Satser (tariffer) — rendres av renderTimebokSatser() -->
-                    <div class="tb-set-panel" data-tab="satser">
-                        <div id="tb-satser"></div>
-                        <input type="file" id="tb-tariff-import" accept=".json,application/json" style="display:none" onchange="_tbImportTariff(this)">
-                    </div>
-
-                    <!-- Prosjekter: full oversikt. Søk (filtrerer), «+» = nytt prosjekt, trykk på rad =
-                         rediger (samme skjema som i Timebok: navn + reiseavstand, her også slett). -->
-                    <!-- Personlig: timesats, reise-stil, standard transport og auto-fyll — rendres av renderTimebokSettings() -->
-                    <div class="tb-set-panel" data-tab="personlig">
-                        <div id="tb-settings"></div>
                     </div>
                 </div>
 
@@ -1727,6 +1718,31 @@
     </div>
 
     <!-- Timebok: klokke-velger for Start/Slutt i Ordinære timer (24-timers urskive). -->
+    <!-- Timebok: én kvittering (ny/rediger) fra ukevisning/eksport. Datoen avgjør dag og
+         lønnsperiode (vises under datoen). Kortet bygges av createTimebokReceiptCard. -->
+    <div class="spec-popup-backdrop" id="tb-rc-popup" onclick="if(event.target===this)closeTbReceiptPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header"><span id="tb-rc-pop-title"></span></div>
+            <div class="spec-popup-body">
+                <div class="spec-popup-field">
+                    <span class="spec-popup-label"><span data-i18n="tb_rc_date">Dato</span></span>
+                    <input type="date" id="tb-rc-pop-date" onchange="_tbRcPopDateChanged()">
+                    <div class="tb-rc-pop-period" id="tb-rc-pop-period"></div>
+                </div>
+                <div id="tb-rc-pop-card"></div>
+                <input type="file" id="tb-rc-pop-file" accept="image/*,application/pdf" multiple hidden onchange="_tbRcFilesPicked(this)">
+                <div class="tb-rc-pop-actions" id="tb-rc-pop-actions">
+                    <button type="button" class="tb-rc-pop-share" onclick="shareTbReceiptPopup()" data-i18n="tb_rc_share">Del som PDF</button>
+                    <button type="button" class="tb-tariff-delete tb-rc-pop-del" onclick="deleteTbReceiptPopup()" data-i18n="tb_rc_delete">Slett kvittering</button>
+                </div>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-cancel" onclick="closeTbReceiptPopup()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-ok" onclick="saveTbReceiptPopup()" data-i18n="btn_save">Lagre</button>
+            </div>
+        </div>
+    </div>
+
     <div class="spec-popup-backdrop" id="timebok-clock-popup" onclick="if(event.target===this)closeTimebokClock()">
         <div class="spec-popup-sheet tb-clock-sheet">
             <div class="spec-popup-header"><span id="tb-clock-title"></span></div>
@@ -1775,19 +1791,32 @@
         </div>
     </div>
 
+    <!-- Ny tariff: ÉN popup — Navn, Gyldig fra og valgfri tariff-fil (uten fil = kopi av
+         tariffen som vises). Se openTbTariffForm() i script-ui.js. -->
     <div class="spec-popup-backdrop" id="tb-tariff-popup" onclick="if(event.target===this)closeTbTariffForm()">
         <div class="spec-popup-sheet">
-            <div class="spec-popup-header"><span id="tb-tariff-form-title">Ny tariff</span></div>
+            <div class="spec-popup-header"><span data-i18n="tb_sat_new_title">Ny tariff</span></div>
             <div class="spec-popup-body">
+                <div class="spec-popup-field">
+                    <span class="spec-popup-label" data-i18n="tb_sat_file">Tariff-fil (valgfritt)</span>
+                    <div class="tb-tariff-file">
+                        <button type="button" class="tb-input tb-tariff-file-btn" id="tb-tariff-file-btn" onclick="document.getElementById('tb-tariff-file').click()">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <span id="tb-tariff-file-name"></span>
+                        </button>
+                        <button type="button" class="tb-tariff-file-clear" id="tb-tariff-file-clear" onclick="_tbNewClearFile()" aria-label="Fjern fil">&times;</button>
+                    </div>
+                    <span class="tb-tariff-file-hint" id="tb-tariff-file-hint"></span>
+                    <input type="file" id="tb-tariff-file" accept=".json,application/json" style="display:none" onchange="_tbNewPickFile(this)">
+                </div>
                 <div class="spec-popup-field">
                     <span class="spec-popup-label"><span data-i18n="tb_sat_name">Navn</span><span class="spec-required-star">*</span></span>
                     <input type="text" id="tb-tariff-name" autocapitalize="sentences" autocomplete="off" data-i18n-placeholder="tb_sat_name_ph" placeholder="f.eks. Elektrooverenskomsten 2026">
                 </div>
                 <div class="spec-popup-field">
                     <span class="spec-popup-label"><span data-i18n="tb_sat_valid_from">Gyldig fra</span><span class="spec-required-star">*</span></span>
-                    <input type="date" id="tb-tariff-date">
+                    <span class="tb-input tb-exp-date tb-tariff-date"><span id="tb-tariff-date-txt"></span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><input type="date" id="tb-tariff-date" onchange="_tbNewSetDate(this.value)"></span>
                 </div>
-                <button type="button" class="tb-tariff-delete" id="tb-tariff-delete" onclick="deleteTbTariff()" data-i18n="tb_sat_delete">Slett tariff</button>
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeTbTariffForm()" data-i18n="btn_cancel">Avbryt</button>
@@ -2009,7 +2038,9 @@
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
-                    <div class="calc-card" data-acc="kvittering" onclick="openNewKvitteringForm()">
+                    <!-- Kvittering føres nå i Timebok (uke/dag, Del som PDF) — kortet er skjult; lagrede
+                         kvitteringer ligger fortsatt under Lagret → Kvittering. -->
+                    <div class="calc-card" data-acc="kvittering" style="display:none" onclick="openNewKvitteringForm()">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M5 3h14v18l-2.33-1.5L14.33 21 12 19.5 9.67 21 7.33 19.5 5 21z"/><line x1="8.5" y1="8" x2="15.5" y2="8"/><line x1="8.5" y1="11.5" x2="15.5" y2="11.5"/><line x1="8.5" y1="15" x2="12.5" y2="15"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_kvittering_title">Kvittering</div>
@@ -2273,7 +2304,6 @@
                     <div class="timebok-summary-card" id="timebok-summary">
                         <div class="timebok-summary-head">
                             <span class="timebok-summary-title" id="tb-summary-title">Ukesammendrag</span>
-                            <span class="timebok-summary-badge">FIRESAFE</span>
                         </div>
                         <div class="timebok-summary-sub" id="tb-sum-sub"></div>
                         <div class="timebok-summary-grid">
@@ -2286,6 +2316,8 @@
                     </div>
                     <!-- Damsgård: normtid/overtid for lønnsperioden uka ligger i (renderTimebokNormCard) -->
                     <div id="timebok-norm"></div>
+                    <!-- Kvitteringer i uka (renderTimebokWeekReceipts) — føres med egen dato -->
+                    <div id="timebok-week-receipts"></div>
                 </div>
                 <!-- DAGSVISNING -->
                 <div id="timebok-day" style="display:none;">
@@ -2305,7 +2337,6 @@
                     <div class="timebok-summary-card" id="timebok-day-totals">
                         <div class="timebok-summary-head">
                             <span class="timebok-summary-title" data-i18n="timebok_day_totals">Dagens totaler</span>
-                            <span class="timebok-summary-badge">FIRESAFE</span>
                         </div>
                         <div class="timebok-summary-grid">
                             <div class="timebok-metric"><span data-i18n="timebok_d_hours">Timer</span><b id="tb-day-hours">—</b></div>
@@ -2341,6 +2372,8 @@
                         </div>
                         <div id="tb-exp-totals"></div>
                     </div>
+                    <!-- Alle kvitteringer i perioden (dato · beskrivelse · beløp), med Del pr. kvittering -->
+                    <div id="tb-exp-receipts"></div>
                     <div class="tb-exp-days-title" data-i18n="timebok_exp_days_title">Dager med registreringer</div>
                     <div id="tb-exp-days"></div>
                 </div>
@@ -2356,9 +2389,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=393"></script>
-    <script src="script.js?v=584"></script>
-    <script src="script-ui.js?v=1280"></script>
+    <script src="lang.js?v=406"></script>
+    <script src="script.js?v=588"></script>
+    <script src="script-ui.js?v=1298"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

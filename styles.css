@@ -1072,7 +1072,7 @@ body:has(:is(
        plass (smal telefon) kan raden dras sidelengs; aktiv chip rulles inn i
        synsfeltet av switchHentTab. */
     display: flex;
-    gap: 8px;
+    gap: 6px;
     padding: 10px 15px 2px;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -1118,7 +1118,9 @@ body:has(:is(
 
 .modal-tab {
     flex: 0 0 auto;
-    padding: 7px 14px;
+    /* 10px sideluft (ikke 14) så Ordreseddel + Servicebil + Kappeskjema får
+       plass på én rad på vanlige telefoner (360px) uten sidelengs rulling. */
+    padding: 7px 10px;
     border: 1px solid #dcdce0;
     border-radius: 999px;
     background: #fff;
@@ -8962,8 +8964,6 @@ body.timebok-view-open #view-form { display: none; }
 .tb-exp-codes .tb-wk-code { font-size: 13px; color: #444; margin: 3px 0; }
 .tb-exp-empty { margin-top: 10px; font-size: 13px; color: #a0a0a8; text-align: center; }
 /* Prosjektkort (Damsgård): utkalling etter arbeidstid */
-.tb-pb-after { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: #444; cursor: pointer; }
-.tb-pb-after input { width: 18px; height: 18px; margin: 0; accent-color: #E8501A; }
 /* Kopier dagen: ukevelger */
 .tb-copy-weeknav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .tb-copy-weeknav > span { font-size: 14px; font-weight: 600; color: #1a1a1a; }
@@ -9069,15 +9069,6 @@ body.timebok-view-open #view-form { display: none; }
     gap: 8px;
 }
 .timebok-summary-title { font-size: 15px; font-weight: 700; color: #1a1a1a; }
-.timebok-summary-badge {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    color: #E8501A;
-    background: #fff1ea;
-    padding: 3px 8px;
-    border-radius: 999px;
-}
 .timebok-summary-sub { margin-top: 3px; font-size: 12px; font-style: italic; color: #888; }
 /* Totaler: 3 kolonner med små fliser (som referanse-appen) i stedet for 2 brede
    kolonner med store tall — kortet blir omtrent halvparten så høyt. */
@@ -9221,7 +9212,6 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-project-select .timebok-project-name { min-width: 0; overflow-wrap: anywhere; }
 .timebok-project-select svg { color: #999; flex-shrink: 0; }
 .timebok-project-select:active { background: #f5f5f7; }
-.timebok-pb-hint { margin-top: 6px; font-size: 13px; color: #c0392b; }
 .timebok-pb-codes-head {
     display: flex; align-items: center; justify-content: space-between;
     margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e3e3e8;
@@ -9248,6 +9238,14 @@ body.timebok-view-open #view-form { display: none; }
 .tb-sec-grid { display: grid; gap: 8px; }
 .tb-grid-2 { grid-template-columns: 1fr 1fr; }
 .tb-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tb-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+/* Tre nedtrekk på én rad (Reisegodtgjørelse: Transport · Avstand · Andel): nettleserens
+   pil tar for mye plass på smal telefon («7,5–15 km» ble kuttet). Egen liten pil og
+   14px — hele teksten får plass. */
+.tb-grid-3 select.tb-input {
+    -webkit-appearance: none; appearance: none; font-size: 14px; padding: 0 15px 0 4px;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6b73' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 5px center;
+}
 .tb-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tb-field-label { font-size: 12px; color: #8a8a90; text-align: center; }
 .tb-input {
@@ -9507,7 +9505,6 @@ body.timebok-view-open #view-form { display: none; }
 .tb-satc.off .tb-satc-rate, .tb-satc.off .tb-satc-desc, .tb-satc.off .tb-satc-body { opacity: 0.45; }
 .tb-satc-name { font-size: 14px; color: #1a1a1a; overflow-wrap: anywhere; }
 .tb-sat-tariffrow { padding-top: 6px; }
-.tb-satc-select { padding: 8px 10px; font-size: 14px; }
 .tb-sat-tariffbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0 4px; }
 .tb-sat-tariffbar .tb-sat-status { margin: 0; font-size: 12px; }
 .tb-sat-minibtns { display: flex; gap: 6px; flex-shrink: 0; }
@@ -9538,12 +9535,32 @@ body.timebok-view-open #view-form { display: none; }
 /* Flaggene i Satser: ALLTID én rad (brukerens krav), knappene tett i tett. Bredden følger
    teksten (flex 1 1 auto: kort «Org» tar lite, «−Normtid» får det den trenger) i stedet
    for like kolonner som kuttet den lengste teksten. Alle koder har alle seks knapper. */
-.tb-satc-body .tb-flags { display: flex; flex-wrap: nowrap; margin-top: 6px; gap: 3px; }
+/* Knappene uten ramme: PÅ = oransje flate, AV = svak grå — det som er på leses med ett
+   blikk. Flaggraden: én linje i full bredde (bredden følger teksten). «Vises for»-raden:
+   etikett + to knapper venstrestilt. */
+.tb-satc-body .tb-flags { display: flex; flex-wrap: nowrap; margin-top: 7px; gap: 3px; }
 .tb-satc-body .tb-flag {
-    flex: 1 1 auto; padding: 4px 5px; font-size: 11px; font-weight: 500; border-radius: 999px; background: #fff;
-    white-space: nowrap;
+    flex: 1 1 auto; padding: 5px 5px; font-size: 11px; font-weight: 500; border-radius: 999px;
+    border: none; background: #ececf0; color: #8a8a90; white-space: nowrap;
 }
-.tb-satc-body .tb-flag.on { background: #fff1ea; }
+.tb-chiprow { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.tb-chiprow-label { flex: 0 0 auto; font-size: 11px; color: #8a8a90; white-space: nowrap; }
+.tb-chiprow .tb-flags { margin-top: 0; }
+.tb-chiprow .tb-flag { flex: 0 0 auto; padding: 5px 12px; }
+.tb-satc-body .tb-flag.on { background: #ffe4d6; color: #d4460f; }
+/* Tilleggskodene som egne hvite kort i den grå boksen (ikke tynne skillelinjer) — hver kode
+   med sine knapper leses som én enhet. Bare kode-boksen: tariff-radene over har felt som
+   trenger bredden. */
+.tb-codes-box { padding: 0 6px 6px; }
+.tb-codes-box .tb-satc { background: #fff; border: none; border-radius: 10px; padding: 9px 8px 10px; margin-top: 6px; }
+.tb-codes-box .tb-af-group { padding-left: 4px; }
+/* Smalere sats-felt i kodekortene (gir navnet plass, f.eks. «Passasjertillegg» på smal
+   telefon) — like bredt på alle kodekort, så feltene står fortsatt på linje. Lange navn
+   deles med bindestrek (norsk orddeling) i stedet for midt i ordet. */
+.tb-codes-box .tb-satc-rate .tb-sat-input { width: 62px; }
+.tb-codes-box .tb-satc-rate .tb-sat-unit { width: 48px; }
+.tb-codes-box .tb-satc-name { overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; }
+.tb-codes-box .tb-af-group { padding-top: 12px; }
 .tb-flags { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .tb-flag {
     border: 1px solid #e3e3e8; background: #f3f3f6; color: #8a8a90;
@@ -9556,10 +9573,41 @@ body.timebok-view-open #view-form { display: none; }
     color: #c0392b; font-weight: 600; font-size: 14px; padding: 10px; cursor: pointer;
 }
 .tb-tariff-delete:disabled { opacity: 0.4; cursor: default; }
+/* Slett tariff nederst i tariff-boksen (full bredde, rød). */
+.tb-satc-box > .tb-tariff-delete { display: block; width: 100%; margin: 10px 0 4px; padding: 8px; font-size: 13px; background: #fff; }
+/* Valgt tariff: navnefelt med ▾ (bytt tariff) i full bredde; under: «Fra <dato>» + knappene.
+   Pila er en egen sone med skillelinje; en usynlig <select> ligger over den. */
+.tb-sat-tariffhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.tb-sat-tariffhead .tb-sat-status { margin: 0; font-size: 12px; letter-spacing: 0; text-transform: none; }
+.tb-sat-namebox {
+    flex: 1; min-width: 0; display: flex; align-items: center; height: 38px; box-sizing: border-box;
+    border: 1px solid #d8d8de; border-radius: 9px; background: #fff; overflow: hidden;
+}
+.tb-sat-namebox:focus-within { border-color: #E8501A; }
+.tb-sat-name-pen { flex-shrink: 0; margin-left: 10px; color: #a0a0a8; }
+.tb-sat-name-input { flex: 1; min-width: 0; height: 100%; border: none; outline: none; background: none; padding: 0 10px 0 7px; font-size: 14px; font-family: inherit; color: #1a1a1a; }
+.tb-sat-name-arrow { position: relative; flex: 0 0 36px; align-self: stretch; display: flex; align-items: center; justify-content: center; border-left: 1px solid #e3e3e8; color: #6b6b73; }
+.tb-sat-name-arrow select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; }
+.tb-sat-from { flex: 0 0 auto; width: auto; height: 38px; gap: 5px; padding: 0 8px; font-size: 14px; white-space: nowrap; }
+.tb-sat-tariffrow .tb-sat-minibtn { height: 38px; padding: 0 9px; }
+.tb-sat-tariffrow .tb-sat-minibtns { gap: 5px; }
+.tb-sat-tariffrow .tb-sat-tariffbar { gap: 5px; margin: 6px 0 2px; }
+/* Ny tariff-popup: fil-velger (valgfri) + datofelt. */
+.tb-tariff-file { display: flex; align-items: center; gap: 6px; }
+.tb-tariff-file-btn { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; color: #6b6b73; text-align: left; cursor: pointer; }
+.tb-tariff-file-btn svg { flex-shrink: 0; }
+.tb-tariff-file-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-tariff-file-btn.picked { color: #1a1a1a; border-color: #E8501A; }
+.tb-tariff-file-btn.picked svg { color: #E8501A; }
+.tb-tariff-file-clear { flex-shrink: 0; width: 34px; height: 34px; border: none; background: none; color: #c0392b; font-size: 22px; line-height: 1; cursor: pointer; }
+.tb-tariff-file-hint { display: block; margin-top: 4px; font-size: 12px; color: #8a8a90; }
+.tb-tariff-date { height: 42px; }
 /* Innstillinger → Timebok: oppsett-kort (samme kort som Satser) */
-#tb-settings { padding-bottom: 24px; }
+/* Profil → Timebok: rammen kommer fra Profil-seksjonen (som Personalia) — ingen egen
+   kort-ramme inni. */
+#tb-settings { padding-bottom: 14px; }
+#tb-settings .tb-set-card { border: none; border-radius: 0; padding: 0; background: none; }
 /* Faner øverst på Innstillinger → Timebok (gjenbruker .modal-tab-chipsene fra Lagret). */
-.tb-set-tabs { padding: 0 0 12px; }
 .tb-set-card { display: flex; flex-direction: column; gap: 12px; }
 .tb-set-field { display: flex; flex-direction: column; gap: 4px; }
 .tb-set-label { font-size: 13px; font-weight: 500; color: #444; }
@@ -9568,6 +9616,9 @@ body.timebok-view-open #view-form { display: none; }
 /* Personlig: felt i full bredde, samme høyde/vekt på input og select. */
 .tb-set-card .tb-sat-select, .tb-sat-input.tb-set-input { padding: 10px 12px; font-size: 15px; font-weight: 400; }
 .tb-sat-input.tb-set-input { width: 100%; text-align: left; border-radius: 10px; }
+/* Timesats/arbeidsgiver satt av admin: låst (grå), med «· satt av admin» i etiketten. */
+.tb-set-locked { font-weight: 400; color: #8a8a90; text-transform: none; letter-spacing: 0; }
+.tb-set-card .tb-sat-select:disabled, .tb-sat-input.tb-set-input:disabled { background: #f3f3f6; color: #6b6b73; opacity: 1; }
 .tb-af-box { background: #f5f5f7; border-radius: 12px; padding: 0 8px 6px; }
 .tb-af-group { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 10px 0 2px; }
 /* Én kolonne (kodevelgeren + Auto-fyll): to kolonner brøt lange kodenavn over to
@@ -12496,6 +12547,9 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 
 /* Urskiva i tidsrom-modus: Start · Slutt · Lunsj som tre like felt øverst, totalen
    (Timer) i en tydelig stripe rett under — alt man fører og resultatet samlet. */
+/* hidden-attributtet MÅ vinne over display-reglene under (ellers vises tidsrom-feltene
+   tomme og uten virkning i en popup som ikke bruker dem). */
+#timebok-clock-popup [hidden] { display: none !important; }
 .tb-clock-range { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0 0 8px; }
 .tb-clock-rbtn {
     display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; min-width: 0;
@@ -12583,3 +12637,22 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 .adm-emp-name { font-size: 15px; font-weight: 600; color: #1a1a1a; }
 .adm-emp-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8a8a90; }
 .adm-emp-field .adm-select { width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; }
+
+/* ═══ Timebok: kvitteringer pr. uke / periode ═══ */
+#timebok-week-receipts:empty { display: none; }
+#timebok-week-receipts .tb-rc-week, #tb-exp-receipts .tb-rc-week { margin-top: 12px; }
+.tb-rc-week-sum { font-size: 14px; font-weight: 600; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+.tb-rc-week-empty { font-size: 13px; color: #8a8a90; padding: 6px 0 2px; }
+.tb-rc-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 0; cursor: pointer; }
+.tb-rc-row:active { opacity: 0.7; }
+.tb-rc-row-date { font-size: 13px; color: #6b6b73; white-space: nowrap; }
+.tb-rc-row-desc { font-size: 14px; color: #1a1a1a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-rc-row-desc i { font-style: normal; font-size: 12px; color: #8a8a90; }
+.tb-rc-row-amt { font-size: 14px; font-weight: 600; color: #1a1a1a; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tb-rc-row-share { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #e3e3e8; border-radius: 9px; background: #fff; color: #444; cursor: pointer; }
+.tb-rc-week-add { margin-top: 8px; }
+.tb-rc-pop-period { font-size: 12px; color: #E8501A; font-weight: 500; padding-left: 2px; margin-top: 2px; }
+#tb-rc-pop-card .tb-receipt-card { margin: 0; }
+.tb-rc-pop-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.tb-rc-pop-share { padding: 10px; border: 1px solid #d8d8de; border-radius: 8px; background: #fff; font-size: 14px; color: #1a1a1a; cursor: pointer; font-family: inherit; }
+.tb-rc-pop-del { width: 100%; }

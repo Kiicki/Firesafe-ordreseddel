@@ -179,6 +179,20 @@ const TIMEBOK_PAY_START_DEFAULT = { firesafe: 11, damsgard: 26 };
 // Felles for alle brukere: Firestore settings/timebok_employers { payStart: {firesafe, damsgard} },
 // cachet lokalt. Uten egen verdi brukes konstanten over.
 const TIMEBOK_EMPLOYERS_KEY = 'firesafe_timebok_employers';
+// Firmaets Timebok-oppsett, FELLES for alle brukere og kun redigerbart av admin (Meny →
+// Admin → Satser): Firestore settings/timebok_company { list: [tariff], disabledCodes,
+// codeScope, norm } (pr. arbeidsgiver), cachet lokalt og lyttet på live (script-ui.js).
+// Før admin har overført oppsettet (første åpning av Admin → Satser) leses det gamle
+// personlige oppsettet (users/{uid}/settings/timebok_tariffs + timebok_settings).
+const TIMEBOK_COMPANY_KEY = 'firesafe_timebok_company';
+function _timebokCompany() {
+    var c = safeParseJSON(TIMEBOK_COMPANY_KEY, null);
+    return (c && typeof c === 'object' && Array.isArray(c.list)) ? c : null;
+}
+// Kilden for bryter / «Vises for» / normtid: firmaets oppsett, ellers det gamle personlige.
+function _timebokCompanySrc() {
+    return _timebokCompany() || safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
+}
 function getTimebokPayStartDefault(emp) {
     emp = emp === 'damsgard' ? 'damsgard' : 'firesafe';
     var d = safeParseJSON(TIMEBOK_EMPLOYERS_KEY, null);
@@ -191,7 +205,7 @@ function getTimebokSettings() {
     var ps = parseInt(d.payStart, 10);
     return {
         transport: d.transport === 'privat' ? 'privat' : 'firma',
-        // travelStyle = arbeidsgiver (styrer reise-regel, standard lønnsperiode og senere eksport-stil).
+        // travelStyle = arbeidsgiver (styrer satser/koder, standard lønnsperiode og eksport-stil; ikke reise-regel).
         travelStyle: style,
         // Egen startdag (1–28) overstyrer arbeidsgiverens standard; ellers følger den arbeidsgiver.
         payStart: (ps >= 1 && ps <= 28) ? ps : getTimebokPayStartDefault(style),
@@ -257,12 +271,12 @@ function _timebokNewTariff(name, validFrom, employer) {
 // Hver tariff har `employer`; eldre tariffer uten felt tilhører Firesafe.
 function _timebokEmployer() { return getTimebokSettings().travelStyle; }
 // Samme kodeliste for begge arbeidsgivere, men hver arbeidsgiver kan DEAKTIVERE koder
-// (Satser → bryter pr. kode). Lagres i settings/timebok_settings → disabledCodes[emp].
+// (Admin → Satser → bryter pr. kode). Lagres i firmaets oppsett → disabledCodes[emp].
 // Standard: Firesafe alle aktive; Damsgård bare det de bruker (brukerens liste 25-10-2026).
 var _TB_DG_ACTIVE = ['ord', 'kurs', 'ot50', 'ot100', 'ferie', 'fridag', 'egenm', 'syk'];
 function _timebokDisabledCodes(emp) {
     emp = emp || _timebokEmployer();
-    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null);
+    var d = _timebokCompanySrc();
     if (d && d.disabledCodes && Array.isArray(d.disabledCodes[emp])) return d.disabledCodes[emp].slice();
     if (emp === 'damsgard') return TIMEBOK_CODES.filter(function (c) { return _TB_DG_ACTIVE.indexOf(c.id) === -1; }).map(function (c) { return c.id; });
     return [];
@@ -272,12 +286,28 @@ function _timebokCodesFor(emp) {
     var off = _timebokDisabledCodes(emp);
     return TIMEBOK_CODES.filter(function (c) { return off.indexOf(c.id) === -1; });
 }
+// «Vises for» pr. kode (Satser): 'project' = bare vanlige prosjekter, 'internal' = bare
+// Internt prosjekt (hus-knappen), ellers begge. Styrer bare hva «+ Legg til kode» (og
+// auto-fyll) tilbyr — kort som allerede står på en dag vises og regnes alltid.
+// Lagres pr. arbeidsgiver i firmaets oppsett → codeScope[emp][id].
+function _timebokCodeScope(id, emp) {
+    emp = emp || _timebokEmployer();
+    var d = _timebokCompanySrc();
+    var s = d && d.codeScope && d.codeScope[emp] ? d.codeScope[emp][id] : null;
+    return (s === 'project' || s === 'internal') ? s : 'both';
+}
+// mode = 'project' | 'internal' | null (prosjekt ikke valgt ennå → alt vises).
+function _timebokCodeShownFor(id, mode, emp) {
+    if (!mode) return true;
+    var s = _timebokCodeScope(id, emp);
+    return s === 'both' || s === mode;
+}
 // Damsgårds reisetillegg fra deres timeliste (person/privat, firma) — forhåndsutfylt
 // i Damsgårds første tariff; kan endres i Satser.
 const TIMEBOK_DAMSGARD_BRACKET_RATES = { br_0715: [114.6, 70.7], br_1530: [189.9, 118.4], br_3045: [223.2, 141.5], br_4560: [255.7, 165.2], br_6075: [290.4, 189.7] };
 // Alle tariffer (alle arbeidsgivere), nyeste «gyldig fra» først.
 function getTimebokTariffsAll() {
-    var d = safeParseJSON(TIMEBOK_TARIFFS_KEY, null);
+    var d = _timebokCompany() || safeParseJSON(TIMEBOK_TARIFFS_KEY, null);
     var list = (d && Array.isArray(d.list)) ? d.list.slice() : [];
     list.forEach(function (t) { if (t.employer !== 'damsgard') t.employer = 'firesafe'; });
     return list.sort(function (a, b) { return String(b.validFrom).localeCompare(String(a.validFrom)); });
@@ -455,22 +485,29 @@ function _timebokDayItems(dayDoc) {
     _timebokDayLines(dayDoc).forEach(function (l) {
         items.push(_timebokCodeItem({ typeId: l.timeType, hours: l.hours }, tariff, timesats));
     });
-    // Damsgård: «Tilleggsarbeid etter arbeidstid» (utkalling) gir egen reise — egen liste
-    // som beregnes for seg. Firesafe har ikke dette (alt i én liste).
-    var seen = {}, travels = [], extraTravels = [];
-    var dg = getTimebokSettings().travelStyle === 'damsgard';
-    var addTravel = function (key, bracketId, transport, extra) {
-        if (!key || seen[key]) return;   // én gang pr. prosjekt pr. dag
+    // Reise: hvert reisekort teller som ført = sats × andel (1 eller 0,5). Ingen
+    // automatisk sammenslåing — har man flere prosjekter samme dag, fører den ansatte
+    // selv 0,5 på første og siste (lik regel for Firesafe og Damsgård, 01-11-2026).
+    // Ekstra tur = Reisegodtgjørelse lagt til en gang til (extraTravels), se _timebokProjTrips.
+    var seen = {}, travels = [];
+    var pushTrip = function (x) {
+        var r = _timebokBracketRate(x.bracketId, x.transport, tariff);
+        if (r != null) travels.push(r * _timebokTravelShare(x));
+    };
+    // Eldre dager uten `travel`-felt: prosjektets avstand med firma-sats, én gang pr. prosjekt.
+    var addTravel = function (key, bracketId, transport) {
+        if (!key || seen[key]) return;
         seen[key] = true;
-        var r = _timebokBracketRate(bracketId, transport, tariff);
-        if (r != null) (extra && dg ? extraTravels : travels).push(r);
+        pushTrip({ bracketId: bracketId, transport: transport });
     };
     if (dayDoc && Array.isArray(dayDoc.projects)) {
         dayDoc.projects.forEach(function (p, pi) {
             // «Uten prosjekt»-kort har ingen navn → egen nøkkel pr. kort (ellers telles ikke reisen).
             var key = (p.projectId || p.name || (p.noProject ? '__noproj' + pi : ''));
-            if ('travel' in p) { if (p.travel) addTravel(key, p.travel.bracketId, p.travel.transport, !!p.afterHours); }
-            else {
+            var trips = _timebokProjTrips(p);
+            if ('travel' in p) { if (trips.travel) pushTrip(trips.travel); }
+            trips.extras.forEach(pushTrip);
+            if (!('travel' in p)) {
                 // Eldre dager uten `travel`-felt: prosjektets avstand med firma-sats.
                 var proj = _timebokProject({ projectId: p.projectId, project: p.name });
                 if (proj && (p.codes || []).length) addTravel(key, proj.bracketId, 'firma');
@@ -482,23 +519,29 @@ function _timebokDayItems(dayDoc) {
             if (proj) addTravel(l.projectId || l.project, proj.bracketId, 'firma');
         });
     }
-    _timebokTravelByStyle(travels).concat(_timebokTravelByStyle(extraTravels)).forEach(function (a) {
+    travels.forEach(function (a) {
         items.push({ amount: a, flags: (tariff && tariff.bracketFlags) || [] });
     });
     return items;
 }
-// Flere prosjekter med reise samme dag (i rekkefølgen på dagen):
-//   Firesafe: første + siste reise × 0,5 (de i midten teller ikke).
-//   Damsgård Brannsikring: kun den høyeste reisen × 1.
-// Ett prosjekt → full sats uansett stil.
-// Reise for flere prosjekter samme dag (travels i prosjekt-rekkefølge).
-// Firesafe: første + siste × 0,5. Damsgård: den høyeste av FØRSTE og SISTE (som
-// Damsgårds timeliste-ark: MAX(første rad, siste rad) for dagen).
-function _timebokTravelByStyle(travels) {
-    if (travels.length <= 1) return travels.slice();
-    if (getTimebokSettings().travelStyle === 'damsgard') return [Math.max(travels[0], travels[travels.length - 1])];
-    return [travels[0] * 0.5, travels[travels.length - 1] * 0.5];
+// Reisene på ett prosjektkort: vanlig reise (travel) + ekstra turer (extraTravels,
+// Reisegodtgjørelse lagt til flere ganger). Eldre Damsgård-dager med «Tilleggsarbeid
+// etter arbeidstid» (afterHours, fjernet 01-11-2026) ga kortets reise som egen tur med
+// full sats → leses som ekstra tur, så gamle dager beregnes likt.
+function _timebokProjTrips(p) {
+    var norm = function (x) {
+        if (!x || !x.bracketId) return null;
+        var o = { transport: x.transport === 'privat' ? 'privat' : 'firma', bracketId: x.bracketId };
+        if (_timebokTravelShare(x) !== 1) o.share = _timebokTravelShare(x);
+        return o;
+    };
+    var travel = norm(p && p.travel);
+    var extras = ((p && Array.isArray(p.extraTravels)) ? p.extraTravels : []).map(norm).filter(Boolean);
+    if (p && p.afterHours && travel && getTimebokSettings().travelStyle === 'damsgard') { extras.unshift(travel); travel = null; }
+    return { travel: travel, extras: extras };
 }
+// Andel av reisesatsen på et reisekort: 1 (hel) eller 0,5 (halv), ført av den ansatte.
+function _timebokTravelShare(x) { return x && Number(x.share) === 0.5 ? 0.5 : 1; }
 function _timebokSumItems(items, pred) {
     var total = 0, any = false;
     items.forEach(function (it) { if (it.amount != null && pred(it)) { total += it.amount; any = true; } });
@@ -558,7 +601,7 @@ function _timebokDayTotal(dayDoc) {
 // Har dagen noen registrering (linjer, reise eller kvitteringer)?
 function _timebokDayHasData(dayDoc) {
     return _timebokDayLines(dayDoc).length > 0 ||
-        (dayDoc && Array.isArray(dayDoc.projects) && dayDoc.projects.some(function (p) { return !!p.travel; })) ||
+        (dayDoc && Array.isArray(dayDoc.projects) && dayDoc.projects.some(function (p) { return !!p.travel || (Array.isArray(p.extraTravels) && p.extraTravels.length > 0); })) ||
         (dayDoc && Array.isArray(dayDoc.receipts) && dayDoc.receipts.length > 0);
 }
 // Periode-aggregat over flere dag-docs.
@@ -593,10 +636,10 @@ function _timebokNormEligible() {
         return ['arbeid', 'fravaer', 'syk'].indexOf(c.group) !== -1 && (c.input === 'hours' || c.input === 'clock');
     });
 }
-// Oppsettet pr. arbeidsgiver (settings/timebok_settings → norm[emp]).
+// Oppsettet pr. arbeidsgiver (firmaets oppsett → norm[emp]).
 function getTimebokNormSettings(emp) {
     emp = emp || _timebokEmployer();
-    var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
+    var d = _timebokCompanySrc();
     var n = (d.norm && d.norm[emp]) || {};
     var dh = parseLocaleNum(n.dayHours);
     return {
