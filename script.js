@@ -569,7 +569,8 @@ function _timebokDayHours(dayDoc) {
 // automatisk kurs); andre valutaer summeres pr. valuta og vises ved siden av.
 const TIMEBOK_CURRENCIES = ['NOK', 'EUR', 'SEK', 'DKK', 'USD', 'GBP'];
 function _timebokRcCurrency(r) { return (r && r.currency && r.currency !== 'NOK') ? String(r.currency) : 'NOK'; }
-// Sum NOK-kvitteringer (utlegg) for en dag.
+// Sum NOK-kvitteringer (utlegg) for en dag. En kvittering føres når du har betalt privat
+// og skal ha pengene refundert — alle teller.
 function _timebokDayReceipts(dayDoc) {
     if (!dayDoc || !Array.isArray(dayDoc.receipts) || !dayDoc.receipts.length) return null;
     var total = 0, any = false;
@@ -580,7 +581,7 @@ function _timebokDayReceipts(dayDoc) {
     });
     return any ? total : null;
 }
-// Kvitteringer i andre valutaer: { EUR: 12.5, ... } (tom når ingen).
+// Utlegg i andre valutaer: { EUR: 12.5, ... } (tom når ingen).
 function _timebokDayReceiptsForeign(dayDoc, into) {
     var out = into || {};
     ((dayDoc && dayDoc.receipts) || []).forEach(function (r) {

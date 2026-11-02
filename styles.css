@@ -8915,26 +8915,8 @@ body.timebok-view-open #view-form { display: none; }
    (samme bredde + margin som toggle) holder tittelen midtstilt. */
 .tb-head-toggle { margin-right: 6px; }
 .tb-head-spacer { margin-left: 6px; }
-/* Kopier-knappen (høyre i baren): kun i dagvisning; i ukevisning usynlig men plassholdende. */
-.tb-head-menu:active { background: rgba(0,0,0,0.06); }
-/* Timebok-meny: liten nedtrekksliste under ☰ (høyrejustert). */
-.tb-menu-wrap { position: relative; flex-shrink: 0; }
-.tb-menu {
-    position: absolute; top: calc(100% + 4px); right: 0; z-index: 50; min-width: 230px;
-    background: #fff; border: 1px solid #e3e3e8; border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.14); padding: 4px; display: flex; flex-direction: column;
-}
-.tb-menu[hidden] { display: none; }
-.tb-menu-item {
-    display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px;
-    background: none; border: none; border-radius: 8px; text-align: left;
-    font-size: 14px; font-weight: 400; color: #1a1a1a; cursor: pointer; font-family: inherit;
-}
-.tb-menu-item svg { flex-shrink: 0; color: #6b6b73; }
-.tb-menu-item:active { background: #f5f5f7; }
-.tb-menu-item:disabled { color: #a0a0a8; cursor: default; }
-.tb-menu-item:disabled svg { color: #c0c0c6; }
-.tb-menu-item small { margin-left: auto; font-size: 11px; color: #a0a0a8; }
+/* Eksporter i toppfeltet: bare i uka (dagsiden er for å føre timer; eksport-siden er selve eksporten). */
+#timebok-view:not(.tb-mode-week) #timebok-export-btn { display: none; }
 /* Eksport-siden */
 /* Segmentvalg (én rad, like brede felt) */
 .tb-seg { display: flex; background: #f0f0f3; border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 10px; }
@@ -8994,7 +8976,7 @@ body.timebok-view-open #view-form { display: none; }
 }
 .tb-copy-weekdays:active { background: #f5f5f7; }
 #tb-copy-ok:disabled { opacity: 0.5; }
-/* «Kopier fra forrige dag» på en tom dag */
+/* «Kopier fra <forrige dag>» på en tom dag */
 .timebok-copy-prev {
     display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
     margin: 0 0 8px; padding: 10px; border: 1px solid #f3c3b0; border-radius: 12px;
@@ -9046,12 +9028,14 @@ body.timebok-view-open #view-form { display: none; }
 }
 .timebok-header-bar.tb-current-period .tb-head-label,
 .timebok-header-bar.tb-current-period .tb-head-nav { color: #E8501A; }
-.tb-head-toggle .tb-icon-week, .tb-head-toggle .tb-icon-day, .tb-head-toggle .tb-icon-back { display: none; }
-.tb-mode-week .tb-head-toggle .tb-icon-day { display: block; }
-.tb-mode-day .tb-head-toggle .tb-icon-week { display: block; }
-/* Eksport-siden: venstre knapp = tilbake; ‹ › er borte ved egendefinert periode. */
-.tb-mode-export .tb-head-toggle .tb-icon-back { display: block; }
-.tb-exp-custom-mode .tb-head-nav { visibility: hidden; }
+/* Venstre knapp = tilbake til uka (dagsiden, eksport). I uka (hovedvisningen) usynlig,
+   men beholder plassen så perioden står midtstilt mot ☰. */
+.tb-mode-week .tb-head-toggle { visibility: hidden; }
+/* Dagsiden er for å føre timer: ‹ › blar mellom dager; ingen ekstra ← (pila i
+   toppfeltet går tilbake til uka). Plassene beholdes så datoen står midtstilt.
+   ‹ › er borte ved egendefinert eksport-periode. */
+.tb-mode-day .timebok-header-bar .tb-head-toggle { visibility: hidden; }
+.tb-exp-custom-mode .timebok-header-bar .tb-head-nav { visibility: hidden; }
 /* Ukesammendrag-kort (bunn) */
 .timebok-summary-card {
     /* Bunn-margin er normal: #timebok-view er fixed med bottom: var(--toolbar-h),
@@ -9133,6 +9117,13 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-day-weekday { font-size: 13px; color: #8a8a90; }
 .timebok-day-total { margin-left: auto; font-size: 13px; color: #444; white-space: nowrap; }
 .timebok-day-total b { color: #1a1a1a; font-weight: 500; }
+/* ⧉ Kopier dagen (dager med prosjekter) — liten ikonknapp foran pila; negativ marg så
+   raden ikke blir høyere. */
+.timebok-day-copy {
+    flex-shrink: 0; width: 32px; height: 32px; margin: -6px -4px; display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 8px; background: none; color: #8a8a90; cursor: pointer; padding: 0;
+}
+.timebok-day-copy:active { background: rgba(0,0,0,0.06); color: #E8501A; }
 .timebok-day-arrow {
     font-size: 18px;
     color: #b8b8c0;
@@ -9292,53 +9283,14 @@ body.timebok-view-open #view-form { display: none; }
     color: #333; font-weight: 600; font-size: 15px; padding: 11px; cursor: pointer;
 }
 .timebok-add-project:active { background: #f6f6f8; }
-/* Kvitteringer */
-.timebok-receipts-card {
-    margin: 0 0 8px; padding: 12px;
-    background: #fff; border: 1px solid #e3e3e8; border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-}
-.timebok-receipts-head { display: flex; align-items: center; justify-content: space-between; }
-.timebok-receipts-head > span { font-size: 15px; font-weight: 700; color: #1a1a1a; }
-.timebok-add-receipt-btn {
-    background: #fff; border: 1px solid #d8d8de; border-radius: 8px;
-    color: #1a1a1a; font-weight: 400; font-size: 14px; padding: 6px 10px; cursor: pointer;
-}
-.timebok-add-receipt-btn:active { background: #f5f5f7; }
-/* Kvittering-kort: Beskrivelse (egen rad, vokser med teksten) · Valuta · Beløp · Vedlegg.
-   Samme felt-stil (.tb-input/.tb-field) og skillelinje som tilleggskode-kortene. */
-.tb-receipt-card {
-    margin-top: 8px; padding: 8px 10px 10px;
-    background: #f5f5f7; border: 1px solid #e6e6ea; border-radius: 12px;
-}
-.tb-rc-head { margin-bottom: 6px; }
 /* Tilleggsinformasjon rett under prosjektvelgeren (dag) — og under prosjektnavnet i ukevisning. */
 .tb-pb-note { margin-top: 8px; font-size: 14px; }
 .tb-input.tb-textarea {
     display: block; height: auto; min-height: 42px; padding: 10px 12px;
     text-align: left; text-align-last: auto; line-height: 1.35; resize: none;
 }
-.tb-rc-grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-top: 8px; }
-.tb-rc-file { border-style: dashed; color: #6b6b73; cursor: pointer; }
-.tb-rc-file:active { background: #f5f5f7; }
-.tb-rc-thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.tb-rc-thumbs:empty { display: none; }
-.tb-rc-thumb {
-    position: relative; width: 56px; height: 56px; border-radius: 8px; overflow: hidden;
-    border: 1px solid #d8d8de; background: #f5f5f7; cursor: pointer;
-}
-.tb-rc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tb-rc-thumb.missing { border-style: dashed; }
-.tb-rc-thumb-del {
-    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0;
-    border: none; border-radius: 50%; background: #e74c3c; color: #fff;
-    font-size: 14px; line-height: 20px; cursor: pointer;
-}
 /* Kvitt.-flis: andre valutaer under NOK-summen (summeres ikke). */
-.tb-metric-cur { display: block; font-size: 11px; font-weight: 600; color: #6b6b73; }
-/* Lagre i headeren (.header-save-btn) gjelder bare dagvisningen. */
-#timebok-view:not(.tb-mode-day) #timebok-save-status { display: none; }
-#timebok-save-status:disabled { cursor: default; }
+.tb-metric-cur { display: block; font-size: 11px; font-weight: 600; color: #6b6b73; white-space: normal; }
 /* Timebok er tett (som referanse-appen): 12px rundt innholdet i stedet for
    .mobile-form sine 15px, og ingen ekstra topp-luft over første kort. */
 #timebok-form.mobile-form { padding: 12px; }
@@ -12638,21 +12590,62 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 .adm-emp-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8a8a90; }
 .adm-emp-field .adm-select { width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; }
 
-/* ═══ Timebok: kvitteringer pr. uke / periode ═══ */
+/* ═══ Timebok: kvitteringer — kort i uka/eksport, egen side, «Alle kvitteringer» ═══ */
 #timebok-week-receipts:empty { display: none; }
 #timebok-week-receipts .tb-rc-week, #tb-exp-receipts .tb-rc-week { margin-top: 12px; }
-.tb-rc-week-sum { font-size: 14px; font-weight: 600; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+.timebok-summary-head .tb-rc-seeall { margin-left: auto; border: none; background: none; color: #E8501A; font-size: 14px; font-weight: 500; cursor: pointer; padding: 2px 0; font-family: inherit; }
+.tb-rc-sumline { font-size: 13px; color: #444; margin: 2px 0 4px; font-variant-numeric: tabular-nums; }
 .tb-rc-week-empty { font-size: 13px; color: #8a8a90; padding: 6px 0 2px; }
-.tb-rc-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 0; cursor: pointer; }
+/* Rad: miniatyr · butikk + dato · beløp + betalt med */
+.tb-rc-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #ececf0; cursor: pointer; }
 .tb-rc-row:active { opacity: 0.7; }
-.tb-rc-row-date { font-size: 13px; color: #6b6b73; white-space: nowrap; }
-.tb-rc-row-desc { font-size: 14px; color: #1a1a1a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tb-rc-row-desc i { font-style: normal; font-size: 12px; color: #8a8a90; }
-.tb-rc-row-amt { font-size: 14px; font-weight: 600; color: #1a1a1a; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tb-rc-row-share { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #e3e3e8; border-radius: 9px; background: #fff; color: #444; cursor: pointer; }
-.tb-rc-week-add { margin-top: 8px; }
-.tb-rc-pop-period { font-size: 12px; color: #E8501A; font-weight: 500; padding-left: 2px; margin-top: 2px; }
-#tb-rc-pop-card .tb-receipt-card { margin: 0; }
-.tb-rc-pop-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-.tb-rc-pop-share { padding: 10px; border: 1px solid #d8d8de; border-radius: 8px; background: #fff; font-size: 14px; color: #1a1a1a; cursor: pointer; font-family: inherit; }
-.tb-rc-pop-del { width: 100%; }
+.tb-rc-thumbsm { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 8px; overflow: hidden; background: #f0f0f3; color: #a0a0a8; display: flex; align-items: center; justify-content: center; }
+.tb-rc-thumbsm img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tb-rc-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tb-rc-row-main b { font-size: 14px; font-weight: 500; color: #1a1a1a; overflow-wrap: anywhere; }
+.tb-rc-row-main small { font-size: 12px; color: #8a8a90; overflow-wrap: anywhere; }
+.tb-rc-row-right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tb-rc-row-right b { font-size: 14px; font-weight: 600; color: #1a1a1a; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* «📷 Ny kvittering»: hovedknapp i kortet */
+.tb-rc-newbtn {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 10px;
+    padding: 11px; border: none; border-radius: 10px; background: #E8501A; color: #fff;
+    font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.tb-rc-newbtn:active { opacity: 0.8; }
+/* Kvitteringssiden */
+#timebok-receipt { display: flex; flex-direction: column; gap: 10px; }
+#timebok-receipt[style*="none"] { display: none !important; }
+.tb-rcp-images { display: flex; flex-direction: column; gap: 8px; }
+.tb-rcp-img { position: relative; border-radius: 12px; overflow: hidden; background: #f0f0f3; border: 1px solid #e3e3e8; }
+.tb-rcp-img img { display: block; width: 100%; max-height: 60vh; object-fit: contain; background: #fff; cursor: pointer; }
+.tb-rcp-img.missing { min-height: 120px; border-style: dashed; }
+.tb-rcp-img-del {
+    position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%;
+    background: #e74c3c; color: #fff; font-size: 20px; line-height: 32px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.tb-rcp-noimg {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; height: 140px;
+    border: 1px dashed #d0d0d6; border-radius: 12px; background: #fafafb; color: #a0a0a8; font-size: 13px;
+}
+.tb-rcp-noimg svg { width: 30px; height: 30px; }
+.tb-rcp-addrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tb-rcp-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border: 1px solid #d8d8de;
+    border-radius: 10px; background: #fff; color: #1a1a1a; font-size: 14px; cursor: pointer; font-family: inherit;
+}
+.tb-rcp-btn.primary { background: #E8501A; border-color: #E8501A; color: #fff; font-weight: 600; }
+.tb-rcp-btn:active { opacity: 0.8; }
+.tb-rcp-fields .tb-input.tb-rcp-in { height: 42px; text-align: left; text-align-last: auto; padding: 0 12px; }
+.tb-rcp-fields textarea.tb-input.tb-rcp-in { height: auto; padding: 10px 12px; }
+.tb-rcp-amtrow { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
+.tb-rcp-date { justify-content: space-between; }
+.tb-rcp-actions { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
+.tb-rcp-actions .tb-tariff-delete { width: 100%; margin: 0; background: #fff; }
+/* Alle kvitteringer */
+.tb-rcs-seg { margin-bottom: 6px; }
+.tb-rcs-nav { display: flex; align-items: center; justify-content: space-between; margin: 0 0 4px; font-size: 15px; font-weight: 600; color: #1a1a1a; }
+.tb-rcs-nav .tb-head-nav { width: 40px; height: 36px; font-size: 22px; border: none; background: none; color: #E8501A; cursor: pointer; }
+#timebok-receipts .tb-af-group { padding-top: 12px; }
+/* Kvittering-sidene: ingen ‹ › / ← i baren (tilbake = pila øverst). */
+.tb-mode-receipt .timebok-header-bar .tb-head-nav, .tb-mode-receipt .timebok-header-bar .tb-head-toggle { visibility: hidden; }

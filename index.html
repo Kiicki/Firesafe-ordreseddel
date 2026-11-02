@@ -37,7 +37,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1100">
+    <link rel="stylesheet" href="styles.css?v=1108">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -1718,31 +1718,6 @@
     </div>
 
     <!-- Timebok: klokke-velger for Start/Slutt i Ordinære timer (24-timers urskive). -->
-    <!-- Timebok: én kvittering (ny/rediger) fra ukevisning/eksport. Datoen avgjør dag og
-         lønnsperiode (vises under datoen). Kortet bygges av createTimebokReceiptCard. -->
-    <div class="spec-popup-backdrop" id="tb-rc-popup" onclick="if(event.target===this)closeTbReceiptPopup()">
-        <div class="spec-popup-sheet">
-            <div class="spec-popup-header"><span id="tb-rc-pop-title"></span></div>
-            <div class="spec-popup-body">
-                <div class="spec-popup-field">
-                    <span class="spec-popup-label"><span data-i18n="tb_rc_date">Dato</span></span>
-                    <input type="date" id="tb-rc-pop-date" onchange="_tbRcPopDateChanged()">
-                    <div class="tb-rc-pop-period" id="tb-rc-pop-period"></div>
-                </div>
-                <div id="tb-rc-pop-card"></div>
-                <input type="file" id="tb-rc-pop-file" accept="image/*,application/pdf" multiple hidden onchange="_tbRcFilesPicked(this)">
-                <div class="tb-rc-pop-actions" id="tb-rc-pop-actions">
-                    <button type="button" class="tb-rc-pop-share" onclick="shareTbReceiptPopup()" data-i18n="tb_rc_share">Del som PDF</button>
-                    <button type="button" class="tb-tariff-delete tb-rc-pop-del" onclick="deleteTbReceiptPopup()" data-i18n="tb_rc_delete">Slett kvittering</button>
-                </div>
-            </div>
-            <div class="spec-popup-buttons">
-                <button type="button" class="spec-popup-cancel" onclick="closeTbReceiptPopup()" data-i18n="btn_cancel">Avbryt</button>
-                <button type="button" class="spec-popup-ok" onclick="saveTbReceiptPopup()" data-i18n="btn_save">Lagre</button>
-            </div>
-        </div>
-    </div>
-
     <div class="spec-popup-backdrop" id="timebok-clock-popup" onclick="if(event.target===this)closeTimebokClock()">
         <div class="spec-popup-sheet tb-clock-sheet">
             <div class="spec-popup-header"><span id="tb-clock-title"></span></div>
@@ -1920,7 +1895,7 @@
             else if (h === 'kappe') { v = 'kappe-view'; b = 'kappe-view-open'; }
             else if (h === 'kvittering') { v = 'kvittering-view'; b = 'kvittering-view-open'; }
             else if (h === 'calc') { v = 'calculator-modal'; b = 'calculator-modal-open'; }
-            else if (h === 'timebok') { v = 'timebok-view'; b = 'timebok-view-open'; }
+            else if (h === 'timebok' || h.indexOf('timebok/') === 0) { v = 'timebok-view'; b = 'timebok-view-open'; }
             else if (h === 'skjema') { v = 'view-form'; }
             else { v = 'template-modal'; b = 'template-modal-open'; }
             // Uten tilgang til Hjem: start på første del brukeren har (som _accStartHash).
@@ -1937,8 +1912,13 @@
             var btn = document.getElementById('btn-login-home');
             if (email && btn) btn.textContent = email;
         }
-        document.getElementById(v).classList.add('active');
-        if (b) document.body.classList.add(b);
+        // Visninger som står lenger ned i HTML-en enn dette skriptet (f.eks. Timebok) finnes
+        // ikke ennå — de aktiveres av vanlig oppstart (_applyHashNavigation) i stedet.
+        var ve = document.getElementById(v);
+        if (ve) {
+            ve.classList.add('active');
+            if (b) document.body.classList.add(b);
+        }
         // Restore settings sub-page title immediately to avoid flash
         var st = sessionStorage.getItem('firesafe_settings_title');
         if (st && v === 'settings-modal') {
@@ -2271,41 +2251,36 @@
             <div class="modal-header" id="timebok-main-header">
                 <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <span data-i18n="timebok_title">Timebok</span>
-                <!-- Lagre (dagvisning): samme header-knapp som ordreseddel/service/kappe/kvittering —
-                     alltid synlig. Grå/inaktiv når alt er lagret, oransje når det finnes endringer. -->
-                <button class="header-save-btn" id="timebok-save-status" onclick="saveTimebokCurrentDay()" disabled><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-i18n="toolbar_save">Lagre</span></button>
+                <!-- Ingen Lagre-knapp: dagsiden lagres automatisk (se _timebokAutoSave).
+                     Eksporter (kun i uka): samme plass og stil som «Lagre» på skjemaene. -->
+                <button class="header-save-btn" id="timebok-export-btn" onclick="openTimebokExport()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span data-i18n="timebok_menu_export">Eksporter</span></button>
             </div>
-            <!-- Sekundær navigasjonsbar (dag/uke-toggle · ‹ · periode · ›) UNDER hoved-headeren. -->
+            <!-- Sekundær navigasjonsbar (tilbake · ‹ · periode · ›) UNDER hoved-headeren. -->
             <div class="timebok-header-bar" id="timebok-header">
-                <button type="button" class="tb-head-toggle" id="tb-view-toggle" onclick="timebokToggleViewMode()" aria-label="Bytt dag/uke">
-                    <svg class="tb-icon-week" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>
-                    <svg class="tb-icon-day" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="4" y1="9" x2="20" y2="9"/><rect x="7.5" y="12" width="9" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
+                <!-- Venstre: tilbake til uka (dagsiden og eksport). Usynlig i ukevisningen (holder
+                     perioden midtstilt). Uka er Timeboks hovedvisning — ingen dag/uke-bryter. -->
+                <button type="button" class="tb-head-toggle" id="tb-view-toggle" onclick="navigateBack()" aria-label="Tilbake">
                     <svg class="tb-icon-back" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                 </button>
                 <button type="button" class="tb-head-nav" onclick="timebokShiftPeriod(-1)" aria-label="Forrige"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <button type="button" class="tb-head-label" onclick="timebokGoToday()"><span id="timebok-period-label">Uke</span></button>
                 <button type="button" class="tb-head-nav" onclick="timebokShiftPeriod(1)" aria-label="Neste"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-                <!-- Høyre: Timebok-meny (☰) — Kopier dagen (kun dagvisning), Eksporter, Timebok-innstillinger.
-                     Like bred som toggle-knappen til venstre, så perioden står midtstilt. -->
-                <div class="tb-menu-wrap">
-                    <button type="button" class="tb-head-spacer tb-head-menu" onclick="timebokToggleMenu(event)" aria-label="Meny" aria-haspopup="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
-                    <div class="tb-menu" id="timebok-menu" hidden>
-                        <button type="button" class="tb-menu-item" id="tb-menu-copy" onclick="timebokMenuCopy()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span data-i18n="timebok_copy_title">Kopier dagen til …</span></button>
-                        <button type="button" class="tb-menu-item" onclick="openTimebokExport()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span data-i18n="timebok_menu_export">Eksporter</span></button>
-                        <button type="button" class="tb-menu-item" onclick="timebokOpenSettings()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span data-i18n="timebok_menu_settings">Timebok-innstillinger</span></button>
-                    </div>
-                </div>
+                <!-- Høyre: tom plassholder like bred som venstre knapp, så perioden står midtstilt. -->
+                <span class="tb-head-spacer" aria-hidden="true"></span>
             </div>
           </div>
             <div class="mobile-form" id="timebok-form">
                 <!-- UKEVISNING -->
                 <div id="timebok-week">
                     <div id="timebok-days"></div>
+                    <!-- Kvitteringer i uka (renderTimebokWeekReceipts) — føres med egen dato. Rett under
+                         dagene, før ukesammendraget (som summerer dem). Lønnsperiode/normtid vises i
+                         eksporten (velg periode), ikke i ukevisningen. -->
+                    <div id="timebok-week-receipts"></div>
                     <div class="timebok-summary-card" id="timebok-summary">
                         <div class="timebok-summary-head">
                             <span class="timebok-summary-title" id="tb-summary-title">Ukesammendrag</span>
                         </div>
-                        <div class="timebok-summary-sub" id="tb-sum-sub"></div>
                         <div class="timebok-summary-grid">
                             <div class="timebok-metric"><span data-i18n="timebok_d_hours">Timer</span><b id="tb-sum-hours">—</b></div>
                             <div class="timebok-metric"><span data-i18n="timebok_d_wage">Lønn</span><b id="tb-sum-wage">—</b></div>
@@ -2314,26 +2289,21 @@
                             <div class="timebok-metric tb-metric-total"><span data-i18n="timebok_sum_total">Sum</span><b id="tb-sum-total">—</b></div>
                         </div>
                     </div>
-                    <!-- Damsgård: normtid/overtid for lønnsperioden uka ligger i (renderTimebokNormCard) -->
-                    <div id="timebok-norm"></div>
-                    <!-- Kvitteringer i uka (renderTimebokWeekReceipts) — føres med egen dato -->
-                    <div id="timebok-week-receipts"></div>
                 </div>
-                <!-- DAGSVISNING -->
+                <!-- KVITTERING (#timebok/kvittering/<dato>/<id> | …/ny) — egen side, lagres automatisk (_tbRcpRender) -->
+                <div id="timebok-receipt" style="display:none;"></div>
+                <!-- ALLE KVITTERINGER (#timebok/kvitteringer) — renderTimebokReceipts -->
+                <div id="timebok-receipts" style="display:none;"></div>
+                <!-- Kvittering-bilder: kamera direkte (capture) / galleri (bilde eller PDF) -->
+                <input type="file" id="tb-rcp-camera" accept="image/*" capture="environment" hidden onchange="_tbRcpFiles(this)">
+                <input type="file" id="tb-rcp-gallery" accept="image/*,application/pdf" multiple hidden onchange="_tbRcpFiles(this)">
+                <!-- DAGSIDEN (#timebok/<dato>): redigering av én dag, åpnes fra uka; Lagre → tilbake til uka -->
                 <div id="timebok-day" style="display:none;">
-                    <!-- Tom dag: snarvei som henter forrige dag med registreringer (ulagret til Lagre). -->
+                    <!-- Tom dag: henter forrige dag med registreringer (lagres automatisk). -->
                     <button type="button" class="timebok-copy-prev" id="timebok-copy-prev" onclick="timebokCopyFromPrevDay()" style="display:none"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span></span></button>
                     <div id="timebok-day-projects"></div>
                     <button type="button" class="timebok-add-project" onclick="addTimebokProjectBlock()" data-i18n="timebok_add_project">+ Legg til prosjekt</button>
-                    <div class="timebok-receipts-card">
-                        <div class="timebok-receipts-head">
-                            <span data-i18n="timebok_receipts">Kvitteringer</span>
-                            <button type="button" class="timebok-add-receipt-btn" onclick="addTimebokReceipt()" data-i18n="timebok_add_receipt">+ Legg til kvittering</button>
-                        </div>
-                        <div id="timebok-receipts-list"></div>
-                        <!-- Vedlegg: bilde (→ editor) eller PDF, se _tbRcFilesPicked. -->
-                        <input type="file" id="timebok-receipt-file" accept="image/*,application/pdf" multiple hidden onchange="_tbRcFilesPicked(this)">
-                    </div>
+                    <!-- Kvitteringer føres bare i uka (eget kort nederst i ukevisningen, med dato). -->
                     <div class="timebok-summary-card" id="timebok-day-totals">
                         <div class="timebok-summary-head">
                             <span class="timebok-summary-title" data-i18n="timebok_day_totals">Dagens totaler</span>
@@ -2342,7 +2312,6 @@
                             <div class="timebok-metric"><span data-i18n="timebok_d_hours">Timer</span><b id="tb-day-hours">—</b></div>
                             <div class="timebok-metric"><span data-i18n="timebok_d_wage">Lønn</span><b id="tb-day-wage">—</b></div>
                             <div class="timebok-metric"><span data-i18n="timebok_d_travel">Reise</span><b id="tb-day-travel">—</b></div>
-                            <div class="timebok-metric"><span data-i18n="timebok_d_receipts">Kvitt.</span><b id="tb-day-receipts">—</b></div>
                             <div class="timebok-metric tb-metric-total"><span data-i18n="timebok_sum_total">Sum</span><b id="tb-day-total">—</b></div>
                         </div>
                     </div>
@@ -2389,9 +2358,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=406"></script>
-    <script src="script.js?v=588"></script>
-    <script src="script-ui.js?v=1298"></script>
+    <script src="lang.js?v=412"></script>
+    <script src="script.js?v=590"></script>
+    <script src="script-ui.js?v=1311"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
