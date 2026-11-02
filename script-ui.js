@@ -12067,7 +12067,8 @@ function _timebokApplyHash(h, force) {
     }
     if (sub === 'eksport') {
         if (_timebokViewMode !== 'export' || !_tbExp) {
-            _tbExp = { mode: 'pay', anchor: _timebokDateId(_timebokAnchor || new Date()), docs: [] };
+            // Standard: uka du står i (timelister sendes hver uke — ett ark, ikke 4–5).
+            _tbExp = { mode: 'week', anchor: _timebokDateId(_timebokAnchor || new Date()), docs: [] };
             _tbExpComputeRange();
         }
         _timebokViewMode = 'export';
@@ -13930,9 +13931,33 @@ function _tbDgMontor() {
     var mi = safeParseJSON(MIN_INFO_KEY, {}) || {};
     return stripEtternavn(mi.montor || '');
 }
-function _tbDgFilename(ext) {
-    var e = _tbExp, m = _tbDgMontor();
-    return 'Timeliste ' + (m ? m + ' ' : '') + _tbFmtDMY(e.start) + ' til ' + _tbFmtDMY(e.end) + '.' + ext;
+// Emne ved deling: «Timeliste uke 44 Igor Kulasic» / «Timeliste + kvitteringer uke 44–48 …».
+function _tbDgShareSubject(e, nReceipts) {
+    var mi = safeParseJSON(MIN_INFO_KEY, {}) || {};
+    var name = ([mi.fornavn, mi.etternavn].filter(Boolean).join(' ') || mi.montor || '').trim();
+    var w1 = getWeekNumber(_timebokParseId(e.start)), w2 = getWeekNumber(_timebokParseId(e.end));
+    return 'Timeliste' + (nReceipts ? ' + ' + (nReceipts === 1 ? 'kvittering' : 'kvitteringer') : '') +
+        ' uke ' + (w1 === w2 ? w1 : w1 + '–' + w2) + (name ? ' ' + name : '');
+}
+// Kvitteringsbildene i perioden som filer (JPEG): «Kvittering 02-11-2026 Monter - verktøy.jpg».
+async function _tbRcImageFiles(list) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+        var x = list[i], ids = (x.rec && x.rec.imageIds) || [];
+        for (var k = 0; k < ids.length; k++) {
+            var rec = await _kvGetImage(ids[k]);
+            if (!rec || !rec.data) continue;
+            var blob = await (await fetch(rec.data)).blob();
+            var base = ('Kvittering ' + _tbFmtDate(x.date) + (x.rec.label ? ' ' + x.rec.label : '') + (ids.length > 1 ? ' (' + (k + 1) + ')' : ''))
+                .replace(/[\\/:*?"<>|\n]+/g, ' ').trim().slice(0, 80);
+            out.push(new File([blob], base + '.jpg', { type: blob.type || 'image/jpeg' }));
+        }
+    }
+    return out;
+}
+// Filnavn = samme tekst som emnet ved deling («Timeliste + kvittering uke 45 Igor Kulasic.pdf»).
+function _tbDgFilename(ext, nReceipts) {
+    return _tbDgShareSubject(_tbExp, nReceipts || 0).replace(/[\\/:*?"<>|]+/g, '-') + '.' + ext;
 }
 // Tekst for PDF-celler (Excel får tallene med tallformat).
 function _tbDgText(cell) {
@@ -14105,21 +14130,21 @@ async function timebokExportDamsgard(kind, action) {
     try {
         var docs = await _tbExpLoadDocs(e.start, e.end);
         var weeks = _tbDgWeeks(docs, e.start, e.end);
+        var rcList = _tbReceiptsIn(docs, e.start, e.end);
         var blob, name, type;
         if (kind === 'xlsx') {
             var ExcelJS = await _tbLoadExcelJs();
             var buf = await _tbDgBuildWorkbook(ExcelJS, weeks).xlsx.writeBuffer();
             type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
             blob = new Blob([buf], { type: type });
-            name = _tbDgFilename('xlsx');
+            name = _tbDgFilename('xlsx', rcList.length);
         } else {
             blob = _tbDgBuildPdf(weeks).output('blob');
             type = 'application/pdf';
-            name = _tbDgFilename('pdf');
+            name = _tbDgFilename('pdf', rcList.length);
         }
         if (loading) loading.classList.remove('active');
         var file = new File([blob], name, { type: type });
-        var title = name.replace(/\.(xlsx|pdf)$/, '');
         var download = function () {
             var a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -14129,7 +14154,16 @@ async function timebokExportDamsgard(kind, action) {
         };
         // Excel deles aldri (Chrome avviser .xlsx). Feiler en deling likevel → last ned.
         if (action === 'share' && kind !== 'xlsx' && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            try { await navigator.share({ files: [file], title: title, text: title }); }
+            // Emne: «Timeliste uke 44 Igor Kulasic» (+ kvittering(er) når perioden har det).
+            // Ingen meldingstekst. Kvitteringsbildene legges ved sammen med PDF-en.
+            var subject = _tbDgShareSubject(e, rcList.length);
+            var files = [file];
+            try { files = files.concat(await _tbRcImageFiles(rcList)); } catch (ie) { console.error('Kvitteringsbilder:', ie); }
+            if (files.length > 1 && !navigator.canShare({ files: files })) {
+                files = [file];
+                showNotificationModal(t('tb_exp_img_not_attached'));
+            }
+            try { await navigator.share({ files: files, title: subject }); }
             catch (se) { if (se && se.name !== 'AbortError') download(); }
         } else {
             download();
