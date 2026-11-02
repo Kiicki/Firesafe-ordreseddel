@@ -8940,6 +8940,10 @@ body.timebok-view-open #view-form { display: none; }
 }
 .tb-exp-btn:active { background: #f5f5f7; }
 .tb-exp-btn:disabled { color: #a0a0a8; cursor: default; }
+/* Eksportsidens hovedknapp (lager fila): oransje, så det er tydelig hva som eksporterer. */
+#tb-exp-btn { background: #E8501A; border-color: #E8501A; color: #fff; font-weight: 600; font-size: 15px; padding: 12px; }
+#tb-exp-btn:active { opacity: 0.85; background: #E8501A; }
+#tb-exp-btn:disabled { background: #f0c2ad; border-color: #f0c2ad; color: #fff; }
 .tb-exp-days-title { margin: 14px 2px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; }
 .tb-exp-grid { margin-top: 4px; }
 .tb-exp-codes { margin-top: 10px; padding: 8px 10px; background: #f5f5f7; border-radius: 10px; }
@@ -9028,13 +9032,13 @@ body.timebok-view-open #view-form { display: none; }
 }
 .timebok-header-bar.tb-current-period .tb-head-label,
 .timebok-header-bar.tb-current-period .tb-head-nav { color: #E8501A; }
-/* Venstre knapp = tilbake til uka (dagsiden, eksport). I uka (hovedvisningen) usynlig,
-   men beholder plassen så perioden står midtstilt mot ☰. */
+/* Venstre knapp i baren er alltid usynlig plassholder (holder perioden midtstilt mot
+   høyre side): tilbake = pila i toppfeltet — aldri to tilbakepiler (bruker 02-11-2026). */
 .tb-mode-week .tb-head-toggle { visibility: hidden; }
 /* Dagsiden er for å føre timer: ‹ › blar mellom dager; ingen ekstra ← (pila i
    toppfeltet går tilbake til uka). Plassene beholdes så datoen står midtstilt.
    ‹ › er borte ved egendefinert eksport-periode. */
-.tb-mode-day .timebok-header-bar .tb-head-toggle { visibility: hidden; }
+.tb-mode-day .timebok-header-bar .tb-head-toggle, .tb-mode-export .timebok-header-bar .tb-head-toggle { visibility: hidden; }
 .tb-exp-custom-mode .timebok-header-bar .tb-head-nav { visibility: hidden; }
 /* Ukesammendrag-kort (bunn) */
 .timebok-summary-card {
@@ -12641,6 +12645,14 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 .tb-rcp-amtrow { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
 .tb-rcp-date { justify-content: space-between; }
 .tb-rcp-actions { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
+/* «Ferdig» på dagsiden og kvitteringssiden (lagres automatisk — knappen er den tydelige
+   avslutningen; gjør det samme som tilbake). */
+.tb-done-btn {
+    display: block; width: 100%; padding: 12px; border: none; border-radius: 10px; background: #E8501A; color: #fff;
+    font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+#timebok-day .tb-done-btn { margin: 4px 0 12px; }
+.tb-done-btn:active { opacity: 0.8; }
 .tb-rcp-actions .tb-tariff-delete { width: 100%; margin: 0; background: #fff; }
 /* Alle kvitteringer */
 .tb-rcs-seg { margin-bottom: 6px; }

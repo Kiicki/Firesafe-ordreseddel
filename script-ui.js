@@ -11592,6 +11592,9 @@ document.addEventListener('DOMContentLoaded', function() {
             renumberServiceEntries();
             updateServiceDeleteStates();
         }
+    } else if (hash === 'timebok' || hash.indexOf('timebok/') === 0) {
+        // Timebok (uke / dag / eksport / kvittering): vises og tegnes fra adressen.
+        _applyHashNavigation(hash);
     } else if (!hash || hash === '') {
         window.loadedTemplates = safeParseJSON(TEMPLATE_KEY, []);
         updateToolbarState();
@@ -13101,7 +13104,8 @@ function _tbExpCustomChanged() {
     _tbExpComputeRange();
     _tbExpRender(true);
 }
-function _tbFmtDMY(id) { var p = String(id).split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
+// DD-MM-YYYY (norsk konvensjon i hele appen).
+function _tbFmtDMY(id) { var p = String(id).split('-'); return p[2] + '-' + p[1] + '-' + p[0]; }
 // Dager i perioden: cache først, så Firestore (eldre dager kan mangle i cachen).
 function _tbExpLoadDocs(start, end) {
     var byId = {};
@@ -13197,7 +13201,7 @@ function _tbExpTotalsHtml(docs) {
 // ════ Kvitteringer (egen side i Timebok) ════
 // Hver kvittering har sin egen side (#timebok/kvittering/<dato>/<id>, ny: …/ny): bilde(r)
 // øverst (📷 Ta bilde = kamera direkte, Fra galleri = bilde/PDF), så Dato · Butikk ·
-// Beløp/Valuta · Prosjekt · Beskrivelse. En kvittering = utlegg betalt privat som skal
+// Beløp/Valuta · Beskrivelse (Butikk og Prosjekt fjernet — bruker 02-11-2026). En kvittering = utlegg betalt privat som skal
 // refunderes (firmakort føres ikke — bruker 02-11-2026); alle teller i Sum. Lagres AUTOMATISK (som dagsiden). Kvitteringen ligger på
 // dag-dokumentet for sin dato (receipts[]) med fast id; bytte dato = flytt. Bildene i
 // samme lager/editor som før (kvitteringBilder + IndexedDB, _kvOpenEditor).
@@ -13228,8 +13232,8 @@ function _tbRcAmountText(r) {
     var cur = _timebokRcCurrency(r);
     return cur === 'NOK' ? _timebokKr(a) : cur + ' ' + formatLocaleNum(a, 2);
 }
-// Overskrift i lister: butikk, ellers beskrivelse, ellers «Kvittering».
-function _tbRcTitle(r) { return String(r.store || '').trim() || String(r.label || '').trim() || t('timebok_receipt'); }
+// Overskrift i lister: beskrivelsen (eldre data: butikk), ellers «Kvittering».
+function _tbRcTitle(r) { return String(r.label || '').trim() || String(r.store || '').trim() || t('timebok_receipt'); }
 // Sum for en liste: NOK + hver annen valuta for seg.
 function _tbRcSums(list) {
     var nok = 0, anyN = false, fx = {};
@@ -13248,7 +13252,6 @@ var _TB_CAM_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 function _tbRcRowHtml(x) {
     var r = x.rec, n = (r.imageIds || []).length;
     var sub = [_timebokFormatDateId(x.date)];
-    if (r.store && r.label) sub.push(String(r.label));
     return '<div class="tb-rc-row" onclick="openTbReceipt(\'' + x.date + '\', \'' + escapeHtml(x.key) + '\')">' +
         '<span class="tb-rc-thumbsm"' + (n ? ' data-img="' + escapeHtml(r.imageIds[0]) + '"' : '') + '>' + (n ? '<img alt="">' : _TB_RC_ICON) + '</span>' +
         '<span class="tb-rc-row-main"><b>' + escapeHtml(_tbRcTitle(r)) + '</b><small>' + escapeHtml(sub.join(' · ')) + '</small></span>' +
@@ -13339,7 +13342,17 @@ function _tbRcpNewDate() {
     var r = _timebokPeriodRange(), today = _timebokTodayId();
     return (today >= r.start && today <= r.end) ? today : _timebokDateId(_timebokAnchor || new Date());
 }
-function _tbRcpSnap(rec, date) { return JSON.stringify([date, rec.store || '', rec.label || '', rec.amount || 0, rec.currency || 'NOK', rec.projectId || '', (rec.imageIds || []).join(',')]); }
+function _tbRcpSnap(rec, date) { return JSON.stringify([date, rec.store || '', rec.label || '', rec.amount || 0, rec.currency || 'NOK', rec.projectId || rec.projectName || '', (rec.imageIds || []).join(',')]); }
+// Eldre kvitteringer med Butikk/Prosjekt (felt som er fjernet): flett inn i beskrivelsen
+// så ingenting skjules — lagres når kvitteringen forlates (snapshot tatt før flettingen).
+function _tbRcpMergeOld(r) {
+    var parts = [String(r.store || '').trim(), String(r.label || '').trim()].filter(Boolean);
+    var lbl = parts.join(' – ');
+    var pn = String(r.projectName || '').trim();
+    if (pn) lbl += (lbl ? ' ' : '') + '(' + pn + ')';
+    r.label = lbl;
+    delete r.store; delete r.projectId; delete r.projectName;
+}
 // Kalles fra _timebokApplyHash: parts = ['timebok','kvittering', dato|'ny', id].
 function _tbRcpOpen(parts) {
     var host = document.getElementById('timebok-receipt');
@@ -13362,6 +13375,7 @@ function _tbRcpOpen(parts) {
         rec.imageIds = (rec.imageIds || []).slice();
         _tbRcp = { date: date, key: key, rec: rec, editDate: date, savedIds: rec.imageIds.slice(), session: [] };
         _tbRcp.snap = _tbRcpSnap(rec, date);
+        if (rec.store || rec.projectId || rec.projectName) _tbRcpMergeOld(rec);
         if (_timebokViewMode === 'receipt') _tbRcpRender();
     });
 }
@@ -13380,20 +13394,13 @@ function _tbRcpRender() {
                 '<button type="button" class="tb-rcp-img-del" onclick="_tbRcpRemoveImage(\'' + escapeHtml(id) + '\')" aria-label="' + escapeHtml(t('delete_btn')) + '">&times;</button></div>';
         }).join('')
         : '<div class="tb-rcp-noimg">' + _TB_RC_ICON + '<span>' + escapeHtml(t('tb_rcp_noimg')) + '</span></div>';
-    var projects = getTimebokProjects();
-    var projOpts = '<option value="">' + escapeHtml(t('tb_rcp_no_project')) + '</option>' + projects.map(function (pr) {
-        return '<option value="' + escapeHtml(pr.id) + '"' + (pr.id === r.projectId ? ' selected' : '') + '>' + escapeHtml(pr.name) + '</option>';
-    }).join('');
-    // Prosjekt som ikke lenger finnes i lista (slettet/omdøpt): vis navnet som er lagret.
-    if (r.projectId && !projects.some(function (pr) { return pr.id === r.projectId; })) {
-        projOpts += '<option value="' + escapeHtml(r.projectId) + '" selected>' + escapeHtml(r.projectName || r.projectId) + '</option>';
-    }
     var amt = parseLocaleNum(r.amount);
     var cur = _timebokRcCurrency(r);
     host.innerHTML =
         '<div class="tb-rcp-images">' + imgs + '</div>' +
         '<div class="tb-rcp-addrow">' +
-            '<button type="button" class="tb-rcp-btn primary" onclick="_tbRcpCamera()">' + _TB_CAM_ICON + '<span>' + escapeHtml(t('tb_rcp_take')) + '</span></button>' +
+            // Ta bilde er hovedknappen til kvitteringen har et bilde — da er «Ferdig» det neste.
+            '<button type="button" class="tb-rcp-btn' + (ids.length ? '' : ' primary') + '" onclick="_tbRcpCamera()">' + _TB_CAM_ICON + '<span>' + escapeHtml(t('tb_rcp_take')) + '</span></button>' +
             '<button type="button" class="tb-rcp-btn" onclick="_tbRcpGallery()">' + GAL + '<span>' + escapeHtml(t('tb_rcp_gallery')) + '</span></button>' +
         '</div>' +
         '<div class="tb-sat-card tb-set-card tb-rcp-fields">' +
@@ -13401,16 +13408,16 @@ function _tbRcpRender() {
                 '<span class="tb-input tb-exp-date tb-rcp-date"><span id="tb-rcp-date-txt">' + escapeHtml(_tbFmtDate(p.editDate)) + '</span>' + CAL +
                 '<input type="date" id="tb-rcp-date" value="' + escapeHtml(p.editDate) + '" onchange="_tbRcpChanged()"></span>' +
                 '<span class="tb-set-hint" id="tb-rcp-period">' + escapeHtml(_tbRcPeriodText(p.editDate)) + '</span></div>' +
-            field(t('tb_rcp_store'), '<input type="text" class="tb-input tb-rcp-in" id="tb-rcp-store" autocapitalize="sentences" value="' + escapeHtml(r.store || '') + '" oninput="_tbRcpChanged()">') +
             '<div class="tb-rcp-amtrow">' +
                 field(t('tb_rcp_amount'), '<input type="text" class="tb-input tb-rcp-in" id="tb-rcp-amount" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" value="' + (amt ? escapeHtml(formatLocaleNum(amt, 2)) : '') + '" oninput="_tbRcpChanged()">') +
                 field(t('tb_rcp_currency'), '<select class="tb-input tb-rcp-in" id="tb-rcp-cur" onchange="_tbRcpChanged()">' +
                     TIMEBOK_CURRENCIES.map(function (c) { return '<option value="' + c + '"' + (c === cur ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select>') +
             '</div>' +
-            field(t('tb_rcp_project'), '<select class="tb-input tb-rcp-in" id="tb-rcp-project" onchange="_tbRcpChanged()">' + projOpts + '</select>') +
             field(t('tb_rcp_desc'), '<textarea class="tb-input tb-textarea tb-rcp-in" id="tb-rcp-desc" rows="2" autocapitalize="sentences" oninput="autoResizeTextarea(this);_tbRcpChanged()"></textarea>') +
         '</div>' +
         '<div class="tb-rcp-actions">' +
+            // Ferdig: lagrer (skjer uansett automatisk) og går tilbake dit du kom fra.
+            '<button type="button" class="tb-done-btn" onclick="navigateBack()">' + escapeHtml(t('btn_done')) + '</button>' +
             (p.date ? '<button type="button" class="tb-tariff-delete" onclick="deleteTbReceiptPage()">' + escapeHtml(t('tb_rc_delete')) + '</button>' : '') +
         '</div>';
     var desc = document.getElementById('tb-rcp-desc');
@@ -13426,18 +13433,13 @@ function _tbRcpRender() {
 // Feltene → p.rec (+ p.editDate).
 function _tbRcpRead() {
     var p = _tbRcp;
-    if (!p || !document.getElementById('tb-rcp-store')) return;
+    if (!p || !document.getElementById('tb-rcp-desc')) return;
     var r = p.rec;
     var d = document.getElementById('tb-rcp-date').value;
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) p.editDate = d;
-    r.store = document.getElementById('tb-rcp-store').value.trim();
     var a = parseLocaleNum(document.getElementById('tb-rcp-amount').value);
     r.amount = isNaN(a) ? 0 : a;
     r.currency = document.getElementById('tb-rcp-cur').value || 'NOK';
-    var ps = document.getElementById('tb-rcp-project');
-    r.projectId = ps.value || '';
-    r.projectName = ps.value ? ps.options[ps.selectedIndex].textContent : '';
-    if (!r.projectId) { delete r.projectId; delete r.projectName; }
     r.label = document.getElementById('tb-rcp-desc').value.trim();
 }
 function _tbRcpChanged() {
@@ -13461,7 +13463,7 @@ function _tbRcpSave() {
     var r = p.rec, date = p.editDate;
     var snap = _tbRcpSnap(r, date);
     if (snap === p.snap) return;
-    if (!p.date && !r.store && !r.label && !r.amount && !(r.imageIds || []).length) return;
+    if (!p.date && !r.label && !r.amount && !(r.imageIds || []).length) return;
     if (!r.id) r.id = _timebokGenId('rc');
     var rec = JSON.parse(JSON.stringify(r));
     var oldDate = p.date, oldKey = p.key, oldIds = p.savedIds.slice();
@@ -13675,50 +13677,18 @@ function renderTimebokReceipts() {
 // bilder (kvitteringBilder deles). Kilde-dokumentet merkes migratedToTimebok, så det
 // aldri flyttes to ganger — heller ikke fra en annen enhet. Kjøres når Timebok åpnes.
 var _tbMigrating = false;
-// Gammelt Kvittering-skjema → Timebok-kvittering med alle feltene (butikk, betalt med,
-// prosjekt, beskrivelse). Eldre migrering (før 02-11-2026) slo dem sammen i beskrivelsen
-// — _tbEnrichOldReceipts legger dem på plass igjen.
+// Gammelt Kvittering-skjema → Timebok-kvittering: butikk – beskrivelse (prosjekt) i
+// beskrivelsen (Timebok-kvitteringen har bare Beskrivelse og Beløp).
 function _tbRcFromOldForm(f) {
     var amt = parseLocaleNum(String(f.belop || '').replace(/\s|kr/gi, ''));
-    var rec = { id: _timebokGenId('rc'), store: String(f.butikk || '').trim(), label: String(f.beskrivelse || '').trim(),
-        amount: isNaN(amt) ? 0 : amt, currency: 'NOK',
-        imageIds: (f.imageIds || []).slice() };
-    if (f.prosjektnavn) rec.projectName = String(f.prosjektnavn).trim();
-    return rec;
-}
-function _tbEnrichOldReceipts() {
-    var flagKey = 'firesafe_kv_enriched_' + currentUser.uid;
-    if (localStorage.getItem(flagKey)) return Promise.resolve();
-    var ref = db.collection('users').doc(currentUser.uid);
-    return Promise.all([ref.collection('kvitteringer').get(), ref.collection('kvitteringArchive').get()]).then(function (res) {
-        var olds = [];
-        res.forEach(function (snap) { snap.docs.forEach(function (d) { var f = d.data() || {}; if (f.migratedToTimebok) olds.push(f); }); });
-        var next = function (i) {
-            if (i >= olds.length) return Promise.resolve();
-            var f = olds[i], dateId = f.migratedToTimebok, ids = (f.imageIds || []).join(',');
-            return _tbDayDocFor(dateId).then(function (doc) {
-                var list = doc.receipts || [], hit = -1;
-                for (var k = 0; k < list.length; k++) {
-                    var r = list[k];
-                    if (r.store != null) continue;   // allerede med felt
-                    if ((r.imageIds || []).join(',') === ids) { hit = k; break; }
-                }
-                if (hit < 0) return;
-                var nr = _tbRcFromOldForm(f);
-                nr.id = list[hit].id || nr.id;
-                if (list[hit].amount) nr.amount = list[hit].amount;   // beholdt beløp (kan være rettet)
-                list[hit] = nr;
-                doc.projects = Array.isArray(doc.projects) ? doc.projects : [];
-                _tbPutDayDoc(dateId, doc);
-            }).then(function () { return next(i + 1); });
-        };
-        return next(0);
-    }).then(function () { safeSetItem(flagKey, '1'); }).catch(function (e) { console.error('Kvittering-felt:', e); });
+    var label = [f.butikk, f.beskrivelse].map(function (v) { return String(v || '').trim(); }).filter(Boolean).join(' – ');
+    if (f.prosjektnavn) label += (label ? ' ' : '') + '(' + String(f.prosjektnavn).trim() + ')';
+    return { id: _timebokGenId('rc'), label: label, amount: isNaN(amt) ? 0 : amt, currency: 'NOK', imageIds: (f.imageIds || []).slice() };
 }
 function _tbMigrateOldReceipts() {
     if (_tbMigrating || !currentUser || !db || currentUser.uid === 'dev-local') return;
     var flagKey = 'firesafe_kv_migrated_' + currentUser.uid;
-    if (localStorage.getItem(flagKey)) { _tbMigrating = true; _tbEnrichOldReceipts().then(function () { _tbMigrating = false; }); return; }
+    if (localStorage.getItem(flagKey)) return;
     _tbMigrating = true;
     var ref = db.collection('users').doc(currentUser.uid);
     Promise.all([ref.collection('kvitteringer').get(), ref.collection('kvitteringArchive').get()]).then(function (res) {
@@ -13759,44 +13729,44 @@ function _tbMigrateOldReceipts() {
 
 // ── Damsgård-timeliste: én modell (celler) → Excel og PDF tegnes fra samme modell ──
 var _TB_DG_DAYS = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
-// Kolonnebredder (Excel-tegn) A..X — som Damsgårds ark.
-var _TB_DG_COLS = [9.4, 5.6, 35.6, 8.1, 6.4, 6.4, 6.4, 6.4, 12.6, 10.6, 9.6, 9.9, 25.6, 1.6, 8.4, 6.6, 9.6, 9.6, 9.6, 1.6, 6.5, 9.6, 9.6, 9.6];
+// Kolonnebredder (Excel-tegn, MINIMUM — _tbDgColWidths gjør dem bredere ved behov) A..S:
+// timelista A–L (timer + reisen pr. prosjekt: Transport · Km · Andel · Km sum), mellomrom
+// M, høyre side N–S: Opptelling (beløpene telt opp) og Kvitteringer.
+var _TB_DG_COLS = [9.4, 5.6, 35.6, 8.1, 6.4, 6.4, 6.4, 6.4, 10.6, 10.6, 6.6, 10.6, 1.6, 10.6, 9.6, 9.6, 9.6, 7.6, 9.6];
 function _tbDgOtPct(id) { return /^ot100/.test(id) ? 100 : (/^ot50/.test(id) ? 50 : ''); }
 // Rader for én dag. Ordinære/fravær/syk → rad; avtalt overtid → egen rad med Tillegg %;
 // tillegg/reise-koder står ikke på Damsgårds ark (reiseutgifter → kvittering).
 function _tbDgDayRows(doc, id) {
     var n = _timebokNormalizeDoc(doc, id), tariff = _timebokTariffFor(id), d = _timebokParseId(id);
-    // main = radene på timelista; mainTrips = vanlig reise pr. prosjektkort (sats × andel)
-    // → «Timeliste»-kolonnene; extraTrips = ekstra turer (Reisegodtgjørelse lagt til en
-    // gang til) → «Tillegg»-kolonnene. Reisen pr. dag = summen av det som er ført.
-    var out = { main: [], mainTrips: [], extraTrips: [] };
-    var rcAmt = 0, rcAny = false, rcDesc = [];
+    // main = radene på timelista; trips = ALLE turer dagen (vanlig reise + ekstra tur,
+    // sats × andel) → én rad i Reisetillegg. Reisen pr. dag = summen av det som er ført.
+    // receipts = kvitteringene dagen → egen tabell (hører ikke til et prosjekt eller en rad).
+    var out = { main: [], trips: [], receipts: [] };
     (doc.receipts || []).forEach(function (r) {
-        var a = parseLocaleNum(r.amount);
-        if (_timebokRcCurrency(r) === 'NOK' && !isNaN(a)) { rcAmt += a; rcAny = true; }
-        else if (!isNaN(a) && a) rcDesc.push(_timebokRcCurrency(r) + ' ' + formatLocaleNum(a, 2));
-        if (r.label) rcDesc.push(r.label);
+        var a = parseLocaleNum(r.amount), cur = _timebokRcCurrency(r);
+        out.receipts.push({ date: id, desc: String(r.label || r.store || '').trim(),
+            amount: cur === 'NOK' && !isNaN(a) ? a : null, text: cur !== 'NOK' && !isNaN(a) && a ? cur + ' ' + formatLocaleNum(a, 2) : '' });
     });
     var brs = (tariff && tariff.brackets) || [];
     var trInfo = function (tr) {
         var bi = -1;
         if (tr) for (var i = 0; i < brs.length; i++) if (brs[i].id === tr.bracketId) bi = i;
         return { transport: tr ? (tr.transport === 'privat' ? 'Person' : 'Firma') : '',
-            km: tr && bi >= 0 ? brs[bi].label : '', klasse: tr && bi >= 0 ? bi + 1 : (tr ? '' : 0),
+            km: tr && bi >= 0 ? brs[bi].label : '', share: tr ? _timebokTravelShare(tr) : 0,
             kmSum: tr && _timebokBracketRate(tr.bracketId, tr.transport, tariff) != null
                 ? _timebokBracketRate(tr.bracketId, tr.transport, tariff) * _timebokTravelShare(tr) : null };
     };
     n.projects.forEach(function (p) {
         var target = out.main;
         var tr = p.travel && p.travel.bracketId ? p.travel : null;
-        if (tr) out.mainTrips.push(trInfo(tr));
-        (p.extraTravels || []).forEach(function (x) { out.extraTrips.push(trInfo(x)); });
+        if (tr) out.trips.push(trInfo(tr));
+        (p.extraTravels || []).forEach(function (x) { out.trips.push(trInfo(x)); });
         var base = Object.assign({ dayName: _TB_DG_DAYS[d.getDay()], date: d.getDate(), id: id }, trInfo(tr));
         var rows = [];
         (p.codes || []).forEach(function (c) {
             var def = _timebokCodeDef(c.typeId), v = parseLocaleNum(c.hours);
             if (isNaN(v)) v = 0;
-            if (c.typeId === 'reiseutg' && v) { rcAmt += v; rcAny = true; rcDesc.push(def ? def.label : 'Reiseutgifter'); return; }
+            if (c.typeId === 'reiseutg' && v) { out.receipts.push({ date: id, desc: def ? def.label : 'Reiseutgifter', amount: v, text: '' }); return; }
             // Arket er rå timeliste: alt som er ført står (også ubetalt fravær som
             // «Permisjon uten lønn» — regnskapsfører trenger det for normtiden). Kun
             // Pause (ingen arbeidstid) og tillegg/reise-koder står ikke på arket.
@@ -13808,26 +13778,29 @@ function _tbDgDayRows(doc, id) {
             rows.push(Object.assign({}, base, { project: proj, pct: def.group === 'overtid' ? _tbDgOtPct(c.typeId) : '',
                 start: c.start || '', end: c.end || '', lunch: c.start ? (c.lunch || 0) : '', hours: v }));
         });
-        // Reisen står på prosjektets første rad (ellers ser det ut som én reise pr. kode).
-        rows.forEach(function (r, ri) { if (ri > 0) { r.transport = ''; r.km = ''; r.klasse = ''; r.kmSum = null; } });
-        if (!rows.length && (tr || (p.extraTravels || []).length)) rows.push(Object.assign({}, base, { project: p.name || String(p.note || '').split('\n')[0], pct: '', start: '', end: '', lunch: '', hours: '' }));
+        // Reisen står på prosjektets rad: vanlig tur på første rad. Ekstra tur (Reisegodt-
+        // gjørelse lagt til en gang til = utkalling) på prosjektets neste rad(er); ingen rad
+        // igjen / reise uten timer → egen rad for prosjektet uten timer.
+        var pTrips = (tr ? [tr] : []).concat(p.extraTravels || []).map(trInfo);
+        var noTrip = { transport: '', km: '', share: 0, kmSum: null };
+        rows.forEach(function (r, ri) { Object.assign(r, pTrips[ri] || noTrip); });
+        for (var ti = rows.length; ti < pTrips.length; ti++) {
+            rows.push(Object.assign({}, base, pTrips[ti], { project: p.name || (p.noProject ? String(p.note || '').split('\n')[0] : ''), pct: '', start: '', end: '', lunch: '', hours: '' }));
+        }
         rows.forEach(function (r) { target.push(r); });
     });
-    if (rcAny || rcDesc.length) {
-        var first = out.main[0];
-        if (!first) { first = { dayName: _TB_DG_DAYS[d.getDay()], date: d.getDate(), id: id, project: '', pct: '', start: '', end: '', lunch: '', hours: '', transport: '', km: '', klasse: '', kmSum: null }; out.main.push(first); }
-        first.receipt = rcAny ? rcAmt : null;
-        first.receiptDesc = rcDesc.join('; ');
-    }
     return out;
 }
-// Turer pr. dag → én celle i Reisetillegg: klasse/km fra første tur, Km sum = summen
-// av turene (sats × andel, som ført). Brukes for både «Timeliste» og «Tillegg».
+// Turer pr. dag → én rad i Reisetillegg: Km = avstandene (unike), Andel = summen av
+// andelene (1 + 0,5 = 1,5), Km sum = summen av turene (sats × andel, som ført).
+// Ingen «Klasse»-nummer — det sier ingenting når andelen kan være 0,5.
 function _tbDgDayTrips(trips) {
     if (!trips.length) return null;
-    var f = trips[0];
-    return { klasse: f.klasse, transport: trips.some(function (x) { return x.transport === 'Person'; }) ? 'Person' : 'Firma',
-        kmSum: trips.reduce(function (a, x) { return a + (x.kmSum || 0); }, 0), km: f.km, trips: trips };
+    var kms = [];
+    trips.forEach(function (x) { if (x.km && kms.indexOf(x.km) === -1) kms.push(x.km); });
+    return { transport: trips.some(function (x) { return x.transport === 'Person'; }) ? 'Person' : 'Firma',
+        kmSum: trips.reduce(function (a, x) { return a + (x.kmSum || 0); }, 0), km: kms.join(', '),
+        share: trips.reduce(function (a, x) { return a + (x.share || 0); }, 0), trips: trips };
 }
 // Uker i perioden (man–søn), kun dager innenfor perioden.
 function _tbDgWeeks(docs, start, end) {
@@ -13841,12 +13814,14 @@ function _tbDgWeeks(docs, start, end) {
     }
     return weeks.map(function (w) {
         var mondayD = _timebokParseId(w.monday), thu = _timebokAddDays(mondayD, 3);
-        var wk = { week: getWeekNumber(mondayD), year: thu.getFullYear(), main: [], perDay: [], tariff: _timebokTariffFor(w.days[0]) };
+        var wk = { week: getWeekNumber(mondayD), year: thu.getFullYear(), main: [], perDay: [], receipts: [], trips: [], tariff: _timebokTariffFor(w.days[0]) };
         for (var i = 0; i < 7; i++) {
             var id = _timebokDateId(_timebokAddDays(mondayD, i));
-            var rows = (w.days.indexOf(id) !== -1 && byId[id]) ? _tbDgDayRows(byId[id], id) : { main: [], mainTrips: [], extraTrips: [] };
+            var rows = (w.days.indexOf(id) !== -1 && byId[id]) ? _tbDgDayRows(byId[id], id) : { main: [], trips: [], receipts: [] };
             rows.main.forEach(function (r) { wk.main.push(r); });
-            wk.perDay.push({ name: _TB_DG_DAYS[(i + 1) % 7], main: _tbDgDayTrips(rows.mainTrips), extra: _tbDgDayTrips(rows.extraTrips) });
+            rows.receipts.forEach(function (r) { wk.receipts.push(r); });
+            rows.trips.forEach(function (tr) { wk.trips.push(Object.assign({ dayName: _TB_DG_DAYS[(i + 1) % 7], date: _timebokAddDays(mondayD, i).getDate() }, tr)); });
+            wk.perDay.push({ name: _TB_DG_DAYS[(i + 1) % 7], trip: _tbDgDayTrips(rows.trips) });
         }
         return wk;
     });
@@ -13858,91 +13833,98 @@ function _tbDgSheetModel(wk, montor) {
     var H = { b: true, border: true };            // overskrift
     var D = { border: true, fill: 'grey' };       // utfyllingsfelt
     var B = { border: true };                     // beregnet felt
-    var hdr = ['Dag:', 'Dato:', 'Prosjekt:', 'Tillegg %', 'Start:', 'Stopp:', 'Lunsj:', 'Timer:', 'Transport:', 'Km sum:', 'Km:', 'Kvittering:', 'Kvittering beskrivelse:'];
+    var R = 14;                                   // første kolonne på høyre side (N)
+    // Venstre: timelista med reisen på prosjektets rad (Transport · Km · Andel · Km sum).
+    // TOTALT er slutten av arket: ingenting under.
+    var hdr = ['Dag:', 'Dato:', 'Prosjekt:', 'Tillegg %', 'Start:', 'Stopp:', 'Lunsj:', 'Timer:', 'Transport:', 'Km:', 'Andel:', 'Km sum:'];
+    // Timelista har faste rader (minst 20) — et skjema, som Damsgårds eget ark.
     var nMain = Math.max(20, wk.main.length);
     put(1, 1, 'Montør:', H); put(1, 2, montor || '', D);
     put(2, 1, 'Uke:', H); put(2, 2, wk.week, Object.assign({ t: 'int' }, D));
     put(3, 1, 'År:', H); put(3, 2, wk.year, Object.assign({ t: 'int' }, D));
-    put(1, 3, 'TIMELISTE\nDAMSGÅRD BRANNSIKRING AS', { b: true, size: 16, wrap: true }); merges.push([1, 3, 3, 13]);
-    put(1, 15, 'Reisetillegg:', { b: true, size: 14 }); merges.push([1, 15, 3, 24]);
-    var table = function (top, rows, n) {
-        hdr.forEach(function (h, i) { put(top, i + 1, h, H); });
-        for (var k = 0; k < n; k++) {
-            var r = rows[k] || {}, rr = top + 1 + k;
-            put(rr, 1, r.dayName || '', D); put(rr, 2, r.date || '', Object.assign({ t: 'int' }, D));
-            put(rr, 3, r.project || '', D);
-            put(rr, 4, r.pct || '', Object.assign({ t: 'pct' }, D, r.pct === 100 ? { fill: 'red' } : (r.pct === 50 ? { fill: 'blue' } : {})));
-            put(rr, 5, r.start || '', Object.assign({ t: 'time' }, D)); put(rr, 6, r.end || '', Object.assign({ t: 'time' }, D));
-            put(rr, 7, r.lunch === '' || r.lunch == null ? '' : r.lunch, Object.assign({ t: 'h' }, D));
-            put(rr, 8, r.hours === '' || r.hours == null ? '' : r.hours, Object.assign({ t: 'h' }, B));
-            put(rr, 9, r.transport || '', D);
-            put(rr, 10, r.kmSum != null ? r.kmSum : '', Object.assign({ t: 'kr' }, B));
-            put(rr, 11, r.km || '', B);
-            put(rr, 12, r.receipt != null ? r.receipt : '', Object.assign({ t: 'kr' }, D));
-            put(rr, 13, r.receiptDesc || '', D);
-        }
-    };
-    table(4, wk.main, nMain);
-    // Totaler (én tabell; ekstra turer står i «Tillegg»-kolonnene til høyre)
-    var tot = 4 + nMain + 2;
-    var sumH = 0, sumRc = 0, sumKm = 0;
-    wk.main.forEach(function (r) { if (typeof r.hours === 'number') sumH += r.hours; if (typeof r.receipt === 'number') sumRc += r.receipt; });
-    wk.perDay.forEach(function (pd) { if (pd.main) sumKm += pd.main.kmSum || 0; if (pd.extra) sumKm += pd.extra.kmSum || 0; });
-    put(tot, 1, 'TOTALT:', { b: true, border: true }); merges.push([tot, 1, tot + 1, 7]);
-    put(tot, 8, 'Timer:', H); merges.push([tot, 8, tot, 9]);
-    put(tot + 1, 8, sumH, Object.assign({ t: 'h' }, B)); merges.push([tot + 1, 8, tot + 1, 9]);
-    put(tot, 10, 'Km sum:', H); put(tot + 1, 10, sumKm, Object.assign({ t: 'kr' }, B));
-    put(tot, 11, 'Km:', H); put(tot + 1, 11, '', B);   // avstand står som intervall → ingen km-sum
-    put(tot, 12, 'Kvittering:', H); merges.push([tot, 12, tot, 13]);
-    put(tot + 1, 12, sumRc, Object.assign({ t: 'kr' }, B)); merges.push([tot + 1, 12, tot + 1, 13]);
-    // Høyre: reisetillegg pr. dag (Timeliste + Tillegg)
-    put(4, 15, 'Timeliste', H); merges.push([4, 15, 4, 19]);
-    put(4, 21, 'Tillegg', H); merges.push([4, 21, 4, 24]);
-    ['Dager:', 'Klasse:', 'Transport:', 'Km sum:', 'Km:'].forEach(function (h, i) { put(5, 15 + i, h, H); });
-    ['Klasse:', 'Transport:', 'Km sum:', 'Km:'].forEach(function (h, i) { put(5, 21 + i, h, H); });
-    var klasseFill = function (x) { return x && x.transport === 'Person' ? 'red' : (x && x.transport === 'Firma' ? 'blue' : null); };
-    wk.perDay.forEach(function (pd, i) {
-        var r = 6 + i, m = pd.main, x = pd.extra;
-        put(r, 15, pd.name, B);
-        put(r, 16, m ? m.klasse : '', Object.assign({ t: 'int' }, B, { fill: klasseFill(m) }));
-        put(r, 17, m ? m.transport : '', B); put(r, 18, m ? m.kmSum : '', Object.assign({ t: 'kr' }, B)); put(r, 19, m ? m.km : '', B);
-        put(r, 21, x ? x.klasse : '', Object.assign({ t: 'int' }, B, { fill: klasseFill(x) }));
-        put(r, 22, x ? x.transport : '', B); put(r, 23, x ? x.kmSum : '', Object.assign({ t: 'kr' }, B)); put(r, 24, x ? x.km : '', B);
-    });
-    // Opptelling: unike dagsbeløp × antall
-    put(14, 15, 'Timeliste', H); merges.push([14, 15, 14, 16]);
-    put(14, 17, 'Tillegg', H); merges.push([14, 17, 14, 18]);
-    put(15, 15, 'Km sum:', H); put(15, 16, 'Antall:', H); put(15, 17, 'Km sum:', H); put(15, 18, 'Antall:', H);
-    // Opptelling pr. tur (beløp = sats × andel): to halve turer à 50 = «50 × 2».
-    var tally = function (key) {
-        var m = {}, o = [];
-        var add = function (v) { if (!v) return; if (!m[v]) { m[v] = 0; o.push(v); } m[v]++; };
-        wk.perDay.forEach(function (pd) {
-            var x = pd[key];
-            if (x) x.trips.forEach(function (tr) { add(tr.kmSum); });
-        });
-        return o.map(function (v) { return [v, m[v]]; });
-    };
-    var tm = tally('main'), te = tally('extra');
-    for (var k = 0; k < 7; k++) {
-        put(16 + k, 15, tm[k] ? tm[k][0] : '', Object.assign({ t: 'kr' }, B)); put(16 + k, 16, tm[k] ? tm[k][1] : '', Object.assign({ t: 'int' }, B));
-        put(16 + k, 17, te[k] ? te[k][0] : '', Object.assign({ t: 'kr' }, B)); put(16 + k, 18, te[k] ? te[k][1] : '', Object.assign({ t: 'int' }, B));
+    // Tittelfeltene har ramme (som Montør/Uke/År) — uten så de ut som noe manglet.
+    // Alle tittelfelt: samme størrelse (14, fet), skrivemåte (ikke store bokstaver), ramme og høyde (3 rader).
+    var TS = { b: true, size: 14, border: true, wrap: true };
+    put(1, 3, 'Timeliste\nDamsgård Brannsikring AS', TS); merges.push([1, 3, 3, 12]);   // samme skrivemåte som de andre titlene
+    hdr.forEach(function (h, i) { put(4, i + 1, h, H); });
+    var sumH = 0, sumKm = 0;
+    for (var k = 0; k < nMain; k++) {
+        var r = wk.main[k] || {}, rr = 5 + k;
+        put(rr, 1, r.dayName || '', D); put(rr, 2, r.date || '', Object.assign({ t: 'int' }, D));
+        put(rr, 3, r.project || '', D);
+        put(rr, 4, r.pct || '', Object.assign({ t: 'pct' }, D));
+        put(rr, 5, r.start || '', Object.assign({ t: 'time' }, D)); put(rr, 6, r.end || '', Object.assign({ t: 'time' }, D));
+        put(rr, 7, r.lunch === '' || r.lunch == null ? '' : r.lunch, Object.assign({ t: 'h' }, D));
+        put(rr, 8, r.hours === '' || r.hours == null ? '' : r.hours, Object.assign({ t: 'h' }, B));
+        put(rr, 9, r.transport || '', D);
+        put(rr, 10, r.km || '', B);
+        put(rr, 11, r.share ? r.share : '', Object.assign({ t: 'h' }, B));
+        put(rr, 12, r.kmSum != null ? r.kmSum : '', Object.assign({ t: 'kr' }, B));
+        if (typeof r.hours === 'number') sumH += r.hours;
+        if (r.kmSum) sumKm += r.kmSum;
     }
-    // Sats-tabell fra tariffen
-    put(24, 15, 'Km', H); put(24, 16, 'Klasse', H); put(24, 17, 'Person', H); put(24, 18, 'Firma', H);
-    put(24, 19, 'Firma = Blå\nPerson = Rød', { italic: true, size: 10, wrap: true }); merges.push([24, 19, 25, 20]);
-    var brs = (wk.tariff && wk.tariff.brackets) || [];
-    put(25, 15, '0 - 7,5', B); put(25, 16, 0, Object.assign({ t: 'int' }, B)); put(25, 17, 0, Object.assign({ t: 'kr' }, B)); put(25, 18, 0, Object.assign({ t: 'kr' }, B));
-    brs.forEach(function (b, i) {
-        var r = 26 + i;
-        put(r, 15, String(b.label || '').replace(/\s*km$/i, '').replace(/[–—]/g, ' - '), B);
-        put(r, 16, i + 1, Object.assign({ t: 'int' }, B));
-        put(r, 17, b.ratePrivat != null ? b.ratePrivat : '', Object.assign({ t: 'kr' }, B));
-        put(r, 18, b.rate != null ? b.rate : '', Object.assign({ t: 'kr' }, B));
+    var tot = 4 + nMain + 2;
+    put(tot, 1, 'TOTALT:', { b: true, border: true }); merges.push([tot, 1, tot + 1, 7]);
+    put(tot, 8, 'Timer:', H);
+    put(tot + 1, 8, sumH, Object.assign({ t: 'h' }, B));
+    put(tot, 9, 'Km sum:', H); merges.push([tot, 9, tot, 12]);
+    put(tot + 1, 9, sumKm, Object.assign({ t: 'kr' }, B)); merges.push([tot + 1, 9, tot + 1, 12]);
+    // Høyre (samme høyde som timelista — alt synes uten å scrolle). Ingen satstabell og
+    // ingen fargekoder (bruker 02-11-2026: færre tabeller).
+    var title = function (row, txt) { put(row, R, txt, TS); merges.push([row, R, row + 2, R + 5]); };   // 3 rader høy
+    // 1) Opptelling for arbeidsgiver: én rad pr. ulik tur (Transport · Km · Andel · Km sum)
+    //    · Antall · Totalt (Km sum × antall) + Sum (bare Totalt — aldri sum av andel/antall).
+    //    Sum = Km sum i TOTALT (lett å kontrollere).
+    var groups = {}, order = [];
+    (wk.trips || []).forEach(function (tx) {
+        if (tx.kmSum == null) return;
+        var key = [tx.transport, tx.km, tx.share, tx.kmSum].join('|');
+        if (!groups[key]) { groups[key] = { transport: tx.transport, km: tx.km, share: tx.share, kmSum: tx.kmSum, n: 0 }; order.push(key); }
+        groups[key].n++;
     });
-    var lastR = 26 + brs.length;
-    put(lastR, 15, '75 +', B); put(lastR, 16, brs.length + 1, Object.assign({ t: 'int' }, B)); put(lastR, 17, 'Avtal', B); put(lastR, 18, 'Avtal', B);
-    return { cells: cells, merges: merges, rows: Math.max(tot + 1, lastR), cols: 24 };
+    var brOrder = ((wk.tariff && wk.tariff.brackets) || []).map(function (b) { return b.label; });
+    order.sort(function (a, b) {
+        var ga = groups[a], gb = groups[b];
+        return (ga.transport === gb.transport ? 0 : (ga.transport === 'Firma' ? -1 : 1)) ||
+            (brOrder.indexOf(ga.km) - brOrder.indexOf(gb.km)) || (gb.share - ga.share);
+    });
+    title(1, 'Reisegodtgjørelse');
+    ['Transport:', 'Km:', 'Andel:', 'Km sum:', 'Antall:', 'Totalt:'].forEach(function (h, i) { put(4, R + i, h, H); });
+    // Dynamisk: én rad pr. oppføring; ingen → én rad «Ingen reisegodtgjørelse» (samme regel
+    // som Kvitteringer — aldri tomme ekstrarader).
+    var nG = Math.max(1, order.length), sumG = 0;
+    if (!order.length) { put(5, R, 'Ingen reisegodtgjørelse', Object.assign({ italic: true }, B)); merges.push([5, R, 5, R + 5]); }
+    else for (var t2 = 0; t2 < nG; t2++) {
+        var g = groups[order[t2]], rg = 5 + t2;
+        put(rg, R, g ? g.transport : '', B);
+        put(rg, R + 1, g ? g.km : '', B);
+        put(rg, R + 2, g ? g.share : '', Object.assign({ t: 'h' }, B));
+        put(rg, R + 3, g ? g.kmSum : '', Object.assign({ t: 'kr' }, B));
+        put(rg, R + 4, g ? g.n : '', Object.assign({ t: 'int' }, B));
+        put(rg, R + 5, g ? g.kmSum * g.n : '', Object.assign({ t: 'kr' }, B));
+        if (g) sumG += g.kmSum * g.n;
+    }
+    var r2s = 5 + nG;
+    put(r2s, R, 'Sum:', H); merges.push([r2s, R, r2s, R + 4]);
+    put(r2s, R + 5, sumG, Object.assign({ t: 'kr' }, B));
+    // 2) Kvitteringer: Dato · Beskrivelse · Beløp + Sum (hører ikke til prosjekt eller rad;
+    //    kun NOK summeres, andre valutaer står som tekst).
+    var rk = r2s + 2, rcs = wk.receipts || [], nRc = Math.max(1, rcs.length), sumRc = 0;
+    title(rk, 'Kvitteringer');
+    var rh = rk + 3;   // overskriftsraden under tittelen (3 rader)
+    put(rh, R, 'Dato:', H); put(rh, R + 1, 'Beskrivelse:', H); merges.push([rh, R + 1, rh, R + 4]); put(rh, R + 5, 'Beløp:', H);
+    if (!rcs.length) { put(rh + 1, R, 'Ingen kvitteringer', Object.assign({ italic: true }, B)); merges.push([rh + 1, R, rh + 1, R + 5]); }
+    else for (var q = 0; q < nRc; q++) {
+        var rc = rcs[q] || {}, rq = rh + 1 + q;
+        put(rq, R, rc.date ? _tbFmtDate(rc.date) : '', B);
+        put(rq, R + 1, rc.desc || '', B); merges.push([rq, R + 1, rq, R + 4]);
+        if (typeof rc.amount === 'number') { put(rq, R + 5, rc.amount, Object.assign({ t: 'kr' }, B)); sumRc += rc.amount; }
+        else put(rq, R + 5, rc.text || '', B);
+    }
+    var rks = rh + 1 + nRc;
+    put(rks, R, 'Sum:', H); merges.push([rks, R, rks, R + 4]);
+    put(rks, R + 5, sumRc, Object.assign({ t: 'kr' }, B));
+    return { cells: cells, merges: merges, rows: Math.max(tot + 1, rks), cols: R + 5 };
 }
 function _tbDgMontor() {
     var mi = safeParseJSON(MIN_INFO_KEY, {}) || {};
@@ -13950,7 +13932,7 @@ function _tbDgMontor() {
 }
 function _tbDgFilename(ext) {
     var e = _tbExp, m = _tbDgMontor();
-    return 'Timeliste ' + (m ? m + ' ' : '') + _tbFmtDMY(e.start).replace(/\./g, '-') + ' til ' + _tbFmtDMY(e.end).replace(/\./g, '-') + '.' + ext;
+    return 'Timeliste ' + (m ? m + ' ' : '') + _tbFmtDMY(e.start) + ' til ' + _tbFmtDMY(e.end) + '.' + ext;
 }
 // Tekst for PDF-celler (Excel får tallene med tallformat).
 function _tbDgText(cell) {
@@ -13960,6 +13942,37 @@ function _tbDgText(cell) {
     if (cell.t === 'pct') return typeof v === 'number' ? v + '%' : String(v);
     if (cell.t === 'h') return typeof v === 'number' ? v.toLocaleString('nb-NO', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : String(v);
     return String(v);
+}
+// Kolonnebredder etter INNHOLDET (aldri «#####» i Excel eller kuttet tekst i PDF):
+// minst grunnbredden i _TB_DG_COLS, ellers bredt nok for den lengste teksten i kolonnen
+// på tvers av alle ukearkene. Sammenslåtte celler: mangler det plass, blir siste kolonne
+// i sammenslåingen bredere. Tekst med bryting (tittel) teller ikke. Bredde i Excel-tegn (Calibri 11 = 1): skrift 12 og
+// fet skrift tar mer plass; +2 tegn luft til rammene.
+function _tbDgColWidths(models) {
+    var widths = _TB_DG_COLS.slice();
+    models.forEach(function (m) {
+        var multi = {};
+        m.merges.forEach(function (g) {
+            if (g[3] > g[1]) for (var r = g[0]; r <= g[2]; r++) for (var c = g[1]; c <= g[3]; c++) multi[r + ':' + c] = true;
+        });
+        var spanAt = {};
+        m.merges.forEach(function (g) { if (g[3] > g[1]) spanAt[g[0] + ':' + g[1]] = g; });
+        m.cells.forEach(function (c) {
+            if (c.c > widths.length) return;
+            var g = spanAt[c.r + ':' + c.c];
+            if (multi[c.r + ':' + c.c] && !g) return;   // skjult del av en sammenslått celle
+            var txt = _tbDgText(c);
+            if (!txt || c.wrap) return;
+            var len = Math.max.apply(null, String(txt).split('\n').map(function (l) { return l.length; }));
+            var need = len * ((c.size || 12) / 11) * (c.b ? 1.1 : 1) + 2;
+            if (!g) { if (need > widths[c.c - 1]) widths[c.c - 1] = Math.ceil(need * 10) / 10; return; }
+            // Sammenslått over flere kolonner: mangler det plass, får siste kolonne resten.
+            var have = 0;
+            for (var k = g[1]; k <= g[3]; k++) have += widths[k - 1];
+            if (need > have) widths[g[3] - 1] = Math.ceil((widths[g[3] - 1] + need - have) * 10) / 10;
+        });
+    });
+    return widths;
 }
 // ExcelJS lastes først når det trengs (stor fil).
 var _tbExcelJsPromise = null;
@@ -13982,13 +13995,17 @@ function _tbDgBuildWorkbook(ExcelJS, weeks) {
     var thin = { style: 'thin', color: { argb: 'FF000000' } };
     var fills = { grey: 'FFF2F2F2', blue: 'FF0070C0', red: 'FFFF0000' };
     var montor = _tbDgMontor();
-    weeks.forEach(function (wk) {
+    var models = weeks.map(function (wk) { return _tbDgSheetModel(wk, montor); });
+    var colW = _tbDgColWidths(models);
+    weeks.forEach(function (wk, wi) {
         var ws = wb.addWorksheet('Uke ' + wk.week, {
             pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
-            properties: { defaultRowHeight: 15.75 }
+            properties: { defaultRowHeight: 15.75 },
+            // Uten Excels rutenett — bare tabellenes egne linjer, likt PDF-en.
+            views: [{ showGridLines: false }]
         });
-        _TB_DG_COLS.forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
-        var m = _tbDgSheetModel(wk, montor);
+        colW.forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+        var m = models[wi];
         m.cells.forEach(function (c) {
             var cell = ws.getCell(c.r, c.c);
             var v = c.v;
@@ -14010,14 +14027,16 @@ function _tbDgBuildPdf(weeks) {
     var jsPDF = window.jspdf.jsPDF;
     var doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     var montor = _tbDgMontor();
-    var totalW = _TB_DG_COLS.reduce(function (a, b) { return a + b; }, 0);
+    var models = weeks.map(function (wk) { return _tbDgSheetModel(wk, montor); });
+    var colW = _tbDgColWidths(models);
+    var totalW = colW.reduce(function (a, b) { return a + b; }, 0);
     var x0 = 6, usableW = 297 - 12;
     var xs = [x0];
-    _TB_DG_COLS.forEach(function (w) { xs.push(xs[xs.length - 1] + w / totalW * usableW); });
+    colW.forEach(function (w) { xs.push(xs[xs.length - 1] + w / totalW * usableW); });
     var fillRgb = { grey: [242, 242, 242], blue: [0, 112, 192], red: [255, 0, 0] };
     weeks.forEach(function (wk, wi) {
         if (wi) doc.addPage();
-        var m = _tbDgSheetModel(wk, montor);
+        var m = models[wi];
         var rowH = Math.min(5.6, (210 - 12) / m.rows), y0 = 6;
         var yOf = function (r) { return y0 + (r - 1) * rowH; };
         var spanOf = {}, hidden = {};
@@ -14038,11 +14057,13 @@ function _tbDgBuildPdf(weeks) {
             doc.setFontSize(fs);
             doc.setTextColor(c.white ? 255 : 0);
             var lines = String(txt).split('\n');
+            // Hele teksten skal alltid synes: for bred → mindre skrift (aldri kuttet).
+            var widest = function () { return Math.max.apply(null, lines.map(function (ln) { return doc.getTextWidth(ln); })); };
+            while (fs > 3 && widest() > w - 1) { fs -= 0.25; doc.setFontSize(fs); }
             var lh = fs * 0.3528 * 1.15;
             var ty = y + h / 2 - (lines.length - 1) * lh / 2;
             lines.forEach(function (ln, li) {
-                var fit = doc.splitTextToSize(ln, w - 1)[0] || '';
-                doc.text(fit, x + w / 2, ty + li * lh, { align: 'center', baseline: 'middle' });
+                doc.text(ln, x + w / 2, ty + li * lh, { align: 'center', baseline: 'middle' });
             });
         });
         doc.setTextColor(0);
@@ -14069,7 +14090,11 @@ function showTimebokExportMenu() {
             '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); timebokExportDamsgard(\'xlsx\', \'download\')">' + dl + ' Excel</button>' +
         '</div>' +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('btn_share') + '</div>' +
-        '<div class="confirm-modal-buttons">' + shareBtn('pdf', 'PDF') + shareBtn('xlsx', 'Excel') + '</div>';
+        // Del Excel: alltid deaktivert (samme stil som deling i Firefox) — nettleseren (Chrome)
+        // kan ikke dele Excel-filer («Permission denied»). Trykk forklarer: last ned og legg ved.
+        '<div class="confirm-modal-buttons">' + shareBtn('pdf', 'PDF') +
+            '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'tb_exp_excel_note\'))">' + sh + ' Excel</button>' +
+        '</div>';
     popup.classList.add('active');
 }
 async function timebokExportDamsgard(kind, action) {
@@ -14095,14 +14120,19 @@ async function timebokExportDamsgard(kind, action) {
         if (loading) loading.classList.remove('active');
         var file = new File([blob], name, { type: type });
         var title = name.replace(/\.(xlsx|pdf)$/, '');
-        if (action === 'share' && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            await _safeShare([file], { title: title, text: title });
-        } else {
+        var download = function () {
             var a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = name;
             document.body.appendChild(a); a.click(); a.remove();
             setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        };
+        // Excel deles aldri (Chrome avviser .xlsx). Feiler en deling likevel → last ned.
+        if (action === 'share' && kind !== 'xlsx' && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file], title: title, text: title }); }
+            catch (se) { if (se && se.name !== 'AbortError') download(); }
+        } else {
+            download();
         }
     } catch (err) {
         console.error('Timebok eksport:', err);
@@ -25167,6 +25197,10 @@ var ACC_CACHE_KEY = 'firesafe_access';
 var _acc = { entry: null, admin: false, fbAdmin: false, adminKnown: false, entryKnown: false, uid: null };
 var _accUnsubs = [];
 (function () {
+    // Lokal test (localhost/fil = DEV_MODE, falsk innlogging): full tilgang fra FØRSTE
+    // øyeblikk. Ellers visste ikke tilgangskontrollen ved oppdatering at test-brukeren er
+    // admin, sperret alt og sendte til Innstillinger (eneste del alle har).
+    if (typeof DEV_MODE !== 'undefined' && DEV_MODE) { _acc.admin = _acc.fbAdmin = true; _acc.adminKnown = true; return; }
     var c = safeParseJSON(ACC_CACHE_KEY, null);
     if (c && c.uid && c.uid === localStorage.getItem('firesafe_last_uid')) {
         _acc.uid = c.uid; _acc.entry = c.entry || null; _acc.admin = !!c.admin; _acc.fbAdmin = !!c.fbAdmin;

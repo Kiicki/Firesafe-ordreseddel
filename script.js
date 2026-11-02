@@ -2107,7 +2107,10 @@ if (auth) {
                 isAdmin = true;
                 safeSetItem('firesafe_logged_in', '1');
                 updateLoginButton();
-                showTemplateModal();
+                // Som ekte innlogging: Hjem bare fra innloggingssiden / tom adresse — ellers
+                // blir du stående der du oppdaterte (oppstarten gjenoppretter siden).
+                var devOnLogin = document.getElementById('login-view').classList.contains('active');
+                if ((devOnLogin || !window.location.hash.slice(1)) && typeof showTemplateModal === 'function') showTemplateModal();
                 return;
             }
             window._explicitLogout = false;
