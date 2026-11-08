@@ -646,9 +646,9 @@ body:has(.spec-popup-backdrop.active),
 body:has(.fakturaadresse-popup-backdrop.active) {
     overflow: hidden;
 }
-body:has(.confirm-modal.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view).view.active,
-body:has(.spec-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view).view.active,
-body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view).view.active {
+body:has(.confirm-modal.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active,
+body:has(.spec-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active,
+body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active {
     overflow: hidden !important;
 }
 
@@ -1249,7 +1249,8 @@ body.template-modal-open:not(.keyboard-open) #template-modal.view.active .modal-
 #service-view.view.active,
 #kappe-view.view.active,
 #kvittering-view.view.active,
-#timebok-view.view.active {
+#timebok-view.view.active,
+#sjekkliste-view.view.active {
     position: fixed;
     top: 0;
     left: 0;
@@ -1262,7 +1263,8 @@ body.template-modal-open:not(.keyboard-open) #template-modal.view.active .modal-
 
 #service-header,
 #kappe-header,
-#kvittering-header {
+#kvittering-header,
+#sjekkliste-header {
     position: sticky;
     top: 0;
     z-index: 10;
@@ -1562,11 +1564,13 @@ body.keyboard-focus #service-view.view.active,
 body.keyboard-focus #kappe-view.view.active,
 body.keyboard-focus #kvittering-view.view.active,
 body.keyboard-focus #timebok-view.view.active,
+body.keyboard-focus #sjekkliste-view.view.active,
 body.kbd-editing #view-form.view.active,
 body.kbd-editing #service-view.view.active,
 body.kbd-editing #kappe-view.view.active,
 body.kbd-editing #kvittering-view.view.active,
-body.kbd-editing #timebok-view.view.active {
+body.kbd-editing #timebok-view.view.active,
+body.kbd-editing #sjekkliste-view.view.active {
     position: static;
     top: auto;
     left: auto;
@@ -1582,11 +1586,13 @@ body.keyboard-focus .container.service-view,
 body.keyboard-focus .container.kappe-view,
 body.keyboard-focus .container.kvittering-view,
 body.keyboard-focus .container.timebok-view,
+body.keyboard-focus .container.sjekkliste-view,
 body.kbd-editing .container.form-view,
 body.kbd-editing .container.service-view,
 body.kbd-editing .container.kappe-view,
 body.kbd-editing .container.kvittering-view,
-body.kbd-editing .container.timebok-view {
+body.kbd-editing .container.timebok-view,
+body.kbd-editing .container.sjekkliste-view {
     overflow-y: visible;
 }
 
@@ -7428,7 +7434,8 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     html.device-pc #service-view.view.active,
     html.device-pc #kappe-view.view.active,
     html.device-pc #kvittering-view.view.active,
-    html.device-pc #timebok-view.view.active {
+    html.device-pc #timebok-view.view.active,
+    html.device-pc #sjekkliste-view.view.active {
         position: static;
         bottom: auto;
         height: auto;
@@ -7450,7 +7457,8 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     html.device-pc .container.service-view,
     html.device-pc .container.kappe-view,
     html.device-pc .container.kvittering-view,
-    html.device-pc .container.timebok-view {
+    html.device-pc .container.timebok-view,
+    html.device-pc .container.sjekkliste-view {
         overflow-y: visible;
     }
 
@@ -7458,7 +7466,8 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     html.device-pc .container.service-view,
     html.device-pc .container.kappe-view,
     html.device-pc .container.kvittering-view,
-    html.device-pc .container.timebok-view {
+    html.device-pc .container.timebok-view,
+    html.device-pc .container.sjekkliste-view {
         box-shadow: 0 0 20px rgba(0,0,0,0.1);
     }
 }
@@ -8848,12 +8857,20 @@ body.bulk-select-active .toolbar {
  * KAPPESKJEMA
  * ============================================================================ */
 
-/* Home-actions med 3 knapper — alle på samme rad */
+/* Home-actions med 4 knapper (Ordreseddel, Servicebil, Kappeskjema, Sjekkliste):
+ * 2×2 på smal skjerm (fire på én rad gir avkuttet «+ Kappeskjema» på telefon),
+ * alle fire på én rad når det er plass. Grid i stedet for flex, så knappene er
+ * like brede uansett tekst. */
 .home-actions {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 600px) {
+    .home-actions {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
 }
 .home-actions .btn-skip-template {
-    flex: 1 1 0;
     min-width: 0;
     font-size: 12px;
     padding: 10px 6px;
@@ -8863,7 +8880,6 @@ body.bulk-select-active .toolbar {
 }
 @media (min-width: 1025px) {
     .home-actions .btn-skip-template {
-        flex: 1;
         font-size: inherit;
         padding: 10px 14px;
     }
@@ -12353,6 +12369,7 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
 html.acc-off-ordreseddel [data-acc="ordreseddel"],
 html.acc-off-servicebil [data-acc="servicebil"],
 html.acc-off-kappe [data-acc="kappe"],
+html.acc-off-sjekkliste [data-acc="sjekkliste"],
 html.acc-off-kvittering [data-acc="kvittering"],
 html.acc-off-verktoy [data-acc="verktoy"],
 html.acc-off-timebok [data-acc="timebok"],
@@ -12661,3 +12678,589 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 #timebok-receipts .tb-af-group { padding-top: 12px; }
 /* Kvittering-sidene: ingen ‹ › / ← i baren (tilbake = pila øverst). */
 .tb-mode-receipt .timebok-header-bar .tb-head-nav, .tb-mode-receipt .timebok-header-bar .tb-head-toggle { visibility: hidden; }
+
+/* ============================================================================
+ * SJEKKLISTER (view-skall som kvittering/kappe; tastatur/PC via listene over)
+ * ============================================================================ */
+body.sjekkliste-view-open #view-form { display: none; }
+.container.sjekkliste-view {
+    flex: 1;
+    background: #fff;
+    margin: 0 auto;
+    padding: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overflow-anchor: none;
+}
+.sjekkliste-view > .modal-content {
+    overflow: visible;
+    flex: none;
+}
+.sj-search { margin-bottom: 14px; }
+.sj-search input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+    box-sizing: border-box;
+}
+.sj-search input:focus { border-color: #E8501A; }
+.sj-empty {
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+    padding: 28px 8px;
+}
+.sj-item { gap: 10px; }
+.sj-item .saved-item-row2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sj-item-meta { color: #999; font-size: 12px; }
+.sj-item-chev { color: #bbb; font-size: 22px; line-height: 1; flex-shrink: 0; }
+.sj-item-img {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #888;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+.sj-proj-head { margin-bottom: 12px; }
+.sj-proj-name { font-size: 18px; font-weight: 700; color: #222; }
+.sj-proj-sub { font-size: 13px; color: #777; margin-top: 2px; }
+.sj-floor-filter select { width: 100%; }
+.sj-more-btn {
+    display: block;
+    width: 100%;
+    margin: 6px 0 12px;
+    padding: 11px;
+    border: 1.5px solid #ddd;
+    border-radius: 10px;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+    cursor: pointer;
+}
+.sj-more-btn:disabled { opacity: 0.5; }
+
+/* Snarvei øverst i skjemaet → alle sjekklister */
+.sj-overview-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    background: #fafafa;
+    color: #333;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: left;
+}
+.sj-overview-link span:first-of-type { flex: 1; }
+.sj-overview-link svg { color: #E8501A; flex-shrink: 0; }
+
+/* Kompakt: få kort, hvert punkt er én rad (etikett + én linje kontroller) med tynn
+   skillelinje — ikke ett kort pr. punkt. */
+.sj-card {
+    border: 1px solid #e3e3e6;
+    border-radius: 12px;
+    padding: 0 12px;
+    margin-bottom: 10px;
+    background: #fff;
+}
+.sj-row { padding: 9px 0; border-top: 1px solid #f0f0f2; }
+.sj-row:first-child { border-top: none; }
+.sj-row-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 5px;
+}
+/* Flere felt på samme linje (prosjekt, rom A ⇄ B, bredde × høyde, bilde-knapper) */
+.sj-line { display: flex; align-items: center; gap: 6px; }
+.sj-line > input[type="text"] { flex: 1 1 0; min-width: 0; }
+.sj-card .sj-line > input.sj-w-nr { flex: 0 0 34%; }
+.sj-times { color: #999; font-size: 15px; flex-shrink: 0; }
+.sj-icon-btn {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    border: 1.5px solid #E8501A;
+    border-radius: 8px;
+    background: #fff;
+    color: #E8501A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.sj-icon-btn:active { background: #fff3ee; }
+.sj-chip-add { padding: 0 9px; }
+.sj-line > .kv-add-btn { flex: 1 1 0; min-width: 0; margin: 0; }
+
+/* Valg-rad: knapper på ÉN linje + «Flere ▾» (se _sjPick). Det som ikke får plass,
+   brytes ned og klippes bort; «Flere» inneholder alle valgene. */
+.sj-pick { display: flex; align-items: flex-start; gap: 6px; }
+.sj-pick-chips {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    height: 38px;
+    overflow: hidden;
+}
+.sj-pick:not(.sj-pick-overflow):not(.sj-pick-tail) .sj-pick-more { display: none; }
+/* Knappene som får plass, fyller resten av linja (ingen tomrom før «Flere»). Hvilke
+   som får plass avgjøres av grunnbredden, så utvidelsen endrer ikke antallet. */
+.sj-pick-chips > .sj-chip { flex: 1 0 auto; }
+.sj-card select.sj-pick-more {
+    /* Fast, smal bredde: ellers blir den like bred som det lengste valget i lista og
+       stjeler plass fra knappene. Et langt valgt navn kuttes med … (står i lista). */
+    flex: 0 0 80px;
+    width: 80px;
+    height: 38px;
+    padding: 0 24px 0 9px;
+    font-size: 14px;
+    border: 1.5px solid #d6d6da;
+    border-radius: 9px;
+    color: #555;
+    background-position: right 6px center;
+    text-overflow: ellipsis;
+}
+.sj-card select.sj-pick-more.active {
+    border-color: #E8501A;
+    background-color: #fff3ee;
+    color: #E8501A;
+    font-weight: 600;
+}
+.sj-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 8px;
+}
+/* Felt i kortene: samme utseende som .mobile-field input i resten av appen. */
+.sj-card select,
+.sj-card input[type="text"],
+.sj-card textarea,
+#sj-floor-filter {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    font-size: 16px;
+    color: #222;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background-color: #fff;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+}
+.sj-card select,
+.sj-card input[type="text"],
+.sj-card textarea { padding: 9px 10px; }
+.sj-card select,
+#sj-floor-filter {
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+.sj-card select:focus,
+.sj-card input[type="text"]:focus,
+.sj-card textarea:focus,
+#sj-floor-filter:focus {
+    outline: none;
+    border-color: #E8501A;
+    box-shadow: 0 0 0 2px rgba(232, 80, 26, 0.2);
+}
+.sj-card .sj-content-row input[type="text"] { padding: 10px; }
+.sj-card textarea { resize: none; min-height: 40px; display: block; }
+.sj-card .mobile-field { margin-bottom: 0; }
+.sj-card-project .btn-template-picker { margin-bottom: 10px; }
+.sj-row2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+}
+.sj-hint { font-size: 12px; color: #888; margin-top: 5px; line-height: 1.4; }
+.sj-hint:empty { display: none; }
+#sj-thumbs:empty { display: none; }
+
+/* Valg-knapper (enkelt- og flervalg) */
+.sj-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.sj-chip {
+    flex: 0 0 auto;
+    min-width: 42px;
+    max-width: 100%;
+    height: 38px;
+    padding: 0 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border: 1.5px solid #d6d6da;
+    border-radius: 9px;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.sj-chip.active {
+    border-color: #E8501A;
+    background: #fff3ee;
+    color: #E8501A;
+    font-weight: 600;
+}
+.sj-card input.sj-qty-other {
+    flex: 0 0 78px;
+    width: 78px;
+    height: 38px;
+    padding: 0 10px;
+    font-size: 15px;
+}
+.sj-chip-add { border-style: dashed; border-color: #E8501A; color: #E8501A; font-weight: 600; }
+.sj-chip-add:active { background: #fff3ee; }
+
+/* Rom/område: to felt + bytt-knapp */
+.sj-area { display: flex; align-items: center; gap: 8px; }
+.sj-area-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.sj-swap {
+    flex-shrink: 0;
+    width: 36px;
+    height: 38px;
+    border: 1.5px solid #d6d6da;
+    border-radius: 9px;
+    background: #fff;
+    color: #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.sj-swap:active { background: #f0f0f0; }
+
+/* Innhold i hullet */
+.sj-content-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+.sj-content-type {
+    flex: 0 0 auto;
+    max-width: 30%;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sj-card input.sj-content-desc { flex: 1; min-width: 0; width: auto; }
+.sj-card input.sj-content-qty { flex: 0 0 52px; width: 52px; text-align: center; }
+.sj-content-del {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 36px;
+    border: none;
+    background: none;
+    color: #e74c3c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.sj-content-del svg { width: 20px; height: 20px; }
+.sj-content-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+.sj-add-btn {
+    flex: 1 1 auto;   /* lange navn bryter til ny rad i stedet for å kuttes */
+    min-width: 0;
+    padding: 9px 6px;
+    border: 1.5px dashed #E8501A;
+    border-radius: 9px;
+    background: #fff;
+    color: #E8501A;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.sj-add-btn:active { background: #fff3ee; }
+
+.sj-actions { margin-top: 6px; }
+.sj-btn-delete { color: #e74c3c; border-color: #f0c4bf; }
+.sj-btn-delete svg { width: 16px; height: 16px; }
+.sj-meta { font-size: 12px; color: #999; text-align: center; padding: 4px 0 12px; }
+
+/* Bilde i fullskjerm (over alt unntatt toast) */
+.sj-img-viewer {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 96;
+    background: rgba(0, 0, 0, 0.92);
+    align-items: center;
+    justify-content: center;
+}
+.sj-img-viewer.active { display: flex; }
+.sj-img-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.sj-img-viewer-close {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+/* Innstillinger → Sjekkliste */
+.sj-set-hint { font-size: 12px; color: #888; padding: 8px 16px 4px; line-height: 1.4; }
+.sj-set-empty { font-size: 13px; color: #999; padding: 8px 16px; }
+.sj-set-move {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    flex-shrink: 0;
+}
+.sj-set-move:disabled { color: #d0d0d4; cursor: default; }
+.sj-set-move:not(:disabled):active { opacity: 0.6; }
+
+/* ============================================================================
+ * HJEM → Skjemaer: én rad pr. skjematype i samme stil som Meny (hvitt kort, farget
+ * ikon, tittel + undertekst). Raden åpner lista for typen; «+» lager nytt direkte.
+ * Erstatter Lagret i toolbaren. Undertekst = antall utkast (oransje) eller beskrivelse.
+ * ============================================================================ */
+.home-forms-list {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.home-form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 10px 9px 14px;
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.home-form-row:active { background: #f7f7f9; }
+.home-form-row + .home-form-row::before {
+    content: ''; position: absolute; top: 0; left: 56px; right: 0; border-top: 1px solid #ececf0;
+}
+.home-form-desc.has-drafts { color: #E8501A; font-weight: 500; }
+.home-form-new {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: #fff1ea;
+    color: #E8501A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+.home-form-new:active { background: #ffdccb; }
+
+/* Lista (saved-modal): én type om gangen → ingen fane-rad. Fane-DOM-en beholdes fordi
+   switchHentTab/eksport fortsatt bruker den som tilstand. */
+#saved-tabs-wrap { display: none !important; }
+#saved-modal .modal-header #saved-new-btn { margin-left: 8px; }
+#saved-modal.select-mode #saved-new-btn { display: none; }
+/* «Velg» som kant-knapp, så «+ Ny» (fylt) er tydelig hovedhandling ved siden av. */
+#saved-modal #saved-select-btn:not(.active) {
+    background: transparent;
+    color: #E8501A;
+    box-shadow: inset 0 0 0 1.5px #E8501A;
+}
+
+/* Sjekkliste: obligatorisk = rød stjerne på radens etikett (samme som .field-required ellers);
+   felt som mangler ved lagring får rød ramme til det er fylt ut. */
+.sj-row.field-required > .sj-row-label::after,
+.sj-row.field-required > .sj-row-head > .sj-row-label::after { content: ' *'; color: #e74c3c; font-weight: bold; }
+.sj-row.sj-missing {
+    margin: 0 -8px;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 8px;
+    background: #fdf1f0;
+    box-shadow: inset 0 0 0 1.5px #e74c3c;
+}
+.sj-set-group-gap { height: 16px; }
+
+/* Innhold i hullet: overskrift + «Hullet er tomt»-bryter på samme linje, så tabell
+   Type · Størrelse · Antall · slett. Kolonnebreddene er målt så «Ventilasjon» og
+   plassholderne får plass ved 360 px. */
+.sj-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.sj-row-head > .sj-row-label { margin-bottom: 0; }
+.sj-empty-toggle {
+    /* Samme størrelse som valgknappene (38 px) — lett å treffe på mobil. */
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 38px; padding: 0 12px; flex-shrink: 0;
+    border: 1.5px solid #d6d6da; border-radius: 9px; background: #fff; cursor: pointer;
+    font-size: 14px; color: #333; -webkit-tap-highlight-color: transparent;
+}
+.sj-empty-toggle.active { border-color: #E8501A; background: #fff3ee; }
+.sj-empty-box {
+    width: 18px; height: 18px; border: 1.5px solid #b8b8be; border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff; background: #fff;
+}
+.sj-empty-toggle.active { color: #E8501A; font-weight: 600; }
+.sj-empty-toggle.active .sj-empty-box { background: #E8501A; border-color: #E8501A; }
+.sj-ct-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) 46px 26px;
+    gap: 6px;
+    align-items: center;
+}
+.sj-ct-head { font-size: 11px; color: #888; margin-bottom: 3px; }
+.sj-ct-grid.sj-content-row { margin-top: 0; margin-bottom: 6px; }
+.sj-card .sj-content-row select,
+.sj-card .sj-content-row input[type="text"] { height: 38px; padding: 0 8px; }
+.sj-card .sj-content-row select { padding-right: 22px; background-position: right 5px center; }
+.sj-card .sj-content-row input[data-cf="antall"] { text-align: center; padding: 0 4px; }
+.sj-ct-grid .sj-content-del { width: 26px; }
+.sj-add-row {
+    display: block; width: 100%; height: 36px; margin-top: 2px;
+    border: 1.5px dashed #E8501A; border-radius: 9px; background: #fff;
+    color: #E8501A; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.sj-add-row:active { background: #fff3ee; }
+/* Midlertidig tomrom nederst som hindrer at siden hopper når innhold forsvinner
+   (_preserveScrollAround) — fjernes av seg selv når det er skrollet ut av syne. */
+.scroll-keep-spacer { flex-shrink: 0; pointer-events: none; }
+
+/* «Har innhold | Tomt hull»: to like store knapper i full bredde (som «Tettes fra»). */
+.sj-empty-seg { display: flex; gap: 6px; margin-bottom: 8px; }
+.sj-empty-seg > .sj-chip { flex: 1 1 0; height: 40px; }
+
+/* Materialer i sjekklisten: samme oppsummering som ordrekortet (renderMaterialSummary). */
+.sj-mat-list { cursor: pointer; }
+.sj-mat-list:not(:empty) { margin-bottom: 8px; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * SJEKKLISTE-SKJEMA — utseende (08-11-2026). Første rydding (grå bakgrunn + grå
+ * segmentkontroll) ble avvist: «ekstremt mye grått», «ingen skiller mellom knapper».
+ * Nå: hvit side, seksjonsoverskrifter som i appens andre skjemaer (fet + strek under,
+ * = .mobile-section-title), EGNE knapper med ramme og mellomrom (valgt = oransje),
+ * hvite hjelpeknapper med tynn oransje ramme, «valgfritt» i stedet for stjerner.
+ * Overstyrer de eldre sj-reglene over.
+ * ════════════════════════════════════════════════════════════════════════════ */
+#sjekkliste-header > #sj-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sjekkliste-header .header-save-btn { margin-left: 6px; }
+.sj-head-icon {
+    width: 38px; height: 38px; border: none; background: none; color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.9;
+    -webkit-tap-highlight-color: transparent;
+}
+.sj-head-icon:active { opacity: 0.5; }
+
+/* Seksjoner: samme som .mobile-section-title i de andre skjemaene */
+#sj-pane-form .sj-sec-title {
+    font-size: 14px; font-weight: bold; color: #333;
+    margin: 22px 0 2px; padding-bottom: 5px; border-bottom: 1px solid #ddd;
+}
+#sj-pane-form > .sj-sec-title:first-child { margin-top: 0; }
+#sj-pane-form .sj-card { border: none; border-radius: 0; background: none; box-shadow: none; padding: 0; margin: 0; }
+#sj-pane-form .sj-row { padding: 10px 0 4px; border-top: none; }
+#sj-pane-form .sj-row-label { font-size: 13px; font-weight: 500; color: #6b6b70; margin-bottom: 6px; }   /* etikett: grå, lettere enn seksjonsoverskriften */
+
+/* Stjerner av — det valgfrie merkes i stedet */
+#sj-pane-form .sj-row.field-required > .sj-row-label::after,
+#sj-pane-form .sj-row.field-required > .sj-row-head > .sj-row-label::after { content: none; }
+#sj-pane-form .sj-row[data-req]:not(.field-required) > .sj-row-label::after {
+    content: ' \00B7  ' attr(data-opt); color: #a0a0a6; font-weight: 400;
+}
+
+/* Valgknapper: hver knapp for seg, med ramme og mellomrom */
+#sj-pane-form .sj-pick,
+#sj-pane-form .sj-empty-seg { background: none; padding: 0; gap: 6px; border-radius: 0; }
+#sj-pane-form .sj-pick-chips { height: 40px; gap: 6px; }
+#sj-pane-form .sj-pick .sj-chip,
+#sj-pane-form .sj-empty-seg .sj-chip {
+    height: 40px; min-width: 42px; padding: 0 9px;
+    border: 1px solid #cfcfd4; border-radius: 9px; background: #fff;
+    color: #333; font-weight: 400; box-shadow: none;
+}
+#sj-pane-form .sj-pick .sj-chip.active,
+#sj-pane-form .sj-empty-seg .sj-chip.active {
+    border: 1.5px solid #E8501A; background: #fff3ee; color: #E8501A; font-weight: 600;
+}
+#sj-pane-form .sj-pick .sj-chip:not(.active):active,
+#sj-pane-form .sj-empty-seg .sj-chip:not(.active):active { background: #f6f6f8; }
+#sj-pane-form .sj-empty-seg { margin-bottom: 10px; }
+#sj-pane-form .sj-card .sj-pick select.sj-pick-more {
+    height: 40px; border: 1px solid #cfcfd4; border-radius: 9px; background-color: #fff;
+    color: #555; font-weight: 400; box-shadow: none;
+}
+#sj-pane-form .sj-card .sj-pick select.sj-pick-more.active {
+    border: 1.5px solid #E8501A; background-color: #fff3ee; color: #E8501A; font-weight: 600;
+}
+#sj-pane-form .sj-card .sj-pick input.sj-qty-other {
+    height: 40px; border: 1px solid #cfcfd4; border-radius: 9px; background: #fff; font-size: 15px;
+}
+
+/* Felt */
+#sj-pane-form .sj-card input[type="text"],
+#sj-pane-form .sj-card textarea,
+#sj-pane-form .sj-card .sj-content-row select { border: 1px solid #cfcfd4; border-radius: 9px; }
+
+/* Hjelpeknapper: hvite med tynn oransje ramme */
+#sj-pane-form .sj-soft-btn,
+#sj-pane-form .sj-add-row {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; height: 40px; margin: 0; border: 1px solid #f1b9a2; border-radius: 9px;
+    background: #fff; color: #E8501A; font-size: 14px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#sj-pane-form .sj-soft-btn:active,
+#sj-pane-form .sj-add-row:active { background: #fff3ee; }
+#sj-pane-form .sj-line > .sj-soft-btn { flex: 1 1 0; min-width: 0; }
+#sj-pane-form .sj-add-row { margin-top: 2px; }
+#sj-pane-form .sj-swap { border: 1px solid #cfcfd4; background: #fff; border-radius: 9px; height: 40px; }
+#sj-pane-form .sj-icon-btn { border: 1px solid #f1b9a2; background: #fff; border-radius: 9px; }
+
+/* Én tydelig «Lagre» nederst */
+#sj-pane-form .sj-actions { margin-top: 22px; }
+#sj-pane-form .sj-btn-save {
+    background: #E8501A; border-color: #E8501A; color: #fff; height: 48px; font-size: 15px; border-radius: 12px;
+}
+#sj-pane-form .sj-btn-save:active { opacity: 0.85; background: #E8501A; }
+#sj-pane-form .sj-btn-delete { height: 48px; border-radius: 12px; }

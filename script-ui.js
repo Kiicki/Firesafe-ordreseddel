@@ -85,6 +85,8 @@ function refreshActiveView() {
             _timebokMergeDaysToCache(days);
             if (document.body.classList.contains('timebok-view-open') && !_timebokIsDirty()) renderTimebok();
         }).catch(function(e) { console.error('Refresh timebok:', e); });
+    } else if (document.body.classList.contains('sjekkliste-view-open')) {
+        _sjRefreshActive();
     }
 }
 
@@ -100,6 +102,94 @@ function formatDateWithTime(date) {
     return `${day}.${month}.${year}, ${hours}:${mins}`;
 }
 
+// Nyeste først for ISO-tidsstempler (savedAt/createdAt/lastAt). Vanlig streng-
+// sammenligning gir samme rekkefølge som localeCompare for ISO-datoer, men er mange
+// ganger raskere (localeCompare går via språkbevisst ICU-sortering) — det merktes
+// når Lagret sorterte 100+ skjemaer ved hvert trykk.
+function _cmpIsoDesc(a, b) {
+    a = a || ''; b = b || '';
+    return a < b ? 1 : a > b ? -1 : 0;
+}
+
+// Skroll-nullstilling ved visningsbytte UTEN tvungen layout. Å sette scrollTop /
+// window.scrollTo midt i et bytte tvinger nettleseren til å regne ut layouten for
+// HELE dokumentet (alle views ligger i samme DOM) — 30–60 ms per gang på mobil, og ett
+// trykk gjorde ofte 2–3 slike (closeAllModals → showView('view-form') → showView(mål)).
+//  - En view som var skjult (display:none) da oppgaven startet, har ingen skrollboks og
+//    vises alltid fra toppen → trenger ingen nullstilling.
+//  - Bare en view som var SYNLIG ved start og vises igjen i samme oppgave (skjult og vist
+//    på nytt) nullstilles — samlet i én mikrooppgave etter alle DOM-endringene.
+//  - Dokument-skrollen (Hjem/PC/tastatur-layout scroller body) nullstilles bare når den
+//    ikke står på 0; verdien spores i scroll-hendelsen, der lesingen er gratis.
+var _svStartActiveId, _svTarget = null, _svPending = false;
+var _docScrollY = null;   // null = ukjent → nullstill for sikkerhets skyld
+window.addEventListener('scroll', function () { _docScrollY = window.scrollY; }, { passive: true });
+window.addEventListener('load', function () { _docScrollY = window.scrollY; });
+function _svScheduleScrollReset(target, prevActiveId) {
+    if (!_svPending) {
+        _svPending = true;
+        _svStartActiveId = prevActiveId;
+        Promise.resolve().then(function () {
+            var t = _svTarget, startId = _svStartActiveId;
+            _svPending = false; _svTarget = null; _svStartActiveId = undefined;
+            if (t && t.id === startId && t.classList.contains('active')) t.scrollTop = 0;
+            if (_docScrollY !== 0) { window.scrollTo(0, 0); _docScrollY = 0; }
+        });
+    }
+    _svTarget = target;
+}
+
+// ── Innhold endres uten at siden flytter seg (gjelder hele appen) ─────────────
+// Når et trykk fjerner eller legger til innhold (f.eks. «Hullet er tomt» skjuler rader),
+// skal elementet brukeren trykket på stå på SAMME sted på skjermen. Det vanlige
+// problemet: krymper siden mens du står langt nede, MÅ nettleseren klemme
+// skrollposisjonen (det finnes ikke lenger så mye side under) → alt hopper. Da legges
+// et midlertidig tomrom nederst som holder posisjonen; det fjernes av seg selv når
+// det er skrollet helt ut av syne (fjerning da kan ikke flytte noe synlig).
+// getAnchor: funksjon som returnerer ankeret ETTER endringen (det kan ha blitt tegnet på nytt).
+function _scrollerFor(el) {
+    var v = el && el.closest ? el.closest('.view') : null;
+    if (v) {
+        var oy = getComputedStyle(v).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && v.scrollHeight > v.clientHeight) return v;
+    }
+    return document.scrollingElement || document.documentElement;
+}
+function _preserveScrollAround(getAnchor, mutate) {
+    var a0 = getAnchor();
+    if (!a0) { mutate(); return; }
+    var sc = _scrollerFor(a0);
+    var top0 = a0.getBoundingClientRect().top;
+    mutate();
+    var a1 = getAnchor();
+    if (!a1) return;
+    var delta = a1.getBoundingClientRect().top - top0;
+    if (Math.abs(delta) < 1) return;
+    var target = sc.scrollTop + delta;
+    var max = sc.scrollHeight - sc.clientHeight;
+    if (target > max) {
+        var host = (a1.closest && (a1.closest('.mobile-form') || a1.closest('.view'))) || document.body;
+        var sp = host.querySelector(':scope > .scroll-keep-spacer');
+        if (!sp) { sp = document.createElement('div'); sp.className = 'scroll-keep-spacer'; sp.setAttribute('aria-hidden', 'true'); host.appendChild(sp); }
+        sp.style.height = ((parseFloat(sp.style.height) || 0) + (target - max)) + 'px';
+        _watchScrollSpacer(sc, sp);
+    }
+    sc.scrollTop = target;
+}
+// Fjern tomrommet når det er helt under synsfeltet (da kan fjerningen ikke flytte noe synlig).
+function _watchScrollSpacer(sc, sp) {
+    if (sp._watching) return;
+    sp._watching = true;
+    var target = (sc === document.scrollingElement || sc === document.documentElement) ? window : sc;
+    var onScroll = function () {
+        if (!sp.isConnected) { target.removeEventListener('scroll', onScroll); return; }
+        var r = sp.getBoundingClientRect();
+        var vh = (target === window) ? window.innerHeight : sc.getBoundingClientRect().bottom;
+        if (r.top >= vh) { sp.remove(); target.removeEventListener('scroll', onScroll); }
+    };
+    target.addEventListener('scroll', onScroll, { passive: true });
+}
+
 // View system: show one view, hide all others
 var _previousViewId = null;
 function showView(viewId) {
@@ -113,8 +203,7 @@ function showView(viewId) {
             v.classList.remove('active');
         });
         target.classList.add('active');
-        target.scrollTop = 0;
-        window.scrollTo(0, 0);
+        _svScheduleScrollReset(target, current ? current.id : null);
     }
     _navNote();
     // Toolbar-state (i body vs. inni modal-body) håndteres av
@@ -127,7 +216,7 @@ function closeAllModals() {
     var actionPopup = document.getElementById('action-popup');
     if (actionPopup) actionPopup.classList.remove('active');
     _bilHistoryRendered = false;
-    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'kvittering-view-open', 'calculator-modal-open', 'timebok-view-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open', 'service-view-open', 'kappe-view-open', 'kvittering-view-open', 'calculator-modal-open', 'timebok-view-open', 'sjekkliste-view-open');
     // Servicebil-inntak/uttak-modus + picker-overlay må også lukkes —
     // ellers blir picker-overlay synlig over hjem/lagrede når brukeren
     // navigerer vekk fra Servicebil Inntak via toolbar (Hjem etc.).
@@ -143,6 +232,7 @@ function closeAllModals() {
     sessionStorage.removeItem('firesafe_kappe_current');
     sessionStorage.removeItem('firesafe_kvittering_current');
     sessionStorage.removeItem('firesafe_servicebil_mode');
+    if (typeof _sjCloseForm === 'function') _sjCloseForm();   // sjekkliste-økt (inkl. ulagrede bilder)
     showView('view-form');
 }
 
@@ -154,7 +244,8 @@ function isModalOpen() {
         || document.body.classList.contains('kappe-view-open')
         || document.body.classList.contains('kvittering-view-open')
         || document.body.classList.contains('calculator-modal-open')
-        || document.body.classList.contains('timebok-view-open');
+        || document.body.classList.contains('timebok-view-open')
+        || document.body.classList.contains('sjekkliste-view-open');
 }
 
 // Update toolbar button states based on current view
@@ -220,7 +311,7 @@ function _statusSortRank(item) {
 function _savedFormsStatusCompare(a, b) {
     var ra = _statusSortRank(a), rb = _statusSortRank(b);
     if (ra !== rb) return ra - rb;
-    return (b.savedAt || '').localeCompare(a.savedAt || '');
+    return _cmpIsoDesc(a.savedAt, b.savedAt);
 }
 // Ikoner for «marker neste status» i lista.
 var _statusSendIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
@@ -620,9 +711,56 @@ async function loadMoreSavedForms() {
         _sentHasMore = result2.hasMore;
         newForms = newForms.concat(result2.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); }));
     }
-    newForms.sort(function(a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+    newForms.sort(function(a, b) { return _cmpIsoDesc(a.savedAt, b.savedAt); });
     renderSavedFormsList(newForms, true, _savedHasMore || _sentHasMore);
 }
+
+// ── Skjematyper: Hjem-knapp → liste for typen (med «+ Ny») ─────────────────────
+// Lagret er ikke lenger en egen side med faner i toolbaren: hver type har sin liste,
+// åpnet fra den delte knappen på Hjem (navnet = lista, «+» = nytt skjema). Lista er
+// den samme saved-modal-en som før (søk, Velg, eksport), bare uten fane-raden og
+// med typens navn som tittel.
+function _hentTitle(tab) {
+    tab = tab || _hentLastTab;
+    if (tab === 'servicebil' || tab === 'service') return t('tab_servicebil');
+    if (tab === 'kappe') return t('hent_title_kappe');
+    return t('hent_title_own');
+}
+function openFormList(tab) {
+    if (tab === 'sjekkliste') { sjOpenOverview(); return; }
+    showSavedForms(tab);
+}
+window.openFormList = openFormList;
+// «+ Ny» i lista: nytt skjema av typen lista viser. Tilbake fra skjemaet → lista.
+function hentNewForm() {
+    var tab = _hentLastTab || 'own';
+    if (_selectMode) toggleSelectMode();
+    closeAllModals();
+    // closeAllModals nullstiller fanen i økten — tilbake-knappen i skjemaet leser den.
+    sessionStorage.setItem('firesafe_hent_tab', tab);
+    _hentLastTab = tab;
+    if (tab === 'servicebil' || tab === 'service') openServicebilView();
+    else if (tab === 'kappe') openNewKappeForm();
+    else closeTemplateModal();
+}
+window.hentNewForm = hentNewForm;
+// Utkast-teller på Hjem-knappene. Leser den lokale cachen (ingen nettverk) og kjøres
+// etter at Hjem er tegnet, så trykket på Hjem aldri venter på den.
+function _homeRenderCounts() {
+    // Undertekst på raden: «N utkast» (oransje) når typen har utkast, ellers beskrivelsen.
+    var setCount = function (id, n) {
+        var el = document.getElementById('home-count-' + id);
+        if (!el) return;
+        el.textContent = n ? t(n === 1 ? 'home_drafts_one' : 'home_drafts_many').replace('{0}', n >= 50 ? '50+' : n)
+                           : t(el.getAttribute('data-desc-key'));
+        el.classList.toggle('has-drafts', !!n);
+    };
+    setCount('sjekkliste', 0);
+    setCount('own', safeParseJSON(STORAGE_KEY, []).length);
+    setCount('servicebil', safeParseJSON(SERVICE_STORAGE_KEY, []).length);
+    setCount('kappe', safeParseJSON(KAPPE_STORAGE_KEY, []).length);
+}
+window._homeRenderCounts = _homeRenderCounts;
 
 function showSavedForms(tab) {
     // tab er valgfri: settes ved tilbake-navigasjon fra et skjema så vi lander på
@@ -925,6 +1063,8 @@ function switchHentTab(tab) {
     if (tab === 'kvittering') tab = 'own';
     sessionStorage.setItem('firesafe_hent_tab', tab);
     _hentLastTab = tab;
+    var hentTitleEl = document.getElementById('saved-modal-title');
+    if (hentTitleEl && !_selectMode) hentTitleEl.textContent = _hentTitle(tab);
     const tabs = document.querySelectorAll('#saved-modal .modal-tab');
     tabs.forEach(t => t.classList.remove('active'));
 
@@ -1203,7 +1343,7 @@ var _navPending = false;
 // _NAV_FORMS_KEY), så tilbake åpner det samme skjemaet igjen. Et nytt skjema som aldri
 // ble lagret (forkastet) finnes ikke lenger — bare da står det '<type>' uten id, og
 // det steget hoppes over.
-var _NAV_NOT_RESTORABLE = { service: 1, kappe: 1, kvittering: 1 };
+var _NAV_NOT_RESTORABLE = { service: 1, kappe: 1, kvittering: 1, 'sjekkliste/ny': 1 };
 var _NAV_FORMS_KEY = 'firesafe_nav_forms';
 var _navFormStash = null;   // skjemaet som nettopp ble lukket (fanges før det tømmes)
 function _navBase(e) { return String(e || '').split(':')[0]; }
@@ -1336,6 +1476,15 @@ function _navOpenFn(k) {
         _timebokApplyHash(k, reopen);
         updateToolbarState();
     };
+    // Sjekkliste (oversikt / prosjekt / lagret sjekkliste): inne i viewet byttes bare visningen.
+    if (k === 'sjekkliste' || k.indexOf('sjekkliste/') === 0) return function () {
+        var v = document.getElementById('sjekkliste-view');
+        var reopen = !(v && v.classList.contains('active'));
+        if (reopen) { closeAllModals(); _sjShowShell(); }
+        else document.body.classList.add('sjekkliste-view-open');
+        if (window.location.hash.slice(1) !== k) window.location.hash = k;
+        _sjApplyHash(k, reopen);
+    };
     return null;
 }
 // Gå ett steg tilbake i stabelen. false = ingenting å gå tilbake til (bruk fallback).
@@ -1351,7 +1500,8 @@ function _navBack() {
     if (!go) return false;
     var curView = document.querySelector('.view.active');
     var closer = { 'service-view': closeServiceView, 'kappe-view': closeKappeView,
-        'kvittering-view': closeKvitteringView, 'timebok-view': closeTimebokView }[curView ? curView.id : ''];
+        'kvittering-view': closeKvitteringView, 'timebok-view': closeTimebokView,
+        'sjekkliste-view': closeSjekklisteView }[curView ? curView.id : ''];
     var run = function () {
         if (_selectMode) toggleSelectMode();
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -1448,6 +1598,11 @@ function navigateBack() {
     if (currentId === 'timebok-view') {
         var tbTarget = function() { closeTimebokView(); showTemplateModal(); };
         if (hasUnsavedChanges()) _showUnsavedGuard(tbTarget); else tbTarget();
+        return;
+    }
+    // Sjekkliste uten historikk: skjema → prosjektet → oversikten → hjem.
+    if (currentId === 'sjekkliste-view') {
+        _sjBackFallback();
         return;
     }
     // From Skjemaer: go back to home. closeModal() is reserved for loading a
@@ -2230,6 +2385,7 @@ function showTemplateModal() {
     showView('template-modal');
     document.body.classList.add('template-modal-open');
     updateToolbarState();
+    setTimeout(_homeRenderCounts, 0);
 }
 
 function autoFillOrderNumber() {
@@ -2364,6 +2520,7 @@ function getSettingsPageTitle(page) {
         'form-ordreseddel': t('form_title'),
         'form-service': t('tab_service'),
         'form-kappe': t('kappe_title'),
+        'form-sjekkliste': t('sj_title'),
         templates: t('settings_templates_and_addresses'),
         materials: t('settings_materials'),
         'admin-users': t('settings_admin_users'),
@@ -2551,6 +2708,21 @@ function showSettingsPage(page, replace) {
             }
         });
         _loadServiceDefaults();
+    } else if (page === 'form-sjekkliste') {
+        // Obligatoriske felt (felles system, seksjon 'sjekkliste') — cache-først, så Firebase.
+        cachedRequiredSettings = _getCachedRequiredSettings();
+        renderRequiredSettingsItems('sjekkliste');
+        getRequiredSettings().then(function (settings) {
+            if (!document.body.classList.contains('settings-modal-open')) return;
+            cachedRequiredSettings = settings;
+            renderRequiredSettingsItems('sjekkliste');
+        });
+        // Cache-først, deretter frisk kopi (ikke tegn om mens admin skriver i et felt).
+        renderSjekklisteSettings();
+        _sjRefreshOptions().then(function () {
+            var host = document.getElementById('sj-settings');
+            if (document.body.classList.contains('settings-modal-open') && host && !host.contains(document.activeElement)) renderSjekklisteSettings();
+        });
     } else if (page === 'form-kappe') {
         cachedRequiredSettings = _getCachedRequiredSettings();
         renderRequiredSettingsItems('kappe');
@@ -3490,7 +3662,7 @@ function syncTimebokProjectsFromForms() {
         });
         // Leses ETTER løkka — _timebokPatchTemplate over har allerede skrevet til cachen.
         var local = safeParseJSON(TEMPLATE_KEY, []).concat(created);
-        local.sort(function (a, b) { return String(a.prosjektnavn || '').localeCompare(String(b.prosjektnavn || ''), 'nb'); });
+        local.sort(function (a, b) { return _cmpText(String(a.prosjektnavn || ''), String(b.prosjektnavn || '')); });
         safeSetItem(TEMPLATE_KEY, JSON.stringify(local));
         _syncTimebokSetting(TIMEBOK_PROJECTS_KEY, 'timebok_projects', { list: [], migratedToTemplates: true });
         if (typeof _renderSettingsTemplateListFromData === 'function' && document.getElementById('settings-template-list')) {
@@ -3534,7 +3706,8 @@ function _getCachedRequiredSettings() {
                 save: Object.assign({}, defaults.save, data.save || {}),
                 template: Object.assign({}, defaults.template, data.template || {}),
                 service: Object.assign({}, defaults.service, data.service || {}),
-                kappe: Object.assign({}, defaults.kappe, data.kappe || {})
+                kappe: Object.assign({}, defaults.kappe, data.kappe || {}),
+                sjekkliste: Object.assign({}, defaults.sjekkliste, data.sjekkliste || {})
             };
         } catch (e) {}
     }
@@ -3641,7 +3814,7 @@ function saveMaterialSettings() {
     // localStorage + cache first (optimistic)
     safeSetItem(MATERIALS_KEY, JSON.stringify(data));
     cachedMaterialOptions = data.materials.slice();
-    cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+    cachedMaterialOptions.sort(function(a, b) { return _cmpText(a.name, b.name); });
 
     // Firebase in background
     if (currentUser && db) {
@@ -3659,10 +3832,10 @@ function _sortSettingsMaterials(arr) {
         var bSpec = !!(b.type && b.type !== 'standard');
         if (aSpec !== bSpec) return aSpec ? 1 : -1;        // standard før spec
         if (aSpec) {
-            var tc = (a.type || '').localeCompare(b.type || '', 'no');
+            var tc = _cmpText((a.type || ''), b.type || '');
             if (tc !== 0) return tc;                        // spec: type alfabetisk
         }
-        return a.name.localeCompare(b.name, 'no');          // så navn
+        return _cmpText(a.name, b.name);          // så navn
     });
     return arr;
 }
@@ -4134,7 +4307,7 @@ async function addPickerMaterial() {
     var newMat = { name: val, type: type, defaultUnit: 'stk', allowedUnits: allowedUnits, fixedSize: fixedSize };
     var updated = current.slice();
     updated.push(newMat);
-    updated.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+    updated.sort(function(a, b) { return _cmpText(a.name, b.name); });
     cachedMaterialOptions = updated;
     // Hold settings-arrayet i synk hvis det finnes (Innstillinger reloader uansett ved åpning).
     if (typeof settingsMaterials !== 'undefined' && Array.isArray(settingsMaterials)) {
@@ -4481,13 +4654,13 @@ async function getDropdownOptions() {
         if (stored) {
             var cached = normalizeMaterialData(JSON.parse(stored));
             cachedMaterialOptions = (cached && cached.materials) ? cached.materials : [];
-            cachedMaterialOptions.sort(function(a, b) { return a.name.localeCompare(b.name, 'no'); });
+            cachedMaterialOptions.sort(function(a, b) { return _cmpText(a.name, b.name); });
         }
     }
     // Refresh from Firebase
     const data = await getMaterialSettings();
     cachedMaterialOptions = (data && data.materials) ? data.materials : [];
-    cachedMaterialOptions.sort((a, b) => a.name.localeCompare(b.name, 'no'));
+    cachedMaterialOptions.sort((a, b) => _cmpText(a.name, b.name));
     // Cache to localStorage for offline use
     safeSetItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: [] }));
 }
@@ -4597,7 +4770,7 @@ function sortPlans(plans) {
         if (aIsNum) return -1;
         if (bIsNum) return 1;
         // Resten alfabetisk
-        return aUp.localeCompare(bUp, 'no');
+        return _cmpText(aUp, bUp);
     });
 }
 
@@ -4743,6 +4916,22 @@ function getDefaultRequiredSettings() {
             produkter: true,
             stift: false,
             merknad: false
+        },
+        // Sjekkliste: «så og si alt er obligatorisk» (bruker 08-11-2026). Merknad og bilder valgfritt.
+        sjekkliste: {
+            prosjektnavn: true,
+            etasje: true,
+            antall: true,
+            brannkrav: true,
+            omrade: true,
+            dimensjon: true,
+            flate: true,
+            underlag: true,
+            sider: true,
+            innhold: true,
+            produkter: true,
+            merknad: false,
+            bilder: false
         }
     };
 }
@@ -4798,6 +4987,21 @@ const REQUIRED_FIELD_LABELS = {
         { key: 'produkter',           labelKey: 'kappe_section_products' },
         { key: 'stift',               labelKey: 'kappe_section_fasteners' },
         { key: 'merknad',             labelKey: 'kappe_group_name' }   // nøkkel beholdt (lagrede innstillinger); gjelder nå gruppenavnet
+    ],
+    sjekkliste: [
+        { key: 'prosjektnavn', labelKey: 'label_prosjektnavn' },
+        { key: 'etasje',       labelKey: 'sj_grp_floors' },
+        { key: 'antall',       labelKey: 'sj_grp_quantity' },
+        { key: 'brannkrav',    labelKey: 'sj_grp_fireclass' },
+        { key: 'omrade',       labelKey: 'sj_req_area' },
+        { key: 'dimensjon',    labelKey: 'sj_grp_dim' },
+        { key: 'flate',        labelKey: 'sj_grp_surface' },
+        { key: 'underlag',     labelKey: 'sj_grp_surface_material' },
+        { key: 'sider',        labelKey: 'sj_grp_sides' },
+        { key: 'innhold',      labelKey: 'sj_grp_content' },
+        { key: 'produkter',    labelKey: 'sj_grp_products' },
+        { key: 'merknad',      labelKey: 'sj_comment' },
+        { key: 'bilder',       labelKey: 'sj_images' }
     ]
 };
 
@@ -4834,7 +5038,8 @@ async function getRequiredSettings() {
                     save: { ...defaults.save, ...(data.save || {}) },
                     template: { ...defaults.template, ...(data.template || {}) },
                     service: { ...defaults.service, ...(data.service || {}) },
-                    kappe: { ...defaults.kappe, ...(data.kappe || {}) }
+                    kappe: { ...defaults.kappe, ...(data.kappe || {}) },
+                    sjekkliste: { ...defaults.sjekkliste, ...(data.sjekkliste || {}) }
                 };
                 // Hold localStorage i synk så neste cache-first-render matcher Firebase
                 safeSetItem(REQUIRED_KEY, JSON.stringify(merged));
@@ -4853,7 +5058,8 @@ async function getRequiredSettings() {
                 save: { ...defaults.save, ...(data.save || {}) },
                 template: { ...defaults.template, ...(data.template || {}) },
                 service: { ...defaults.service, ...(data.service || {}) },
-                kappe: { ...defaults.kappe, ...(data.kappe || {}) }
+                kappe: { ...defaults.kappe, ...(data.kappe || {}) },
+                sjekkliste: { ...defaults.sjekkliste, ...(data.sjekkliste || {}) }
             };
         } catch (e) {}
     }
@@ -5043,7 +5249,7 @@ function openProsjektLeveringsadressePicker() {
     if (!templates.length) {
         listEl.innerHTML = '<div style="padding:16px;color:#999;text-align:center">' + t('no_prosjekt_leveringsadresser') + '</div>';
     } else {
-        templates.sort(function(a, b) { return (a.prosjektnavn || '').localeCompare(b.prosjektnavn || '', 'no'); });
+        templates.sort(function(a, b) { return _cmpText((a.prosjektnavn || ''), b.prosjektnavn || ''); });
         listEl.innerHTML = templates.map(function(item) {
             var id = escapeHtml(item.id);
             var name = escapeHtml(item.prosjektnavn || t('no_name'));
@@ -5904,6 +6110,7 @@ async function deleteTemplateFromSettings(templateId) {
 }
 
 function updateRequiredIndicators() {
+    if (typeof _sjUpdateRequiredIndicators === 'function') _sjUpdateRequiredIndicators();
     const settings = cachedRequiredSettings || getDefaultRequiredSettings();
     const saveReqs = settings.save || {};
 
@@ -6331,6 +6538,9 @@ function hasUnsavedChanges() {
     if (document.getElementById('kvittering-view').classList.contains('active')) {
         return hasUnsavedKvitteringChanges();
     }
+    if (document.getElementById('sjekkliste-view').classList.contains('active')) {
+        return hasUnsavedSjekklisteChanges();
+    }
     const currentData = getFormDataSnapshot();
     return lastSavedData !== null
         ? currentData !== lastSavedData
@@ -6347,7 +6557,8 @@ function isOnFormPage() {
         || document.getElementById('service-view').classList.contains('active')
         || document.getElementById('kappe-view').classList.contains('active')
         || document.getElementById('kvittering-view').classList.contains('active')
-        || document.getElementById('timebok-view').classList.contains('active');
+        || document.getElementById('timebok-view').classList.contains('active')
+        || document.getElementById('sjekkliste-view').classList.contains('active');
 }
 // Felles ulagret-varsel ved navigering. Timebok: «Ulagrede endringer» med
 // Avbryt / Forkast / Lagre. Skjemaene (ordreseddel/service/kappe/kvittering) har
@@ -6465,7 +6676,7 @@ function toggleSelectMode() {
         modal.classList.remove('select-mode');
         document.body.classList.remove('bulk-select-active');
         if (btn) { btn.classList.remove('active'); btn.textContent = t('btn_select'); }
-        if (title) title.textContent = t('modal_load_title');
+        if (title) title.textContent = _hentTitle();
         // Fjern markering fra alle lister (ordreseddel, kappe, og servicebil-uttak-kort)
         document.querySelectorAll(
             '#saved-list .saved-item.selected, ' +
@@ -9877,7 +10088,7 @@ document.addEventListener('DOMContentLoaded', function() {
     //   langt innhold scroller naturlig ned til toolbar.
     // Denne regelen gjelder generelt for alle views nedenfor, ikke som
     // side-spesifikk spesialhåndtering.
-    var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view'];
+    var FORM_VIEW_IDS = ['view-form', 'service-view', 'kappe-view', 'sjekkliste-view'];
     // Modal-views: krympes ved tastatur. Toolbar reparenteres til aktiv
     // scrollflate slik at den blir nederste scroll-element, ikke fixed over
     // tastaturet.
@@ -9982,7 +10193,7 @@ document.addEventListener('DOMContentLoaded', function() {
             el.nodeType === 1 &&
             isKeyboardOpeningElement(el) &&
             el.closest &&
-            el.closest('#view-form, #service-view, #kappe-view')
+            el.closest('#view-form, #service-view, #kappe-view, #sjekkliste-view')
         );
     }
     function _hasFocusedFormKeyboardElement() {
@@ -10219,8 +10430,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function findFormToolbarHost(focused) {
         focused = focused || document.activeElement;
         var formView = isFormKeyboardTarget(focused)
-            ? focused.closest('#view-form, #service-view, #kappe-view')
-            : document.querySelector('#view-form.view.active, #service-view.view.active, #kappe-view.view.active');
+            ? focused.closest('#view-form, #service-view, #kappe-view, #sjekkliste-view')
+            : document.querySelector('#view-form.view.active, #service-view.view.active, #kappe-view.view.active, #sjekkliste-view.view.active');
         if (!formView) return null;
         return formView.querySelector('.mobile-form') || formView;
     }
@@ -11111,7 +11322,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function _handoffKbdScroll(direction, opts) {
         opts = opts || {};
         var fromScrollDismiss = !!opts.fromScrollDismiss;
-        var el = document.querySelector('#view-form.view.active, #service-view.view.active, #kappe-view.view.active');
+        var el = document.querySelector('#view-form.view.active, #service-view.view.active, #kappe-view.view.active, #sjekkliste-view.view.active');
         if (!el) {
             if (direction === 'toBody') document.body.classList.add('kbd-editing');
             else document.body.classList.remove('kbd-editing');
@@ -11595,6 +11806,10 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (hash === 'timebok' || hash.indexOf('timebok/') === 0) {
         // Timebok (uke / dag / eksport / kvittering): vises og tegnes fra adressen.
         _applyHashNavigation(hash);
+    } else if (hash === 'sjekkliste' || hash.indexOf('sjekkliste/') === 0) {
+        // Sjekkliste: vises og tegnes fra adressen (skjema gjenopprettes fra økten).
+        document.body.classList.remove('sjekkliste-view-open');   // satt av head-snutten; tving full tegning
+        _applyHashNavigation(hash);
     } else if (!hash || hash === '') {
         window.loadedTemplates = safeParseJSON(TEMPLATE_KEY, []);
         updateToolbarState();
@@ -11680,6 +11895,10 @@ function _applyHashNavigation(hash) {
             updateToolbarState();
         }
         _timebokApplyHash(hash, tbOpened);
+    } else if (hash === 'sjekkliste' || hash.indexOf('sjekkliste/') === 0) {
+        var sjOpened = !document.body.classList.contains('sjekkliste-view-open') || !document.getElementById('sjekkliste-view').classList.contains('active');
+        if (sjOpened) _sjShowShell();
+        _sjApplyHash(hash, sjOpened);
     } else {
         // No hash = home = template modal
         showTemplateModal();
@@ -11697,6 +11916,7 @@ function _viewIdForHash(hash) {
     if (hash === 'kvittering') return 'kvittering-view';
     if (hash === 'calc') return 'calculator-modal';
     if (hash === 'timebok' || hash.indexOf('timebok/') === 0) return 'timebok-view';
+    if (hash === 'sjekkliste' || hash.indexOf('sjekkliste/') === 0) return 'sjekkliste-view';
     return 'template-modal';
 }
 
@@ -11724,6 +11944,7 @@ function _dismissOverlaysOnNavigation() {
     var kappePicker = document.getElementById('kappe-product-picker-overlay');
     if (kappePicker) kappePicker.classList.remove('active');
     if (typeof _kvEd !== 'undefined' && _kvEd && typeof closeKvEditor === 'function') closeKvEditor(false);
+    if (typeof closeSjImageViewer === 'function') closeSjImageViewer();
 }
 
 // NB: Bevisst INGEN beforeunload-varsel ved oppdatering/lukking av siden — nettleseren
@@ -11735,7 +11956,13 @@ window.addEventListener('hashchange', function() {
     // ruller URL-en tilbake, og etter «Forkast/Lagre» skal det fortsatt være et TILBAKE-steg.
     var popBack = _navDir === 'back';
     _navNote();
-    if (!currentUser) return; // Ikke naviger uten innlogging
+    // Ikke naviger når brukeren er helt utlogget. Er brukeren innlogget fra før
+    // (firesafe_logged_in), navigeres det MED EN GANG, også mens Firebase-auth fortsatt
+    // starter opp: alle views tegnes fra lokal cache (som oppstarten alt gjør), og ellers
+    // ble alle trykk/tilbake som går via adressen ignorert de første sekundene etter en
+    // oppdatering — appen føltes frosset. Utløpt innlogging håndteres av auth-lytteren
+    // (viser innloggingssiden), og datasynk venter fortsatt på currentUser der den trengs.
+    if (!currentUser && !localStorage.getItem('firesafe_logged_in')) return;
     var hash = window.location.hash.slice(1);
 
     var currentView = document.querySelector('.view.active');
@@ -11758,13 +11985,15 @@ window.addEventListener('hashchange', function() {
         || (currentId === 'service-view' && hash !== 'service')
         || (currentId === 'kappe-view' && hash !== 'kappe')
         || (currentId === 'kvittering-view' && hash !== 'kvittering')
-        || (currentId === 'timebok-view' && hash !== _timebokCurHash());
+        || (currentId === 'timebok-view' && hash !== _timebokCurHash())
+        || (currentId === 'sjekkliste-view' && hash !== _sjCurHash());
 
     if (leavingFormView && hasUnsavedChanges()) {
         var previousHash = currentId === 'view-form' ? 'skjema'
             : currentId === 'kappe-view' ? 'kappe'
             : currentId === 'kvittering-view' ? 'kvittering'
-            : currentId === 'timebok-view' ? _timebokCurHash() : 'service';
+            : currentId === 'timebok-view' ? _timebokCurHash()
+            : currentId === 'sjekkliste-view' ? _sjCurHash() : 'service';
         var newHash = hash;
         // Rollback URL silently (replaceState does NOT fire hashchange)
         history.replaceState(null, '', '#' + previousHash);
@@ -11780,6 +12009,7 @@ window.addEventListener('hashchange', function() {
                     if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
                     if (currentId === 'kvittering-view' && typeof closeKvitteringView === 'function') closeKvitteringView();
                     if (currentId === 'timebok-view' && typeof closeTimebokView === 'function') closeTimebokView();
+                    if (currentId === 'sjekkliste-view' && typeof closeSjekklisteView === 'function') closeSjekklisteView();
                 }
                 _applyHashNavigation(newHash);
                 _navNote();
@@ -11800,6 +12030,7 @@ window.addEventListener('hashchange', function() {
                 if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
                 if (currentId === 'kvittering-view' && typeof closeKvitteringView === 'function') closeKvitteringView();
                 if (currentId === 'timebok-view' && typeof closeTimebokView === 'function') closeTimebokView();
+                    if (currentId === 'sjekkliste-view' && typeof closeSjekklisteView === 'function') closeSjekklisteView();
                 _applyHashNavigation('');
             }
         });
@@ -11815,6 +12046,7 @@ window.addEventListener('hashchange', function() {
             if (currentId === 'kappe-view' && typeof closeKappeView === 'function') closeKappeView();
             if (currentId === 'kvittering-view' && typeof closeKvitteringView === 'function') closeKvitteringView();
             if (currentId === 'timebok-view' && typeof closeTimebokView === 'function') closeTimebokView();
+                    if (currentId === 'sjekkliste-view' && typeof closeSjekklisteView === 'function') closeSjekklisteView();
         }
     }
     _applyHashNavigation(hash);
@@ -15492,7 +15724,7 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 window.addEventListener('pagehide', _swStopTicker);
-document.addEventListener('DOMContentLoaded', function() { _swUpdateIndicator(); _kappeInitDatePicker(); });
+document.addEventListener('DOMContentLoaded', function() { _swUpdateIndicator(); _kappeInitDatePicker(); setTimeout(_homeRenderCounts, 0); });
 
 function calcMulticollar() {
     var input = document.getElementById('calc-mc-diameter');
@@ -16046,7 +16278,7 @@ function renderBilHistory() {
 
     // Sort by createdAt descending
     items.sort(function(a, b) {
-        return (b.createdAt || '').localeCompare(a.createdAt || '');
+        return _cmpIsoDesc(a.createdAt, b.createdAt);
     });
 
     if (items.length === 0) {
@@ -16289,6 +16521,7 @@ function closeTemplatePicker() {
     }, 150);
     _kappeTemplateActive = false;
     _kvTemplateActive = false;
+    _sjTemplateActive = false;
 }
 
 function _renderTemplatePickerList(templates, listEl) {
@@ -16367,6 +16600,13 @@ function openServiceTemplatePicker(btn) {
 
 function _applyTemplateToForm(template) {
     if (!template) return;
+
+    if (_sjTemplateActive) {
+        // Sjekkliste — kun prosjekt-identitet.
+        _sjApplyTemplate(template);
+        closeTemplatePicker();
+        return;
+    }
 
     if (_kvTemplateActive) {
         // Kvittering — kun prosjekt-identitet (samme som kappe).
@@ -17279,7 +17519,7 @@ function confirmKappeProductPicker() {
             var na = parseFloat(String(a.dim).replace(',', '.'));
             var nb = parseFloat(String(b.dim).replace(',', '.'));
             if (!isNaN(na) && !isNaN(nb)) return na - nb;
-            return String(a.dim).localeCompare(String(b.dim), 'no');
+            return _cmpText(String(a.dim), String(b.dim));
         });
         // Plate pr. produkt (isolasjon): fang aktivt produkts plate før close.
         if (_productDimensionPickerShowPlate) _kappeSavePlateForProduct(_kappePickerSelectedBrand);
@@ -21702,7 +21942,7 @@ function loadKappeTab() {
         .concat(cachedSent.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
         .sort(function(a, b) {
             if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
-            return (b.savedAt || '').localeCompare(a.savedAt || '');
+            return _cmpIsoDesc(a.savedAt, b.savedAt);
         });
     renderKappeFormsList(cachedForms);
 
@@ -21743,7 +21983,7 @@ function loadKappeTab() {
                 .concat(fbSent.map(function(f) { return Object.assign({}, f, { _isSent: true }); }))
                 .sort(function(a, b) {
                     if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
-                    return (b.savedAt || '').localeCompare(a.savedAt || '');
+                    return _cmpIsoDesc(a.savedAt, b.savedAt);
                 });
             if (document.body.classList.contains('saved-modal-open')) {
                 renderKappeFormsList(allForms);
@@ -23019,7 +23259,7 @@ function _sortKappeNumeric(arr) {
         var na = parseFloat(String(a).replace(',', '.'));
         var nb = parseFloat(String(b).replace(',', '.'));
         if (!isNaN(na) && !isNaN(nb)) return na - nb;
-        return String(a).localeCompare(String(b), 'no');
+        return _cmpText(String(a), String(b));
     });
 }
 
@@ -24829,7 +25069,7 @@ function _kvRenderEditor() {
 function _kvSortForms(list) {
     return list.sort(function(a, b) {
         if (a._isSent !== b._isSent) return a._isSent ? 1 : -1;
-        return (b.savedAt || '').localeCompare(a.savedAt || '');
+        return _cmpIsoDesc(a.savedAt, b.savedAt);
     });
 }
 function _kvCombined(saved, sent) {
@@ -25223,8 +25463,8 @@ window.doKvitteringExport = doKvitteringExport;
 //                                allow delete: if isAdmin(); }
 // Uten reglene feiler lesingen stille → alle har full tilgang (som før).
 // Kvittering er ikke egen del lenger — kvitteringer ligger i Timebok (01-11-2026).
-var ACC_MODULES = ['ordreseddel', 'servicebil', 'kappe', 'verktoy', 'timebok'];
-var _ACC_DERIVED = { hjem: ['ordreseddel', 'servicebil', 'kappe'], lagret: ['ordreseddel', 'servicebil', 'kappe'], calc: ['verktoy'] };
+var ACC_MODULES = ['ordreseddel', 'servicebil', 'kappe', 'sjekkliste', 'verktoy', 'timebok'];
+var _ACC_DERIVED = { hjem: ['ordreseddel', 'servicebil', 'kappe', 'sjekkliste'], lagret: ['ordreseddel', 'servicebil', 'kappe'], calc: ['verktoy'] };
 var ACC_CACHE_KEY = 'firesafe_access';
 // entry: userAccess-dokumentet (null = ikke lagt inn → ingen tilgang).
 // admin = effektiv admin (fbAdmin = admins/{uid} ELLER entry.admin satt i appen).
@@ -25276,8 +25516,8 @@ function _accStartHash() {
     if (_accAllowed('calc')) return 'calc';
     return 'settings';
 }
-var _ACC_HASH_MODULE = { '': 'hjem', hent: 'lagret', skjema: 'ordreseddel', service: 'servicebil', kappe: 'kappe', kvittering: 'timebok', calc: 'calc', timebok: 'timebok' };
-var _ACC_SETTINGS_MODULE = { 'form-ordreseddel': 'ordreseddel', 'form-service': 'servicebil', 'form-kappe': 'kappe' };
+var _ACC_HASH_MODULE = { '': 'hjem', hent: 'lagret', skjema: 'ordreseddel', service: 'servicebil', kappe: 'kappe', kvittering: 'timebok', calc: 'calc', timebok: 'timebok', sjekkliste: 'sjekkliste' };
+var _ACC_SETTINGS_MODULE = { 'form-ordreseddel': 'ordreseddel', 'form-service': 'servicebil', 'form-kappe': 'kappe', 'form-sjekkliste': 'sjekkliste' };
 function _accSettingsPageAllowed(page) {
     if (page === 'admin-users' || page === 'admin-employers' || page === 'admin-satser') return !!_acc.admin;
     var m = _ACC_SETTINGS_MODULE[page];
@@ -25324,7 +25564,7 @@ function _accApply() {
     if (_acc.uid) safeSetItem(ACC_CACHE_KEY, JSON.stringify({ uid: _acc.uid, entry: _acc.entry, admin: _acc.admin, fbAdmin: _acc.fbAdmin, off: off }));
     _accEnforce();
 }
-var _ACC_VIEW_MODULE = { 'template-modal': 'hjem', 'saved-modal': 'lagret', 'view-form': 'ordreseddel', 'service-view': 'servicebil', 'kappe-view': 'kappe', 'kvittering-view': 'timebok', 'calculator-modal': 'calc', 'timebok-view': 'timebok' };
+var _ACC_VIEW_MODULE = { 'template-modal': 'hjem', 'saved-modal': 'lagret', 'view-form': 'ordreseddel', 'service-view': 'servicebil', 'kappe-view': 'kappe', 'kvittering-view': 'timebok', 'calculator-modal': 'calc', 'timebok-view': 'timebok', 'sjekkliste-view': 'sjekkliste' };
 function _accEnforce() {
     if (!currentUser) return;
     // Første innlogging (ingen cache): vent på svaret fra lista før brukeren flyttes —
@@ -25468,7 +25708,7 @@ var _admUsers = {};      // e-post → { email, name, entry, dir, admin }
 var _admEditKey = null;  // null = ny bruker
 var _admTab = 'users';   // 'users' | 'attempts' — fanen huskes mens appen er åpen
 function _admSetTab(tab) { _admTab = tab; renderAdminUsers(true); }
-var _ACC_LABEL_KEYS = { ordreseddel: 'form_title', servicebil: 'tab_servicebil', kappe: 'kappe_title', verktoy: 'adm_mod_verktoy', timebok: 'settings_timebok' };
+var _ACC_LABEL_KEYS = { ordreseddel: 'form_title', servicebil: 'tab_servicebil', kappe: 'kappe_title', sjekkliste: 'sj_title', verktoy: 'adm_mod_verktoy', timebok: 'settings_timebok' };
 function _admFmtTs(ts) {
     var d = ts && ts.toDate ? ts.toDate() : null;
     if (!d) return '';
@@ -25578,7 +25818,7 @@ function renderAdminUsers(cached) {
         var ms = function (u) { return u.dir && u.dir.lastSeen && u.dir.lastSeen.toMillis ? u.dir.lastSeen.toMillis() : 0; };
         var list = Object.keys(_admUsers).map(function (k) { return _admUsers[k]; });
         // Ikke innlogget ennå (nylig lagt inn) øverst, deretter sist aktiv.
-        list.sort(function (a, b) { return (a.dir ? 1 : 0) - (b.dir ? 1 : 0) || ms(b) - ms(a) || String(a.name || a.email).localeCompare(String(b.name || b.email), 'nb'); });
+        list.sort(function (a, b) { return (a.dir ? 1 : 0) - (b.dir ? 1 : 0) || ms(b) - ms(a) || _cmpText(String(a.name || a.email), String(b.name || b.email)); });
         // To faner (samme chips som Timebok-innstillingene): «Brukere» = de admin har lagt inn
         // (+ admins), «Prøvde å logge inn» = personer som logget inn uten å være lagt inn —
         // ryddig til vanlig, men tilgjengelig når noen «ikke kommer inn» (f.eks. feil e-post).
@@ -25889,4 +26129,1480 @@ function saveAdminEmployerPay(emp, val) {
     db.collection('settings').doc('timebok_employers').set(d, { merge: true })
         .then(function () { showNotificationModal(t('settings_defaults_saved'), true); })
         .catch(function () { showNotificationModal(t('adm_save_error'), false); });
+}
+
+// ============================================================================
+// SJEKKLISTER — branntetting: én sjekkliste = én registrert gjennomføring (hull)
+// ============================================================================
+// Det blir SVÆRT mange (tusenvis+), og de er FELLES per prosjekt (alle montører
+// ser hverandres registreringer). Derfor toppnivå-samlinger, ikke users/{uid}/…:
+//   sjekklister/{id}             én registrering (ren tekst, ~1–2 KB)
+//   sjekklisteBilder/{bildeId}   ett komprimert JPEG pr. dokument (som kvitteringBilder)
+//   sjekklisteProsjekter/{key}   prosjektoversikt: antall + sist endret (FieldValue.increment)
+//   settings/sjekkliste          valglistene (etasjer, antall, brannkrav …) — admin redigerer
+//
+// Skalering: dokument-id = INVERTERT tidsstempel (+ tilfeldig hale), så Firestores
+// standard-rekkefølge (__name__) er nyeste først. «where projectKey == X» (+ ev.
+// «etasje == Y») med limit/startAfter pagineres da uten sammensatt indeks, og lista
+// leser aldri mer enn SJ_PAGE_SIZE dokumenter om gangen — uansett hvor mange som finnes.
+// Skriving går rett til Firestore (ikke via den sekvensielle _pendingFirestoreOps-
+// køen): Firestores IndexedDB-persistens lagrer ventende skrivinger offline og sender
+// dem når nettet er tilbake, også etter omstart. Det er viktig på byggeplass.
+//
+// Lokalt: localStorage holder bare et lite vindu (siste SJ_CACHE_MAX registreringer
+// + prosjektoversikten + valglistene) for rask visning og offline. Bilder caches i
+// IndexedDB (samme lager som kvitteringsbildene, _kvIdb), aldri i localStorage.
+// Brukerbytte rydder alle tre nøklene (auth-opprydningen i script.js) + bildene
+// (_kvImgClearAll).
+//
+// Firestore-regler (må legges inn i Firebase-konsollen, ved siden av isAdmin()):
+//   function isMember() { return request.auth != null && request.auth.token.email != null &&
+//     exists(/databases/$(database)/documents/userAccess/$(request.auth.token.email.lower())); }
+//   match /sjekklister/{id} {
+//     allow read, create, update: if isMember() || isAdmin();
+//     allow delete: if isAdmin() || (isMember() && resource.data.createdBy == request.auth.uid); }
+//   match /sjekklisteBilder/{id}     { allow read, write: if isMember() || isAdmin(); }
+//   match /sjekklisteProsjekter/{id} { allow read, write: if isMember() || isAdmin(); }
+//   (settings/sjekkliste dekkes av eksisterende settings-regel: alle leser, admin skriver)
+// ============================================================================
+
+var SJ_OPTIONS_KEY = 'firesafe_sjekkliste_options';
+var SJ_CACHE_KEY = 'firesafe_sjekkliste_cache';
+var SJ_PROJECTS_KEY = 'firesafe_sjekkliste_projects';
+var SJ_SESSION_KEY = 'firesafe_sjekkliste_current';
+var SJ_CACHE_MAX = 300;
+var SJ_PAGE_SIZE = 30;
+var _SJ_COLL = 'sjekklister', _SJ_IMG_COLL = 'sjekklisteBilder', _SJ_PROJ_COLL = 'sjekklisteProsjekter';
+var _SJ_MAX_EDGE = 1600;       // lagret bilde, lengste side (dokumentasjonsbilde, ikke skann)
+var _SJ_MAX_DATAURL = 450000;  // ~330 KB binært pr. bilde — holder lagring/lesing billig
+
+// Valglistene. Rekkefølgen her = rekkefølgen på innstillingssiden. Selve valgene
+// (og rekkefølgen på dem) styres i Innstillinger → Sjekkliste.
+var SJ_GROUPS = [
+    { key: 'floors',          labelKey: 'sj_grp_floors',           hintKey: 'sj_hint_floors' },
+    { key: 'quantity',        labelKey: 'sj_grp_quantity',         hintKey: 'sj_hint_quantity', numeric: true },
+    { key: 'fireClass',       labelKey: 'sj_grp_fireclass',        hintKey: 'sj_hint_fireclass' },
+    { key: 'surface',         labelKey: 'sj_grp_surface',          hintKey: 'sj_hint_surface' },
+    { key: 'surfaceMaterial', labelKey: 'sj_grp_surface_material', hintKey: 'sj_hint_surface_material' },
+    { key: 'sides',           labelKey: 'sj_grp_sides',            hintKey: 'sj_hint_sides' },
+    { key: 'contentTypes',    labelKey: 'sj_grp_content_types',    hintKey: 'sj_hint_content_types' }
+    // Produkter: ingen egen liste — sjekklisten bruker materialvelgeren (Meny › Materialer).
+];
+// Startverdier til admin har lagret egne (vises og kan endres i Innstillinger).
+var SJ_DEFAULT_OPTIONS = {
+    floors: ['U2', 'U1', '1', '2', '3', '4', '5', '6'],
+    quantity: ['1', '2', '3', '4', '5'],
+    fireClass: ['EI 30', 'EI 60', 'EI 90', 'EI 120', 'E 30', 'E 60', 'Lyd'],
+    surface: ['Vegg', 'Gulv', 'Tak'],
+    surfaceMaterial: ['Gips', 'Betong', 'Lettbetong', 'Murverk', 'Tre', 'Stål'],
+    sides: ['1 side', '2 sider'],
+    contentTypes: ['Kabel', 'Rør', 'Ventilasjon'],
+    products: []
+};
+// Enkeltvalg-grupper → felt i registreringen.
+var SJ_SINGLE_FIELD = { floors: 'etasje', quantity: 'antall', fireClass: 'brannkrav', surface: 'flate', surfaceMaterial: 'underlag', sides: 'sider' };
+// Feltene som utgjør selve sjekklisten (snapshot for «ulagret»-sjekk).
+var SJ_FIELDS = ['prosjektnr', 'prosjektnavn', 'etasje', 'antall', 'brannkrav', 'omrade1', 'omrade2',
+    'bredde', 'hoyde', 'flate', 'underlag', 'sider', 'hullTomt', 'innhold', 'produkter', 'kommentar', 'imageIds'];
+// Lagre/Ferdig på en NY sjekkliste → nytt skjema øverst som beholder disse (neste hull er
+// som regel i samme vegg/dekke). Valgt av bruker 08-11-2026 (+ «Tettes fra», som følger
+// veggen som underlag/brannkrav). Hull-spesifikt nullstilles: antall, mål, innhold,
+// materialer, bilder.
+var SJ_KEEP_ON_NEXT = ['prosjektnr', 'prosjektnavn', 'etasje', 'brannkrav', 'omrade1', 'omrade2', 'flate', 'underlag', 'sider', 'kommentar'];
+
+var _sjMode = 'overview';          // 'overview' | 'project' | 'form'
+var _sjProjectKeyCur = null;       // prosjektet i prosjekt-visningen
+var _sjFloorFilter = '';
+var _sjList = { key: null, floor: '', items: [], lastDoc: null, hasMore: false, loading: false, seq: 0 };
+var _sjForm = null;                // { id, data, original, savedSnap, savedImageIds, sessionNewIds }
+var _sjPendingNew = null;          // { prefill } — settes før navigering til 'sjekkliste/ny'
+var _sjTemplateActive = false;
+var _sjSetOpen = {};
+
+// Bare ekte innlogging skriver/leser Firestore (lokal test-bruker har ingen tilgang).
+function _sjRemote() { return !!(currentUser && db && currentUser.uid !== 'dev-local'); }
+function _sjUid() { return currentUser ? currentUser.uid : ''; }
+function _sjUserName() {
+    var mi = (typeof getMinInfo === 'function') ? getMinInfo() : {};
+    var full = [mi.fornavn, mi.etternavn].filter(function (x) { return x && String(x).trim(); }).join(' ').trim();
+    return full || mi.montor || (currentUser && (currentUser.displayName || currentUser.email)) || '';
+}
+function _sjStr(v) { return String(v == null ? '' : v).trim(); }
+
+// ── Valglister ──────────────────────────────────────────────────────────────
+var _SJ_OLD_DEFAULT_FLOORS = 'U2|U1|1. etasje|2. etasje|3. etasje|4. etasje|5. etasje|6. etasje';
+function _sjNormOptions(raw) {
+    var src = (raw && raw.groups) ? raw.groups : (raw || {});
+    var out = {};
+    // Første versjon hadde «1. etasje» osv. som standard; nå korte navn (sparer plass på
+    // knappene). Bare en lista som er NØYAKTIG den gamle standarden oppgraderes —
+    // en etasjeliste admin har endret, beholdes som den er.
+    if (Array.isArray(src.floors) && src.floors.join('|') === _SJ_OLD_DEFAULT_FLOORS) {
+        src = Object.assign({}, src, { floors: SJ_DEFAULT_OPTIONS.floors.slice() });
+    }
+    SJ_GROUPS.forEach(function (g) {
+        var list = Array.isArray(src[g.key]) ? src[g.key] : SJ_DEFAULT_OPTIONS[g.key];
+        var seen = {};
+        out[g.key] = list.map(_sjStr).filter(function (v) {
+            var k = v.toLowerCase();
+            if (!v || seen[k]) return false;
+            seen[k] = 1;
+            return true;
+        });
+    });
+    return out;
+}
+function _sjOptions() { return _sjNormOptions(safeParseJSON(SJ_OPTIONS_KEY, null)); }
+function _sjRefreshOptions() {
+    if (!_sjRemote()) return Promise.resolve(_sjOptions());
+    return db.collection('settings').doc('sjekkliste').get().then(function (doc) {
+        if (doc.exists) safeSetItem(SJ_OPTIONS_KEY, JSON.stringify(_sjNormOptions(doc.data())));
+        return _sjOptions();
+    }).catch(function (e) { console.error('Sjekkliste-valg:', e); return _sjOptions(); });
+}
+window._sjRefreshOptions = _sjRefreshOptions;
+function _sjSaveOptions(opts) {
+    if (!isAdmin) return;
+    var clean = _sjNormOptions(opts);
+    safeSetItem(SJ_OPTIONS_KEY, JSON.stringify(clean));
+    if (_sjRemote()) {
+        db.collection('settings').doc('sjekkliste').set({ groups: clean, updatedAt: new Date().toISOString() })
+            .catch(function (e) { console.error('Lagre sjekkliste-valg:', e); });
+    }
+}
+
+// ── Innstillinger → Sjekkliste ──────────────────────────────────────────────
+function _sjGroup(key) { return SJ_GROUPS.filter(function (g) { return g.key === key; })[0]; }
+var _sjUpIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+var _sjDownIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+
+function renderSjekklisteSettings() {
+    var host = document.getElementById('sj-settings');
+    if (!host) return;
+    var opts = _sjOptions(), ro = !isAdmin;
+    var html = '<div class="settings-hint">' + escapeHtml(t(ro ? 'sj_settings_readonly' : 'sj_settings_intro')) + '</div>';
+    SJ_GROUPS.forEach(function (g, gi) {
+        var sec = 'sj-' + g.key, open = !!_sjSetOpen[sec];
+        html += '<div class="settings-collapsible-header" onclick="_sjToggleSetSection(\'' + sec + '\')"' + (gi ? ' style="margin-top: 16px;"' : '') + '>' +
+                '<span>' + escapeHtml(t(g.labelKey)) + ' <span class="settings-collapsible-count" id="sj-set-count-' + g.key + '"></span></span>' +
+                '<span class="settings-collapsible-arrow' + (open ? ' open' : '') + '" id="settings-arrow-' + sec + '">&rsaquo;</span>' +
+            '</div>' +
+            '<div class="settings-collapsible-body' + (open ? ' open' : '') + '" id="settings-body-' + sec + '">' +
+                '<div class="sj-set-hint">' + escapeHtml(t(g.hintKey)) + '</div>' +
+                '<div class="settings-list-container" id="sj-set-list-' + g.key + '"></div>' +
+                (ro ? '' :
+                '<div class="settings-add-plan-row">' +
+                    '<input type="text" id="sj-set-new-' + g.key + '"' + (g.numeric ? ' inputmode="numeric"' : ' autocapitalize="sentences"') +
+                        ' placeholder="' + escapeHtml(t('sj_settings_add_placeholder')) + '"' +
+                        ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();sjSettingsAdd(\'' + g.key + '\')}">' +
+                    '<button type="button" class="settings-add-plan-btn" onclick="sjSettingsAdd(\'' + g.key + '\')">' + escapeHtml(t('btn_add')) + '</button>' +
+                '</div>') +
+            '</div>';
+    });
+    host.innerHTML = html;
+    SJ_GROUPS.forEach(function (g) { _sjRenderSetGroup(g.key, opts); });
+}
+window.renderSjekklisteSettings = renderSjekklisteSettings;
+
+// Bare lista for én gruppe tegnes på nytt (legg-til-feltet beholder fokus/tastatur).
+function _sjRenderSetGroup(key, opts) {
+    opts = opts || _sjOptions();
+    var list = opts[key] || [], ro = !isAdmin;
+    var el = document.getElementById('sj-set-list-' + key);
+    var cnt = document.getElementById('sj-set-count-' + key);
+    if (cnt) cnt.textContent = list.length;
+    if (!el) return;
+    if (!list.length) { el.innerHTML = '<div class="sj-set-empty">' + escapeHtml(t('sj_settings_empty')) + '</div>'; return; }
+    el.innerHTML = list.map(function (v, i) {
+        var acts = ro ? '' :
+            '<button type="button" class="sj-set-move" onclick="sjSettingsMove(\'' + key + '\',' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="' + escapeHtml(t('sj_move_up')) + '">' + _sjUpIcon + '</button>' +
+            '<button type="button" class="sj-set-move" onclick="sjSettingsMove(\'' + key + '\',' + i + ',1)"' + (i === list.length - 1 ? ' disabled' : '') + ' aria-label="' + escapeHtml(t('sj_move_down')) + '">' + _sjDownIcon + '</button>' +
+            '<button type="button" class="settings-item-edit" onclick="sjSettingsEdit(\'' + key + '\',' + i + ')" title="' + escapeHtml(t('edit_btn')) + '">' + editIcon + '</button>' +
+            '<button type="button" class="settings-item-remove" onclick="sjSettingsRemove(\'' + key + '\',' + i + ')" title="' + escapeHtml(t('delete_btn')) + '">' + deleteIcon + '</button>';
+        return '<div class="settings-list-item settings-action-row">' +
+            '<div class="settings-list-item-main"><div class="settings-list-item-name">' + escapeHtml(v) + '</div></div>' +
+            (acts ? '<div class="settings-list-item-actions">' + acts + '</div>' : '') +
+        '</div>';
+    }).join('');
+}
+function _sjToggleSetSection(sec) {
+    toggleSettingsSection(sec);
+    _sjSetOpen[sec] = !_sjSetOpen[sec];
+}
+window._sjToggleSetSection = _sjToggleSetSection;
+
+// Ett valg: tomt avvises, antall må være et helt tall ≥ 1, og duplikater (uansett
+// store/små bokstaver) avvises med melding.
+function _sjValidOption(key, val, skipIdx) {
+    var g = _sjGroup(key);
+    if (!val) return false;
+    if (g && g.numeric && !/^[1-9]\d*$/.test(val)) { showNotificationModal(t('sj_settings_need_number')); return false; }
+    var list = _sjOptions()[key] || [];
+    if (list.some(function (v, i) { return i !== skipIdx && v.toLowerCase() === val.toLowerCase(); })) {
+        showNotificationModal(t('sj_settings_exists'));
+        return false;
+    }
+    return true;
+}
+function sjSettingsAdd(key) {
+    if (!isAdmin) return;
+    var input = document.getElementById('sj-set-new-' + key);
+    var val = _sjStr(input && input.value);
+    if (!_sjValidOption(key, val, -1)) return;
+    var opts = _sjOptions();
+    opts[key].push(val);
+    _sjSaveOptions(opts);
+    if (input) input.value = '';
+    _sjRenderSetGroup(key);
+}
+function sjSettingsMove(key, i, dir) {
+    if (!isAdmin) return;
+    var opts = _sjOptions(), list = opts[key], j = i + dir;
+    if (!list || j < 0 || j >= list.length) return;
+    var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+    _sjSaveOptions(opts);
+    _sjRenderSetGroup(key);
+}
+function sjSettingsEdit(key, i) {
+    if (!isAdmin) return;
+    var cur = (_sjOptions()[key] || [])[i];
+    if (cur === undefined) return;
+    showInputModal(t(_sjGroup(key).labelKey), cur, function (v) {
+        v = _sjStr(v);
+        if (!v || v === cur || !_sjValidOption(key, v, i)) return;
+        var opts = _sjOptions();
+        opts[key][i] = v;
+        _sjSaveOptions(opts);
+        _sjRenderSetGroup(key);
+    });
+}
+function sjSettingsRemove(key, i) {
+    if (!isAdmin) return;
+    var cur = (_sjOptions()[key] || [])[i];
+    if (cur === undefined) return;
+    showConfirmModal(t('sj_settings_remove_confirm').replace('{0}', cur), function () {
+        var opts = _sjOptions();
+        opts[key].splice(i, 1);
+        _sjSaveOptions(opts);
+        _sjRenderSetGroup(key);
+    }, t('btn_remove'), '#e74c3c');
+}
+window.sjSettingsAdd = sjSettingsAdd;
+window.sjSettingsMove = sjSettingsMove;
+window.sjSettingsEdit = sjSettingsEdit;
+window.sjSettingsRemove = sjSettingsRemove;
+
+// ── Id-er og prosjektnøkkel ─────────────────────────────────────────────────
+// Invertert tid → nyeste først i Firestores standard-rekkefølge (se toppen).
+function _sjNewId() {
+    var inv = String(9999999999999 - Date.now());
+    while (inv.length < 13) inv = '0' + inv;
+    return inv + '-' + Math.random().toString(36).slice(2, 7);
+}
+// Ett prosjekt = prosjektnr (eller navnet hvis nr mangler). Kun ASCII så nøkkelen
+// kan stå rett i URL-en og som Firestore-dokument-id.
+function _sjProjectKey(nr, navn) {
+    nr = _sjStr(nr); navn = _sjStr(navn);
+    var base = nr ? 'nr-' + nr : (navn ? 'nm-' + navn : '');
+    return base.toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a')
+        .replace(/[^a-z0-9-]+/g, '-').replace(/-+$/, '').slice(0, 120);
+}
+function _sjFmtTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : formatDateWithTime(d);
+}
+
+// ── Lokal cache (lite vindu) ────────────────────────────────────────────────
+function _sjCache() { var a = safeParseJSON(SJ_CACHE_KEY, []); return Array.isArray(a) ? a : []; }
+function _sjSortById(a) { return a.sort(function (x, y) { return x.id < y.id ? -1 : x.id > y.id ? 1 : 0; }); }
+function _sjCacheUpsert(items) {
+    if (!items || !items.length) return;
+    var map = {};
+    _sjCache().forEach(function (x) { map[x.id] = x; });
+    items.forEach(function (x) { if (x && x.id) map[x.id] = x; });
+    var arr = _sjSortById(Object.keys(map).map(function (k) { return map[k]; }));
+    if (arr.length > SJ_CACHE_MAX) arr.length = SJ_CACHE_MAX;
+    safeSetItem(SJ_CACHE_KEY, JSON.stringify(arr));
+}
+function _sjCacheRemove(ids) {
+    if (!ids || !ids.length) return;
+    safeSetItem(SJ_CACHE_KEY, JSON.stringify(_sjCache().filter(function (x) { return ids.indexOf(x.id) === -1; })));
+}
+function _sjLocalItems(key, floor) {
+    return _sjCache().filter(function (x) { return x.projectKey === key && (!floor || x.etasje === floor); });
+}
+function _sjMergeById(a, b) {
+    var map = {};
+    a.concat(b).forEach(function (x) { map[x.id] = x; });
+    return _sjSortById(Object.keys(map).map(function (k) { return map[k]; }));
+}
+function _sjProjectsMap() { var m = safeParseJSON(SJ_PROJECTS_KEY, {}); return (m && typeof m === 'object') ? m : {}; }
+function _sjLocalProjectBump(key, rec, delta) {
+    if (!key) return;
+    var m = _sjProjectsMap();
+    var p = m[key] || { count: 0 };
+    p.count = Math.max(0, (p.count || 0) + delta);
+    if (rec) { p.prosjektnr = rec.prosjektnr || ''; p.prosjektnavn = rec.prosjektnavn || ''; p.lastAt = rec.updatedAt || new Date().toISOString(); }
+    m[key] = p;
+    safeSetItem(SJ_PROJECTS_KEY, JSON.stringify(m));
+}
+function _sjProjectsList() {
+    var m = _sjProjectsMap();
+    return Object.keys(m).map(function (k) { return Object.assign({ key: k }, m[k]); })
+        .filter(function (p) { return (p.count || 0) > 0; })
+        .sort(function (a, b) { return _cmpIsoDesc(String(a.lastAt || ''), String(b.lastAt || '')); });
+}
+function _sjRefreshProjects() {
+    if (!_sjRemote()) return;
+    db.collection(_SJ_PROJ_COLL).orderBy('lastAt', 'desc').limit(150).get().then(function (snap) {
+        var map = {};
+        snap.docs.forEach(function (d) { map[d.id] = d.data(); });
+        // Prosjekter som bare finnes lokalt (lagret offline, ikke sendt ennå) beholdes.
+        var local = _sjProjectsMap();
+        Object.keys(local).forEach(function (k) { if (!map[k] && _sjLocalItems(k).length) map[k] = local[k]; });
+        safeSetItem(SJ_PROJECTS_KEY, JSON.stringify(map));
+        if (_sjMode === 'overview' && _sjViewOpen()) _sjRenderProjectList();
+        if (_sjMode === 'project' && _sjViewOpen()) _sjRenderProjectHead();
+    }).catch(function (e) { console.error('Sjekkliste-prosjekter:', e); });
+}
+
+// ── Navigasjon (hash) ───────────────────────────────────────────────────────
+//   sjekkliste          prosjektoversikt
+//   sjekkliste/p/<key>  sjekklistene i ett prosjekt
+//   sjekkliste/ny       ny sjekkliste
+//   sjekkliste/r/<id>   åpne en lagret sjekkliste
+function _sjViewOpen() { return document.body.classList.contains('sjekkliste-view-open'); }
+function _sjParseHash(h) {
+    var p = String(h || '').split('/');
+    if (p[1] === 'ny') return { mode: 'form', id: null };
+    if (p[1] === 'r' && p[2]) return { mode: 'form', id: p[2] };
+    if (p[1] === 'p' && p[2]) return { mode: 'project', key: p[2] };
+    return { mode: 'overview' };
+}
+function _sjCurHash() {
+    if (_sjMode === 'form') return (_sjForm && _sjForm.id) ? 'sjekkliste/r/' + _sjForm.id : 'sjekkliste/ny';
+    if (_sjMode === 'project' && _sjProjectKeyCur) return 'sjekkliste/p/' + _sjProjectKeyCur;
+    return 'sjekkliste';
+}
+// Viser view-skallet (kalles fra _applyHashNavigation / _navOpenFn når viewet ikke er åpent).
+function _sjShowShell() {
+    showView('sjekkliste-view');
+    document.body.classList.add('sjekkliste-view-open');
+    document.body.classList.remove('template-modal-open', 'saved-modal-open', 'settings-modal-open', 'settings-subpage-open',
+        'calculator-modal-open', 'service-view-open', 'kappe-view-open', 'kvittering-view-open', 'timebok-view-open');
+    updateToolbarState();
+    // Valglistene kan være endret på en annen enhet: hent på nytt, tegn skjemaet om
+    // (data ligger i _sjForm.data, så ingenting går tapt) hvis ingen felt har fokus.
+    _sjRefreshOptions().then(function () {
+        var pane = document.getElementById('sj-pane-form');
+        if (_sjMode === 'form' && _sjForm && pane && !pane.contains(document.activeElement)) _sjRenderForm();
+    });
+}
+// Vis det adressen sier. force = viewet ble nettopp åpnet (alt må tegnes).
+function _sjApplyHash(h, force) {
+    h = h || 'sjekkliste';
+    if (!force && h === _sjCurHash()) return;
+    var r = _sjParseHash(h);
+    // Forlater skjemaet (ulagret-vakten er allerede passert) → forkast økten.
+    if (_sjMode === 'form' && _sjForm && !(r.mode === 'form' && (r.id || null) === (_sjForm.id || null))) _sjCloseForm();
+    _sjMode = r.mode;
+    if (r.mode === 'project') {
+        if (_sjProjectKeyCur !== r.key) _sjFloorFilter = '';
+        _sjProjectKeyCur = r.key;
+    }
+    if (r.mode === 'form') { _sjOpenFormFor(r.id, force); return; }
+    _sjRender();
+    _sjScrollTop();
+}
+// Til toppen ved bytte inne i viewet (oversikt → prosjekt → skjema). Samlet i neste
+// frame, der layouten beregnes uansett — ikke en ekstra tvungen layout midt i byttet.
+function _sjScrollTop() {
+    requestAnimationFrame(function () {
+        var v = document.getElementById('sjekkliste-view');
+        if (v && v.scrollTop) v.scrollTop = 0;
+        if (window.scrollY) window.scrollTo(0, 0);
+    });
+}
+function _sjGo(h) {
+    var v = document.getElementById('sjekkliste-view');
+    var open = !!(v && v.classList.contains('active') && _sjViewOpen());
+    // Direkte (ikke via hashchange) når viewet åpnes, eller når innloggingen ikke er
+    // klar ennå: hashchange-lytteren gjør ingenting før currentUser er satt, så rett
+    // etter en oppdatering av siden ble trykket ellers liggende uten virkning (samme
+    // grunn til at kappe/Timebok åpner viewet direkte og så setter adressen).
+    if (!open || !currentUser) {
+        var go = function () {
+            if (!open) { closeAllModals(); _sjShowShell(); }
+            if (window.location.hash.slice(1) !== h) window.location.hash = h;   // senere hashchange = no-op
+            _sjApplyHash(h, !open);
+        };
+        if (open && hasUnsavedChanges()) _showUnsavedGuard(go); else go();
+        return;
+    }
+    if (window.location.hash.slice(1) === h) _sjApplyHash(h, true);
+    else window.location.hash = h;
+}
+
+// Hjem «+ Sjekkliste» og «+ Ny» i lista.
+function openNewSjekkliste(prefill) {
+    _sjPendingNew = { prefill: prefill || null };
+    _sjGo('sjekkliste/ny');
+}
+window.openNewSjekkliste = openNewSjekkliste;
+function sjNew() {
+    var prefill = null;
+    if (_sjMode === 'project' && _sjProjectKeyCur) {
+        var p = _sjProjectsMap()[_sjProjectKeyCur];
+        var any = _sjList.items[0];
+        if (p) prefill = { prosjektnr: p.prosjektnr || '', prosjektnavn: p.prosjektnavn || '' };
+        else if (any) prefill = { prosjektnr: any.prosjektnr || '', prosjektnavn: any.prosjektnavn || '' };
+    }
+    openNewSjekkliste(prefill);
+}
+window.sjNew = sjNew;
+function sjOpenOverview() { _sjGo('sjekkliste'); }
+window.sjOpenOverview = sjOpenOverview;
+
+function closeSjekklisteView() {
+    _sjCloseForm();
+    document.body.classList.remove('sjekkliste-view-open');
+}
+window.closeSjekklisteView = closeSjekklisteView;
+
+// Tilbake uten historikk (åpnet rett på en adresse): skjema → prosjektet → oversikten → hjem.
+function _sjBackFallback() {
+    var up = null;
+    if (_sjMode === 'form') {
+        var key = (_sjForm && _sjForm.original && _sjForm.original.projectKey) ||
+            (_sjForm ? _sjProjectKey(_sjForm.data.prosjektnr, _sjForm.data.prosjektnavn) : '');
+        up = (key && _sjProjectsMap()[key]) ? 'sjekkliste/p/' + key : 'sjekkliste';
+    } else if (_sjMode === 'project') up = 'sjekkliste';
+    var go = up
+        ? function () {
+            _navDir = 'back';
+            history.replaceState(null, '', '#' + up);
+            _sjApplyHash(up);
+            _navNote();
+            setTimeout(function () { _navDir = 'fwd'; }, 0);
+        }
+        : function () { closeSjekklisteView(); showTemplateModal(); };
+    if (hasUnsavedChanges()) _showUnsavedGuard(go); else go();
+}
+
+function hasUnsavedSjekklisteChanges() {
+    return !!(_sjMode === 'form' && _sjForm && _sjSnapshot(_sjForm.data) !== _sjForm.savedSnap);
+}
+
+// ── Rendering ───────────────────────────────────────────────────────────────
+function _sjRender() {
+    var view = document.getElementById('sjekkliste-view');
+    if (!view) return;
+    ['overview', 'project', 'form'].forEach(function (m) {
+        var p = document.getElementById('sj-pane-' + m);
+        if (p) p.style.display = (m === _sjMode) ? '' : 'none';
+    });
+    var title = document.getElementById('sj-title');
+    var btn = document.getElementById('sj-head-btn');
+    var btnLbl = document.getElementById('sj-head-btn-label');
+    var listBtn = document.getElementById('sj-list-btn');
+    if (listBtn) listBtn.style.display = (_sjMode === 'form') ? '' : 'none';
+    if (_sjMode === 'form') {
+        if (title) title.textContent = t(_sjForm && _sjForm.id ? 'sj_edit_title' : 'sj_new_title');
+        if (btnLbl) btnLbl.textContent = t('toolbar_save');
+        if (btn) { btn.onclick = function () { sjSave(false); }; btn.classList.remove('sj-head-btn-new'); }
+    } else {
+        if (title) title.textContent = t('sj_title');
+        if (btnLbl) btnLbl.textContent = t('sj_new_short');
+        if (btn) { btn.onclick = sjNew; btn.classList.add('sj-head-btn-new'); }
+    }
+    if (_sjMode === 'overview') { _sjRenderProjectList(); _sjRefreshProjects(); }
+    else if (_sjMode === 'project') { _sjRenderProjectHead(); _sjRenderFloorFilter(); _sjLoadProject(true); }
+    else _sjRenderForm();
+}
+
+function _sjRenderProjectList() {
+    var el = document.getElementById('sj-proj-list');
+    if (!el) return;
+    var term = _sjStr((document.getElementById('sj-proj-search') || {}).value).toLowerCase();
+    var list = _sjProjectsList().filter(function (p) {
+        return !term || String(p.prosjektnavn || '').toLowerCase().indexOf(term) !== -1 || String(p.prosjektnr || '').toLowerCase().indexOf(term) !== -1;
+    });
+    if (!list.length) {
+        el.innerHTML = '<div class="sj-empty">' + escapeHtml(t(term ? 'sj_no_match' : 'sj_no_projects')) + '</div>';
+        return;
+    }
+    el.innerHTML = list.map(function (p) {
+        var name = p.prosjektnavn || p.prosjektnr || t('no_name');
+        var row2 = [p.prosjektnavn ? p.prosjektnr : '', t(p.count === 1 ? 'sj_count_one' : 'sj_count_many').replace('{0}', p.count), p.lastAt ? t('sj_last_at').replace('{0}', _sjFmtTime(p.lastAt)) : '']
+            .filter(Boolean).map(escapeHtml).join(' • ');
+        return '<div class="saved-item sj-item" onclick="_sjGo(\'sjekkliste/p/' + escapeHtml(p.key) + '\')">' +
+            '<div class="saved-item-info"><div class="saved-item-row1">' + escapeHtml(name) + '</div>' +
+            '<div class="saved-item-row2">' + row2 + '</div></div>' +
+            '<span class="sj-item-chev" aria-hidden="true">&rsaquo;</span>' +
+        '</div>';
+    }).join('');
+}
+window._sjRenderProjectList = _sjRenderProjectList;
+window._sjGo = _sjGo;
+
+function _sjRenderProjectHead() {
+    var p = _sjProjectsMap()[_sjProjectKeyCur] || {};
+    var any = _sjList.key === _sjProjectKeyCur ? _sjList.items[0] : null;
+    var nr = p.prosjektnr || (any && any.prosjektnr) || '';
+    var navn = p.prosjektnavn || (any && any.prosjektnavn) || '';
+    var nameEl = document.getElementById('sj-proj-name');
+    var subEl = document.getElementById('sj-proj-sub');
+    if (nameEl) nameEl.textContent = navn || nr || '';
+    if (subEl) {
+        var c = p.count || 0;
+        subEl.textContent = [navn ? nr : '', c ? t(c === 1 ? 'sj_count_one' : 'sj_count_many').replace('{0}', c) : ''].filter(Boolean).join(' • ');
+    }
+}
+function _sjRenderFloorFilter() {
+    var sel = document.getElementById('sj-floor-filter');
+    if (!sel) return;
+    var floors = _sjOptions().floors.slice();
+    if (_sjFloorFilter && floors.indexOf(_sjFloorFilter) === -1) floors.push(_sjFloorFilter);
+    sel.innerHTML = '<option value="">' + escapeHtml(t('sj_all_floors')) + '</option>' +
+        floors.map(function (f) { return '<option value="' + escapeHtml(f) + '">' + escapeHtml(f) + '</option>'; }).join('');
+    sel.value = _sjFloorFilter;
+}
+function sjSetFloorFilter(v) {
+    _sjFloorFilter = v || '';
+    _sjLoadProject(true);
+}
+window.sjSetFloorFilter = sjSetFloorFilter;
+
+// Én side (SJ_PAGE_SIZE) om gangen. reset = første side (ny visning / nytt filter).
+function _sjLoadProject(reset) {
+    var key = _sjProjectKeyCur, floor = _sjFloorFilter;
+    if (reset) {
+        _sjList = { key: key, floor: floor, items: _sjLocalItems(key, floor), lastDoc: null, hasMore: false, loading: false, seq: _sjList.seq + 1 };
+    }
+    if (!_sjRemote()) { _sjRenderRegList(); return; }
+    if (_sjList.loading) return;
+    var seq = _sjList.seq, firstPage = !_sjList.lastDoc;
+    _sjList.loading = true;
+    _sjRenderRegList();
+    var q = db.collection(_SJ_COLL).where('projectKey', '==', key);
+    if (floor) q = q.where('etasje', '==', floor);
+    if (_sjList.lastDoc) q = q.startAfter(_sjList.lastDoc);
+    q.limit(SJ_PAGE_SIZE).get().then(function (snap) {
+        if (seq !== _sjList.seq) return;
+        var got = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+        var full = snap.docs.length === SJ_PAGE_SIZE;
+        if (firstPage) {
+            // Rydd lokale kopier som er slettet (av deg eller en kollega): lokale poster
+            // innenfor sidens id-område som serveren ikke returnerte, finnes ikke lenger.
+            var maxId = got.length ? got[got.length - 1].id : null;
+            var gotIds = got.map(function (x) { return x.id; });
+            var gone = _sjList.items.filter(function (x) {
+                return gotIds.indexOf(x.id) === -1 && (!full || (maxId && x.id <= maxId));
+            }).map(function (x) { return x.id; });
+            _sjCacheRemove(gone);
+            _sjList.items = _sjList.items.filter(function (x) { return gone.indexOf(x.id) === -1; });
+            _sjCacheUpsert(got);
+        }
+        _sjList.items = _sjMergeById(_sjList.items, got);
+        if (snap.docs.length) _sjList.lastDoc = snap.docs[snap.docs.length - 1];
+        _sjList.hasMore = full;
+        _sjList.loading = false;
+        _sjRenderRegList();
+        _sjRenderProjectHead();
+    }).catch(function (e) {
+        console.error('Sjekklister:', e);
+        if (seq !== _sjList.seq) return;
+        _sjList.loading = false;
+        _sjRenderRegList();
+    });
+}
+function sjLoadMore() { _sjLoadProject(false); }
+window.sjLoadMore = sjLoadMore;
+
+function _sjDimText(d) {
+    var b = _sjStr(d.bredde), h = _sjStr(d.hoyde);
+    if (b && h) return b + ' × ' + h + ' mm';
+    if (b) return 'Ø' + b + ' mm';
+    return '';
+}
+function _sjContentText(d) {
+    if (d.hullTomt) return t('sj_hole_empty');
+    return (d.innhold || []).map(function (r) {
+        return [(_sjStr(r.antall) && r.antall !== '1') ? r.antall + '×' : '', r.type, r.beskrivelse].filter(Boolean).join(' ');
+    }).join(', ');
+}
+function _sjRenderRegList() {
+    var el = document.getElementById('sj-reg-list');
+    var more = document.getElementById('sj-more-btn');
+    if (!el) return;
+    var items = _sjList.items;
+    if (!items.length) {
+        el.innerHTML = '<div class="sj-empty">' + escapeHtml(t(_sjList.loading ? 'sj_loading' : 'sj_no_items')) + '</div>';
+    } else {
+        el.innerHTML = items.map(function (d) {
+            var qty = _sjStr(d.antall) && d.antall !== '1' ? d.antall + ' stk' : '';
+            var row1 = [d.etasje, d.brannkrav, _sjDimText(d), qty].filter(Boolean).map(escapeHtml).join(' • ') || escapeHtml(t('sj_no_details'));
+            var row2 = [_sjContentText(d), d.flate, d.underlag].filter(Boolean).map(escapeHtml).join(' • ');
+            var row3 = [_sjFmtTime(d.createdAt), d.createdByName].filter(Boolean).map(escapeHtml).join(' • ');
+            var nImg = (d.imageIds || []).length;
+            return '<div class="saved-item sj-item" onclick="_sjGo(\'sjekkliste/r/' + escapeHtml(d.id) + '\')">' +
+                '<div class="saved-item-info"><div class="saved-item-row1">' + row1 + '</div>' +
+                (row2 ? '<div class="saved-item-row2">' + row2 + '</div>' : '') +
+                '<div class="saved-item-row2 sj-item-meta">' + row3 + '</div></div>' +
+                (nImg ? '<span class="sj-item-img"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>' + nImg + '</span>' : '') +
+            '</div>';
+        }).join('');
+    }
+    if (more) {
+        more.style.display = _sjList.hasMore ? '' : 'none';
+        more.disabled = !!_sjList.loading;
+    }
+}
+
+// ── Skjema ──────────────────────────────────────────────────────────────────
+function _sjEmptyData() {
+    return { prosjektnr: '', prosjektnavn: '', etasje: '', antall: '', brannkrav: '', omrade1: '', omrade2: '',
+        bredde: '', hoyde: '', flate: '', underlag: '', sider: '', hullTomt: false, innhold: [], produkter: [],
+        kommentar: '', imageIds: [] };
+}
+function _sjCleanData(d) {
+    var o = {};
+    SJ_FIELDS.forEach(function (f) {
+        var v = d ? d[f] : undefined;
+        if (f === 'innhold') v = (v || []).filter(_sjContentRowFilled).map(function (r) { return { type: _sjStr(r.type), beskrivelse: _sjStr(r.beskrivelse), antall: _sjStr(r.antall) }; });
+        else if (f === 'produkter') v = (v || []).map(function (m) { return typeof m === 'string' ? { name: m } : Object.assign({}, m); }).filter(function (m) { return m.name; });
+        else if (f === 'imageIds') v = (v || []).slice();
+        else if (f === 'hullTomt') v = !!v;
+        else v = _sjStr(v);
+        o[f] = v;
+    });
+    if (o.hullTomt) o.innhold = [];   // skjulte rader (Tomt på) er ikke en del av sjekklisten
+    return o;
+}
+function _sjSnapshot(d) { return JSON.stringify(_sjCleanData(d)); }
+function _sjPersistSession() {
+    if (!_sjForm) return;
+    try {
+        sessionStorage.setItem(SJ_SESSION_KEY, JSON.stringify({
+            id: _sjForm.id, data: _sjForm.data, original: _sjForm.original, savedSnap: _sjForm.savedSnap,
+            savedImageIds: _sjForm.savedImageIds, sessionNewIds: _sjForm.sessionNewIds
+        }));
+    } catch (e) {}
+}
+// Lukk skjemaet: bilder tatt i økten som aldri ble lagret, fjernes lokalt.
+function _sjCloseForm() {
+    if (_sjForm) (_sjForm.sessionNewIds || []).forEach(function (id) { _kvImgDelLocal(id); });
+    _sjForm = null;
+    try { sessionStorage.removeItem(SJ_SESSION_KEY); } catch (e) {}
+}
+function _sjStartForm(id, data, original) {
+    _sjForm = {
+        id: id || null,
+        data: Object.assign(_sjEmptyData(), _sjCleanData(Object.assign(_sjEmptyData(), data || {}))),
+        original: original || null,
+        savedImageIds: original ? (original.imageIds || []).slice() : [],
+        sessionNewIds: []
+    };
+    if (!_sjForm.data.hullTomt && !_sjForm.data.innhold.length) _sjForm.data.innhold.push(_sjEmptyContentRow());
+    _sjForm.savedSnap = _sjSnapshot(_sjForm.data);
+    _sjPersistSession();
+}
+// Åpne skjema for id (null = nytt). Etter oppdatering av siden gjenopprettes økten
+// (inkl. ulagrede endringer) fra sessionStorage.
+function _sjOpenFormFor(id, isReopen) {
+    var pending = _sjPendingNew;
+    _sjPendingNew = null;
+    var draft = null;
+    try { draft = JSON.parse(sessionStorage.getItem(SJ_SESSION_KEY) || 'null'); } catch (e) {}
+    if (!pending && draft && (draft.id || null) === (id || null)) {
+        _sjForm = {
+            id: draft.id || null, data: Object.assign(_sjEmptyData(), draft.data || {}), original: draft.original || null,
+            savedSnap: draft.savedSnap, savedImageIds: draft.savedImageIds || [], sessionNewIds: draft.sessionNewIds || []
+        };
+        _sjRender();
+        _sjScrollTop();
+        return;
+    }
+    if (!id) {
+        _sjCloseForm();
+        _sjStartForm(null, pending && pending.prefill);
+        _sjRender();
+        _sjScrollTop();
+        return;
+    }
+    var cached = _sjCache().filter(function (x) { return x.id === id; })[0];
+    if (cached) {
+        _sjCloseForm();
+        _sjStartForm(id, cached, cached);
+        _sjRender();
+        _sjScrollTop();
+        return;
+    }
+    // Ikke i det lokale vinduet: hent fra Firestore.
+    _sjCloseForm();
+    _sjStartForm(id, {}, { id: id, _loading: true });
+    _sjRender();
+    if (!_sjRemote()) { _sjNotFound(); return; }
+    db.collection(_SJ_COLL).doc(id).get().then(function (snap) {
+        if (!_sjForm || _sjForm.id !== id) return;
+        if (!snap.exists) { _sjNotFound(); return; }
+        var rec = Object.assign({}, snap.data(), { id: id });
+        _sjCacheUpsert([rec]);
+        _sjStartForm(id, rec, rec);
+        _sjRender();
+    }).catch(function (e) { console.error('Sjekkliste:', e); _sjNotFound(); });
+}
+function _sjNotFound() {
+    showNotificationModal(t('sj_not_found'));
+    _sjCloseForm();
+    _sjMode = 'overview';
+    history.replaceState(null, '', '#sjekkliste');
+    _navNote();
+    _sjRender();
+}
+
+function _sjChip(group, val, active) {
+    return '<button type="button" class="sj-chip' + (active ? ' active' : '') + '" data-g="' + group + '" data-v="' + escapeHtml(val) + '">' + escapeHtml(val) + '</button>';
+}
+// ── Valg-rad (ÉN linje): så mange knapper som får plass + «Flere ▾» for resten ──
+// Knappene ligger i en beholder med fast høyde på én rad og flex-wrap: det som ikke får
+// plass, brytes ned på linje 2 og klippes bort (ren CSS — tilpasser seg bredde/rotasjon
+// uten JS). «Flere»-lista inneholder ALLE valgene, så et valg som er skjult er alltid
+// tilgjengelig der. _sjSyncPicks (én gang pr. tegning, i neste frame) sjekker bare hvilke
+// knapper som havnet utenfor: får alle plass, skjules «Flere»; er det valgte skjult,
+// vises det i «Flere»-boksen (oransje).
+//   mode 'single' = ett valg · 'multi' = flervalg · 'action' = «+ type»-knapper (innhold)
+//   tail = egen siste boks i stedet for «Flere» (Antall: tallfelt)
+// Valg fra innstillingene + lagrede verdier som ikke lenger finnes i lista (omdøpt/fjernet)
+// — de vises fortsatt, så lagret data aldri blir usynlig.
+function _sjPick(g, options, selected, mode, tail, leadHtml) {
+    var sel = mode === 'multi' ? (selected || []) : (selected ? [selected] : []);
+    var all = options.slice();
+    if (mode !== 'action') sel.forEach(function (v) { if (v && all.indexOf(v) === -1) all.push(v); });
+    if (!all.length && !leadHtml) return '<div class="sj-hint">' + escapeHtml(t('sj_no_options')) + '</div>';
+    var chips = (leadHtml || '') + all.map(function (v) {
+        if (mode === 'action') return '<button type="button" class="sj-chip sj-chip-add" data-add="' + escapeHtml(v) + '">+ ' + escapeHtml(v) + '</button>';
+        return _sjChip(g, v, sel.indexOf(v) !== -1);
+    }).join('');
+    var more = tail || (all.length ? '<select class="sj-pick-more" data-pick="' + g + '" aria-label="' + escapeHtml(t('sj_more')) + '">' +
+        '<option value="">' + escapeHtml(t(mode === 'action' ? 'sj_more_add' : 'sj_more')) + '</option>' +
+        all.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') +
+        '</select>' : '');
+    return '<div class="sj-pick sj-pick-overflow' + (tail ? ' sj-pick-tail' : '') + '" data-g="' + g + '" data-mode="' + mode + '">' +
+        '<div class="sj-pick-chips">' + chips + '</div>' + more + '</div>';
+}
+// Hvilke knapper havnet utenfor raden? Alle målinger først, så alle endringer (én layout).
+function _sjSyncPicks(reshow) {
+    var pane = document.getElementById('sj-pane-form');
+    if (!pane || pane.offsetParent === null) return;
+    var rows = Array.prototype.slice.call(pane.querySelectorAll('.sj-pick:not(.sj-pick-tail)'));
+    if (reshow) rows.forEach(function (r) { r.classList.add('sj-pick-overflow'); });   // mål med «Flere» synlig
+    var res = rows.map(function (r) {
+        var chips = r.querySelectorAll('.sj-pick-chips > .sj-chip');
+        if (!chips.length) return { r: r, hidden: [] };
+        var top0 = chips[0].offsetTop, hidden = [];
+        for (var i = 0; i < chips.length; i++) {
+            if (chips[i].offsetTop > top0) hidden.push(chips[i].getAttribute('data-v') || chips[i].getAttribute('data-add'));
+        }
+        return { r: r, hidden: hidden };
+    });
+    res.forEach(function (x) {
+        x.r._sjHidden = x.hidden;
+        x.r.classList.toggle('sj-pick-overflow', x.hidden.length > 0);
+        // «Flere» viser bare valgene som IKKE har synlig knapp — de synlige står allerede
+        // på linja (bruker 08-11-2026). Bygges på nytt bare når settet endres (rotasjon o.l.).
+        var sel = x.r.querySelector('.sj-pick-more');
+        if (sel) {
+            var cur = Array.prototype.slice.call(sel.options, 1).map(function (o) { return o.value; });
+            if (cur.join('\u0001') !== x.hidden.join('\u0001')) {
+                var first = sel.options[0];
+                sel.innerHTML = '';
+                sel.appendChild(first);
+                x.hidden.forEach(function (v) {
+                    var o = document.createElement('option');
+                    o.value = v; o.textContent = v;
+                    sel.appendChild(o);
+                });
+            }
+        }
+        _sjPickDisplay(x.r);
+    });
+}
+// «Flere»-boksen viser det valgte når valget ikke har synlig knapp (ingen måling her).
+function _sjPickDisplay(row) {
+    var selEl = row && row.querySelector('.sj-pick-more');
+    if (!selEl || !_sjForm) return;
+    var g = row.getAttribute('data-g'), mode = row.getAttribute('data-mode'), hidden = row._sjHidden || [], d = _sjForm.data;
+    var first = selEl.options[0];
+    if (mode === 'single') {
+        var v = d[SJ_SINGLE_FIELD[g]] || '';
+        var show = v && hidden.indexOf(v) !== -1;
+        selEl.value = show ? v : '';
+        selEl.classList.toggle('active', !!show);
+    } else if (mode === 'multi') {
+        var n = (d.produkter || []).filter(function (x) { return hidden.indexOf(x) !== -1; }).length;
+        first.textContent = n ? t('sj_more_n').replace('{0}', n) : t('sj_more');
+        for (var i = 1; i < selEl.options.length; i++) {
+            var o = selEl.options[i];
+            o.textContent = ((d.produkter || []).indexOf(o.value) !== -1 ? '✓ ' : '') + o.value;
+        }
+        selEl.value = '';
+        selEl.classList.toggle('active', n > 0);
+    } else {
+        selEl.value = '';
+    }
+}
+var _sjPickResizeRaf = 0;
+window.addEventListener('resize', function () {
+    if (_sjMode !== 'form' || !_sjViewOpen() || _sjPickResizeRaf) return;
+    _sjPickResizeRaf = requestAnimationFrame(function () { _sjPickResizeRaf = 0; _sjSyncPicks(true); });
+});
+
+function _sjInput(field, val, attrs) {
+    return '<input type="text" data-f="' + field + '" value="' + escapeHtml(val || '') + '" ' + (attrs || '') + '>';
+}
+// Én rad i et kort: liten etikett over én linje med kontroller. reqKey = nøkkel i
+// Innstillinger → Sjekkliste → Obligatoriske felt (gir stjerne + validering).
+// Nesten alt er obligatorisk, så sjekklisten merker det VALGFRIE («valgfritt» ved etiketten,
+// via data-opt + CSS) i stedet for å sette stjerne på alt. Bevisst unntak fra stjerne-
+// konvensjonen i de andre skjemaene (bruker: «rotete»). Mangler ved lagring markeres rødt.
+function _sjRow(labelKey, body, reqKey, headExtra) {
+    var req = reqKey && _sjRequired()[reqKey] === true;
+    var label = labelKey ? '<div class="sj-row-label" data-opt="' + escapeHtml(t('sj_optional')) + '">' + escapeHtml(t(labelKey)) + '</div>' : '';
+    return '<div class="sj-row' + (req ? ' field-required' : '') + '"' + (reqKey ? ' data-req="' + reqKey + '"' : '') + '>' +
+        (headExtra ? '<div class="sj-row-head">' + label + headExtra + '</div>' : label) + body + '</div>';
+}
+function _sjSection(titleKey, rows) {
+    return '<div class="sj-sec-title">' + escapeHtml(t(titleKey)) + '</div><div class="sj-card">' + rows + '</div>';
+}
+
+// ── Obligatoriske felt ──────────────────────────────────────────────────────
+function _sjRequired() {
+    var s = cachedRequiredSettings || _getCachedRequiredSettings();
+    return Object.assign({}, getDefaultRequiredSettings().sjekkliste, (s && s.sjekkliste) || {});
+}
+// Stjerne på radene følger innstillingene (kalles fra updateRequiredIndicators).
+function _sjUpdateRequiredIndicators() {
+    var pane = document.getElementById('sj-pane-form');
+    if (!pane) return;
+    var req = _sjRequired();
+    pane.querySelectorAll('.sj-row[data-req]').forEach(function (r) {
+        r.classList.toggle('field-required', req[r.getAttribute('data-req')] === true);
+    });
+}
+// Første obligatoriske felt som mangler (i skjemaets rekkefølge), eller null. En valggruppe
+// uten valg i Innstillinger kreves ikke (ellers kunne skjemaet aldri lagres).
+function _sjMissingRequired(d) {
+    var req = _sjRequired(), o = _sjOptions();
+    var checks = [
+        ['prosjektnavn', 'label_prosjektnavn', function () { return !!(d.prosjektnavn || d.prosjektnr); }],
+        ['etasje', 'sj_grp_floors', function () { return !!d.etasje || !o.floors.length; }],
+        ['antall', 'sj_grp_quantity', function () { return !!d.antall; }],
+        ['brannkrav', 'sj_grp_fireclass', function () { return !!d.brannkrav || !o.fireClass.length; }],
+        ['omrade', 'sj_req_area', function () { return !!(d.omrade1 && d.omrade2); }],
+        ['dimensjon', 'sj_grp_dim', function () { return !!d.bredde; }],
+        ['flate', 'sj_grp_surface', function () { return !!d.flate || !o.surface.length; }],
+        ['underlag', 'sj_grp_surface_material', function () { return !!d.underlag || !o.surfaceMaterial.length; }],
+        ['sider', 'sj_grp_sides', function () { return !!d.sider || !o.sides.length; }],
+        ['innhold', 'sj_grp_content', function () {
+            if (d.hullTomt) return true;
+            var rows = d.innhold || [];
+            return rows.length > 0 && rows.every(function (r) { return !!_sjStr(r.type); });
+        }],
+        ['produkter', 'sj_grp_products', function () { return (d.produkter || []).length > 0 || !(cachedMaterialOptions && cachedMaterialOptions.length); }],
+        ['merknad', 'sj_comment', function () { return !!d.kommentar; }],
+        ['bilder', 'sj_images', function () { return (d.imageIds || []).length > 0; }]
+    ];
+    for (var i = 0; i < checks.length; i++) {
+        if (req[checks[i][0]] === true && !checks[i][2]()) return { key: checks[i][0], labelKey: checks[i][1] };
+    }
+    return null;
+}
+// Marker raden som mangler (rød ramme) og vis den; felt får fokus (tastatur åpnes bare der).
+function _sjMarkMissing(key) {
+    var pane = document.getElementById('sj-pane-form');
+    var row = pane && pane.querySelector('.sj-row[data-req="' + key + '"]');
+    if (!row) return;
+    pane.querySelectorAll('.sj-row.sj-missing').forEach(function (r) { r.classList.remove('sj-missing'); });
+    row.classList.add('sj-missing');
+    if (_sjForm) _sjForm.missing = true;
+    var input = row.querySelector('input[type="text"], textarea');
+    if (input && !input.value) input.focus();
+    else row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+function _sjClearMissing(row) {
+    if (row && row.classList.contains('sj-missing')) row.classList.remove('sj-missing');
+}
+// Prosjektnr. for et navn skrevet for hånd: fra prosjektmalen med samme navn (uten
+// hensyn til store/små bokstaver), ellers tomt — et nr. fra et tidligere valgt prosjekt
+// skal aldri henge igjen når navnet er endret.
+function _sjMatchProjectNr(name) {
+    name = _sjStr(name).toLowerCase();
+    if (!name) return '';
+    var list = safeParseJSON(TEMPLATE_KEY, []);
+    for (var i = 0; i < list.length; i++) {
+        if (_sjStr(list[i].prosjektnavn).toLowerCase() === name) return _sjStr(list[i].prosjektnr);
+    }
+    return '';
+}
+
+function _sjRenderForm() {
+    var pane = document.getElementById('sj-pane-form');
+    if (!pane || !_sjForm) return;
+    var d = _sjForm.data, o = _sjOptions(), orig = _sjForm.original;
+    if (orig && orig._loading) { pane.innerHTML = '<div class="sj-empty">' + escapeHtml(t('sj_loading')) + '</div>'; return; }
+
+    var qtyIsChip = o.quantity.indexOf(d.antall) !== -1;
+
+    // Oppbygning (bruker 08-11-2026: «rotete og forvirrende»): seksjoner med grå overskrift
+    // som i Meny (Prosjekt · Plassering · Hullet · Innhold og materialer · Dokumentasjon), hvite
+    // kort på grå bakgrunn, valg som segmentkontroll, og «valgfritt» i stedet for stjerner.
+    var swapSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
+    var html = '';
+
+    html += _sjSection('sj_sec_project',
+        // Bare prosjektnavn vises (mer plass). Prosjektnr. ligger fortsatt i dataene: settes av
+        // prosjektvelgeren, og når navnet skrives inn for hånd, hentes nr. fra prosjektet med
+        // samme navn (_sjMatchProjectNr) — så samme prosjekt alltid grupperes likt.
+        _sjRow(null,
+            '<div class="sj-line">' +
+                _sjInput('prosjektnavn', d.prosjektnavn, 'autocapitalize="sentences" placeholder="' + escapeHtml(t('label_prosjektnavn')) + '" aria-label="' + escapeHtml(t('label_prosjektnavn')) + '"') +
+                // Prosjektmal-velgeren (samme som «Velg prosjektmal» i de andre skjemaene) som ikon på linja.
+                '<button type="button" class="sj-icon-btn sj-project-pick" onclick="sjPickProject()" aria-label="' + escapeHtml(t('template_pick')) + '" title="' + escapeHtml(t('template_pick')) + '">' +
+                    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>' +
+                '</button>' +
+            '</div>', 'prosjektnavn'));
+
+    html += _sjSection('sj_sec_location',
+        _sjRow('sj_grp_floors', _sjPick('floors', o.floors, d.etasje, 'single'), 'etasje') +
+        _sjRow('sj_grp_area',
+            '<div class="sj-line">' +
+                _sjInput('omrade1', d.omrade1, 'autocapitalize="sentences" placeholder="' + escapeHtml(t('sj_area1_ph')) + '"') +
+                '<button type="button" class="sj-swap" onclick="sjSwapAreas()" aria-label="' + escapeHtml(t('sj_swap')) + '" title="' + escapeHtml(t('sj_swap')) + '">' + swapSvg + '</button>' +
+                _sjInput('omrade2', d.omrade2, 'autocapitalize="sentences" placeholder="' + escapeHtml(t('sj_area2_ph')) + '"') +
+            '</div>', 'omrade'));
+
+    html += _sjSection('sj_sec_hole',
+        _sjRow('sj_grp_fireclass', _sjPick('fireClass', o.fireClass, d.brannkrav, 'single'), 'brannkrav') +
+        _sjRow('sj_grp_surface', _sjPick('surface', o.surface, d.flate, 'single'), 'flate') +
+        _sjRow('sj_grp_surface_material', _sjPick('surfaceMaterial', o.surfaceMaterial, d.underlag, 'single'), 'underlag') +
+        _sjRow('sj_grp_sides', _sjPick('sides', o.sides, d.sider, 'single'), 'sider') +
+        _sjRow('sj_grp_dim',
+            '<div class="sj-line">' +
+                _sjInput('bredde', d.bredde, 'inputmode="numeric" placeholder="' + escapeHtml(t('sj_width')) + '" aria-label="' + escapeHtml(t('sj_width')) + '"') +
+                '<span class="sj-times" aria-hidden="true">×</span>' +
+                _sjInput('hoyde', d.hoyde, 'inputmode="numeric" placeholder="' + escapeHtml(t('sj_height')) + '" aria-label="' + escapeHtml(t('sj_height')) + '"') +
+            '</div>' +
+            '<div class="sj-hint" id="sj-dim-hint">' + escapeHtml(_sjDimHint(d)) + '</div>', 'dimensjon') +
+        _sjRow('sj_grp_quantity', _sjPick('quantity', o.quantity, qtyIsChip ? d.antall : '', 'single',
+            '<input type="text" class="sj-qty-other" data-f="antallAnnet" inputmode="numeric" placeholder="' + escapeHtml(t('sj_other')) + '" value="' + escapeHtml(qtyIsChip ? '' : d.antall) + '">'), 'antall'));
+
+    html += _sjSection('sj_sec_content',
+        _sjRow('sj_grp_content', '<div id="sj-content">' + _sjEmptySegHtml() + _sjContentHtml() + '</div>', 'innhold') +
+        // Materialer: samme velger og samme visning som ordreseddelen (Meny › Materialer).
+        _sjRow('sj_grp_products',
+            '<div class="material-picker-host sj-mat-host">' +
+                '<div class="mobile-order-materials sj-mat-list" id="sj-materials" onclick="sjPickMaterials(this)"></div>' +
+                '<button type="button" class="sj-soft-btn" id="sj-mat-btn" onclick="sjPickMaterials(this)">' + escapeHtml(t(d.produkter.length ? 'sj_edit_materials' : 'sj_pick_materials')) + '</button>' +
+            '</div>', 'produkter'));
+
+    html += _sjSection('sj_sec_docs',
+        _sjRow('sj_comment', '<textarea data-f="kommentar" rows="1" autocapitalize="sentences" aria-label="' + escapeHtml(t('sj_comment')) + '">' + escapeHtml(d.kommentar) + '</textarea>', 'merknad') +
+        _sjRow('sj_images',
+            '<div class="kv-thumbs" id="sj-thumbs"></div>' +
+            '<div class="sj-line">' +
+                '<button type="button" class="sj-soft-btn" onclick="document.getElementById(\'sj-camera-input\').click()">' +
+                    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>' +
+                    '<span>' + escapeHtml(t('kvittering_take_photo')) + '</span></button>' +
+                '<button type="button" class="sj-soft-btn" onclick="document.getElementById(\'sj-file-input\').click()">' +
+                    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' +
+                    '<span>' + escapeHtml(t('sj_from_gallery')) + '</span></button>' +
+            '</div>', 'bilder'));
+
+    // Handlinger
+    var canDelete = !!(_sjForm.id && orig && (isAdmin || orig.createdBy === _sjUid()));
+    html += '<div class="form-actions sj-actions">' +
+        '<button type="button" class="form-action-btn sj-btn-save" onclick="sjSave()">' +
+            '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+            '<span>' + escapeHtml(t('toolbar_save')) + '</span></button>' +
+        (canDelete ? '<button type="button" class="form-action-btn sj-btn-delete" onclick="sjDelete()">' + deleteIcon + '<span>' + escapeHtml(t('delete_btn')) + '</span></button>' : '') +
+    '</div>';
+    if (orig && orig.createdAt) {
+        var meta = t('sj_meta_created').replace('{0}', _sjFmtTime(orig.createdAt)).replace('{1}', orig.createdByName || '');
+        if (orig.updatedAt && orig.updatedAt !== orig.createdAt) meta += ' • ' + t('sj_meta_updated').replace('{0}', _sjFmtTime(orig.updatedAt)).replace('{1}', orig.updatedByName || '');
+        html += '<div class="sj-meta">' + escapeHtml(meta) + '</div>';
+    }
+    pane.innerHTML = html;
+    var ta = pane.querySelector('textarea[data-f="kommentar"]');
+    // Tom kommentar har standardhøyden fra CSS — å måle den ville tvunget en layout for ingenting.
+    if (ta && ta.value && typeof autoResizeTextarea === 'function') autoResizeTextarea(ta);
+    _sjRenderThumbs();
+    _sjRenderMaterials();
+    requestAnimationFrame(function () { _sjSyncPicks(false); });
+}
+function _sjRenderMaterials() {
+    var el = document.getElementById('sj-materials'), btn = document.getElementById('sj-mat-btn');
+    if (!el || !_sjForm) return;
+    renderMaterialSummary(el, _sjForm.data.produkter || []);
+    if (btn) btn.textContent = t(_sjForm.data.produkter.length ? 'sj_edit_materials' : 'sj_pick_materials');
+}
+// Materialvelgeren (samme som ordreseddelen). Valgte materialer forhåndsvelges (velgeren
+// leser dem fra #sj-materials); bekreftet liste erstatter sjekklistens materialer.
+function sjPickMaterials(btn) {
+    if (!_sjForm) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    openMaterialPicker(btn, function (materials) {
+        if (!_sjForm) return;
+        _sjForm.data.produkter = (materials || []).filter(function (m) { return m && m.name; });
+        _sjRenderMaterials();
+        _sjClearMissing(document.querySelector('#sj-pane-form .sj-row[data-req="produkter"]'));
+        _sjPersistSession();
+    });
+}
+window.sjPickMaterials = sjPickMaterials;
+
+// Tom bredde: ingen tekst (regelen står i feltene). Ellers: hva målene betyr.
+function _sjDimHint(d) {
+    var b = _sjStr(d.bredde), h = _sjStr(d.hoyde);
+    if (b && h) return t('sj_dim_square').replace('{0}', b).replace('{1}', h);
+    if (b) return t('sj_dim_round').replace('{0}', b);
+    return '';
+}
+
+// Innhold i hullet = tabell: Type (fra Innstillinger) · Størrelse · Antall. Én tom rad står
+// alltid klar; «+ Legg til rad» for flere. «Tomt» (bryter ved overskriften) skjuler radene.
+// En rad uten type og størrelse er bare en tom utfyllingsrad — lagres ikke (_sjCleanData).
+function _sjEmptyContentRow(type) { return { type: type || '', beskrivelse: '', antall: '' }; }
+function _sjContentRowFilled(r) { return !!(r && (_sjStr(r.type) || _sjStr(r.beskrivelse))); }
+function _sjContentHtml() {
+    var d = _sjForm.data, types = _sjOptions().contentTypes.slice();
+    if (d.hullTomt) return '';
+    (d.innhold || []).forEach(function (r) { if (r.type && types.indexOf(r.type) === -1) types.push(r.type); });
+    var head = '<div class="sj-ct-grid sj-ct-head"><span>' + escapeHtml(t('sj_ct_type')) + '</span><span>' + escapeHtml(t('sj_ct_size')) + '</span><span>' + escapeHtml(t('sj_grp_quantity')) + '</span><span></span></div>';
+    var rows = (d.innhold || []).map(function (r, i) {
+        return '<div class="sj-ct-grid sj-content-row" data-ci="' + i + '">' +
+            '<select data-cf="type" aria-label="' + escapeHtml(t('sj_ct_type')) + '"><option value="">' + escapeHtml(t('sj_select')) + '</option>' +
+                types.map(function (ty) { return '<option value="' + escapeHtml(ty) + '"' + (ty === r.type ? ' selected' : '') + '>' + escapeHtml(ty) + '</option>'; }).join('') +
+            '</select>' +
+            '<input type="text" data-cf="beskrivelse" value="' + escapeHtml(r.beskrivelse) + '" aria-label="' + escapeHtml(t('sj_ct_size')) + '">' +
+            '<input type="text" data-cf="antall" value="' + escapeHtml(r.antall) + '" inputmode="numeric" aria-label="' + escapeHtml(t('sj_grp_quantity')) + '">' +
+            '<button type="button" class="sj-content-del" onclick="sjRemoveContent(' + i + ')" aria-label="' + escapeHtml(t('delete_btn')) + '">' + deleteIcon + '</button>' +
+        '</div>';
+    }).join('');
+    return head + rows + '<button type="button" class="sj-add-row" onclick="sjAddContent()">' + escapeHtml(t('sj_add_row')) + '</button>';
+}
+// «Har innhold | Tomt hull» — to store knapper i full bredde (samme som «Tettes fra»), lette å
+// treffe på mobil. Bruker avviste først en liten avkrysning i overskriften («for lite»).
+function _sjEmptySegHtml() {
+    var on = !!(_sjForm && _sjForm.data.hullTomt);
+    return '<div class="sj-empty-seg" id="sj-empty-seg">' +
+        '<button type="button" class="sj-chip' + (on ? '' : ' active') + '" onclick="sjSetEmpty(false)" aria-pressed="' + !on + '">' + escapeHtml(t('sj_has_content')) + '</button>' +
+        '<button type="button" class="sj-chip' + (on ? ' active' : '') + '" onclick="sjSetEmpty(true)" aria-pressed="' + on + '">' + escapeHtml(t('sj_empty_short')) + '</button>' +
+    '</div>';
+}
+function _sjRenderContent() {
+    var el = document.getElementById('sj-content');
+    if (el) el.innerHTML = _sjEmptySegHtml() + _sjContentHtml();
+}
+function sjAddContent() {
+    if (!_sjForm) return;
+    var d = _sjForm.data, last = d.innhold[d.innhold.length - 1];
+    _sjClearMissing(document.querySelector('#sj-pane-form .sj-row[data-req="innhold"]'));
+    d.hullTomt = false;
+    d.innhold.push(_sjEmptyContentRow(last && last.type));   // ny rad arver typen over (flere rør på rad)
+    _sjRenderContent();
+    _sjPersistSession();
+}
+function sjRemoveContent(i) {
+    if (!_sjForm) return;
+    var d = _sjForm.data;
+    // Det OVER raden (overskrift/Tomt-knapp) står i ro; det under flytter seg opp som i en
+    // vanlig liste. Hjelperen griper bare inn når siden ellers måtte hoppe (nær bunnen).
+    _preserveScrollAround(function () { return document.getElementById('sj-empty-seg'); }, function () {
+        d.innhold.splice(i, 1);
+        if (!d.innhold.length) d.innhold.push(_sjEmptyContentRow());   // alltid én rad klar
+        _sjRenderContent();
+    });
+    _sjPersistSession();
+}
+// «Hullet er tomt»: radene SKJULES (ingen varsel, ingenting slettes) — slås den av igjen,
+// kommer radene tilbake med verdiene. Lagres hullet som tomt, lagres det uten rader
+// (_sjCleanData). Bruker 08-11-2026: «tomt hull skal fjerne rør uten varsel … avkrysse
+// tomt hull og rør kommer tilbake uten å miste verdier».
+function sjSetEmpty(on) {
+    if (!_sjForm || !!_sjForm.data.hullTomt === !!on) return;
+    sjToggleEmpty();
+}
+window.sjSetEmpty = sjSetEmpty;
+function sjToggleEmpty() {
+    if (!_sjForm) return;
+    var d = _sjForm.data;
+    // Knappene står i ro på skjermen selv om radene under forsvinner (siden flytter seg ikke).
+    _preserveScrollAround(function () { return document.getElementById('sj-empty-seg'); }, function () {
+        d.hullTomt = !d.hullTomt;
+        if (!d.hullTomt && !d.innhold.length) d.innhold.push(_sjEmptyContentRow());
+        _sjClearMissing(document.querySelector('#sj-pane-form .sj-row[data-req="innhold"]'));
+        _sjRenderContent();
+    });
+    _sjPersistSession();
+}
+function sjSwapAreas() {
+    if (!_sjForm) return;
+    var d = _sjForm.data, tmp = d.omrade1;
+    d.omrade1 = d.omrade2; d.omrade2 = tmp;
+    var pane = document.getElementById('sj-pane-form');
+    var a = pane && pane.querySelector('[data-f="omrade1"]'), b = pane && pane.querySelector('[data-f="omrade2"]');
+    if (a) a.value = d.omrade1;
+    if (b) b.value = d.omrade2;
+    _sjPersistSession();
+}
+window.sjAddContent = sjAddContent;
+window.sjRemoveContent = sjRemoveContent;
+window.sjToggleEmpty = sjToggleEmpty;
+window.sjSwapAreas = sjSwapAreas;
+
+// Prosjekt fra prosjektmal (samme velger som de andre skjemaene).
+function sjPickProject() {
+    _kappeTemplateActive = false;
+    _kvTemplateActive = false;
+    _serviceTemplateTargetCard = null;
+    _sjTemplateActive = true;
+    openTemplatePicker();
+}
+window.sjPickProject = sjPickProject;
+function _sjApplyTemplate(tpl) {
+    if (!_sjForm || !tpl) return;
+    _sjForm.data.prosjektnr = tpl.prosjektnr || '';
+    _sjForm.data.prosjektnavn = tpl.prosjektnavn || '';
+    var pane = document.getElementById('sj-pane-form');
+    var b = pane && pane.querySelector('[data-f="prosjektnavn"]');
+    if (b) b.value = _sjForm.data.prosjektnavn;
+    _sjClearMissing(b && b.closest('.sj-row'));
+    _sjPersistSession();
+}
+
+// Delegerte hendelser i skjemaet (valg-knapper og felt).
+(function () {
+    function pane() { return document.getElementById('sj-pane-form'); }
+    document.addEventListener('click', function (e) {
+        var add = e.target.closest && e.target.closest('#sj-pane-form .sj-chip-add[data-add]');
+        if (add && _sjForm) { sjAddContent(add.getAttribute('data-add')); return; }
+        var chip = e.target.closest && e.target.closest('#sj-pane-form .sj-chip[data-g]');
+        if (!chip || !_sjForm) return;
+        var g = chip.getAttribute('data-g'), v = chip.getAttribute('data-v'), d = _sjForm.data;
+        if (g === 'products') {
+            var i = d.produkter.indexOf(v);
+            if (i === -1) d.produkter.push(v); else d.produkter.splice(i, 1);
+            chip.classList.toggle('active', i === -1);
+        } else {
+            var f = SJ_SINGLE_FIELD[g];
+            if (!f) return;
+            // Trykk på valgt knapp fjerner valget (også antall — ingenting er forhåndsutfylt).
+            d[f] = (d[f] === v) ? '' : v;
+            chip.parentNode.querySelectorAll('.sj-chip[data-g="' + g + '"]').forEach(function (c) {
+                c.classList.toggle('active', c.getAttribute('data-v') === d[f]);
+            });
+            var pickRow = chip.closest('.sj-pick');
+            if (g === 'quantity') { var other = pickRow && pickRow.querySelector('.sj-qty-other'); if (other) other.value = ''; }
+        }
+        _sjPickDisplay(chip.closest('.sj-pick'));
+        _sjClearMissing(chip.closest('.sj-row'));
+        _sjPersistSession();
+    });
+    // «Flere ▾»: samme virkning som å trykke på knappen for valget.
+    function onPickMore(el) {
+        var row = el.closest('.sj-pick'), v = el.value;
+        if (!row || !v || !_sjForm) { _sjPickDisplay(row); return; }
+        var g = row.getAttribute('data-g'), mode = row.getAttribute('data-mode'), d = _sjForm.data;
+        if (mode === 'action') { el.value = ''; sjAddContent(v); return; }
+        if (mode === 'multi') {
+            var i = d.produkter.indexOf(v);
+            if (i === -1) d.produkter.push(v); else d.produkter.splice(i, 1);
+        } else {
+            var f = SJ_SINGLE_FIELD[g];
+            if (!f) return;
+            d[f] = v;
+        }
+        row.querySelectorAll('.sj-pick-chips > .sj-chip[data-g]').forEach(function (c) {
+            var cv = c.getAttribute('data-v');
+            c.classList.toggle('active', mode === 'multi' ? d.produkter.indexOf(cv) !== -1 : cv === d[SJ_SINGLE_FIELD[g]]);
+        });
+        _sjPickDisplay(row);
+        _sjClearMissing(row.closest('.sj-row'));
+        _sjPersistSession();
+    }
+    function onField(e) {
+        var el = e.target;
+        if (!_sjForm || !el.closest || !el.closest('#sj-pane-form')) return;
+        if (el.classList && el.classList.contains('sj-pick-more')) return;   // håndteres i change
+        var d = _sjForm.data;
+        var f = el.getAttribute('data-f');
+        if (f === 'antallAnnet') {
+            var n = String(el.value || '').replace(/[^\d]/g, '');
+            if (n !== el.value) el.value = n;
+            d.antall = n || '';
+            (el.closest('.sj-pick') || el.parentNode).querySelectorAll('.sj-chip[data-g="quantity"]').forEach(function (c) {
+                c.classList.toggle('active', !n && c.getAttribute('data-v') === d.antall);
+            });
+        } else if (f) {
+            d[f] = el.value;
+            if (f === 'prosjektnavn') d.prosjektnr = _sjMatchProjectNr(el.value);
+            if (_sjForm.missing) _sjClearMissing(el.closest('.sj-row'));
+            if (f === 'bredde' || f === 'hoyde') {
+                var hint = document.getElementById('sj-dim-hint');
+                if (hint) hint.textContent = _sjDimHint(d);
+            }
+            if (el.tagName === 'TEXTAREA' && typeof autoResizeTextarea === 'function') autoResizeTextarea(el);
+        } else {
+            var row = el.closest('.sj-content-row'), cf = el.getAttribute('data-cf');
+            if (!row || !cf) return;
+            var r = d.innhold[parseInt(row.getAttribute('data-ci'), 10)];
+            if (r) r[cf] = el.value;
+            _sjClearMissing(row.closest('.sj-row'));
+        }
+        _sjPersistSession();
+    }
+    document.addEventListener('input', onField);
+    document.addEventListener('change', function (e) {
+        var el = e.target;
+        if (!el || el.tagName !== 'SELECT' || !el.closest || !el.closest('#sj-pane-form')) return;
+        if (el.classList.contains('sj-pick-more')) { onPickMore(el); return; }
+        onField(e);
+    });
+})();
+
+// ── Bilder ──────────────────────────────────────────────────────────────────
+function _sjNewImgId() { return 'sj' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function _sjCanvasToRecord(canvas) {
+    var c = _kvScaleCanvas(canvas, _SJ_MAX_EDGE);
+    var q = 0.8, url = c.toDataURL('image/jpeg', q);
+    while (url.length > _SJ_MAX_DATAURL && q > 0.45) { q -= 0.08; url = c.toDataURL('image/jpeg', q); }
+    while (url.length > _SJ_MAX_DATAURL && Math.max(c.width, c.height) > 700) {
+        c = _kvScaleCanvas(c, Math.round(Math.max(c.width, c.height) * 0.8));
+        url = c.toDataURL('image/jpeg', q);
+    }
+    return { id: _sjNewImgId(), data: url, w: c.width, h: c.height, createdAt: new Date().toISOString() };
+}
+// minne → IndexedDB → Firestore (lagres så lokalt). null hvis borte.
+async function _sjGetImage(id) {
+    if (!id) return null;
+    if (_kvImgMem[id]) return _kvImgMem[id];
+    var rec = null;
+    try { rec = await _kvIdb('readonly', function (st) { return st.get(id); }); } catch (e) {}
+    if (rec) { _kvImgMem[id] = rec; return rec; }
+    if (_sjRemote()) {
+        try {
+            var snap = await db.collection(_SJ_IMG_COLL).doc(id).get();
+            if (snap.exists) {
+                rec = Object.assign({ id: id }, snap.data());
+                await _kvImgPutLocal(rec);
+                return rec;
+            }
+        } catch (e) { console.error('Sjekkliste-bilde:', e); }
+    }
+    return null;
+}
+function _sjRenderThumbs() {
+    var el = document.getElementById('sj-thumbs');
+    if (!el || !_sjForm) return;
+    var ids = _sjForm.data.imageIds;
+    if (!ids.length) { el.innerHTML = ''; return; }   // ingen «Ingen bilder»-tekst: knappene sier nok
+    el.innerHTML = ids.map(function (id, i) {
+        return '<div class="kv-thumb" data-i="' + i + '"><img alt="">' +
+            '<button type="button" class="kv-thumb-del" onpointerdown="event.preventDefault()" title="' + escapeHtml(t('delete_btn')) + '">' + deleteIcon + '</button></div>';
+    }).join('');
+    el.querySelectorAll('.kv-thumb').forEach(function (th) {
+        var i = parseInt(th.getAttribute('data-i'), 10), id = ids[i], img = th.querySelector('img');
+        _sjGetImage(id).then(function (rec) {
+            if (rec && img.isConnected) img.src = rec.data;
+            else if (img.isConnected) th.classList.add('kv-thumb-missing');
+        });
+        th.addEventListener('click', function (e) {
+            if (e.target.closest('.kv-thumb-del')) { _sjRemoveImage(i); return; }
+            sjOpenImage(id);
+        });
+    });
+}
+function _sjRemoveImage(i) {
+    showConfirmModal(t('kvittering_delete_image_confirm'), function () {
+        if (!_sjForm) return;
+        var id = _sjForm.data.imageIds[i];
+        if (!id) return;
+        _sjForm.data.imageIds.splice(i, 1);
+        // Ulagret bilde fra økten → fjern lokalt nå. Lagrede slettes først ved lagring.
+        var si = _sjForm.sessionNewIds.indexOf(id);
+        if (si !== -1) { _sjForm.sessionNewIds.splice(si, 1); _kvImgDelLocal(id); }
+        _sjRenderThumbs();
+        _sjPersistSession();
+    }, t('btn_remove'), '#e74c3c');
+}
+var _sjImgQueue = [], _sjImgBusy = false;
+function onSjFilesPicked(input) {
+    var files = Array.prototype.slice.call(input.files || []).filter(function (f) { return /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic)$/i.test(f.name || ''); });
+    input.value = '';
+    if (!files.length) return;
+    _sjImgQueue = _sjImgQueue.concat(files);
+    _sjProcessImages();
+}
+window.onSjFilesPicked = onSjFilesPicked;
+async function _sjProcessImages() {
+    if (_sjImgBusy) return;
+    _sjImgBusy = true;
+    var loading = document.getElementById('loading');
+    if (loading) loading.classList.add('active');
+    try {
+        while (_sjImgQueue.length) {
+            var file = _sjImgQueue.shift();
+            if (!_sjForm) break;
+            try {
+                var canvas = await _kvLoadImageFile(file);
+                var rec = _sjCanvasToRecord(canvas);
+                await _kvImgPutLocal(rec);
+                if (!_sjForm) { _kvImgDelLocal(rec.id); break; }
+                _sjForm.sessionNewIds.push(rec.id);
+                _sjForm.data.imageIds.push(rec.id);
+                _sjClearMissing(document.querySelector('#sj-pane-form .sj-row[data-req="bilder"]'));
+                _sjRenderThumbs();
+                _sjPersistSession();
+            } catch (e) { showNotificationModal(t('kvittering_image_error')); }
+        }
+    } finally {
+        _sjImgQueue = [];
+        _sjImgBusy = false;
+        if (loading) loading.classList.remove('active');
+    }
+}
+function sjOpenImage(id) {
+    var ov = document.getElementById('sj-img-viewer'), img = document.getElementById('sj-img-viewer-img');
+    if (!ov || !img) return;
+    img.removeAttribute('src');
+    ov.classList.add('active');
+    _sjGetImage(id).then(function (rec) { if (rec && ov.classList.contains('active')) img.src = rec.data; });
+}
+function closeSjImageViewer() {
+    var ov = document.getElementById('sj-img-viewer');
+    if (ov) ov.classList.remove('active');
+}
+window.sjOpenImage = sjOpenImage;
+window.closeSjImageViewer = closeSjImageViewer;
+
+// ── Lagre / slette ──────────────────────────────────────────────────────────
+var _sjSaving = false;
+async function sjSave() {
+    if (!_sjForm || _sjSaving) return;
+    var f = _sjForm, d = _sjCleanData(f.data);
+    if (!d.prosjektnr && !d.prosjektnavn) {
+        showNotificationModal(t('sj_need_project'));
+        _sjMarkMissing('prosjektnavn');
+        return;
+    }
+    var missing = _sjMissingRequired(d);
+    if (missing) {
+        showNotificationModal(t('validation_required_field') + ' ' + t(missing.labelKey));
+        _sjMarkMissing(missing.key);
+        return;
+    }
+    _sjSaving = true;
+    try {
+        var orig = f.original, isNew = !f.id;
+        var now = new Date().toISOString(), uid = _sjUid(), name = _sjUserName();
+        var id = f.id || _sjNewId();
+        var key = _sjProjectKey(d.prosjektnr, d.prosjektnavn);
+        var rec = Object.assign({}, d, {
+            projectKey: key,
+            createdAt: (orig && orig.createdAt) || now,
+            createdBy: (orig && orig.createdBy) || uid,
+            createdByName: (orig && orig.createdByName) || name,
+            updatedAt: now, updatedBy: uid, updatedByName: name
+        });
+        var oldKey = orig && orig.projectKey;
+        var moved = !isNew && oldKey && oldKey !== key;
+        var newImgs = rec.imageIds.filter(function (x) { return f.sessionNewIds.indexOf(x) !== -1; });
+        var goneImgs = f.savedImageIds.filter(function (x) { return rec.imageIds.indexOf(x) === -1; });
+
+        // 1) Lokalt (umiddelbart synlig, også offline)
+        _sjCacheUpsert([Object.assign({ id: id }, rec)]);
+        _sjLocalProjectBump(key, rec, (isNew || moved) ? 1 : 0);
+        if (moved) _sjLocalProjectBump(oldKey, null, -1);
+
+        // 2) Firestore. Ikke awaitet: offline løses løftet først når nettet er tilbake,
+        //    men skrivingen ligger allerede trygt i Firestores lokale kø.
+        if (_sjRemote()) {
+            var inc = firebase.firestore.FieldValue.increment;
+            var batch = db.batch();
+            batch.set(db.collection(_SJ_COLL).doc(id), rec);
+            var proj = { prosjektnr: rec.prosjektnr, prosjektnavn: rec.prosjektnavn, lastAt: now };
+            if (isNew || moved) proj.count = inc(1);
+            batch.set(db.collection(_SJ_PROJ_COLL).doc(key), proj, { merge: true });
+            if (moved) batch.set(db.collection(_SJ_PROJ_COLL).doc(oldKey), { count: inc(-1) }, { merge: true });
+            goneImgs.forEach(function (x) { batch.delete(db.collection(_SJ_IMG_COLL).doc(x)); });
+            batch.commit().catch(function (e) { console.error('Lagre sjekkliste:', e); });
+            // Bildene hver for seg (hvert ~≤450 KB; én batch kunne sprengt 10 MB-grensen).
+            for (var i = 0; i < newImgs.length; i++) {
+                var im = await _sjGetImage(newImgs[i]);
+                if (!im) continue;
+                db.collection(_SJ_IMG_COLL).doc(im.id).set({ sjekklisteId: id, projectKey: key, data: im.data, w: im.w, h: im.h, createdAt: im.createdAt, createdBy: uid })
+                    .catch(function (e) { console.error('Lagre sjekkliste-bilde:', e); });
+            }
+        }
+        goneImgs.forEach(function (x) { _kvImgDelLocal(x); });
+        _lastLocalSaveTs = Date.now();
+
+        // 3) Skjemaet er nå rent
+        f.sessionNewIds = [];
+        f.savedImageIds = rec.imageIds.slice();
+
+        if (isNew) {
+            // Ny sjekkliste: lagret → nytt skjema øverst med det som er felles for neste hull.
+            // Tilbake-knappen tar deg til der du kom fra (lista / Hjem).
+            var keep = {};
+            SJ_KEEP_ON_NEXT.forEach(function (k) { keep[k] = rec[k]; });
+            _sjStartForm(null, keep);
+            _sjRender();
+            _sjScrollTop();
+            showNotificationModal(t('sj_saved_next'), true);
+            return;
+        }
+        // Lagret sjekkliste som ble redigert → tilbake til lista.
+        showNotificationModal(t('sj_saved'), true);
+        f.original = Object.assign({ id: id }, rec);
+        f.savedSnap = _sjSnapshot(f.data);
+        _sjPersistSession();
+        navigateBack();
+    } finally {
+        _sjSaving = false;
+    }
+}
+window.sjSave = sjSave;
+
+function sjDelete() {
+    if (!_sjForm || !_sjForm.id) return;
+    var f = _sjForm, orig = f.original || {};
+    if (!(isAdmin || orig.createdBy === _sjUid())) return;
+    showConfirmModal(t('sj_delete_confirm'), function () {
+        var id = f.id, key = orig.projectKey, imgs = (orig.imageIds || []).concat(f.sessionNewIds || []);
+        _sjCacheRemove([id]);
+        _sjLocalProjectBump(key, null, -1);
+        if (_sjRemote()) {
+            var batch = db.batch();
+            batch.delete(db.collection(_SJ_COLL).doc(id));
+            if (key) batch.set(db.collection(_SJ_PROJ_COLL).doc(key), { count: firebase.firestore.FieldValue.increment(-1), lastAt: new Date().toISOString() }, { merge: true });
+            (orig.imageIds || []).forEach(function (x) { batch.delete(db.collection(_SJ_IMG_COLL).doc(x)); });
+            batch.commit().catch(function (e) { console.error('Slett sjekkliste:', e); });
+        }
+        imgs.forEach(function (x) { _kvImgDelLocal(x); });
+        f.sessionNewIds = [];
+        f.savedSnap = _sjSnapshot(f.data);   // ingen «ulagret»-varsel på vei ut
+        showNotificationModal(t('sj_deleted'), true);
+        navigateBack();
+    }, t('delete_btn'), '#e74c3c');
+}
+window.sjDelete = sjDelete;
+
+// Hent på nytt når appen kommer i forgrunnen / etter innlogging (refreshActiveView).
+function _sjRefreshActive() {
+    if (!_sjViewOpen()) return;
+    if (_sjMode === 'overview') _sjRefreshProjects();
+    else if (_sjMode === 'project' && !_sjList.loading) _sjLoadProject(true);
 }

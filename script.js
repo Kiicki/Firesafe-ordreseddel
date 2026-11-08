@@ -244,7 +244,7 @@ function getTimebokProjects() {
     };
     safeParseJSON(TEMPLATE_KEY, []).forEach(add);
     (window.loadedTemplates || []).forEach(add);
-    out.sort(function (a, b) { return a.name.localeCompare(b.name, 'nb'); });
+    out.sort(function (a, b) { return _cmpText(a.name, b.name); });
     return out;
 }
 
@@ -910,7 +910,7 @@ function _buildKappeCatalog(products, dimensions, plates) {
     if (!normalizedProducts.length) normalizedProducts = KAPPE_DEFAULT_PRODUCTS.map(_normalizeKappeCatalogProduct).filter(Boolean);
     normalizedProducts.sort(function(a, b) {
         if (a.type !== b.type) return a.type === 'isolasjon' ? -1 : 1;
-        return a.name.localeCompare(b.name, 'no');
+        return _cmpText(a.name, b.name);
     });
     // Plate-register: hver plate har dimensjoner + tilknyttede produkter.
     // Første plate fungerer som fallback for uassignede produkter.
@@ -1162,7 +1162,7 @@ function _sortKappeMaterialSizes(values) {
         var na = parseFloat(String(a).replace(',', '.'));
         var nb = parseFloat(String(b).replace(',', '.'));
         if (!isNaN(na) && !isNaN(nb)) return na - nb;
-        return String(a).localeCompare(String(b), 'no');
+        return _cmpText(String(a), String(b));
     });
 }
 
@@ -1805,7 +1805,7 @@ function groupMaterialsByBase(materials, options) {
         var aSpec = (a.isSpecGroup || a.isIsolationGroup || a.isStiftGroup) && a.items.length >= 1 ? 1 : 0;
         var bSpec = (b.isSpecGroup || b.isIsolationGroup || b.isStiftGroup) && b.items.length >= 1 ? 1 : 0;
         if (aSpec !== bSpec) return aSpec - bSpec;
-        return (a.displayName || a.baseName).localeCompare(b.displayName || b.baseName, 'nb');
+        return _cmpText((a.displayName || a.baseName), b.displayName || b.baseName);
     });
     // Etter alfabetisk sortering: tving Festemidler-gruppen til å stå rett etter
     // Isolasjon-gruppen (de hører konseptuelt sammen som "kapp"-materialer, men vi
@@ -1896,6 +1896,17 @@ function normalizeVariant(materialName, enhet) {
 function safeParseJSON(key, fallback) {
     try { var v = JSON.parse(localStorage.getItem(key)); return v || fallback; }
     catch(e) { console.error('Corrupt localStorage key:', key); return fallback; }
+}
+
+// Norsk tekst-sortering (æ/ø/å riktig). ÉN ferdig opprettet Intl.Collator i stedet
+// for a.localeCompare(b, 'no') i hver sammenligning — det siste setter opp språk-
+// reglene på nytt for hvert kall og gjorde lister/velgere merkbart trege å åpne.
+// Opprettes ved første bruk (kan kalles fra sorteringer tidligere i fila enn denne linjen).
+var _textCollator;
+function _cmpText(a, b) {
+    if (_textCollator === undefined) _textCollator = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('nb') : null;
+    a = String(a == null ? '' : a); b = String(b == null ? '' : b);
+    return _textCollator ? _textCollator.compare(a, b) : a.localeCompare(b);
 }
 
 // Safe localStorage write - prevents crash on quota exceeded
@@ -2152,6 +2163,7 @@ if (auth) {
              SERVICE_STORAGE_KEY, SERVICE_ARCHIVE_KEY, SERVICE_DEFAULTS_KEY,
              KAPPE_STORAGE_KEY, KAPPE_ARCHIVE_KEY, KAPPE_DEFAULTS_KEY,
              KVITTERING_STORAGE_KEY, KVITTERING_ARCHIVE_KEY,
+             'firesafe_sjekkliste_options', 'firesafe_sjekkliste_cache', 'firesafe_sjekkliste_projects',
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY,
@@ -2194,6 +2206,7 @@ if (auth) {
                 syncSettingsToLocal().catch(function() {}),
                 typeof getDropdownOptions === 'function' ? getDropdownOptions().catch(function() {}) : Promise.resolve(),
                 typeof loadPlanOptions === 'function' ? loadPlanOptions().catch(function() {}) : Promise.resolve(),
+                typeof _sjRefreshOptions === 'function' ? _sjRefreshOptions().catch(function() {}) : Promise.resolve(),
                 typeof syncBilHistory === 'function' ? syncBilHistory().catch(function() {}) : Promise.resolve(),
                 typeof getRequiredSettings === 'function' ? getRequiredSettings().then(function(data) {
                     cachedRequiredSettings = data;
@@ -2714,8 +2727,14 @@ function _setUkeToToday() {
 }
 
 // Check if mobile/tablet (≤1024px) or PC (>1024px)
+// Bredden caches: å lese window.innerWidth midt i et sidebytte tvinger nettleseren til
+// å regne ut layouten for hele dokumentet (målt ~45 ms på mobil ved «+ Ordreseddel»).
+// Den endres bare når vinduet endrer størrelse/roteres → nullstilles på 'resize'.
+var _isMobileW = null;
+window.addEventListener('resize', function () { _isMobileW = null; });
 function isMobile() {
-    return window.innerWidth <= 1024;
+    if (_isMobileW == null) _isMobileW = window.innerWidth;   // == null: også før linjen over er kjørt
+    return _isMobileW <= 1024;
 }
 
 // Auto-resize textarea to fit content (maxLines caps visible lines)
@@ -3856,7 +3875,9 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         return;
     }
     pickerConfirmCallback = onConfirm || null;
-    const card = btn ? (btn.closest('.mobile-order-card') || btn.closest('.service-entry-card')) : null;
+    // .material-picker-host: andre skjemaer (sjekkliste) som bruker samme velger og samme
+    // materialvisning — velgeren leser valgte materialer fra hostens .mobile-order-materials.
+    const card = btn ? (btn.closest('.mobile-order-card') || btn.closest('.service-entry-card') || btn.closest('.material-picker-host')) : null;
     pickerOrderCard = card;
     const matContainer = card ? card.querySelector('.mobile-order-materials') : null;
     const existing = matContainer ? getMaterialsFromContainer(matContainer) : [];
@@ -4524,7 +4545,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
             var aIsGroup = (a.isSpecGroup || a.isIsolationGroup || a.isStiftGroup) && a.items.length >= 1 ? 1 : 0;
             var bIsGroup = (b.isSpecGroup || b.isIsolationGroup || b.isStiftGroup) && b.items.length >= 1 ? 1 : 0;
             if (aIsGroup !== bIsGroup) return aIsGroup - bIsGroup;
-            return (a.displayName || a.baseName).localeCompare(b.displayName || b.baseName, 'nb');
+            return _cmpText((a.displayName || a.baseName), b.displayName || b.baseName);
         });
 
         let html = '';
