@@ -25619,7 +25619,8 @@ window.doKvitteringExport = doKvitteringExport;
 //                                allow delete: if isAdmin(); }
 // Uten reglene feiler lesingen stille → alle har full tilgang (som før).
 // Kvittering er ikke egen del lenger — kvitteringer ligger i Timebok (01-11-2026).
-var ACC_MODULES = ['ordreseddel', 'servicebil', 'kappe', 'sjekkliste', 'verktoy', 'timebok'];
+// Rekkefølge = som på Hjem (bruker 09-11-2026: ordreseddel, sjekkliste, kappeskjema, servicebil).
+var ACC_MODULES = ['ordreseddel', 'sjekkliste', 'kappe', 'servicebil', 'verktoy', 'timebok'];
 var _ACC_DERIVED = { hjem: ['ordreseddel', 'servicebil', 'kappe', 'sjekkliste'], lagret: ['ordreseddel', 'servicebil', 'kappe'], calc: ['verktoy'] };
 var ACC_CACHE_KEY = 'firesafe_access';
 // ── Testmodus (bare lokalt, DEV_MODE): Meny › Testmodus › Admin | Montør ──

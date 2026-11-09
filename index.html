@@ -492,20 +492,20 @@
                             <span class="set-text"><span class="set-title" data-i18n="form_title">Ordreseddel</span><span class="set-desc home-form-desc" id="home-count-own" data-desc-key="home_desc_ordreseddel">Arbeid, timer og materialer</span></span>
                             <button type="button" class="home-form-new" onclick="event.stopPropagation(); closeTemplateModal()" aria-label="Ny ordreseddel"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
                         </div>
-                        <div class="home-form-row" data-acc="servicebil" onclick="openFormList('servicebil')">
-                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc home-form-desc" id="home-count-servicebil" data-desc-key="home_desc_servicebil">Inntak og uttak av materialer</span></span>
-                            <button type="button" class="home-form-new" onclick="event.stopPropagation(); openServicebilView()" aria-label="Ny servicebil"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                        <div class="home-form-row" data-acc="sjekkliste" onclick="openFormList('sjekkliste')">
+                            <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="sj_single">Sjekkliste</span><span class="set-desc home-form-desc" id="home-count-sjekkliste" data-desc-key="home_desc_sjekkliste">Egenkontroll av branntetting</span></span>
+                            <button type="button" class="home-form-new" onclick="event.stopPropagation(); openNewSjekkliste()" aria-label="Ny sjekkliste"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
                         </div>
                         <div class="home-form-row" data-acc="kappe" onclick="openFormList('kappe')">
                             <span class="set-ico set-ico--purple"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></span>
                             <span class="set-text"><span class="set-title" data-i18n="kappe_title">Kappeskjema</span><span class="set-desc home-form-desc" id="home-count-kappe" data-desc-key="home_desc_kappe">Bestilling av kapp og plater</span></span>
                             <button type="button" class="home-form-new" onclick="event.stopPropagation(); openNewKappeForm()" aria-label="Nytt kappeskjema"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
                         </div>
-                        <div class="home-form-row" data-acc="sjekkliste" onclick="openFormList('sjekkliste')">
-                            <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="sj_single">Sjekkliste</span><span class="set-desc home-form-desc" id="home-count-sjekkliste" data-desc-key="home_desc_sjekkliste">Egenkontroll av branntetting</span></span>
-                            <button type="button" class="home-form-new" onclick="event.stopPropagation(); openNewSjekkliste()" aria-label="Ny sjekkliste"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                        <div class="home-form-row" data-acc="servicebil" onclick="openFormList('servicebil')">
+                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc home-form-desc" id="home-count-servicebil" data-desc-key="home_desc_servicebil">Inntak og uttak av materialer</span></span>
+                            <button type="button" class="home-form-new" onclick="event.stopPropagation(); openServicebilView()" aria-label="Ny servicebil"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
                         </div>
                     </div>
                 </div>
@@ -741,14 +741,14 @@
                             <span class="set-text"><span class="set-title" data-i18n="form_title">Ordreseddel</span><span class="set-desc" data-i18n="settings_desc_ordreseddel">Ordrenummer og utfylling</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="set-row" data-acc="servicebil" onclick="showSettingsPage('form-service')">
-                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc" data-i18n="settings_desc_service">Fyll inn automatisk</span></span>
-                            <span class="set-chev">&rsaquo;</span>
-                        </div>
                         <div class="set-row" data-acc="kappe" onclick="showSettingsPage('form-kappe')">
                             <span class="set-ico set-ico--purple"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></span>
                             <span class="set-text"><span class="set-title" data-i18n="kappe_title">Kappeskjema</span><span class="set-desc" data-i18n="settings_desc_kappe_user">Fyll inn automatisk</span></span>
+                            <span class="set-chev">&rsaquo;</span>
+                        </div>
+                        <div class="set-row" data-acc="servicebil" onclick="showSettingsPage('form-service')">
+                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc" data-i18n="settings_desc_service">Fyll inn automatisk</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" data-acc="timebok" onclick="showSettingsPage('timebok')">
@@ -789,9 +789,9 @@
                             <span class="set-text"><span class="set-title" data-i18n="form_title">Ordreseddel</span><span class="set-desc" data-i18n="settings_desc_adm_ordreseddel">Obligatoriske felt og etasjer</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="set-row" onclick="showSettingsPage('admin-service')">
-                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc" data-i18n="settings_desc_adm_service">Obligatoriske felt</span></span>
+                        <div class="set-row" onclick="showSettingsPage('admin-sjekkliste')">
+                            <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="sj_single">Sjekkliste</span><span class="set-desc" data-i18n="settings_desc_sjekkliste">Valg og obligatoriske felt</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" onclick="showSettingsPage('admin-kappe')">
@@ -799,9 +799,9 @@
                             <span class="set-text"><span class="set-title" data-i18n="kappe_title">Kappeskjema</span><span class="set-desc" data-i18n="settings_desc_kappe">Bladbredde, plater og felt</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="set-row" onclick="showSettingsPage('admin-sjekkliste')">
-                            <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="sj_single">Sjekkliste</span><span class="set-desc" data-i18n="settings_desc_sjekkliste">Valg og obligatoriske felt</span></span>
+                        <div class="set-row" onclick="showSettingsPage('admin-service')">
+                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc" data-i18n="settings_desc_adm_service">Obligatoriske felt</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" onclick="showSettingsPage('admin-satser')">
@@ -2540,7 +2540,7 @@
 
     <script src="lang.js?v=448"></script>
     <script src="script.js?v=602"></script>
-    <script src="script-ui.js?v=1369"></script>
+    <script src="script-ui.js?v=1370"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
