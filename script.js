@@ -114,12 +114,26 @@ const TIMEBOK_DEFAULT_BRACKETS = [
     { id: 'br_6075', label: '60–75 km', rate: null, ratePrivat: null }
 ];
 const MIN_INFO_KEY = 'firesafe_min_info';
-const KOLLEGER_KEY = 'firesafe_kolleger';        // { list: [{id, navn}] }
+const KOLLEGER_KEY = 'firesafe_kolleger';        // UTGÅTT (erstattet av ANSATTE_KEY) — ryddes fortsatt ved brukerbytte
+const ANSATTE_KEY = 'firesafe_ansatte';        // { list: [{h, fornavn, etternavn}] } — settings/ansatte (admin)
 const MIN_INFO_FIELDS = ['montor', 'avdeling', 'mobil', 'epost', 'sted'];
 const MIN_INFO_TOGGLES = ['montor', 'avdeling', 'mobil', 'epost', 'sted', 'uke', 'dato'];
 
-// Single lager-objekt (én lager-adresse)
+// Lager-adressen («Bruk lager» på kappeskjemaet). FELLES per arbeidsgiver (bruker 08-11-2026:
+// Firesafe og Damsgård har hvert sitt lager): Admin › Arbeidsgivere → settings/timebok_employers
+// .lager[emp], lest live av alle. Har admin ikke lagt inn lager for arbeidsgiveren ennå,
+// brukes brukerens gamle personlige lager (fra før 08-11-2026) så ingenting forsvinner.
 function getLager() {
+    try {
+        var emp = (typeof _timebokEmployer === 'function') ? _timebokEmployer() : null;
+        var ed = JSON.parse(localStorage.getItem(TIMEBOK_EMPLOYERS_KEY) || 'null');
+        var shared = ed && ed.lager && emp && ed.lager[emp];
+        if (shared && shared.veiadresse) return shared;
+    } catch (e) {}
+    return getPersonalLager();
+}
+// Det gamle personlige lageret (users/{uid}/settings/lager) — kun fallback + startverdi.
+function getPersonalLager() {
     try {
         var raw = localStorage.getItem(LEVERINGSADRESSE_KEY);
         if (!raw) return null;
@@ -201,7 +215,10 @@ function getTimebokPayStartDefault(emp) {
 }
 function getTimebokSettings() {
     var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
-    var style = d.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe';
+    // Arbeidsgiver = firmaet brukeren hører til (Admin › Brukere). Bare hovedadmin (eller
+    // før tilgangen er kjent) bruker sitt eget valg — se _firmaForTimebok i script-ui.js.
+    var fFirma = (typeof _firmaForTimebok === 'function') ? _firmaForTimebok() : null;
+    var style = fFirma || (d.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe');
     var ps = parseInt(d.payStart, 10);
     return {
         transport: d.transport === 'privat' ? 'privat' : 'firma',
@@ -764,15 +781,6 @@ function stripEtternavn(montorVal) {
     return String(montorVal).trim().split(/\s+/)[0] || '';
 }
 
-// ── Kolleger ────────────────────────────────────────────────────────────────
-// Navnene du kan føre timer på ved siden av deg selv. Forvaltes i
-// Innstillinger → Prosjekter & lager, og synkes til Firebase som alle andre
-// brukerdata, så samme liste finnes på telefon, nettbrett og PC.
-function getKolleger() {
-    var d = safeParseJSON(KOLLEGER_KEY, null);
-    return (d && Array.isArray(d.list)) ? d.list : [];
-}
-
 // Navnet mitt slik det skal stå på timene. Montør-feltet i det ÅPNE skjemaet er
 // fasit — det er navnet som allerede står på dokumentet — med Min info som
 // reserve når feltet ikke er fylt ut ennå.
@@ -1122,7 +1130,15 @@ function _migrateOldKappeProducts(oldProducts) {
     return { products: products, dimensions: Object.keys(allDims) };
 }
 
+// Bladbredden er FELLES (bruker 08-11-2026: «admin styrer bladbredde»): settings/kappe_kerf,
+// lest live av alle (script-ui.js, _accUnsubs) inn i KAPPE_KERF_SHARED_KEY. Den gamle
+// personlige verdien (users/{uid}/settings/kappe_kerf) brukes bare til admin har satt en.
+const KAPPE_KERF_SHARED_KEY = 'firesafe_kappe_kerf_shared';
 function getKappeKerf() {
+    try {
+        var sh = JSON.parse(localStorage.getItem(KAPPE_KERF_SHARED_KEY) || 'null');
+        if (sh && typeof sh.kerf === 'number') return sh.kerf;
+    } catch (e) {}
     try {
         var raw = localStorage.getItem(KAPPE_KERF_KEY);
         if (!raw) return KAPPE_DEFAULT_KERF;
@@ -2166,7 +2182,9 @@ if (auth) {
              'firesafe_sjekkliste_options', 'firesafe_sjekkliste_cache', 'firesafe_sjekkliste_projects',
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
-             LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY,
+             LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY, ANSATTE_KEY,
+             MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY,
+             'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard',
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             // Kvitteringsbildene (IndexedDB) tilhører forrige bruker.
@@ -7007,9 +7025,10 @@ function _removeDagTimerPerson(i) {
 }
 
 // ── Person-velger ───────────────────────────────────────────────────────────
-// Kildene er Min info (meg) + Kolleger-lista fra Innstillinger. Fritekst er
-// bevisst utelatt: samme kollega skrevet på tre måter ville blitt tre personer i
-// kundedokumentet. Nye navn legges til ett sted, og gjelder da overalt.
+// Kildene er Min info (meg) + de ansatte fra Admin › Brukere (getAnsatte) — én
+// felles liste, så samme person står likt for alle. Lagret navn = fornavn (som
+// Montør); har to ansatte samme fornavn, brukes fullt navn så de ikke blir én.
+// «+» nederst = en person som ikke er bruker, bare på denne bestillingen.
 function openPersonPicker() {
     // Uten et navn på MEG får den første personen ingen etikett, og eksporten
     // ville fått en navnløs linje ved siden av kollegaens. Bedre å si fra én gang
@@ -7027,34 +7046,39 @@ function openPersonPicker() {
         if (n) taken[n] = true;
     });
 
-    var candidates = [];
+    var candidates = [];   // { value: navnet som lagres, label: det som vises }
     var me = String(_dagTimerMyName || '').trim();
-    if (me && !taken[me.toLowerCase()]) candidates.push(me);
-    getKolleger().forEach(function(k) {
-        var n = String(k.navn || '').trim();
-        if (n && !taken[n.toLowerCase()]) candidates.push(n);
+    if (me && !taken[me.toLowerCase()]) candidates.push({ value: me, label: me });
+    var myH = (currentUser && currentUser.email && typeof _ansHash === 'function') ? _ansHash(currentUser.email) : '';
+    var ans = (typeof getAnsatte === 'function') ? getAnsatte() : [];
+    var firstCount = {};
+    ans.forEach(function(a) { var f = String(a.fornavn || '').trim().toLowerCase(); firstCount[f] = (firstCount[f] || 0) + 1; });
+    ans.forEach(function(a) {
+        if (myH && a.h === myH) return;   // meg står allerede øverst
+        var f = String(a.fornavn || '').trim();
+        var full = (f + ' ' + String(a.etternavn || '').trim()).trim();
+        if (!f) return;
+        var val = firstCount[f.toLowerCase()] > 1 ? full : f;
+        if (taken[val.toLowerCase()] || (me && val.toLowerCase() === me.toLowerCase())) return;
+        candidates.push({ value: val, label: full });
     });
 
     var listEl = document.getElementById('person-popup-list');
     var html = candidates.length
-        ? candidates.map(function(n) {
-            return '<div class="plan-popup-row" data-person="' + escapeHtml(n) + '">' +
-                '<span class="plan-popup-name">' + escapeHtml(n) + '</span>' +
+        ? candidates.map(function(c) {
+            return '<div class="plan-popup-row" data-person="' + escapeHtml(c.value) + '">' +
+                '<span class="plan-popup-name">' + escapeHtml(c.label) + '</span>' +
                 '</div>';
         }).join('')
         : '<div class="popup-list-empty">' + escapeHtml(t('dag_timer_person_none')) + '</div>';
 
-    // Ny kollega direkte herfra — uten dette var den tomme lista en blindvei som
-    // tvang brukeren ut av skjemaet og inn i Innstillinger midt i timeføringen.
-    // Feltet ligger I LISTA, ikke i knapperaden, nettopp så det også vises når
-    // lista er tom. Samme mønster, samme CSS og samme Enter-snarvei som
-    // etasje-velgeren (addPlanFromPicker) og materialvelgerens «Nytt materiale».
-    // Ingen admin-gate: Kolleger er dine egne data, og knappen i Innstillinger
-    // har ingen gate heller.
+    // Annen person (ikke bruker) direkte herfra. Feltet ligger I LISTA, så det også
+    // vises når lista er tom. Samme mønster, CSS og Enter-snarvei som etasje-velgeren
+    // (addPlanFromPicker). Ingen admin-gate: navnet gjelder bare denne bestillingen.
     html += '<div class="plan-popup-add">' +
         '<input type="text" id="person-popup-new" class="plan-popup-add-input" placeholder="' +
-            escapeHtml(t('settings_kolleger_placeholder')) + '" autocapitalize="words" autocomplete="off">' +
-        '<button type="button" class="plan-popup-add-btn" onclick="addKollegaFromPicker()">+</button>' +
+            escapeHtml(t('person_other_ph')) + '" autocapitalize="words" autocomplete="off">' +
+        '<button type="button" class="plan-popup-add-btn" onclick="addPersonFromPicker()">+</button>' +
     '</div>';
     listEl.innerHTML = html;
 
@@ -7067,7 +7091,7 @@ function openPersonPicker() {
     var newInp = document.getElementById('person-popup-new');
     if (newInp) {
         newInp.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') { e.preventDefault(); addKollegaFromPicker(); }
+            if (e.key === 'Enter') { e.preventDefault(); addPersonFromPicker(); }
         });
     }
     document.getElementById('person-popup').classList.add('active');
