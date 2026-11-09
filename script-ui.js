@@ -13670,16 +13670,14 @@ function _tbRcpSave() {
 }
 // Bilder: nye opp (FØR dag-dokumentet i køen), fjernede ned.
 function _tbRcSyncImgs(dateId, newIds, oldIds) {
+    // Bildene går til Firebase Storage via bilde-køen (se _imgEnqueue).
     newIds.forEach(function (id) {
         if (oldIds.indexOf(id) !== -1) return;
-        var put = function (r) {
-            if (r) enqueueUserDocSet(_KV_IMG_COLLECTION, id, { timebokDay: dateId, data: r.data, w: r.w, h: r.h, createdAt: r.createdAt }, 'Timebok vedlegg');
-        };
-        if (_kvImgMem[id]) put(_kvImgMem[id]); else _kvGetImage(id).then(put);
+        _imgEnqueue('put', 'kv', id, { timebokDay: dateId });
     });
     oldIds.forEach(function (id) {
         if (newIds.indexOf(id) !== -1) return;
-        enqueueUserDocDelete(_KV_IMG_COLLECTION, id, 'Timebok vedlegg slett');
+        _imgEnqueue('del', 'kv', id);
         _kvImgDelLocal(id);
     });
 }
@@ -24095,8 +24093,8 @@ else _initCollapseAllToggles();
 // skann-filter) — deterministisk, ingen AI, så tall/tekst kan aldri endres.
 //
 // Lagring: metadata (lett) i kvitteringer/kvitteringArchive + localStorage;
-// hvert bilde som komprimert JPEG i et EGET dokument i kvitteringBilder (holder
-// lista rask og hvert dokument langt under Firestores 1 MB-grense) + lokal
+// hvert bilde som JPEG-fil i Firebase Storage (users/{uid}/kvittering/, se _imgEnqueue —
+// før 09-11-2026: dokumenter i kvitteringBilder, som fortsatt leses og flyttes) + lokal
 // IndexedDB-cache (localStorage er for lite for bilder).
 // ============================================================================
 
@@ -24109,8 +24107,8 @@ var _kvBetaling = 'firmakort';
 var _kvTemplateActive = false;
 var _KV_IMG_COLLECTION = 'kvitteringBilder';
 var _KV_MAX_EDGE_WORK = 2000;  // arbeids-oppløsning i editoren
-var _KV_MAX_EDGE_OUT = 1800;   // lagret bilde, lengste side
-var _KV_MAX_DATAURL = 700000;  // ~520 KB binært — god margin under 1 MB-grensen
+var _KV_MAX_EDGE_OUT = 2000;   // lagret bilde, lengste side (= arbeids-oppløsningen)
+var _KV_MAX_DATAURL = 2000000; // ~1,5 MB binært — Storage har ingen dokumentgrense (før: 700 000 for Firestore)
 
 // ── Bilde-lager: minne → IndexedDB → Firestore ──────────────────────────────
 var _kvImgMem = {};
@@ -24161,17 +24159,172 @@ async function _kvGetImage(id) {
     var rec = null;
     try { rec = await _kvIdb('readonly', function(st) { return st.get(id); }); } catch (e) {}
     if (rec) { _kvImgMem[id] = rec; return rec; }
+    rec = await _imgFetchRemote('kv', id);
+    if (rec) { await _kvImgPutLocal(rec); return rec; }
+    // Gammelt bilde som fortsatt ligger i Firestore → vis det, og flytt det til Storage.
     if (currentUser && db) {
         try {
             var snap = await db.collection('users').doc(currentUser.uid).collection(_KV_IMG_COLLECTION).doc(id).get();
             if (snap.exists) {
                 rec = Object.assign({ id: id }, snap.data());
                 await _kvImgPutLocal(rec);
+                _imgEnqueue('put', 'kv', id, { migrated: 1 });
                 return rec;
             }
         } catch (e) { console.error('Kvittering bilde-henting:', e); }
     }
     return null;
+}
+
+// ── Bilder i Firebase Storage (09-11-2026) ──────────────────────────────────
+// Bruker har Blaze → bildene ligger som FILER i Storage, ikke som tekst i
+// Firestore-dokumenter (som hadde 1 MB-grense, kostet ~7× mer pr. GB og ble lastet
+// inn i databasens lokale lager). Dokumentene (kvittering, Timebok-dag, sjekkliste)
+// har fortsatt bare bilde-id-ene. Stier:
+//   users/{uid}/kvittering/{id}.jpg       kvitteringer + Timebok-vedlegg (personlig)
+//   firms/{firma}/sjekkliste/{id}.jpg     sjekklistebilder (felles i firmaet)
+// Storage holder IKKE opplastinger over en omstart offline (det gjør Firestore), så
+// opplasting og sletting går via en egen kø i localStorage (`firesafe_img_queue`):
+// bildet ligger alltid lokalt i IndexedDB først, og køen prøver igjen ved
+// oppstart / når nettet kommer tilbake. Gamle bilder i Firestore (kvitteringBilder,
+// firms/*/sjekklisteBilder) leses fortsatt, og flyttes til Storage (_imgMigrateLegacy)
+// — dokumentet slettes først når fila er lastet opp.
+// Storage-regler + CORS-oppsett: se firebase-storage-rules.txt / storage-cors.json.
+var IMG_QUEUE_KEY = 'firesafe_img_queue';
+function _fbStorage() {
+    try { return (typeof firebase !== 'undefined' && typeof firebase.storage === 'function') ? firebase.storage() : null; }
+    catch (e) { return null; }
+}
+function _imgRemote() { return !!(currentUser && db && currentUser.uid !== 'dev-local' && _fbStorage()); }
+function _imgPath(kind, id, firma) {
+    if (kind === 'sj') return 'firms/' + (firma || _firma()) + '/sjekkliste/' + id + '.jpg';
+    return 'users/' + currentUser.uid + '/kvittering/' + id + '.jpg';
+}
+function _imgLegacyPath(kind, id, firma) {
+    if (kind === 'sj') return 'firms/' + (firma || _firma()) + '/' + _SJ_IMG_COLL + '/' + id;
+    return 'users/' + currentUser.uid + '/' + _KV_IMG_COLLECTION + '/' + id;
+}
+function _imgQ() { var q = safeParseJSON(IMG_QUEUE_KEY, []); return Array.isArray(q) ? q : []; }
+function _imgQSave(q) { safeSetItem(IMG_QUEUE_KEY, JSON.stringify(q)); }
+// op: 'put' (last opp lokalt bilde) | 'del' (slett fil + ev. gammelt Firestore-dokument).
+// Siste operasjon for et bilde vinner (lagt til og fjernet før opplasting → bare slett).
+function _imgEnqueue(op, kind, id, meta) {
+    if (!id || !currentUser || currentUser.uid === 'dev-local') return;
+    var q = _imgQ().filter(function (x) { return x.id !== id; });
+    q.push({ op: op, kind: kind, id: id, uid: currentUser.uid, path: _imgPath(kind, id), legacy: _imgLegacyPath(kind, id), meta: meta || null, tries: 0 });
+    _imgQSave(q);
+    _imgProcess();
+}
+function _imgLocal(id) {
+    if (_kvImgMem[id]) return Promise.resolve(_kvImgMem[id]);
+    return _kvIdb('readonly', function (st) { return st.get(id); }).catch(function () { return null; });
+}
+function _imgRun(item) {
+    var ref = _fbStorage().ref(item.path);
+    var dropLegacy = function () {
+        return item.legacy ? db.doc(item.legacy).delete().catch(function () {}) : null;
+    };
+    if (item.op === 'del') {
+        return ref.delete().catch(function (e) { if (!e || e.code !== 'storage/object-not-found') throw e; }).then(dropLegacy);
+    }
+    return _imgLocal(item.id).then(function (rec) {
+        if (!rec || !rec.data) return null;   // finnes ikke lokalt lenger — ingenting å laste opp
+        var md = {};
+        Object.keys(item.meta || {}).forEach(function (k) { if (item.meta[k] != null) md[k] = String(item.meta[k]); });
+        if (rec.w) md.w = String(rec.w);
+        if (rec.h) md.h = String(rec.h);
+        return ref.putString(rec.data, 'data_url', { contentType: 'image/jpeg', cacheControl: 'private, max-age=31536000', customMetadata: md })
+            .then(dropLegacy);
+    });
+}
+var _imgBusy = false, _imgRetryT = null;
+function _imgProcess() {
+    if (_imgBusy || !_imgRemote() || navigator.onLine === false) return;
+    var uid = currentUser.uid;
+    var q = _imgQ();
+    var mine = q.filter(function (x) { return x.uid === uid; });
+    if (mine.length !== q.length) _imgQSave(mine);   // en annen brukers kø hører ikke hjemme her
+    if (!mine.length) return;
+    var item = mine[0];
+    _imgBusy = true;
+    _imgRun(item).then(function () {
+        _imgQSave(_imgQ().filter(function (x) { return !(x.id === item.id && x.op === item.op && x.path === item.path); }));
+        _imgBusy = false;
+        _imgProcess();
+    }, function (e) {
+        // Feil (nett, regler ikke lagt inn ennå …): bakerst i køen, prøv igjen senere.
+        // Bildet ligger trygt i IndexedDB imens.
+        console.warn('Bilde-opplasting venter:', item.id, e && e.code);
+        var rest = _imgQ().filter(function (x) { return x.id !== item.id; });
+        item.tries = (item.tries || 0) + 1;
+        rest.push(item);
+        _imgQSave(rest);
+        _imgBusy = false;
+        clearTimeout(_imgRetryT);
+        _imgRetryT = setTimeout(_imgProcess, Math.min(300000, 15000 * item.tries));
+    });
+}
+window.addEventListener('online', function () { setTimeout(_imgProcess, 1500); });
+function _blobToDataUrl(blob) {
+    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(blob); });
+}
+function _imgDims(url) {
+    return new Promise(function (res) {
+        var im = new Image();
+        im.onload = function () { res({ w: im.naturalWidth, h: im.naturalHeight }); };
+        im.onerror = function () { res({ w: 0, h: 0 }); };
+        im.src = url;
+    });
+}
+// Hent fra Storage (null hvis ikke der ennå / ikke nett).
+async function _imgFetchRemote(kind, id) {
+    if (!_imgRemote()) return null;
+    try {
+        var url = await _fbStorage().ref(_imgPath(kind, id)).getDownloadURL();
+        var resp = await fetch(url);
+        if (!resp.ok) return null;
+        var data = await _blobToDataUrl(await resp.blob());
+        var d = await _imgDims(data);
+        return { id: id, data: data, w: d.w, h: d.h };
+    } catch (e) {
+        if (!e || e.code !== 'storage/object-not-found') console.warn('Bilde fra Storage:', id, e && (e.code || e.message));
+        return null;
+    }
+}
+// Flytt gamle bilde-dokumenter fra Firestore til Storage, litt om gangen i bakgrunnen
+// (fortsetter neste økt om den avbrytes). Egne kvitteringsbilder: alle. Sjekklistebilder:
+// firma-admin for sitt firma, hovedadmin for begge. Dokumentet slettes først når fila
+// er lastet opp.
+var _imgMigrating = false;
+function _imgMigrateLegacy() {
+    if (_imgMigrating || !_imgRemote() || navigator.onLine === false) return;
+    _imgMigrating = true;
+    var uid = currentUser.uid, st = _fbStorage();
+    var sources = [{ coll: db.collection('users').doc(uid).collection(_KV_IMG_COLLECTION), path: function (id) { return 'users/' + uid + '/kvittering/' + id + '.jpg'; } }];
+    var firms = _isSuper() ? FIRMAER.map(function (f) { return f[0]; }) : (_acc.admin ? [_firma()] : []);
+    firms.forEach(function (f) {
+        sources.push({ coll: db.collection('firms').doc(f).collection(_SJ_IMG_COLL), path: function (id) { return 'firms/' + f + '/sjekkliste/' + id + '.jpg'; } });
+    });
+    var moved = 0;
+    var round = function (src) {
+        return src.coll.limit(10).get().then(function (snap) {
+            if (snap.empty) return;
+            return snap.docs.reduce(function (p, d) {
+                return p.then(function () {
+                    var x = d.data() || {};
+                    if (!x.data) return d.ref.delete();
+                    var md = {};
+                    Object.keys(x).forEach(function (k) { if (k !== 'data' && x[k] != null && typeof x[k] !== 'object') md[k] = String(x[k]); });
+                    return st.ref(src.path(d.id)).putString(x.data, 'data_url', { contentType: 'image/jpeg', cacheControl: 'private, max-age=31536000', customMetadata: md })
+                        .then(function () { moved++; return d.ref.delete(); });
+                });
+            }, Promise.resolve()).then(function () { return round(src); });
+        });
+    };
+    sources.reduce(function (p, src) { return p.then(function () { return round(src); }); }, Promise.resolve())
+        .then(function () { if (moved) console.log('Bilder flyttet til Storage:', moved); })
+        .catch(function (e) { console.warn('Flytting av bilder til Storage stoppet (fortsetter senere):', e && e.code); })
+        .then(function () { _imgMigrating = false; });
 }
 
 function _kvNewImageId() { return 'kv' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -24367,12 +24520,12 @@ async function _kvCommit(toArchive) {
         var rec = await _kvGetImage(id);
         if (!rec) continue;
         rec.kvitteringId = data.id;
-        _kvImgPutLocal(rec);
-        enqueueUserDocSet(_KV_IMG_COLLECTION, id, { kvitteringId: data.id, data: rec.data, w: rec.w, h: rec.h, createdAt: rec.createdAt }, 'Kvittering bilde');
+        await _kvImgPutLocal(rec);
+        _imgEnqueue('put', 'kv', id, { kvitteringId: data.id });   // → Firebase Storage
     }
     _kvSavedImageIds.forEach(function(id) {
         if (data.imageIds.indexOf(id) !== -1) return;
-        enqueueUserDocDelete(_KV_IMG_COLLECTION, id, 'Kvittering bilde slett');
+        _imgEnqueue('del', 'kv', id);
         _kvImgDelLocal(id);
     });
     _kvSessionNewIds = [];
@@ -25183,7 +25336,7 @@ function deleteKvitteringForm(formData) {
         renderKvitteringFormsList(window.loadedKvitteringForms);
         _lastLocalSaveTs = Date.now();
         (formData.imageIds || []).forEach(function(id) {
-            enqueueUserDocDelete(_KV_IMG_COLLECTION, id, 'Kvittering bilde slett');
+            _imgEnqueue('del', 'kv', id);
             _kvImgDelLocal(id);
         });
         enqueueUserDocDelete(isSent ? 'kvitteringArchive' : 'kvitteringer', formData.id, 'Kvittering slett');
@@ -25881,6 +26034,9 @@ if (typeof auth !== 'undefined' && auth) {
         _acc.adminKnown = false; _acc.entryKnown = false;
         _accApply();
         _accRecordUser(user);
+        // Bilder: send det som venter i køen, og flytt gamle Firestore-bilder til Storage.
+        setTimeout(_imgProcess, 3000);
+        setTimeout(_imgMigrateLegacy, 20000);
         // Felles arbeidsgiver-standarder (lønnsperiode) — live, så admin-endringer gjelder med en gang.
         _accUnsubs.push(_fsSettings('timebok_employers').onSnapshot(function (d) {
             if (d.exists) safeSetItem(TIMEBOK_EMPLOYERS_KEY, JSON.stringify(d.data()));
@@ -26469,7 +26625,7 @@ function saveAdminEmployerPay(emp, val) {
 // Det blir SVÆRT mange (tusenvis+), og de er FELLES per prosjekt (alle montører
 // ser hverandres registreringer). Derfor toppnivå-samlinger, ikke users/{uid}/…:
 //   firms/{firma}/sjekklister/{id}   én registrering (ren tekst, ~1–2 KB)
-//   sjekklisteBilder/{bildeId}   ett komprimert JPEG pr. dokument (som kvitteringBilder)
+//   Bildene: filer i Firebase Storage firms/{firma}/sjekkliste/{id}.jpg (se _imgEnqueue)
 //   sjekklisteProsjekter/{key}   prosjektoversikt: antall + sist endret (FieldValue.increment)
 //   settings/sjekkliste          valglistene (etasjer, antall, brannkrav …) — admin redigerer
 //
@@ -26499,8 +26655,8 @@ var SJ_SESSION_KEY = 'firesafe_sjekkliste_current';
 var SJ_CACHE_MAX = 300;
 var SJ_PAGE_SIZE = 30;
 var _SJ_COLL = 'sjekklister', _SJ_IMG_COLL = 'sjekklisteBilder', _SJ_PROJ_COLL = 'sjekklisteProsjekter';
-var _SJ_MAX_EDGE = 1600;       // lagret bilde, lengste side (dokumentasjonsbilde, ikke skann)
-var _SJ_MAX_DATAURL = 450000;  // ~330 KB binært pr. bilde — holder lagring/lesing billig
+var _SJ_MAX_EDGE = 2048;       // lagret bilde, lengste side (dokumentasjonsbilde; før 1600 pga. Firestore)
+var _SJ_MAX_DATAURL = 1400000; // ~1 MB binært pr. bilde i Storage (før 450 000 i Firestore)
 
 // Valglistene. Rekkefølgen her = rekkefølgen på innstillingssiden. Selve valgene
 // (og rekkefølgen på dem) styres i Innstillinger → Sjekkliste.
@@ -27724,12 +27880,15 @@ async function _sjGetImage(id) {
     var rec = null;
     try { rec = await _kvIdb('readonly', function (st) { return st.get(id); }); } catch (e) {}
     if (rec) { _kvImgMem[id] = rec; return rec; }
+    rec = await _imgFetchRemote('sj', id);
+    if (rec) { await _kvImgPutLocal(rec); return rec; }
     if (_sjRemote()) {
         try {
             var snap = await _firmaRef().collection(_SJ_IMG_COLL).doc(id).get();
             if (snap.exists) {
                 rec = Object.assign({ id: id }, snap.data());
                 await _kvImgPutLocal(rec);
+                _imgEnqueue('put', 'sj', id, { sjekklisteId: rec.sjekklisteId, migrated: 1 });
                 return rec;
             }
         } catch (e) { console.error('Sjekkliste-bilde:', e); }
@@ -27984,16 +28143,11 @@ async function sjSave() {
             if (isNew || moved) proj.count = inc(1);
             batch.set(_firmaRef().collection(_SJ_PROJ_COLL).doc(key), proj, { merge: true });
             if (moved) batch.set(_firmaRef().collection(_SJ_PROJ_COLL).doc(oldKey), { count: inc(-1) }, { merge: true });
-            goneImgs.forEach(function (x) { batch.delete(_firmaRef().collection(_SJ_IMG_COLL).doc(x)); });
             batch.commit().catch(function (e) { console.error('Lagre sjekkliste:', e); });
-            // Bildene hver for seg (hvert ~≤450 KB; én batch kunne sprengt 10 MB-grensen).
-            for (var i = 0; i < newImgs.length; i++) {
-                var im = await _sjGetImage(newImgs[i]);
-                if (!im) continue;
-                _firmaRef().collection(_SJ_IMG_COLL).doc(im.id).set({ sjekklisteId: id, projectKey: key, data: im.data, w: im.w, h: im.h, createdAt: im.createdAt, createdBy: uid })
-                    .catch(function (e) { console.error('Lagre sjekkliste-bilde:', e); });
-            }
         }
+        // Bildene → Firebase Storage via bilde-køen (tåler offline og omstart).
+        newImgs.forEach(function (x) { _imgEnqueue('put', 'sj', x, { sjekklisteId: id, projectKey: key, createdBy: uid }); });
+        goneImgs.forEach(function (x) { _imgEnqueue('del', 'sj', x); });
         goneImgs.forEach(function (x) { _kvImgDelLocal(x); });
         _lastLocalSaveTs = Date.now();
 
@@ -28036,9 +28190,9 @@ function sjDelete() {
             var batch = db.batch();
             batch.delete(_firmaRef().collection(_SJ_COLL).doc(id));
             if (key) batch.set(_firmaRef().collection(_SJ_PROJ_COLL).doc(key), { count: firebase.firestore.FieldValue.increment(-1), lastAt: new Date().toISOString() }, { merge: true });
-            (orig.imageIds || []).forEach(function (x) { batch.delete(_firmaRef().collection(_SJ_IMG_COLL).doc(x)); });
             batch.commit().catch(function (e) { console.error('Slett sjekkliste:', e); });
         }
+        (orig.imageIds || []).forEach(function (x) { _imgEnqueue('del', 'sj', x); });
         imgs.forEach(function (x) { _kvImgDelLocal(x); });
         f.sessionNewIds = [];
         f.savedSnap = _sjSnapshot(f.data);   // ingen «ulagret»-varsel på vei ut
