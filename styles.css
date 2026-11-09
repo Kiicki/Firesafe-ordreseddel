@@ -9575,10 +9575,11 @@ body.timebok-view-open #view-form { display: none; }
 .tb-tariff-file-hint { display: block; margin-top: 4px; font-size: 12px; color: #8a8a90; }
 .tb-tariff-date { height: 42px; }
 /* Innstillinger → Timebok: oppsett-kort (samme kort som Satser) */
-/* Profil → Timebok: rammen kommer fra Profil-seksjonen (som Personalia) — ingen egen
-   kort-ramme inni. */
-#tb-settings { padding-bottom: 14px; }
-#tb-settings .tb-set-card { border: none; border-radius: 0; padding: 0; background: none; }
+/* Meny › Timebok (egen side, 09-11-2026): to bokser — overskrift (.settings-static-header)
+   + kort; rammen/innrykket kommer fra «.settings-static-header + *». */
+#tb-settings .tb-set-card { background: #fff; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px; padding: 12px 16px; margin-bottom: 8px; }
+#tb-settings .tb-set-head2 { margin-top: 16px; }
+#tb-settings .tb-set-card > .tb-set-hint { margin: 0; }
 /* Faner øverst på Innstillinger → Timebok (gjenbruker .modal-tab-chipsene fra Lagret). */
 .tb-set-card { display: flex; flex-direction: column; gap: 12px; }
 .tb-set-field { display: flex; flex-direction: column; gap: 4px; }
@@ -13334,5 +13335,15 @@ body.sjekkliste-view-open #view-form { display: none; }
 
 /* Firmavelger øverst i Meny — bare hovedadmin (is-super) og lokal test. */
 html:not(.is-super):not(.dev-mode) .super-only { display: none !important; }
-.firma-switch { margin-bottom: 14px; }
-.firma-switch .tb-seg { width: 100%; }
+.firma-switch { margin-bottom: 16px; }
+.firma-card { padding: 10px 12px; }
+.firma-card .tb-seg { width: 100%; margin-bottom: 0; }
+
+/* Meny › Skjemaer › Fyll inn automatisk: én rad pr. opplysning (navn + bryter). */
+.settings-static-header + .settings-group.autofill-group { padding: 10px 16px 6px; }
+.autofill-group .settings-hint { margin: 0 0 6px; padding: 0; }
+.autofill-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid #f0f0f2; font-size: 15px; color: #333; }
+
+.autofill-group .autofill-sted-row { border-top: 1px solid #f0f0f2; padding: 4px 0 10px; }
+.autofill-group .autofill-sted-row .settings-default-label { padding-left: 0; padding-right: 0; }
+.settings-collapsible-body > .settings-group.autofill-group { padding: 10px 16px 6px; }

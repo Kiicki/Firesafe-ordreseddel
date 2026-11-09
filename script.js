@@ -118,6 +118,18 @@ const KOLLEGER_KEY = 'firesafe_kolleger';        // UTGÅTT (erstattet av ANSATT
 const ANSATTE_KEY = 'firesafe_ansatte';        // { list: [{h, fornavn, etternavn}] } — settings/ansatte (admin)
 const MIN_INFO_FIELDS = ['montor', 'avdeling', 'mobil', 'epost', 'sted'];
 const MIN_INFO_TOGGLES = ['montor', 'avdeling', 'mobil', 'epost', 'sted', 'uke', 'dato'];
+// Skal feltet fylles inn i et nytt skjema? Hvert skjema har egne brytere (Meny › Skjemaer ›
+// <skjema> › Fyll inn automatisk) lagret som autofill_<skjema>_<felt>. Uten egen verdi gjelder
+// den gamle felles bryteren autofill_<felt> (slik de var satt før 09-11-2026) — så ingenting endres
+// før brukeren selv endrer det. Sted har fortsatt én bryter (bare ordreseddelen bruker den).
+function minInfoFills(info, field, form) {
+    if (!info) return true;
+    if (form) {
+        var own = info['autofill_' + form + '_' + field];
+        if (own !== undefined) return own !== false;
+    }
+    return info['autofill_' + field] !== false;
+}
 
 // Lager-adressen («Bruk lager» på kappeskjemaet). FELLES per arbeidsgiver (bruker 08-11-2026:
 // Firesafe og Damsgård har hvert sitt lager): Admin › Arbeidsgivere → settings/timebok_employers

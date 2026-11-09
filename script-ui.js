@@ -2517,11 +2517,14 @@ function buildOrderNrSettings() {
 function getSettingsPageTitle(page) {
     const titles = {
         'min-info': t('settings_min_info'),
+        'timebok': t('settings_timebok'),
         'form-ordreseddel': t('form_title'),
+        'form-service': t('tab_servicebil'),
         'form-kappe': t('kappe_title'),
-        'admin-required': t('settings_section_required'),
-        'admin-plans': t('settings_admin_plans'),
-        'admin-sjekkliste': t('settings_admin_sjekkliste'),
+        'admin-ordreseddel': t('form_title'),
+        'admin-service': t('tab_servicebil'),
+        'admin-kappe': t('kappe_title'),
+        'admin-sjekkliste': t('sj_single'),
         templates: t('settings_prosjekter_section'),
         materials: t('settings_materials'),
         'admin-users': t('settings_admin_users'),
@@ -2615,19 +2618,16 @@ function settingsBack() {
 }
 
 function showSettingsPage(page, replace) {
-    // Backward-compat: ordrenr er en collapsible på Ordreseddel-siden. Det som gjelder ALLE
-    // brukere er flyttet til Admin › Felles for alle (08-11-2026): etasjer → admin-plans,
-    // sjekkliste-valgene → admin-sjekkliste, Lageruttak-siden (bare obligatoriske felt) →
-    // admin-required. Gamle adresser/oppstarts-gjenoppretting havner da riktig.
-    if (page === 'ordrenr') page = 'form-ordreseddel';
-    if (page === 'plans') page = 'admin-plans';
+    // Backward-compat (gamle side-navn fra lagret økt / adresse):
+    // Én side pr. skjema (09-11-2026): obligatoriske felt, etasjer, utfylling og valg ligger
+    // inne på skjemaets egen side. Gamle side-navn (lagret økt / adresse) havner riktig.
+    if (page === 'ordrenr' || page === 'autofill') page = 'form-ordreseddel';
+    if (page === 'plans' || page === 'admin-plans' || page === 'admin-required') page = 'admin-ordreseddel';
     if (page === 'form-sjekkliste') page = 'admin-sjekkliste';
-    if (page === 'form-service') page = 'admin-required';
-    // Backward-compat: Innstillinger → Timebok finnes ikke lenger (01-11-2026): Satser er
-    // flyttet til Admin → Satser (felles, kun admin), Personlig til Profil → Timebok.
+    // Backward-compat: Satser er flyttet til Admin → Satser (felles, kun admin, 01-11-2026).
+    // Timebok (personlige valg) er igjen en egen side, settings/timebok (09-11-2026).
     // Timebok-prosjekter finnes ikke lenger separat → Prosjekter & lager.
     if (page === 'timebok-satser') page = 'admin-satser';
-    if (page === 'timebok') page = 'min-info';
     if (page === 'timebok-projects') page = 'templates';
     var pageEl2 = document.getElementById('settings-page-' + page);
     // Tilgang (Admin → Brukere): skjulte deler / admin-siden for ikke-admin → menyen.
@@ -2663,7 +2663,8 @@ function showSettingsPage(page, replace) {
     if (page === 'min-info') {
         _loadMinInfoSettings();
         _syncProfileLangSeg();
-        // Profil → Timebok (personlige valg). Cache-først, deretter frisk kopi fra Firestore.
+    } else if (page === 'timebok') {
+        // Meny › Timebok (personlige valg). Cache-først, deretter frisk kopi fra Firestore.
         renderTimebokSettings();
         if (currentUser && db) {
             db.collection('users').doc(currentUser.uid).collection('settings').doc('timebok_settings').get().then(function (d) {
@@ -2686,34 +2687,34 @@ function showSettingsPage(page, replace) {
             if (document.body.classList.contains('settings-modal-open'))
                 _applyOrderNrSettings(settings);
         });
-    } else if (page === 'admin-plans') {
-        // Plan / Etasjer (felles, settings/plans)
-        var storedPlans2 = localStorage.getItem(PLANS_KEY);
-        settingsPlans = storedPlans2 ? sortPlans(JSON.parse(storedPlans2)) : [];
-        document.getElementById('settings-new-plan').value = '';
-        renderPlanSettingsItems();
-        getPlanSettings().then(function(plans) {
-            if (!document.body.classList.contains('settings-modal-open')) return;
-            settingsPlans = sortPlans(plans || []);
+        _loadAutofillToggles('ordreseddel');
+    } else if (page === 'admin-ordreseddel') {
+        // Admin › Skjemaer › Ordreseddel: obligatoriske felt + etasjer (felles for firmaet)
+        _renderRequiredFor(['save']);
+        {
+            // Etasjer (felles, settings/plans)
+            var storedPlans2 = localStorage.getItem(PLANS_KEY);
+            settingsPlans = storedPlans2 ? sortPlans(JSON.parse(storedPlans2)) : [];
+            document.getElementById('settings-new-plan').value = '';
             renderPlanSettingsItems();
-        });
-    } else if (page === 'admin-required') {
-        // Alle skjemaenes obligatoriske felt (felles, settings/required) — cache-først, så Firebase.
-        var _reqSections = ['save', 'service', 'kappe', 'sjekkliste', 'template'];
-        cachedRequiredSettings = _getCachedRequiredSettings();
-        _reqSections.forEach(renderRequiredSettingsItems);
-        getRequiredSettings().then(function (settings) {
-            if (!document.body.classList.contains('settings-modal-open')) return;
-            cachedRequiredSettings = settings;
-            _reqSections.forEach(renderRequiredSettingsItems);
-        });
+            getPlanSettings().then(function(plans) {
+                if (!document.body.classList.contains('settings-modal-open')) return;
+                settingsPlans = sortPlans(plans || []);
+                renderPlanSettingsItems();
+            });
+        }
+    } else if (page === 'form-service') {
+        _loadAutofillToggles('service');
+    } else if (page === 'admin-service') {
+        _renderRequiredFor(['service']);
     } else if (page === 'admin-sjekkliste') {
-        // Cache-først, deretter frisk kopi (ikke tegn om mens admin skriver i et felt).
+        // Valglistene: cache-først, deretter frisk kopi (ikke tegn om mens admin skriver).
         renderSjekklisteSettings();
         _sjRefreshOptions().then(function () {
             var host = document.getElementById('sj-settings');
             if (document.body.classList.contains('settings-modal-open') && host && !host.contains(document.activeElement)) renderSjekklisteSettings();
         });
+        _renderRequiredFor(['sjekkliste']);
     } else if (page === 'form-kappe') {
         var newBrandEl = document.getElementById('settings-new-kappe-brand');
         var newKappeTypeEl = document.getElementById('settings-new-kappe-type');
@@ -2731,12 +2732,17 @@ function showSettingsPage(page, replace) {
         if (newKappeUnitsEl) newKappeUnitsEl.value = '';
         updateKappeNewProductUnitPlaceholder();
         // Produkter + Dimensjoner forvaltes nå på Materialer-siden (ikke her).
+        _loadAutofillToggles('kappe');
+    } else if (page === 'admin-kappe') {
+        // Admin › Skjemaer › Kappeskjema: bladbredde, plater, obligatoriske felt
         _loadKappeKerfSetting();
         _loadKappePlateSetting();
         renderKappePlateSettings();
+        _renderRequiredFor(['kappe']);
     } else if (page === 'templates') {
         _renderSettingsTemplateListFromData(safeParseJSON(TEMPLATE_KEY, []));
         renderSettingsTemplateList();
+        _renderRequiredFor(['template']);
         // (Lager er flyttet til Admin › Arbeidsgivere — 08-11-2026. Kolleger er erstattet av
         // de ansatte i Admin › Brukere — 09-11-2026.)
     } else if (page === 'materials') {
@@ -2769,6 +2775,36 @@ function showSettingsPage(page, replace) {
         renderTimebokSatser();
     }
 }
+
+// Obligatoriske felt for ett eller flere skjemaer (felles, settings/required) — cache-først,
+// så Firebase. Bare admin ser seksjonene (admin-only), så for andre gjøres ingenting.
+function _renderRequiredFor(sections) {
+    if (!_acc.admin) return;
+    cachedRequiredSettings = _getCachedRequiredSettings();
+    sections.forEach(renderRequiredSettingsItems);
+    getRequiredSettings().then(function (settings) {
+        if (!document.body.classList.contains('settings-modal-open')) return;
+        cachedRequiredSettings = settings;
+        sections.forEach(renderRequiredSettingsItems);
+    });
+}
+// «Fyll inn automatisk» pr. skjema: én bryter pr. opplysning fra Personalia
+// (data-af-form / data-af-field). Lagres i min_info som autofill_<skjema>_<felt>
+// (se minInfoFills i script.js; uten egen verdi gjelder den gamle felles bryteren).
+function _loadAutofillToggles(form) {
+    var info = getMinInfo();
+    document.querySelectorAll('input[data-af-form="' + form + '"]').forEach(function (cb) {
+        cb.checked = minInfoFills(info, cb.getAttribute('data-af-field'), form);
+    });
+}
+document.addEventListener('change', function (e) {
+    var cb = e.target;
+    if (!cb || !cb.getAttribute || !cb.getAttribute('data-af-form')) return;
+    var data = getMinInfo();
+    data['autofill_' + cb.getAttribute('data-af-form') + '_' + cb.getAttribute('data-af-field')] = cb.checked;
+    safeSetItem(MIN_INFO_KEY, JSON.stringify(data));
+    enqueueUserDocSet('settings', 'min_info', data, 'Save autofill');
+});
 
 function _syncTimebokSetting(localKey, fbDoc, data) {
     safeSetItem(localKey, JSON.stringify(data));
@@ -2930,7 +2966,9 @@ function renderTimebokSettings() {
     };
     var tsInput = _tbNumInput(getTimebokTimesats(), "saveTimebokTimesats(this.value)", 'tb-set-input');
     if (lockTs) tsInput = tsInput.replace('<input ', '<input disabled ');
-    var h = '<div class="tb-sat-card tb-set-card">' +
+    // Egen side (Meny › Timebok): to bokser med overskrift, som de andre innstillingssidene.
+    var h = '<div class="settings-static-header">' + escapeHtml(t('tb_set_sec_pay')) + '</div>' +
+        '<div class="tb-sat-card tb-set-card">' +
         field(t('tb_set_timesats'), tsInput, lockTs) +
         field(t('tb_set_style'),
             '<select class="tb-sat-select"' + (lockEmp ? ' disabled' : '') + ' onchange="_tbSetTravelStyle(this.value)">' +
@@ -2953,6 +2991,7 @@ function renderTimebokSettings() {
             '<select class="tb-sat-select" onchange="_timebokSaveSettings({ transport: this.value })">' +
                 opt('firma', t('timebok_firma'), st.transport) + opt('privat', t('timebok_privat'), st.transport) +
             '</select>');
+    h += '</div>';
     // Auto-fyll: ALLE koder vises (samme liste og rekkefølge som Satser — brukerens krav).
     // Koder som er deaktivert for arbeidsgiveren står grå med «Ikke aktiv» og kan ikke
     // hukes av: de kan ikke legges til på en dag, så auto-fyll av dem ville ikke gjort noe.
@@ -2975,10 +3014,11 @@ function renderTimebokSettings() {
         gh += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div><div class="tb-af-grid">' +
             items.map(function (x) { return cb(x.id, x.label); }).join('') + '</div>';
     });
-    h += '<div class="tb-set-field"><span class="tb-set-label">' + escapeHtml(t('tb_set_autofill')) + '</span>' +
+    h += '<div class="settings-static-header tb-set-head2">' + escapeHtml(t('tb_set_autofill')) + '</div>' +
+        '<div class="tb-sat-card tb-set-card">' +
             '<span class="tb-set-hint">' + escapeHtml(t('tb_set_autofill_desc') + ' ' + t('tb_set_autofill_inactive_hint')) + '</span>' +
-            '<div class="tb-af-box" lang="nb">' + gh + '</div></div>' +
-    '</div>';
+            '<div class="tb-af-box" lang="nb">' + gh + '</div>' +
+        '</div>';
     host.innerHTML = h;
 }
 function _tbSetTravelStyle(v) {
@@ -6217,7 +6257,7 @@ function autoFillDefaults(type) {
     var defaults = getMinInfo();
     DEFAULT_FIELDS.forEach(field => {
         if (defaults[field]) {
-            if (defaults['autofill_' + field] === false) return;
+            if (!minInfoFills(defaults, field, 'ordreseddel')) return;
             var el = document.getElementById(field);
             var mobileEl = document.getElementById('mobile-' + field);
             if (el) el.value = defaults[field];
@@ -8863,7 +8903,7 @@ function openNewServiceForm() {
 
     // Reset service form. Uke og entry-dato er alltid dagens (system-styrt).
     var serviceDefaults = getMinInfo();
-    document.getElementById('service-montor').value = (serviceDefaults.autofill_montor !== false) ? (serviceDefaults.montor || '') : '';
+    document.getElementById('service-montor').value = minInfoFills(serviceDefaults, 'montor', 'service') ? (serviceDefaults.montor || '') : '';
     var ukeField = document.getElementById('service-uke');
     if (ukeField) ukeField.value = String(getWeekNumber(new Date()));
     document.getElementById('service-signatur').value = '';
@@ -16669,7 +16709,7 @@ function openNewKappeForm() {
     _kappeCurrentId = null;
 
     function _kappeAutofill(field) {
-        return (defaults['autofill_' + field] !== false) ? (defaults[field] || '') : '';
+        return minInfoFills(defaults, field, 'kappe') ? (defaults[field] || '') : '';
     }
 
     document.getElementById('kappe-dato').value = _kappeFormatDateNO(_kappeTodayISO());
@@ -23820,9 +23860,14 @@ function _saveMinInfo() {
     if (fornavnEl || etternavnEl) {
         data.montor = (data.fornavn || '').trim();
     }
+    var prevAf = getMinInfo();
+    // Alle «fyll inn»-valg som ikke styres av et felt på denne siden beholdes
+    // (pr. skjema: autofill_<skjema>_<felt>, og de gamle felles).
+    Object.keys(prevAf).forEach(function (k) { if (k.indexOf('autofill_') === 0) data[k] = prevAf[k]; });
     MIN_INFO_TOGGLES.forEach(function(k) {
         var cb = document.getElementById('mininfo-autofill-' + k);
         if (cb) data['autofill_' + k] = cb.checked;
+        else if (prevAf['autofill_' + k] !== undefined) data['autofill_' + k] = prevAf['autofill_' + k];   // bryter som ikke finnes i DOM (f.eks. uke/dato)
     });
     // Behold hvilken admin-revisjon av personalia som er brukt (Admin → Brukere), ellers
     // ville admin-verdiene overskrevet brukerens egne endringer ved neste innlogging.
@@ -23930,6 +23975,9 @@ function _loadMinInfoSettings() {
 }
 
 function _updateMinInfoInputState(key) {
+    // Bare Sted står i samme rad som bryteren sin (Standardverdier). Personalia-feltene i
+    // Profil skal alltid kunne redigeres — bryterne deres ligger på en annen side.
+    if (key !== 'sted') return;
     var cb = document.getElementById('mininfo-autofill-' + key);
     if (!cb) return;
     if (key === 'montor') {
@@ -25749,12 +25797,12 @@ function _accStartHash() {
     return 'settings';
 }
 var _ACC_HASH_MODULE = { '': 'hjem', hent: 'lagret', skjema: 'ordreseddel', service: 'servicebil', kappe: 'kappe', kvittering: 'timebok', calc: 'calc', timebok: 'timebok', sjekkliste: 'sjekkliste' };
-var _ACC_SETTINGS_MODULE = { 'form-ordreseddel': 'ordreseddel', 'form-service': 'servicebil', 'form-kappe': 'kappe', 'form-sjekkliste': 'sjekkliste' };
+var _ACC_SETTINGS_MODULE = { 'timebok': 'timebok', 'form-ordreseddel': 'ordreseddel', 'form-service': 'servicebil', 'form-kappe': 'kappe', 'form-sjekkliste': 'sjekkliste' };
 function _accSettingsPageAllowed(page) {
     // Admin-sider + alt som gjelder ALLE brukere (Admin › Felles for alle).
-    if (page === 'admin-users' || page === 'admin-employers' || page === 'admin-satser'
-        || page === 'admin-required' || page === 'admin-plans' || page === 'admin-sjekkliste'
-        || page === 'materials' || page === 'templates' || page === 'form-kappe') return !!_acc.admin;
+    // Alt under Admin (admin-*, Materialer, Prosjekter) er bare for admin. Skjemaer-sidene
+    // (form-*, timebok) har bare det montøren styrer selv — tilgang etter del.
+    if (page.indexOf('admin-') === 0 || page === 'materials' || page === 'templates') return !!_acc.admin;
     var m = _ACC_SETTINGS_MODULE[page];
     return !m || _accAllowed(m);
 }
