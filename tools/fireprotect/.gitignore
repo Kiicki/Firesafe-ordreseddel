@@ -1,0 +1,7 @@
+node_modules/
+*.json.tmp
+update/*.json
+update/*.log
+update/fpdata.js
+!package.json
+!package-lock.json

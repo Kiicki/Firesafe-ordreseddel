@@ -1,0 +1,11 @@
+{
+  "name": "fireprotect-check",
+  "private": true,
+  "description": "Sjekker om Isover FireProtect Calc (fireprotect.isover.se) er endret siden tabellene i appen ble hentet.",
+  "scripts": {
+    "check": "node check.js"
+  },
+  "dependencies": {
+    "playwright": "1.48.2"
+  }
+}

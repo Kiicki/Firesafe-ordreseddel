@@ -8136,6 +8136,67 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     line-height: 1.15;
 }
 
+/* Brannisolering stål (Isover FireProtect). Samme type-skala som GPG:
+   ETIKETT 11px/600 grå · felt 14px/400 · resultat 24px/700. */
+/* Tre like brede felt på én rad: Profil | Dimensjon | Kritisk temp. Lange dimensjoner
+   (L/HUP med desimal-gods, f.eks. «120×120×12,5») får mindre skrift via _fpFitDim()
+   i stedet for at feltet gjøres bredere. Skjulte felt tar ikke plass i rutenettet. */
+.fp-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
+.fp-fields .fp-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fp-label {
+    font-size: 11px; font-weight: 600; color: #8a8a90;
+    text-transform: uppercase; letter-spacing: 0.4px;
+}
+.fp-label sub, .fp-label .fp-unit { text-transform: none; }
+.fp-field select, .fp-field input {
+    width: 100%; min-width: 0; box-sizing: border-box;
+    padding: 10px 8px; border: 1px solid #d8d8de; border-radius: 8px;
+    font-size: 14px; font-weight: 400; color: #222; background: #fff;
+    -webkit-appearance: none; appearance: none;
+}
+.fp-field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 7px center; padding-right: 22px;
+    text-overflow: ellipsis;
+}
+.fp-field select:focus, .fp-field input:focus { border-color: #E8501A; outline: none; }
+.fp-field input::placeholder { color: #bbb; }
+/* Seksjonsetikett over side-flisene (samme etikett-stil som feltene). */
+.fp-sides-title { display: block; margin: 0 2px 6px; }
+/* Side-valg: fliser med tegning av hvor isolasjonen ligger. Kolonner etter antall valg,
+   så radene går opp: 4 valg → 4 i bredden, 2 → 2, ellers 3 (5 = 3+2, 6 = 3+3). */
+.fp-sides { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 16px; }
+.fp-sides[data-n="4"] { grid-template-columns: repeat(4, 1fr); }
+.fp-sides[data-n="2"] { grid-template-columns: repeat(2, 1fr); }
+.fp-sides[data-n="1"] { grid-template-columns: minmax(0, 120px); }
+.fp-side {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 4px 8px; border: 1px solid #e0e0e6; border-radius: 10px; background: #fff;
+    font-size: 11px; font-weight: 400; color: #555; line-height: 1.25; text-align: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.fp-side svg { display: block; }
+.fp-side.active { border-color: #E8501A; background: #fff3ee; color: #E8501A; box-shadow: 0 0 0 1px #E8501A inset; }
+/* Svaret: tykkelsen for alle 9 brannklasser ved valgt temperatur (ingen R-velger).
+   Alltid 3×3 på mobil, én rad på bred skjerm. Nøytrale farger: oransje betyr «valgt»
+   på siden (side-flisene), så svaret skal ikke se ut som noe man har trykket på. */
+.fp-answer { margin-bottom: 12px; padding: 10px 10px 12px; background: #fff; border: 1px solid #e0e0e6; border-radius: 12px; }
+.fp-answer-head { margin: 0 2px 8px; }
+.fp-rgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.fp-rgrid:empty { display: none; }
+@media (min-width: 700px) { .fp-rgrid { grid-template-columns: repeat(9, 1fr); } }
+.fp-rchip {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    padding: 7px 4px; border-radius: 8px; background: #f5f5f7;
+}
+.fp-rchip-r { font-size: 11px; font-weight: 600; color: #8a8a90; letter-spacing: 0.3px; }
+.fp-rchip-t { font-size: 17px; font-weight: 600; color: #222; }
+.fp-rchip.none .fp-rchip-t { color: #c4c4ca; font-weight: 400; }
+.fp-answer-note { margin: 8px 2px 0; font-size: 12px; color: #777; line-height: 1.45; }
+.fp-rgrid:empty + .fp-answer-note { margin-top: 0; font-size: 14px; }
+.fp-answer-note.fp-answer-bad { color: #c0392b; }
+
 /* Lysåpning calculator */
 .la-section {
     border: 1px solid #e0e0e0;

@@ -1,0 +1,64 @@
+# Ukentlig sjekk: har Isover endret FireProtect-kalkulatoren (fireprotect.isover.se)?
+# Ingen endring → ingenting skjer. Endring eller feil → GitHub-sak (eieren får e-post).
+# Se tools/fireprotect/README.md.
+name: Sjekk Isover FireProtect
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'   # mandager kl. 05:00 UTC (06/07 norsk tid)
+  workflow_dispatch:       # «Run workflow»-knapp i Actions-fanen
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer Playwright + Chromium
+        working-directory: tools/fireprotect
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Sammenlign med Isover
+        id: check
+        working-directory: tools/fireprotect
+        run: |
+          set +e
+          node check.js > report.md
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          cat report.md
+          exit 0
+
+      # Én åpen sak per type varsel: finnes den, legges det til en kommentar i stedet for ny sak.
+      - name: Varsle (GitHub-sak)
+        if: steps.check.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ steps.check.outputs.code }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$CODE" = "1" ]; then
+            TITLE="Isover FireProtect: tabellen er endret"
+          else
+            TITLE="Isover FireProtect: sjekken kunne ikke kjøres"
+          fi
+          BODY=tools/fireprotect/report.md
+          printf '\n\n@%s — kjøring: %s\n' "$OWNER" "$RUN_URL" >> "$BODY"
+          EXISTING=$(gh issue list --state open --limit 50 --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file "$BODY"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY"
+          fi
