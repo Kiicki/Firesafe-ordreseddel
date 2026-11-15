@@ -74,7 +74,7 @@ function refreshActiveView() {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
             window.loadedTemplates = result.forms;
-            safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+            _projCache(result.forms);
         }).catch(function(e) { console.error('Refresh templates:', e); });
     } else if (document.body.classList.contains('timebok-view-open')) {
         // Hent gjeldende periode på nytt; hopp over hvis vi nettopp lagret lokalt.
@@ -2346,13 +2346,17 @@ window.advanceSavedFormStatus = advanceSavedFormStatus;
 
 if (!window.loadedTemplates) window.loadedTemplates = [];
 
+// Prosjektlista = felles (firmaets) + egne (se FELLES PROSJEKTER under). Hele lista hentes i
+// ett (ingen sider — `lastDoc` brukes ikke lenger, men beholdes for kallene).
 async function getTemplates(lastDoc) {
+    if (lastDoc) return { forms: [], lastDoc: null, hasMore: false };
     if (currentUser && db) {
         try {
-            var q = db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').limit(PAGE_SIZE);
-            if (lastDoc) q = q.startAfter(lastDoc);
-            var snapshot = await q.get();
-            return { forms: snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }), lastDoc: snapshot.docs[snapshot.docs.length - 1] || null, hasMore: snapshot.docs.length === PAGE_SIZE };
+            var list = await _projFetchAll();
+            // Kallene under skriver selv TEMPLATE_KEY (noen med en gammel 50-grense) — hele
+            // lista legges i cachen like etter, så ingen prosjekter faller ut.
+            setTimeout(function () { _projCache(list); _projUpdateBadges(); }, 0);
+            return { forms: list, lastDoc: null, hasMore: false };
         } catch (e) {
             console.error('Templates error:', e);
             return { forms: safeParseJSON(TEMPLATE_KEY, []), lastDoc: null, hasMore: false };
@@ -2363,7 +2367,7 @@ async function getTemplates(lastDoc) {
 }
 
 function _buildTemplateItemHtml(item, index) {
-    var row1 = escapeHtml(item.prosjektnavn) || t('no_name');
+    var row1 = (escapeHtml(item.prosjektnavn) || t('no_name')) + (item._pending ? ' <span class="proj-pending-chip">' + escapeHtml(t('proj_pending_chip')) + '</span>' : '');
     var row2 = [item.oppdragsgiver, item.prosjektnr].filter(function(x) { return x; }).map(escapeHtml).join(' \u2022 ');
     var row3 = item.fakturaadresse ? escapeHtml(item.fakturaadresse) : '';
     return '<div class="saved-item" data-index="' + index + '">' +
@@ -2374,6 +2378,459 @@ function _buildTemplateItemHtml(item, index) {
         '</div>' +
     '</div>';
 }
+
+// ═══ FELLES PROSJEKTER + MONTØRENS FORSLAG (15-11-2026) ═════════════════════
+// Bruker: admin styrer prosjektlista (felles for firmaet), men montører må kunne lage et
+// prosjekt selv med en gang (admin er treg med å legge inn) — uten at skrivefeil spres til alle:
+//   • Felles liste: firms/{firma}/projects/{id} — bare admin skriver, alle i firmaet leser.
+//   • Montør lager prosjekt → PERSONLIG (users/{uid}/templates, forslag:'pending'), brukes med en
+//     gang i egne skjemaer/Timebok, og sendes som forslag: firms/{firma}/projectSuggestions/
+//     {uid}_{id}. Andre montører ser det ikke.
+//   • Admin (Admin › Prosjekter › Til godkjenning): Godkjenn (kan rette navn/nr/adresser først)
+//     → felles prosjekt med SAMME id (Timebok-dagene peker fortsatt riktig) · Slå sammen med et
+//     eksisterende · Avvis (blir værende personlig for montøren).
+//   • Montørens app plukker opp avgjørelsen ved neste henting: rettelsene skrives ut i egne
+//     skjemaer (_propagateProjectCorrection), og den personlige kopien skjules. Admin-rettelser
+//     av et felles prosjekt slår igjennom likt hos alle (sammenligning mot forrige kopi).
+//   • Admins egne prosjekter fra før blir IKKE felles automatisk (hovedadmin bytter firma, og
+//     lista kunne havnet i feil firma) — de står under «Til godkjenning» med «Gjør alle felles».
+//   • Reiseavstand er pr. person (avstanden fra der man bor): egen verdi i PROJECT_OVERRIDES_KEY
+//     (users/{uid}/settings/project_overrides), aldri på det felles prosjektet.
+//   • Mangler Firestore-reglene (felles liste kan ikke leses) → gammel modus: bare egne
+//     prosjekter, som før. Ingenting forsvinner.
+// Lokal test (DEV, uid 'dev-local'): _projStore etterligner Firestore i localStorage, med egne
+// personlige lister for testrollene Admin og Montør (Meny › Testmodus).
+var PROJECT_OVERRIDES_KEY = 'firesafe_project_overrides';
+var _PROJ_DEV_KEY = 'firesafe_dev_projects';
+var _projSharedOk = null;          // null = ukjent, true = felles liste virker, false = gammel modus
+var _projSyncAt = 0;
+var _projPending = [];             // admin: montørenes forslag (status pending)
+var _projReview = null;            // admin: { sugg } eller { own } mens et forslag vurderes
+
+function _projDevData() {
+    var d = safeParseJSON(_PROJ_DEV_KEY, null);
+    if (!d) {
+        // Første gang: dagens lokale prosjekter blir admins personlige (som i ekte modus).
+        d = { shared: {}, sugg: {}, own: { admin: {}, montor: {} } };
+        safeParseJSON(TEMPLATE_KEY, []).forEach(function (p) { if (p && p.id && !p._shared) d.own.admin[p.id] = _projClean(p); });
+        _projDevSave(d);
+    }
+    // Felles liste og forslag er pr. firma (som firms/{firma}/…); egne er pr. bruker.
+    d.own = d.own || {}; d.firms = d.firms || {};
+    if (d.shared && !d.firms.firesafe) { d.firms.firesafe = { shared: d.shared, sugg: d.sugg || {} }; }
+    var f = _firma();
+    d.firms[f] = d.firms[f] || { shared: {}, sugg: {} };
+    d.shared = d.firms[f].shared; d.sugg = d.firms[f].sugg;
+    return d;
+}
+function _projDevSave(d) { var o = Object.assign({}, d); delete o.shared; delete o.sugg; safeSetItem(_PROJ_DEV_KEY, JSON.stringify(o)); }
+function _projDevRoleKey() { return (typeof _devRole === 'function' && _devRole() === 'montor') ? 'montor' : 'admin'; }
+// Fjern visningsflagg (_shared, _own, _pending …) og id før lagring.
+function _projClean(p) {
+    var o = {};
+    Object.keys(p || {}).forEach(function (k) { if (k.charAt(0) !== '_' && k !== 'id') o[k] = p[k]; });
+    return o;
+}
+function _projDocs(s) { return s.docs.map(function (x) { return Object.assign({ id: x.id }, x.data()); }); }
+function _projDevList(o) { return Object.keys(o || {}).map(function (k) { return Object.assign({ id: k }, o[k]); }); }
+function _projDevPut(bucket, id, data, merge) { bucket[id] = merge ? Object.assign({}, bucket[id] || {}, data) : data; }
+var _projStore = {
+    listShared: function () {
+        if (_admDev()) return Promise.resolve(_projDevList(_projDevData().shared));
+        return _firmaRef().collection('projects').get().then(_projDocs);
+    },
+    setShared: function (id, data, merge) {
+        data = _projClean(data);
+        delete data.timebokBracketId; delete data.forslag; delete data.mergedInto;   // personlig, ikke felles
+        if (_admDev()) { var d = _projDevData(); _projDevPut(d.shared, id, data, merge); _projDevSave(d); return Promise.resolve(); }
+        var ref = _firmaRef().collection('projects').doc(id);
+        return merge ? ref.set(data, { merge: true }) : ref.set(data);
+    },
+    delShared: function (id) {
+        if (_admDev()) { var d = _projDevData(); delete d.shared[id]; _projDevSave(d); return Promise.resolve(); }
+        return _firmaRef().collection('projects').doc(id).delete();
+    },
+    listOwn: function () {
+        if (_admDev()) return Promise.resolve(_projDevList(_projDevData().own[_projDevRoleKey()]));
+        return db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get().then(_projDocs);
+    },
+    setOwn: function (id, data, merge) {
+        data = _projClean(data);
+        if (_admDev()) { var d = _projDevData(), r = _projDevRoleKey(); d.own[r] = d.own[r] || {}; _projDevPut(d.own[r], id, data, merge); _projDevSave(d); return; }
+        enqueueUserDocSet('templates', id, data, 'Save project', merge ? { merge: true } : undefined);
+    },
+    delOwn: function (id) {
+        if (_admDev()) { var d = _projDevData(), r = _projDevRoleKey(); if (d.own[r]) delete d.own[r][id]; _projDevSave(d); return; }
+        enqueueUserDocDelete('templates', id, 'Delete project');
+    },
+    listSuggPending: function () {
+        if (_admDev()) return Promise.resolve(_projDevList(_projDevData().sugg).filter(function (s) { return s.status === 'pending'; }));
+        return _firmaRef().collection('projectSuggestions').where('status', '==', 'pending').get().then(_projDocs);
+    },
+    listSuggMine: function () {
+        var me = _projMe();
+        if (_admDev()) return Promise.resolve(_projDevList(_projDevData().sugg).filter(function (s) { return s.createdBy === me; }));
+        return _firmaRef().collection('projectSuggestions').where('createdBy', '==', me).get().then(_projDocs);
+    },
+    setSugg: function (id, data, merge) {
+        data = _projClean(data);
+        if (_admDev()) { var d = _projDevData(); _projDevPut(d.sugg, id, data, merge); _projDevSave(d); return Promise.resolve(); }
+        var ref = _firmaRef().collection('projectSuggestions').doc(id);
+        return merge ? ref.set(data, { merge: true }) : ref.set(data);
+    },
+    delSugg: function (id) {
+        if (_admDev()) { var d = _projDevData(); delete d.sugg[id]; _projDevSave(d); return Promise.resolve(); }
+        return _firmaRef().collection('projectSuggestions').doc(id).delete();
+    }
+};
+// Hvem er «jeg»? I lokal test er admin og montør to ulike personer (testrollen).
+function _projMe() { return _admDev() ? 'dev-' + _projDevRoleKey() : (currentUser ? currentUser.uid : ''); }
+function _projMyName() {
+    if (_admDev()) return _projDevRoleKey() === 'montor' ? 'Test Montør' : 'Test Admin';
+    var mi = (typeof getMinInfo === 'function') ? (getMinInfo() || {}) : {};
+    var n = [mi.fornavn, mi.etternavn].filter(Boolean).join(' ').trim();
+    return n || (currentUser && (currentUser.displayName || currentUser.email)) || '';
+}
+function _projDateStr(iso) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return '';
+    return ('0' + d.getDate()).slice(-2) + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + d.getFullYear();
+}
+// ── Reiseavstand pr. person ──
+function _projOverrides() { return safeParseJSON(PROJECT_OVERRIDES_KEY, {}) || {}; }
+function _projSaveOverride(id, bracketId) {
+    var o = _projOverrides();
+    if (bracketId) o[id] = { timebokBracketId: bracketId }; else delete o[id];
+    safeSetItem(PROJECT_OVERRIDES_KEY, JSON.stringify(o));
+    enqueueUserDocSet('settings', 'project_overrides', { map: o }, 'Project overrides');
+}
+function _projFetchOverrides() {
+    if (!currentUser || !db || _admDev()) return Promise.resolve();
+    return db.collection('users').doc(currentUser.uid).collection('settings').doc('project_overrides').get()
+        .then(function (d) { if (d.exists) safeSetItem(PROJECT_OVERRIDES_KEY, JSON.stringify((d.data() || {}).map || {})); })
+        .catch(function (e) { console.warn('Project overrides:', e && (e.code || e.message)); });
+}
+function _projNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9æøå]/g, ''); }
+function _projSort(list) {
+    return list.sort(function (a, b) { return _cmpText(String(a.prosjektnavn || ''), String(b.prosjektnavn || '')); });
+}
+// Felles (godkjente) + egne som ikke er godkjent/slått sammen. Egne med samme id som et
+// felles skjules (godkjent med samme id).
+function _projMerge(shared, own) {
+    var ids = {}, ov = _projOverrides(), out = [];
+    shared.forEach(function (p) {
+        ids[p.id] = 1;
+        out.push(Object.assign({}, p, { _shared: true, timebokBracketId: (ov[p.id] && ov[p.id].timebokBracketId) || null }));
+    });
+    own.forEach(function (p) {
+        if (ids[p.id] || p.forslag === 'approved' || p.forslag === 'merged') return;
+        out.push(Object.assign({}, p, { _own: true, _pending: p.forslag === 'pending' }));
+    });
+    return _projSort(out);
+}
+function _projIdentityChanged(a, b) {
+    return ['prosjektnavn', 'prosjektnr', 'oppdragsgiver', 'kundensRef', 'fakturaadresse', 'leveringsadresse']
+        .some(function (k) { return String(a[k] || '') !== String(b[k] || ''); });
+}
+function _projStrip(p) { var o = Object.assign({}, p); Object.keys(o).forEach(function (k) { if (k.charAt(0) === '_') delete o[k]; }); return o; }
+// Hent alt (felles + egne). Lesefeil på felles liste = gammel modus (bare egne).
+function _projFetchAll() {
+    var prevShared = {};
+    safeParseJSON(TEMPLATE_KEY, []).forEach(function (p) { if (p && p._shared) prevShared[p.id] = p; });
+    return Promise.all([
+        _projStore.listShared().then(function (x) { _projSharedOk = true; return x; }, function (e) {
+            _projSharedOk = false;
+            console.warn('Felles prosjekter utilgjengelig (Firestore-regler?) — bruker egne:', e && (e.code || e.message));
+            return null;
+        }),
+        _projStore.listOwn().catch(function (e) { console.error('Egne prosjekter:', e); return null; }),
+        _projFetchOverrides()
+    ]).then(function (r) {
+        var shared = r[0], own = r[1];
+        if (own === null) own = safeParseJSON(TEMPLATE_KEY, []).filter(function (p) { return p && !p._shared; }).map(_projStrip);
+        if (shared === null) return _projSort(own.slice());
+        // Admin har rettet et felles prosjekt siden sist → rett egne skjemaer (alle brukere).
+        shared.forEach(function (p) {
+            var old = prevShared[p.id];
+            if (old && _projIdentityChanged(old, p)) {
+                try { _propagateProjectCorrection(_projStrip(old), p); } catch (e) { console.error('Propagate shared project:', e); }
+            }
+        });
+        if (Date.now() - _projSyncAt > 30000) { _projSyncAt = Date.now(); setTimeout(function () { _projSync(shared, own); }, 0); }
+        return _projMerge(shared, own);
+    });
+}
+function _projCache(list) {
+    safeSetItem(TEMPLATE_KEY, JSON.stringify(list));
+    window.loadedTemplates = list.slice();
+}
+// Optimistisk oppdatering av cachen (én rad) — før Firestore har svart.
+function _projCacheUpsert(item) {
+    var list = safeParseJSON(TEMPLATE_KEY, []), found = false;
+    list = list.map(function (p) { if (p.id === item.id) { found = true; return item; } return p; });
+    if (!found) list.push(item);
+    _projCache(_projSort(list));
+}
+function _projCacheRemove(id) { _projCache(safeParseJSON(TEMPLATE_KEY, []).filter(function (p) { return p.id !== id; })); }
+function _projSettingsOpen() {
+    var pg = document.getElementById('settings-page-templates');
+    return !!(pg && pg.style.display !== 'none' && document.body.classList.contains('settings-modal-open'));
+}
+function _projRefreshCaches() {
+    return _projFetchAll().then(function (list) {
+        _projCache(list);
+        if (_projSettingsOpen()) { _renderSettingsTemplateListFromData(list); _projRenderPending(); }
+        return list;
+    });
+}
+// Avgjørelser og innsending (bakgrunn etter henting, maks hvert 30. sekund).
+function _projSync(shared, own) {
+    if (!_projSharedOk) return;
+    if (isAdmin) { _projLoadPending(); return; }
+    var byId = {}, byKey = {};
+    shared.forEach(function (p) { byId[p.id] = p; byKey[_projNorm(p.prosjektnavn) + '|' + _projNorm(p.prosjektnr)] = p; });
+    var changed = false;
+    _projStore.listSuggMine().then(function (sugs) {
+        var bySugg = {};
+        sugs.forEach(function (s) { bySugg[s.templateId] = s; });
+        // 1) Admins avgjørelser
+        sugs.forEach(function (s) {
+            if (s.status === 'pending') return;
+            var mine = own.filter(function (p) { return p.id === s.templateId; })[0];
+            if (s.status === 'approved' || s.status === 'merged') {
+                var target = byId[s.approvedId];
+                if (mine && target) {
+                    try { _propagateProjectCorrection(_projStrip(mine), target); } catch (e) {}
+                    // Min reiseavstand følger med til det felles prosjektet (har jeg ikke en fra før).
+                    if (mine.timebokBracketId && !(_projOverrides()[target.id])) _projSaveOverride(target.id, mine.timebokBracketId);
+                }
+                if (mine) _projStore.setOwn(mine.id, { forslag: s.status, mergedInto: s.approvedId || null }, true);
+            } else if (s.status === 'rejected' && mine) {
+                _projStore.setOwn(mine.id, { forslag: 'rejected' }, true);
+            }
+            _projStore.delSugg(s.id).catch(function () {});
+            changed = true;
+        });
+        // 2) Egne prosjekter fra før denne versjonen → sendes inn. Helt likt et felles
+        //    prosjekt (navn + nr) → kobles til det uten å plage admin.
+        own.forEach(function (p) {
+            if (byId[p.id] || p.forslag || bySugg[p.id]) return;
+            var twin = byKey[_projNorm(p.prosjektnavn) + '|' + _projNorm(p.prosjektnr)];
+            if (twin) {
+                try { _propagateProjectCorrection(_projStrip(p), twin); } catch (e) {}
+                if (p.timebokBracketId && !(_projOverrides()[twin.id])) _projSaveOverride(twin.id, p.timebokBracketId);
+                _projStore.setOwn(p.id, { forslag: 'merged', mergedInto: twin.id }, true);
+            } else {
+                _projSubmit(p);
+                _projStore.setOwn(p.id, { forslag: 'pending' }, true);
+            }
+            changed = true;
+        });
+        if (changed) setTimeout(_projRefreshCaches, 300);
+    }).catch(function (e) { console.warn('Prosjektforslag:', e && (e.code || e.message)); });
+}
+function _projSubmit(p) {
+    var me = _projMe();
+    var data = Object.assign(_projStrip(p), {
+        templateId: p.id, createdBy: me, createdByName: _projMyName(),
+        suggestedAt: new Date().toISOString(), status: 'pending'
+    });
+    delete data.timebokBracketId; delete data.forslag;
+    return _projStore.setSugg(me + '_' + p.id, data).catch(function (e) { console.error('Send prosjektforslag:', e); });
+}
+
+// ── Admin: til godkjenning ──
+// Egne (ikke felles ennå) — admins gamle personlige prosjekter.
+function _projOwnUnshared() {
+    return safeParseJSON(TEMPLATE_KEY, []).filter(function (p) { return p._own; });
+}
+function _projLoadPending() {
+    if (!isAdmin || !_projSharedOk) { _projPending = []; _projUpdateBadges(); return Promise.resolve(); }
+    return _projStore.listSuggPending().then(function (list) {
+        _projPending = list.sort(function (a, b) { return String(a.suggestedAt || '').localeCompare(String(b.suggestedAt || '')); });
+        _projUpdateBadges();
+        if (_projSettingsOpen()) _projRenderPending();
+    }).catch(function (e) { console.warn('Til godkjenning:', e && (e.code || e.message)); });
+}
+function _projPendingCount() { return (isAdmin && _projSharedOk) ? _projPending.length : 0; }
+// Varsel til admin: tall på Meny-knappen og på Admin › Prosjekter. Bare montørenes
+// forslag teller — admins egne gamle prosjekter er ikke noe som «venter på» noen.
+function _projUpdateBadges() {
+    var n = _projPendingCount();
+    var b = document.getElementById('proj-pending-badge');
+    if (b) { b.textContent = n; b.hidden = !n; }
+    var dot = document.getElementById('menu-pending-dot');
+    if (dot) { dot.textContent = n; dot.hidden = !n; }
+}
+function _projRenderPending() {
+    var wrap = document.getElementById('proj-pending-wrap');
+    if (!wrap) return;
+    var on = isAdmin && _projSharedOk;
+    var own = on ? _projOwnUnshared() : [];
+    var sugg = on ? _projPending : [];
+    wrap.hidden = !(own.length || sugg.length);
+    if (wrap.hidden) return;
+    var h = '';
+    sugg.forEach(function (s) {
+        var sub = [s.prosjektnr, s.oppdragsgiver].filter(Boolean).map(escapeHtml).join(' • ');
+        var by = escapeHtml(t('proj_suggested_by', s.createdByName || '?', _projDateStr(s.suggestedAt)));
+        h += '<div class="adm-user proj-pending-row" onclick="openProjectReview(\'' + escapeJsStringAttr(s.id) + '\')">' +
+            '<span class="adm-main"><span class="adm-name">' + (escapeHtml(s.prosjektnavn) || t('no_name')) + '</span>' +
+            (sub ? '<span class="adm-sub">' + sub + '</span>' : '') +
+            '<span class="adm-sub proj-by">' + by + '</span></span><span class="set-chev">&rsaquo;</span></div>';
+    });
+    if (own.length) {
+        h += '<div class="proj-own-head"><span class="adm-sub">' + escapeHtml(t('proj_own_unshared', own.length)) + '</span>' +
+            '<button type="button" class="proj-share-all" onclick="projShareAllOwn()">' + escapeHtml(t('proj_share_all')) + '</button></div>';
+        own.forEach(function (p) {
+            var sub = [p.prosjektnr, p.oppdragsgiver].filter(Boolean).map(escapeHtml).join(' • ');
+            h += '<div class="adm-user proj-pending-row" onclick="openProjectReview(null, \'' + escapeJsStringAttr(p.id) + '\')">' +
+                '<span class="adm-main"><span class="adm-name">' + (escapeHtml(p.prosjektnavn) || t('no_name')) + '</span>' +
+                (sub ? '<span class="adm-sub">' + sub + '</span>' : '') + '</span><span class="set-chev">&rsaquo;</span></div>';
+        });
+    }
+    document.getElementById('proj-pending-list').innerHTML = h;
+    document.getElementById('proj-pending-count').textContent = sugg.length + own.length;
+}
+// Åpne et forslag (eller et eget, ikke felles prosjekt) i prosjektskjemaet til vurdering.
+function openProjectReview(suggId, ownId) {
+    var s = suggId ? _projPending.filter(function (x) { return x.id === suggId; })[0] : null;
+    var own = ownId ? _projOwnUnshared().filter(function (x) { return x.id === ownId; })[0] : null;
+    if (!s && !own) return;
+    showTemplateEditor(null, s ? { sugg: s } : { own: own });
+}
+function _projReviewData() { return (_projReview && (_projReview.sugg || _projReview.own)) || null; }
+function _projReviewId() { return _projReview ? (_projReview.sugg ? _projReview.sugg.templateId : _projReview.own.id) : null; }
+function _projAfterReview(msgKey) {
+    closeTemplateEditor();
+    showNotificationModal(t(msgKey), true);
+    _projRefreshCaches().then(function () { return _projLoadPending(); }).then(_projRenderPending);
+}
+// Godkjenn: felles prosjekt med samme id som montørens (Timebok-dagene peker riktig).
+function _projApprove(data) {
+    var r = _projReview, src = _projReviewData();
+    if (!src) return;
+    var id = _projReviewId();
+    var shared = Object.assign({}, data, {
+        active: true, createdAt: src.createdAt || src.suggestedAt || new Date().toISOString(),
+        createdBy: r.sugg ? r.sugg.createdBy : (src.createdBy || _projMe()),
+        approvedAt: new Date().toISOString(), approvedBy: _projMe()
+    });
+    _projStore.setShared(id, shared).then(function () {
+        if (r.sugg) return _projStore.setSugg(r.sugg.id, { status: 'approved', approvedId: id, decidedAt: new Date().toISOString() }, true);
+        // Eget prosjekt: min reiseavstand blir min personlige verdi, rettelser skrives ut i mine skjemaer.
+        if (data.timebokBracketId) _projSaveOverride(id, data.timebokBracketId);
+        _projStore.setOwn(id, { forslag: 'approved' }, true);
+        if (_projIdentityChanged(src, data)) _propagateProjectCorrection(_projStrip(src), Object.assign({ id: id }, data));
+    }).then(function () { _projAfterReview('proj_approved'); }, function (e) {
+        console.error('Godkjenn prosjekt:', e);
+        showNotificationModal(t('proj_action_failed'));
+    });
+}
+function projMergeInto(targetId) {
+    var r = _projReview, src = _projReviewData();
+    var target = safeParseJSON(TEMPLATE_KEY, []).filter(function (p) { return p.id === targetId && p._shared; })[0];
+    if (!src || !target) return;
+    showConfirmModal(t('proj_merge_confirm', target.prosjektnavn || ''), function () {
+        var p;
+        if (r.sugg) p = _projStore.setSugg(r.sugg.id, { status: 'merged', approvedId: targetId, decidedAt: new Date().toISOString() }, true);
+        else {
+            if (src.timebokBracketId && !_projOverrides()[targetId]) _projSaveOverride(targetId, src.timebokBracketId);
+            _projStore.setOwn(src.id, { forslag: 'merged', mergedInto: targetId }, true);
+            _propagateProjectCorrection(_projStrip(src), target);
+            p = Promise.resolve();
+        }
+        p.then(function () { _projAfterReview('proj_merged'); }, function (e) {
+            console.error('Slå sammen prosjekt:', e);
+            showNotificationModal(t('proj_action_failed'));
+        });
+    }, t('proj_merge_btn'), '#E8501A');
+}
+function projRejectSuggestion() {
+    var r = _projReview;
+    if (!r || !r.sugg) return;
+    showConfirmModal(t('proj_reject_confirm'), function () {
+        _projStore.setSugg(r.sugg.id, { status: 'rejected', decidedAt: new Date().toISOString() }, true)
+            .then(function () { _projAfterReview('proj_rejected'); }, function (e) {
+                console.error('Avvis prosjekt:', e);
+                showNotificationModal(t('proj_action_failed'));
+            });
+    }, t('proj_reject_btn'));
+}
+// Admins gamle personlige prosjekter → felles for firmaet som er valgt nå.
+function projShareAllOwn() {
+    var own = _projOwnUnshared();
+    if (!own.length) return;
+    showConfirmModal(t('proj_share_all_confirm', own.length, _firmaName(_firma())), function () {
+        Promise.all(own.map(function (p) {
+            return _projStore.setShared(p.id, Object.assign(_projStrip(p), { active: p.active !== false })).then(function () {
+                if (p.timebokBracketId) _projSaveOverride(p.id, p.timebokBracketId);
+                _projStore.setOwn(p.id, { forslag: 'approved' }, true);
+            });
+        })).then(function () {
+            showNotificationModal(t('proj_shared_all', own.length), true);
+            _projRefreshCaches().then(_projRenderPending);
+        }, function (e) {
+            console.error('Gjør felles:', e);
+            showNotificationModal(t('proj_action_failed'));
+        });
+    }, t('proj_share_all'), '#E8501A');
+}
+
+// ── «Finnes allerede?»: felles prosjekter som ligner (samme nr, eller navnet nesten likt) ──
+function _projLev(a, b) {
+    if (Math.abs(a.length - b.length) > 2) return 3;
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+        cur = [i];
+        for (j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = cur;
+    }
+    return prev[b.length];
+}
+function _projSimilar(name, nr, exceptId) {
+    var n = _projNorm(name), r = _projNorm(nr);
+    if (n.length < 3 && r.length < 2) return [];
+    return safeParseJSON(TEMPLATE_KEY, []).filter(function (p) {
+        if (!p._shared || p.id === exceptId || p.active === false) return false;
+        var pn = _projNorm(p.prosjektnavn), pr = _projNorm(p.prosjektnr);
+        if (r.length >= 2 && pr && r === pr) return true;
+        if (n.length >= 4 && pn && (pn.indexOf(n) !== -1 || n.indexOf(pn) !== -1)) return true;
+        return n.length >= 5 && _projLev(n, pn) <= 2;
+    }).slice(0, 3);
+}
+// Tegnes under feltene i prosjektskjemaet: ved nytt prosjekt («Bruk dette») og ved
+// vurdering av et forslag («Slå sammen»). Ikke ved redigering av et eksisterende.
+function _projRenderSimilar() {
+    var box = document.getElementById('tpl-similar');
+    if (!box) return;
+    var reviewing = !!_projReview;
+    if (_editingTemplateId || !_projSharedOk) { box.hidden = true; return; }
+    var list = _projSimilar(document.getElementById('tpl-edit-prosjektnavn').value, document.getElementById('tpl-edit-prosjektnr').value, _projReviewId());
+    box.hidden = !list.length;
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="tpl-similar-title">' + escapeHtml(t(reviewing ? 'proj_similar_review' : 'proj_similar_new')) + '</div>' +
+        list.map(function (p) {
+            var sub = [p.prosjektnr, p.oppdragsgiver].filter(Boolean).map(escapeHtml).join(' • ');
+            return '<div class="tpl-similar-row"><span class="tpl-similar-text"><span class="tpl-similar-name">' + escapeHtml(p.prosjektnavn || '') + '</span>' +
+                (sub ? '<span class="tpl-similar-sub">' + sub + '</span>' : '') + '</span>' +
+                '<button type="button" class="tpl-similar-btn" onclick="' + (reviewing ? 'projMergeInto' : 'projUseExisting') + '(\'' + escapeJsStringAttr(p.id) + '\')">' +
+                escapeHtml(t(reviewing ? 'proj_merge_btn' : 'proj_use_btn')) + '</button></div>';
+        }).join('');
+}
+// «Bruk dette» ved nytt prosjekt: ta i bruk det felles prosjektet i stedet for å lage et nytt.
+function projUseExisting(id) {
+    var p = safeParseJSON(TEMPLATE_KEY, []).filter(function (x) { return x.id === id; })[0];
+    if (!p) return;
+    var fromPicker = _templateEditorFromPicker, fromTimebok = _templateEditorFromTimebok;
+    _templateEditorFromPicker = false; _templateEditorFromTimebok = false;
+    closeTemplateEditor();
+    if (fromPicker) { _setTemplatePickerHidden(false); _applyTemplateToForm(p); }
+    else if (fromTimebok) { if (_timebokPickerTarget) _selectTimebokProject(id); }
+    else showTemplateEditor(id);
+}
+
 
 var _bilHistoryRendered = false;
 function showTemplateModal() {
@@ -2604,6 +3061,8 @@ function showSettingsMenu() {
     }
     _renderSettingsProfileCard();
     _syncFirmaUi();
+    // Admin: antall prosjektforslag som venter (tall på Admin › Prosjekter).
+    if (typeof isAdmin !== 'undefined' && isAdmin) { _projUpdateBadges(); _projLoadPending(); }
     if (typeof DEV_MODE !== 'undefined' && DEV_MODE) document.querySelectorAll('#dev-role-seg .tb-seg-btn').forEach(function (b) {
         b.classList.toggle('active', b.getAttribute('data-role') === _devRole());
     });
@@ -3614,24 +4073,22 @@ function _tbTariffFromFile(obj, emp) {
 // prosjektskjema som Innstillinger → Prosjekter & lager (showTemplateEditor).
 
 // Oppdater én mal lokalt (cache + minne) og i Firestore (merge).
+// Felles prosjekt: reiseavstanden er personlig (_projSaveOverride), prosjektet røres ikke.
 function _timebokPatchTemplate(id, patch) {
     var list = safeParseJSON(TEMPLATE_KEY, []);
+    var isShared = list.some(function (tpl) { return tpl.id === id && tpl._shared; });
     list.forEach(function (tpl) { if (tpl.id === id) Object.assign(tpl, patch); });
     safeSetItem(TEMPLATE_KEY, JSON.stringify(list));
     (window.loadedTemplates || []).forEach(function (tpl) { if (tpl.id === id) Object.assign(tpl, patch); });
-    enqueueUserDocSet('templates', id, patch, 'Update template', { merge: true });
+    if (isShared) { if ('timebokBracketId' in patch) _projSaveOverride(id, patch.timebokBracketId); return; }
+    _projStore.setOwn(id, patch, true);
 }
 
 // Frisk kopi av ALLE maler fra Firestore inn i TEMPLATE_KEY (velgeren åpnes →
 // andre enheter kan ha lagt til/endret prosjekter). Sortert som getTemplates.
 function _timebokFetchAllTemplates() {
     if (!(currentUser && db)) return Promise.resolve(null);
-    return db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').get()
-        .then(function (snap) {
-            var list = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-            safeSetItem(TEMPLATE_KEY, JSON.stringify(list));
-            return list;
-        });
+    return _projFetchAll().then(function (list) { _projCache(list); return list; });
 }
 
 // Engangs-flytting: den gamle egne Timebok-prosjektlista (settings/timebok_projects)
@@ -5184,6 +5641,8 @@ function _findSettingsTemplateItem(templateId) {
 function _renderSettingsTemplateListFromData(templates) {
     var listEl = document.getElementById('settings-template-list');
     if (!listEl) return;
+    // Felles liste virker: admins egne (ikke felles ennå) står under «Til godkjenning».
+    if (_projSharedOk && templates) templates = templates.filter(function (p) { return !p._own; });
 
     if (!templates || templates.length === 0) {
         listEl.innerHTML = '';
@@ -5223,8 +5682,8 @@ async function renderSettingsTemplateList() {
     var templates = [];
     if (currentUser && db) {
         try {
-            var snapshot = await db.collection('users').doc(currentUser.uid).collection('templates').orderBy('prosjektnavn').limit(100).get();
-            templates = snapshot.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+            templates = await _projFetchAll();
+            _projCache(templates);
         } catch (e) {
             console.error('Load templates for settings:', e);
             templates = safeParseJSON(TEMPLATE_KEY, []);
@@ -5233,6 +5692,8 @@ async function renderSettingsTemplateList() {
         templates = safeParseJSON(TEMPLATE_KEY, []);
     }
     _renderSettingsTemplateListFromData(templates);
+    _projRenderPending();
+    _projLoadPending();
 }
 
 var LAGER_FIELDS = ['veiadresse', 'postnr', 'poststed'];
@@ -5342,22 +5803,56 @@ function useLagerInKappe() {
     }
 }
 
-function showTemplateEditor(templateId) {
+// review = { sugg } / { own } når admin vurderer et forslag (openProjectReview).
+function _tplFill(tpl) {
+    document.getElementById('tpl-edit-prosjektnavn').value = tpl.prosjektnavn || '';
+    document.getElementById('tpl-edit-prosjektnr').value = tpl.prosjektnr || '';
+    document.getElementById('tpl-edit-oppdragsgiver').value = tpl.oppdragsgiver || '';
+    document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
+    document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
+    updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
+    document.getElementById('tpl-edit-leveringsadresse').value = tpl.leveringsadresse || '';
+    updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', tpl.leveringsadresse || '');
+    document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(tpl.timebokBracketId || null);
+}
+// Forklaring øverst i skjemaet (felles / eget / til godkjenning). Tom = skjult.
+function _tplSetNote(text) {
+    var n = document.getElementById('tpl-note');
+    if (!n) return;
+    n.textContent = text || '';
+    n.hidden = !text;
+}
+// Felles prosjekt åpnet av montør: alt låst unntatt reiseavstanden (den er personlig).
+function _tplSetLocked(locked) {
+    var body = document.querySelector('#template-editor-overlay .template-editor-body');
+    if (body) body.classList.toggle('tpl-locked', !!locked);
+    ['tpl-edit-prosjektnavn', 'tpl-edit-prosjektnr', 'tpl-edit-oppdragsgiver', 'tpl-edit-kundensRef'].forEach(function (id) {
+        document.getElementById(id).disabled = !!locked;
+    });
+}
+var _tplSimilarBound = false;
+function showTemplateEditor(templateId, review) {
     _editingTemplateId = templateId || null;
+    _projReview = review || null;
     var overlay = document.getElementById('template-editor-overlay');
     var titleEl = document.getElementById('template-editor-title');
+    var saveBtn = overlay.querySelector('.template-editor-save-btn');
+    var rejectBtn = document.getElementById('tpl-reject-btn');
 
     // Clear fields
-    document.getElementById('tpl-edit-prosjektnavn').value = '';
-    document.getElementById('tpl-edit-prosjektnr').value = '';
-    document.getElementById('tpl-edit-oppdragsgiver').value = '';
-    document.getElementById('tpl-edit-kundensRef').value = '';
-    document.getElementById('tpl-edit-fakturaadresse').value = '';
-    updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', '');
-    document.getElementById('tpl-edit-leveringsadresse').value = '';
-    updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', '');
-    // Reiseavstand for Timebok (sonene fra dagens tariff).
-    document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(null);
+    _tplFill({});
+    _tplSetLocked(false);
+    _tplSetNote('');
+    if (saveBtn) saveBtn.textContent = t('toolbar_save');
+    if (rejectBtn) rejectBtn.style.display = 'none';
+    var simBox = document.getElementById('tpl-similar');
+    if (simBox) { simBox.hidden = true; simBox.innerHTML = ''; }
+    if (!_tplSimilarBound) {
+        _tplSimilarBound = true;
+        ['tpl-edit-prosjektnavn', 'tpl-edit-prosjektnr'].forEach(function (id) {
+            document.getElementById(id).addEventListener('input', function () { if (!_editingTemplateId) _projRenderSimilar(); });
+        });
+    }
 
     // Mark required fields
     var reqSettings = cachedRequiredSettings || getDefaultRequiredSettings();
@@ -5376,31 +5871,50 @@ function showTemplateEditor(templateId) {
         else label.classList.remove('field-required');
     }
 
-    // Vis/skjul deaktiver-knapp (kun i redigeringsmodus)
+    // Vis/skjul deaktiver-knapp (kun admin, i redigeringsmodus)
     var deactBtn = document.getElementById('tpl-deactivate-btn');
     if (deactBtn) deactBtn.style.display = templateId ? '' : 'none';
+    var sharedOn = _projSharedOk === true;
 
-    if (templateId) {
+    if (review) {
+        // Admin vurderer et forslag / sitt eget prosjekt: kan rette alt før godkjenning.
+        var src = review.sugg || review.own;
+        titleEl.textContent = t(review.sugg ? 'proj_review_title' : 'proj_review_own_title');
+        _tplFill(src);
+        if (review.sugg) {
+            // Montørens reiseavstand er hans egen — admin velger ikke for ham.
+            document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(null);
+            _tplSetNote(t('proj_review_note', review.sugg.createdByName || '?', _projDateStr(review.sugg.suggestedAt)));
+        } else {
+            _tplSetNote(t('proj_review_own_note', _firmaName(_firma())));
+        }
+        if (saveBtn) saveBtn.textContent = t(review.sugg ? 'proj_approve_btn' : 'proj_share_btn');
+        if (rejectBtn) rejectBtn.style.display = review.sugg ? '' : 'none';
+        if (deactBtn) deactBtn.style.display = 'none';
+        _projRenderSimilar();
+    } else if (templateId) {
         titleEl.textContent = t('settings_edit_template');
         // Find template and fill fields + set deactivate button text
         _findTemplateById(templateId).then(function(tpl) {
             if (tpl) {
-                document.getElementById('tpl-edit-prosjektnavn').value = tpl.prosjektnavn || '';
-                document.getElementById('tpl-edit-prosjektnr').value = tpl.prosjektnr || '';
-                document.getElementById('tpl-edit-oppdragsgiver').value = tpl.oppdragsgiver || '';
-                document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
-                document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
-                updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
-                document.getElementById('tpl-edit-leveringsadresse').value = tpl.leveringsadresse || '';
-                updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', tpl.leveringsadresse || '');
-                document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(tpl.timebokBracketId || null);
+                _tplFill(tpl);
+                if (sharedOn && tpl._shared && !isAdmin) {
+                    _tplSetLocked(true);
+                    _tplSetNote(t('proj_shared_locked_note'));
+                } else if (sharedOn && tpl._pending) {
+                    _tplSetNote(t('proj_pending_note'));
+                } else if (sharedOn && tpl._own && !isAdmin) {
+                    _tplSetNote(t('proj_own_note'));
+                }
                 if (deactBtn) {
                     deactBtn.textContent = tpl.active === false ? t('settings_template_activate') : t('settings_template_deactivate');
+                    if (sharedOn && tpl._shared && !isAdmin) deactBtn.style.display = 'none';
                 }
             }
         });
     } else {
         titleEl.textContent = t('settings_new_template');
+        if (sharedOn && !isAdmin) _tplSetNote(t('proj_new_montor_note'));
     }
 
     overlay.classList.add('active');
@@ -5408,6 +5922,7 @@ function showTemplateEditor(templateId) {
 
 function closeTemplateEditor() {
     _editingTemplateId = null;
+    _projReview = null;
     document.getElementById('template-editor-overlay').classList.remove('active');
     // Avbrutt fra «Velg prosjekt» → vis velgeren igjen. Uten dette ville avbryt
     // etterlate brukeren i skjemaet, uten lista de faktisk sto i.
@@ -5426,15 +5941,7 @@ async function duplicateTemplateFromSettings(templateId) {
     var tpl = await _findTemplateById(templateId);
     if (!tpl) return;
     showTemplateEditor();
-    document.getElementById('tpl-edit-prosjektnavn').value = tpl.prosjektnavn || '';
-    document.getElementById('tpl-edit-prosjektnr').value = tpl.prosjektnr || '';
-    document.getElementById('tpl-edit-oppdragsgiver').value = tpl.oppdragsgiver || '';
-    document.getElementById('tpl-edit-kundensRef').value = tpl.kundensRef || '';
-    document.getElementById('tpl-edit-fakturaadresse').value = tpl.fakturaadresse || '';
-    updateFakturaadresseDisplay('tpl-fakturaadresse-display-text', tpl.fakturaadresse || '');
-    document.getElementById('tpl-edit-leveringsadresse').value = tpl.leveringsadresse || '';
-    updateFakturaadresseDisplay('tpl-leveringsadresse-display-text', tpl.leveringsadresse || '');
-    document.getElementById('tpl-edit-timebok-dist').innerHTML = _timebokDistOptionsHtml(tpl.timebokBracketId || null);
+    _tplFill(tpl);
 }
 
 async function toggleActiveFromEditor() {
@@ -5455,6 +5962,10 @@ async function _findTemplateById(id) {
     // Last resort: Firebase
     if (currentUser && db) {
         try {
+            if (_projSharedOk && !_admDev()) {
+                var sdoc = await _firmaRef().collection('projects').doc(id).get();
+                if (sdoc.exists) return Object.assign({ id: sdoc.id }, sdoc.data(), { _shared: true });
+            }
             var doc = await db.collection('users').doc(currentUser.uid).collection('templates').doc(id).get();
             if (doc.exists) return Object.assign({ id: doc.id }, doc.data());
         } catch (e) {
@@ -6033,6 +6544,9 @@ async function saveTemplateFromEditor() {
         }
     }
 
+    // Admin vurderer et forslag → Godkjenn (felles prosjekt).
+    if (_projReview) { _projApprove(data); return; }
+
     // Verdiene FØR rettelsen — nøkkelen som finner igjen prosjektet i alle lagrede
     // skjemaer. Må hentes før localStorage/minnet skrives over. Kopi, ikke referanse:
     // _findTemplateById kan returnere objektet fra window.loadedTemplates, som vi
@@ -6040,24 +6554,33 @@ async function saveTemplateFromEditor() {
     var oldTemplate = _editingTemplateId ? await _findTemplateById(_editingTemplateId) : null;
     if (oldTemplate) oldTemplate = Object.assign({}, oldTemplate);
 
-    // Update localStorage immediately (optimistic)
-    var templates = safeParseJSON(TEMPLATE_KEY, []);
-
+    // Hvor lagres det? (se FELLES PROSJEKTER) Felles liste virker → admin skriver felles,
+    // montør skriver eget + forslag. Ellers (reglene mangler) → eget, som før.
+    var sharedOn = _projSharedOk === true;
+    var dist = data.timebokBracketId || null;
+    var item;
     if (_editingTemplateId) {
-        // Update existing template in localStorage
-        var idx = templates.findIndex(function(t) { return t.id === _editingTemplateId; });
-        if (idx !== -1) {
-            Object.assign(templates[idx], data);
+        if (sharedOn && oldTemplate && oldTemplate._shared) {
+            if (isAdmin) {
+                _projStore.setShared(_editingTemplateId, data, true).catch(function (e) {
+                    console.error('Update shared project:', e);
+                    showNotificationModal(t('proj_action_failed'));
+                });
+            } else {
+                // Montør: bare reiseavstanden (personlig) — feltene er låst.
+                data = Object.assign(_projStrip(oldTemplate), { timebokBracketId: dist });
+                delete data.id;
+            }
+            _projSaveOverride(_editingTemplateId, dist);
+            item = Object.assign({}, oldTemplate, data, { id: _editingTemplateId, timebokBracketId: dist, _shared: true });
+        } else {
+            _projStore.setOwn(_editingTemplateId, data, true);
+            item = Object.assign({}, oldTemplate || {}, data, { id: _editingTemplateId });
+            // Venter på godkjenning → admin skal se det rettede forslaget.
+            if (sharedOn && oldTemplate && oldTemplate.forslag === 'pending') _projSubmit(item);
         }
-        safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
-        // Minnet er kilden for prosjekt-velgeren og _findTemplateById — uten dette
-        // ville velgeren fortsatt tilbudt det gamle navnet.
-        var memIdx = (window.loadedTemplates || []).findIndex(function(t) { return t.id === _editingTemplateId; });
-        if (memIdx !== -1) Object.assign(window.loadedTemplates[memIdx], data);
+        _projCacheUpsert(item);
         showNotificationModal(t('template_updated'), true);
-
-        enqueueUserDocSet('templates', _editingTemplateId, data, 'Update template', { merge: true });
-
         // Rettelsen må slå igjennom overalt prosjektet er brukt — skjemaene har bare
         // en kopi av verdiene, ingen referanse tilbake hit.
         _propagateProjectCorrection(oldTemplate, data);
@@ -6067,14 +6590,29 @@ async function saveTemplateFromEditor() {
         data.createdBy = currentUser ? currentUser.uid : 'local';
         data.active = true;
         data.id = Date.now().toString();
-
-        // Update localStorage immediately
-        templates.push(data);
-        safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
-        showNotificationModal(t('template_save_success'), true);
-
-        enqueueUserDocSet('templates', data.id, data, 'Create template');
+        if (sharedOn && isAdmin) {
+            _projStore.setShared(data.id, data).catch(function (e) {
+                console.error('Create shared project:', e);
+                showNotificationModal(t('proj_action_failed'));
+            });
+            if (dist) _projSaveOverride(data.id, dist);
+            item = Object.assign({}, data, { _shared: true });
+            showNotificationModal(t('template_save_success'), true);
+        } else if (sharedOn) {
+            // Montør: eget prosjekt med en gang + forslag til admin.
+            data.forslag = 'pending';
+            _projStore.setOwn(data.id, data);
+            _projSubmit(data);
+            item = Object.assign({}, data, { _own: true, _pending: true });
+            showNotificationModal(t('proj_saved_pending'), true);
+        } else {
+            _projStore.setOwn(data.id, data);
+            item = Object.assign({}, data);
+            showNotificationModal(t('template_save_success'), true);
+        }
+        _projCacheUpsert(item);
     }
+    var templates = safeParseJSON(TEMPLATE_KEY, []);
 
     // Nullstilles FØR closeTemplateEditor, ellers ville den vist velgeren igjen
     // et øyeblikk før vi lukker den — en synlig blink.
@@ -6113,10 +6651,14 @@ async function toggleTemplateActive(templateId) {
     var idx = templates.findIndex(function(t) { return t.id === templateId; });
     if (idx !== -1) {
         templates[idx].active = newActive;
-        safeSetItem(TEMPLATE_KEY, JSON.stringify(templates));
+        _projCache(templates);
     }
 
-    enqueueUserDocSet('templates', templateId, { active: newActive }, 'Toggle template', { merge: true });
+    if (tpl._shared && _projSharedOk) {
+        _projStore.setShared(templateId, { active: newActive }, true).catch(function (e) { console.error('Toggle shared project:', e); });
+    } else {
+        _projStore.setOwn(templateId, { active: newActive }, true);
+    }
 }
 
 async function deleteTemplateFromSettings(templateId) {
@@ -6138,7 +6680,9 @@ async function deleteTemplateFromSettings(templateId) {
             listEl.innerHTML = '';
         }
 
-        enqueueUserDocDelete('templates', templateId, 'Delete template');
+        // Felles prosjekt (admin) → borte for alle i firmaet; eget → bare mitt.
+        if (tpl._shared && _projSharedOk) _projStore.delShared(templateId).catch(function (e) { console.error('Delete shared project:', e); });
+        else _projStore.delOwn(templateId);
     });
 }
 
@@ -11862,7 +12406,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 _templateLastDoc = result.lastDoc;
                 _templateHasMore = result.hasMore;
                 window.loadedTemplates = result.forms;
-                safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+                _projCache(result.forms);
             }).catch(function(e) { console.error('Refresh templates:', e); });
         }
     }
@@ -14673,30 +15217,43 @@ function openTimebokTypePicker(block) {
     var types = _timebokOrderedCodeTypes(_timebokCurDayId()).filter(function (x) {
         return have[x.id] || _timebokCodeShownFor(x.id, mode);
     }), html = '';
+    // Felles valgliste (_pickRowHtml): hele raden er trykkflaten, valgt = oransje sirkel med hake.
+    // Koder kortet allerede har, står grå med «Lagt til» (ikke en avkrysset, låst boks).
     TIMEBOK_CODE_GROUPS.forEach(function (g) {
         var items = types.filter(function (x) { return x.group === g; });
         if (!items.length) return;
-        html += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div><div class="tb-af-grid">' +
+        html += '<div class="pick-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div><div class="pick-list">' +
             items.map(function (x) {
                 // Reisegodtgjørelse kan legges til flere ganger: finnes den, blir neste en ekstra tur.
-                if (x.id === '__travel' && have[x.id]) {
-                    return '<label class="tb-af-item"><input type="checkbox" value="__travel" onchange="_tbTypeSelChanged()"><span>' +
-                        escapeHtml(t('timebok_travel_extra')) + '</span></label>';
-                }
-                var on = !!have[x.id];
-                return '<label class="tb-af-item' + (on ? ' tb-af-locked' : '') + '"><input type="checkbox" value="' + escapeHtml(x.id) + '"' +
-                    (on ? ' checked disabled' : '') + ' onchange="_tbTypeSelChanged()"><span>' + escapeHtml(x.label) + '</span></label>';
+                if (x.id === '__travel' && have[x.id]) return _pickRowHtml('__travel', t('timebok_travel_extra'), false, false, '_tbTypeSelChanged()');
+                return _pickRowHtml(x.id, x.label, !!have[x.id], !!have[x.id], '_tbTypeSelChanged()');
             }).join('') + '</div>';
     });
-    listEl.innerHTML = '<div class="tb-af-box" lang="nb">' + html + '</div>';
+    listEl.innerHTML = '<div class="pick-wrap" lang="nb">' + html + '</div>';
     listEl.scrollTop = 0;
     _tbTypeSelChanged();
     document.getElementById('timebok-type-popup').classList.add('active');
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
+// ── Felles valgliste (flervalg) ──
+// Én rad = hele trykkflaten (min. 48 px): tekst til venstre, rund markering til høyre (tom sirkel /
+// oransje med hake). Erstatter små avkrysningsbokser (bruker 15-11-2026: «folk tror de må trykke på
+// den lille firkantede boksen … vanskelig å treffe på telefon»). locked = allerede valgt, kan ikke
+// endres (grå, «Lagt til»). Brukes i Timebok › Velg kode og Materialer › Plater › Tilknytt.
+function _pickRowHtml(value, label, checked, locked, onchange, hintHtml, attrs) {
+    return '<label class="pick-row' + (locked ? ' pick-locked' : '') + '">' +
+        '<input type="checkbox" value="' + escapeHtml(value) + '"' + (checked ? ' checked' : '') + (locked ? ' disabled' : '') +
+            (onchange ? ' onchange="' + onchange + '"' : '') + (attrs || '') + '>' +
+        '<span class="pick-text">' + escapeHtml(label) + (hintHtml || '') +
+            (locked ? ' <small>' + escapeHtml(t('pick_added')) + '</small>' : '') + '</span>' +
+        '<span class="pick-check" aria-hidden="true"></span>' +
+    '</label>';
+}
 function _tbTypeSelChanged() {
     var n = document.querySelectorAll('#timebok-type-list input:checked:not(:disabled)').length;
-    document.getElementById('timebok-type-ok').disabled = !n;
+    var ok = document.getElementById('timebok-type-ok');
+    ok.disabled = !n;
+    ok.textContent = t('timebok_add_codes_ok') + (n ? ' (' + n + ')' : '');
 }
 function confirmTimebokTypePicker() {
     var blk = _timebokPickerTarget;
@@ -14800,7 +15357,7 @@ function _timebokRenderProjectPickerList() {
             '<button type="button" class="timebok-proj-pick" data-id="' + escapeHtml(p.id) + '" onclick="_selectTimebokProject(this.getAttribute(\'data-id\'))">' +
                 '<span class="timebok-proj-check">' + (on ? _TIMEBOK_CHECK_SVG : '') + '</span>' +
                 '<span class="timebok-proj-text">' +
-                    '<span class="timebok-proj-name">' + escapeHtml(p.name) + '</span>' +
+                    '<span class="timebok-proj-name">' + escapeHtml(p.name) + (p.pending ? ' <span class="proj-pending-chip">' + escapeHtml(t('proj_pending_chip')) + '</span>' : '') + '</span>' +
                     '<span class="timebok-proj-dist">' + escapeHtml(_timebokBracketLabel(p.bracketId)) + '</span>' +
                 '</span>' +
             '</button>' +
@@ -17002,7 +17559,7 @@ function openTemplatePicker() {
         getTemplates().then(function(result) {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
-            safeSetItem(TEMPLATE_KEY, JSON.stringify(result.forms.slice(0, 50)));
+            _projCache(result.forms);
             var active = result.forms.filter(function(t) { return t.active !== false; });
             if (overlay.classList.contains('active')) {
                 _renderTemplatePickerList(active, listEl);
@@ -23981,13 +24538,11 @@ function openKappePlateAssignModal(plateIdx) {
                 }
             }
         }
-        return '<label class="settings-plate-assign-row">' +
-            '<input type="checkbox" class="settings-plate-assign-checkbox" data-product="' + escapeHtml(prod.name) + '"' + (isChecked ? ' checked' : '') + '>' +
-            '<span class="settings-plate-assign-name">' + escapeHtml(prod.name) + otherPlateDim + '</span>' +
-        '</label>';
+        return _pickRowHtml(prod.name, prod.name, isChecked, false, '', otherPlateDim,
+            ' class="settings-plate-assign-checkbox" data-product="' + escapeHtml(prod.name) + '"');
     }).join('');
     var bodyEl = document.getElementById('kappe-plate-assign-body');
-    if (bodyEl) bodyEl.innerHTML = html || '<div style="color:#999;padding:8px;">Ingen isolasjons-produkter</div>';
+    if (bodyEl) bodyEl.innerHTML = html ? '<div class="pick-list">' + html + '</div>' : '<div style="color:#999;padding:8px;">Ingen isolasjons-produkter</div>';
     var titleEl = document.getElementById('kappe-plate-assign-title');
     if (titleEl) titleEl.textContent = t('kappe_settings_plate_assign_title') + ' · ' + plates[plateIdx].length + '×' + plates[plateIdx].width + ' mm';
     document.getElementById('kappe-plate-assign-modal').classList.add('active');
@@ -26189,6 +26744,8 @@ function setDevRole(role) {
     if (typeof DEV_MODE === 'undefined' || !DEV_MODE) return;
     safeSetItem(DEV_ROLE_KEY, role === 'montor' ? 'montor' : 'admin');
     _devApplyRole();
+    // Prosjektlista er ulik for admin og montør (felles + egne) — hent på nytt for den nye rollen.
+    if (typeof _projRefreshCaches === 'function') { _projSyncAt = 0; _projPending = []; _projUpdateBadges(); _projRefreshCaches().catch(function () {}); }
     // Skjemaenes obligatoriske-merking o.l. følger isAdmin/innstillingene — tegn menyen på nytt.
     if (document.body.classList.contains('settings-modal-open')) showSettingsMenu();
     showNotificationModal(role === 'montor' ? t('dev_role_montor') : t('dev_role_admin'), true);
@@ -26224,10 +26781,15 @@ function _firma() {
 }
 // Timebok-arbeidsgiver for vanlige brukere = firmaet. null = brukerens eget valg gjelder
 // (hovedadmin, eller tilgangen er ikke kjent ennå).
-// Hovedadmin med egen oppføring (Admin › Brukere) følger den som alle andre; uten oppføring
-// gjelder det sist lagrede valget (kan ikke lenger endres i Timebok-innstillingene).
+// Arbeidsgiver i Timebok = FIRMAET brukeren står i — likt for admin og montør (bruker 15-11-2026:
+// «det skal ikke være noe forskjell mellom montør og admin. forskjellen ligger i firesafe vs
+// damsgård»). Vanlige brukere: firmaet admin har tildelt. Hovedadmin (og lokal test): firmaet som
+// er valgt i Meny. Før fulgte hovedadmin et gammelt personlig valg — da så admin Damsgård-koder
+// mens montøren i samme firma så Firesafe-koder. null = tilgangen er ikke kjent ennå.
 function _firmaForTimebok() {
-    if (typeof _acc === 'undefined' || !_acc || !_acc.entry) return null;
+    if (typeof _acc === 'undefined' || !_acc) return null;
+    if (_canSwitchFirma()) return _firma();
+    if (!_acc.entry) return null;
     return _entryFirma(_acc.entry);
 }
 function _firmaRef(f) { return db.collection('firms').doc(f || _firma()); }
@@ -26504,6 +27066,15 @@ function _accSyncProfile(uid, entry) {
 //     match /settings/{doc} { allow read: if inFirma(f); allow write: if isFirmaAdmin(f); }
 //     match /sjekklister/{id} {
 //       allow read, create, update: if inFirma(f);
+//       allow delete: if isFirmaAdmin(f) || (inFirma(f) && resource.data.createdBy == request.auth.uid); }
+//     // Felles prosjekter: bare admin skriver. Forslag: montøren ser bare sine egne
+//     // (spørringen where createdBy == meg), admin ser alle i firmaet og avgjør dem.
+//     match /projects/{id} { allow read: if inFirma(f); allow write: if isFirmaAdmin(f); }
+//     match /projectSuggestions/{id} {
+//       allow read: if isFirmaAdmin(f) || (inFirma(f) && resource.data.createdBy == request.auth.uid);
+//       allow create: if inFirma(f) && request.resource.data.createdBy == request.auth.uid;
+//       allow update: if isFirmaAdmin(f) || (inFirma(f) && resource.data.createdBy == request.auth.uid
+//         && request.resource.data.createdBy == request.auth.uid && request.resource.data.status == 'pending');
 //       allow delete: if isFirmaAdmin(f) || (inFirma(f) && resource.data.createdBy == request.auth.uid); }
 //     match /sjekklisteBilder/{id}     { allow read, write: if inFirma(f); }
 //     match /sjekklisteProsjekter/{id} { allow read, write: if inFirma(f); }

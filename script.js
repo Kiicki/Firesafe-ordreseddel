@@ -232,8 +232,9 @@ function getTimebokPayStartDefault(emp) {
 }
 function getTimebokSettings() {
     var d = safeParseJSON(TIMEBOK_SETTINGS_KEY, null) || {};
-    // Arbeidsgiver = firmaet brukeren hører til (Admin › Brukere). Bare hovedadmin (eller
-    // før tilgangen er kjent) bruker sitt eget valg — se _firmaForTimebok i script-ui.js.
+    // Arbeidsgiver = firmaet brukeren står i (vanlige brukere: tildelt i Admin › Brukere;
+    // hovedadmin: valgt firma i Meny) — se _firmaForTimebok i script-ui.js. Det lagrede
+    // travelStyle brukes bare før tilgangen er kjent.
     var fFirma = (typeof _firmaForTimebok === 'function') ? _firmaForTimebok() : null;
     var style = fFirma || (d.travelStyle === 'damsgard' ? 'damsgard' : 'firesafe');
     var ps = parseInt(d.payStart, 10);
@@ -274,7 +275,7 @@ function getTimebokProjects() {
         var nm = String(tpl.prosjektnavn || '').trim();
         if (!nm) return;
         seen[tpl.id] = true;
-        out.push({ id: tpl.id, name: nm, bracketId: tpl.timebokBracketId || null, active: tpl.active !== false });
+        out.push({ id: tpl.id, name: nm, bracketId: tpl.timebokBracketId || null, active: tpl.active !== false, pending: !!tpl._pending });
     };
     safeParseJSON(TEMPLATE_KEY, []).forEach(add);
     (window.loadedTemplates || []).forEach(add);
@@ -2216,7 +2217,7 @@ if (auth) {
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY, ANSATTE_KEY,
              MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY, KAPPE_CATALOG_SHARED_KEY,
-             'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
+             'firesafe_project_overrides', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             // Kvitteringsbildene (IndexedDB) tilhører forrige bruker.

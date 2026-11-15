@@ -10860,6 +10860,9 @@ body:has(#iso-card-popup.active) .confirm-modal { z-index: 80; }
    baserte vinduer (f.eks. #dag-timer-modal) kan selv være forelder til en
    popup og skal ikke heves. */
 body:has(.spec-popup-backdrop.active) :is(#confirm-modal, #input-modal, #unsaved-modal) { z-index: 80; }
+/* Samme regel overfor andre .confirm-modal-vinduer (f.eks. prosjektskjemaet: «Avvis?» /
+   «Slå sammen?»). De ligger senere i DOM-en med lik z-index og malte over bekreftelsen. */
+body:has(.confirm-modal.active:not(#confirm-modal):not(#input-modal):not(#unsaved-modal)) :is(#confirm-modal, #input-modal, #unsaved-modal).active { z-index: 80; }
 /* «+ Ny dimensjon» (showInputModal/confirm-modal) må over festemiddel-popupene. */
 body:has(#fastener-popup.active) .confirm-modal,
 body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
@@ -13555,3 +13558,68 @@ html:not(.is-super):not(.dev-mode) .super-only { display: none !important; }
 .autofill-group .autofill-sted-row { border-top: 1px solid #f0f0f2; padding: 4px 0 10px; }
 .autofill-group .autofill-sted-row .settings-default-label { padding-left: 0; padding-right: 0; }
 .settings-collapsible-body > .settings-group.autofill-group { padding: 10px 16px 6px; }
+
+/* ═══ Felles valgliste (flervalg) — _pickRowHtml ═══
+   Hele raden er trykkflaten (min. 48 px). Markering til høyre: tom sirkel → oransje med hake.
+   Grupper = små grå titler + hvite kort på lys grå bunn (samme uttrykk som Innstillinger). */
+.pick-wrap { background: #f2f2f5; border-radius: 12px; padding: 0 8px 8px; }
+.pick-group { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #8a8a90; padding: 12px 6px 6px; }
+.pick-list { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,0.05); }
+.pick-row {
+    display: flex; align-items: center; gap: 12px; min-height: 48px; box-sizing: border-box;
+    padding: 10px 14px; font-size: 15px; color: #222; line-height: 1.3; cursor: pointer;
+    position: relative; -webkit-tap-highlight-color: transparent;
+}
+.pick-row + .pick-row { border-top: 1px solid #ececf0; }
+.pick-row input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.pick-text { flex: 1; min-width: 0; overflow-wrap: break-word; }
+.pick-text small { font-size: 12px; color: #a0a0a8; margin-left: 4px; }
+.pick-check {
+    flex-shrink: 0; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%;
+    border: 2px solid #c9c9cf; display: flex; align-items: center; justify-content: center;
+}
+.pick-row input:checked ~ .pick-check { background: #E8501A; border-color: #E8501A; }
+.pick-row input:checked ~ .pick-check::after {
+    content: ''; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0;
+    transform: translateY(-1px) rotate(45deg);
+}
+.pick-row:has(input:checked:not(:disabled)) { background: #fff7f3; }
+.pick-row:active { background: #f7f7f9; }
+.pick-row.pick-locked { color: #a0a0a8; cursor: default; }
+.pick-row.pick-locked .pick-check { background: #d6d6dc; border-color: #d6d6dc; }
+.pick-row input:focus-visible ~ .pick-check { box-shadow: 0 0 0 3px rgba(232,80,26,0.25); }
+/* Tildel produkter (plate): lista i dialogen — ingen ekstra ramme rundt kortet. */
+.kappe-plate-assign-list { border: none; }
+
+/* ── Felles prosjekter + montørforslag (15-11-2026) ── */
+/* Forklaring øverst i prosjektskjemaet (felles / eget / til godkjenning). */
+.tpl-note { margin: 0 0 12px; padding: 9px 11px; border-radius: 8px; background: #e8f0fe; color: #2f5fb3; font-size: 13px; line-height: 1.4; }
+/* Felles prosjekt åpnet av montør: bare reiseavstanden kan endres. */
+.tpl-locked .tpl-fakturaadresse-display { pointer-events: none; opacity: 0.55; }
+.tpl-locked input:disabled { opacity: 0.6; background: #f5f5f7; }
+/* «Finnes det allerede?» / «Ligner på …» under prosjektnr. */
+.tpl-similar { margin: -2px 0 12px; padding: 8px 10px; border-radius: 8px; background: #fff7e6; border: 1px solid #f3d9a4; }
+.tpl-similar-title { font-size: 12px; color: #8a5a00; margin-bottom: 4px; }
+.tpl-similar-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.tpl-similar-row + .tpl-similar-row { border-top: 1px solid #f3e3bf; }
+.tpl-similar-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tpl-similar-name { font-size: 14px; color: #1a1a1a; overflow-wrap: anywhere; }
+.tpl-similar-sub { font-size: 12px; color: #6b6b73; overflow-wrap: anywhere; }
+.tpl-similar-btn { flex-shrink: 0; padding: 7px 12px; border: 1px solid #E8501A; border-radius: 8px; background: #fff; color: #E8501A; font-size: 13px; font-family: inherit; cursor: pointer; }
+.tpl-reject-btn { border-color: #c0392b; color: #c0392b; }
+/* «Venter på godkjenning» i prosjektvelgerne. */
+.proj-pending-chip { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; vertical-align: 1px;
+    background: #fff1ea; color: #c2410c; font-size: 11px; font-weight: 400; white-space: nowrap; }
+/* Admin › Prosjekter › Til godkjenning */
+.proj-pending-row .proj-by { color: #8a8a90; }
+.proj-own-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: #fafafb; }
+.proj-share-all { flex-shrink: 0; padding: 6px 11px; border: 1px solid #E8501A; border-radius: 8px; background: #fff; color: #E8501A; font-size: 13px; font-family: inherit; cursor: pointer; }
+/* Varsel-tall (admin): på Admin › Prosjekter og på Meny-knappen. */
+.set-badge { flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #E8501A; color: #fff;
+    font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
+.set-badge[hidden], .menu-pending-dot[hidden] { display: none; }
+.btn-settings { position: relative; }
+.menu-pending-dot { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+    background: #E8501A; color: #fff; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; }
+/* Første seksjon på siden: ingen luft over; «Felles prosjekter» får vanlig seksjonsavstand under den. */
+#proj-pending-wrap { margin-top: 0; margin-bottom: 22px; }
