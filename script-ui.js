@@ -2586,11 +2586,12 @@ function _projRefreshCaches() {
 // Avgjørelser og innsending (bakgrunn etter henting, maks hvert 30. sekund).
 function _projSync(shared, own) {
     if (!_projSharedOk) return;
-    if (isAdmin) { _projLoadPending(); return; }
+    if (isAdmin) { _sugLoadPending(); return; }
     var byId = {}, byKey = {};
     shared.forEach(function (p) { byId[p.id] = p; byKey[_projNorm(p.prosjektnavn) + '|' + _projNorm(p.prosjektnr)] = p; });
     var changed = false;
     _projStore.listSuggMine().then(function (sugs) {
+        sugs = sugs.filter(function (s) { return (s.kind || 'project') === 'project'; });   // materialer/personer: egne synker
         var bySugg = {};
         sugs.forEach(function (s) { bySugg[s.templateId] = s; });
         // 1) Admins avgjørelser
@@ -2632,7 +2633,7 @@ function _projSync(shared, own) {
 function _projSubmit(p) {
     var me = _projMe();
     var data = Object.assign(_projStrip(p), {
-        templateId: p.id, createdBy: me, createdByName: _projMyName(),
+        kind: 'project', templateId: p.id, createdBy: me, createdByName: _projMyName(),
         suggestedAt: new Date().toISOString(), status: 'pending'
     });
     delete data.timebokBracketId; delete data.forslag;
@@ -2644,53 +2645,53 @@ function _projSubmit(p) {
 function _projOwnUnshared() {
     return safeParseJSON(TEMPLATE_KEY, []).filter(function (p) { return p._own; });
 }
-function _projLoadPending() {
-    if (!isAdmin || !_projSharedOk) { _projPending = []; _projUpdateBadges(); return Promise.resolve(); }
-    return _projStore.listSuggPending().then(function (list) {
-        _projPending = list.sort(function (a, b) { return String(a.suggestedAt || '').localeCompare(String(b.suggestedAt || '')); });
-        _projUpdateBadges();
-        if (_projSettingsOpen()) _projRenderPending();
-    }).catch(function (e) { console.warn('Til godkjenning:', e && (e.code || e.message)); });
-}
-function _projPendingCount() { return (isAdmin && _projSharedOk) ? _projPending.length : 0; }
-// Varsel til admin: tall på Meny-knappen og på Admin › Prosjekter. Bare montørenes
-// forslag teller — admins egne gamle prosjekter er ikke noe som «venter på» noen.
+function _projLoadPending() { return _sugLoadPending(); }
+function _projPendingCount() { return (_sugIsAdmin() && (_projSharedOk !== false || _admDev())) ? _sugPending.length : 0; }
+// Varsel til admin (se TIL GODKJENNING): tall på Meny-knappen, på Admin › Til godkjenning og
+// et banner på Hjem. Bare montørenes forslag teller — admins egne gamle prosjekter er ikke noe
+// som «venter på» noen (de står på Prosjekter-siden).
 function _projUpdateBadges() {
     var n = _projPendingCount();
-    var b = document.getElementById('proj-pending-badge');
-    if (b) { b.textContent = n; b.hidden = !n; }
-    var dot = document.getElementById('menu-pending-dot');
-    if (dot) { dot.textContent = n; dot.hidden = !n; }
+    ['inbox-badge', 'menu-pending-dot'].forEach(function (id) {
+        var b = document.getElementById(id);
+        if (b) { b.textContent = n; b.hidden = !n; }
+    });
+    var hb = document.getElementById('home-inbox');
+    var txt = _sugBannerTexts(n);
+    if (hb) {
+        hb.hidden = !n;
+        if (n) {
+            document.getElementById('home-inbox-title').textContent = txt.title;
+            document.getElementById('home-inbox-desc').textContent = txt.desc;
+        }
+    }
 }
+function _sugBannerTexts(n) {
+    var cnt = function (k) { return _sugPending.filter(function (s) { return (s.kind || 'project') === k; }).length; };
+    var np = cnt('project'), nm = cnt('material'), nq = cnt('person');
+    return {
+        title: t(n === 1 ? 'inbox_banner_one' : 'inbox_banner', n),
+        desc: [np ? t(np === 1 ? 'inbox_n_project' : 'inbox_n_projects', np) : '', nm ? t(nm === 1 ? 'inbox_n_material' : 'inbox_n_materials', nm) : '', nq ? t(nq === 1 ? 'inbox_n_person' : 'inbox_n_persons', nq) : ''].filter(Boolean).join(' \u00b7 ')
+    };
+}
+// Prosjekter-siden: bare admins egne gamle prosjekter (ikke felles ennå) — montørenes forslag
+// ligger i innboksen (Admin › Til godkjenning).
 function _projRenderPending() {
     var wrap = document.getElementById('proj-pending-wrap');
     if (!wrap) return;
-    var on = isAdmin && _projSharedOk;
-    var own = on ? _projOwnUnshared() : [];
-    var sugg = on ? _projPending : [];
-    wrap.hidden = !(own.length || sugg.length);
-    if (wrap.hidden) return;
-    var h = '';
-    sugg.forEach(function (s) {
-        var sub = [s.prosjektnr, s.oppdragsgiver].filter(Boolean).map(escapeHtml).join(' • ');
-        var by = escapeHtml(t('proj_suggested_by', s.createdByName || '?', _projDateStr(s.suggestedAt)));
-        h += '<div class="adm-user proj-pending-row" onclick="openProjectReview(\'' + escapeJsStringAttr(s.id) + '\')">' +
-            '<span class="adm-main"><span class="adm-name">' + (escapeHtml(s.prosjektnavn) || t('no_name')) + '</span>' +
-            (sub ? '<span class="adm-sub">' + sub + '</span>' : '') +
-            '<span class="adm-sub proj-by">' + by + '</span></span><span class="set-chev">&rsaquo;</span></div>';
+    var own = (isAdmin && _projSharedOk) ? _projOwnUnshared() : [];
+    wrap.hidden = !own.length;
+    if (!own.length) return;
+    var h = '<div class="proj-own-head"><span class="adm-sub">' + escapeHtml(t('proj_own_unshared_hint')) + '</span>' +
+        '<button type="button" class="proj-share-all" onclick="projShareAllOwn()">' + escapeHtml(t('proj_share_all')) + '</button></div>';
+    own.forEach(function (p) {
+        var sub = [p.prosjektnr, p.oppdragsgiver].filter(Boolean).map(escapeHtml).join(' \u2022 ');
+        h += '<div class="adm-user proj-pending-row" onclick="openProjectReview(null, \'' + escapeJsStringAttr(p.id) + '\')">' +
+            '<span class="adm-main"><span class="adm-name">' + (escapeHtml(p.prosjektnavn) || t('no_name')) + '</span>' +
+            (sub ? '<span class="adm-sub">' + sub + '</span>' : '') + '</span><span class="set-chev">&rsaquo;</span></div>';
     });
-    if (own.length) {
-        h += '<div class="proj-own-head"><span class="adm-sub">' + escapeHtml(t('proj_own_unshared', own.length)) + '</span>' +
-            '<button type="button" class="proj-share-all" onclick="projShareAllOwn()">' + escapeHtml(t('proj_share_all')) + '</button></div>';
-        own.forEach(function (p) {
-            var sub = [p.prosjektnr, p.oppdragsgiver].filter(Boolean).map(escapeHtml).join(' • ');
-            h += '<div class="adm-user proj-pending-row" onclick="openProjectReview(null, \'' + escapeJsStringAttr(p.id) + '\')">' +
-                '<span class="adm-main"><span class="adm-name">' + (escapeHtml(p.prosjektnavn) || t('no_name')) + '</span>' +
-                (sub ? '<span class="adm-sub">' + sub + '</span>' : '') + '</span><span class="set-chev">&rsaquo;</span></div>';
-        });
-    }
     document.getElementById('proj-pending-list').innerHTML = h;
-    document.getElementById('proj-pending-count').textContent = sugg.length + own.length;
+    document.getElementById('proj-pending-count').textContent = own.length;
 }
 // Åpne et forslag (eller et eget, ikke felles prosjekt) i prosjektskjemaet til vurdering.
 function openProjectReview(suggId, ownId) {
@@ -2704,7 +2705,7 @@ function _projReviewId() { return _projReview ? (_projReview.sugg ? _projReview.
 function _projAfterReview(msgKey) {
     closeTemplateEditor();
     showNotificationModal(t(msgKey), true);
-    _projRefreshCaches().then(function () { return _projLoadPending(); }).then(_projRenderPending);
+    _projRefreshCaches().then(function () { return _sugLoadPending(); }).then(_projRenderPending);
 }
 // Godkjenn: felles prosjekt med samme id som montørens (Timebok-dagene peker riktig).
 function _projApprove(data) {
@@ -2829,6 +2830,669 @@ function projUseExisting(id) {
     if (fromPicker) { _setTemplatePickerHidden(false); _applyTemplateToForm(p); }
     else if (fromTimebok) { if (_timebokPickerTarget) _selectTimebokProject(id); }
     else showTemplateEditor(id);
+}
+
+// ═══ MONTØRENS MATERIALER + FORSLAG (15-11-2026) ═══════════════════════════
+// Samme ordning som prosjekter (se FELLES PROSJEKTER over): materiallista (firms/{f}/settings/
+// materials + kappe-katalogen) eies av admin. Montøren kan legge til et materiale (eller en ny
+// enhet/variant på et eksisterende, eller et isolasjons-/festemiddelprodukt) rett i velgeren:
+//   • PERSONLIG med en gang: users/{uid}/settings/my_materials ({ list }) + MY_MATERIALS_KEY,
+//     flettes inn i velgeren (cachedMaterialOptions) og kappe-katalogen (getKappeCatalog).
+//   • Forslag til admin i SAMME samling som prosjektforslagene (firms/{f}/projectSuggestions,
+//     kind:'material') — samme Firestore-regler, ingen nye.
+//   • Admin (Admin › Til godkjenning): Godkjenn (kan rette navn/enheter) → felles materialliste,
+//     Slå sammen med et eksisterende, Avvis (blir værende personlig).
+//   • Montørens app plukker opp avgjørelsen og skjuler den personlige kopien (det felles har tatt
+//     over). Lagrede skjemaer endres ikke — materialnavn i skjemaene er fri tekst (samme som når
+//     admin endrer et materialnavn i Admin › Materialer).
+var MY_MATERIALS_KEY = 'firesafe_my_materials';
+var _matSyncAt = 0;
+// Lokal test: hver testrolle har egen personlig liste (to ulike personer).
+function _matKey() { return (typeof _admDev === 'function' && _admDev()) ? MY_MATERIALS_KEY + '_' + _projDevRoleKey() : MY_MATERIALS_KEY; }
+function _matMine() { var d = safeParseJSON(_matKey(), null); return (d && Array.isArray(d.list)) ? d.list : []; }
+function _matSaveMine(list) {
+    safeSetItem(_matKey(), JSON.stringify({ list: list }));
+    if (!_admDev()) enqueueUserDocSet('settings', 'my_materials', { list: JSON.parse(JSON.stringify(list)) }, 'My materials');
+}
+function _matFetchMine() {
+    if (!currentUser || !db || _admDev()) return Promise.resolve();
+    return db.collection('users').doc(currentUser.uid).collection('settings').doc('my_materials').get()
+        .then(function (d) { if (d.exists) safeSetItem(MY_MATERIALS_KEY, JSON.stringify({ list: (d.data() || {}).list || [] })); })
+        .catch(function (e) { console.warn('Egne materialer:', e && (e.code || e.message)); });
+}
+// Synlige personlige: ikke godkjent / slått sammen (avviste blir værende, uten «venter»).
+function _matVisible() { return _matMine().filter(function (m) { return m.forslag !== 'approved' && m.forslag !== 'merged'; }); }
+function _matIsKappeType(type) { return type === 'isolasjon' || type === 'festemiddel'; }
+function _matLc(s) { return String(s || '').trim().toLowerCase(); }
+function _matUnitStr(u) { return typeof u === 'string' ? u : (u && (u.plural || u.singular)) || ''; }
+// Felles materialer (bare admins liste) — fra cachen, uten de personlige.
+function _matShared() {
+    var stored = localStorage.getItem(MATERIALS_KEY);
+    return normalizeMaterialData(stored ? JSON.parse(stored) : null).materials;
+}
+// Felles + mine (velgeren). Ny enhet på et felles materiale → enhetene slås sammen.
+function _matMergeMine(shared) {
+    var out = shared.map(function (m) { return Object.assign({}, m); }), idx = {};
+    out.forEach(function (m, i) { idx[_matLc(m.name)] = i; });
+    _matVisible().forEach(function (m) {
+        if (_matIsKappeType(m.type)) return;
+        var i = idx[_matLc(m.name)];
+        if (i != null) {
+            var base = out[i], have = (base.allowedUnits || []).map(function (u) { return _matLc(_matUnitStr(u)); });
+            var add = (m.allowedUnits || []).filter(function (u) { return have.indexOf(_matLc(u)) === -1; });
+            if (add.length) out[i] = Object.assign({}, base, { allowedUnits: (base.allowedUnits || []).concat(add) });
+            return;
+        }
+        out.push({ name: m.name, type: m.type || 'standard', defaultUnit: m.defaultUnit || 'stk', allowedUnits: (m.allowedUnits || []).slice(), fixedSize: !!m.fixedSize, _mine: true });
+        idx[_matLc(m.name)] = out.length - 1;
+    });
+    return out.sort(function (a, b) { return _cmpText(a.name, b.name); });
+}
+// Personlige kappe-produkter (isolasjon/festemiddel) — flettes inn i getKappeCatalog (script.js).
+function _matMineKappe() {
+    return _matVisible().filter(function (m) { return _matIsKappeType(m.type); }).map(function (m) {
+        var units = m.type === 'festemiddel' ? ['stk', 'eske'] : ['meter', 'stk'];
+        return { name: m.name, type: m.type, units: units, defaultUnit: units[0], usesDimensions: true };
+    });
+}
+// «Venter»-merket i velgeren: materialer jeg har lagt til selv. En ny enhet på et felles
+// materiale merkes ikke — materialet i seg selv er jo godkjent.
+function _matIsPending(name) {
+    var n = _matLc(name);
+    if (!n) return false;
+    var shared = _matShared().map(function (m) { return _matLc(m.name); });
+    return _matMine().some(function (m) {
+        if (m.forslag !== 'pending' || shared.indexOf(_matLc(m.name)) !== -1) return false;
+        var mn = _matLc(m.name);
+        return n === mn || n.indexOf(mn + ' ') === 0;
+    });
+}
+function _matRefreshOptions() {
+    if (typeof cachedMaterialOptions === 'undefined') return;
+    cachedMaterialOptions = _matMergeMine(_matShared());
+}
+// Montør legger til (fra velgeren). Returnerer { ok } / { ok:false, dup:true }.
+function _matAddMine(name, type, variant, fixedSize) {
+    var kappe = _matIsKappeType(type);
+    var list = _matMine();
+    if (kappe) {
+        if (typeof getKappeCatalogProduct === 'function' && getKappeCatalogProduct(name)) return { ok: false, dup: true };
+    } else {
+        var sh = _matShared().filter(function (m) { return _matLc(m.name) === _matLc(name); })[0];
+        if (sh) {
+            // Finnes felles: bare en NY enhet gir mening (som admins snarvei).
+            var has = (sh.allowedUnits || []).some(function (u) { return _matLc(_matUnitStr(u)) === _matLc(variant); });
+            if (type !== 'standard' || !variant || has) return { ok: false, dup: true };
+            name = sh.name;
+        }
+    }
+    var mine = list.filter(function (m) { return _matLc(m.name) === _matLc(name) && m.forslag !== 'approved' && m.forslag !== 'merged'; })[0];
+    if (mine) {
+        if (kappe || !variant || (mine.allowedUnits || []).some(function (u) { return _matLc(u) === _matLc(variant); })) return { ok: false, dup: true };
+        mine.allowedUnits = (mine.allowedUnits || []).concat([variant]);
+        mine.forslag = 'pending'; mine.submitted = false;
+    } else {
+        mine = {
+            id: Date.now().toString(), name: name, type: type || 'standard', defaultUnit: 'stk',
+            allowedUnits: (!kappe && type === 'standard' && variant) ? [variant] : [],
+            fixedSize: !!fixedSize && type === 'mansjett', forslag: 'pending', submitted: false,
+            createdAt: new Date().toISOString()
+        };
+        list.push(mine);
+    }
+    _matSaveMine(list);
+    _matRefreshOptions();
+    _matSubmit(mine);
+    return { ok: true };
+}
+function _matSubmit(m) {
+    if (!_projSharedOk && !_admDev()) return Promise.resolve();   // reglene mangler → sendes ved neste synk
+    var me = _projMe();
+    var variantOf = !_matIsKappeType(m.type) && _matShared().some(function (s) { return _matLc(s.name) === _matLc(m.name); });
+    return _projStore.setSugg(me + '_m_' + m.id, {
+        kind: 'material', templateId: m.id, name: m.name, type: m.type, allowedUnits: m.allowedUnits || [],
+        fixedSize: !!m.fixedSize, variantOf: variantOf, createdBy: me, createdByName: _projMyName(),
+        suggestedAt: new Date().toISOString(), status: 'pending'
+    }).then(function () {
+        var list = _matMine();
+        list.forEach(function (x) { if (x.id === m.id) x.submitted = true; });
+        _matSaveMine(list);
+    }).catch(function (e) { console.warn('Send materialforslag:', e && (e.code || e.message)); });
+}
+// Montør: hent admins avgjørelser + send det som ikke kom fram (maks hvert 30. sekund).
+function _matSync(force) {
+    if (isAdmin || !currentUser) return Promise.resolve();
+    if (!force && Date.now() - _matSyncAt < 30000) return Promise.resolve();
+    _matSyncAt = Date.now();
+    return _projStore.listSuggMine().then(function (sugs) {
+        var list = _matMine(), changed = false, byId = {};
+        sugs.filter(function (s) { return s.kind === 'material'; }).forEach(function (s) {
+            byId[s.templateId] = s;
+            if (s.status === 'pending') return;
+            list.forEach(function (m) { if (m.id === s.templateId) { m.forslag = s.status; m.decidedName = s.approvedName || null; } });
+            _projStore.delSugg(s.id).catch(function () {});
+            changed = true;
+        });
+        list.forEach(function (m) { if (m.forslag === 'pending' && !m.submitted && !byId[m.id]) _matSubmit(m); });
+        if (changed) { _matSaveMine(list); _matRefreshOptions(); }
+    }).catch(function (e) { console.warn('Materialforslag:', e && (e.code || e.message)); });
+}
+
+// ── Admin: vurdere et materialforslag (popup #mat-review-popup) ──
+var _matReview = null;
+function _matSimilar(name, type) {
+    var n = _projNorm(name);
+    if (n.length < 3) return [];
+    var pool = _matIsKappeType(type)
+        ? ((typeof getKappeCatalogProducts === 'function') ? getKappeCatalogProducts(type) : []).map(function (p) { return { name: p.name, type: p.type }; })
+        : _matShared();
+    return pool.filter(function (m) {
+        var mn = _projNorm(m.name);
+        if (!mn || mn === n) return mn === n;
+        if (n.length >= 4 && (mn.indexOf(n) !== -1 || n.indexOf(mn) !== -1)) return true;
+        return n.length >= 5 && _projLev(n, mn) <= 2;
+    }).slice(0, 3);
+}
+function _matTypeLabel(type, fixed) {
+    var key = _matIsKappeType(type) ? 'kappe_product_type_' + type : 'material_type_' + (type || 'standard');
+    return t(key) + (_matIsKappeType(type) ? '' : _matTypeSubLabel(type || 'standard', fixed));
+}
+var _matReviewType = 'standard', _matReviewFixed = false;
+function openMaterialReview(suggId) {
+    var s = _matPendingList().filter(function (x) { return x.id === suggId; })[0];
+    if (!s) return;
+    _matReview = s;
+    _matReviewType = s.type || 'standard';
+    _matReviewFixed = !!s.fixedSize;
+    document.getElementById('mat-review-note').textContent = t('proj_suggested_by', s.createdByName || '?', _projDateStr(s.suggestedAt)) +
+        (s.variantOf ? ' · ' + t('mat_review_variant_note') : '');
+    document.getElementById('mat-review-name').value = s.name || '';
+    document.getElementById('mat-review-name').disabled = !!s.variantOf;
+    document.getElementById('mat-review-units').value = (s.allowedUnits || []).join(', ');
+    // Plater (isolasjon): «Standard» = første plate (som produkter uten tilknytning).
+    var plates = (getKappeCatalog().plates || []);
+    document.getElementById('mat-review-plate').innerHTML = plates.map(function (p, i) {
+        return '<option value="' + i + '">' + escapeHtml(p.length + ' × ' + p.width + ' mm') + (i === 0 ? ' (' + escapeHtml(t('mat_review_plate_default')) + ')' : '') + '</option>';
+    }).join('');
+    _matReviewTypeChanged();
+    document.getElementById('mat-review-popup').classList.add('active');
+}
+// Typeknapp + hvilke felt som vises (enheter: standard, plate: isolasjon). Ny enhet på et
+// materiale som finnes → typen er gitt av det som finnes (låst).
+function _matReviewTypeChanged() {
+    var s = _matReview, type = _matReviewType;
+    var btn = document.getElementById('mat-review-type-btn');
+    btn.textContent = _matTypeLabel(type, _matReviewFixed);
+    btn.disabled = !!(s && s.variantOf);
+    document.getElementById('mat-review-units-row').hidden = type !== 'standard';
+    document.getElementById('mat-review-plate-row').hidden = type !== 'isolasjon' || !(getKappeCatalog().plates || []).length;
+    _matRenderSimilar();
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+function openMatReviewTypePicker() {
+    if (!_matReview || _matReview.variantOf) return;
+    _renderMatTypePicker(_matReviewType, function (newValue, fixedSize) {
+        _matReviewType = newValue;
+        _matReviewFixed = !!fixedSize && newValue === 'mansjett';
+        _matReviewTypeChanged();
+    }, true, _matReviewFixed);
+}
+function closeMaterialReview() {
+    _matReview = null;
+    document.getElementById('mat-review-popup').classList.remove('active');
+}
+function _matRenderSimilar() {
+    var box = document.getElementById('mat-review-similar');
+    var s = _matReview;
+    var list = (s && !s.variantOf) ? _matSimilar(document.getElementById('mat-review-name').value, _matReviewType) : [];
+    box.hidden = !list.length;
+    box.innerHTML = list.length ? '<div class="tpl-similar-title">' + escapeHtml(t('mat_similar_review')) + '</div>' + list.map(function (m) {
+        return '<div class="tpl-similar-row"><span class="tpl-similar-text"><span class="tpl-similar-name">' + escapeHtml(m.name) + '</span>' +
+            '<span class="tpl-similar-sub">' + escapeHtml(_matTypeLabel(m.type, m.fixedSize)) + '</span></span>' +
+            '<button type="button" class="tpl-similar-btn" onclick="materialMergeInto(\'' + escapeJsStringAttr(m.name) + '\')">' + escapeHtml(t('proj_merge_btn')) + '</button></div>';
+    }).join('') : '';
+}
+function _matAfterReview(msgKey) {
+    closeMaterialReview();
+    showNotificationModal(t(msgKey), true);
+    _sugLoadPending();
+}
+function _matDecide(status, extra) {
+    var s = _matReview;
+    return _projStore.setSugg(s.id, Object.assign({ status: status, decidedAt: new Date().toISOString() }, extra || {}), true);
+}
+// Godkjenn → inn i den felles lista (materialer eller kappe-katalogen).
+function approveMaterialSuggestion() {
+    var s = _matReview;
+    if (!s) return;
+    var name = (document.getElementById('mat-review-name').value || '').trim();
+    if (!name) { document.getElementById('mat-review-name').classList.add('settings-input-error'); return; }
+    var type = _matReviewType || 'standard';
+    var units = String(document.getElementById('mat-review-units').value || '').split(',').map(function (u) { return u.trim(); }).filter(Boolean);
+    if (_matIsKappeType(type)) {
+        if (!getKappeCatalogProduct(name)) _addKappeProduct(name, type);
+        // Plate (isolasjon): knytt produktet til valgt plate (og bare den).
+        if (type === 'isolasjon') {
+            var pi = parseInt(document.getElementById('mat-review-plate').value, 10);
+            var plates = (getKappeCatalog().plates || []).map(function (p) { return Object.assign({}, p, { productNames: (p.productNames || []).filter(function (n) { return _matLc(n) !== _matLc(name); }) }); });
+            if (plates[pi]) { plates[pi].productNames.push(name); _saveKappePlates(plates); }
+        }
+    } else {
+        var list = _matShared();
+        var ex = list.filter(function (m) { return _matLc(m.name) === _matLc(name); })[0];
+        if (ex) {
+            var have = (ex.allowedUnits || []).map(function (u) { return _matLc(_matUnitStr(u)); });
+            ex.allowedUnits = (ex.allowedUnits || []).concat(units.filter(function (u) { return have.indexOf(_matLc(u)) === -1; }));
+        } else {
+            list.push({ name: name, type: type, defaultUnit: 'stk', allowedUnits: type === 'standard' ? units : [], fixedSize: type === 'mansjett' && _matReviewFixed });
+        }
+        list.sort(function (a, b) { return _cmpText(a.name, b.name); });
+        _persistMaterialsDoc(list);
+        if (typeof settingsMaterials !== 'undefined' && Array.isArray(settingsMaterials)) { settingsMaterials = list.slice(); }
+        _matRefreshOptions();
+    }
+    _matDecide('approved', { approvedName: name }).then(function () { _matAfterReview('mat_approved'); }, function (e) {
+        console.error('Godkjenn materiale:', e);
+        showNotificationModal(t('proj_action_failed'));
+    });
+}
+function materialMergeInto(targetName) {
+    if (!_matReview) return;
+    showConfirmModal(t('mat_merge_confirm', targetName), function () {
+        _matDecide('merged', { approvedName: targetName }).then(function () { _matAfterReview('proj_merged'); }, function (e) {
+            console.error('Slå sammen materiale:', e);
+            showNotificationModal(t('proj_action_failed'));
+        });
+    }, t('proj_merge_btn'), '#E8501A');
+}
+function rejectMaterialSuggestion() {
+    if (!_matReview) return;
+    showConfirmModal(t('mat_reject_confirm'), function () {
+        _matDecide('rejected').then(function () { _matAfterReview('proj_rejected'); }, function (e) {
+            console.error('Avvis materiale:', e);
+            showNotificationModal(t('proj_action_failed'));
+        });
+    }, t('proj_reject_btn'));
+}
+
+// ═══ TIL GODKJENNING — admins innboks (prosjekter + materialer) ═══════════════
+// Bruker: admin skal fange opp forslag uten å sjekke Prosjekter/Materialer manuelt, og varselet
+// skal være i appen (ikke e-post). Derfor ÉN innboks, Admin › Til godkjenning, og varsel tre
+// steder: tall på Meny-knappen, tall på innboks-raden og et banner øverst på Hjem. Tallet er
+// LIVE (onSnapshot på forslagene som venter), så det dukker opp mens appen er åpen.
+var _sugPending = [];
+var _sugUnsub = null, _sugLiveFailed = false;
+function _matPendingList() { return _sugPending.filter(function (s) { return s.kind === 'material'; }); }
+var SUG_CACHE_KEY = 'firesafe_sug_pending';
+function _sugSetPending(list, fromCache) {
+    _sugPending = list.sort(function (a, b) { return String(a.suggestedAt || '').localeCompare(String(b.suggestedAt || '')); });
+    // Siste kjente liste huskes (pr. firma), så tallet og Hjem-banneret står der med en gang
+    // etter omlasting — før Firebase har svart (bruker: «når jeg oppdaterer siden så står ikke
+    // forslag i hjem siden eller i meny knappen»).
+    if (!fromCache) {
+        safeSetItem(SUG_CACHE_KEY, JSON.stringify({ firma: _firma(), list: JSON.parse(JSON.stringify(_sugPending)) }));
+        // Ferdig tekst for snutten i index.html, som tegner banner + tall FØR appen har startet.
+        var bn = _sugIsAdmin() ? _sugPending.length : 0;
+        safeSetItem('firesafe_sug_badge', JSON.stringify(Object.assign({ firma: _firma(), n: bn }, _sugBannerTexts(bn))));
+    }
+    _projPending = _sugPending.filter(function (s) { return (s.kind || 'project') === 'project'; });
+    _projUpdateBadges();
+    var pg = document.getElementById('settings-page-admin-inbox');
+    if (pg && pg.style.display !== 'none') renderAdminInbox();
+}
+function _sugIsAdmin() { return !!((typeof isAdmin !== 'undefined' && isAdmin) || (typeof _acc !== 'undefined' && _acc.admin)); }
+function _sugLoadPending() {
+    if (!_sugIsAdmin()) { _sugSetPending([], true); return Promise.resolve(); }
+    // Reglene mangler (felles liste kunne ikke leses) → ingenting å hente; behold det vi har.
+    if (_projSharedOk === false && !_admDev()) return Promise.resolve();
+    return _projStore.listSuggPending().then(_sugSetPending)
+        .catch(function (e) { console.warn('Til godkjenning:', e && (e.code || e.message)); });
+}
+// Live for admin (startes/stoppes fra _accApply når admin-status er kjent). Ved oppstart:
+// lagret liste først (straks synlig), så ferskt fra Firebase. Uten live-tilkobling (lokal test,
+// eller reglene mangler) hentes lista ved oppstart og hver gang appen kommer i forgrunnen.
+var _sugRestored = false, _sugPolledAt = 0;
+function _sugRestoreCache() {
+    var c = safeParseJSON(SUG_CACHE_KEY, null);
+    if (c && c.firma === _firma() && Array.isArray(c.list)) _sugSetPending(c.list, true);
+}
+function _sugPollMaybe() {
+    if (Date.now() - _sugPolledAt < 15000) return;
+    _sugPolledAt = Date.now();
+    _sugLoadPending();
+}
+document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && !_sugUnsub && typeof isAdmin !== 'undefined' && isAdmin && currentUser) _sugPollMaybe();
+});
+function _sugLive() {
+    var admin = !!(typeof _acc !== 'undefined' && _acc.admin && currentUser);
+    if (admin && !_sugRestored) { _sugRestored = true; _sugRestoreCache(); }
+    if (!admin) _sugRestored = false;
+    var want = !!(admin && db && !_admDev() && !_sugLiveFailed);
+    if (admin && !want && !_sugUnsub) _sugPollMaybe();
+    if (want && !_sugUnsub) {
+        try {
+            _sugUnsub = _firmaRef().collection('projectSuggestions').where('status', '==', 'pending').onSnapshot(function (snap) {
+                _sugSetPending(_projDocs(snap));
+            }, function (e) {
+                console.warn('Til godkjenning (live):', e && (e.code || e.message));
+                _sugLiveFailed = true; _sugUnsub = null;
+                _sugPollMaybe();
+            });
+        } catch (e) { _sugUnsub = null; }
+    } else if (!want && _sugUnsub) { _sugUnsub(); _sugUnsub = null; }
+}
+function openAdminInbox() {
+    if (!document.body.classList.contains('settings-modal-open')) _showSettingsDirectly();
+    showSettingsPage('admin-inbox');
+}
+function renderAdminInbox() {
+    var host = document.getElementById('admin-inbox-body');
+    if (!host) return;
+    var projs = _sugPending.filter(function (s) { return (s.kind || 'project') === 'project'; });
+    var mats = _matPendingList();
+    var ppls = _sugPending.filter(function (s) { return s.kind === 'person'; });
+    var h = '';
+    if (!projs.length && !mats.length && !ppls.length) {
+        h = '<div class="set-card inbox-empty">' + escapeHtml(t('inbox_empty')) + '</div>';
+    }
+    var row = function (title, sub, by, onclick) {
+        return '<div class="adm-user proj-pending-row" onclick="' + onclick + '">' +
+            '<span class="adm-main"><span class="adm-name">' + title + '</span>' +
+            (sub ? '<span class="adm-sub">' + sub + '</span>' : '') +
+            '<span class="adm-sub proj-by">' + by + '</span></span><span class="set-chev">&rsaquo;</span></div>';
+    };
+    if (projs.length) {
+        h += '<div class="set-section-title"><span>' + escapeHtml(t('settings_prosjekter_section')) + '</span> <span class="set-count">' + projs.length + '</span></div>' +
+            '<div class="set-card adm-list">' + projs.map(function (s) {
+                return row(escapeHtml(s.prosjektnavn) || t('no_name'),
+                    [s.prosjektnr, s.oppdragsgiver].filter(Boolean).map(escapeHtml).join(' • '),
+                    escapeHtml(t('proj_suggested_by', s.createdByName || '?', _projDateStr(s.suggestedAt))),
+                    'openProjectReview(\'' + escapeJsStringAttr(s.id) + '\')');
+            }).join('') + '</div>';
+    }
+    if (mats.length) {
+        h += '<div class="set-section' + (projs.length ? '' : ' inbox-first') + '"><div class="set-section-title"><span>' + escapeHtml(t('settings_materials')) + '</span> <span class="set-count">' + mats.length + '</span></div>' +
+            '<div class="set-card adm-list">' + mats.map(function (s) {
+                var sub = _matTypeLabel(s.type, s.fixedSize) + ((s.allowedUnits || []).length ? ' · ' + s.allowedUnits.join(', ') : '');
+                if (s.variantOf) sub = t('mat_new_unit_on', (s.allowedUnits || []).join(', '));
+                return row(escapeHtml(s.name), escapeHtml(sub),
+                    escapeHtml(t('proj_suggested_by', s.createdByName || '?', _projDateStr(s.suggestedAt))),
+                    'openMaterialReview(\'' + escapeJsStringAttr(s.id) + '\')');
+            }).join('') + '</div></div>';
+    }
+    if (ppls.length) {
+        h += '<div class="set-section' + (projs.length || mats.length ? '' : ' inbox-first') + '"><div class="set-section-title"><span>' + escapeHtml(t('inbox_people')) + '</span> <span class="set-count">' + ppls.length + '</span></div>' +
+            '<div class="set-card adm-list">' + ppls.map(function (s) {
+                return row(escapeHtml(s.name), '', escapeHtml(t('proj_suggested_by', s.createdByName || '?', _projDateStr(s.suggestedAt))),
+                    'openPersonReview(\'' + escapeJsStringAttr(s.id) + '\')');
+            }).join('') + '</div></div>';
+    }
+    h += '<div class="set-foot">' + escapeHtml(t('inbox_hint')) + '</div>';
+    host.innerHTML = h;
+}
+
+// ═══ PERSONER: MONTØRENS KOLLEGER + FORSLAG (15-11-2026) ═════════════════════
+// Samme ordning som prosjekter og materialer. Personvelgeren (Arbeidstid) viser de ansatte
+// (Admin › Brukere) + personer uten innlogging (innleide, lærlinger …) som admin har godkjent.
+//   • Montør skriver bare NAVNET under «Annen person» → føres på bestillingen med en gang og
+//     huskes i montørens egen liste (users/{uid}/settings/my_people, MY_PEOPLE_KEY), med
+//     «Venter»-merke. Forslag til admin i projectSuggestions (kind:'person').
+//   • Admin (Til godkjenning): Godkjenn (kan rette skrivemåten) → «Uten innlogging»-lista
+//     (firms/{f}/settings/ansatte_extra), som flettes inn i den felles navnelista (settings/ansatte)
+//     → alle kan velge personen. Slå sammen (det er en som finnes) · Avvis (blir hos montøren).
+//   • Admin som skriver et nytt navn i velgeren legger det rett i «Uten innlogging».
+//   • Lagrede ordresedler endres ikke når admin retter skrivemåten (som materialer).
+var MY_PEOPLE_KEY = 'firesafe_my_people';
+var ANS_EXTRA_KEY = 'firesafe_ansatte_extra';
+var _pplSyncAt = 0;
+function _pplKey() { return (typeof _admDev === 'function' && _admDev()) ? MY_PEOPLE_KEY + '_' + _projDevRoleKey() : MY_PEOPLE_KEY; }
+function _pplMine() { var d = safeParseJSON(_pplKey(), null); return (d && Array.isArray(d.list)) ? d.list : []; }
+function _pplSaveMine(list) {
+    safeSetItem(_pplKey(), JSON.stringify({ list: list }));
+    if (!_admDev()) enqueueUserDocSet('settings', 'my_people', { list: JSON.parse(JSON.stringify(list)) }, 'My people');
+}
+function _pplFetchMine() {
+    if (!currentUser || !db || _admDev()) return Promise.resolve();
+    return db.collection('users').doc(currentUser.uid).collection('settings').doc('my_people').get()
+        .then(function (d) { if (d.exists) safeSetItem(MY_PEOPLE_KEY, JSON.stringify({ list: (d.data() || {}).list || [] })); })
+        .catch(function (e) { console.warn('Egne personer:', e && (e.code || e.message)); });
+}
+// Synlige personlige (godkjente/sammenslåtte ligger nå i den felles lista).
+function _pplVisible() { return _pplMine().filter(function (p) { return p.forslag !== 'approved' && p.forslag !== 'merged'; }); }
+// Alle navn i den felles lista (fullt navn + fornavn), små bokstaver — for «finnes allerede».
+function _pplSharedNames() {
+    var out = [];
+    getAnsatte().forEach(function (a) {
+        var f = String(a.fornavn || '').trim(), full = (f + ' ' + String(a.etternavn || '').trim()).trim();
+        if (full) out.push(full.toLowerCase());
+        if (f) out.push(f.toLowerCase());
+    });
+    return out;
+}
+// «Uten innlogging» (admin eier) — cache + firma-dokument.
+function _ansExtra() { var d = safeParseJSON(ANS_EXTRA_KEY, null); return (d && Array.isArray(d.list)) ? d.list : []; }
+function _ansExtraLoad() {
+    if (!currentUser || !db || _admDev()) return Promise.resolve(_ansExtra());
+    return _fsSettings('ansatte_extra').get().then(function (d) {
+        var list = d.exists ? ((d.data() || {}).list || []) : [];
+        safeSetItem(ANS_EXTRA_KEY, JSON.stringify({ list: list }));
+        return list;
+    }).catch(function () { return _ansExtra(); });
+}
+function _ansExtraSave(list) {
+    list.sort(function (a, b) { return _cmpText(a.navn, b.navn); });
+    safeSetItem(ANS_EXTRA_KEY, JSON.stringify({ list: list }));
+    var p = (currentUser && db && !_admDev())
+        ? _fsSettings('ansatte_extra').set({ list: list }).catch(function (e) { console.warn('Uten innlogging ble ikke lagret:', e && e.code); })
+        : Promise.resolve();
+    // Den felles navnelista (personvelgeren) bygges av Brukere + denne lista.
+    var users = (typeof _admUsers !== 'undefined' && Object.keys(_admUsers).length) ? Promise.resolve(_admUsers)
+        : _admStore.load().then(function (res) { _admLastRes = res; _admUsers = _admBuildUsers(res); return _admUsers; });
+    users.then(function (u) { _admPublishAnsatte(u); }).catch(function () {});
+    return p;
+}
+function _ansExtraAdd(navn) {
+    navn = String(navn || '').trim();
+    if (!navn) return false;
+    var list = _ansExtra();
+    if (list.some(function (x) { return x.navn.toLowerCase() === navn.toLowerCase(); })) return false;
+    list.push({ id: Date.now().toString(36), navn: navn });
+    _ansExtraSave(list);
+    return true;
+}
+// Velgerens «+»: husk personen (admin → felles lista, montør → egen liste + forslag).
+function _pplRemember(navn) {
+    navn = String(navn || '').trim();
+    if (!navn || !currentUser) return;
+    if (_pplSharedNames().indexOf(navn.toLowerCase()) !== -1) return;
+    if (isAdmin) { _ansExtraAdd(navn); return; }
+    var list = _pplMine();
+    if (list.some(function (p) { return p.name.toLowerCase() === navn.toLowerCase() && p.forslag !== 'approved' && p.forslag !== 'merged'; })) return;
+    var p = { id: Date.now().toString(36), name: navn, forslag: 'pending', submitted: false, createdAt: new Date().toISOString() };
+    list.push(p);
+    _pplSaveMine(list);
+    _pplSubmit(p);
+}
+function _pplSubmit(p) {
+    if (!_projSharedOk && !_admDev()) return Promise.resolve();   // reglene mangler → sendes ved neste synk
+    var me = _projMe();
+    return _projStore.setSugg(me + '_p_' + p.id, {
+        kind: 'person', templateId: p.id, name: p.name, createdBy: me, createdByName: _projMyName(),
+        suggestedAt: new Date().toISOString(), status: 'pending'
+    }).then(function () {
+        var list = _pplMine();
+        list.forEach(function (x) { if (x.id === p.id) x.submitted = true; });
+        _pplSaveMine(list);
+    }).catch(function (e) { console.warn('Send personforslag:', e && (e.code || e.message)); });
+}
+// Montør: hent admins avgjørelser + send det som ikke kom fram (maks hvert 30. sekund).
+function _pplSync(force) {
+    if (isAdmin || !currentUser) return Promise.resolve();
+    if (!force && Date.now() - _pplSyncAt < 30000) return Promise.resolve();
+    _pplSyncAt = Date.now();
+    return _pplFetchMine().then(function () { return _projStore.listSuggMine(); }).then(function (sugs) {
+        var list = _pplMine(), changed = false, byId = {};
+        sugs.filter(function (s) { return s.kind === 'person'; }).forEach(function (s) {
+            byId[s.templateId] = s;
+            if (s.status === 'pending') return;
+            list.forEach(function (p) { if (p.id === s.templateId) { p.forslag = s.status; p.decidedName = s.approvedName || null; } });
+            _projStore.delSugg(s.id).catch(function () {});
+            changed = true;
+        });
+        list.forEach(function (p) { if (p.forslag === 'pending' && !p.submitted && !byId[p.id]) _pplSubmit(p); });
+        if (changed) _pplSaveMine(list);
+    }).catch(function (e) { console.warn('Personforslag:', e && (e.code || e.message)); });
+}
+
+// ── Admin: vurdere en person (popup #ppl-review-popup) ──
+var _pplReview = null;
+function _pplSimilar(name) {
+    var n = _projNorm(name);
+    if (n.length < 2) return [];
+    var seen = {}, out = [];
+    getAnsatte().forEach(function (a) {
+        var full = (String(a.fornavn || '') + ' ' + String(a.etternavn || '')).trim();
+        var fn = _projNorm(full), first = _projNorm(a.fornavn);
+        if (!fn || seen[fn]) return;
+        if (fn === n || first === n || (n.length >= 3 && (fn.indexOf(n) !== -1 || n.indexOf(fn) !== -1)) || (n.length >= 5 && _projLev(n, fn) <= 2)) {
+            seen[fn] = 1; out.push(full);
+        }
+    });
+    return out.slice(0, 3);
+}
+var _pplKind = 'extra';
+function openPersonReview(suggId) {
+    var s = _sugPending.filter(function (x) { return x.id === suggId; })[0];
+    if (!s) return;
+    _pplReview = s;
+    document.getElementById('ppl-review-note').textContent = t('proj_suggested_by', s.createdByName || '?', _projDateStr(s.suggestedAt));
+    var parts = String(s.name || '').trim().split(/\s+/).filter(Boolean);
+    document.getElementById('ppl-review-fornavn').value = parts.shift() || '';
+    document.getElementById('ppl-review-etternavn').value = parts.join(' ');
+    _pplSetKind('extra');
+    _pplRenderSimilar();
+    document.getElementById('ppl-review-popup').classList.add('active');
+}
+function _pplReviewName() {
+    return (String(document.getElementById('ppl-review-fornavn').value || '').trim() + ' ' + String(document.getElementById('ppl-review-etternavn').value || '').trim()).trim();
+}
+// Uten innlogging (bare navn) eller bruker (hele brukerskjemaet åpnes ved «Videre»).
+function _pplSetKind(kind) {
+    _pplKind = kind === 'user' ? 'user' : 'extra';
+    document.querySelectorAll('#ppl-review-seg .tb-seg-btn').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-kind') === _pplKind); });
+    document.getElementById('ppl-review-hint').textContent = t(_pplKind === 'user' ? 'ppl_hint_user' : 'ppl_review_hint');
+    document.getElementById('ppl-review-ok').textContent = t(_pplKind === 'user' ? 'ppl_next_user' : 'proj_approve_btn');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+function closePersonReview() {
+    _pplReview = null;
+    document.getElementById('ppl-review-popup').classList.remove('active');
+}
+function _pplRenderSimilar() {
+    var box = document.getElementById('ppl-review-similar');
+    var list = _pplReview ? _pplSimilar(_pplReviewName()) : [];
+    box.hidden = !list.length;
+    box.innerHTML = list.length ? '<div class="tpl-similar-title">' + escapeHtml(t('ppl_similar_review')) + '</div>' + list.map(function (nm) {
+        return '<div class="tpl-similar-row"><span class="tpl-similar-text"><span class="tpl-similar-name">' + escapeHtml(nm) + '</span></span>' +
+            '<button type="button" class="tpl-similar-btn" onclick="personMergeInto(\'' + escapeJsStringAttr(nm) + '\')">' + escapeHtml(t('proj_merge_btn')) + '</button></div>';
+    }).join('') : '';
+}
+function _pplDecide(status, extra) {
+    return _projStore.setSugg(_pplReview.id, Object.assign({ status: status, decidedAt: new Date().toISOString() }, extra || {}), true);
+}
+function _pplAfterReview(msgKey) {
+    closePersonReview();
+    showNotificationModal(t(msgKey), true);
+    _sugLoadPending();
+    var pg = document.getElementById('settings-page-admin-users');
+    if (pg && pg.style.display !== 'none') renderAdminUsers(true);
+}
+function approvePersonSuggestion() {
+    if (!_pplReview) return;
+    var name = _pplReviewName();
+    if (!name) { document.getElementById('ppl-review-fornavn').classList.add('settings-input-error'); return; }
+    if (_pplKind === 'user') {
+        // Hele brukerskjemaet (samme som «+ Legg til bruker») med navnet ferdig utfylt. Forslaget
+        // regnes som godkjent først når brukeren er lagret (saveAdmUser → _admFromPersonSugg).
+        var sugg = _pplReview;
+        var fn = String(document.getElementById('ppl-review-fornavn').value || '').trim();
+        var en = String(document.getElementById('ppl-review-etternavn').value || '').trim();
+        closePersonReview();
+        openAdmUser(null);
+        _admFromPersonSugg = sugg;
+        document.getElementById('adm-f-fornavn').value = fn;
+        document.getElementById('adm-f-etternavn').value = en;
+        var em = document.getElementById('adm-f-email');
+        if (em) setTimeout(function () { em.focus(); }, 50);
+        return;
+    }
+    _ansExtraLoad().then(function () {
+        _ansExtraAdd(name);
+        return _pplDecide('approved', { approvedName: name });
+    }).then(function () { _pplAfterReview('ppl_approved'); }, function (e) {
+        console.error('Godkjenn person:', e);
+        showNotificationModal(t('proj_action_failed'));
+    });
+}
+function personMergeInto(targetName) {
+    if (!_pplReview) return;
+    showConfirmModal(t('ppl_merge_confirm', targetName), function () {
+        _pplDecide('merged', { approvedName: targetName }).then(function () { _pplAfterReview('proj_merged'); }, function (e) {
+            console.error('Slå sammen person:', e);
+            showNotificationModal(t('proj_action_failed'));
+        });
+    }, t('proj_merge_btn'), '#E8501A');
+}
+function rejectPersonSuggestion() {
+    if (!_pplReview) return;
+    showConfirmModal(t('ppl_reject_confirm'), function () {
+        _pplDecide('rejected').then(function () { _pplAfterReview('proj_rejected'); }, function (e) {
+            console.error('Avvis person:', e);
+            showNotificationModal(t('proj_action_failed'));
+        });
+    }, t('proj_reject_btn'));
+}
+
+// ── Admin › Brukere › «Uten innlogging» (bare navn: rader + tekstboks + Legg til) ──
+function _admExtraHtml() {
+    var list = _ansExtra();
+    return '<div class="set-section"><div class="set-section-title"><span>' + escapeHtml(t('adm_extra_title')) + '</span> <span class="set-count">' + (list.length ? '(' + list.length + ')' : '') + '</span></div>' +
+        '<div class="set-card"><div class="settings-list-container" id="adm-extra-items">' +
+        list.map(function (x, i) { return _kappeSettingsItemHtml(x.navn, i, 'editAdmExtra', 'removeAdmExtra'); }).join('') +
+        '</div><div class="settings-add-row set-add-row">' +
+            '<input type="text" id="adm-extra-new" autocapitalize="words" placeholder="' + escapeHtml(t('adm_extra_ph')) + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addAdmExtra();}">' +
+            '<button type="button" class="settings-add-btn" onclick="addAdmExtra()">' + escapeHtml(t('btn_add')) + '</button>' +
+        '</div></div>' +
+        '<div class="set-foot">' + escapeHtml(t('adm_extra_hint')) + '</div></div>';
+}
+function addAdmExtra() {
+    var inp = document.getElementById('adm-extra-new');
+    if (!inp) return;
+    var v = String(inp.value || '').trim();
+    if (!v) return;
+    if (!_ansExtraAdd(v)) { showNotificationModal(t('dag_timer_person_exists')); return; }
+    renderAdminUsers(true);
+}
+function editAdmExtra(idx) {
+    var list = _ansExtra(), x = list[idx];
+    if (!x) return;
+    showInputModal(t('adm_extra_title'), x.navn, function (val) {
+        val = String(val || '').trim();
+        if (!val || val === x.navn) return;
+        x.navn = val;
+        _ansExtraSave(list).then(function () { renderAdminUsers(true); });
+        renderAdminUsers(true);
+    });
+}
+function removeAdmExtra(idx) {
+    var list = _ansExtra(), x = list[idx];
+    if (!x) return;
+    showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + x.navn + '"?', function () {
+        list.splice(idx, 1);
+        _ansExtraSave(list);
+        renderAdminUsers(true);
+    }, t('btn_remove'), '#e74c3c');
 }
 
 
@@ -2983,7 +3647,8 @@ function getSettingsPageTitle(page) {
         materials: t('settings_materials'),
         'admin-users': t('settings_admin_users'),
         'admin-satser': t('settings_admin_satser'),
-        'admin-employers': t('settings_admin_employers')
+        'admin-employers': t('settings_admin_employers'),
+        'admin-inbox': t('settings_admin_inbox')
     };
     return titles[page] || '';
 }
@@ -3062,7 +3727,7 @@ function showSettingsMenu() {
     _renderSettingsProfileCard();
     _syncFirmaUi();
     // Admin: antall prosjektforslag som venter (tall på Admin › Prosjekter).
-    if (typeof isAdmin !== 'undefined' && isAdmin) { _projUpdateBadges(); _projLoadPending(); }
+    if (typeof isAdmin !== 'undefined' && isAdmin) { _projUpdateBadges(); if (!_sugUnsub) _sugLoadPending(); }
     if (typeof DEV_MODE !== 'undefined' && DEV_MODE) document.querySelectorAll('#dev-role-seg .tb-seg-btn').forEach(function (b) {
         b.classList.toggle('active', b.getAttribute('data-role') === _devRole());
     });
@@ -3199,6 +3864,9 @@ function showSettingsPage(page, replace) {
             _sjMergeFloorsIntoPlans();
             if (document.body.classList.contains('settings-modal-open') && !document.querySelector('#plans-popup.active, #sj-list-popup.active')) renderSjekklisteSettings();
         });
+    } else if (page === 'admin-inbox') {
+        renderAdminInbox();
+        if (!_sugUnsub) _sugLoadPending();
     } else if (page === 'templates') {
         _renderSettingsTemplateListFromData(safeParseJSON(TEMPLATE_KEY, []));
         renderSettingsTemplateList();   // (obligatoriske felt for prosjekt: Admin › Skjemaoppsett)
@@ -3212,8 +3880,7 @@ function showSettingsPage(page, replace) {
         document.getElementById('settings-new-material').value = '';
         document.getElementById('settings-new-material-type').value = 'standard';
         document.getElementById('settings-new-material-variant').value = '';
-        var newKappeDimEl = document.getElementById('settings-new-kappe-dim');
-        if (newKappeDimEl) newKappeDimEl.value = '';
+        ['settings-new-kappe-dim', 'settings-new-kappe-fdim', 'settings-new-kappe-iso', 'settings-new-kappe-fast'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
         updateSettingsUnitFields();
         renderMaterialSettingsItems();
         _renderKappeDimensions();
@@ -3342,6 +4009,12 @@ function _admAnsatteFrom(users) {
         if (!nm.fornavn) return;
         list.push({ h: _ansHash(u.email), fornavn: nm.fornavn, etternavn: nm.etternavn });
     });
+    // + personer uten innlogging (Admin › Brukere › Uten innlogging) — bare navn.
+    if (typeof _ansExtra === 'function') _ansExtra().forEach(function (x) {
+        var parts = String(x.navn || '').trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return;
+        list.push({ h: 'x' + x.id, fornavn: parts.shift(), etternavn: parts.join(' ') });
+    });
     list.sort(function (a, b) { return _cmpText(a.fornavn + ' ' + a.etternavn, b.fornavn + ' ' + b.etternavn); });
     return list;
 }
@@ -3363,13 +4036,13 @@ function _admPublishAnsatte(users) {
 function _admMaybeSyncAnsatte() {
     if (_ansSynced || !_acc.admin || !currentUser || !db) return;
     _ansSynced = true;
-    _admStore.load().then(function (res) { _admPublishAnsatte(_admBuildUsers(res)); })
+    Promise.all([_admStore.load(), _ansExtraLoad()]).then(function (r) { _admPublishAnsatte(_admBuildUsers(r[0])); })
         .catch(function () { _ansSynced = false; });
 }
 
-// «+» i personvelgeren: en person som ikke er bruker (innleid, lærling o.l.). Navnet
-// tas i bruk på DENNE bestillingen og lagres ikke i noen liste — faste folk legges
-// inn av admin i Brukere, så de står likt for alle.
+// «+» i personvelgeren: en person som ikke er bruker (innleid, lærling o.l.). Navnet tas i
+// bruk på DENNE bestillingen og huskes (15-11-2026): montør → egen liste + forslag til admin,
+// admin → «Uten innlogging» for alle (se PERSONER: MONTØRENS KOLLEGER).
 function addPersonFromPicker() {
     var input = document.getElementById('person-popup-new');
     if (!input) return;
@@ -3390,6 +4063,7 @@ function addPersonFromPicker() {
     }
     input.value = '';
     _addDagTimerPerson(val);            // ta den i bruk (lukker velgeren)
+    _pplRemember(val);                  // og husk den (se PERSONER)
 }
 window.addPersonFromPicker = addPersonFromPicker;
 
@@ -4352,13 +5026,9 @@ function renderMaterialSettingsItems() {
             <div class="settings-material-body">${bodyContent}</div>
         </div>`;
     }).join('');
-    // Kappe-produkter (isolasjon/festemiddel) vises i SAMME liste, men ligger i et
-    // eget datasystem (kappe-katalogen). Hver rad har egne edit/slett/type-handlere.
-    var kappeProducts = (typeof getKappeCatalogProducts === 'function') ? getKappeCatalogProducts() : [];
-    var kappeHtml = (kappeProducts.length && typeof _kappeProductSettingsItemHtml === 'function')
-        ? kappeProducts.map(function(p, i) { return _kappeProductSettingsItemHtml(p, i); }).join('')
-        : '';
-    container.innerHTML = materialsHtml + kappeHtml;
+    // Isolasjon og festemidler (kappe-katalogen) har egne faner (15-11-2026) — _renderKappeProductLists.
+    container.innerHTML = materialsHtml;
+    if (typeof _renderKappeProductLists === 'function') _renderKappeProductLists();
 }
 
 
@@ -4736,7 +5406,6 @@ function _updatePickerVariantField() {
 }
 
 async function addPickerMaterial() {
-    if (!isAdmin) return;
     var nameEl = document.getElementById('picker-new-material');
     var typeEl = document.getElementById('picker-new-material-type');
     var variantEl = document.getElementById('picker-new-material-variant');
@@ -4749,6 +5418,21 @@ async function addPickerMaterial() {
         setTimeout(function() { nameEl.classList.remove('settings-input-error'); }, 1500);
         return;
     }
+    // Montør: eget materiale med en gang + forslag til admin (MONTØRENS MATERIALER).
+    if (!isAdmin) {
+        var fixedM = (function() {
+            var b = document.getElementById('picker-new-material-type-btn');
+            return !!(b && b.dataset.fixed === '1' && type === 'mansjett');
+        })();
+        var rm = _matAddMine(val, type, variant, fixedM);
+        if (!rm.ok) { showNotificationModal(t(_matIsKappeType(type) ? 'kappe_settings_duplicate' : 'settings_material_exists')); return; }
+        nameEl.value = '';
+        if (variantEl) variantEl.value = '';
+        typeEl.value = 'standard';
+        _pickerAddMatOpen = false;
+        _pickerUseNewMaterial(val, type, variant);
+        return;
+    }
     // Kappe-produkt (isolasjon/festemiddel) → kappe-katalogen, ikke materialliste.
     if (type === 'isolasjon' || type === 'festemiddel') {
         var rk = _addKappeProduct(val, type);
@@ -4757,8 +5441,7 @@ async function addPickerMaterial() {
         if (variantEl) variantEl.value = '';
         typeEl.value = 'standard';
         _pickerAddMatOpen = false;   // Lukk snarveien — lista skal ha fokus igjen.
-        if (typeof pickerRenderFn === 'function') pickerRenderFn();
-        showNotificationModal(t('settings_material_added'), true);
+        _pickerUseNewMaterial(val, type, '');
         return;
     }
     var current = Array.isArray(cachedMaterialOptions) ? cachedMaterialOptions : [];
@@ -4780,8 +5463,7 @@ async function addPickerMaterial() {
             if (variantEl) variantEl.value = '';
             typeEl.value = 'standard';
             _pickerAddMatOpen = false;   // Lukk snarveien — lista skal ha fokus igjen.
-            if (typeof pickerRenderFn === 'function') pickerRenderFn();
-            showNotificationModal(t('settings_material_added'), true);
+            _pickerUseNewMaterial(existing.name, type, variant);
             return;
         }
         showNotificationModal(t('settings_material_exists'));
@@ -4808,9 +5490,18 @@ async function addPickerMaterial() {
     if (variantEl) variantEl.value = '';
     typeEl.value = 'standard';
     _pickerAddMatOpen = false;   // Lukk snarveien — lista skal ha fokus igjen.
-    // Bygg pickeren på nytt så det nye materialet vises (state/quantities bevares).
-    if (typeof pickerRenderFn === 'function') pickerRenderFn();
-    showNotificationModal(t('settings_material_added'), true);
+    _pickerUseNewMaterial(val, type, variant);
+}
+// Bruker 15-11-2026: «montører legger ikke til et nytt produkt med mindre de faktisk skal bruke
+// det» → det nye materialet tas i bruk med en gang (gjelder admin og montør likt). Vinduet for
+// størrelsen åpnes direkte: isolasjon → isolasjonskortet med en ny gruppe og tykkelsesvelgeren,
+// festemiddel → festemiddelvelgeren med lengdene, mansjett/brannpakning/kabelhylse → målvinduet,
+// standard → raden vises med Antall-feltet i fokus (valgt så snart antall er skrevet, som før).
+// Selve åpningen ligger i velgeren (pickerUseNewFn, script.js) — den eier pickerState.
+function _pickerUseNewMaterial(name, type, variant) {
+    showNotificationModal(t(isAdmin ? 'settings_material_added' : 'mat_saved_pending'), true);
+    if (typeof pickerUseNewFn === 'function') pickerUseNewFn(name, type, variant);
+    else if (typeof pickerRenderFn === 'function') pickerRenderFn();
 }
 
 
@@ -4970,7 +5661,7 @@ function openNewMatTypePicker() {
     var sel = document.getElementById('settings-new-material-type');
     if (!sel) return;
     var btn0 = document.getElementById('settings-new-material-type-btn');
-    // includeKappe=true: add-skjemaet kan også opprette kappe-produkter (isolasjon/festemiddel).
+    // includeKappe=false: isolasjon og festemidler har egne faner med egen «+» (15-11-2026).
     _renderMatTypePicker(sel.value, function(newValue, fixedSize) {
         sel.value = newValue;
         var btn = document.getElementById('settings-new-material-type-btn');
@@ -4987,7 +5678,7 @@ function openNewMatTypePicker() {
             else btn.setAttribute('data-i18n', lblKey);
         }
         if (typeof updateSettingsUnitFields === 'function') updateSettingsUnitFields();
-    }, true, btn0 && btn0.dataset.fixed === '1');
+    }, false, btn0 && btn0.dataset.fixed === '1');
 }
 
 function closeMatTypeDropdown() {
@@ -5137,22 +5828,26 @@ let cachedMaterialOptions = null;
 let cachedPlanOptions = [];
 let settingsPlans = [];
 
+// Velgeren = felles materialer (admin) + mine egne (montør, se MONTØRENS MATERIALER).
+// MATERIALS_KEY holder BARE den felles lista — de egne flettes inn i cachedMaterialOptions.
 async function getDropdownOptions() {
     // Show cached immediately so picker is never empty
     if (!cachedMaterialOptions) {
         var stored = localStorage.getItem(MATERIALS_KEY);
         if (stored) {
             var cached = normalizeMaterialData(JSON.parse(stored));
-            cachedMaterialOptions = (cached && cached.materials) ? cached.materials : [];
-            cachedMaterialOptions.sort(function(a, b) { return _cmpText(a.name, b.name); });
+            cachedMaterialOptions = _matMergeMine((cached && cached.materials) ? cached.materials : []);
         }
     }
     // Refresh from Firebase
     const data = await getMaterialSettings();
-    cachedMaterialOptions = (data && data.materials) ? data.materials : [];
-    cachedMaterialOptions.sort((a, b) => _cmpText(a.name, b.name));
+    var shared = ((data && data.materials) ? data.materials : []).slice();
+    shared.sort((a, b) => _cmpText(a.name, b.name));
     // Cache to localStorage for offline use
-    safeSetItem(MATERIALS_KEY, JSON.stringify({ materials: cachedMaterialOptions, units: [] }));
+    safeSetItem(MATERIALS_KEY, JSON.stringify({ materials: shared, units: [] }));
+    await _matFetchMine();
+    cachedMaterialOptions = _matMergeMine(shared);
+    _matSync();
 }
 
 
@@ -18302,7 +18997,33 @@ function _renderKappePickerTabs(products) {
     var html = '';
     html += isolasjon.map(renderRow).join('');
     html += festemiddel.map(renderRow).join('');
+    // «+ Nytt produkt» (alle — montør får det som eget + forslag til admin, se MONTØRENS
+    // MATERIALER). Viser velgeren begge typer, får hver type sin egen knapp.
+    var addRow = function (type, key) {
+        return '<div class="kappe-product-picker-row kappe-picker-add-row" onclick="kappePickerAddProduct(\'' + type + '\')">' +
+            '<span class="kappe-picker-add-plus">+</span><span class="kappe-product-picker-name">' + escapeHtml(t(key)) + '</span></div>';
+    };
+    if (isolasjon.length && festemiddel.length) html += addRow('isolasjon', 'kappe_new_iso') + addRow('festemiddel', 'kappe_new_fast');
+    else html += addRow(festemiddel.length ? 'festemiddel' : 'isolasjon', 'kappe_new_product');
     brandsEl.innerHTML = html;
+}
+// Nytt isolasjons-/festemiddelprodukt rett fra produktvelgeren. Admin → felles katalog;
+// montør → eget produkt (brukes med en gang) + forslag til admin. Velges med det samme.
+function kappePickerAddProduct(type) {
+    showInputModal(t(type === 'festemiddel' ? 'kappe_new_fast' : 'kappe_new_iso'), '', function (val) {
+        var name = String(val || '').trim();
+        if (!name) return;
+        var r = isAdmin ? _addKappeProduct(name, type) : _matAddMine(name, type, '', false);
+        if (!r.ok) { showNotificationModal(t('kappe_settings_duplicate')); return; }
+        // Samme form som de andre produktene av typen i velgeren (source o.l. settes av den som åpnet).
+        var tpl = _productDimensionPickerProducts.filter(function (p) { return p && p.type === type; })[0];
+        var cat = getKappeCatalogProduct(name) || { name: name, type: type };
+        var prod = Object.assign({}, tpl || {}, { name: cat.name, type: type, units: cat.units, defaultUnit: cat.defaultUnit, usesDimensions: true });
+        _productDimensionPickerProducts = _productDimensionPickerProducts.concat([prod]);
+        _selectKappePickerBrand(cat.name);
+        _renderKappePickerTabs();
+        showNotificationModal(t(isAdmin ? 'settings_material_added' : 'mat_saved_pending'), true);
+    });
 }
 
 function _selectKappePickerBrand(brand) {
@@ -18465,15 +19186,19 @@ function _kappePickerStartAddDim() {
 
 // Lagrer ny dimensjon til den DELTE kappe-dim-lista (samme som Innstillinger) og
 // velger den automatisk. Tom/duplikat → bare velg/avbryt uten å lagre dobbelt.
+// Isolasjon → tykkelser, festemiddel → lengder (egne lister, se _kappeSplitDims).
 function _kappePickerCommitAddDim(value) {
     var dim = String(value || '').trim().replace(/mm$/i, '').trim();
     if (!dim) { _renderKappePickerDimensions(); return; }
-    var dimensions = (typeof getKappeDimensions === 'function') ? getKappeDimensions().slice() : [];
+    var prod = _productDimensionPickerProducts.filter(function (p) { return p && p.name === _kappePickerSelectedBrand; })[0];
+    var fast = !!(prod && prod.type === 'festemiddel');
+    var dimensions = (fast ? getKappeFastenerDimensions() : getKappeDimensions()).slice();
     var exists = dimensions.some(function(d) { return d.toLowerCase() === dim.toLowerCase(); });
     if (!exists) {
         dimensions.push(dim);
         if (typeof _sortKappeNumeric === 'function') _sortKappeNumeric(dimensions);
-        _saveKappeProducts(getKappeCatalogProducts(), dimensions);
+        _saveKappeCatalog(fast ? { products: getKappeCatalogProducts(), fastenerDimensions: dimensions }
+            : { products: getKappeCatalogProducts(), dimensions: dimensions });
         _productDimensionPickerDimensions = dimensions;
     }
     // Velg den nye (gjenbruk eksisterende velg-handler → setter state + re-render).
@@ -19363,7 +20088,8 @@ function _isoGroupUpdateProductBtn(block) {
 }
 
 // Åpne produkt-/dimensjon-velgeren for NETTOPP denne gruppen (enkelt produkt).
-function _isoGroupOpenProductPicker(btn) {
+// focusName: et nettopp lagt til produkt — velgeren åpner med det aktivt (tykkelsene vises).
+function _isoGroupOpenProductPicker(btn, focusName) {
     var block = _isoCardBlockOf(btn);
     if (!block) return;
     var products = (typeof getKappeProducts === 'function' ? getKappeProducts() : []).map(function(p) {
@@ -19384,6 +20110,7 @@ function _isoGroupOpenProductPicker(btn) {
         multiDimension: true,
         singleDimensionPerProduct: true,  // ett produkt + én dimensjon pr. gruppe
         initialPairs: initialPairs,
+        initialBrand: focusName || undefined,
         onConfirmMulti: function(pairs) {
             var p = pairs && pairs[0];
             block._sel = p ? {
@@ -21088,7 +21815,8 @@ function _fastenerRowsToSelections(c) {
 
 // Delt: åpne to-kolonne-velgeren for en festemiddel-rad-container; bygg rader på
 // nytt (bevar Stk/Eske), oppdater knapp. Skjuler host mens velgeren er åpen.
-function _fastenerOpenPicker(ctx) {
+// focusName: et nettopp lagt til festemiddel — velgeren åpner med det aktivt (lengdene vises).
+function _fastenerOpenPicker(ctx, focusName) {
     var fasteners = _fastenerPopupProducts();
     if (!fasteners.length) { showNotificationModal(t('kappe_settings_no_products')); return false; }
     var dims = (typeof getKappeFastenerDimensions === 'function') ? getKappeFastenerDimensions() : [];
@@ -21106,6 +21834,7 @@ function _fastenerOpenPicker(ctx) {
         requireDimension: true,
         multiDimension: true,
         initialPairs: initialPairs,
+        initialBrand: focusName || undefined,
         onConfirmMulti: function(pairs) {
             var cc = document.getElementById(ctx.rowsId);
             if (!cc) return;
@@ -24208,16 +24937,14 @@ function _kappeSettingsItemHtml(name, idx, editFn, removeFn) {
 function _kappeProductSettingsItemHtml(product, idx) {
     // Varianter er fjernet — enhet låses av popup-modus (Bredde/Plate for isolasjon,
     // Stk/Eske for festemiddel). Produktet trenger kun navn + type.
-    return '<div class="settings-material-group kappe-product-settings-group">' +
+    return '<div class="settings-material-group kappe-product-settings-group" data-kidx="' + idx + '">' +
         '<div class="settings-material-header">' +
             '<div class="settings-material-name-wrap">' +
                 '<span class="settings-material-name-display settings-kappe-product-name-display">' + escapeHtml(product.name) + '</span>' +
             '</div>' +
-            '<button class="settings-material-type-btn" onclick="event.stopPropagation();openKappeProductTypePicker(this,' + idx + ')" data-value="' + (product.type || 'isolasjon') + '">' + _getKappeProductTypeLabel(product.type) + '</button>' +
+            // Ingen typevelger: fanen (Isolasjon / Festemidler) sier allerede hva produktet er (bruker 15-11-2026).
             '<button class="settings-material-edit-btn" onclick="event.stopPropagation();editKappeProduct(' + idx + ')" title="' + t('edit_btn') + '">' + editIcon + '</button>' +
             '<button class="settings-delete-btn" onclick="event.stopPropagation();removeKappeProduct(' + idx + ')" title="' + t('delete_btn') + '">' + deleteIcon + '</button>' +
-            // Usynlig ekspander-pil-plassholder så slett-knappen aligner med standard-materialene.
-            '<span class="settings-material-expand" style="visibility:hidden">&rsaquo;</span>' +
         '</div>' +
     '</div>';
 }
@@ -24326,16 +25053,23 @@ function _parseKappeUnits(value, type) {
 }
 
 function _saveKappeCatalog(catalog) {
-    // Bevar plates fra catalog-arg hvis gitt, ellers les eksisterende fra getKappeCatalog().
-    var plates = Array.isArray(catalog.plates) ? catalog.plates : (getKappeCatalog().plates || []);
-    var normalized = _buildKappeCatalog(catalog.products || [], catalog.dimensions || [], plates);
+    // Bevar plates / festemiddel-lengder fra catalog-arg hvis gitt, ellers de eksisterende.
+    var cur = getKappeCatalog();
+    var plates = Array.isArray(catalog.plates) ? catalog.plates : (cur.plates || []);
+    var fd = Array.isArray(catalog.fastenerDimensions) ? catalog.fastenerDimensions : (cur.fastenerDimensions || []);
+    var dims = Array.isArray(catalog.dimensions) ? catalog.dimensions : (cur.dimensions || []);
+    var normalized = _buildKappeCatalog(catalog.products || [], dims, plates, fd);
     var shared = _kappeSharedCatalogRaw();
     if (shared) {
         if (isAdmin) { _saveSharedKappeCatalog(normalized); return; }
-        // Montør: felles produkter/plater eies av admin — lagre bare egne ekstra dimensjoner.
-        var shDims = (shared.dimensions || []).map(function (d) { return String(d).toLowerCase(); });
+        // Montør: felles produkter/plater eies av admin — lagre bare egne ekstra dimensjoner
+        // (tykkelser og lengder hver for seg).
+        var sp = _kappeSplitDims(shared);
+        var lc = function (arr) { return arr.map(function (d) { return String(d).toLowerCase(); }); };
+        var shDims = lc(sp.dims), shFd = lc(sp.fd);
         var own = safeParseJSON(KAPPE_CATALOG_KEY, null) || {};
         own.extraDims = (normalized.dimensions || []).filter(function (d) { return shDims.indexOf(String(d).toLowerCase()) === -1; });
+        own.extraFastDims = (normalized.fastenerDimensions || []).filter(function (d) { return shFd.indexOf(String(d).toLowerCase()) === -1; });
         _syncKappeSetting(KAPPE_CATALOG_KEY, 'kappe_catalog', own);
         return;
     }
@@ -24585,16 +25319,47 @@ function renderKappeProductSettings() {
     _renderKappeDimensions();
 }
 
+// Fanene Isolasjon / Festemidler: produktene (indeks = plass i hele katalogen, som handlerne bruker).
+// Samme rad-markup som Tykkelser/Lengder (_kappeSettingsItemHtml) — rader og legg-til er like i hele fanen.
+function _renderKappeProductLists() {
+    var products = (typeof getKappeCatalogProducts === 'function') ? getKappeCatalogProducts() : [];
+    [['isolasjon', 'settings-kappe-iso-items'], ['festemiddel', 'settings-kappe-fast-items']].forEach(function (x) {
+        var el = document.getElementById(x[1]);
+        if (!el) return;
+        el.innerHTML = products.map(function (p, i) {
+            return ((p.type === 'festemiddel' ? 'festemiddel' : 'isolasjon') === x[0]) ? _kappeSettingsItemHtml(p.name, i, 'editKappeProduct', 'removeKappeProduct') : '';
+        }).join('');
+    });
+}
+// Tekstboks + «Legg til» i fanene (admin → felles katalog).
+function addKappeProductFromSettings(type) {
+    var inp = document.getElementById(type === 'festemiddel' ? 'settings-new-kappe-fast' : 'settings-new-kappe-iso');
+    if (!inp) return;
+    var name = String(inp.value || '').trim();
+    if (!name) { showNotificationModal(t('kappe_settings_name_required')); inp.focus(); return; }
+    if (!_addKappeProduct(name, type).ok) { showNotificationModal(t('kappe_settings_duplicate')); return; }
+    inp.value = '';
+    renderKappeProductSettings();
+}
+// kind: 'iso' = isolasjonstykkelser (dimensions), 'fast' = festemiddel-lengder (fastenerDimensions).
+function _kappeDimsOf(kind) { return (kind === 'fast' ? getKappeFastenerDimensions() : getKappeDimensions()).slice(); }
+function _kappeSaveDims(kind, list) {
+    _saveKappeCatalog(kind === 'fast' ? { products: getKappeCatalogProducts(), fastenerDimensions: list }
+        : { products: getKappeCatalogProducts(), dimensions: list });
+}
 function _renderKappeDimensions() {
-    var dimContainer = document.getElementById('settings-kappe-dim-items');
-    if (!dimContainer) return;
-    var dimensions = getKappeDimensions().slice();
-    _sortKappeNumeric(dimensions);
-    var dimCount = document.getElementById('settings-count-kappe-dimensions');
-    if (dimCount) dimCount.textContent = dimensions.length ? '(' + dimensions.length + ')' : '';
-    dimContainer.innerHTML = dimensions.map(function(d, i) {
-        return _kappeSettingsItemHtml(d, i, 'editGlobalKappeDimension', 'removeGlobalKappeDimension');
-    }).join('');
+    [['iso', 'settings-kappe-dim-items', 'settings-count-kappe-dimensions'], ['fast', 'settings-kappe-fdim-items', 'settings-count-kappe-fdims']].forEach(function (x) {
+        var dimContainer = document.getElementById(x[1]);
+        if (!dimContainer) return;
+        var dimensions = _kappeDimsOf(x[0]);
+        _sortKappeNumeric(dimensions);
+        var dimCount = document.getElementById(x[2]);
+        if (dimCount) dimCount.textContent = dimensions.length ? '(' + dimensions.length + ')' : '';
+        var sfx = x[0] === 'fast' ? 'Fast' : '';
+        dimContainer.innerHTML = dimensions.map(function(d, i) {
+            return _kappeSettingsItemHtml(d, i, 'editGlobalKappeDimension' + sfx, 'removeGlobalKappeDimension' + sfx);
+        }).join('');
+    });
 }
 
 function addKappeProduct() {
@@ -24622,12 +25387,9 @@ function editKappeProduct(idx) {
     var products = getKappeCatalogProducts();
     var p = products[idx];
     if (!p) return;
-    // Kappe-produkter rendres nå i den samlede materiallista; finn rad nr. idx blant
-    // kappe-radene der (robust uavhengig av hvor mange materialer som ligger foran).
-    var matContainer = document.getElementById('settings-material-items');
-    var kappeItems = matContainer ? matContainer.querySelectorAll('.kappe-product-settings-group') : [];
-    var item = kappeItems[idx] || null;
-    var span = item ? item.querySelector('.settings-kappe-product-name-display') : null;
+    // Raden ligger i fanen Isolasjon eller Festemidler; data-idx = indeks i katalogen.
+    var item = document.querySelector('#settings-kappe-iso-items .settings-list-item[data-idx="' + idx + '"], #settings-kappe-fast-items .settings-list-item[data-idx="' + idx + '"]');
+    var span = item ? item.querySelector('.settings-list-item-name') : null;
     if (!span) return;
     var oldName = p.name;
     var input = document.createElement('input');
@@ -24812,32 +25574,34 @@ function removeKappeProduct(idx) {
     }, t('btn_remove'), '#e74c3c');
 }
 
-function addGlobalKappeDimension() {
-    var inputEl = document.getElementById('settings-new-kappe-dim');
+function addGlobalKappeDimension(kind) {
+    kind = kind === 'fast' ? 'fast' : 'iso';
+    var inputEl = document.getElementById(kind === 'fast' ? 'settings-new-kappe-fdim' : 'settings-new-kappe-dim');
     if (!inputEl) return;
     var dim = (inputEl.value || '').trim();
     if (!dim) { showNotificationModal(t('kappe_settings_dimension_required')); inputEl.focus(); return; }
     // Strip "mm" om bruker har skrevet det
     dim = dim.replace(/mm$/i, '').trim();
     if (!dim) { showNotificationModal(t('kappe_settings_dimension_required')); inputEl.focus(); return; }
-    var dimensions = getKappeDimensions();
+    var dimensions = _kappeDimsOf(kind);
     if (dimensions.some(function(d) { return d.toLowerCase() === dim.toLowerCase(); })) {
         showNotificationModal(t('kappe_settings_dimension_duplicate'));
         return;
     }
     dimensions.push(dim);
     _sortKappeNumeric(dimensions);
-    _saveKappeProducts(getKappeCatalogProducts(), dimensions);
+    _kappeSaveDims(kind, dimensions);
     inputEl.value = '';
     renderKappeProductSettings();
 }
 
-function editGlobalKappeDimension(idx) {
-    var dimensions = getKappeDimensions().slice();
+function editGlobalKappeDimension(idx, kind) {
+    kind = kind === 'fast' ? 'fast' : 'iso';
+    var dimensions = _kappeDimsOf(kind);
     _sortKappeNumeric(dimensions);
     var cur = dimensions[idx];
     if (cur === undefined) return;
-    var container = document.getElementById('settings-kappe-dim-items');
+    var container = document.getElementById(kind === 'fast' ? 'settings-kappe-fdim-items' : 'settings-kappe-dim-items');
     var item = container ? container.children[idx] : null;
     var span = item ? item.querySelector('.settings-list-item-name') : null;
     if (!span) return;
@@ -24867,7 +25631,7 @@ function editGlobalKappeDimension(idx) {
         }
         dimensions[idx] = newDim;
         _sortKappeNumeric(dimensions);
-        _saveKappeProducts(getKappeCatalogProducts(), dimensions);
+        _kappeSaveDims(kind, dimensions);
         renderKappeProductSettings();
     }
     input.addEventListener('blur', save);
@@ -24877,17 +25641,20 @@ function editGlobalKappeDimension(idx) {
     });
 }
 
-function removeGlobalKappeDimension(idx) {
-    var dimensions = getKappeDimensions().slice();
+function removeGlobalKappeDimension(idx, kind) {
+    kind = kind === 'fast' ? 'fast' : 'iso';
+    var dimensions = _kappeDimsOf(kind);
     _sortKappeNumeric(dimensions);
     var dim = dimensions[idx];
     if (dim === undefined) return;
     showConfirmModal(t('kappe_settings_remove_confirm') + ' "' + _formatDimMm(dim) + '"?', function() {
         dimensions.splice(idx, 1);
-        _saveKappeProducts(getKappeCatalogProducts(), dimensions);
+        _kappeSaveDims(kind, dimensions);
         renderKappeProductSettings();
     }, t('btn_remove'), '#e74c3c');
 }
+function editGlobalKappeDimensionFast(idx) { editGlobalKappeDimension(idx, 'fast'); }
+function removeGlobalKappeDimensionFast(idx) { removeGlobalKappeDimension(idx, 'fast'); }
 
 
 // Felles hjelper: lagre kappe-innstilling både lokalt og til Firebase
@@ -26864,6 +27631,9 @@ var _accUnsubs = [];
     }
 })();
 _firmaBoot = _firma();
+// Admin: siste kjente «Til godkjenning»-liste med en gang (før innloggingen er bekreftet),
+// så banner og tall ikke forsvinner/kommer sent etter omlasting. Fersk liste hentes etterpå.
+if (_acc.admin) { _sugRestored = true; _sugRestoreCache(); }
 // Effektiv admin. Admin satt i appen får også script.js sin isAdmin (materialer,
 // obligatoriske felt osv.), så de to admin-typene oppfører seg likt.
 function _accRecalcAdmin() {
@@ -26955,6 +27725,7 @@ function _accApply() {
     if (_acc.adminKnown && _acc.entryKnown) _firmaCheckBoot();   // firmaet endret → start på nytt
     _accEnforce();
     if (_acc.adminKnown) _admMaybeSyncAnsatte();   // én gang pr. økt som admin
+    _sugLive();   // admin: live tall for «Til godkjenning»
 }
 var _ACC_VIEW_MODULE = { 'template-modal': 'hjem', 'saved-modal': 'lagret', 'view-form': 'ordreseddel', 'service-view': 'servicebil', 'kappe-view': 'kappe', 'kvittering-view': 'timebok', 'calculator-modal': 'calc', 'timebok-view': 'timebok', 'sjekkliste-view': 'sjekkliste' };
 function _accEnforce() {
@@ -27067,7 +27838,8 @@ function _accSyncProfile(uid, entry) {
 //     match /sjekklister/{id} {
 //       allow read, create, update: if inFirma(f);
 //       allow delete: if isFirmaAdmin(f) || (inFirma(f) && resource.data.createdBy == request.auth.uid); }
-//     // Felles prosjekter: bare admin skriver. Forslag: montøren ser bare sine egne
+//     // Felles prosjekter: bare admin skriver. Forslag (prosjekter OG materialer, felt kind):
+//     // montøren ser bare sine egne
 //     // (spørringen where createdBy == meg), admin ser alle i firmaet og avgjør dem.
 //     match /projects/{id} { allow read: if inFirma(f); allow write: if isFirmaAdmin(f); }
 //     match /projectSuggestions/{id} {
@@ -27422,7 +28194,7 @@ function renderAdminUsers(cached) {
     if (!host) return;
     if (!_acc.admin || !currentUser || !db) { host.innerHTML = ''; return; }
     if (!(cached && _admLastRes)) host.innerHTML = '<div class="adm-info">' + escapeHtml(t('adm_loading')) + '</div>';
-    (cached && _admLastRes ? Promise.resolve(_admLastRes) : _admStore.load()).then(function (res) {
+    (cached && _admLastRes ? Promise.resolve(_admLastRes) : Promise.all([_admStore.load(), _ansExtraLoad()]).then(function (r) { return r[0]; })).then(function (res) {
         _admLastRes = res;
         _admUsers = _admBuildUsers(res);
         _admPublishAnsatte(_admUsers);   // personvelgerens navneliste følger Brukere
@@ -27469,7 +28241,8 @@ function renderAdminUsers(cached) {
                     '<button type="button" class="adm-add-row" onclick="openAdmUser(null)"><span class="adm-add-ico">+</span>' + escapeHtml(t('adm_add_user')) + '</button>' +
                     list.map(row).join('') +
                 '</div>' +
-                '<div class="set-foot">' + escapeHtml(t('adm_summary').replace('{0}', list.length).replace('{1}', active)) + '</div>';
+                '<div class="set-foot">' + escapeHtml(t('adm_summary').replace('{0}', list.length).replace('{1}', active)) + '</div>' +
+                _admExtraHtml();
         } else {
             h += '<div class="set-foot set-foot-top">' + escapeHtml(t(attempts.length ? 'adm_attempts_hint' : 'adm_attempts_empty')) + '</div>';
             if (attempts.length) h += '<div class="set-card adm-list">' + attempts.map(row).join('') + '</div>';
@@ -27599,9 +28372,11 @@ function _admAdminToggled(cb) {
     var dis = document.getElementById('adm-dis-row');
     if (dis) dis.style.display = cb.checked ? 'none' : '';
 }
+var _admFromPersonSugg = null;   // brukerskjemaet åpnet fra et personforslag (Til godkjenning)
 function closeAdmUser() {
     document.getElementById('adm-user-popup').classList.remove('active');
     _admEditKey = null;
+    _admFromPersonSugg = null;
 }
 function saveAdmUser() {
     if (!db) return;
@@ -27644,9 +28419,15 @@ function saveAdmUser() {
     // Ny e-post (før personen har logget inn): flytt oppføringen til den nye nøkkelen.
     if (oldKey && key !== oldKey && u && u.entry) ops.push(_admStore.delAccess(oldKey));
     var wasNew = !u || !u.entry;
+    var fromSugg = _admFromPersonSugg;
     Promise.all(ops).then(function () {
         closeAdmUser();
         renderAdminUsers();
+        // Lagret fra et personforslag → forslaget er godkjent (montøren får beskjed ved neste synk).
+        if (fromSugg) {
+            _projStore.setSugg(fromSugg.id, { status: 'approved', approvedName: data.name, decidedAt: new Date().toISOString() }, true)
+                .then(_sugLoadPending).catch(function (e) { console.error('Personforslag → bruker:', e); });
+        }
         // Ny bruker: tilby invitasjon med en gang. Via bekreft-knappen, fordi delingsmenyen
         // (Web Share) krever et trykk fra brukeren — den kan ikke åpnes etter lagringen alene.
         if (wasNew) {

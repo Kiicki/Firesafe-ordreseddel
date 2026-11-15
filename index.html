@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1162">
+    <link rel="stylesheet" href="styles.css?v=1166">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -482,6 +482,15 @@
                 </div>
             </div>
             <div class="modal-body">
+                <!-- Varsel til admin: forslag fra montører venter (skjult når 0) — _projUpdateBadges. -->
+                <button type="button" class="home-inbox admin-only" id="home-inbox" hidden onclick="openAdminInbox()">
+                    <span class="set-ico set-ico--red"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+                    <span class="set-text"><span class="set-title" id="home-inbox-title"></span><span class="set-desc" id="home-inbox-desc"></span></span>
+                    <span class="set-chev">&rsaquo;</span>
+                </button>
+                <!-- Siste kjente antall forslag tegnes FØR appen har startet (ingen ventetid etter
+                     omlasting). Admin-flagget og teksten er lagret av appen (_sugSetPending). -->
+                <script>(function () { try { if (localStorage.getItem('firesafe_admin') !== '1') return; var c = JSON.parse(localStorage.getItem('firesafe_sug_badge') || 'null'); var af = localStorage.getItem('firesafe_active_firma'); if (!c || !c.n || (af && c.firma && af !== c.firma)) return; var b = document.getElementById('home-inbox'); b.hidden = false; document.getElementById('home-inbox-title').textContent = c.title; document.getElementById('home-inbox-desc').textContent = c.desc; window._sugBadgeEarly = c.n; } catch (e) {} })();</script>
                 <!-- Skjemaer: én rad pr. type (samme stil som Meny). Raden åpner lista for typen
                      (lagrede skjemaer, «+ Ny» i toppen); «+» lager nytt direkte. Erstatter Lagret i toolbaren. -->
                 <div class="mobile-section home-forms" data-acc="hjem">
@@ -696,6 +705,60 @@
         </div>
     </div>
 
+    <!-- Admin vurderer et materiale montøren har lagt til (openMaterialReview). -->
+    <div class="confirm-modal" id="mat-review-popup" onclick="closeMaterialReview()">
+        <div class="template-editor-content" onclick="event.stopPropagation()">
+            <div class="template-editor-header">
+                <span data-i18n="mat_review_title">Godkjenn materiale</span>
+                <button class="template-editor-close" onclick="closeMaterialReview()">&times;</button>
+            </div>
+            <div class="template-editor-body">
+                <div class="tpl-note" id="mat-review-note"></div>
+                <label class="settings-default-label"><span data-i18n="mat_review_name">Navn</span><input type="text" id="mat-review-name" oninput="_matRenderSimilar()" autocapitalize="sentences"></label>
+                <div class="tpl-similar" id="mat-review-similar" hidden></div>
+                <!-- Samme felt som Admin › Materialer: type kan rettes (også isolasjon/festemiddel og
+                     mansjett rull/fast), enheter for standard, plate for isolasjon. -->
+                <div class="settings-default-label"><span data-i18n="mat_review_type">Type</span>
+                    <button type="button" id="mat-review-type-btn" class="settings-material-type-btn mat-review-type-btn" onclick="event.stopPropagation();openMatReviewTypePicker()"></button></div>
+                <label class="settings-default-label" id="mat-review-units-row"><span data-i18n="mat_review_units">Enheter (komma mellom)</span><input type="text" id="mat-review-units" autocapitalize="sentences" placeholder="f.eks. patron, pølse"></label>
+                <label class="settings-default-label" id="mat-review-plate-row"><span data-i18n="mat_review_plate">Plate</span><select id="mat-review-plate" class="settings-select"></select></label>
+            </div>
+            <div class="template-editor-buttons">
+                <button class="template-editor-save-btn" onclick="approveMaterialSuggestion()" data-i18n="proj_approve_btn">Godkjenn</button>
+                <button class="template-editor-deactivate-btn tpl-reject-btn" onclick="rejectMaterialSuggestion()" data-i18n="proj_reject_btn">Avvis</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin vurderer en person montøren har lagt til i personvelgeren (openPersonReview). -->
+    <div class="confirm-modal" id="ppl-review-popup" onclick="closePersonReview()">
+        <div class="template-editor-content" onclick="event.stopPropagation()">
+            <div class="template-editor-header">
+                <span data-i18n="ppl_review_title">Godkjenn person</span>
+                <button class="template-editor-close" onclick="closePersonReview()">&times;</button>
+            </div>
+            <div class="template-editor-body">
+                <div class="tpl-note" id="ppl-review-note"></div>
+                <div class="adm-grid2">
+                    <label class="settings-default-label"><span data-i18n="settings_min_info_fornavn">Fornavn</span><input type="text" id="ppl-review-fornavn" oninput="_pplRenderSimilar()" autocapitalize="words"></label>
+                    <label class="settings-default-label"><span data-i18n="settings_min_info_etternavn">Etternavn</span><input type="text" id="ppl-review-etternavn" oninput="_pplRenderSimilar()" autocapitalize="words"></label>
+                </div>
+                <div class="tpl-similar" id="ppl-review-similar" hidden></div>
+                <!-- Uten innlogging = bare navnet (innleid, lærling). Bruker = hele brukerskjemaet
+                     (e-post, mobil, ansattnr., tilgang …) åpnes ferdig utfylt med navnet. -->
+                <div class="tb-seg ppl-review-seg" id="ppl-review-seg">
+                    <button type="button" class="tb-seg-btn active" data-kind="extra" onclick="_pplSetKind('extra')" data-i18n="adm_extra_title">Uten innlogging</button>
+                    <button type="button" class="tb-seg-btn" data-kind="user" onclick="_pplSetKind('user')" data-i18n="ppl_kind_user">Med innlogging</button>
+                </div>
+                <div class="set-foot" id="ppl-review-hint"></div>
+            </div>
+            <div class="template-editor-buttons">
+                <button class="template-editor-save-btn" id="ppl-review-ok" onclick="approvePersonSuggestion()">Godkjenn</button>
+                <button class="template-editor-deactivate-btn tpl-reject-btn" onclick="rejectPersonSuggestion()" data-i18n="proj_reject_btn">Avvis</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div class="modal view" id="settings-modal">
         <div class="modal-content">
@@ -781,6 +844,13 @@
                              glimt av «Firesafe» etter omlastingen). Samme logikk som _syncFirmaUi for hovedadmin. -->
                         <script>(function () { try { var d = localStorage.getItem('firesafe_active_firma') === 'damsgard'; var el = document.getElementById('set-admin-firma'); if (el) el.textContent = d ? 'Damsgård Brannsikring' : 'Firesafe'; document.querySelectorAll('#firma-seg .tb-seg-btn').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-firma') === (d ? 'damsgard' : 'firesafe')); }); } catch (e) {} })();</script>
                         <div class="set-card">
+                        <!-- Innboks: montørenes prosjekter og materialer som venter (tall = varsel). -->
+                        <div class="set-row" onclick="showSettingsPage('admin-inbox')">
+                            <span class="set-ico set-ico--red"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_inbox">Til godkjenning</span><span class="set-desc" data-i18n="settings_desc_admin_inbox">Prosjekter, materialer og personer fra montører</span></span>
+                            <span class="set-badge" id="inbox-badge" hidden></span>
+                            <span class="set-chev">&rsaquo;</span>
+                        </div>
                         <div class="set-row" onclick="showSettingsPage('admin-users')">
                             <span class="set-ico set-ico--slate"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                             <span class="set-text"><span class="set-title" data-i18n="settings_admin_users">Brukere</span><span class="set-desc" data-i18n="settings_desc_admin_users">Ansatte, tilgang og ansattnr.</span></span>
@@ -794,12 +864,11 @@
                         <div class="set-row" onclick="showSettingsPage('templates')">
                             <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
                             <span class="set-text"><span class="set-title" data-i18n="settings_prosjekter_section">Prosjekter</span><span class="set-desc" data-i18n="settings_desc_templates">Prosjektliste med adresser</span></span>
-                            <span class="set-badge" id="proj-pending-badge" hidden></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" onclick="showSettingsPage('materials')">
                             <span class="set-ico set-ico--amber"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="settings_materials">Materialer</span><span class="set-desc" data-i18n="settings_desc_materials">Materialer, dimensjoner og plater</span></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_materials">Materialer</span><span class="set-desc" data-i18n="settings_desc_materials">Materialer, isolasjon og festemidler</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" onclick="showSettingsPage('admin-lists')">
@@ -1047,8 +1116,8 @@
                 <div id="settings-page-materials" class="settings-page set-sub" style="display:none;">
                     <div class="tb-seg set-tabs">
                         <button type="button" class="tb-seg-btn active" data-tab="mat" onclick="setSettingsTab(this)" data-i18n="settings_materials">Materialer</button>
-                        <button type="button" class="tb-seg-btn" data-tab="dims" onclick="setSettingsTab(this)" data-i18n="settings_tab_dimensions">Dimensjoner</button>
-                        <button type="button" class="tb-seg-btn" data-tab="plates" onclick="setSettingsTab(this)" data-i18n="settings_tab_plates">Plater</button>
+                        <button type="button" class="tb-seg-btn" data-tab="iso" onclick="setSettingsTab(this)" data-i18n="kappe_product_type_isolasjon">Isolasjon</button>
+                        <button type="button" class="tb-seg-btn" data-tab="fast" onclick="setSettingsTab(this)" data-i18n="kappe_section_fasteners">Festemidler</button>
                     </div>
                     <div class="set-tab-panel" data-tab="mat">
                         <div class="set-card">
@@ -1090,37 +1159,76 @@
                         </div>
                         </div>
                     </div>
-                    <div class="set-tab-panel" data-tab="dims" hidden>
-                        <div class="set-section-title"><span data-i18n="kappe_settings_dimensions">Dimensjoner – iso/festemiddel</span> <span class="set-count" id="settings-count-kappe-dimensions"></span></div>
+                    <!-- Kategorier (bruker 15-11-2026: fanene skal hete det kategorien heter). Isolasjon og
+                         festemidler har hver sin dimensjonsliste (tykkelser / lengder) — se _kappeSplitDims. -->
+                    <div class="set-tab-panel" data-tab="iso" hidden>
+                        <div class="set-section-title" data-i18n="kappe_settings_products">Produkter</div>
+                        <!-- Samme oppbygning som Tykkelser/Lengder under (rader + tekstboks + Legg til). -->
                         <div class="set-card">
-                            <div id="settings-kappe-dim-items" class="settings-list-container"></div>
+                            <div id="settings-kappe-iso-items" class="settings-list-container"></div>
                             <div class="settings-add-row set-add-row">
-                                <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 50" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
-                                <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension()" data-i18n="btn_add">Legg til</button>
+                                <input type="text" id="settings-new-kappe-iso" autocapitalize="sentences" data-i18n-placeholder="kappe_settings_product_placeholder" placeholder="Produktnavn" onkeydown="if(event.key==='Enter'){event.preventDefault();addKappeProductFromSettings('isolasjon');}">
+                                <button type="button" class="settings-add-btn" onclick="addKappeProductFromSettings('isolasjon')" data-i18n="btn_add">Legg til</button>
+                            </div>
+                        </div>
+                        <div class="set-section">
+                            <div class="set-section-title"><span data-i18n="kappe_settings_thickness">Tykkelser (mm)</span> <span class="set-count" id="settings-count-kappe-dimensions"></span></div>
+                            <div class="set-card">
+                                <div id="settings-kappe-dim-items" class="settings-list-container"></div>
+                                <div class="settings-add-row set-add-row">
+                                    <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 50" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
+                                    <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension('iso')" data-i18n="btn_add">Legg til</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="set-section">
+                            <div class="set-section-title"><span data-i18n="kappe_settings_plates">Plater (mm)</span> <span class="set-count" id="settings-count-kappe-plates"></span></div>
+                            <div class="set-card">
+                            <div id="settings-kappe-plate-items" class="set-range-list"></div>
+                            <div class="settings-add-row set-add-row">
+                            <input type="text" id="settings-new-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                            <span class="settings-plate-x">×</span>
+                            <input type="text" id="settings-new-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
+                            <button type="button" class="settings-add-btn" onclick="addKappePlate()" data-i18n="btn_add">Legg til</button>
+                            </div>
+                            </div>
+                            <div class="set-foot" data-i18n="settings_plates_hint">Platestørrelser for isolasjonsprodukter. Knytt produkter til en plate; produkter uten plate bruker den første.</div>
+                        </div>
+                    </div>
+                    <div class="set-tab-panel" data-tab="fast" hidden>
+                        <div class="set-section-title" data-i18n="kappe_settings_products">Produkter</div>
+                        <!-- Samme oppbygning som Tykkelser/Lengder under (rader + tekstboks + Legg til). -->
+                        <div class="set-card">
+                            <div id="settings-kappe-fast-items" class="settings-list-container"></div>
+                            <div class="settings-add-row set-add-row">
+                                <input type="text" id="settings-new-kappe-fast" autocapitalize="sentences" data-i18n-placeholder="kappe_settings_product_placeholder" placeholder="Produktnavn" onkeydown="if(event.key==='Enter'){event.preventDefault();addKappeProductFromSettings('festemiddel');}">
+                                <button type="button" class="settings-add-btn" onclick="addKappeProductFromSettings('festemiddel')" data-i18n="btn_add">Legg til</button>
+                            </div>
+                        </div>
+                        <div class="set-section">
+                            <div class="set-section-title"><span data-i18n="kappe_settings_lengths">Lengder (mm)</span> <span class="set-count" id="settings-count-kappe-fdims"></span></div>
+                            <div class="set-card">
+                                <div id="settings-kappe-fdim-items" class="settings-list-container"></div>
+                                <div class="settings-add-row set-add-row">
+                                    <input type="text" id="settings-new-kappe-fdim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 50" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension('fast');}">
+                                    <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension('fast')" data-i18n="btn_add">Legg til</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="set-tab-panel" data-tab="plates" hidden>
-                        <div class="set-section-title"><span data-i18n="kappe_settings_plates">Plater (mm)</span> <span class="set-count" id="settings-count-kappe-plates"></span></div>
-                        <div class="set-card">
-                        <div id="settings-kappe-plate-items" class="set-range-list"></div>
-                        <div class="settings-add-row set-add-row">
-                        <input type="text" id="settings-new-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
-                        <span class="settings-plate-x">×</span>
-                        <input type="text" id="settings-new-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
-                        <button type="button" class="settings-add-btn" onclick="addKappePlate()" data-i18n="btn_add">Legg til</button>
-                        </div>
-                        </div>
-                        <div class="set-foot" data-i18n="settings_plates_hint">Platestørrelser for isolasjonsprodukter. Knytt produkter til en plate; produkter uten plate bruker den første.</div>
-                    </div>
+                </div>
+
+                <!-- Admin › Til godkjenning: montørenes prosjekter + materialer (renderAdminInbox). -->
+                <div id="settings-page-admin-inbox" class="settings-page set-sub" style="display:none;">
+                    <div id="admin-inbox-body"></div>
                 </div>
 
                 <div id="settings-page-templates" class="settings-page set-sub" style="display:none;">
-                    <!-- Montørenes forslag + admins egne (ikke felles ennå) — _projRenderPending. -->
+                    <!-- Admins egne prosjekter fra før (ikke felles ennå) — _projRenderPending. Montørenes
+                         forslag ligger i Admin › Til godkjenning. -->
                     <div class="set-section" id="proj-pending-wrap" hidden>
-                        <div class="set-section-title"><span data-i18n="proj_pending_title">Til godkjenning</span> <span class="set-count" id="proj-pending-count"></span></div>
+                        <div class="set-section-title"><span data-i18n="proj_own_title">Dine egne – ikke felles ennå</span> <span class="set-count" id="proj-pending-count"></span></div>
                         <div class="set-card adm-list" id="proj-pending-list"></div>
-                        <div class="set-foot" data-i18n="proj_pending_hint">Montøren kan bruke prosjektet allerede. Ingen andre ser det før du godkjenner.</div>
                     </div>
                     <div class="set-section-title" data-i18n="proj_shared_title">Felles prosjekter</div>
                     <div class="set-card adm-list settings-prosjekter-section">
@@ -2585,10 +2693,11 @@
         <button class="btn-timebok" data-acc="timebok" onclick="showTimebok()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span data-i18n="toolbar_timebok">Timebok</span></button>
         <button class="btn-settings" onclick="showSettingsModal()"><span class="menu-pending-dot" id="menu-pending-dot" hidden></span><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
+    <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=465"></script>
-    <script src="script.js?v=605"></script>
-    <script src="script-ui.js?v=1394"></script>
+    <script src="lang.js?v=471"></script>
+    <script src="script.js?v=611"></script>
+    <script src="script-ui.js?v=1404"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

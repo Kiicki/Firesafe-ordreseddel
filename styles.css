@@ -13623,3 +13623,24 @@ html:not(.is-super):not(.dev-mode) .super-only { display: none !important; }
     background: #E8501A; color: #fff; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; }
 /* Første seksjon på siden: ingen luft over; «Felles prosjekter» får vanlig seksjonsavstand under den. */
 #proj-pending-wrap { margin-top: 0; margin-bottom: 22px; }
+/* Admin › Til godkjenning + banner på Hjem (15-11-2026) */
+.home-inbox { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 14px; padding: 11px 14px; border: none; border-radius: 12px;
+    background: #fff1ea; box-shadow: 0 0 0 1px #f6c9b3; text-align: left; font-family: inherit; cursor: pointer; }
+.home-inbox .set-title { color: #1a1a1a; }
+.home-inbox:active { background: #ffe4d6; }
+.home-inbox[hidden], #mat-review-units-row[hidden], .tpl-similar[hidden], .tpl-note[hidden] { display: none !important; }
+.inbox-empty { padding: 16px 14px; font-size: 14px; color: #6b6b73; line-height: 1.45; }
+.inbox-first { margin-top: 0; }
+.mat-review-type { padding: 10px 0 2px; font-size: 15px; color: #1a1a1a; }
+.picker-pending-chip { margin-left: 6px; flex-shrink: 0; }
+/* Kappe-produktvelger: «+ Nytt produkt / Ny isolasjon / Nytt festemiddel» nederst i produktlista. */
+.kappe-product-picker-row.kappe-picker-add-row { border-style: dashed; border-color: #E8501A; color: #E8501A; gap: 4px; }
+.kappe-picker-add-plus { font-size: 17px; line-height: 1; }
+.kappe-picker-brands .kappe-product-picker-row.kappe-picker-add-row .kappe-product-picker-name { color: #E8501A; font-weight: 400; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+/* Produktnavn i kappe-produktvelgeren kuttes aldri («Rockwool …») — går heller over to linjer. */
+.kappe-picker-brands .kappe-product-picker-row .kappe-product-picker-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+/* Godkjenn materiale: typevelger i full bredde (som et felt), skjulte felt-rader. */
+.mat-review-type-btn { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font-size: 15px; text-align: left; }
+.mat-review-type-btn:disabled { opacity: 0.6; }
+#mat-review-plate-row[hidden], #ppl-review-similar[hidden] { display: none !important; }
+.ppl-review-seg { margin: 4px 0 2px; }

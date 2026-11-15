@@ -922,7 +922,17 @@ function _normalizeKappePlate(plate) {
     return { length: L, width: W, productNames: pn };
 }
 
-function _buildKappeCatalog(products, dimensions, plates) {
+// Dimensjoner er DELT pr. kategori (15-11-2026, bruker: fanene Isolasjon | Festemidler i Admin ›
+// Materialer): `dimensions` = isolasjonstykkelser, `fastenerDimensions` = festemiddel-lengder.
+// Før var det én felles liste. Kataloger uten `dimsSplit` er gamle: begge listene starter da som
+// en kopi av den felles lista (ingenting forsvinner — admin sletter det som ikke hører til).
+function _kappeSplitDims(cat) {
+    cat = cat || {};
+    var dims = (cat.dimensions || []).concat(cat.dimsSplit ? [] : (cat.fastenerDimensions || []));
+    var fd = (cat.dimsSplit && Array.isArray(cat.fastenerDimensions)) ? cat.fastenerDimensions : dims.slice();
+    return { dims: dims, fd: fd };
+}
+function _buildKappeCatalog(products, dimensions, plates, fastenerDimensions) {
     var seenProducts = {};
     var normalizedProducts = [];
     (products || []).forEach(function(product) {
@@ -963,6 +973,8 @@ function _buildKappeCatalog(products, dimensions, plates) {
     return {
         products: normalizedProducts,
         dimensions: _dedupeKappeDimensions(dimensions),
+        fastenerDimensions: _dedupeKappeDimensions(Array.isArray(fastenerDimensions) ? fastenerDimensions : (dimensions || []).slice()),
+        dimsSplit: true,
         plates: normalizedPlates
     };
 }
@@ -1052,22 +1064,32 @@ function _kappeSharedCatalogRaw() {
 function getKappeCatalog() {
     var shared = _kappeSharedCatalogRaw();
     if (shared) {
-        var extra = [];
+        var extra = [], extraF = null;
         try {
             var own = JSON.parse(localStorage.getItem(KAPPE_CATALOG_KEY) || 'null');
             if (own && Array.isArray(own.extraDims)) extra = own.extraDims;
+            if (own && Array.isArray(own.extraFastDims)) extraF = own.extraFastDims;
         } catch (e) {}
-        return _buildKappeCatalog(shared.products, (shared.dimensions || []).concat(extra), shared.plates || []);
+        var sp = _kappeSplitDims(shared);
+        // Montørens egne produkter (venter på / avvist av admin) — se MONTØRENS MATERIALER.
+        var prods = shared.products.slice();
+        if (typeof _matMineKappe === 'function') _matMineKappe().forEach(function (p) {
+            if (!prods.some(function (x) { return String(x.name || '').toLowerCase() === p.name.toLowerCase(); })) prods.push(p);
+        });
+        return _buildKappeCatalog(prods, sp.dims.concat(extra), shared.plates || [], sp.fd.concat(extraF || extra));
     }
     try {
         var raw = localStorage.getItem(KAPPE_CATALOG_KEY);
         if (raw) {
             var parsed = JSON.parse(raw);
             if (parsed && Array.isArray(parsed.products)) {
-                // Slå sammen eventuell tidligere fastenerDimensions-liste tilbake til
-                // en felles dim-liste. _dedupeKappeDimensions sorterer og fjerner duplikater.
-                var combined = (parsed.dimensions || []).concat(parsed.fastenerDimensions || []);
-                return _buildKappeCatalog(parsed.products, combined, parsed.plates || []);
+                // Isolasjon / festemidler: hver sin dimensjonsliste (se _kappeSplitDims).
+                var spOwn = _kappeSplitDims(parsed);
+                var ownProds = parsed.products.slice();
+                if (typeof _matMineKappe === 'function') _matMineKappe().forEach(function (p) {
+                    if (!ownProds.some(function (x) { return String(x.name || '').toLowerCase() === p.name.toLowerCase(); })) ownProds.push(p);
+                });
+                return _buildKappeCatalog(ownProds, spOwn.dims, parsed.plates || [], spOwn.fd);
             }
         }
     } catch (e) {}
@@ -1130,10 +1152,9 @@ function getKappeDimensions() {
     return getKappeCatalog().dimensions;
 }
 
-// Beholdt som semantisk alias — peker til samme felles dim-liste.
-// Brukes som indikasjon på at picker forventer festemiddel-lengder (vs iso-tykkelser).
+// Festemiddel-lengder — egen liste (Admin › Materialer › Festemidler), se _kappeSplitDims.
 function getKappeFastenerDimensions() {
-    return getKappeDimensions();
+    return getKappeCatalog().fastenerDimensions || [];
 }
 
 function _migrateOldKappeProducts(oldProducts) {
@@ -2217,7 +2238,7 @@ if (auth) {
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY, ANSATTE_KEY,
              MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY, KAPPE_CATALOG_SHARED_KEY,
-             'firesafe_project_overrides', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
+             'firesafe_project_overrides', 'firesafe_my_materials', 'firesafe_my_people', 'firesafe_ansatte_extra', 'firesafe_sug_pending', 'firesafe_sug_badge', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             // Kvitteringsbildene (IndexedDB) tilhører forrige bruker.
@@ -3844,6 +3865,7 @@ function _scrollPickerOneRowAfterDup(name) {
     _scrollPickerTargetIntoView(name, { focusAntall: true });
 }
 let pickerRenderFn = null; // Reference to renderPickerList inside closure
+let pickerUseNewFn = null; // Ta i bruk et nettopp lagt til materiale (se _pickerUseNewMaterial i script-ui.js)
 
 var pickerConfirmCallback = null;
 
@@ -4075,6 +4097,9 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
             : matType === 'kappe-isolation' ? '<span class="picker-mat-dot picker-mat-dot-isolation"></span>'
             : matType === 'kappe-stift' ? '<span class="picker-mat-dot picker-mat-dot-stift"></span>'
             : '';
+        // Montørens eget materiale som venter på admin.
+        const pendingChip = (typeof _matIsPending === 'function' && _matIsPending(parseMaterialPickerKey(name).baseName || name))
+            ? '<span class="proj-pending-chip picker-pending-chip">' + escapeHtml(t('mat_pending_chip')) + '</span>' : '';
         let variantBadge = '';
         if (hasVariants && !typeDot) {
             var _bm = allMaterials.find(function(m) { return m.name === (parseMaterialPickerKey(name).baseName || name); });
@@ -4095,7 +4120,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         const antallPlaceholder = isStiftLauncher ? t('btn_select') : t('placeholder_quantity');
         const disabledAttr = (isSpecLauncher || isIsolationLauncher) ? ' disabled' : '';
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}" data-mat-source="${escapeHtml(source || '')}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}${meterPillHtml}</span>${typeDot}${variantBadge}${meterBadge}</div>
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}${meterPillHtml}</span>${typeDot}${variantBadge}${meterBadge}${pendingChip}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
             ${unitBtn}${dupBtn}${delBtn}
         </div>`;
@@ -4421,8 +4446,48 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         }, prefill);
     }
 
+    // Nytt materiale fra «+ Nytt materiale» → ta det i bruk med en gang (bruker 15-11-2026).
+    function _useNewMaterial(name, type, variant) {
+        renderPickerList();
+        if (type === 'isolasjon') {
+            // Isolasjonskortet (med det som er valgt fra før) + en ny gruppe → tykkelsesvelgeren
+            // med det nye produktet aktivt.
+            _openIsoMaterialPopup();
+            var blocksC = document.getElementById('iso-card-blocks');
+            if (!blocksC || typeof _createIsoCardBlock !== 'function') return;
+            var last = blocksC.querySelector('.iso-card-block:last-child');
+            var block = (last && !last._sel) ? last : blocksC.appendChild(_createIsoCardBlock({}));
+            if (typeof _isoRefreshGroupTitles === 'function') _isoRefreshGroupTitles(blocksC.querySelectorAll('.iso-card-block'));
+            var btn = block.querySelector('[onclick^="_isoGroupOpenProductPicker"]') || block;
+            setTimeout(function () { _isoGroupOpenProductPicker(btn, name); }, 0);
+            return;
+        }
+        if (type === 'festemiddel') {
+            _openStiftMaterialPopup();
+            if (typeof _fastenerOpenPicker === 'function' && typeof _FASTENER_CTX_POPUP !== 'undefined') {
+                setTimeout(function () { _fastenerOpenPicker(_FASTENER_CTX_POPUP, name); }, 0);
+            }
+            return;
+        }
+        var mat = allMaterials.find(function (m) { return String(m.name || '').toLowerCase() === String(name || '').toLowerCase(); });
+        var key = mat ? mat.name : name;
+        if (type === 'mansjett' || type === 'brannpakning' || type === 'kabelhylse') {
+            _openSpecMultiForBase(key, type);
+            return;
+        }
+        // Standard: valgt enhet (ny variant) + Antall i fokus. Raden blir valgt når antall skrives
+        // (samme regel som alle standard-rader — et tomt antall gir ingen ordrelinje).
+        var hasV = mat && mat.allowedUnits && mat.allowedUnits.length;
+        var defEnhet = variant || (hasV ? (typeof mat.allowedUnits[0] === 'string' ? mat.allowedUnits[0] : (mat.allowedUnits[0].plural || mat.allowedUnits[0])) : 'stk');
+        pickerState[key] = pickerState[key] || { checked: false, antall: '', enhet: defEnhet };
+        if (variant) pickerState[key].enhet = variant;
+        renderPickerList();
+        _scrollPickerTargetIntoView(key, { focusAntall: true });
+    }
+
     function renderPickerList() {
         pickerRenderFn = renderPickerList;
+        pickerUseNewFn = _useNewMaterial;
         // Hent ferske materialer hver render — så et nylig lagt til materiale
         // (addPickerMaterial oppdaterer cachedMaterialOptions) vises umiddelbart
         // i stedet for å rendre fra det utdaterte åpne-tidspunkt-øyeblikksbildet.
@@ -4733,7 +4798,9 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         // Admin kan legge til nye materialer direkte fra pickeren (samme funksjon
         // som i Innstillinger). Skjemaet ligger nederst i lista og bygges på nytt
         // ved hver render (state-drevet) — input fylles bare når brukeren er i det.
-        if (isAdmin && typeof _pickerAddMaterialFormHtml === 'function') {
+        // Montør også (15-11-2026): det blir montørens eget materiale + forslag til admin
+        // (se MONTØRENS MATERIALER i script-ui.js) — montøren skal aldri stå fast.
+        if (typeof _pickerAddMaterialFormHtml === 'function') {
             html += _pickerAddMaterialFormHtml();
         }
 
@@ -5156,8 +5223,11 @@ function openMaterialKappePicker(callback, prefill) {
         products: products,
         dimensions: defaultDimensions.concat(stiftSizes),
         getDimensionsForProduct: function(product) {
-            // Festemiddel-produkter (Stift, Brannskruer, ...) bruker fastener-dim-listen.
-            return product && product.type === 'festemiddel' ? stiftSizes : defaultDimensions;
+            // Festemiddel-produkter (Stift, Brannskruer, ...) bruker lengdene, isolasjon tykkelsene.
+            // Leses live, så «+ Ny dimensjon» i velgeren vises med en gang.
+            return product && product.type === 'festemiddel'
+                ? _getUniqueKappeMaterialSizes(getKappeFastenerDimensions())
+                : getKappeDimensions();
         },
         showPlate: false,
         showBredde: true,
@@ -7095,12 +7165,20 @@ function openPersonPicker() {
         if (taken[val.toLowerCase()] || (me && val.toLowerCase() === me.toLowerCase())) return;
         candidates.push({ value: val, label: full });
     });
+    // Montørens egne (lagt til med «+», venter på / avvist av admin) — se PERSONER i script-ui.js.
+    if (typeof _pplVisible === 'function') _pplVisible().forEach(function(p) {
+        var v = String(p.name || '').trim();
+        if (!v || taken[v.toLowerCase()] || candidates.some(function(c) { return c.value.toLowerCase() === v.toLowerCase(); })) return;
+        candidates.push({ value: v, label: v, pending: p.forslag === 'pending' });
+    });
+    if (typeof _pplSync === 'function') _pplSync();
 
     var listEl = document.getElementById('person-popup-list');
     var html = candidates.length
         ? candidates.map(function(c) {
             return '<div class="plan-popup-row" data-person="' + escapeHtml(c.value) + '">' +
                 '<span class="plan-popup-name">' + escapeHtml(c.label) + '</span>' +
+                (c.pending ? '<span class="proj-pending-chip">' + escapeHtml(t('mat_pending_chip')) + '</span>' : '') +
                 '</div>';
         }).join('')
         : '<div class="popup-list-empty">' + escapeHtml(t('dag_timer_person_none')) + '</div>';
