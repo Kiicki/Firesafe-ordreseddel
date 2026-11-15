@@ -28186,16 +28186,24 @@ function _accApply() {
     _sugLive();   // admin: live tall for «Til godkjenning»
 }
 var _ACC_VIEW_MODULE = { 'template-modal': 'hjem', 'saved-modal': 'lagret', 'view-form': 'ordreseddel', 'service-view': 'servicebil', 'kappe-view': 'kappe', 'kvittering-view': 'timebok', 'calculator-modal': 'calc', 'timebok-view': 'timebok', 'sjekkliste-view': 'sjekkliste' };
+var _accPageRefreshedUid = null;   // innstillingssiden tegnet på nytt når innloggingen ble klar
 function _accEnforce() {
     if (!currentUser) return;
     // Første innlogging (ingen cache): vent på svaret fra lista før brukeren flyttes —
     // ellers havner en godkjent bruker i Meny mens tilgangen fortsatt lastes.
     if (!_acc.admin && !_acc.entry && !_acc.entryKnown) return;
+    // Første gang innloggingen + admin-status er klar i denne økten (uansett hvilken side man står på).
+    var firstReady = !!(_acc.adminKnown && _accPageRefreshedUid !== currentUser.uid);
+    if (firstReady) _accPageRefreshedUid = currentUser.uid;
     var v = document.querySelector('.view.active');
     if (!v || v.id === 'login-view') return;
     if (v.id === 'settings-modal') {
         var page = sessionStorage.getItem('firesafe_settings_page');
-        if (page && !_accSettingsPageAllowed(page)) showSettingsMenu();
+        if (page && !_accSettingsPageAllowed(page)) { showSettingsMenu(); return; }
+        // Omlasting på en innstillingsside: siden ble tegnet FØR innlogging/admin-status var
+        // klar (Admin-sidene ble da tomme, f.eks. Brukere). Tegn den åpne siden på nytt ÉN gang
+        // når innloggingen er klar. Gjelder alle innstillingssider, ikke bare Brukere.
+        if (page && firstReady && document.body.classList.contains('settings-subpage-open')) showSettingsPage(page, true);
         return;
     }
     if (v.id === 'saved-modal') {
@@ -28619,7 +28627,8 @@ var _admStore = {
 function _admBuildUsers(res) {
     var admins = {};
     if (res[2]) res[2].docs.forEach(function (d) { admins[d.id] = true; });
-    if (currentUser) admins[currentUser.uid] = true;
+    var selfUid = _admSelfUid();
+    if (selfUid) admins[selfUid] = true;
     var users = {};
     var get = function (key) { return users[key] || (users[key] = { email: key, name: '', entry: null, dir: null, admin: false, fbAdmin: false }); };
     res[0].docs.forEach(function (d) { var u = get(d.id); u.entry = d.data(); u.name = u.entry.name || ((u.entry.fornavn || '') + ' ' + (u.entry.etternavn || '')).trim(); if (u.entry.admin) u.admin = true; });
@@ -28638,7 +28647,7 @@ function _admBuildUsers(res) {
     var f = _firma();
     Object.keys(users).forEach(function (k) {
         var u = users[k];
-        var isSelf = !!(u.dir && currentUser && u.dir.uid === currentUser.uid);
+        var isSelf = !!(u.dir && selfUid && u.dir.uid === selfUid);
         var keep = isSelf || (u.entry ? _entryFirma(u.entry) === f
             : (!u.fbAdmin && (!u.dir || !u.dir.firma || u.dir.firma === 'none' || u.dir.firma === f)));
         if (!keep) delete users[k];
@@ -28647,15 +28656,71 @@ function _admBuildUsers(res) {
 }
 // cached = bare tegn på nytt fra sist hentede data (fanebytte), uten ny henting.
 var _admLastRes = null;
+// Cache-først (som de andre admin-sidene): siste hentede liste lagres lokalt (pr. bruker +
+// firma) og tegnes MED EN GANG — også rett etter omlasting, før innloggingen er klar —
+// så hentes fersk liste fra Firebase og siden tegnes på nytt. Firestore-tidsstempler
+// lagres som { __ts: ms } og gjenopprettes med toDate/toMillis.
+var ADM_USERS_CACHE_KEY = 'firesafe_adm_users';
+function _admTsOut(v) {
+    if (v && typeof v.toMillis === 'function') return { __ts: v.toMillis() };
+    if (Array.isArray(v)) return v.map(_admTsOut);
+    if (v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = _admTsOut(v[k]); }); return o; }
+    return v;
+}
+function _admTsIn(v) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.__ts === 'number' && Object.keys(v).length === 1) {
+        var ms = v.__ts;
+        return { toMillis: function () { return ms; }, toDate: function () { return new Date(ms); }, seconds: Math.floor(ms / 1000) };
+    }
+    if (Array.isArray(v)) return v.map(_admTsIn);
+    if (v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = _admTsIn(v[k]); }); return o; }
+    return v;
+}
+// Innlogget bruker — før innloggingen er klar: uid fra tilgangs-cachen (samme bruker som sist).
+function _admSelfUid() {
+    if (currentUser) return currentUser.uid;
+    var c = safeParseJSON(ACC_CACHE_KEY, null);
+    return (c && c.uid) || localStorage.getItem('firesafe_last_uid') || null;
+}
+function _admSaveUsersCache(res) {
+    if (!currentUser || !Array.isArray(res)) return;
+    try {
+        safeSetItem(ADM_USERS_CACHE_KEY, JSON.stringify({ uid: currentUser.uid, firma: _firma(),
+            res: res.map(function (r) { return r && r.docs ? r.docs.map(function (d) { return { id: d.id, data: _admTsOut(d.data()) }; }) : null; }) }));
+    } catch (e) { console.error('adm users cache:', e); }
+}
+function _admLoadUsersCache() {
+    var c = safeParseJSON(ADM_USERS_CACHE_KEY, null);
+    var uid = _admSelfUid();
+    if (!c || !uid || c.uid !== uid || c.firma !== _firma() || !Array.isArray(c.res)) return null;
+    return c.res.map(function (a) {
+        return a ? { docs: a.map(function (x) { var dd = _admTsIn(x.data); return { id: x.id, data: function () { return dd; } }; }) } : null;
+    });
+}
 function renderAdminUsers(cached) {
     var host = document.getElementById('adm-users');
     if (!host) return;
-    if (!_acc.admin || !currentUser || !db) { host.innerHTML = ''; return; }
-    if (!(cached && _admLastRes)) host.innerHTML = '<div class="adm-info">' + escapeHtml(t('adm_loading')) + '</div>';
-    (cached && _admLastRes ? Promise.resolve(_admLastRes) : Promise.all([_admStore.load(), _ansExtraLoad()]).then(function (r) { return r[0]; })).then(function (res) {
+    if (!_acc.admin) { host.innerHTML = ''; return; }
+    if (cached && _admLastRes) { _admDrawUsers(host, _admLastRes, true); return; }
+    var disk = _admLoadUsersCache();
+    if (disk) _admDrawUsers(host, disk, false);
+    else host.innerHTML = '<div class="adm-info">' + escapeHtml(t('adm_loading')) + '</div>';
+    if (!currentUser || !db) return;   // innloggingen tegner siden på nytt når den er klar (_accEnforce)
+    Promise.all([_admStore.load(), _ansExtraLoad()]).then(function (r) {
+        _admSaveUsersCache(r[0]);
+        var pg = document.getElementById('settings-page-admin-users');
+        if (pg && pg.style.display === 'none') { _admLastRes = r[0]; _admUsers = _admBuildUsers(r[0]); _admPublishAnsatte(_admUsers); return; }
+        _admDrawUsers(host, r[0], true);
+    }).catch(function () {
+        if (!disk) host.innerHTML = '<div class="adm-info adm-error">' + escapeHtml(t('adm_load_error')) + '</div>';
+    });
+}
+// fresh = data fra Firebase (eller fanebytte på slike) → personvelgerens navneliste oppdateres.
+function _admDrawUsers(host, res, fresh) {
+    {
         _admLastRes = res;
         _admUsers = _admBuildUsers(res);
-        _admPublishAnsatte(_admUsers);   // personvelgerens navneliste følger Brukere
+        if (fresh) _admPublishAnsatte(_admUsers);   // personvelgerens navneliste følger Brukere
         var ms = function (u) { return u.dir && u.dir.lastSeen && u.dir.lastSeen.toMillis ? u.dir.lastSeen.toMillis() : 0; };
         var list = Object.keys(_admUsers).map(function (k) { return _admUsers[k]; });
         // Ikke innlogget ennå (nylig lagt inn) øverst, deretter sist aktiv.
@@ -28706,9 +28771,7 @@ function renderAdminUsers(cached) {
             if (attempts.length) h += '<div class="set-card adm-list">' + attempts.map(row).join('') + '</div>';
         }
         host.innerHTML = h;
-    }).catch(function () {
-        host.innerHTML = '<div class="adm-info adm-error">' + escapeHtml(t('adm_load_error')) + '</div>';
-    });
+    }
 }
 // key = e-post (eksisterende) eller null (ny bruker). Samme skjema for ny og
 // eksisterende: navn, e-post, telefon, notat, tilgang, admin, deaktivert.
@@ -28794,7 +28857,8 @@ function openAdmUser(key) {
     // Admin: hovedadmin (Firebase) kan ikke endres her; du kan ikke fjerne deg selv som admin.
     h += '<div class="adm-row"><span>' + escapeHtml(t('adm_make_admin')) + '<span class="adm-pop-sub">' + escapeHtml(t('adm_make_admin_hint')) + '</span></span>' +
         sw('__admin', !!(u && u.admin), !!(u && (u.fbAdmin || self)), '_admAdminToggled(this)') + '</div>';
-    if (!(u && (u.fbAdmin || self))) {
+    // «Deaktiver bruker» bare på EKSISTERENDE brukere — gir ingen mening når man legger til en ny.
+    if (!isNew && !(u.fbAdmin || self)) {
         h += '<div class="adm-row" id="adm-dis-row"' + (u && u.admin ? ' style="display:none"' : '') + '><span>' + escapeHtml(t('adm_disable')) + '<span class="adm-pop-sub">' + escapeHtml(t('adm_disable_hint')) + '</span></span>' +
             sw('__disabled', !!e.disabled, false) + '</div>';
     }
