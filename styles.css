@@ -13708,3 +13708,41 @@ body:has(.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-pop
 .settings-row-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .settings-row-tap:active { background: #f7f7f9; }
 .settings-material-name-wrap { cursor: pointer; }
+/* Skrive-felt over kolonnene i produkt/størrelse-velgeren (samme bredder som kolonnene). */
+.kappe-picker-qrow { display: flex; background: #fff; border-bottom: 1px solid #e8e8e8; }
+.kappe-picker-q { min-width: 0; padding: 8px; box-sizing: border-box; }
+.kappe-picker-q-prod { flex: 1 1 64%; border-right: 1px solid #e8e8e8; }
+.kappe-picker-q-dim { flex: 1 1 36%; }
+.kappe-picker-unit-choice .kappe-picker-q-prod, .kappe-picker-unit-choice .kappe-picker-q-dim { flex-basis: 50%; }
+.kappe-picker-q input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; font-family: inherit; background: #f7f7f9; }
+.kappe-picker-q input:focus { outline: none; border-color: #E8501A; background: #fff; }
+.kappe-picker-add-row small { font-weight: 400; color: #a0a0a8; }
+/* Smale kolonner (360 px): litt mindre luft rundt produktnavnet, og bryt bare MELLOM ord
+   («Brannskrue / r» midt i ordet så feil ut). */
+.kappe-picker-brands .kappe-product-picker-row { padding-right: 8px; }
+.kappe-picker-brands .kappe-picker-type-dot { margin-right: 8px; }
+.kappe-picker-brands .kappe-product-picker-row .kappe-product-picker-name { overflow-wrap: break-word; word-break: normal; hyphens: auto; -webkit-hyphens: auto; }
+/* Plate under kolonnene: knapper (produktets plater + «Annen»); feltene bare ved «Annen». */
+#product-dimension-picker-plate-section { border-top: 1px solid #e8e8e8; padding: 10px 12px 4px; }
+.kappe-picker-plate-row.kappe-plate-row-hidden { display: none; }
+#product-dimension-picker-plate-section .kappe-plate-chips { margin: 6px 0 0; }
+#product-dimension-picker-plate-section .kappe-picker-plate-row { margin-top: 8px; }
+/* Valgt plateknapp: samme skrifttykkelse som de andre, så bredden ikke endres (ellers hoppet «Annen» ned på ny linje). */
+.kappe-plate-chip.active { font-weight: 400; }
+/* Plateknappene står ALLTID på én linje (ingen hopp når «Annen» velges); mange plater → rull sidelengs. */
+#product-dimension-picker-plate-section .kappe-plate-chips,
+#kappe-picker-spec-plate-wrap .kappe-plate-chips { flex-wrap: nowrap; overflow-x: auto; gap: 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+#product-dimension-picker-plate-section .kappe-plate-chips::-webkit-scrollbar { display: none; }
+.kappe-plate-chip { flex-shrink: 0; white-space: nowrap; padding: 6px 9px; }
+#product-dimension-picker-plate-section .kappe-plate-chips, #kappe-picker-spec-plate-wrap .kappe-plate-chips { gap: 5px; }
+#product-dimension-picker-plate-section .kappe-plate-chip, #kappe-picker-spec-plate-wrap .kappe-plate-chip { padding: 6px 8px; }
+.inbox-rules { padding: 12px 14px; font-size: 14px; color: #1a1a1a; line-height: 1.45; }
+/* Admin › Til godkjenning › Hva sendes hit: ✓ / – + tittel + forklaring. */
+.inbox-rules { padding: 0; }
+.inbox-rule { display: flex; align-items: flex-start; gap: 12px; padding: 11px 14px; }
+.inbox-rule + .inbox-rule { border-top: 1px solid #ececf0; }
+.inbox-rule-ico { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #ececf0; color: #8a8a90; font-size: 13px; line-height: 22px; text-align: center; margin-top: 1px; }
+.inbox-rule-ico.yes { background: #e6f4ea; color: #2e9e5b; }
+.inbox-rule-text { display: flex; flex-direction: column; min-width: 0; }
+.inbox-rule-title { font-size: 15px; color: #1a1a1a; }
+.inbox-rule-sub { font-size: 12px; color: #8a8a90; margin-top: 1px; }

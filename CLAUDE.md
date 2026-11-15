@@ -139,6 +139,24 @@ async function getMyData(lastDoc) {
 
 **Det er ikke akseptabelt å implementere ny brukerdata uten Firebase-sync.** Hvis du er i tvil om data tilhører "brukerdata" (synces) eller "midlertidig state" (kun lokal): synces det.
 
+## VIKTIG: Montørforslag og «Til godkjenning» skal alltid stemme
+
+Felles registre (prosjekter, materialer, isolasjon, festemidler, personer) eies av admin. Når en **montør** legger til noe nytt, blir det montørens eget (brukes med en gang) **og** sendes som forslag til admin (`firms/{firma}/projectSuggestions`, felt `kind`). Admin godkjenner/retter/slår sammen/avviser i **Admin › Til godkjenning**, og fanen **«Hva sendes hit»** viser reglene for admin.
+
+**Gjeldende regler:**
+- **Sendes til godkjenning:** prosjekter, materialer (også nye enheter), isolasjonsprodukter, festemiddelprodukter, personer («Annen person» i Arbeidstid).
+- **Sendes IKKE:** tykkelser/lengder og plate «Annen» (gjelder bare den ene linjen — hurtigvalg, ikke register), etasjer/valglister (bare admin).
+- Ingen av/på-brytere: montøren skal aldri stå fast, og admin skal aldri ha egne ting hos montører som aldri blir sett.
+
+**Når noe nytt skal kunne legges til av montør (eller reglene over endres), oppdater ALT dette i samme endring:**
+- [ ] Innsending (eget + forslag) etter samme mønster som `_projSubmit` / `_matSubmit` / `_pplSubmit` (script-ui.js), med ny `kind`
+- [ ] Montørens synk av admins avgjørelse (som `_matSync` / `_pplSync`)
+- [ ] Innboksen: ny gruppe i `renderAdminInbox` + godkjenningsvindu med ALL informasjon (admin skal ikke måtte gå til en annen side etterpå)
+- [ ] Tallet/banneret: `_sugBannerTexts` (Hjem-banner) teller den nye `kind`
+- [ ] **Fanen «Hva sendes hit»: `_renderInboxRules` + `inbox_r_*`-tekstene i lang.js** — legg til/flytt linjen under «Sendes til godkjenning» eller «Sendes ikke»
+- [ ] Denne seksjonen i CLAUDE.md
+- [ ] Firestore-regler bare hvis ny samling (forslag bruker `projectSuggestions` — da trengs ingen nye regler)
+
 ## VIKTIG: Tastatur-håndtering på mobil/nettbrett
 
 Appen brukes mye på mobil og nettbrett. Når brukeren tapper på et input-felt åpnes skjermtastaturet. **Test alltid både uten og med tastatur åpent** før du erklærer en UI-endring som ferdig.

@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1175">
+    <link rel="stylesheet" href="styles.css?v=1180">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -1212,7 +1212,13 @@
 
                 <!-- Admin › Til godkjenning: montørenes prosjekter + materialer (renderAdminInbox). -->
                 <div id="settings-page-admin-inbox" class="settings-page set-sub" style="display:none;">
-                    <div id="admin-inbox-body"></div>
+                    <!-- Faner som de andre innstillingssidene: forslagene først, reglene én fane unna. -->
+                    <div class="tb-seg set-tabs">
+                        <button type="button" class="tb-seg-btn active" data-tab="queue" onclick="setSettingsTab(this)"><span data-i18n="inbox_tab_queue">Venter</span> <span class="set-tab-count" id="inbox-tab-count"></span></button>
+                        <button type="button" class="tb-seg-btn" data-tab="rules" onclick="setSettingsTab(this)" data-i18n="inbox_tab_rules">Hva sendes hit</button>
+                    </div>
+                    <div class="set-tab-panel" data-tab="queue"><div id="admin-inbox-body"></div></div>
+                    <div class="set-tab-panel" data-tab="rules" hidden><div id="admin-inbox-rules"></div></div>
                 </div>
 
                 <div id="settings-page-templates" class="settings-page set-sub" style="display:none;">
@@ -1626,16 +1632,6 @@
             <div class="spec-popup-header">
                 <span id="product-dimension-picker-title" data-i18n="kappe_col_produkt">Produkt</span>
             </div>
-            <div class="kappe-picker-plate-section" id="product-dimension-picker-plate-section">
-                <label class="kappe-picker-plate-label" id="ppl-plate-label" data-i18n="kappe_plate_dim">Plate (mm)</label>
-                <div class="kappe-picker-plate-row" id="ppl-plate-row">
-                    <input type="text" id="kappe-picker-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
-                    <span class="kappe-plate-x">×</span>
-                    <input type="text" id="kappe-picker-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
-                </div>
-                <div class="kappe-plate-chips" id="kappe-picker-plate-chips" hidden></div>
-                <div class="kappe-picker-plate-placeholder" id="ppl-plate-placeholder" style="display:none" data-i18n="kappe_fastener_no_plate">Festemiddel — ingen platemål</div>
-            </div>
             <div class="kappe-picker-bredde-section" id="product-dimension-picker-bredde-section" style="display:none">
                 <div class="kappe-picker-mode-toggle kappe-picker-mode-toggle-iso" id="kappe-picker-mode-toggle-iso" role="tablist">
                     <button type="button" class="kappe-picker-mode-btn active" data-mode="bredde" onclick="_setKappePickerSpecMode('bredde')">Bredde</button>
@@ -1666,12 +1662,12 @@
                 </div>
                 <div class="kappe-picker-spec-plate" id="kappe-picker-spec-plate-wrap">
                     <label class="kappe-picker-plate-label">Plate (mm)</label>
-                    <div class="kappe-picker-plate-row">
+                    <div class="kappe-plate-chips" id="kappe-picker-spec-plate-chips" hidden></div>
+                    <div class="kappe-picker-plate-row" id="kappe-picker-spec-plate-row">
                         <input type="text" id="kappe-picker-spec-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
                         <span class="kappe-plate-x">×</span>
                         <input type="text" id="kappe-picker-spec-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
                     </div>
-                    <div class="kappe-plate-chips" id="kappe-picker-spec-plate-chips" hidden></div>
                 </div>
                 <div class="kappe-picker-fastener-hint" id="kappe-picker-fastener-hint" style="display:none">
                     <div class="kappe-picker-hint-line"><strong>Stk</strong> &middot; enkeltvise stykker</div>
@@ -1679,9 +1675,28 @@
                     <div class="kappe-picker-hint-note">Antall fylles på raden etter Velg</div>
                 </div>
             </div>
+            <!-- Skriv rett i kolonnen (bruker 15-11-2026): lista er hurtigvalg/forslag. Produkt: filtrer, eller
+                 «+ navn» = nytt produkt (husket; montør → forslag til admin). Størrelse: filtrer, eller
+                 «Bruk 45mm» = gjelder bare denne linjen (ikke lagt i lista, ikke sendt som forslag). -->
+            <div class="kappe-picker-qrow">
+                <div class="kappe-picker-q kappe-picker-q-prod"><input type="search" id="kappe-picker-prod-q" autocomplete="off" autocapitalize="sentences" data-i18n-placeholder="kappe_q_prod_ph" placeholder="Søk / nytt" oninput="_kappePickerProdQ(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();_kappePickerProdEnter();}"></div>
+                <div class="kappe-picker-q kappe-picker-q-dim"><input type="text" id="kappe-picker-dim-q" autocomplete="off" inputmode="decimal" data-i18n-placeholder="kappe_q_dim_ph" placeholder="mm" oninput="_kappePickerDimQ(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();_kappePickerDimEnter();}"></div>
+            </div>
             <div class="kappe-picker-split">
                 <div class="kappe-picker-brands" id="kappe-picker-brands-list"></div>
                 <div class="kappe-picker-dimensions" id="kappe-product-picker-list"></div>
+            </div>
+            <!-- Plate (mm) UNDER kolonnene: produkt → tykkelse → plate (platene hører til produktet).
+                 Bare knapper (produktets plater + «Annen»); feltene vises først ved «Annen» (bruker 15-11-2026). -->
+            <div class="kappe-picker-plate-section" id="product-dimension-picker-plate-section">
+                <label class="kappe-picker-plate-label" id="ppl-plate-label" data-i18n="kappe_plate_dim">Plate (mm)</label>
+                <div class="kappe-plate-chips" id="kappe-picker-plate-chips" hidden></div>
+                <div class="kappe-picker-plate-row" id="ppl-plate-row">
+                    <input type="text" id="kappe-picker-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                    <span class="kappe-plate-x">×</span>
+                    <input type="text" id="kappe-picker-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
+                </div>
+                <div class="kappe-picker-plate-placeholder" id="ppl-plate-placeholder" style="display:none" data-i18n="kappe_fastener_no_plate">Festemiddel — ingen platemål</div>
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel kappe-picker-clear-btn" id="kappe-picker-clear-btn" style="display:none" onclick="clearKappeLineProductFromPicker()" data-i18n="kappe_clear_product">Nullstill</button>
@@ -2715,9 +2730,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=477"></script>
+    <script src="lang.js?v=481"></script>
     <script src="script.js?v=616"></script>
-    <script src="script-ui.js?v=1414"></script>
+    <script src="script-ui.js?v=1419"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
