@@ -9653,6 +9653,10 @@ body.timebok-view-open #view-form { display: none; }
 /* Timesats/arbeidsgiver satt av admin: låst (grå), med «· satt av admin» i etiketten. */
 .tb-set-locked { font-weight: 400; color: #8a8a90; text-transform: none; letter-spacing: 0; }
 .tb-set-card .tb-sat-select:disabled, .tb-sat-input.tb-set-input:disabled { background: #f3f3f6; color: #6b6b73; opacity: 1; }
+/* Arbeidsgiver + timesats: bare visning (settes av admin i Admin › Brukere), to og to. */
+.tb-set-ro-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.tb-set-ro { font-size: 15px; color: #222; padding: 2px 0; }
+.tb-set-hint.tb-set-ro-hint { margin-top: -4px; }
 .tb-af-box { background: #f5f5f7; border-radius: 12px; padding: 0 8px 6px; }
 .tb-af-group { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6b73; padding: 10px 0 2px; }
 /* Én kolonne (kodevelgeren + Auto-fyll): to kolonner brøt lange kodenavn over to
@@ -12509,11 +12513,151 @@ body.settings-modal-open:not(.settings-subpage-open) #settings-modal .modal-body
 .set-profile-name { display: block; font-size: 17px; font-weight: 600; color: #1a1a1a; overflow-wrap: anywhere; }
 .set-profile-name .adm-badge { font-size: 10px; }
 .set-section { margin-top: 22px; }
+/* Avstanden skiller en seksjon fra kortet over — øverst på siden er det ingenting å skille
+   fra, og sidens egen kantmarg (16 px) er nok. Ellers 16 + 22 px luft (f.eks. over «Firma»). */
+.settings-page > .set-section:first-child { margin-top: 0; }
 .set-section-title {
     font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
     color: #8a8a90; padding: 0 4px 7px;
 }
 .set-card { overflow: hidden; }
+
+/* ═══ Innstillinger → undersider i kort-stil (.settings-page.set-sub) ═══
+   Samme uttrykk som hovedmenyen: grå side, små grå titler, hvite kort. Faner øverst
+   (.set-tabs) viser én del om gangen i stedet for sammenleggbare seksjoner, så siden
+   holdes kort. Tas i bruk side for side (Ordreseddel først, 15-11-2026). */
+body.settings-modal-open.settings-subpage-open.settings-sub-cards #settings-modal .modal-body { background: #f2f2f5; }
+.set-tabs { background: #e4e4e9; margin-bottom: 18px; }   /* mørkere bane: synlig mot grå side */
+.set-tabs .tb-seg-btn { padding: 9px 4px; }
+.set-count { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.set-foot { font-size: 13px; color: #8a8a90; line-height: 1.45; padding: 7px 4px 0; }
+.set-foot:empty { display: none; }
+.set-sub .settings-status { border-top: none; }
+/* Sammendrag-kort øverst (f.eks. neste ordrenummer): stort tall + grå detaljer. */
+.set-summary { padding: 12px 16px 14px; }
+.set-summary-label { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #8a8a90; }
+.set-summary-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 14px; margin-top: 2px; }
+.set-summary-big { font-size: 28px; font-weight: 700; color: #E8501A; line-height: 1.15; }
+.set-summary-meta { font-size: 13px; color: #8a8a90; padding: 0; line-height: 1.4; }
+.set-summary[hidden] + .set-section { margin-top: 0; }   /* uten serier: ingen ekstra luft under fanene */
+/* Liste-rader (nummerserier o.l.) inne i et kort, med skillelinje som hovedmenyen. */
+.set-range-list:empty { display: none; }
+.set-range-list .settings-range-item { padding: 8px 6px 8px 16px; font-size: 15px; color: #222; border-bottom: 1px solid #ececf0; }
+/* Legg-til-rad nederst i kortet. */
+.set-add-row { border: none; border-radius: 0; margin: 0; padding: 10px 12px; gap: 6px; }
+.set-add-row input { padding: 9px 10px; font-size: 15px; border-color: #dcdce2; border-radius: 8px; }
+/* Knappen like høy som feltene ved siden av (før lavere, 13px). */
+.set-add-row .settings-add-btn, .set-add-row .settings-give-btn, .set-add-row .settings-add-plan-btn {
+    margin: 0; padding: 0 14px; align-self: stretch; border-radius: 8px; font-size: 14px; font-weight: 400;
+}
+/* Gitt bort-rader: samme nøytrale rad som Mine numre (seksjonstittelen sier hva de er). */
+.set-range-list .settings-given-item { background: none; }
+/* Bryter-rader: tekst til venstre, bryter til høyre. -input: tekstfelt i midten (f.eks. Sted). */
+.set-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; font-size: 15px; color: #222; }
+.set-toggle-row + .set-toggle-row { border-top: 1px solid #ececf0; }
+.set-toggle-row .settings-toggle { flex-shrink: 0; }
+.set-toggle-row-input > label[for] { flex-shrink: 0; }
+.set-toggle-row-input > input[type="text"] {
+    flex: 1; min-width: 0; box-sizing: border-box;
+    padding: 8px 10px; border: 1px solid #dcdce2; border-radius: 8px; font-size: 15px; color: #222; outline: none;
+}
+.set-toggle-row-input > input[type="text"]:focus { border-color: #E8501A; }
+.set-toggle-row-input > input[type="text"]:disabled { background: #f2f2f5; color: #999; }
+/* Ikke-aktiv bryter (f.eks. Timebok-kode slått av for arbeidsgiveren): grå tekst. */
+.set-toggle-row.set-toggle-off { color: #a0a0a8; }
+.set-toggle-row small { font-size: 12px; color: #a0a0a8; }
+/* Felt-rader: navn til venstre, verdi / felt / nedtrekksliste til høyre (som telefonens
+   egne innstillinger). Feltet krymper før navnet kuttes. */
+.set-field-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; min-height: 46px; box-sizing: border-box; font-size: 15px; color: #222; }
+.set-field-row + .set-field-row { border-top: 1px solid #ececf0; }
+.set-field-label { flex-shrink: 0; }
+.set-field-value { color: #6b6b73; text-align: right; min-width: 0; }
+.set-field-input, .set-field-select {
+    min-width: 0; box-sizing: border-box; border: 1px solid #dcdce2; border-radius: 8px;
+    padding: 7px 10px; font-size: 15px; font-weight: 400; color: #222; background-color: #fff; outline: none; font-family: inherit;
+}
+.set-field-input { width: 96px; text-align: right; }
+.set-field-select {
+    flex: 0 1 auto; max-width: 62%;
+    -webkit-appearance: none; appearance: none; padding-right: 26px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; text-overflow: ellipsis;
+}
+.set-field-input:focus, .set-field-select:focus { border-color: #E8501A; }
+/* Felt-rad med tekstfelt i full bredde (Profil, Firma › Lager): fast etikett-bredde så
+   feltene står på linje. */
+.set-field-row-input > .set-field-label { width: 92px; }
+.set-field-input.set-field-input-wide { flex: 1; width: auto; text-align: left; }
+.set-field-input:disabled { background: #f2f2f5; color: #8a8a90; -webkit-text-fill-color: #8a8a90; opacity: 1; }
+/* Kort med innvendig luft (f.eks. segmentvalg i et kort, som Firma-velgeren i menyen). */
+.set-card.set-card-pad { padding: 10px 12px; }
+.set-card-pad .tb-seg { margin-bottom: 0; }
+/* «Nytt materiale»-skjemaet på kort-sider: hvitt kort som resten (ikke grå boks). */
+.set-sub .settings-add-material-row { background: #fff; margin: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.04); }
+/* Forklaring over første kort i en fane (i stedet for under). */
+.set-foot.set-foot-top { padding: 0 4px 12px; }
+/* Antall i en fane (f.eks. «Brukere 4»). */
+.set-tab-count { font-size: 12px; color: #8a8a90; }
+.tb-seg-btn.active .set-tab-count { color: inherit; opacity: 0.75; }
+/* Admin › Brukere: rader i kortet + «Legg til bruker» som første rad (som telefonens
+   egne lister: oransje pluss-ikon + tekst). */
+.adm-list .adm-user { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
+.adm-list > * + * { border-top: 1px solid #ececf0; }
+.adm-list .adm-user:active, .adm-add-row:active { background: #f7f7f9; }
+/* Admin › Satser i kort-stil. */
+.set-sub #tb-satser { display: block; padding-bottom: 24px; }
+.tb-sat-card2 { padding: 4px 12px 10px; }
+.set-section-title.tb-sat-tariffhead { display: flex; align-items: baseline; justify-content: space-between; }
+.tb-sat-rows .tb-satc { padding: 10px 14px; border-bottom: 1px solid #ececf0; }
+.tb-sat-rows .tb-satc:last-child { border-bottom: none; }
+.tb-codes-card .tb-satc-rate .tb-sat-input { width: 62px; }
+.tb-codes-card .tb-satc-rate .tb-sat-unit { width: 48px; }
+.tb-codes-card .tb-satc-name { overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; }
+/* Eldre innhold (lister/brytere tegnet av JS) inne i et kort på en kort-side: samme
+   «ingen egen ramme»-regler som den gamle sammenleggbare boksen hadde, så alt står flatt
+   i kortet med skillelinjer. */
+.set-card .settings-list-item, .set-card .settings-toggle-item { border: none; border-radius: 0; margin-bottom: 0; }
+.set-card .settings-range-item { background: none; border-radius: 0; margin-bottom: 0; }
+.set-card .settings-list-container { margin-bottom: 0; }
+.set-card .settings-group { border: none; border-radius: 0; margin-bottom: 0; overflow: visible; background: none; }
+.set-card .settings-list-container > * + * { border-top: 1px solid #ececf0; }
+.set-card .settings-add-plan-row { margin: 0; border: none; border-radius: 0; }
+.set-card .settings-list-container:not(:empty) + .set-add-row { border-top: 1px solid #ececf0; }
+.set-range-list:not(:empty) + .set-add-row { border-top: 1px solid #ececf0; }
+/* Sjekkliste: valgliste-rader (antall til høyre) og popupen med lista. */
+.sj-set-count { flex-shrink: 0; font-size: 14px; color: #8a8a90; }
+.sj-set-prev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sj-list-popup .sj-set-hint { font-size: 13px; color: #8a8a90; line-height: 1.4; margin: 0 2px 10px; }
+#sj-list-popup .set-card { box-shadow: 0 0 0 1px #e6e6ea; }
+/* Tilleggskoder: kompakt rad (trykk = detalj-popup). */
+.tb-code-row { cursor: pointer; }
+.tb-code-row:active { background: #f7f7f9; }
+.tb-code-row .tb-satc-sub { font-size: 12px; margin-top: 2px; }
+.tb-code-row .settings-menu-arrow { flex-shrink: 0; color: #c4c4ca; font-size: 18px; margin-left: 2px; }
+.tb-code-row.off .tb-satc-sub { color: #b8b8be; }
+/* Detalj-popupen: litt større knapper enn i lista (god plass, treffes med hansker). */
+#tb-code-popup .tb-af-group { padding: 14px 0 0; }
+#tb-code-popup .tb-flag { padding: 8px 4px; font-size: 13px; }
+#tb-code-popup .tb-chiprow { margin-top: 14px; }
+#tb-code-popup .tb-chiprow-label { font-size: 12px; }
+#tb-code-popup .tb-chiprow .tb-flag { padding: 8px 14px; }
+.tb-code-pop-sub { font-size: 13px; color: #8a8a90; }
+/* Rød handlingsrad nederst (slett), som telefonens egne innstillinger. */
+.set-danger-row {
+    display: block; width: 100%; padding: 13px 14px; border: none; background: none; cursor: pointer;
+    font-family: inherit; font-size: 15px; font-weight: 400; color: #c0392b; text-align: center;
+}
+.set-danger-row:active { background: #fdf0ef; }
+.set-danger-row:disabled { opacity: 0.4; cursor: default; }
+.adm-add-row {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px;
+    border: none; background: none; cursor: pointer; font-family: inherit;
+    font-size: 15px; font-weight: 400; color: #E8501A; text-align: left;
+}
+.adm-add-ico {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: #fff1ea;   /* = .adm-avatar */
+    display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; color: #E8501A;
+}
 .set-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; cursor: pointer; position: relative; }
 /* Skillelinje mellom rader, innrykket forbi ikonet. */
 .set-row + .set-row::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; border-top: 1px solid #ececf0; }

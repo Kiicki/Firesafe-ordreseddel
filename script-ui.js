@@ -2589,7 +2589,13 @@ function _renderSettingsProfileCard() {
     em.style.display = name && email ? '' : 'none';
 }
 
+// Scroll-posisjon i Innstillinger: en underside åpner ALLTID på toppen (før arvet den menyens
+// posisjon — f.eks. Satser langt nede i menyen åpnet midt i siden, ved «Normtid pr. dag»).
+// Tilbake til menyen = samme sted som du forlot den. Gjelder alle undersider.
+var _settingsMenuScroll = 0;
+function _settingsBody() { return document.querySelector('#settings-modal .modal-body'); }
 function showSettingsMenu() {
+    var fromSub = document.body.classList.contains('settings-subpage-open');
     _renderSettingsProfileCard();
     _syncFirmaUi();
     if (typeof DEV_MODE !== 'undefined' && DEV_MODE) document.querySelectorAll('#dev-role-seg .tb-seg-btn').forEach(function (b) {
@@ -2599,6 +2605,8 @@ function showSettingsMenu() {
     document.getElementById('settings-page-menu').style.display = 'block';
     document.getElementById('settings-header-title').textContent = t('settings_title');
     document.body.classList.remove('settings-subpage-open');
+    var smb = _settingsBody();
+    if (smb) smb.scrollTop = fromSub ? _settingsMenuScroll : 0;
     const header = document.getElementById('settings-header');
     const existingBack = header.querySelector('.settings-back-btn');
     if (existingBack) existingBack.remove();
@@ -2635,10 +2643,17 @@ function showSettingsPage(page, replace) {
         showSettingsMenu();
         return;
     }
+    var smb2 = _settingsBody();
+    if (smb2 && !document.body.classList.contains('settings-subpage-open')) _settingsMenuScroll = smb2.scrollTop;   // fra menyen
     document.querySelectorAll('.settings-page').forEach(p => p.style.display = 'none');
     pageEl2.style.display = pageEl2.classList.contains('settings-page-flex') ? 'flex' : 'block';
+    if (smb2) smb2.scrollTop = 0;
     document.getElementById('settings-header-title').textContent = getSettingsPageTitle(page);
     document.body.classList.add('settings-subpage-open');
+    // Kort-stil (.set-sub): grå bakgrunn som hovedmenyen. Faner: alltid første fane ved åpning.
+    document.body.classList.toggle('settings-sub-cards', pageEl2.classList.contains('set-sub'));
+    var firstTab = pageEl2.querySelector('.set-tabs .tb-seg-btn');
+    if (firstTab) setSettingsTab(firstTab, true);
     if (replace) history.replaceState(null, '', '#settings/' + page);
     else history.pushState(null, '', '#settings/' + page);
     sessionStorage.setItem('firesafe_settings_page', page);
@@ -2934,7 +2949,7 @@ window.addPersonFromPicker = addPersonFromPicker;
 
 function _timebokGenId(prefix) { return prefix + '_' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36); }
 
-// Timesats vises øverst i Personlig-fanen (din egen timelønn, felles for alle tariffer).
+// Brukerens egen timesats (Meny › Timebok). Brukes bare til å regne lønn i Timebok.
 function saveTimebokTimesats(val) {
     var v = parseLocaleNum(val);
     _timebokSaveSettings({ timesats: isNaN(v) ? null : v });
@@ -2950,81 +2965,61 @@ function _timebokSaveSettings(patch) {
 // ── Innstillinger → Timebok → Personlig: timesats, standard transport, reise-stil, auto-fyll ──
 // Alt her er brukerens egne valg (Satser = tariffen, felles for alle).
 function renderTimebokSettings() {
-    var host = document.getElementById('tb-settings');
-    if (!host) return;
+    var payHost = document.getElementById('tb-settings-pay');
+    var afHost = document.getElementById('tb-settings-af');
+    if (!payHost || !afHost) return;
     var st = getTimebokSettings();
     var opt = function (v, label, cur) { return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + escapeHtml(label) + '</option>'; };
-    // Ett kompakt kort, etikett over hvert felt (som referansen). Rekkefølge:
-    // timesats → reise-stil (+ forklaring) → transport → auto-fyll.
-    // Timesats og arbeidsgiver er arbeidsgiverens sak: har admin satt dem (Admin → Brukere →
-    // Timebok), vises de låst med «satt av admin». Resten styrer brukeren selv.
-    var admTb = (typeof _acc !== 'undefined' && _acc.entry && _acc.entry.timebok) || null;
-    var lockTs = !!(admTb && admTb.timesats != null), lockEmp = !!(admTb && admTb.travelStyle) || !!(typeof _firmaForTimebok === 'function' && _firmaForTimebok());
-    var field = function (label, ctrl, locked) {
-        return '<label class="tb-set-field"><span class="tb-set-label">' + escapeHtml(label) +
-            (locked ? ' <span class="tb-set-locked">· ' + escapeHtml(t('tb_set_locked_admin')) + '</span>' : '') + '</span>' + ctrl + '</label>';
+    // Kort-stil (som Meny › Ordreseddel): rader med navn til venstre og verdi/felt til høyre.
+    // Timesats = brukerens EGEN (Timebok brukes til å sjekke egen lønnsslipp; bruker
+    // 15-11-2026: «jeg er ikke sjef, så jeg burde ikke sette timesats for andre»).
+    // Arbeidsgiver = firmaet admin har tildelt (Admin › Brukere) — vises bare.
+    var row = function (label, ctrl, forId) {
+        return '<div class="set-field-row"><' + (forId ? 'label for="' + forId + '"' : 'span') + ' class="set-field-label">' + escapeHtml(label) +
+            '</' + (forId ? 'label' : 'span') + '>' + ctrl + '</div>';
     };
-    var tsInput = _tbNumInput(getTimebokTimesats(), "saveTimebokTimesats(this.value)", 'tb-set-input');
-    if (lockTs) tsInput = tsInput.replace('<input ', '<input disabled ');
-    // Egen side (Meny › Timebok): to bokser med overskrift, som de andre innstillingssidene.
-    var h = '<div class="settings-static-header">' + escapeHtml(t('tb_set_sec_pay')) + '</div>' +
-        '<div class="tb-sat-card tb-set-card">' +
-        field(t('tb_set_timesats'), tsInput, lockTs) +
-        field(t('tb_set_style'),
-            '<select class="tb-sat-select"' + (lockEmp ? ' disabled' : '') + ' onchange="_tbSetTravelStyle(this.value)">' +
-                opt('firesafe', 'Firesafe', st.travelStyle) + opt('damsgard', 'Damsgård Brannsikring', st.travelStyle) +
-            '</select>', lockEmp) +
-        // Lønnsperiode: startdag i måneden. Brukes av eksport/periode-totaler.
-        field(t('tb_set_payperiod'),
-            '<select class="tb-sat-select" onchange="_tbSetPayStart(this.value)">' +
-                (function () {
-                    var o = '';
-                    for (var d = 1; d <= 28; d++) {
-                        var lbl = d === 1 ? t('tb_set_pay_full_month') : (d + '. – ' + (d - 1) + '.');
-                        if (d === getTimebokPayStartDefault(st.travelStyle)) lbl += ' (' + t('tb_set_pay_default') + ')';
-                        o += '<option value="' + d + '"' + (d === st.payStart ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
-                    }
-                    return o;
-                })() +
-            '</select>') +
-        field(t('tb_set_transport'),
-            '<select class="tb-sat-select" onchange="_timebokSaveSettings({ transport: this.value })">' +
-                opt('firma', t('timebok_firma'), st.transport) + opt('privat', t('timebok_privat'), st.transport) +
-            '</select>');
-    h += '</div>';
-    // Auto-fyll: ALLE koder vises (samme liste og rekkefølge som Satser — brukerens krav).
-    // Koder som er deaktivert for arbeidsgiveren står grå med «Ikke aktiv» og kan ikke
-    // hukes av: de kan ikke legges til på en dag, så auto-fyll av dem ville ikke gjort noe.
+    var payOpts = '';
+    for (var d = 1; d <= 28; d++) {
+        var lbl = d === 1 ? t('tb_set_pay_full_month') : (d + '. – ' + (d - 1) + '.');
+        if (d === getTimebokPayStartDefault(st.travelStyle)) lbl += ' (' + t('tb_set_pay_default') + ')';
+        payOpts += '<option value="' + d + '"' + (d === st.payStart ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    }
+    payHost.innerHTML =
+        '<div class="set-card">' +
+            row(t('tb_set_style'), '<span class="set-field-value">' + escapeHtml(_firmaName(st.travelStyle)) + '</span>') +
+            row(t('tb_set_timesats'), _tbNumInput(getTimebokTimesats(), 'saveTimebokTimesats(this.value)', 'set-field-input').replace('<input ', '<input id="tb-set-timesats" placeholder="0" '), 'tb-set-timesats') +
+            row(t('tb_set_payperiod'), '<select id="tb-set-pay" class="set-field-select" onchange="_tbSetPayStart(this.value)">' + payOpts + '</select>', 'tb-set-pay') +
+            row(t('tb_set_transport'), '<select id="tb-set-transport" class="set-field-select" onchange="_timebokSaveSettings({ transport: this.value })">' +
+                opt('firma', t('timebok_firma'), st.transport) + opt('privat', t('timebok_privat'), st.transport) + '</select>', 'tb-set-transport') +
+        '</div>' +
+        '<div class="set-foot">' + escapeHtml(t('tb_set_admin_hint')) + '</div>';
+
+    // Autofyll: ALLE koder vises (samme liste og rekkefølge som Satser — brukerens krav), som
+    // brytere i ett kort pr. gruppe. Koder som er deaktivert for arbeidsgiveren står grå med
+    // «ikke aktiv» og kan ikke slås på: de kan ikke legges til på en dag uansett.
     var on = {};
     st.autofill.forEach(function (id) { on[id] = true; });
     var activeIds = {};
     _timebokCodesFor().forEach(function (c) { activeIds[c.id] = true; });
     activeIds.__travel = true;
-    var cb = function (id, label) {
+    var sw = function (id, label) {
         var act = !!activeIds[id];
-        return '<label class="tb-af-item' + (act ? '' : ' tb-af-inactive') + '"><input type="checkbox"' + (on[id] && act ? ' checked' : '') + (act ? '' : ' disabled') +
-            ' onchange="_tbToggleAutofill(\'' + escapeHtml(id) + '\', this.checked)"><span>' + escapeHtml(label) +
-            (act ? '' : ' <small>' + escapeHtml(t('tb_set_autofill_inactive')) + '</small>') + '</span></label>';
+        return '<label class="set-toggle-row' + (act ? '' : ' set-toggle-off') + '"><span>' + escapeHtml(label) +
+            (act ? '' : ' <small>' + escapeHtml(t('tb_set_autofill_inactive')) + '</small>') + '</span>' +
+            '<span class="settings-toggle"><input type="checkbox"' + (on[id] && act ? ' checked' : '') + (act ? '' : ' disabled') +
+            ' onchange="_tbToggleAutofill(\'' + escapeHtml(id) + '\', this.checked)"><span class="settings-toggle-slider"></span></span></label>';
     };
-    var gh = '';
+    var gh = '<div class="set-foot set-foot-top">' + escapeHtml(t('tb_set_autofill_desc') + ' ' + t('tb_set_autofill_inactive_hint')) + '</div>';
+    var first = true;
     TIMEBOK_CODE_GROUPS.forEach(function (g) {
         var items = TIMEBOK_CODES.filter(function (c) { return c.group === g; }).map(function (c) { return { id: c.id, label: c.label }; });
         if (g === 'reise') items.push({ id: '__travel', label: t('timebok_day_travel') });   // sist, som i Satser
         if (!items.length) return;
-        gh += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div><div class="tb-af-grid">' +
-            items.map(function (x) { return cb(x.id, x.label); }).join('') + '</div>';
+        gh += '<div class="' + (first ? '' : 'set-section') + '"><div class="set-section-title">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' +
+            '<div class="set-card" lang="nb">' + items.map(function (x) { return sw(x.id, x.label); }).join('') + '</div></div>';
+        first = false;
     });
-    h += '<div class="settings-static-header tb-set-head2">' + escapeHtml(t('tb_set_autofill')) + '</div>' +
-        '<div class="tb-sat-card tb-set-card">' +
-            '<span class="tb-set-hint">' + escapeHtml(t('tb_set_autofill_desc') + ' ' + t('tb_set_autofill_inactive_hint')) + '</span>' +
-            '<div class="tb-af-box" lang="nb">' + gh + '</div>' +
-        '</div>';
-    host.innerHTML = h;
-}
-function _tbSetTravelStyle(v) {
-    _timebokSaveSettings({ travelStyle: v === 'damsgard' ? 'damsgard' : 'firesafe' });
-    if (typeof _timebokUpdateDayTotals === 'function' && document.getElementById('timebok-day-projects')) _timebokUpdateDayTotals();
-    renderTimebokSettings();   // lønnsperiodens «(standard)» følger arbeidsgiver
+    afHost.innerHTML = gh;
 }
 // Lik arbeidsgiverens standard → lagres som «følg arbeidsgiver» (null), så den bytter med.
 function _tbSetPayStart(v) {
@@ -3152,18 +3147,80 @@ function _tbSatRow(name, flagsPath, flags, right, extraBody, sub, toggle, afterF
         (body ? '<div class="tb-satc-body">' + body + '</div>' : '') +
     '</div>';
 }
-function _tbCodeSatHtml(tf, def) {
-    var right;
-    if (def.own) {
-        var unit = '<span class="tb-sat-unit">' + _TB_RATE_UNIT[def.input] + '</span>';
-        right = '<span class="tb-satc-rate">' + _tbNumInput(_timebokOwnRate(def.id, tf), "_tbSatSetRate('" + def.id + "', this.value)") + unit + '</span>';
+// ── Tilleggskoder: kompakt rad + detalj-popup ──
+// Lista (Admin › Satser › Tilleggskoder) viser én rad pr. kode: bryter · navn · sats/beregning,
+// og en grå linje med flaggene som er på. Flagg, −Normtid og «Vises for» endres i en popup
+// (trykk på raden) — før sto alle knappene fremme på hver kode (150+ piller, tungt å lese;
+// bruker 15-11-2026). def = null → Reisegodtgjørelse (avstandstabell + bracketFlags).
+var _tbCodePopId = null;
+var _TB_TRAVEL_ID = '__travel';
+function _tbCodeSummary(tf, def) {
+    var emp = _tbSatEmp();
+    var id = def ? def.id : _TB_TRAVEL_ID;
+    var flags = def ? _timebokCodeFlags(def, tf) : (tf.bracketFlags || []);
+    var parts = TIMEBOK_FLAGS.filter(function (f) { return _timebokFlagsHas(flags, f); }).map(function (f) { return _TB_FLAG_LABELS[f]; });
+    if (def && (def.input === 'hours' || def.input === 'clock') && getTimebokNormSettings(emp).codes.indexOf(def.id) !== -1) parts.push(t('tb_flag_norm'));
+    // «Vises for» bare når koden er begrenset (begge = standard, ikke verdt en linje).
+    var sc = _timebokCodeScope(id, emp);
+    if (sc !== 'both') parts.push(t(sc === 'internal' ? 'tb_scope_only_internal' : 'tb_scope_only_project'));
+    var flagsTxt = parts.length ? parts.join(' · ') : t('tb_code_no_flags');
+    // Beregningen («Timesats × 1,5») står først i linja for koder uten egen sats, så navnet
+    // får hele bredden (før brøt «Overtid 50% (Org.)» på 360 px).
+    var calc = !def ? t('tb_code_distances').replace('{0}', (tf.brackets || []).length) : (!def.own ? _tbCodeDesc(def) : '');
+    return (calc ? calc + ' — ' : '') + flagsTxt;
+}
+function _tbCodeRowCompact(tf, def) {
+    var id = def ? def.id : _TB_TRAVEL_ID;
+    var name = def ? def.label : t('timebok_day_travel');
+    // Til høyre bare satsfeltet (koder med egen sats); beregningen står i den grå linja.
+    var right = (def && def.own) ? '<span class="tb-satc-rate" onclick="event.stopPropagation()">' + _tbNumInput(_timebokOwnRate(def.id, tf), "_tbSatSetRate('" + def.id + "', this.value)") +
+        '<span class="tb-sat-unit">' + _TB_RATE_UNIT[def.input] + '</span></span>' : '';
+    var on = !def || _timebokDisabledCodes(_tbSatEmp()).indexOf(def.id) === -1;
+    // Bryter (aktiv/deaktivert for arbeidsgiveren) og satsfeltet stopper klikket, resten åpner popupen.
+    var sw = def ? '<label class="tb-switch" onclick="event.stopPropagation()" title="' + escapeHtml(t('tb_sat_code_active')) + '"><input type="checkbox"' + (on ? ' checked' : '') +
+        ' onchange="_tbSatToggleCode(\'' + def.id + '\', this.checked)"><span></span></label>' : '';
+    return '<div class="tb-satc tb-code-row' + (on ? '' : ' off') + '" onclick="openTbCodePopup(\'' + id + '\')">' +
+        '<div class="tb-satc-head">' + sw +
+            '<div class="tb-satc-text"><span class="tb-satc-name">' + escapeHtml(name).replace(/\//g, '/<wbr>') + '</span>' +
+                '<span class="tb-satc-sub">' + escapeHtml(_tbCodeSummary(tf, def)) + '</span></div>' +
+            right +
+            '<span class="settings-menu-arrow">&rsaquo;</span>' +
+        '</div></div>';
+}
+function openTbCodePopup(id) {
+    _tbCodePopId = id;
+    _tbCodePopRender();
+    document.getElementById('tb-code-popup').classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+function closeTbCodePopup() {
+    document.getElementById('tb-code-popup').classList.remove('active');
+    _tbCodePopId = null;
+    renderTimebokSatser();   // flagg-knappene tegner ikke lista på nytt — oppdater oppsummeringene
+}
+function _tbCodePopRender() {
+    var tf = _tbSatserTariff(), id = _tbCodePopId;
+    if (!tf || !id) return;
+    var def = id === _TB_TRAVEL_ID ? null : _timebokCodeDef(id);
+    if (id !== _TB_TRAVEL_ID && !def) return;
+    document.getElementById('tb-code-pop-title').textContent = def ? def.label : t('timebok_day_travel');
+    var h = '<div class="tb-code-pop-sub">' + escapeHtml(t('tb_code_pop_tariff').replace('{0}', tf.name)) + '</div>';
+    if (!def) {
+        h += '<div class="tb-af-group">' + escapeHtml(t('tb_sat_travel_table')) + '</div>' +
+            '<div class="tb-sat-brhead"><span>' + escapeHtml(t('timebok_distance')) + '</span><span>' + escapeHtml(t('timebok_firma')) + '</span><span>' + escapeHtml(t('timebok_privat')) + '</span><span></span></div>' +
+            (tf.brackets || []).map(function (b) {
+                return '<div class="tb-sat-br"><span class="tb-sat-name">' + escapeHtml(b.label) + '</span>' +
+                    _tbNumInput(b.rate, "_tbSatSetBracket('" + b.id + "', 'rate', this.value)") +
+                    _tbNumInput(b.ratePrivat, "_tbSatSetBracket('" + b.id + "', 'ratePrivat', this.value)") +
+                    '<button type="button" class="tb-sat-del" onclick="_tbSatRemove(\'br\', \'' + b.id + '\')" aria-label="Fjern">&times;</button></div>';
+            }).join('') +
+            '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'br\')">' + escapeHtml(t('tb_sat_add_bracket')) + '</button>' +
+            '<div class="tb-af-group">' + escapeHtml(t('tb_code_pop_flags')) + '</div>' + _tbFlagsHtml('bracketFlags', tf.bracketFlags);
     } else {
-        right = '<span class="tb-satc-desc">' + escapeHtml(_tbCodeDesc(def)) + '</span>';
+        h += '<div class="tb-af-group">' + escapeHtml(t('tb_code_pop_flags')) + '</div>' + _tbCodeFlagsHtml(tf, def);
     }
-    // Bryter: koden aktiv/deaktivert for arbeidsgiveren som vises (alle koder vises alltid).
-    var toggle = { id: def.id, on: _timebokDisabledCodes(_tbSatEmp()).indexOf(def.id) === -1 };
-    // Samme rad for begge arbeidsgivere: tariff-flaggene + «−Normtid» på timekodene.
-    return _tbSatRow(def.label, null, null, right, _tbCodeFlagsHtml(tf, def) + _tbCodeScopeHtml(def.id), '', toggle);
+    h += _tbCodeScopeHtml(id);
+    document.getElementById('tb-code-pop-body').innerHTML = h;
 }
 // «Vises for»: to av/på-knapper Prosjekt + Internt (begge på = begge) — hvilke prosjektkort
 // koden tilbys på i «+ Legg til kode» (se _timebokCodeScope, script.js). Pr. arbeidsgiver,
@@ -3235,34 +3292,29 @@ function _tbSatSetRate(id, val) {
     });
 }
 function renderTimebokSatser() {
-    var host = document.getElementById('tb-satser');
-    if (!host) return;
+    var tHost = document.getElementById('tb-satser-tariff');
+    var cHost = document.getElementById('tb-satser-codes');
+    if (!tHost || !cHost) return;
     var emp = _tbSatEmp();
     var list = getTimebokTariffs(emp);
     var tf = _tbSatserTariff();
-    if (!tf) { host.innerHTML = ''; return; }
+    if (!tf) { tHost.innerHTML = ''; cHost.innerHTML = ''; return; }
     var active = _timebokTariffFor(_timebokTodayId(), emp);
     var today = _timebokTodayId();
     var status = (active && active.id === tf.id) ? '<span class="tb-sat-status active">● ' + escapeHtml(t('tb_sat_active')) + '</span>'
         : (String(tf.validFrom) > today ? '<span class="tb-sat-status">' + escapeHtml(t('tb_sat_future')) + '</span>'
         : '<span class="tb-sat-status">' + escapeHtml(t('tb_sat_history')) + '</span>');
-    // To tydelige deler: TARIFF (velger + trekk og grunnlag) og TILLEGGSKODER (én boks
-    // pr. kodegruppe, samme rekkefølge som i Timebok). Begge gjelder valgt tariff.
-    var section = function (title, desc) {
-        return '<div class="tb-sat-section"><div class="tb-sat-section-title">' + escapeHtml(title) + '</div>' +
-            '<div class="tb-sat-section-desc">' + escapeHtml(desc) + '</div></div>';
-    };
-    // Arbeidsgiver: Firesafe og Damsgård har hver sine tariffer, satser og koder.
-    var h = section(t('tb_sat_sec_tariff'), t('tb_sat_sec_tariff_desc'));
-    // Tariff-delen = ÉN grå boks (samme stil som Tilleggskoder): valgt tariff (nedtrekk,
-    // status + små knapper på én rad, kort forklaring) og Trekk og grunnlag under.
+    // To faner (kort-stil som resten av Innstillinger): TARIFF (velger + trekk og grunnlag) og
+    // TILLEGGSKODER (ett kort pr. kodegruppe, samme rekkefølge som i Timebok). Begge gjelder
+    // valgt tariff. Firesafe og Damsgård har hver sine tariffer, satser og koder.
     var num = function (field, unit) {
         return '<span class="tb-satc-rate">' + _tbNumInput(tf[field], "_tbSatSet('" + field + "', this.value)") + '<span class="tb-sat-unit">' + unit + '</span></span>';
     };
-    h += '<div class="tb-satc-box">' +
+    var h = '<div class="set-foot set-foot-top">' + escapeHtml(t('tb_sat_sec_tariff_desc')) + '</div>' +
         // Status («● Aktiv i dag» / historikk / fremtidig) står i overskriftslinja.
-        '<div class="tb-af-group tb-sat-tariffhead">' + escapeHtml(t('tb_sat_tariff')) + status + '</div>' +
-        '<div class="tb-satc tb-sat-tariffrow">' +
+        '<div class="set-section-title tb-sat-tariffhead">' + escapeHtml(t('tb_sat_tariff')) + status + '</div>' +
+        '<div class="set-card tb-sat-card2">' +
+        '<div class="tb-sat-tariffrow">' +
             // Navnet skrives rett i feltet (lagres med en gang); ▾ bytter tariff. ▾ er en
             // usynlig <select> over pila — åpnes som appens liste-popup på mobil, native på PC.
             '<div class="tb-sat-namebox">' +
@@ -3287,7 +3339,9 @@ function renderTimebokSatser() {
                 '</span>' +
             '</div>' +
         '</div>' +
-        '<div class="tb-af-group">' + escapeHtml(t('tb_sat_deductions')) + '</div>' +
+        '</div>' +
+        '<div class="set-section"><div class="set-section-title">' + escapeHtml(t('tb_sat_deductions')) + '</div>' +
+        '<div class="set-card tb-sat-rows">' +
         _tbSatRow('Feriepenger', null, null, num('feriepenger', '%'), '', t('tb_sat_of_ferie')) +
         _tbSatRow('Fagforening', null, null, num('fagforening', '%'), '', t('tb_sat_of_ferie')) +
         _tbSatRow('Overtidsgrunnlag', null, null, num('overtidsgrunnlag', 'kr/t'), '', t('tb_sat_otg_hint')) +
@@ -3299,33 +3353,26 @@ function renderTimebokSatser() {
         })() +
         // Forsikring sist: den eneste posten med flagg-knapper.
         _tbSatRow('Forsikring', 'forsikringFlags', tf.forsikringFlags, num('forsikring', 'kr/mnd')) +
-        // Slett nederst i tariff-boksen (rød, med bekreftelse). Den siste tariffen kan ikke slettes.
-        '<button type="button" class="tb-tariff-delete"' + (list.length <= 1 ? ' disabled' : '') + ' onclick="deleteTbTariff()">' + escapeHtml(t('tb_sat_delete')) + '</button>' +
-    '</div>';
-    h += section(t('tb_sat_sec_codes'), t('tb_sat_sec_codes_desc').replace('{0}', tf.name) + ' ' + t('tb_norm_flag_hint'));
-    // Tilleggskodene i ÉN boks med gruppe-overskrifter — samme grupper, rekkefølge og
-    // liste-stil som Auto-fyll i Personlig. Reisegodtgjørelse sist i Reise (avstandstabellen
-    // ligger inne i raden når den foldes ut).
-    var box = '';
+        '</div></div>' +
+        // Slett tariff: egen rad nederst (rød, med bekreftelse). Den siste tariffen kan ikke slettes.
+        '<div class="set-section"><div class="set-card"><button type="button" class="set-danger-row"' + (list.length <= 1 ? ' disabled' : '') + ' onclick="deleteTbTariff()">' + escapeHtml(t('tb_sat_delete')) + '</button></div></div>';
+    // Tilleggskodene: ett kort pr. gruppe — samme grupper og rekkefølge som Autofyll i
+    // Meny › Timebok. Reisegodtgjørelse sist i Reise (avstandstabellen i raden).
+    var box = '<div class="set-foot set-foot-top">' + escapeHtml(t('tb_sat_sec_codes_desc').replace('{0}', tf.name) + ' ' + t('tb_norm_flag_hint')) + '</div>';
+    var firstG = true;
     TIMEBOK_CODE_GROUPS.forEach(function (g) {
         var gc = TIMEBOK_CODES.filter(function (c) { return c.group === g; });   // alle — bryter pr. kode
-        box += '<div class="tb-af-group">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' +
-            gc.map(function (c) { return _tbCodeSatHtml(tf, c); }).join('');
-        if (g !== 'reise') return;
-        var table = '<div class="tb-sat-brhead"><span>' + escapeHtml(t('timebok_distance')) + '</span><span>' + escapeHtml(t('timebok_firma')) + '</span><span>' + escapeHtml(t('timebok_privat')) + '</span><span></span></div>' +
-            (tf.brackets || []).map(function (b) {
-                return '<div class="tb-sat-br"><span class="tb-sat-name">' + escapeHtml(b.label) + '</span>' +
-                    _tbNumInput(b.rate, "_tbSatSetBracket('" + b.id + "', 'rate', this.value)") +
-                    _tbNumInput(b.ratePrivat, "_tbSatSetBracket('" + b.id + "', 'ratePrivat', this.value)") +
-                    '<button type="button" class="tb-sat-del" onclick="_tbSatRemove(\'br\', \'' + b.id + '\')" aria-label="Fjern">&times;</button></div>';
-            }).join('') +
-            '<button type="button" class="tb-sat-add" onclick="_tbSatAdd(\'br\')">' + escapeHtml(t('tb_sat_add_bracket')) + '</button>';
-        box += _tbSatRow(t('timebok_day_travel'), 'bracketFlags', tf.bracketFlags,
-            '<span class="tb-satc-desc">' + escapeHtml(t('tb_sat_travel_table')) + '</span>', table, '', null, _tbCodeScopeHtml('__travel'));
+        var rows = gc.map(function (c) { return _tbCodeRowCompact(tf, c); }).join('');
+        if (g === 'reise') rows += _tbCodeRowCompact(tf, null);   // Reisegodtgjørelse sist
+        if (!rows) return;
+        box += '<div class="' + (firstG ? '' : 'set-section') + '"><div class="set-section-title">' + escapeHtml(_timebokGroupTitle(g)) + '</div>' +
+            '<div class="set-card tb-sat-rows tb-codes-card" lang="nb">' + rows + '</div></div>';
+        firstG = false;
     });
-    h += '<div class="tb-satc-box tb-codes-box" lang="nb">' + box + '</div>';
-    host.innerHTML = h;
-    _tbFitInputText(host.querySelector('.tb-sat-name-input'));
+    tHost.innerHTML = h;
+    cHost.innerHTML = box;
+    _tbFitInputText(tHost.querySelector('.tb-sat-name-input'));
+    if (_tbCodePopId) _tbCodePopRender();   // åpen kode-popup følger endringer (f.eks. «Vises for»)
 }
 // Hele tariffnavnet skal synes: krymp skrifta (14 → min. 11 px) til teksten får plass i
 // feltet. Måles med canvas. ResizeObserver: tilpass på nytt når feltet får bredde (fanen
@@ -4007,12 +4054,23 @@ function removeMaterialUnit(idx, unitIdx) {
 }
 
 
-function toggleSettingsSection(section) {
-    const body = document.getElementById('settings-body-' + section);
-    const arrow = document.getElementById('settings-arrow-' + section);
-    body.classList.toggle('open');
-    arrow.classList.toggle('open');
+// Faner på en innstillingsside (.set-tabs + .set-tab-panel[data-tab]): viser bare valgt del,
+// så siden holdes kort. Generelt — gjelder alle undersider som bruker mønsteret.
+function setSettingsTab(btn, noScroll) {
+    var page = btn.closest('.settings-page');
+    if (!page) return;
+    var tab = btn.getAttribute('data-tab');
+    page.querySelectorAll('.set-tabs .tb-seg-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+    page.querySelectorAll('.set-tab-panel').forEach(function (p) { p.hidden = p.getAttribute('data-tab') !== tab; });
+    if (!noScroll) {
+        var mb = page.closest('.modal-body');
+        if (mb) mb.scrollTop = 0;
+    }
+    // Modal-body byttes via hidden (ikke klasse) — MutationObserveren ser det ikke, så
+    // tastatur-laget må få beskjed (CLAUDE.md: tab-switch i modal-views).
+    if (window.applyKeyboardLayout) window.applyKeyboardLayout();
 }
+
 
 function updateSettingsUnitFields() {
     var type = document.getElementById('settings-new-material-type').value;
@@ -6414,11 +6472,16 @@ function getGivenAwayNumbers() {
 }
 
 async function updateSettingsStatus() {
+    // Sammendrag-kortet øverst på Meny › Ordreseddel: stort «neste nummer» + brukt/gitt bort.
     const statusEl = document.getElementById('settings-status');
+    const cardEl = document.getElementById('settings-next-card');
+    const nextEl = document.getElementById('settings-next-nr');
     if (settingsRanges.length === 0) {
         statusEl.textContent = '';
+        if (cardEl) cardEl.hidden = true;
         return;
     }
+    if (cardEl) cardEl.hidden = false;
 
     let total = 0;
     settingsRanges.forEach(r => { total += r.end - r.start + 1; });
@@ -6439,7 +6502,12 @@ async function updateSettingsStatus() {
     const nextNr = findNextInRanges(settingsRanges, allUnavailable);
     let statusText = t('settings_used', usedCount, total);
     if (givenCount > 0) statusText += ' · ' + t('settings_given_away_count', givenCount);
-    statusText += nextNr ? ' · ' + t('settings_next', nextNr) : ' · ' + t('settings_all_used');
+    if (nextEl) {
+        nextEl.textContent = nextNr ? String(nextNr) : '—';
+        if (!nextNr) statusText += ' · ' + t('settings_all_used');
+    } else {
+        statusText += nextNr ? ' · ' + t('settings_next', nextNr) : ' · ' + t('settings_all_used');
+    }
     statusEl.textContent = statusText;
     updateOrderNrRemaining();
 }
@@ -26141,8 +26209,10 @@ function _firma() {
 }
 // Timebok-arbeidsgiver for vanlige brukere = firmaet. null = brukerens eget valg gjelder
 // (hovedadmin, eller tilgangen er ikke kjent ennå).
+// Hovedadmin med egen oppføring (Admin › Brukere) følger den som alle andre; uten oppføring
+// gjelder det sist lagrede valget (kan ikke lenger endres i Timebok-innstillingene).
 function _firmaForTimebok() {
-    if (_isSuper() || typeof _acc === 'undefined' || !_acc || !_acc.entry) return null;
+    if (typeof _acc === 'undefined' || !_acc || !_acc.entry) return null;
     return _entryFirma(_acc.entry);
 }
 function _firmaRef(f) { return db.collection('firms').doc(f || _firma()); }
@@ -26353,7 +26423,7 @@ function _accSyncTimebok(uid, entry) {
         var st = d.exists ? (d.data() || {}) : (safeParseJSON(TIMEBOK_SETTINGS_KEY, {}) || {});
         if (st.adminRev === entry.timebokRev) return;
         var tb = entry.timebok;
-        if (tb.timesats != null) st.timesats = tb.timesats;
+        // Timesats er brukerens egen (15-11-2026) — admin setter den ikke lenger.
         if (tb.travelStyle) st.travelStyle = tb.travelStyle;
         st.payStart = tb.payStart != null ? tb.payStart : null;
         if (tb.transport) st.transport = tb.transport;
@@ -26731,11 +26801,14 @@ function _admBuildUsers(res) {
     // Bare firmaet admin står i: brukere i firmaet + de som prøvde å logge inn uten å være
     // lagt inn (ingen firma ennå — vises for begge firmaenes admin). Hovedadmin selv hører
     // ikke til noe firma og vises ikke (med mindre han har en oppføring i firmaet).
+    // Unntak: deg selv (innlogget) vises alltid, så du kan sette din egen arbeidsgiver,
+    // timesats og personalia her som for alle andre (bruker 15-11-2026).
     var f = _firma();
     Object.keys(users).forEach(function (k) {
         var u = users[k];
-        var keep = u.entry ? _entryFirma(u.entry) === f
-            : (!u.fbAdmin && (!u.dir || !u.dir.firma || u.dir.firma === 'none' || u.dir.firma === f));
+        var isSelf = !!(u.dir && currentUser && u.dir.uid === currentUser.uid);
+        var keep = isSelf || (u.entry ? _entryFirma(u.entry) === f
+            : (!u.fbAdmin && (!u.dir || !u.dir.firma || u.dir.firma === 'none' || u.dir.firma === f)));
         if (!keep) delete users[k];
     });
     return users;
@@ -26762,12 +26835,14 @@ function renderAdminUsers(cached) {
         list = list.filter(function (u) { return u.entry || u.admin; });
         var month = Date.now() - 30 * 86400000;
         var active = list.filter(function (u) { return ms(u) >= month; }).length;
-        var h = _admDev() ? '<div class="adm-dev">' + escapeHtml(t('adm_dev_mode')) + ' <button type="button" class="adm-dev-reset" onclick="_admDevReset()">' + escapeHtml(t('adm_dev_reset')) + '</button></div>' : '';
+        // Samme oppsett som de andre innstillingssidene (kort-stil): faner øverst, hvitt kort med
+        // «+ Legg til bruker» som første rad, og oppsummering i grått under (bruker 15-11-2026).
+        // (Gult «Lokal test»-banner fjernet — bruker: «jeg ser ikke poenget med det».)
         var tab = _admTab === 'attempts' ? 'attempts' : 'users';
-        h += '<div class="modal-tabs tb-set-tabs adm-tabs">' +
+        var h = '<div class="tb-seg set-tabs">' +
             [['users', t('adm_tab_users'), list.length], ['attempts', t('adm_attempts_title'), attempts.length]].map(function (x) {
-                return '<button type="button" class="modal-tab' + (x[0] === tab ? ' active' : '') + '" onclick="_admSetTab(\'' + x[0] + '\')">' +
-                    escapeHtml(x[1]) + ' <span class="adm-tab-count">' + x[2] + '</span></button>';
+                return '<button type="button" class="tb-seg-btn' + (x[0] === tab ? ' active' : '') + '" onclick="_admSetTab(\'' + x[0] + '\')">' +
+                    escapeHtml(x[1]) + ' <span class="set-tab-count">' + x[2] + '</span></button>';
             }).join('') + '</div>';
         var row = function (u) {
             var name = u.name || u.email;
@@ -26776,7 +26851,7 @@ function renderAdminUsers(cached) {
                 ? [_admProvider(u.dir.provider), u.dir.device === 'pc' ? 'PC' : (u.dir.device ? t('adm_device_mobile') : ''), u.dir.lastSeen ? t('adm_last_seen').replace('{0}', _admFmtTs(u.dir.lastSeen)) : ''].filter(Boolean).join(' · ')
                 : [t('adm_never'), _admInvitedLabel(u)].filter(Boolean).join(' · ');
             var eff = _admEffective(u);
-            return '<div class="settings-menu-item adm-user" onclick="openAdmUser(\'' + escapeHtml(u.email) + '\')">' +
+            return '<div class="adm-user" onclick="openAdmUser(\'' + escapeHtml(u.email) + '\')">' +
                 '<span class="adm-avatar">' + escapeHtml(initials) + '</span>' +
                 '<span class="adm-main">' +
                     '<span class="adm-name">' + escapeHtml(name) + (u.admin ? '<span class="adm-badge">' + escapeHtml(t('adm_badge_admin')) + '</span>' : '') + '</span>' +
@@ -26788,12 +26863,14 @@ function renderAdminUsers(cached) {
             '</div>';
         };
         if (tab === 'users') {
-            h += '<button type="button" class="adm-add" onclick="openAdmUser(null)">' + escapeHtml(t('adm_add')) + '</button>';
-            h += '<div class="adm-info">' + escapeHtml(t('adm_summary').replace('{0}', list.length).replace('{1}', active)) + '</div>';
-            if (list.length) h += '<div class="settings-group">' + list.map(row).join('') + '</div>';
+            h += '<div class="set-card adm-list">' +
+                    '<button type="button" class="adm-add-row" onclick="openAdmUser(null)"><span class="adm-add-ico">+</span>' + escapeHtml(t('adm_add_user')) + '</button>' +
+                    list.map(row).join('') +
+                '</div>' +
+                '<div class="set-foot">' + escapeHtml(t('adm_summary').replace('{0}', list.length).replace('{1}', active)) + '</div>';
         } else {
-            h += '<div class="adm-info">' + escapeHtml(t(attempts.length ? 'adm_attempts_hint' : 'adm_attempts_empty')) + '</div>';
-            if (attempts.length) h += '<div class="settings-group">' + attempts.map(row).join('') + '</div>';
+            h += '<div class="set-foot set-foot-top">' + escapeHtml(t(attempts.length ? 'adm_attempts_hint' : 'adm_attempts_empty')) + '</div>';
+            if (attempts.length) h += '<div class="set-card adm-list">' + attempts.map(row).join('') + '</div>';
         }
         host.innerHTML = h;
     }).catch(function () {
@@ -26868,13 +26945,10 @@ function openAdmUser(key) {
     for (var d = 1; d <= 28; d++) payOpts.push([d, d === 1 ? t('tb_set_pay_full_month') : (d + '. – ' + (d - 1) + '.')]);
     h += '<div class="tb-af-group">' + escapeHtml(t('settings_timebok')) + '</div>' +
         '<div class="adm-pop-sub adm-access-hint">' + escapeHtml(t('adm_tb_hint')) + '</div>' +
-        // Lange verdier (arbeidsgiver, lønnsperiode) i full bredde så teksten aldri kuttes;
-        // korte (timesats, transport) to og to.
+        // Timesats er IKKE her: den er brukerens egen (bruker 15-11-2026: «jeg er ikke sjef»).
+        // Lønnsperiode i full bredde så teksten aldri kuttes.
         sel('adm-f-tb-pay', t('tb_set_payperiod'), payOpts, tbE.payStart != null ? tbE.payStart : '') +
-        '<div class="adm-grid2">' +
-            field('adm-f-tb-timesats', t('tb_set_timesats'), tbE.timesats != null ? String(tbE.timesats).replace('.', ',') : '', 'text', 'inputmode="decimal"') +
-            sel('adm-f-tb-transport', t('tb_set_transport'), [['firma', t('timebok_firma')], ['privat', t('timebok_privat')]], tbE.transport === 'privat' ? 'privat' : 'firma') +
-        '</div>';
+        sel('adm-f-tb-transport', t('tb_set_transport'), [['firma', t('timebok_firma')], ['privat', t('timebok_privat')]], tbE.transport === 'privat' ? 'privat' : 'firma');
     // Hver bryter forteller HVOR delen vises (knapper nederst, Lagret-faner, Meny), så
     // det er tydelig at én bryter styrer både verktøylinja og innstillingene.
     h += '<div class="tb-af-group">' + escapeHtml(t('adm_access_title')) + '</div>' +
@@ -26952,11 +27026,9 @@ function saveAdmUser() {
         updatedAt: stamp, updatedBy: by
     };
     data.name = (data.fornavn + ' ' + data.etternavn).trim();   // visningsnavn i lista
-    // Timebok-innstillinger (Personlig) — timesats tom = ikke satt (brukeren beholder sin).
-    var tsN = _tbNum(val('adm-f-tb-timesats'));
+    // Timebok-innstillinger som admin forhåndsutfyller (timesats er brukerens egen).
     var payV = document.getElementById('adm-f-tb-pay').value;
     data.timebok = {
-        timesats: tsN,
         travelStyle: firma,
         payStart: payV ? parseInt(payV, 10) : null,
         transport: document.getElementById('adm-f-tb-transport').value === 'privat' ? 'privat' : 'firma'
@@ -27057,28 +27129,30 @@ function renderAdminEmployers() {
     };
     _admSeedLager();
     var ed = safeParseJSON(TIMEBOK_EMPLOYERS_KEY, null) || {};
+    // Kort-stil (som resten av Innstillinger): firmanavnet som seksjonstittel, lønnsperiode som
+    // rad, lageradressen i eget kort med navn til venstre og felt til høyre.
     var lagerHtml = function (emp) {
         var l = (ed.lager && ed.lager[emp]) || {};
-        var inp = function (f, ph, cls, extra) {
-            return '<input type="text" class="' + cls + '" data-emp="' + emp + '" data-lf="' + f + '" value="' + escapeHtml(l[f] || '') + '" placeholder="' + escapeHtml(t(ph)) + '"' + (extra || '') +
-                ' onfocus="this.dataset.v0=this.value" onblur="if(this.value!==this.dataset.v0)saveAdminEmployerLager(\'' + emp + '\')">';
+        var inp = function (f, label, extra) {
+            var id = 'adm-lager-' + emp + '-' + f;
+            return '<div class="set-field-row set-field-row-input"><label for="' + id + '" class="set-field-label">' + escapeHtml(t(label)) + '</label>' +
+                '<input type="text" id="' + id + '" class="set-field-input set-field-input-wide" data-emp="' + emp + '" data-lf="' + f + '" value="' + escapeHtml(l[f] || '') + '"' + (extra || '') +
+                ' onfocus="this.dataset.v0=this.value" onblur="if(this.value!==this.dataset.v0)saveAdminEmployerLager(\'' + emp + '\')"></div>';
         };
-        return '<div class="adm-emp-field"><span>' + escapeHtml(t('settings_lager_section')) + '</span>' +
-            '<div class="adm-emp-lager">' +
-                inp('veiadresse', 'placeholder_gate', 'adm-input', ' autocapitalize="sentences"') +
-                '<div class="settings-lager-row">' +
-                    inp('postnr', 'placeholder_postnr', 'adm-input lager-postnr', ' inputmode="numeric"') +
-                    inp('poststed', 'placeholder_poststed', 'adm-input lager-poststed', ' autocapitalize="sentences"') +
-                '</div>' +
+        return '<div class="set-section"><div class="set-section-title">' + escapeHtml(t('settings_lager_section')) + '</div>' +
+            '<div class="set-card">' +
+                inp('veiadresse', 'placeholder_gate', ' autocapitalize="sentences"') +
+                inp('postnr', 'placeholder_postnr', ' inputmode="numeric"') +
+                inp('poststed', 'placeholder_poststed', ' autocapitalize="sentences"') +
             '</div></div>';
     };
-    host.innerHTML = '<div class="adm-info">' + escapeHtml(t('adm_emp_hint')) + '</div>' +
-        '<div class="settings-group adm-emp-group">' + _ADM_EMPLOYERS.filter(function (e) { return e[0] === _firma(); }).map(function (e) {
-            return '<div class="adm-emp-row"><span class="adm-emp-name">' + escapeHtml(e[1]) + '</span>' +
-                '<label class="adm-emp-field"><span>' + escapeHtml(t('tb_set_payperiod')) + '</span>' +
-                    '<select class="adm-select" onchange="saveAdminEmployerPay(\'' + e[0] + '\', this.value)">' + opts(getTimebokPayStartDefault(e[0])) + '</select></label>' +
-                lagerHtml(e[0]) + '</div>';
-        }).join('') + '</div>';
+    host.innerHTML = '<div class="set-foot set-foot-top">' + escapeHtml(t('adm_emp_hint')) + '</div>' +
+        _ADM_EMPLOYERS.filter(function (e) { return e[0] === _firma(); }).map(function (e) {
+            return '<div class="set-section-title">' + escapeHtml(e[1]) + '</div>' +
+                '<div class="set-card"><div class="set-field-row"><label for="adm-emp-pay-' + e[0] + '" class="set-field-label">' + escapeHtml(t('tb_set_payperiod')) + '</label>' +
+                    '<select id="adm-emp-pay-' + e[0] + '" class="set-field-select" onchange="saveAdminEmployerPay(\'' + e[0] + '\', this.value)">' + opts(getTimebokPayStartDefault(e[0])) + '</select></div></div>' +
+                lagerHtml(e[0]);
+        }).join('');
 }
 // Felles lager pr. arbeidsgiver (settings/timebok_employers.lager[emp], som lønnsperioden).
 // getLager() i script.js leser det for brukerens arbeidsgiver.
@@ -27204,7 +27278,6 @@ var _sjList = { key: null, floor: '', items: [], lastDoc: null, hasMore: false, 
 var _sjForm = null;                // { id, data, original, savedSnap, savedImageIds, sessionNewIds }
 var _sjPendingNew = null;          // { prefill } — settes før navigering til 'sjekkliste/ny'
 var _sjTemplateActive = false;
-var _sjSetOpen = {};
 
 // Bare ekte innlogging skriver/leser Firestore (lokal test-bruker har ingen tilgang).
 function _sjRemote() { return !!(currentUser && db && currentUser.uid !== 'dev-local'); }
@@ -27263,32 +27336,52 @@ function _sjGroup(key) { return SJ_GROUPS.filter(function (g) { return g.key ===
 var _sjUpIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
 var _sjDownIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 
+// Valglistene (7 stk.) som rader i ett kort — antall + de første valgene i grått. Trykk åpner
+// lista i en popup (rediger, flytt, slett, legg til). Ingen sammenleggbare bokser i
+// Innstillinger (bruker 15-11-2026); 7 utfoldede lister ble for langt.
+var _sjPopKey = null;
 function renderSjekklisteSettings() {
     var host = document.getElementById('sj-settings');
     if (!host) return;
     var opts = _sjOptions(), ro = !isAdmin;
-    var html = '<div class="settings-hint">' + escapeHtml(t(ro ? 'sj_settings_readonly' : 'sj_settings_intro')) + '</div>';
-    SJ_GROUPS.forEach(function (g, gi) {
-        var sec = 'sj-' + g.key, open = !!_sjSetOpen[sec];
-        html += '<div class="settings-collapsible-header" onclick="_sjToggleSetSection(\'' + sec + '\')"' + (gi ? ' style="margin-top: 16px;"' : '') + '>' +
-                '<span>' + escapeHtml(t(g.labelKey)) + ' <span class="settings-collapsible-count" id="sj-set-count-' + g.key + '"></span></span>' +
-                '<span class="settings-collapsible-arrow' + (open ? ' open' : '') + '" id="settings-arrow-' + sec + '">&rsaquo;</span>' +
-            '</div>' +
-            '<div class="settings-collapsible-body' + (open ? ' open' : '') + '" id="settings-body-' + sec + '">' +
-                '<div class="sj-set-hint">' + escapeHtml(t(g.hintKey)) + '</div>' +
-                '<div class="settings-list-container" id="sj-set-list-' + g.key + '"></div>' +
-                (ro ? '' :
-                '<div class="settings-add-plan-row">' +
-                    '<input type="text" id="sj-set-new-' + g.key + '"' + (g.numeric ? ' inputmode="numeric"' : ' autocapitalize="sentences"') +
-                        ' placeholder="' + escapeHtml(t('sj_settings_add_placeholder')) + '"' +
-                        ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();sjSettingsAdd(\'' + g.key + '\')}">' +
-                    '<button type="button" class="settings-add-plan-btn" onclick="sjSettingsAdd(\'' + g.key + '\')">' + escapeHtml(t('btn_add')) + '</button>' +
-                '</div>') +
+    host.innerHTML = '<div class="set-foot set-foot-top">' + escapeHtml(t(ro ? 'sj_settings_readonly' : 'sj_settings_intro')) + '</div>' +
+        '<div class="set-card adm-list">' + SJ_GROUPS.map(function (g) {
+            return '<div class="adm-user sj-set-row" onclick="openSjListPopup(\'' + g.key + '\')">' +
+                '<span class="adm-main"><span class="adm-name">' + escapeHtml(t(g.labelKey)) + '</span>' +
+                    '<span class="adm-sub sj-set-prev" id="sj-set-prev-' + g.key + '"></span></span>' +
+                '<span class="sj-set-count" id="sj-set-count-' + g.key + '"></span>' +
+                '<span class="settings-menu-arrow">&rsaquo;</span>' +
             '</div>';
-    });
-    host.innerHTML = html;
+        }).join('') + '</div>';
     SJ_GROUPS.forEach(function (g) { _sjRenderSetGroup(g.key, opts); });
 }
+function openSjListPopup(key) {
+    var g = _sjGroup(key);
+    if (!g) return;
+    _sjPopKey = key;
+    var ro = !isAdmin;
+    document.getElementById('sj-list-pop-title').textContent = t(g.labelKey);
+    document.getElementById('sj-list-pop-body').innerHTML =
+        '<div class="sj-set-hint">' + escapeHtml(t(g.hintKey)) + '</div>' +
+        '<div class="set-card"><div class="settings-list-container" id="sj-set-list-' + key + '"></div>' +
+        (ro ? '' :
+        '<div class="settings-add-plan-row set-add-row">' +
+            '<input type="text" id="sj-set-new-' + key + '"' + (g.numeric ? ' inputmode="numeric"' : ' autocapitalize="sentences"') +
+                ' placeholder="' + escapeHtml(t('sj_settings_add_placeholder')) + '"' +
+                ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();sjSettingsAdd(\'' + key + '\')}">' +
+            '<button type="button" class="settings-add-plan-btn" onclick="sjSettingsAdd(\'' + key + '\')">' + escapeHtml(t('btn_add')) + '</button>' +
+        '</div>') + '</div>';
+    _sjRenderSetGroup(key);
+    document.getElementById('sj-list-popup').classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+function closeSjListPopup() {
+    document.getElementById('sj-list-popup').classList.remove('active');
+    document.getElementById('sj-list-pop-body').innerHTML = '';
+    _sjPopKey = null;
+}
+window.openSjListPopup = openSjListPopup;
+window.closeSjListPopup = closeSjListPopup;
 window.renderSjekklisteSettings = renderSjekklisteSettings;
 
 // Bare lista for én gruppe tegnes på nytt (legg-til-feltet beholder fokus/tastatur).
@@ -27298,6 +27391,8 @@ function _sjRenderSetGroup(key, opts) {
     var el = document.getElementById('sj-set-list-' + key);
     var cnt = document.getElementById('sj-set-count-' + key);
     if (cnt) cnt.textContent = list.length;
+    var prev = document.getElementById('sj-set-prev-' + key);
+    if (prev) prev.textContent = list.length ? list.slice(0, 4).join(', ') + (list.length > 4 ? ' …' : '') : t('sj_settings_empty');
     if (!el) return;
     if (!list.length) { el.innerHTML = '<div class="sj-set-empty">' + escapeHtml(t('sj_settings_empty')) + '</div>'; return; }
     el.innerHTML = list.map(function (v, i) {
@@ -27312,11 +27407,6 @@ function _sjRenderSetGroup(key, opts) {
         '</div>';
     }).join('');
 }
-function _sjToggleSetSection(sec) {
-    toggleSettingsSection(sec);
-    _sjSetOpen[sec] = !_sjSetOpen[sec];
-}
-window._sjToggleSetSection = _sjToggleSetSection;
 
 // Ett valg: tomt avvises, antall må være et helt tall ≥ 1, og duplikater (uansett
 // store/små bokstaver) avvises med melding.
