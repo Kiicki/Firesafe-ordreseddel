@@ -5859,17 +5859,14 @@ function _renderPlanPickerList(displayEl, keepState) {
         html = '<div class="popup-list-empty">' + t('settings_no_plans') + '</div>';
     }
 
-    // Admin kan legge til etasjer direkte her — uten dette måtte man ut av
-    // skjemaet og inn i Innstillinger, og den tomme lista var en blindvei.
-    // Samme mønster som «Nytt materiale» i materialvelgeren, og samme
-    // admin-gate: _persistPlanList krever den.
-    if (typeof isAdmin !== 'undefined' && isAdmin) {
-        html += '<div class="plan-popup-add">' +
-            '<input type="text" id="plan-popup-new" class="plan-popup-add-input" placeholder="' +
-                escapeHtml(t('settings_plan_placeholder')) + '" autocapitalize="characters" autocomplete="off">' +
-            '<button type="button" class="plan-popup-add-btn" onclick="addPlanFromPicker()">+</button>' +
-        '</div>';
-    }
+    // Alle kan legge til en etasje her (bruker 15-11-2026: «montør og admin har tilgang til det
+    // samme i selve appen … en montør bør ikke stoppe opp fordi han mangler verdien»).
+    // Admin → den faste lista; montør → bare dette skjemaet (se addPlanFromPicker).
+    html += '<div class="plan-popup-add">' +
+        '<input type="text" id="plan-popup-new" class="plan-popup-add-input" placeholder="' +
+            escapeHtml(t('settings_plan_placeholder')) + '" autocapitalize="characters" autocomplete="off">' +
+        '<button type="button" class="plan-popup-add-btn" onclick="addPlanFromPicker()">+</button>' +
+    '</div>';
 
     listEl.innerHTML = html;
 
@@ -7701,6 +7698,27 @@ function updateOrderDeleteStates() {
     deleteButtons.forEach(btn => { btn.disabled = cards.length <= 1; });
 }
 
+// --- Felles prosjektfelt (15-11-2026) ---
+// Bruker: «ordreseddel, sjekklister, timebok har forskjellige design for å velge prosjekt … kan vi
+// gjøre det bedre?» → ÉN feltknapp overalt (Timebok-stilen): viser valgt prosjekt (navn + «nr ·
+// oppdragsgiver»), «Velg prosjekt» når tomt, ▾ til høyre; trykk åpner prosjektvinduet. Detaljfeltene
+// i skjemaet blir stående (kan rettes). _projFieldsSync (script-ui.js) holder teksten oppdatert.
+var _PROJ_FIELD_ARROW = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+function _projFieldHtml(onclick, name, sub, id) {
+    return '<button type="button" class="proj-field' + (name ? ' filled' : '') + '"' + (id ? ' id="' + id + '"' : '') + ' onclick="' + onclick + '">' +
+        '<span class="proj-field-text"><span class="proj-field-name">' + escapeHtml(name || t('template_pick')) + '</span>' +
+        '<span class="proj-field-sub"' + (sub ? '' : ' hidden') + '>' + escapeHtml(sub || '') + '</span></span>' +
+        _PROJ_FIELD_ARROW + '</button>';
+}
+function _projFieldSet(el, name, sub) {
+    if (!el) return;
+    name = String(name || '').trim(); sub = String(sub || '').trim();
+    el.classList.toggle('filled', !!name);
+    var n = el.querySelector('.proj-field-name'), s2 = el.querySelector('.proj-field-sub');
+    if (n) n.textContent = name || t('template_pick');
+    if (s2) { s2.textContent = sub; s2.hidden = !sub; }
+}
+
 // --- Service entry card functions ---
 
 function createServiceEntryCard(entryData, expanded) {
@@ -7722,6 +7740,9 @@ function createServiceEntryCard(entryData, expanded) {
         '</div>' +
         '<div class="mobile-order-body-wrap' + (expanded ? ' expanded' : '') + '">' +
         '<div class="service-entry-body">' +
+            // Prosjekt for DETTE kortet (felles prosjektfelt; detaljfeltene under kan rettes).
+            '<div class="mobile-field"><label data-i18n="kappe_section_project">' + t('kappe_section_project') + '</label>' +
+                _projFieldHtml('openServiceTemplatePickerFor(this)', data.prosjektnavn || '', data.prosjektnr || '') + '</div>' +
             '<div class="mobile-field' + datoReq + '"><label data-i18n="label_dato">' + t('label_dato') + '</label>' +
                 '<input type="text" class="service-entry-dato" inputmode="numeric" placeholder="DD.MM.ÅÅÅÅ" value="' + escapeHtml(data.dato || '') + '"></div>' +
             '<div class="mobile-field' + pnrReq + '"><label data-i18n="label_prosjektnr">' + t('label_prosjektnr') + '</label>' +

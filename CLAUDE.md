@@ -145,7 +145,8 @@ Felles registre (prosjekter, materialer, isolasjon, festemidler, personer) eies 
 
 **Gjeldende regler:**
 - **Sendes til godkjenning:** prosjekter, materialer (også nye enheter), isolasjonsprodukter, festemiddelprodukter, personer («Annen person» i Arbeidstid).
-- **Sendes IKKE:** tykkelser/lengder og plate «Annen» (gjelder bare den ene linjen — hurtigvalg, ikke register), etasjer/valglister (bare admin).
+- **Sendes IKKE:** tykkelser/lengder og plate «Annen» (gjelder bare den ene linjen — hurtigvalg, ikke register), etasjer/valglister (montørens egne verdier gjelder bare skjemaet; bare admin legger inn i lista).
+- **Montør og admin har tilgang til det SAMME i selve appen** — forskjellen er bare Innstillinger › Admin. Ingen velger/liste i skjemaene skal ha «bare admin kan legge til»: finnes ikke verdien, skal alle kunne skrive/legge til sin egen (gjelder skjemaet/linjen eller blir forslag etter reglene over). Grep etter `isAdmin` når du lager en ny velger.
 - Ingen av/på-brytere: montøren skal aldri stå fast, og admin skal aldri ha egne ting hos montører som aldri blir sett.
 
 **Når noe nytt skal kunne legges til av montør (eller reglene over endres), oppdater ALT dette i samme endring:**

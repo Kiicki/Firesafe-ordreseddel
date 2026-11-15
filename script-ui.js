@@ -2029,9 +2029,9 @@ function filterList(listId, searchId) {
             var pickerListEl = document.getElementById('template-picker-list');
             if (!term) { _renderTemplatePickerList(cachedAll, pickerListEl); return; }
             var filteredPicker = cachedAll.filter(function(f) {
-                return (f.prosjektnavn || '').toLowerCase().startsWith(term) ||
-                       (f.oppdragsgiver || '').toLowerCase().startsWith(term) ||
-                       (f.prosjektnr || '').toLowerCase().startsWith(term);
+                return (f.prosjektnavn || '').toLowerCase().indexOf(term) !== -1 ||
+                       (f.oppdragsgiver || '').toLowerCase().indexOf(term) !== -1 ||
+                       (f.prosjektnr || '').toLowerCase().indexOf(term) !== -1;
             });
             _renderTemplatePickerList(filteredPicker, pickerListEl);
         } else if (listId === 'kvittering-list') {
@@ -5945,8 +5945,10 @@ function savePlanSettings() {
 // fylles bare når Innstillinger-siden åpnes, så for en bruker som går rett til
 // skjemaet er den tom — og en lagring basert på den ville skrevet en liste med
 // kun den nye etasjen til Firestore og slettet alle de andre.
+// Etasje som ikke finnes i lista. Admin: legges i den faste lista (felles). Montør: hukes av for
+// DETTE skjemaet, men legges ikke i lista — som egne tykkelser (valglister eies av admin, se
+// CLAUDE.md «Montørforslag»). Begge ser feltet og blir aldri stående fast.
 function addPlanFromPicker() {
-    if (!isAdmin) return;
     var input = document.getElementById('plan-popup-new');
     if (!input) return;
     var val = String(input.value || '').trim().toUpperCase();
@@ -5956,12 +5958,11 @@ function addPlanFromPicker() {
         return;
     }
     var base = (cachedPlanOptions || []).slice();
-    if (base.some(function(p) { return String(p).toUpperCase() === val; })) {
-        showNotificationModal(t('settings_plan_exists'));
-        return;
+    var exists = base.some(function(p) { return String(p).toUpperCase() === val; });
+    if (!exists && isAdmin) {
+        base.push(val);
+        _persistPlanList(base);
     }
-    base.push(val);
-    _persistPlanList(base);
     input.value = '';
     // Den nye etasjen hukes av med én gang — man legger den jo til fordi den
     // skal brukes nå. keepState bevarer det brukeren alt hadde valgt.
@@ -11119,9 +11120,9 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
 
 // Event delegation for template picker overlay
 document.getElementById('template-picker-list').addEventListener('click', function(e) {
-    var savedItem = e.target.closest('.saved-item');
-    if (!savedItem || !savedItem._formData) return;
-    _applyTemplateToForm(savedItem._formData);
+    var pick = e.target.closest('.tpl-pick');
+    if (!pick || !pick._formData) return;
+    _applyTemplateToForm(pick._formData);
 });
 
 // Event delegation for service-list items
@@ -13761,45 +13762,57 @@ function _timebokShortDayLabel(id) {
     return ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'][d.getDay()] + ' ' + d.getDate() + '. ' + _TIMEBOK_MONTHS_SHORT[d.getMonth()];
 }
 var _TB_TIME_GROUPS = ['arbeid', 'overtid', 'fravaer', 'syk'];
+// ── FELLES prosjekt-sammendrag: ukevisningen OG sammenlagt kort på dagsiden bruker
+// samme markup/CSS (bruker: «begge formater vises likt så det er lettere å forstå»).
+// Prosjekt (+ nr) · tilleggsinfo · én linje pr. kode/reise: navn til venstre, alt som er
+// ført til høyre (start–slutt · lunsj · timer / km / kr / stk; reise: Firma/Privat · avstand
+// × 0,5). Får ikke verdien plass på linja, går den ned på egen linje (aldri kuttet).
+// codes = [{typeId, hours, start, end, lunch}], trips = [{extra, transport, bracketId, share}].
+function _timebokSumRowsHtml(codes, trips, dateId) {
+    var rows = [];
+    var row = function (label, val) {
+        rows.push('<div class="tb-sum-row"><span class="tb-sum-label">' + escapeHtml(label) + '</span>' +
+            '<span class="tb-sum-val' + (val ? '' : ' empty') + '">' + escapeHtml(val || '–') + '</span></div>');
+    };
+    codes.forEach(function (c) {
+        var tt = _timebokTypeById(c.typeId, dateId);
+        var inp = tt ? tt.input : 'hours', parts = [];
+        if (inp === 'clock' && (c.start || c.end)) {
+            parts.push((c.start || '?') + '–' + (c.end || '?'));
+            var l = parseLocaleNum(c.lunch);
+            if (!isNaN(l) && l > 0) parts.push(t('timebok_lunch').toLowerCase() + ' ' + formatLocaleNum(l, 2));
+        }
+        var v = parseLocaleNum(c.hours);
+        if (!isNaN(v) && v !== 0) parts.push(inp === 'kr' ? _timebokKr(v) : formatLocaleNum(v, 2) + (inp === 'km' ? ' km' : inp === 'count' ? ' stk' : ' t'));
+        row(tt ? tt.label : c.typeId, parts.join(' · '));
+    });
+    trips.forEach(function (x) {
+        var val = x.bracketId ? (x.transport === 'privat' ? t('timebok_privat') : t('timebok_firma')) + ' · ' +
+            _timebokBracketLabel(x.bracketId) + (_timebokTravelShare(x) === 0.5 ? ' × 0,5' : '') : '';
+        row(x.extra ? t('timebok_travel_extra') : t('timebok_day_travel'), val);
+    });
+    return rows.length ? '<div class="tb-sum-rows">' + rows.join('') + '</div>' : '';
+}
+function _timebokSumHeadHtml(name, nr, missing) {
+    return '<div class="tb-sum-headline"><span class="tb-sum-name' + (missing ? ' missing' : '') + '">' + escapeHtml(name) + '</span>' +
+        (nr ? '<span class="tb-sum-nr"> · ' + escapeHtml(nr) + '</span>' : '') + '</div>';
+}
+function _timebokSumNoteHtml(note) {
+    return note ? '<div class="tb-sum-note">' + escapeHtml(note) + '</div>' : '';
+}
 function _timebokWeekDayDetail(dayDoc, dateId) {
     var n = _timebokNormalizeDoc(dayDoc, dateId);
     var h = '';
     n.projects.forEach(function (p) {
         var name = p.name || (p.noProject ? t('timebok_without_project') : t('timebok_pick_project'));
-        var note = p.note ? String(p.note).trim() : '';
-        var hrs = 0, anyH = false, bits = [];
         var codes = (p.codes || []).slice().sort(function (a, b) { return _timebokCodeSortKey(a.typeId) - _timebokCodeSortKey(b.typeId); });
-        codes.forEach(function (c) {
-            var def = _timebokCodeDef(c.typeId), tt = _timebokTypeById(c.typeId, dateId);
-            var label = tt ? tt.label : c.typeId;
-            var v = parseLocaleNum(c.hours);
-            if (isNaN(v)) v = 0;
-            if (def && !def.zero && _TB_TIME_GROUPS.indexOf(def.group) !== -1 && v) { hrs += v; anyH = true; }
-            var inp = tt ? tt.input : 'hours', val;
-            if (inp === 'clock' && c.start && c.end) val = c.start + '–' + c.end;
-            else if (!v) return;   // tomt kort (f.eks. urørt auto-fyll) — ikke vis
-            else if (inp === 'kr') val = _timebokKr(v);
-            else if (inp === 'km') val = formatLocaleNum(v, 2) + ' km';
-            else if (inp === 'count') val = formatLocaleNum(v, 2) + ' stk';
-            else val = formatLocaleNum(v, 2) + ' t';
-            bits.push([label, val]);
-        });
-        var trips = _timebokProjTrips(p);
-        var tripTxt = function (x) {
-            return _timebokBracketLabel(x.bracketId) + (x.transport === 'privat' ? ' · ' + t('timebok_privat').toLowerCase() : '') +
-                (_timebokTravelShare(x) === 0.5 ? ' × 0,5' : '');
-        };
-        if (trips.travel) bits.push([t('timebok_wk_travel'), tripTxt(trips.travel)]);
-        trips.extras.forEach(function (x) { bits.push([t('timebok_travel_extra'), tripTxt(x)]); });
-        // Én kode pr. linje: navn til venstre, verdi til høyre (aldri brutt midt i et klokkeslett).
+        var tr = _timebokProjTrips(p), trips = [];
+        if (tr.travel) trips.push(tr.travel);
+        tr.extras.forEach(function (x) { trips.push(Object.assign({ extra: true }, x)); });
         h += '<div class="tb-wk-proj">' +
-            '<div class="tb-wk-proj-head"><span class="tb-wk-proj-name">' + escapeHtml(name) + '</span>' +
-                (anyH ? '<span class="tb-wk-proj-h">' + escapeHtml(formatLocaleNum(hrs, 2)) + ' t</span>' : '') + '</div>' +
-            // Tilleggsinformasjon rett under prosjektnavnet (brukerens valg for ukevisningen).
-            (note ? '<div class="tb-wk-note">' + escapeHtml(note) + '</div>' : '') +
-            bits.map(function (b) {
-                return '<div class="tb-wk-code"><span>' + escapeHtml(b[0]) + '</span><span class="tb-wk-code-v">' + escapeHtml(b[1]) + '</span></div>';
-            }).join('') +
+            _timebokSumHeadHtml(name, p.name ? _timebokProjNr(p.projectId) : '', !p.name && !p.noProject) +
+            _timebokSumNoteHtml(p.note ? String(p.note).trim() : '') +
+            _timebokSumRowsHtml(codes, trips, dateId) +
         '</div>';
     });
     var rc = (dayDoc && dayDoc.receipts) || [];
@@ -13966,20 +13979,27 @@ function createTimebokProjectBlock(proj) {
         '<div class="timebok-pb-head" onclick="_timebokToggleBlock(this)">' +
             '<div class="timebok-pb-headtxt">' +
                 '<span class="timebok-pb-label">' + escapeHtml(t('timebok_project')) + '<span class="timebok-pb-num"></span> <span class="timebok-req">*</span></span>' +
-                '<span class="timebok-pb-sum"></span>' +
+                '<div class="timebok-pb-sum"></div>' +
             '</div>' +
             '<svg class="timebok-pb-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
             '<button type="button" class="timebok-pb-remove" onclick="event.stopPropagation();removeTimebokProjectBlock(this)" aria-label="Fjern">&times;</button>' +
         '</div>' +
+        // Sammenlagt: tilleggsinfo + én linje pr. kode i FULL bredde under hodet (trykk = åpne).
+        '<div class="timebok-pb-sumrows" onclick="_timebokToggleBlock(this)"></div>' +
         '<div class="timebok-pb-body">' +
+        // Prosjekt | Internt (som Firesafe sitt system: egen fane for kurs o.l. uten prosjekt).
+        // Ett av dem MÅ fylles ut (_timebokValidateDay) så prosjektet ikke glemmes.
+        '<div class="tb-seg timebok-pb-mode">' +
+            '<button type="button" class="tb-seg-btn" data-mode="project" onclick="_timebokSetMode(this,\'project\')">' + escapeHtml(t('timebok_project')) + '</button>' +
+            '<button type="button" class="tb-seg-btn" data-mode="internal" onclick="_timebokSetMode(this,\'internal\')">' + escapeHtml(t('timebok_tab_internal')) + '</button>' +
+        '</div>' +
         '<div class="timebok-pb-selectrow">' +
-            '<button type="button" class="timebok-project-select' + (proj.name || block.getAttribute('data-no-project') ? ' filled' : '') + '" onclick="openTimebokProjectPicker(this)">' +
-                '<span class="timebok-project-name">' + escapeHtml(proj.name || (block.getAttribute('data-no-project') ? t('timebok_without_project') : t('timebok_no_project'))) + '</span>' +
-                '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+            // Samme prosjektfelt som i skjemaene (.proj-field: navn + prosjektnr under, «Velg prosjekt» når tomt).
+            '<button type="button" class="timebok-project-select proj-field' + (proj.name || block.getAttribute('data-no-project') ? ' filled' : '') + '" onclick="openTimebokProjectPicker(this)">' +
+                '<span class="proj-field-text"><span class="timebok-project-name proj-field-name">' + escapeHtml(proj.name || (block.getAttribute('data-no-project') ? t('timebok_internal_field') : t('template_pick'))) + '</span>' +
+                '<span class="proj-field-sub"' + (proj.name && _timebokProjNr(proj.projectId) ? '' : ' hidden') + '>' + escapeHtml(proj.name ? _timebokProjNr(proj.projectId) : '') + '</span></span>' +
+                _PROJ_FIELD_ARROW +
             '</button>' +
-            // Internt prosjekt med ett trykk (hus-ikon, samme som Hjem i toolbaren; oransje når valgt).
-            // Eneste vei til Internt prosjekt — velgeren lister bare ekte prosjekter.
-            '<button type="button" class="timebok-internal-btn' + (block.getAttribute('data-no-project') ? ' on' : '') + '" onclick="_timebokSetInternal(this)" aria-label="' + escapeHtml(t('timebok_without_project')) + '" title="' + escapeHtml(t('timebok_without_project')) + '"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>' +
         '</div>' +
         // Tilleggsinformasjon rett under prosjektet (f.eks. hvilket kurs) — vokser med teksten.
         '<textarea class="tb-input tb-textarea tb-pb-note" rows="1" autocapitalize="sentences" placeholder="' + escapeHtml(t('timebok_note_ph')) + '" oninput="autoResizeTextarea(this);_timebokOnDayInput()"></textarea>' +
@@ -13990,6 +14010,7 @@ function createTimebokProjectBlock(proj) {
         '<div class="timebok-codes"></div>' +
         '</div>';
     block.querySelector('.tb-pb-note').value = proj.note || '';
+    _timebokSyncMode(block);
     // Alle koder er kort i samme liste, sortert som kodelista (_timebokInsertCard).
     var ordId = _timebokOrdinaryTypeId(), ordShown = false;
     (proj.codes || []).forEach(function (c) {
@@ -14530,13 +14551,11 @@ function _timebokUpdateDayTotals() {
         // den siste). Foretrukket framfor å skjule den helt.
         if (rm) rm.disabled = (blocks.length <= 1);
     });
+    // «Kopier fra …» avgjøres ved åpning av dagen (tom dag + finnes forrige dag) og står
+    // så fast til du forlater siden — den forsvinner IKKE når du begynner å føre (siden
+    // skal aldri hoppe under deg). Har du ført noe, spør den før den erstatter.
     var cpBtn = document.getElementById('timebok-copy-prev');
-    if (cpBtn) {
-        var anyContent = Array.prototype.some.call(blocks, function (b) {
-            return b.getAttribute('data-project-id') || b.getAttribute('data-name') || b.getAttribute('data-no-project') || b.querySelector('.tb-code-card');
-        });
-        cpBtn.style.display = (cpBtn.getAttribute('data-src') && !anyContent) ? '' : 'none';
-    }
+    if (cpBtn) cpBtn.style.display = cpBtn.getAttribute('data-src') ? '' : 'none';
 }
 // ── Ulagret-sporing (INGEN autolagring — kun «Lagre endringer»-knappen lagrer) ──
 // Kanonisk: snapshot = det dagsvisningen ville lagret (_timebokReadDayView uten
@@ -15857,8 +15876,28 @@ function timebokCopyFromPrevDay() {
     var src = srcId && _timebokCachedDay(srcId);
     var pc = document.getElementById('timebok-day-projects');
     if (!src || !pc) return;
+    var hasContent = Array.prototype.some.call(pc.querySelectorAll('.timebok-project-block'), function (b) {
+        return b.getAttribute('data-project-id') || b.getAttribute('data-name') || b.getAttribute('data-no-project') ||
+            b.querySelector('.tb-code-card') || String((b.querySelector('.tb-pb-note') || {}).value || '').trim();
+    });
+    if (hasContent) {
+        showConfirmModal(t('timebok_copy_prev_replace').replace('{0}', _timebokFormatDateId(srcId)), _timebokDoCopyFromPrevDay, t('timebok_copy_replace_btn'), '#E8501A');
+        return;
+    }
+    _timebokDoCopyFromPrevDay();
+}
+function _timebokDoCopyFromPrevDay() {
+    var btn = document.getElementById('timebok-copy-prev');
+    var srcId = btn && btn.getAttribute('data-src');
+    var src = srcId && _timebokCachedDay(srcId);
+    var pc = document.getElementById('timebok-day-projects');
+    if (!src || !pc) return;
+    // Kopiert = jobben er gjort; knappen tas bort (hele innholdet byttes uansett nå).
+    btn.setAttribute('data-src', '');
     var n = _timebokNormalizeDoc(src, _timebokDateId(_timebokAnchor));
     pc.innerHTML = '';
+    // Som en lagret dag: flere prosjekter → sammenlagt. Sammendraget viser ALT som ble
+    // kopiert (koder, tider, reise), så du kan kontrollere uten å åpne kortene.
     n.projects.forEach(function (p) {
         var b = createTimebokProjectBlock(p);
         if (n.projects.length > 1) b.classList.add('collapsed');
@@ -15890,34 +15929,38 @@ function _timebokToggleBlock(head) {
     }
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
-// Sammendrag i hodet: prosjektnavn (rødt «Velg prosjekt» hvis mangler) · timer · reise.
+// Sammendrag i det sammenlagte kortet = ALT som er ført (bruker: «enten alt ekspandert, eller
+// all informasjon synlig når det er kollapset»): prosjekt + nr, tilleggsinformasjon, og én
+// kort: navn + resultat (timer/km/kr/stk, reise: avstand) til høyre, detaljer (start–slutt ·
+// lunsj, reise: transport · andel) i grått under navnet. Mangler prosjekt/kode → rødt, som før. Leses fra feltene (alltid oppdatert).
 function _timebokUpdateBlockSummary(block) {
     var el = block.querySelector('.timebok-pb-sum');
     if (!el) return;
     var name = block.getAttribute('data-name') || '';
-    var hours = 0, any = false;
+    var isInt = block.getAttribute('data-no-project') === '1';
+    el.innerHTML = _timebokSumHeadHtml(name || t(isInt ? 'timebok_without_project' : 'timebok_pick_project'),
+        name ? _timebokProjNr(block.getAttribute('data-project-id')) : '', !name && !isInt);
+    var codes = [], trips = [];
     block.querySelectorAll('.tb-code-card').forEach(function (c) {
-        var def = _timebokCodeDef(c.getAttribute('data-type-id'));
-        if (!def || def.zero || ['arbeid', 'overtid', 'fravaer', 'syk'].indexOf(def.group) === -1) return;
-        var h = parseLocaleNum(c.querySelector('.tb-c-val').value);
-        if (!isNaN(h)) { hours += h; any = true; }
+        if (c.classList.contains('tb-card-travel')) {
+            var o = { extra: c.classList.contains('tb-card-travel-extra'), bracketId: c.querySelector('.tb-travel-bracket').value || null,
+                transport: c.querySelector('.tb-travel-transport').value };
+            if (c.querySelector('.tb-travel-share').value === '0.5') o.share = 0.5;
+            trips.push(o);
+            return;
+        }
+        var cd = { typeId: c.getAttribute('data-type-id'), hours: c.querySelector('.tb-c-val').value };
+        if (c.classList.contains('tb-card-clock')) {
+            cd.start = _tbTimeVal(c.querySelector('.tb-c-start')); cd.end = _tbTimeVal(c.querySelector('.tb-c-end'));
+            cd.lunch = c.querySelector('.tb-c-lunch').value;
+        }
+        codes.push(cd);
     });
-    var parts = [];
-    if (any) parts.push(formatLocaleNum(hours, 2) + ' t');
-    var shareTxt = function (card) { return card.querySelector('.tb-travel-share').value === '0.5' ? ' × 0,5' : ''; };
-    block.querySelectorAll('.tb-card-travel').forEach(function (card) {
-        var b = card.querySelector('.tb-travel-bracket');
-        if (!b.value) return;
-        parts.push((card.classList.contains('tb-card-travel-extra') ? t('timebok_travel_extra_short') + ' ' : '') +
-            _timebokBracketLabel(b.value) + shareTxt(card));
-    });
-    var head = name ? '<b>' + escapeHtml(name) + '</b>'
-        : block.getAttribute('data-no-project') === '1' ? '<b>' + escapeHtml(t('timebok_without_project')) + '</b>'
-        : '<b class="missing">' + escapeHtml(t('timebok_pick_project')) + '</b>';
-    // Ingen tilleggskode (obligatorisk) → rødt «Legg til kode», som «Velg prosjekt».
-    var noCode = !block.querySelector('.tb-code-card') ? ' · <b class="missing">' + escapeHtml(t('timebok_req_code_short')) + '</b>' : '';
-    el.innerHTML = head +
-        (parts.length ? ' · ' + escapeHtml(parts.join(' · ')) : '') + noCode;
+    var rowsEl = block.querySelector('.timebok-pb-sumrows');
+    if (rowsEl) rowsEl.innerHTML = _timebokSumNoteHtml(String((block.querySelector('.tb-pb-note') || {}).value || '').trim()) +
+        (codes.length || trips.length ? _timebokSumRowsHtml(codes, trips, _timebokCurDayId())
+            // Ingen tilleggskode (obligatorisk) → rødt «Legg til kode», som «Velg prosjekt».
+            : '<div class="tb-sum-rows"><div class="tb-sum-row"><span class="tb-sum-name missing">' + escapeHtml(t('timebok_req_code_short')) + '</span></div></div>');
 }
 function addTimebokProjectBlock() {
     var pc = document.getElementById('timebok-day-projects');
@@ -16090,6 +16133,9 @@ function _timebokRenderProjectPickerList() {
     var listEl = document.getElementById('timebok-project-list');
     if (!listEl) return;
     var projects = getTimebokProjects().filter(function (p) { return p.active || p.id === _timebokPickerCurrentId; });
+    // Samme rader som prosjektvinduet i skjemaene: «nr · …» under navnet (her: nr · reiseavstand).
+    var tplNr = {};
+    safeParseJSON(TEMPLATE_KEY, []).forEach(function (x) { if (x && x.id) tplNr[x.id] = x.prosjektnr || ''; });
     var searchEl = document.getElementById('timebok-project-search');
     var raw = (searchEl && searchEl.value || '').trim();
     var q = raw.toLowerCase();
@@ -16102,7 +16148,7 @@ function _timebokRenderProjectPickerList() {
                 '<span class="timebok-proj-check">' + (on ? _TIMEBOK_CHECK_SVG : '') + '</span>' +
                 '<span class="timebok-proj-text">' +
                     '<span class="timebok-proj-name">' + escapeHtml(p.name) + (p.pending ? ' <span class="proj-pending-chip">' + escapeHtml(t('proj_pending_chip')) + '</span>' : '') + '</span>' +
-                    '<span class="timebok-proj-dist">' + escapeHtml(_timebokBracketLabel(p.bracketId)) + '</span>' +
+                    '<span class="timebok-proj-dist">' + escapeHtml([tplNr[p.id], _timebokBracketLabel(p.bracketId)].filter(Boolean).join(' · ')) + '</span>' +
                 '</span>' +
             '</button>' +
             '<button type="button" class="timebok-proj-edit" data-id="' + escapeHtml(p.id) + '" onclick="openTimebokProjectEdit(this.getAttribute(\'data-id\'))" aria-label="' + escapeHtml(t('timebok_edit_project')) + '">' + _TIMEBOK_PENCIL_SVG + '</button>' +
@@ -16135,12 +16181,33 @@ function _selectTimebokProject(id) {
         _timebokOnDayInput();
     }
 }
-// Hus-knappen ved prosjektvelgeren → Internt prosjekt.
-function _timebokSetInternal(btn) {
+// Fanene Prosjekt | Internt på prosjektkortet. Internt = kurs o.l. uten prosjekt
+// (prosjektfeltet skjules, Tilleggsinformasjon spør hva det gjelder). Tilbake til
+// Prosjekt → tomt prosjektfelt; velgeren åpnes BARE når man trykker «Velg prosjekt».
+function _timebokSetMode(btn, mode) {
     var block = btn.closest('.timebok-project-block');
-    if (!block || block.getAttribute('data-no-project') === '1') return;
-    _timebokPickerTarget = block;
-    _selectTimebokNoProject();
+    if (!block) return;
+    var isInt = block.getAttribute('data-no-project') === '1';
+    if (mode === 'internal') {
+        if (isInt) return;
+        _timebokPickerTarget = block;
+        _selectTimebokNoProject();
+    } else {
+        if (!isInt) return;
+        block.removeAttribute('data-no-project');
+        _timebokSetProjectOnBlock(block, '', '');
+        _timebokOnDayInput();
+    }
+}
+// Aktiv fane + plassholder i Tilleggsinformasjon følger kortets tilstand.
+function _timebokSyncMode(block) {
+    if (!block) return;
+    var isInt = block.getAttribute('data-no-project') === '1';
+    block.querySelectorAll('.timebok-pb-mode .tb-seg-btn').forEach(function (b) {
+        b.classList.toggle('active', (b.getAttribute('data-mode') === 'internal') === isInt);
+    });
+    var note = block.querySelector('.tb-pb-note');
+    if (note) note.placeholder = t(isInt ? 'timebok_note_internal_ph' : 'timebok_note_ph');
 }
 // «Internt prosjekt» (kurs, fravær …): ingen auto-fyll — du legger til kodene selv.
 function _selectTimebokNoProject() {
@@ -16150,23 +16217,24 @@ function _selectTimebokNoProject() {
     _timebokSetProjectOnBlock(target, '', '');
     target.setAttribute('data-no-project', '1');
     _timebokDropUntouchedAutofill(target);
-    var nm = target.querySelector('.timebok-project-name'), sel = target.querySelector('.timebok-project-select');
-    if (nm) nm.textContent = t('timebok_without_project');
-    if (sel) sel.classList.add('filled');
-    var ib = target.querySelector('.timebok-internal-btn');
-    if (ib) ib.classList.add('on');
+    // Feltet blir stående (grått, ikke trykkbart) så kortet har samme høyde i begge faner — siden hopper ikke.
+    _projFieldSet(target.querySelector('.timebok-project-select'), t('timebok_internal_field'), '');
+    _timebokSyncMode(target);
     _timebokOnDayInput();
 }
 function _timebokSetProjectOnBlock(block, id, name) {
     if (!block) return;
-    var ib = block.querySelector('.timebok-internal-btn');
-    if (ib) ib.classList.remove('on');
     block.setAttribute('data-project-id', id || '');
     block.setAttribute('data-name', name || '');
-    var sel = block.querySelector('.timebok-project-select');
-    var nm = block.querySelector('.timebok-project-name');
-    if (nm) nm.textContent = name || t('timebok_no_project');
-    if (sel) sel.classList.toggle('filled', !!name);
+    _projFieldSet(block.querySelector('.timebok-project-select'), name || '', name ? _timebokProjNr(id) : '');
+    _timebokSyncMode(block);
+}
+// Prosjektnr for et Timebok-prosjekt (Timebok-prosjekter ER prosjektlista — samme id).
+function _timebokProjNr(id) {
+    if (!id) return '';
+    var l = safeParseJSON(TEMPLATE_KEY, []);
+    for (var i = 0; i < l.length; i++) if (l[i] && l[i].id === id) return l[i].prosjektnr || '';
+    return '';
 }
 function closeTimebokProjectPicker() {
     var p = document.getElementById('timebok-project-popup');
@@ -18323,27 +18391,49 @@ function closeTemplatePicker() {
     _sjTemplateActive = false;
 }
 
+// Prosjektvinduet: samme rader som Timebok-vinduet (hake på prosjektet skjemaet har, navn + «nr ·
+// oppdragsgiver», blyant = rediger). «+» ved søket = nytt prosjekt (newTemplateFromPicker).
+function _projPickerCurrent() {
+    var v = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
+    if (_sjTemplateActive && typeof _sjForm !== 'undefined' && _sjForm) return { nr: _sjForm.data.prosjektnr, name: _sjForm.data.prosjektnavn };
+    if (_kvTemplateActive) return { nr: v('kvittering-prosjektnr'), name: v('kvittering-prosjektnavn') };
+    if (_kappeTemplateActive) return { nr: v('kappe-prosjektnr'), name: v('kappe-prosjektnavn') };
+    if (_serviceTemplateTargetCard) {
+        var c = _serviceTemplateTargetCard, a = c.querySelector('.service-entry-prosjektnr'), b = c.querySelector('.service-entry-prosjektnavn');
+        return { nr: a ? a.value : '', name: b ? b.value : '' };
+    }
+    return { nr: v('mobile-prosjektnr'), name: v('mobile-prosjektnavn') };
+}
 function _renderTemplatePickerList(templates, listEl) {
-    var hasAny = !!(templates && templates.length);
-    var html = hasAny ? '' : '<div class="bil-empty-msg">' + t('no_templates') + '</div>';
-    for (var i = 0; hasAny && i < templates.length; i++) {
-        html += _buildTemplateItemHtml(templates[i], i);
-    }
-    // «+ Nytt prosjekt» ligger I LISTA, ikke i knapperaden, nettopp så den også
-    // vises når lista er tom — den tomme lista var ellers en blindvei som tvang
-    // brukeren ut i Innstillinger for å komme videre. Samme resonnement som
-    // «+»-raden i etasje-velgeren. Ingen admin-gate, fordi knappen i
-    // Innstillinger heller ikke har en.
-    html += '<button type="button" class="template-picker-add" onclick="newTemplateFromPicker()">'
-        + escapeHtml(t('settings_new_template')) + '</button>';
+    var cur = _projPickerCurrent(), cn = String(cur.name || '').trim().toLowerCase(), cnr = String(cur.nr || '').trim();
+    var isCur = function (tpl) {
+        var n = String(tpl.prosjektnavn || '').trim().toLowerCase(), nr = String(tpl.prosjektnr || '').trim();
+        return !!cn && n === cn && (!cnr || !nr || nr === cnr);
+    };
+    var html = '';
+    (templates || []).forEach(function (tpl, i) {
+        var on = isCur(tpl);
+        var sub = [tpl.prosjektnr, tpl.oppdragsgiver].filter(Boolean).join(' · ');
+        html += '<div class="timebok-proj-row' + (on ? ' current' : '') + '">' +
+            '<button type="button" class="timebok-proj-pick tpl-pick" data-i="' + i + '">' +
+                '<span class="timebok-proj-check">' + (on ? _TIMEBOK_CHECK_SVG : '') + '</span>' +
+                '<span class="timebok-proj-text"><span class="timebok-proj-name">' + (escapeHtml(tpl.prosjektnavn) || t('no_name')) +
+                    (tpl._pending ? ' <span class="proj-pending-chip">' + escapeHtml(t('proj_pending_chip')) + '</span>' : '') + '</span>' +
+                    (sub ? '<span class="timebok-proj-dist">' + escapeHtml(sub) + '</span>' : '') + '</span>' +
+            '</button>' +
+            '<button type="button" class="timebok-proj-edit" data-id="' + escapeHtml(tpl.id) + '" onclick="_tplPickerEdit(this.getAttribute(\'data-id\'))" aria-label="' + escapeHtml(t('timebok_edit_project')) + '">' + _TIMEBOK_PENCIL_SVG + '</button>' +
+        '</div>';
+    });
+    if (!html) html = '<div class="timebok-picker-empty">' + escapeHtml(t((templates && templates.length === 0 && String((document.getElementById('template-picker-search') || {}).value || '').trim()) ? 'timebok_no_project_matches' : 'timebok_no_projects_hint')) + '</div>';
     listEl.innerHTML = html;
-
-    // Attach click handlers. Knappen er ingen .saved-item, så indeksene under
-    // følger fortsatt templates[] og klikk-delegeringen på lista treffer den ikke.
-    var items = listEl.querySelectorAll('.saved-item');
-    for (var j = 0; j < items.length; j++) {
-        items[j]._formData = templates[j];
-    }
+    var picks = listEl.querySelectorAll('.tpl-pick');
+    for (var j = 0; j < picks.length; j++) picks[j]._formData = templates[parseInt(picks[j].getAttribute('data-i'), 10)];
+}
+// Blyant: rediger prosjektet (samme prosjektskjema; velgeren skjules mens det er åpent).
+function _tplPickerEdit(id) {
+    _templateEditorFromPicker = true;
+    _setTemplatePickerHidden(true);
+    showTemplateEditor(id);
 }
 
 // Prosjekt-editoren gjenbrukes 1:1 fra Innstillinger — samme felter, samme
@@ -18362,10 +18452,44 @@ function newTemplateFromPicker() {
     // så _kappeTemplateActive / _serviceTemplateTargetCard (altså HVILKET skjema
     // prosjektet skal inn i) overlever turen innom editoren.
     _templateEditorFromPicker = true;
+    var q = String((document.getElementById('template-picker-search') || {}).value || '').trim();
     _setTemplatePickerHidden(true);
     showTemplateEditor();
+    // Som Timebok: navnet fra søket fylles inn (finnes ikke prosjektet, var det det man lette etter).
+    if (q) { document.getElementById('tpl-edit-prosjektnavn').value = q; if (typeof _projRenderSimilar === 'function') _projRenderSimilar(); }
 }
 window.newTemplateFromPicker = newTemplateFromPicker;
+
+// Servicebil: prosjektfeltet i hvert kort velger prosjekt for DET kortet.
+function openServiceTemplatePickerFor(btn) {
+    _kappeTemplateActive = false; _kvTemplateActive = false; _sjTemplateActive = false;
+    _serviceTemplateTargetCard = btn && btn.closest('.service-entry-card');
+    if (!_serviceTemplateTargetCard) return;
+    openTemplatePicker();
+}
+window.openServiceTemplatePickerFor = openServiceTemplatePickerFor;
+
+// Felles prosjektfelt: tekst = prosjektet som står i skjemaet (navn + «nr · oppdragsgiver»).
+function _projFieldsSync() {
+    var v = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
+    // Samme undertekst overalt: bare prosjektnr (oppdragsgiver står i egne felt der skjemaet har det).
+    _projFieldSet(document.getElementById('proj-field-ordre'), v('mobile-prosjektnavn'), v('mobile-prosjektnr'));
+    _projFieldSet(document.getElementById('proj-field-kappe'), v('kappe-prosjektnavn'), v('kappe-prosjektnr'));
+    _projFieldSet(document.getElementById('proj-field-kv'), v('kvittering-prosjektnavn'), v('kvittering-prosjektnr'));
+    document.querySelectorAll('#service-entries .service-entry-card').forEach(function (card) {
+        var f = card.querySelector('.proj-field');
+        var nm = card.querySelector('.service-entry-prosjektnavn'), nr = card.querySelector('.service-entry-prosjektnr');
+        _projFieldSet(f, nm ? nm.value : '', nr ? nr.value : '');
+    });
+    if (typeof _sjForm !== 'undefined' && _sjForm && _sjForm.data) _projFieldSet(document.getElementById('proj-field-sj'), _sjForm.data.prosjektnavn, _sjForm.data.prosjektnr);
+}
+// Detaljfeltene kan rettes for hånd → feltet følger med.
+document.addEventListener('input', function (e) {
+    var el = e.target;
+    if (!el || !el.id && !el.className) return;
+    if (/^(mobile-(prosjektnavn|prosjektnr|oppdragsgiver)|kappe-prosjekt(navn|nr)|kvittering-prosjekt(navn|nr))$/.test(el.id || '') ||
+        (el.classList && (el.classList.contains('service-entry-prosjektnavn') || el.classList.contains('service-entry-prosjektnr')))) _projFieldsSync();
+});
 
 var _serviceTemplateTargetCard = null;
 
@@ -18449,6 +18573,7 @@ function _applyTemplateToForm(template) {
         updateFakturaadresseDisplay('fakturaadresse-display-text', template.fakturaadresse || '');
     }
     closeTemplatePicker();
+    _projFieldsSync();
 }
 
 // ============================================================================
@@ -29717,17 +29842,31 @@ function _sjChip(group, val, active) {
 function _sjPick(g, options, selected, mode, tail, leadHtml) {
     var sel = mode === 'multi' ? (selected || []) : (selected ? [selected] : []);
     var all = options.slice();
-    if (mode !== 'action') sel.forEach(function (v) { if (v && all.indexOf(v) === -1) all.push(v); });
+    // Kombifelt (etasje, brannkrav, underlag): hurtigvalg + ETT felt «Annet ▾» til slutt der man både
+    // kan skrive egen verdi og velge resten fra lista (bruker 15-11-2026, som Antall). En egen verdi
+    // vises i feltet, ikke som ny knapp.
+    var combo = mode === 'single' && !tail && g !== 'surface' && g !== 'sides';
+    if (mode !== 'action' && !combo) sel.forEach(function (v) { if (v && all.indexOf(v) === -1) all.push(v); });
     if (!all.length && !leadHtml) return '<div class="sj-hint">' + escapeHtml(t('sj_no_options')) + '</div>';
     var chips = (leadHtml || '') + all.map(function (v) {
         if (mode === 'action') return '<button type="button" class="sj-chip sj-chip-add" data-add="' + escapeHtml(v) + '">+ ' + escapeHtml(v) + '</button>';
         return _sjChip(g, v, sel.indexOf(v) !== -1);
     }).join('');
-    var more = tail || (all.length ? '<select class="sj-pick-more" data-pick="' + g + '" aria-label="' + escapeHtml(t('sj_more')) + '">' +
-        '<option value="">' + escapeHtml(t(mode === 'action' ? 'sj_more_add' : 'sj_more')) + '</option>' +
+    var grpLbl = combo && _sjGroup(g) ? t(_sjGroup(g).labelKey) : t('sj_more');
+    var selectHtml = (all.length ? '<select class="sj-pick-more' + (combo ? ' sj-combo-select' : '') + '" data-pick="' + g + '" aria-label="' + escapeHtml(grpLbl) + '">' +
+        // Kombifelt: «Flere»-linja er bare en plassholder — skjult i lista som åpnes.
+        '<option value=""' + (combo ? ' hidden' : '') + '>' + escapeHtml(t(mode === 'action' ? 'sj_more_add' : 'sj_more')) + '</option>' +
         all.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') +
         '</select>' : '');
-    return '<div class="sj-pick sj-pick-overflow' + (tail ? ' sj-pick-tail' : '') + '" data-g="' + g + '" data-mode="' + mode + '">' +
+    var cur = sel[0] || '';
+    var more = tail || (combo
+        ? '<div class="sj-combo"><input type="text" class="sj-combo-input' + (cur && all.indexOf(cur) === -1 ? ' active' : '') + '" data-combo="' + g + '" autocomplete="off"' +
+              (g === 'floors' ? ' autocapitalize="characters"' : ' autocapitalize="sentences"') + ' placeholder="' + escapeHtml(t('sj_other')) + '" value="' + escapeHtml(cur && all.indexOf(cur) === -1 ? cur : '') + '">' +
+              // Pilen i eget område: på mobil går trykket forbi selecten (pointer-events:none) til
+              // forelderen — den felles liste-koden finner selecten INNI det trykkede elementet.
+              '<span class="sj-combo-arrow">' + selectHtml + '</span></div>'
+        : selectHtml);
+    return '<div class="sj-pick sj-pick-overflow' + (tail ? ' sj-pick-tail' : '') + (combo ? ' sj-pick-combo' : '') + '" data-g="' + g + '" data-mode="' + mode + '">' +
         '<div class="sj-pick-chips">' + chips + '</div>' + more + '</div>';
 }
 // Hvilke knapper havnet utenfor raden? Alle målinger først, så alle endringer (én layout).
@@ -29741,7 +29880,7 @@ function _sjSyncPicks(reshow) {
         if (!chips.length) return { r: r, hidden: [] };
         var top0 = chips[0].offsetTop, hidden = [];
         for (var i = 0; i < chips.length; i++) {
-            if (chips[i].offsetTop > top0) hidden.push(chips[i].getAttribute('data-v') || chips[i].getAttribute('data-add'));
+            if (chips[i].offsetTop > top0) hidden.push(chips[i].getAttribute('data-v') || chips[i].getAttribute('data-add') || (chips[i].getAttribute('data-other') ? '__other' : ''));
         }
         return { r: r, hidden: hidden };
     });
@@ -29758,8 +29897,9 @@ function _sjSyncPicks(reshow) {
                 sel.innerHTML = '';
                 sel.appendChild(first);
                 x.hidden.forEach(function (v) {
+                    if (!v) return;
                     var o = document.createElement('option');
-                    o.value = v; o.textContent = v;
+                    o.value = v; o.textContent = v === '__other' ? t('sj_other') + ' …' : v;   // «+ Annet» havnet i «Flere»
                     sel.appendChild(o);
                 });
             }
@@ -29773,6 +29913,16 @@ function _sjPickDisplay(row) {
     if (!selEl || !_sjForm) return;
     var g = row.getAttribute('data-g'), mode = row.getAttribute('data-mode'), hidden = row._sjHidden || [], d = _sjForm.data;
     var first = selEl.options[0];
+    var comboIn = row.querySelector('.sj-combo-input');
+    if (comboIn) {
+        // Kombifelt: verdi som ikke har synlig knapp (skjult i lista eller egen) står i feltet.
+        var cv = d[SJ_SINGLE_FIELD[g]] || '';
+        var chipVisible = cv && hidden.indexOf(cv) === -1 && !!row.querySelector('.sj-pick-chips > .sj-chip[data-v="' + (window.CSS && CSS.escape ? CSS.escape(cv) : cv) + '"]');
+        if (document.activeElement !== comboIn) comboIn.value = (cv && !chipVisible) ? cv : '';
+        comboIn.classList.toggle('active', !!(cv && !chipVisible));
+        selEl.value = '';
+        return;
+    }
     if (mode === 'single') {
         var v = d[SJ_SINGLE_FIELD[g]] || '';
         var show = v && hidden.indexOf(v) !== -1;
@@ -29900,17 +30050,9 @@ function _sjRenderForm() {
     var html = '';
 
     html += _sjSection('sj_sec_project',
-        // Bare prosjektnavn vises (mer plass). Prosjektnr. ligger fortsatt i dataene: settes av
-        // prosjektvelgeren, og når navnet skrives inn for hånd, hentes nr. fra prosjektet med
-        // samme navn (_sjMatchProjectNr) — så samme prosjekt alltid grupperes likt.
-        _sjRow(null,
-            '<div class="sj-line">' +
-                _sjInput('prosjektnavn', d.prosjektnavn, 'autocapitalize="sentences" placeholder="' + escapeHtml(t('label_prosjektnavn')) + '" aria-label="' + escapeHtml(t('label_prosjektnavn')) + '"') +
-                // Prosjektmal-velgeren (samme som «Velg prosjektmal» i de andre skjemaene) som ikon på linja.
-                '<button type="button" class="sj-icon-btn sj-project-pick" onclick="sjPickProject()" aria-label="' + escapeHtml(t('template_pick')) + '" title="' + escapeHtml(t('template_pick')) + '">' +
-                    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>' +
-                '</button>' +
-            '</div>', 'prosjektnavn'));
+        // Felles prosjektfelt (samme som de andre skjemaene og Timebok): trykk → prosjektvinduet.
+        // Mangler prosjektet, lages det der med «+» (blir eget + forslag til admin).
+        _sjRow(null, _projFieldHtml('sjPickProject()', d.prosjektnavn || '', d.prosjektnavn ? (d.prosjektnr || '') : '', 'proj-field-sj'), 'prosjektnavn'));
 
     html += _sjSection('sj_sec_location',
         _sjRow('sj_grp_floors', _sjPick('floors', o.floors, d.etasje, 'single'), 'etasje') +
@@ -30120,11 +30262,37 @@ function _sjApplyTemplate(tpl) {
     if (!_sjForm || !tpl) return;
     _sjForm.data.prosjektnr = tpl.prosjektnr || '';
     _sjForm.data.prosjektnavn = tpl.prosjektnavn || '';
-    var pane = document.getElementById('sj-pane-form');
-    var b = pane && pane.querySelector('[data-f="prosjektnavn"]');
-    if (b) b.value = _sjForm.data.prosjektnavn;
+    var b = document.getElementById('proj-field-sj');
+    _projFieldSet(b, _sjForm.data.prosjektnavn, _sjForm.data.prosjektnr);
     _sjClearMissing(b && b.closest('.sj-row'));
     _sjPersistSession();
+}
+
+// «+ Annet»: egen verdi for ett enkeltvalg — gjelder bare denne sjekklisten (ikke lagt i lista).
+function _sjAskOther(g) {
+    if (!_sjForm) return;
+    var f = SJ_SINGLE_FIELD[g];
+    if (!f) return;
+    var grp = _sjGroup(g), d = _sjForm.data;
+    var opts = (_sjOptions()[g] || []);
+    showInputModal(t(grp ? grp.labelKey : 'sj_other'), opts.indexOf(d[f]) === -1 ? (d[f] || '') : '', function (v) {
+        v = String(v || '').trim();
+        if (g === 'floors') v = v.toUpperCase();
+        if (!v) return;
+        d[f] = v;
+        var row = document.querySelector('#sj-pane-form .sj-pick[data-g="' + g + '"]');
+        if (row) {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = _sjPick(g, opts, v, 'single');
+            row.replaceWith(tmp.firstChild);
+            if (typeof _sjSyncPicks === 'function') _sjSyncPicks(true);
+            var nr = document.querySelector('#sj-pane-form .sj-pick[data-g="' + g + '"]');
+            if (nr) { _sjPickDisplay(nr); _sjClearMissing(nr.closest('.sj-row')); }
+        }
+        _sjPersistSession();
+    });
+    var inp = document.getElementById('input-modal-input');
+    if (inp && g === 'floors') inp.setAttribute('autocapitalize', 'characters');
 }
 
 // Delegerte hendelser i skjemaet (valg-knapper og felt).
@@ -30133,6 +30301,8 @@ function _sjApplyTemplate(tpl) {
     document.addEventListener('click', function (e) {
         var add = e.target.closest && e.target.closest('#sj-pane-form .sj-chip-add[data-add]');
         if (add && _sjForm) { sjAddContent(add.getAttribute('data-add')); return; }
+        var oth = e.target.closest && e.target.closest('#sj-pane-form .sj-chip-other[data-other]');
+        if (oth && _sjForm) { _sjAskOther(oth.getAttribute('data-other')); return; }
         var chip = e.target.closest && e.target.closest('#sj-pane-form .sj-chip[data-g]');
         if (!chip || !_sjForm) return;
         var g = chip.getAttribute('data-g'), v = chip.getAttribute('data-v'), d = _sjForm.data;
@@ -30150,6 +30320,8 @@ function _sjApplyTemplate(tpl) {
             });
             var pickRow = chip.closest('.sj-pick');
             if (g === 'quantity') { var other = pickRow && pickRow.querySelector('.sj-qty-other'); if (other) other.value = ''; }
+            var ci = pickRow && pickRow.querySelector('.sj-combo-input');
+            if (ci) { ci.value = ''; ci.classList.remove('active'); }
         }
         _sjPickDisplay(chip.closest('.sj-pick'));
         _sjClearMissing(chip.closest('.sj-row'));
@@ -30161,6 +30333,19 @@ function _sjApplyTemplate(tpl) {
         if (!row || !v || !_sjForm) { _sjPickDisplay(row); return; }
         var g = row.getAttribute('data-g'), mode = row.getAttribute('data-mode'), d = _sjForm.data;
         if (mode === 'action') { el.value = ''; sjAddContent(v); return; }
+        if (v === '__other') { el.value = ''; _sjAskOther(g); return; }
+        if (row.querySelector('.sj-combo-input')) {
+            d[SJ_SINGLE_FIELD[g]] = v;
+            var cin = row.querySelector('.sj-combo-input');
+            cin.value = v; cin.classList.add('active');
+            if (document.activeElement === cin) cin.blur();
+            row.querySelectorAll('.sj-pick-chips > .sj-chip[data-g]').forEach(function (c) { c.classList.toggle('active', c.getAttribute('data-v') === v); });
+            el.value = '';
+            _sjPickDisplay(row);
+            _sjClearMissing(row.closest('.sj-row'));
+            _sjPersistSession();
+            return;
+        }
         if (mode === 'multi') {
             var i = d.produkter.indexOf(v);
             if (i === -1) d.produkter.push(v); else d.produkter.splice(i, 1);
@@ -30183,6 +30368,19 @@ function _sjApplyTemplate(tpl) {
         if (el.classList && el.classList.contains('sj-pick-more')) return;   // håndteres i change
         var d = _sjForm.data;
         var f = el.getAttribute('data-f');
+        var cg = el.getAttribute && el.getAttribute('data-combo');
+        if (cg) {
+            // Egen verdi i kombifeltet: gjelder bare denne sjekklisten. Etasje med store bokstaver.
+            var cf = SJ_SINGLE_FIELD[cg], val = el.value;
+            if (cg === 'floors' && val !== val.toUpperCase()) { var pos = el.selectionStart; el.value = val = val.toUpperCase(); try { el.setSelectionRange(pos, pos); } catch (er) {} }
+            d[cf] = String(val || '').trim();
+            var prow = el.closest('.sj-pick');
+            if (prow) prow.querySelectorAll('.sj-pick-chips > .sj-chip[data-g]').forEach(function (c) { c.classList.remove('active'); });
+            el.classList.toggle('active', !!d[cf]);
+            _sjClearMissing(el.closest('.sj-row'));
+            _sjPersistSession();
+            return;
+        }
         if (f === 'antallAnnet') {
             var n = String(el.value || '').replace(/[^\d]/g, '');
             if (n !== el.value) el.value = n;
@@ -30564,3 +30762,16 @@ function _sjRefreshActive() {
     if (_sjMode === 'overview') _sjRefreshProjects();
     else if (_sjMode === 'project' && !_sjList.loading) _sjLoadProject(true);
 }
+
+// Felles prosjektfelt: oppdater teksten etter alt som fyller skjemaene på nytt (åpne lagret,
+// nytt/tømt skjema, prosjektrettelse, visningsbytte). Pakkes inn her (lastes sist) i stedet for
+// én linje i hver funksjon — de ligger spredt i script.js/script-ui.js.
+['setFormData', 'setKappeFormData', 'setKvitteringFormData', 'setServiceFormData', 'clearForm', '_correctProjectInOpenForms', 'showView'].forEach(function (name) {
+    var orig = window[name];
+    if (typeof orig !== 'function') return;
+    window[name] = function () {
+        var r = orig.apply(this, arguments);
+        try { _projFieldsSync(); } catch (e) {}
+        return r;
+    };
+});

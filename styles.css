@@ -9277,12 +9277,6 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-pb-remove:disabled { opacity: 0.3; cursor: default; }
 .timebok-pb-selectrow { display: flex; gap: 8px; }
 /* Internt prosjekt ved velgeren: firkantet hus-knapp, oransje når valgt. */
-.timebok-internal-btn {
-    flex-shrink: 0; width: 46px; display: flex; align-items: center; justify-content: center;
-    background: #fff; border: 1px solid #d8d8de; border-radius: 9px; color: #6b6b73; cursor: pointer;
-}
-.timebok-internal-btn:active { background: #f5f5f7; }
-.timebok-internal-btn.on { background: #fff1ea; border-color: #E8501A; color: #E8501A; }
 .timebok-project-select {
     flex: 1; min-width: 0;
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -13746,3 +13740,76 @@ body:has(.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-pop
 .inbox-rule-text { display: flex; flex-direction: column; min-width: 0; }
 .inbox-rule-title { font-size: 15px; color: #1a1a1a; }
 .inbox-rule-sub { font-size: 12px; color: #8a8a90; margin-top: 1px; }
+/* Sjekkliste: «+ Annet» (egen verdi for ett valg). */
+.sj-chip.sj-chip-other { color: #E8501A; border-style: dashed; }
+/* Sjekkliste: kombifelt «Annet ▾» (etasje, brannkrav, underlag) — skriv egen verdi, eller pilen for
+   resten av valgene. Samme mål/ramme som Antall-feltet; pilen (selecten) bare når noe er skjult. */
+#sj-pane-form .sj-combo { position: relative; flex: 0 0 92px; width: 92px; height: 40px; }
+#sj-pane-form .sj-card .sj-pick .sj-combo input.sj-combo-input {
+    width: 100%; height: 40px; box-sizing: border-box; padding: 0 10px; font-size: 15px;
+    border: 1px solid #cfcfd4; border-radius: 9px; background: #fff;
+}
+#sj-pane-form .sj-pick-overflow .sj-combo input.sj-combo-input { padding-right: 28px; }
+#sj-pane-form .sj-card .sj-pick .sj-combo input.sj-combo-input.active {
+    border: 1.5px solid #E8501A; background: #fff3ee; color: #E8501A; font-weight: 600;
+}
+/* Selecten = bare pil-området til høyre i feltet (mobil-lista åpnes ved trykk der). */
+#sj-pane-form .sj-card .sj-pick .sj-combo select.sj-combo-select {
+    position: absolute; top: 0; right: 0; width: 30px; height: 40px; flex: none;
+    padding: 0; border: none; background-color: transparent; color: transparent;
+    background-position: center center; box-shadow: none;
+}
+#sj-pane-form .sj-card .sj-pick .sj-combo select.sj-combo-select.active { border: none; background-color: transparent; color: transparent; }
+#sj-pane-form .sj-card .sj-pick .sj-combo select.sj-combo-select option { color: #333; }
+#sj-pane-form .sj-combo .sj-combo-arrow { position: absolute; top: 0; right: 0; width: 30px; height: 40px; }
+.sj-pick:not(.sj-pick-overflow) .sj-combo .sj-combo-arrow { display: none; }
+#sj-pane-form .sj-card .sj-pick .sj-combo .sj-combo-arrow select.sj-combo-select { position: static; width: 30px; }
+/* Felles prosjektfelt (alle skjemaer + Timebok-stilen): valgt prosjekt + «nr · oppdragsgiver», ▾. */
+.proj-field {
+    width: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: #fff; border: 1px solid #d8d8de; border-radius: 9px; padding: 11px 12px; min-height: 48px;
+    font-family: inherit; text-align: left; cursor: pointer; color: #999; -webkit-tap-highlight-color: transparent;
+}
+.proj-field:active { background: #f5f5f7; }
+.proj-field svg { color: #999; flex-shrink: 0; }
+.proj-field-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.proj-field-name { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+.proj-field.filled .proj-field-name { color: #111; font-weight: 500; }
+.proj-field-sub { font-size: 12px; color: #8a8a90; overflow-wrap: anywhere; }
+.proj-field-sub[hidden] { display: none; }
+.service-entry-body .proj-field { margin-bottom: 2px; }
+/* Timebok sitt prosjektfelt = samme mål som det felles prosjektfeltet. */
+.timebok-project-select { min-height: 48px; font-size: 15px; }
+/* Tomt prosjektfelt = «start her»: oransje markering så det ikke overses blant de vanlige feltene.
+   Gjelder ALLE prosjektfelt (skjemaene + Timebok). Valgt prosjekt → vanlig felt igjen. */
+.proj-field:not(.filled) { background: #fff6f2; border-color: #E8501A; color: #E8501A; }
+.proj-field:not(.filled) .proj-field-name { color: #E8501A; font-weight: 500; }
+.proj-field:not(.filled) svg { color: #E8501A; }
+.proj-field:not(.filled):active { background: #ffe9df; }
+/* Timebok-kortet: Prosjekt | Internt. Internt → prosjektfeltet blir stående som grått, ikke-trykkbart
+   felt («Uten prosjekt …») med SAMME høyde, så kortet ikke endrer høyde ved fanebytte (ingen hopp). */
+.timebok-pb-mode { margin-bottom: 8px; }
+.timebok-project-block[data-no-project="1"] .timebok-project-select { background: #f5f5f7; border-color: #e4e4e8; pointer-events: none; }
+.timebok-project-block[data-no-project="1"] .timebok-project-select .proj-field-name { color: #6b6b73; font-weight: 400; }
+.timebok-project-block[data-no-project="1"] .timebok-project-select svg { visibility: hidden; }
+/* FELLES prosjekt-sammendrag (Timebok uke + sammenlagt kort på dagsiden — samme markup, samme CSS).
+   Én linje pr. kode: navn venstre, alt som er ført høyre; får verdien ikke plass → egen linje (aldri kuttet). */
+.tb-sum-headline { line-height: 1.3; overflow-wrap: anywhere; }
+.tb-sum-name { font-size: 15px; font-weight: 500; color: #1a1a1a; }
+.tb-sum-name.missing { color: #c0392b; }
+.tb-sum-nr { font-size: 13px; color: #8a8a90; white-space: nowrap; }
+.tb-sum-note { margin-top: 2px; font-size: 13px; line-height: 1.35; color: #6b6b73; white-space: pre-line; overflow-wrap: anywhere; }
+.tb-sum-rows { margin-top: 5px; display: flex; flex-direction: column; gap: 3px; }
+.tb-sum-row { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 12px; font-size: 13px; line-height: 1.35; }
+.tb-sum-label { color: #6b6b73; min-width: 0; overflow-wrap: anywhere; }
+.tb-sum-val { margin-left: auto; color: #1a1a1a; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tb-sum-val.empty { color: #aaa; }
+.tb-sum-row .tb-sum-name.missing { font-size: 13px; }
+/* Dagsiden: sammendraget står i full bredde under kort-hodet når kortet er sammenlagt (trykk = åpne). */
+/* flow-root: barnas marger blir INNE i den grå boksen (ellers «lekker» margin-top ut som en hvit stripe).
+   Lik luft over og under skillestreken (8 px), 10 px i bunnen. */
+.timebok-pb-sumrows { display: none; padding: 0 12px 10px; background: #f5f5f7; cursor: pointer; }
+.timebok-project-block.collapsed .timebok-pb-sumrows { display: flow-root; }
+.timebok-project-block.collapsed .timebok-pb-head { padding-bottom: 0; }
+.timebok-pb-sumrows > .tb-sum-note { margin-top: 2px; }
+.timebok-pb-sumrows > .tb-sum-rows { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e4e4e8; }
