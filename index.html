@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1171">
+    <link rel="stylesheet" href="styles.css?v=1175">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -723,14 +723,8 @@
                 <label class="settings-default-label" id="mat-review-units-row"><span data-i18n="mat_review_units">Enheter (komma mellom)</span><input type="text" id="mat-review-units" autocapitalize="sentences" placeholder="f.eks. patron, pølse"></label>
                 <!-- Platene som rader i vinduet (ikke nedtrekksliste — den åpnet en liste OPPÅ vinduet,
                      bruker 15-11-2026). Feltene for ny plate står alltid under (som på Plater-siden). -->
-                <div class="settings-default-label" id="mat-review-plate-row"><span data-i18n="mat_review_plate">Plate (mm)</span>
-                    <div class="pick-list mat-review-plates" id="mat-review-plates"></div></div>
-                <div class="settings-add-row set-add-row mat-review-newplate" id="mat-review-newplate" hidden>
-                    <input type="text" id="mat-review-plate-l" inputmode="numeric" pattern="[0-9]*" placeholder="1200" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mat-review-plate-w').focus();}">
-                    <span class="settings-plate-x">×</span>
-                    <input type="text" id="mat-review-plate-w" inputmode="numeric" pattern="[0-9]*" placeholder="600" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatReviewPlate();}">
-                    <button type="button" class="settings-add-btn" onclick="addMatReviewPlate()" data-i18n="btn_add">Legg til</button>
-                </div>
+                <div class="settings-default-label" id="mat-review-plate-row"><span data-i18n="kappe_prod_plates">Plater (mm)</span>
+                    <div id="mat-review-pe"></div></div>
             </div>
             <div class="template-editor-buttons">
                 <button class="template-editor-save-btn" onclick="approveMaterialSuggestion()" data-i18n="proj_approve_btn">Godkjenn</button>
@@ -764,6 +758,24 @@
             <div class="template-editor-buttons">
                 <button class="template-editor-save-btn" id="ppl-review-ok" onclick="approvePersonSuggestion()">Godkjenn</button>
                 <button class="template-editor-deactivate-btn tpl-reject-btn" onclick="rejectPersonSuggestion()" data-i18n="proj_reject_btn">Avvis</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin › Materialer › Isolasjon: ett produkt — navn + egne platestørrelser (første = standard). -->
+    <div class="confirm-modal" id="kappe-prod-popup" onclick="closeKappeProductEditor()">
+        <div class="template-editor-content" onclick="event.stopPropagation()">
+            <div class="template-editor-header">
+                <span data-i18n="kappe_product_type_isolasjon">Isolasjon</span>
+                <button class="template-editor-close" onclick="closeKappeProductEditor()">&times;</button>
+            </div>
+            <div class="template-editor-body">
+                <label class="settings-default-label"><span data-i18n="mat_review_name">Navn</span><input type="text" id="kappe-prod-name" autocapitalize="sentences"></label>
+                <div class="settings-default-label"><span data-i18n="kappe_prod_plates">Plater (mm)</span><div id="kappe-prod-pe"></div></div>
+                <div class="set-foot" data-i18n="kappe_prod_plates_hint">Standard er valgt når produktet velges. De andre kan velges med ett trykk.</div>
+            </div>
+            <div class="template-editor-buttons">
+                <button class="template-editor-save-btn" onclick="saveKappeProductEditor()" data-i18n="toolbar_save">Lagre</button>
             </div>
         </div>
     </div>
@@ -1180,29 +1192,9 @@
                                 <button type="button" class="settings-add-btn" onclick="addKappeProductFromSettings('isolasjon')" data-i18n="btn_add">Legg til</button>
                             </div>
                         </div>
-                        <div class="set-section">
-                            <div class="set-section-title"><span data-i18n="kappe_settings_thickness">Tykkelser (mm)</span> <span class="set-count" id="settings-count-kappe-dimensions"></span></div>
-                            <div class="set-card">
-                                <div id="settings-kappe-dim-items" class="settings-list-container"></div>
-                                <div class="settings-add-row set-add-row">
-                                    <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 50" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
-                                    <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension('iso')" data-i18n="btn_add">Legg til</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="set-section">
-                            <div class="set-section-title"><span data-i18n="kappe_settings_plates">Plater (mm)</span> <span class="set-count" id="settings-count-kappe-plates"></span></div>
-                            <div class="set-card">
-                            <div id="settings-kappe-plate-items" class="set-range-list"></div>
-                            <div class="settings-add-row set-add-row">
-                            <input type="text" id="settings-new-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
-                            <span class="settings-plate-x">×</span>
-                            <input type="text" id="settings-new-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
-                            <button type="button" class="settings-add-btn" onclick="addKappePlate()" data-i18n="btn_add">Legg til</button>
-                            </div>
-                            </div>
-                            <div class="set-foot" data-i18n="settings_plates_hint">Platestørrelser for isolasjonsprodukter. Knytt produkter til en plate; produkter uten plate bruker den første.</div>
-                        </div>
+                        <!-- Tykkelser: én rad med forhåndsvisning → liste-vindu (som Etasjer i Valglister).
+                             Knapper i bredden / én rad pr. tall ble rotete og lange (bruker 15-11-2026). -->
+                        <div class="set-section"><div class="set-card adm-list" id="kappe-dims-row-iso"></div></div>
                     </div>
                     <div class="set-tab-panel" data-tab="fast" hidden>
                         <div class="set-section-title" data-i18n="kappe_settings_products">Produkter</div>
@@ -1214,16 +1206,7 @@
                                 <button type="button" class="settings-add-btn" onclick="addKappeProductFromSettings('festemiddel')" data-i18n="btn_add">Legg til</button>
                             </div>
                         </div>
-                        <div class="set-section">
-                            <div class="set-section-title"><span data-i18n="kappe_settings_lengths">Lengder (mm)</span> <span class="set-count" id="settings-count-kappe-fdims"></span></div>
-                            <div class="set-card">
-                                <div id="settings-kappe-fdim-items" class="settings-list-container"></div>
-                                <div class="settings-add-row set-add-row">
-                                    <input type="text" id="settings-new-kappe-fdim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 50" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension('fast');}">
-                                    <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension('fast')" data-i18n="btn_add">Legg til</button>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="set-section"><div class="set-card adm-list" id="kappe-dims-row-fast"></div></div>
                     </div>
                 </div>
 
@@ -1650,6 +1633,7 @@
                     <span class="kappe-plate-x">×</span>
                     <input type="text" id="kappe-picker-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
                 </div>
+                <div class="kappe-plate-chips" id="kappe-picker-plate-chips" hidden></div>
                 <div class="kappe-picker-plate-placeholder" id="ppl-plate-placeholder" style="display:none" data-i18n="kappe_fastener_no_plate">Festemiddel — ingen platemål</div>
             </div>
             <div class="kappe-picker-bredde-section" id="product-dimension-picker-bredde-section" style="display:none">
@@ -1687,6 +1671,7 @@
                         <span class="kappe-plate-x">×</span>
                         <input type="text" id="kappe-picker-spec-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
                     </div>
+                    <div class="kappe-plate-chips" id="kappe-picker-spec-plate-chips" hidden></div>
                 </div>
                 <div class="kappe-picker-fastener-hint" id="kappe-picker-fastener-hint" style="display:none">
                     <div class="kappe-picker-hint-line"><strong>Stk</strong> &middot; enkeltvise stykker</div>
@@ -1948,6 +1933,25 @@
             </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-ok" onclick="closePlansPopup()" data-i18n="btn_done">Ferdig</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin › Materialer: tykkelser (isolasjon) / lengder (festemidler) — samme oppbygning som Etasjer. -->
+    <div class="spec-popup-backdrop" id="dims-popup" onclick="if(event.target===this)closeDimsPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header" id="dims-popup-title"></div>
+            <div class="spec-popup-body">
+                <div class="set-card">
+                    <div id="dims-popup-items" class="settings-list-container"></div>
+                    <div class="settings-add-plan-row set-add-row">
+                        <input type="text" id="dims-popup-new" inputmode="decimal" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 50" onkeydown="if(event.key==='Enter'){event.preventDefault();addDimsPopup();}">
+                        <button type="button" class="settings-add-plan-btn" onclick="addDimsPopup()" data-i18n="btn_add">Legg til</button>
+                    </div>
+                </div>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-ok" onclick="closeDimsPopup()" data-i18n="btn_done">Ferdig</button>
             </div>
         </div>
     </div>
@@ -2711,9 +2715,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=476"></script>
-    <script src="script.js?v=614"></script>
-    <script src="script-ui.js?v=1409"></script>
+    <script src="lang.js?v=477"></script>
+    <script src="script.js?v=616"></script>
+    <script src="script-ui.js?v=1414"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

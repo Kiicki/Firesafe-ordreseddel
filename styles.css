@@ -13643,10 +13643,6 @@ html:not(.is-super):not(.dev-mode) .super-only { display: none !important; }
 .inbox-first { margin-top: 0; }
 .mat-review-type { padding: 10px 0 2px; font-size: 15px; color: #1a1a1a; }
 .picker-pending-chip { margin-left: 6px; flex-shrink: 0; }
-/* Kappe-produktvelger: «+ Nytt produkt / Ny isolasjon / Nytt festemiddel» nederst i produktlista. */
-.kappe-product-picker-row.kappe-picker-add-row { border-style: dashed; border-color: #E8501A; color: #E8501A; gap: 4px; }
-.kappe-picker-add-plus { font-size: 17px; line-height: 1; }
-.kappe-picker-brands .kappe-product-picker-row.kappe-picker-add-row .kappe-product-picker-name { color: #E8501A; font-weight: 400; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 /* Produktnavn i kappe-produktvelgeren kuttes aldri («Rockwool …») — går heller over to linjer. */
 .kappe-picker-brands .kappe-product-picker-row .kappe-product-picker-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 /* Godkjenn materiale: typevelger i full bredde (som et felt), skjulte felt-rader. */
@@ -13682,3 +13678,33 @@ body:has(.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-pop
 .picker-overlay-list .picker-mat-row.picker-mat-launcher { opacity: 1; }
 /* Isolasjon-vinduet har ikke lenger egen festemiddel-del (festemidler = eget vindu). */
 .iso-card-fast-section[hidden] { display: none !important; }
+/* «+ Nytt produkt» (venstre) og «+ Ny dimensjon» (høyre) øverst i kappe-produktvelgeren: lik høyde,
+   så skillelinjene under står på linje i begge kolonnene («+ Ny dimensjon» går over to linjer). */
+.kappe-picker-brands .kappe-product-picker-row.kappe-picker-add-dim,
+.kappe-picker-dimensions .kappe-product-picker-row.kappe-picker-add-dim { min-height: 57px; align-items: center; }
+/* Isolasjonsprodukter (Admin › Materialer): platene under navnet. */
+.settings-list-item-sub { font-size: 12px; color: #8a8a90; margin-top: 1px; overflow-wrap: anywhere; }
+.kappe-iso-item { cursor: pointer; }
+.kappe-iso-item .settings-list-item-main { flex: 1; min-width: 0; }
+/* Plate-redigerer (produkt / godkjenning): radio-rader (standard) + slett + legg til. */
+.pe-list { margin: 6px 0 8px; box-shadow: 0 0 0 1px #e2e2e6; }
+.pe-row { gap: 10px; }
+.pe-del { flex-shrink: 0; border: none; background: none; padding: 4px; cursor: pointer; color: #e74c3c; display: flex; }
+.pe-del svg { width: 18px; height: 18px; }
+.pe-add { margin-top: 6px; }
+/* Velgeren: produktets plater som knapper over/under platefeltene. */
+.kappe-plate-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.kappe-plate-chips[hidden] { display: none; }
+.kappe-plate-chip { padding: 6px 10px; border: 1px solid #ddd; border-radius: 999px; background: #fff; font-size: 13px; font-family: inherit; color: #333; cursor: pointer; }
+.kappe-plate-chip.active { border-color: #E8501A; background: #fff1ea; color: #c2410c; font-weight: 600; }
+/* Tykkelser / lengder (Admin › Materialer): små knapper i bredden i stedet for én rad pr. tall. */
+.dim-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 12px 4px; }
+.dim-chips:empty { display: none; }
+.dim-chip { display: inline-flex; align-items: center; border: 1px solid #e2e2e6; border-radius: 999px; background: #fff; overflow: hidden; }
+.dim-chip-val { border: none; background: none; padding: 7px 4px 7px 12px; font-size: 15px; font-family: inherit; color: #1a1a1a; cursor: pointer; min-width: 28px; }
+.dim-chip-x { border: none; background: none; padding: 7px 10px 7px 6px; font-size: 17px; line-height: 1; color: #e74c3c; cursor: pointer; font-family: inherit; }
+.dim-chip:active { background: #f7f7f9; }
+/* Rader som redigeres ved trykk (ingen blyant). */
+.settings-row-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.settings-row-tap:active { background: #f7f7f9; }
+.settings-material-name-wrap { cursor: pointer; }
