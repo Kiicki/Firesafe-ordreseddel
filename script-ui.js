@@ -3009,13 +3009,55 @@ function openMaterialReview(suggId) {
     document.getElementById('mat-review-name').value = s.name || '';
     document.getElementById('mat-review-name').disabled = !!s.variantOf;
     document.getElementById('mat-review-units').value = (s.allowedUnits || []).join(', ');
-    // Plater (isolasjon): «Standard» = første plate (som produkter uten tilknytning).
-    var plates = (getKappeCatalog().plates || []);
-    document.getElementById('mat-review-plate').innerHTML = plates.map(function (p, i) {
-        return '<option value="' + i + '">' + escapeHtml(p.length + ' × ' + p.width + ' mm') + (i === 0 ? ' (' + escapeHtml(t('mat_review_plate_default')) + ')' : '') + '</option>';
-    }).join('');
+    _matReviewPlateOptions(0);
     _matReviewTypeChanged();
     document.getElementById('mat-review-popup').classList.add('active');
+    _anchorReviewPopup('mat-review-popup', ['#mat-review-units-row', '#mat-review-plate-row', '#mat-review-newplate']);
+}
+// Plater (isolasjon): «standard» = første plate (som produkter uten tilknytning). Nederst
+// «+ Ny plate …»: finnes ikke riktig størrelse, legges den i registeret og velges med en gang
+// (bruker 15-11-2026) — admin slipper å gå via Admin › Materialer › Isolasjon › Plater.
+function _matReviewPlateOptions(selIdx) {
+    var plates = (getKappeCatalog().plates || []);
+    var host = document.getElementById('mat-review-plates');
+    host.innerHTML = plates.map(function (p, i) {
+        return '<label class="pick-row"><input type="radio" name="mat-review-plate" value="' + i + '"' + (i === (selIdx || 0) ? ' checked' : '') + '>' +
+            '<span class="pick-text">' + escapeHtml(p.length + ' × ' + p.width) + (i === 0 ? ' <small>' + escapeHtml(t('mat_review_plate_default')) + '</small>' : '') + '</span>' +
+            '<span class="pick-check" aria-hidden="true"></span></label>';
+    }).join('');
+}
+function _matReviewSelectedPlate() {
+    var r = document.querySelector('#mat-review-plates input[name="mat-review-plate"]:checked');
+    return r ? parseInt(r.value, 10) : 0;
+}
+function addMatReviewPlate() {
+    var lEl = document.getElementById('mat-review-plate-l'), wEl = document.getElementById('mat-review-plate-w');
+    var L = parseFloat(String(lEl.value || '').replace(',', '.')), W = parseFloat(String(wEl.value || '').replace(',', '.'));
+    if (!L || L <= 0 || !W || W <= 0) { showNotificationModal(t('mat_new_plate_invalid')); return; }
+    var plates = (getKappeCatalog().plates || []).slice();
+    var idx = -1;
+    plates.forEach(function (p, i) { if (p.length === L && p.width === W) idx = i; });
+    if (idx === -1) {
+        plates.push({ length: L, width: W, productNames: [] });
+        _saveKappePlates(plates);
+        idx = (getKappeCatalog().plates || []).findIndex(function (p) { return p.length === L && p.width === W; });
+    }
+    lEl.value = ''; wEl.value = '';
+    _matReviewPlateOptions(idx < 0 ? 0 : idx);
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+// Toppen står fast mens vinduet er åpent (popup-konvensjonen): forankres der den HØYESTE
+// varianten (enheter + plate + ny plate) ville vært sentrert; boksen vokser/krymper nedenfra.
+function _anchorReviewPopup(popupId, showSelectors) {
+    var p = document.getElementById(popupId);
+    var sheet = p && p.querySelector('.template-editor-content');
+    if (!sheet) return;
+    var els = showSelectors.map(function (sel) { return document.querySelector(sel); }).filter(Boolean);
+    var was = els.map(function (el) { return el.hidden; });
+    els.forEach(function (el) { el.hidden = false; });
+    var h = sheet.offsetHeight;
+    els.forEach(function (el, i) { el.hidden = was[i]; });
+    _applyPopupTopAnchor(popupId, h);
 }
 // Typeknapp + hvilke felt som vises (enheter: standard, plate: isolasjon). Ny enhet på et
 // materiale som finnes → typen er gitt av det som finnes (låst).
@@ -3025,7 +3067,9 @@ function _matReviewTypeChanged() {
     btn.textContent = _matTypeLabel(type, _matReviewFixed);
     btn.disabled = !!(s && s.variantOf);
     document.getElementById('mat-review-units-row').hidden = type !== 'standard';
-    document.getElementById('mat-review-plate-row').hidden = type !== 'isolasjon' || !(getKappeCatalog().plates || []).length;
+    // Plate: rader + feltene for ny plate alltid synlige (ingen «+ Ny plate»-knapp, bruker 15-11-2026).
+    document.getElementById('mat-review-plate-row').hidden = type !== 'isolasjon';
+    document.getElementById('mat-review-newplate').hidden = type !== 'isolasjon';
     _matRenderSimilar();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
@@ -3040,6 +3084,7 @@ function openMatReviewTypePicker() {
 function closeMaterialReview() {
     _matReview = null;
     document.getElementById('mat-review-popup').classList.remove('active');
+    _clearPopupTopAnchor('mat-review-popup');
 }
 function _matRenderSimilar() {
     var box = document.getElementById('mat-review-similar');
@@ -3073,7 +3118,7 @@ function approveMaterialSuggestion() {
         if (!getKappeCatalogProduct(name)) _addKappeProduct(name, type);
         // Plate (isolasjon): knytt produktet til valgt plate (og bare den).
         if (type === 'isolasjon') {
-            var pi = parseInt(document.getElementById('mat-review-plate').value, 10);
+            var pi = _matReviewSelectedPlate();
             var plates = (getKappeCatalog().plates || []).map(function (p) { return Object.assign({}, p, { productNames: (p.productNames || []).filter(function (n) { return _matLc(n) !== _matLc(name); }) }); });
             if (plates[pi]) { plates[pi].productNames.push(name); _saveKappePlates(plates); }
         }
@@ -3373,6 +3418,7 @@ function openPersonReview(suggId) {
     _pplSetKind('extra');
     _pplRenderSimilar();
     document.getElementById('ppl-review-popup').classList.add('active');
+    _anchorReviewPopup('ppl-review-popup', []);
 }
 function _pplReviewName() {
     return (String(document.getElementById('ppl-review-fornavn').value || '').trim() + ' ' + String(document.getElementById('ppl-review-etternavn').value || '').trim()).trim();
@@ -3388,6 +3434,7 @@ function _pplSetKind(kind) {
 function closePersonReview() {
     _pplReview = null;
     document.getElementById('ppl-review-popup').classList.remove('active');
+    _clearPopupTopAnchor('ppl-review-popup');
 }
 function _pplRenderSimilar() {
     var box = document.getElementById('ppl-review-similar');
@@ -5682,14 +5729,16 @@ function openNewMatTypePicker() {
 }
 
 function closeMatTypeDropdown() {
-    const backdrop = document.querySelector('.mat-type-backdrop');
-    const dropdown = document.querySelector('.mat-type-dropdown');
-    if (!backdrop) return;
-    backdrop.classList.remove('visible');
-    if (dropdown) dropdown.classList.remove('visible');
+    // ALLE (ikke bare den første): en liste som aldri ble fjernet, ville ligget igjen som et
+    // mørkt lag over appen.
+    const backdrops = document.querySelectorAll('.mat-type-backdrop');
+    const dropdowns = document.querySelectorAll('.mat-type-dropdown');
+    if (!backdrops.length) return;
+    backdrops.forEach(b => b.classList.remove('visible'));
+    dropdowns.forEach(d => d.classList.remove('visible'));
     setTimeout(() => {
-        backdrop?.remove();
-        dropdown?.remove();
+        backdrops.forEach(b => b.remove());
+        dropdowns.forEach(d => d.remove());
     }, 150);
 }
 
@@ -19455,11 +19504,14 @@ function _unlockPopupSheetHeight(popupId) {
 // popupene). Reaktiveres automatisk når tastaturet lukkes.
 var _pendingTopAnchors = {};
 
+// Gjelder begge popup-oppbygningene: .spec-popup-sheet og .template-editor-content (sistnevnte
+// i .confirm-modal — f.eks. godkjenningsvinduene i Til godkjenning).
+var _POPUP_ANCHOR_SHEET = '.spec-popup-sheet, .template-editor-content';
 function _applyPopupTopAnchor(popupId, tallestH) {
     if (tallestH > 0) _pendingTopAnchors[popupId] = tallestH;
     var p = document.getElementById(popupId);
     if (!p || !p.classList.contains('active')) return;
-    var sheet = p.querySelector('.spec-popup-sheet');
+    var sheet = p.querySelector(_POPUP_ANCHOR_SHEET);
     if (!sheet) return;
     var vh = window.innerHeight || 800;
     var off = Math.round((vh - tallestH) / 2);
@@ -19484,7 +19536,7 @@ function _clearPopupTopAnchor(popupId) {
     if (!p) return;
     p.classList.remove('popup-top-anchored');
     delete p.dataset.specKbd;
-    var sheet = p.querySelector('.spec-popup-sheet');
+    var sheet = p.querySelector(_POPUP_ANCHOR_SHEET);
     if (sheet) {
         sheet._kbdSavedMarginTop = null;   // ikke gjenopprett forankring på lukket popup
         sheet.style.marginTop = '';
@@ -19506,7 +19558,7 @@ function _reconcileTopAnchorsForKeyboard(keyboardOpen) {
     Object.keys(_pendingTopAnchors).forEach(function(popupId) {
         var p = document.getElementById(popupId);
         if (!p || !p.classList.contains('active')) return;
-        var sheet = p.querySelector('.spec-popup-sheet');
+        var sheet = p.querySelector(_POPUP_ANCHOR_SHEET);
         if (!sheet) return;
         var vh = window.innerHeight || 800;
         var off = Math.round((vh - _pendingTopAnchors[popupId]) / 2);
@@ -20101,7 +20153,7 @@ function _isoGroupOpenProductPicker(btn, focusName) {
     var initialPairs = s.name ? [{ name: s.name, dim: _isoNormDim(s.dim || s.enhet || '', dims) }] : [];
     _hideIsoCardForPicker();
     var opened = openProductDimensionPicker({
-        title: getMaterialKappeLabel(),
+        title: getMaterialIsolationLabel(),
         products: products,
         dimensions: dims,
         showPlate: true,
@@ -21213,7 +21265,7 @@ function openIsoCardPopup(callback, prefill) {
     prefill = prefill || {};
 
     var titleEl = document.getElementById('iso-card-title');
-    if (titleEl) titleEl.textContent = getMaterialKappeLabel();
+    if (titleEl) titleEl.textContent = getMaterialIsolationLabel();
 
     // Multi-prefill: gjenåpne med ALLE tidligere isolasjon/festemiddel-valg.
     if (prefill.entries && prefill.entries.length) {
@@ -21501,7 +21553,7 @@ function _isoCardOpenIsolationPicker() {
     });
     _hideIsoCardForPicker();
     var opened = openProductDimensionPicker({
-        title: getMaterialKappeLabel(),
+        title: getMaterialIsolationLabel(),
         products: products,
         dimensions: dims,
         showPlate: true,
@@ -21696,7 +21748,7 @@ function confirmIsoCardPopup() {
     if (fastRes.invalid) { showNotificationModal('Fyll inn gyldig antall på festemiddel, eller fjern tomme.'); return; }
     selections = selections.concat(fastRes.selections);
     if (!selections.length) {
-        showNotificationModal('Fyll inn kapp, plate eller festemiddel.');
+        showNotificationModal('Fyll inn kapp eller plate.');
         return;
     }
     var cb = _isoCardCallback;
@@ -25911,7 +25963,7 @@ var _COLLAPSE_ALL_LISTS = [
       } },
     { container: 'service-entries', title: '.mobile-section-title[data-i18n="service_entries_title"]', card: '.service-entry-card' },
     { container: 'kappe-lines',     title: '.mobile-section-title[data-i18n="kappe_section_products"]', card: '.kappe-line-card' },
-    { container: 'iso-card-blocks', title: '.iso-card-section-head[data-i18n="material_isolation"]',    card: '.iso-card-block',
+    { container: 'iso-card-blocks', title: '.iso-card-section-head[data-i18n="kappe_section_products"]',    card: '.iso-card-block',
       done: function() { if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout(); } }
 ];
 

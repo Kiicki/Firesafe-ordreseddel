@@ -2658,6 +2658,9 @@ function showInputModal(title, currentValue, onConfirm) {
     document.getElementById('input-modal-title').textContent = title;
     var input = document.getElementById('input-modal-input');
     input.value = currentValue || '';
+    // Nullstill hint/tastatur fra forrige bruk (kallere som trenger det, setter dem etterpå).
+    input.placeholder = '';
+    input.removeAttribute('inputmode');
     pendingInputAction = onConfirm;
     document.getElementById('input-modal').classList.add('active');
     setTimeout(function() {
@@ -3923,6 +3926,10 @@ function parseMaterialPickerKey(key) {
 // svarer ikke fordi overlayet rives ned og bygges opp på nytt hver runde, og
 // konsollen fylles med én feil pr. runde.
 function openMaterialPicker(btn, onConfirm, _didFetch) {
+    // Nytt søk hver gang velgeren åpnes.
+    window._pickerSearchQ = '';
+    var _ps = document.getElementById('picker-search');
+    if (_ps) _ps.value = '';
     // If material cache is empty and user is logged in, fetch from Firebase first
     if (!_didFetch && (!cachedMaterialOptions || cachedMaterialOptions.length === 0) && currentUser && db && typeof getDropdownOptions === 'function') {
         const modal = document.getElementById('picker-overlay');
@@ -4119,6 +4126,15 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         // popupen som åpnes ved klikk på raden).
         const antallPlaceholder = isStiftLauncher ? t('btn_select') : t('placeholder_quantity');
         const disabledAttr = (isSpecLauncher || isIsolationLauncher) ? ' disabled' : '';
+        // Rader som åpner et eget vindu (isolasjon, festemidler, mansjett/brannpakning/kabelhylse
+        // uten valg): pil i stedet for grå Antall/kopier/slett som ikke gjør noe (bruker 15-11-2026:
+        // «materiale picker synest jeg burde se litt mer ryddigere ut»). Hele raden er trykkflaten.
+        if (isSpecLauncher) {
+            return `<div class="picker-mat-row picker-mat-launcher" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="0" data-mat-source="${escapeHtml(source || '')}">
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}</span>${typeDot}${pendingChip}</div>
+            <span class="picker-mat-chev" aria-hidden="true">&rsaquo;</span>
+        </div>`;
+        }
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}" data-mat-source="${escapeHtml(source || '')}">
             <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}${meterPillHtml}</span>${typeDot}${variantBadge}${meterBadge}${pendingChip}</div>
             <input type="text" class="picker-mat-antall" placeholder="${antallPlaceholder}" inputmode="numeric" value="${escapeHtml(antall)}"${disabledAttr}>
@@ -4295,7 +4311,9 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
     // OG ble lagt til via Festemidler-launcheren (stiftGroup). Festemidler lagt til
     // via Isolering-popupen hører til Isolasjon-gruppen (sammen med isolasjonen).
     function _entryInStiftGroup(e) {
-        return isKappeStiftMaterial(e.name, e.source, e.enhet) && e.stiftGroup === true;
+        // ALLE festemidler hører til Festemidler (15-11-2026: ett sted for hver ting — før skilte
+        // vi på opphav via stiftGroup, og festemidler fra Isolasjon-vinduet havnet under Isolasjon).
+        return isKappeStiftMaterial(e.name, e.source, e.enhet);
     }
     // Splittede tellere: isolering-launcher teller alt unntatt egne festemidler,
     // Festemidler-launcher teller kun egne festemiddel-poster.
@@ -4657,15 +4675,43 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
             pickerGroupMap[baseName].items.push(e);
         });
 
+        // To seksjoner som Admin › Materialer: «Materialer» (alfabetisk; mansjett/brannpakning/
+        // kabelhylse hører hit) og «Isolasjon og festemidler» nederst (Isolasjon før Festemidler).
+        var _isKappeGrp = function(g) { return !!(g.isIsolationGroup || g.isStiftGroup); };
         pickerGroups.sort(function(a, b) {
-            var aIsGroup = (a.isSpecGroup || a.isIsolationGroup || a.isStiftGroup) && a.items.length >= 1 ? 1 : 0;
-            var bIsGroup = (b.isSpecGroup || b.isIsolationGroup || b.isStiftGroup) && b.items.length >= 1 ? 1 : 0;
-            if (aIsGroup !== bIsGroup) return aIsGroup - bIsGroup;
+            var ak = _isKappeGrp(a) ? 1 : 0, bk = _isKappeGrp(b) ? 1 : 0;
+            if (ak !== bk) return ak - bk;
+            if (ak) return (a.isIsolationGroup ? 0 : 1) - (b.isIsolationGroup ? 0 : 1);
+            // Materialer: rent alfabetisk (også mansjett/brannpakning/kabelhylse, med eller uten valg).
             return _cmpText((a.displayName || a.baseName), b.displayName || b.baseName);
         });
+        // Søk (feltet over lista vises når det er mange materialer): treff på gruppenavn eller
+        // en av radene. Valgte rader som ikke treffer, skjules bare — de er fortsatt valgt.
+        var _q = String(window._pickerSearchQ || '').trim().toLowerCase();
+        if (_q) {
+            var _kappeNames = function(g) {
+                var all = (typeof _gatherKappeMaterialEntries === 'function') ? _gatherKappeMaterialEntries().entries : [];
+                var inStift = !!g.isStiftGroup;
+                var prods = (inStift ? getKappeFastenerProducts() : getKappeProducts()).map(function(p) { return p.name; });
+                return prods.concat(all.filter(function(e) { return _entryInStiftGroup(e) === inStift; }).map(function(e) { return e.name; }));
+            };
+            pickerGroups = pickerGroups.filter(function(g) {
+                var texts = [g.displayName || '', g.baseName || ''];
+                g.items.forEach(function(e) { texts.push(e.name || '', e.displayName || ''); });
+                if (_isKappeGrp(g)) texts = texts.concat(_kappeNames(g));
+                return texts.some(function(x) { return String(x).toLowerCase().indexOf(_q) !== -1; });
+            });
+        }
+        var _hasMain = pickerGroups.some(function(g) { return !_isKappeGrp(g); });
+        var _hasKappe = pickerGroups.some(_isKappeGrp);
+        var _kappeHeaderDone = false;
 
-        let html = '';
+        let html = (_hasMain && _hasKappe) ? '<div class="picker-section-title">' + escapeHtml(t('order_materials_label')) + '</div>' : '';
         pickerGroups.forEach(function(group) {
+            if (_isKappeGrp(group) && !_kappeHeaderDone) {
+                _kappeHeaderDone = true;
+                if (_hasMain) html += '<div class="picker-section-title">' + escapeHtml(t('picker_section_kappe')) + '</div>';
+            }
             // Isolering: bold header + KUN-VISNING underrader for hvert valg (produkt/
             // festemiddel + dimensjon), som specs/ordrekort. Tap på header eller underrad
             // åpner Isolering-popupen (mengde settes der). Uten valg faller den tilbake
@@ -4792,8 +4838,11 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         });
 
         if (!html) {
-            html = '<div style="padding:16px;color:#999;text-align:center;">' + t('settings_no_materials') + '</div>';
+            html = '<div style="padding:16px;color:#999;text-align:center;">' + (_q ? escapeHtml(t('picker_no_matches')) : t('settings_no_materials')) + '</div>';
         }
+        // Søkefeltet (over lista) vises når det er mange materialer å bla i.
+        var _sw = document.getElementById('picker-search-wrap');
+        if (_sw) _sw.hidden = !(allMaterials.length > 10 || _q);
 
         // Admin kan legge til nye materialer direkte fra pickeren (samme funksjon
         // som i Innstillinger). Skjemaet ligger nederst i lista og bygges på nytt
@@ -4881,6 +4930,10 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
             const antallInput = row.querySelector('.picker-mat-antall');
             const name = row.getAttribute('data-mat-name');
             const matType = row.getAttribute('data-mat-type') || 'standard';
+            // Launcher-rad (pil): hele raden åpner vinduet, ikke bare navnet.
+            if (row.classList.contains('picker-mat-launcher')) {
+                row.addEventListener('click', function(e) { if (!nameDiv.contains(e.target)) nameDiv.click(); });
+            }
 
             nameDiv.addEventListener('click', function() {
                 if (matType === 'kappe-isolation') {
@@ -5047,7 +5100,11 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                     // så bruker kan velge nytt produkt + dimensjon, konsistent med spec-popup-flyt.
                     var kappeSrcState = pickerState[name];
                     var kappeSrc = kappeSrcState && kappeSrcState.source;
-                    if (kappeSrc === 'kappe-products' || kappeSrc === 'kappe-stift' || kappeSrc === 'kappe-fastener') {
+                    if (kappeSrc === 'kappe-stift' || kappeSrc === 'kappe-fastener') {
+                        _openStiftMaterialPopup();   // festemidler har eget vindu
+                        return;
+                    }
+                    if (kappeSrc === 'kappe-products') {
                         openIsoCardPopup(function(selection) {
                             var newKey = addKappeMaterialSelection(selection);
                             renderPickerList();
@@ -5219,7 +5276,7 @@ function openMaterialKappePicker(callback, prefill) {
         initialBrand = _getKappeProductName(prefill.name) || prefill.name;
     }
     openProductDimensionPicker({
-        title: getMaterialKappeLabel(),
+        title: t('picker_section_kappe'),   // viser både isolasjon og festemidler
         products: products,
         dimensions: defaultDimensions.concat(stiftSizes),
         getDimensionsForProduct: function(product) {

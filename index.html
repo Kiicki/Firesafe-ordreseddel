@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1166">
+    <link rel="stylesheet" href="styles.css?v=1171">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -721,7 +721,16 @@
                 <div class="settings-default-label"><span data-i18n="mat_review_type">Type</span>
                     <button type="button" id="mat-review-type-btn" class="settings-material-type-btn mat-review-type-btn" onclick="event.stopPropagation();openMatReviewTypePicker()"></button></div>
                 <label class="settings-default-label" id="mat-review-units-row"><span data-i18n="mat_review_units">Enheter (komma mellom)</span><input type="text" id="mat-review-units" autocapitalize="sentences" placeholder="f.eks. patron, pølse"></label>
-                <label class="settings-default-label" id="mat-review-plate-row"><span data-i18n="mat_review_plate">Plate</span><select id="mat-review-plate" class="settings-select"></select></label>
+                <!-- Platene som rader i vinduet (ikke nedtrekksliste — den åpnet en liste OPPÅ vinduet,
+                     bruker 15-11-2026). Feltene for ny plate står alltid under (som på Plater-siden). -->
+                <div class="settings-default-label" id="mat-review-plate-row"><span data-i18n="mat_review_plate">Plate (mm)</span>
+                    <div class="pick-list mat-review-plates" id="mat-review-plates"></div></div>
+                <div class="settings-add-row set-add-row mat-review-newplate" id="mat-review-newplate" hidden>
+                    <input type="text" id="mat-review-plate-l" inputmode="numeric" pattern="[0-9]*" placeholder="1200" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('mat-review-plate-w').focus();}">
+                    <span class="settings-plate-x">×</span>
+                    <input type="text" id="mat-review-plate-w" inputmode="numeric" pattern="[0-9]*" placeholder="600" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatReviewPlate();}">
+                    <button type="button" class="settings-add-btn" onclick="addMatReviewPlate()" data-i18n="btn_add">Legg til</button>
+                </div>
             </div>
             <div class="template-editor-buttons">
                 <button class="template-editor-save-btn" onclick="approveMaterialSuggestion()" data-i18n="proj_approve_btn">Godkjenn</button>
@@ -1620,6 +1629,10 @@
                 <span class="picker-overlay-title" data-i18n="order_materials_label">Materialer</span>
                 <button class="picker-overlay-done" onclick="pickerOverlayConfirm()" data-i18n="picker_ok">Ok</button>
             </div>
+            <!-- Søk (vises når det er mange materialer) — filtrerer lista under. -->
+            <div class="picker-search-wrap" id="picker-search-wrap" hidden>
+                <input type="search" id="picker-search" class="picker-search" autocomplete="off" data-i18n-placeholder="picker_search_ph" placeholder="Søk materiale" oninput="window._pickerSearchQ = this.value; if (typeof pickerRenderFn === 'function') pickerRenderFn();">
+            </div>
             <div class="picker-overlay-list" id="picker-overlay-list"></div>
         </div>
     </div>
@@ -1696,12 +1709,15 @@
     <!-- Isolerings-kort-popup (kappeskjema-kort-stil): produkt-knapp + toggle + Bredde/LM/Antall/Sider -->
     <div class="spec-popup-backdrop iso-card-backdrop" id="iso-card-popup" onclick="if(event.target===this)closeIsoCardPopup()">
         <div class="spec-popup-sheet">
-            <div class="spec-popup-header" id="iso-card-title">Isolering</div>
+            <div class="spec-popup-header" id="iso-card-title">Isolasjon</div>
             <div id="iso-card-scroll">
-                <div class="iso-card-section-head" data-i18n="material_isolation">Isolasjon</div>
+                <!-- Samme oppbygning og navn som Kappeskjema › Kappeliste (bruker 15-11-2026: «samme type
+                     materiale picker for alt»). Festemidler har EGET vindu (raden Festemidler i
+                     materialvelgeren), akkurat som kappeskjemaets egen Festemidler-seksjon. -->
+                <div class="iso-card-section-head" data-i18n="kappe_section_products">Kappeliste</div>
                 <div id="iso-card-blocks"></div>
                 <button type="button" class="kappe-add-kapp-btn iso-add-group-btn" id="iso-card-add-group" onclick="_isoCardAddGroupTop()">+ <span data-i18n="iso_add_group">Legg til gruppe</span></button>
-                <div class="iso-card-fast-section">
+                <div class="iso-card-fast-section" hidden>
                     <div class="iso-card-section-head" data-i18n="kappe_section_fasteners">Festemidler</div>
                     <div id="iso-card-fastener-empty" class="spec-multi-empty"></div>
                     <div class="iso-block-product-slot">
@@ -2695,9 +2711,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=471"></script>
-    <script src="script.js?v=611"></script>
-    <script src="script-ui.js?v=1404"></script>
+    <script src="lang.js?v=476"></script>
+    <script src="script.js?v=614"></script>
+    <script src="script-ui.js?v=1409"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

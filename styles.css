@@ -167,6 +167,16 @@ body:has(#template-editor-overlay.active) .toolbar::before {
     opacity: 1;
     pointer-events: auto;
 }
+/* Tastatur åpent: toolbaren ligger i dokumentflyten (static / reparentet inn i lista,
+   .toolbar--inflow). Da er ::before ikke lenger forankret til toolbaren, men til nærmeste
+   posisjonerte forelder (hele visningen) — og la et EKSTRA mørkt lag over hele siden bak
+   popupen (bruker 15-11-2026: «hvorfor blir bakgrunnen så mye mørkere?»). Toolbaren ligger
+   da uansett under popupens egen backdrop, så laget trengs ikke. Gjelder hele appen. */
+body.keyboard-open .toolbar::before,
+body.keyboard-focus .toolbar::before,
+.toolbar.toolbar--inflow::before {
+    display: none;
+}
 
 /* When overlay is active, prevent button hover/active highlights */
 body:has(#confirm-modal.active) .toolbar button,
@@ -13644,3 +13654,31 @@ html:not(.is-super):not(.dev-mode) .super-only { display: none !important; }
 .mat-review-type-btn:disabled { opacity: 0.6; }
 #mat-review-plate-row[hidden], #ppl-review-similar[hidden] { display: none !important; }
 .ppl-review-seg { margin: 4px 0 2px; }
+/* Toppforankring (popup-konvensjonen) gjelder også .confirm-modal-vinduer (godkjenning). */
+.confirm-modal.popup-top-anchored { align-items: flex-start; }
+/* «+ Ny plate …» i Godkjenn materiale: samme rad som på Plater-siden, rett under lista. */
+.mat-review-newplate { margin: -4px 0 12px; }
+.mat-review-newplate[hidden] { display: none !important; }
+/* Liste-velger (Type-velger / mobil-nedtrekksliste) oppå et vindu som allerede har mørk
+   bakgrunn: ingen EKSTRA mørk bakgrunn (bruker 15-11-2026: «hvorfor blir bakgrunnen så mye
+   mørkere?»). Gjelder hele appen. Lista skilles fra vinduet med skyggen sin. */
+body:has(.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active) .mat-type-backdrop { background: transparent; }
+body:has(.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active) .mat-type-dropdown { box-shadow: 0 8px 32px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.06); }
+/* Godkjenn materiale › Plate: radene direkte i vinduet + «+ Ny plate» som siste rad. */
+.mat-review-plates { margin-top: 6px; box-shadow: 0 0 0 1px #e2e2e6; }
+.mat-review-newplate { margin: 8px 0 12px; }
+/* Materialvelger: seksjoner (som Admin › Materialer), launcher-rader med pil, søk (15-11-2026). */
+.picker-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #8a8a90; padding: 14px 12px 6px; }
+.picker-section-title:first-child { padding-top: 8px; }
+.picker-mat-row.picker-mat-launcher { cursor: pointer; opacity: 1; min-height: 48px; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.picker-mat-row.picker-mat-launcher:active { background: #f7f7f9; }
+.picker-mat-row.picker-mat-launcher .picker-mat-check { flex: 1; }
+.picker-mat-chev { flex-shrink: 0; font-size: 22px; line-height: 1; color: #c4c4ca; font-weight: 300; padding: 0 6px; }
+.picker-search-wrap { padding: 8px 12px 4px; }
+.picker-search-wrap[hidden] { display: none; }
+.picker-search { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; font-family: inherit; background: #f7f7f9; }
+.picker-search:focus { outline: none; border-color: #E8501A; background: #fff; }
+/* Pil-rader skal ikke være nedtonet (den eldre regelen for spec-launchere har høyere spesifisitet). */
+.picker-overlay-list .picker-mat-row.picker-mat-launcher { opacity: 1; }
+/* Isolasjon-vinduet har ikke lenger egen festemiddel-del (festemidler = eget vindu). */
+.iso-card-fast-section[hidden] { display: none !important; }
