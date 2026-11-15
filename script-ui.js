@@ -2519,12 +2519,9 @@ function getSettingsPageTitle(page) {
         'min-info': t('settings_min_info'),
         'timebok': t('settings_timebok'),
         'form-ordreseddel': t('form_title'),
-        'form-service': t('tab_servicebil'),
-        'form-kappe': t('kappe_title'),
-        'admin-ordreseddel': t('form_title'),
-        'admin-service': t('tab_servicebil'),
-        'admin-kappe': t('kappe_title'),
-        'admin-sjekkliste': t('sj_single'),
+        'form-autofill': t('settings_autofill_title'),
+        'admin-lists': t('settings_admin_lists'),
+        'admin-forms': t('settings_admin_forms'),
         templates: t('settings_prosjekter_section'),
         materials: t('settings_materials'),
         'admin-users': t('settings_admin_users'),
@@ -2596,6 +2593,15 @@ var _settingsMenuScroll = 0;
 function _settingsBody() { return document.querySelector('#settings-modal .modal-body'); }
 function showSettingsMenu() {
     var fromSub = document.body.classList.contains('settings-subpage-open');
+    // Admin: sjekklistens gamle egne etasjer slås inn i den felles etasjelista (én gang — etterpå
+    // er sjekklistens kopi tom, så dette koster ingenting).
+    if (typeof isAdmin !== 'undefined' && isAdmin && typeof _sjNormOptions === 'function' &&
+        (_sjNormOptions(safeParseJSON(SJ_OPTIONS_KEY, null)).floors || []).length) {
+        Promise.all([getPlanSettings(), _sjRefreshOptions()]).then(function (r) {
+            if (Array.isArray(r[0])) safeSetItem(PLANS_KEY, JSON.stringify(r[0]));
+            _sjMergeFloorsIntoPlans();
+        }).catch(function () {});
+    }
     _renderSettingsProfileCard();
     _syncFirmaUi();
     if (typeof DEV_MODE !== 'undefined' && DEV_MODE) document.querySelectorAll('#dev-role-seg .tb-seg-btn').forEach(function (b) {
@@ -2632,6 +2638,15 @@ function showSettingsPage(page, replace) {
     if (page === 'ordrenr' || page === 'autofill') page = 'form-ordreseddel';
     if (page === 'plans' || page === 'admin-plans' || page === 'admin-required') page = 'admin-ordreseddel';
     if (page === 'form-sjekkliste') page = 'admin-sjekkliste';
+    // Struktur 15-11-2026 (bruker: «vanskelig å finne frem … ting spredt over flere seksjoner»):
+    // obligatoriske felt + bladbredde → Skjemaoppsett, valglister (+ felles etasjer) → Valglister,
+    // plater → Materialer, autofyll for alle skjemaer → én Autofyll-side. Gamle navn videresendes.
+    var _formsTab = null;
+    if (page === 'admin-ordreseddel') { page = 'admin-forms'; _formsTab = 'ordreseddel'; }
+    else if (page === 'admin-service') { page = 'admin-forms'; _formsTab = 'servicebil'; }
+    else if (page === 'admin-kappe') { page = 'admin-forms'; _formsTab = 'kappe'; }
+    else if (page === 'admin-sjekkliste') page = 'admin-lists';
+    else if (page === 'form-service' || page === 'form-kappe') page = 'form-autofill';
     // Backward-compat: Satser er flyttet til Admin → Satser (felles, kun admin, 01-11-2026).
     // Timebok (personlige valg) er igjen en egen side, settings/timebok (09-11-2026).
     // Timebok-prosjekter finnes ikke lenger separat → Prosjekter & lager.
@@ -2652,7 +2667,8 @@ function showSettingsPage(page, replace) {
     document.body.classList.add('settings-subpage-open');
     // Kort-stil (.set-sub): grå bakgrunn som hovedmenyen. Faner: alltid første fane ved åpning.
     document.body.classList.toggle('settings-sub-cards', pageEl2.classList.contains('set-sub'));
-    var firstTab = pageEl2.querySelector('.set-tabs .tb-seg-btn');
+    // Første SYNLIGE fane (en fane kan være skjult av tilgang, data-acc — f.eks. Autofyll).
+    var firstTab = Array.prototype.find.call(pageEl2.querySelectorAll('.set-tabs .tb-seg-btn'), function (b) { return b.offsetParent !== null; });
     if (firstTab) setSettingsTab(firstTab, true);
     if (replace) history.replaceState(null, '', '#settings/' + page);
     else history.pushState(null, '', '#settings/' + page);
@@ -2703,61 +2719,30 @@ function showSettingsPage(page, replace) {
                 _applyOrderNrSettings(settings);
         });
         _loadAutofillToggles('ordreseddel');
-    } else if (page === 'admin-ordreseddel') {
-        // Admin › Skjemaer › Ordreseddel: obligatoriske felt + etasjer (felles for firmaet)
-        _renderRequiredFor(['save']);
-        {
-            // Etasjer (felles, settings/plans)
-            var storedPlans2 = localStorage.getItem(PLANS_KEY);
-            settingsPlans = storedPlans2 ? sortPlans(JSON.parse(storedPlans2)) : [];
-            document.getElementById('settings-new-plan').value = '';
-            renderPlanSettingsItems();
-            getPlanSettings().then(function(plans) {
-                if (!document.body.classList.contains('settings-modal-open')) return;
-                settingsPlans = sortPlans(plans || []);
-                renderPlanSettingsItems();
-            });
-        }
-    } else if (page === 'form-service') {
+    } else if (page === 'form-autofill') {
+        // Meny › Autofyll: alle skjemaenes brytere + standard sted (Ordreseddel).
+        _loadMinInfoSettings();
+        _loadAutofillToggles('ordreseddel');
         _loadAutofillToggles('service');
-    } else if (page === 'admin-service') {
-        _renderRequiredFor(['service']);
-    } else if (page === 'admin-sjekkliste') {
-        // Valglistene: cache-først, deretter frisk kopi (ikke tegn om mens admin skriver).
-        renderSjekklisteSettings();
-        _sjRefreshOptions().then(function () {
-            var host = document.getElementById('sj-settings');
-            if (document.body.classList.contains('settings-modal-open') && host && !host.contains(document.activeElement)) renderSjekklisteSettings();
-        });
-        _renderRequiredFor(['sjekkliste']);
-    } else if (page === 'form-kappe') {
-        var newBrandEl = document.getElementById('settings-new-kappe-brand');
-        var newKappeTypeEl = document.getElementById('settings-new-kappe-type');
-        var newKappeTypeBtn = document.getElementById('settings-new-kappe-type-btn');
-        var newDimEl = document.getElementById('settings-new-kappe-dim');
-        var newKappeUnitsEl = document.getElementById('settings-new-kappe-units');
-        if (newBrandEl) newBrandEl.value = '';
-        if (newKappeTypeEl) newKappeTypeEl.value = 'isolasjon';
-        if (newKappeTypeBtn) {
-            newKappeTypeBtn.dataset.value = 'isolasjon';
-            newKappeTypeBtn.textContent = t('kappe_product_type_isolasjon');
-            newKappeTypeBtn.setAttribute('data-i18n', 'kappe_product_type_isolasjon');
-        }
-        if (newDimEl) newDimEl.value = '';
-        if (newKappeUnitsEl) newKappeUnitsEl.value = '';
-        updateKappeNewProductUnitPlaceholder();
-        // Produkter + Dimensjoner forvaltes nå på Materialer-siden (ikke her).
         _loadAutofillToggles('kappe');
-    } else if (page === 'admin-kappe') {
-        // Admin › Skjemaer › Kappeskjema: bladbredde, plater, obligatoriske felt
+    } else if (page === 'admin-forms') {
+        // Admin › Skjemaoppsett: obligatoriske felt for alle skjemaer + bladbredde (kappe).
+        _renderRequiredFor(['save', 'service', 'kappe', 'sjekkliste', 'template']);
         _loadKappeKerfSetting();
-        _loadKappePlateSetting();
-        renderKappePlateSettings();
-        _renderRequiredFor(['kappe']);
+        setAdminFormsTab(_formsTab || 'ordreseddel');
+    } else if (page === 'admin-lists') {
+        // Admin › Valglister: felles etasjer (settings/plans) + sjekklistens lister.
+        // Cache-først, deretter friske kopier (ikke tegn om mens admin skriver i en popup).
+        renderSjekklisteSettings();
+        Promise.all([getPlanSettings(), _sjRefreshOptions()]).then(function (r) {
+            settingsPlans = sortPlans((r[0] || []).slice());
+            cachedPlanOptions = settingsPlans.slice();
+            _sjMergeFloorsIntoPlans();
+            if (document.body.classList.contains('settings-modal-open') && !document.querySelector('#plans-popup.active, #sj-list-popup.active')) renderSjekklisteSettings();
+        });
     } else if (page === 'templates') {
         _renderSettingsTemplateListFromData(safeParseJSON(TEMPLATE_KEY, []));
-        renderSettingsTemplateList();
-        _renderRequiredFor(['template']);
+        renderSettingsTemplateList();   // (obligatoriske felt for prosjekt: Admin › Skjemaoppsett)
         // (Lager er flyttet til Admin › Arbeidsgivere — 08-11-2026. Kolleger er erstattet av
         // de ansatte i Admin › Brukere — 09-11-2026.)
     } else if (page === 'materials') {
@@ -2773,6 +2758,8 @@ function showSettingsPage(page, replace) {
         updateSettingsUnitFields();
         renderMaterialSettingsItems();
         _renderKappeDimensions();
+        renderKappePlateSettings();   // Plater (flyttet hit fra Kappeskjema 15-11-2026)
+        ['settings-new-plate-length', 'settings-new-plate-width'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
         // Refresh from Firebase
         getMaterialSettings().then(function(data) {
             if (!document.body.classList.contains('settings-modal-open')) return;
@@ -4056,6 +4043,16 @@ function removeMaterialUnit(idx, unitIdx) {
 
 // Faner på en innstillingsside (.set-tabs + .set-tab-panel[data-tab]): viser bare valgt del,
 // så siden holdes kort. Generelt — gjelder alle undersider som bruker mønsteret.
+// Admin › Skjemaoppsett: skjema velges i en nedtrekksliste (5 skjemaer får ikke plass som
+// faner på 360 px) — samme .set-tab-panel-mekanikk som fanene.
+function setAdminFormsTab(key) {
+    var page = document.getElementById('settings-page-admin-forms');
+    if (!page) return;
+    var sel = document.getElementById('adm-forms-sel');
+    if (sel && sel.value !== key) sel.value = key;
+    page.querySelectorAll('.set-tab-panel').forEach(function (p) { p.hidden = p.getAttribute('data-tab') !== key; });
+    if (window.applyKeyboardLayout) window.applyKeyboardLayout();
+}
 function setSettingsTab(btn, noScroll) {
     var page = btn.closest('.settings-page');
     if (!page) return;
@@ -23775,7 +23772,25 @@ function _saveKappeCatalog(catalog) {
     // Bevar plates fra catalog-arg hvis gitt, ellers les eksisterende fra getKappeCatalog().
     var plates = Array.isArray(catalog.plates) ? catalog.plates : (getKappeCatalog().plates || []);
     var normalized = _buildKappeCatalog(catalog.products || [], catalog.dimensions || [], plates);
+    var shared = _kappeSharedCatalogRaw();
+    if (shared) {
+        if (isAdmin) { _saveSharedKappeCatalog(normalized); return; }
+        // Montør: felles produkter/plater eies av admin — lagre bare egne ekstra dimensjoner.
+        var shDims = (shared.dimensions || []).map(function (d) { return String(d).toLowerCase(); });
+        var own = safeParseJSON(KAPPE_CATALOG_KEY, null) || {};
+        own.extraDims = (normalized.dimensions || []).filter(function (d) { return shDims.indexOf(String(d).toLowerCase()) === -1; });
+        _syncKappeSetting(KAPPE_CATALOG_KEY, 'kappe_catalog', own);
+        return;
+    }
     _syncKappeSetting(KAPPE_CATALOG_KEY, 'kappe_catalog', normalized);
+}
+// Admin › Materialer: felles for firmaet (firms/{firma}/settings/kappe_catalog).
+function _saveSharedKappeCatalog(catalog) {
+    safeSetItem(KAPPE_CATALOG_SHARED_KEY, JSON.stringify(catalog));
+    if (db && currentUser && typeof _fsSettings === 'function' && !(typeof _admDev === 'function' && _admDev())) {
+        _fsSettings('kappe_catalog').set(JSON.parse(JSON.stringify(catalog)))
+            .catch(function (e) { console.error('Lagre felles kappe-katalog:', e); });
+    }
 }
 
 // Lagrer ny products-array + felles dimensions-liste atomisk til localStorage og Firebase.
@@ -26220,7 +26235,7 @@ function _fsSettings(doc) { return _firmaRef().collection('settings').doc(doc); 
 // Lokale kopier av firmaets felles data. Byttes ut når firmaet byttes (hovedadmin), så
 // Damsgård aldri vises med Firesafe sine materialer et øyeblikk.
 function _firmaScopedKeys() {
-    return [MATERIALS_KEY, REQUIRED_KEY, PLANS_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY,
+    return [MATERIALS_KEY, REQUIRED_KEY, PLANS_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY, KAPPE_CATALOG_SHARED_KEY,
         ANSATTE_KEY, 'firesafe_sjekkliste_options', 'firesafe_sjekkliste_projects', 'firesafe_sjekkliste_cache'];
 }
 // Legg det gjeldende firmaets kopi til side og hent fram det andre firmaets (cache-først
@@ -26324,6 +26339,7 @@ function _accStartHash() {
     return 'settings';
 }
 var _ACC_HASH_MODULE = { '': 'hjem', hent: 'lagret', skjema: 'ordreseddel', service: 'servicebil', kappe: 'kappe', kvittering: 'timebok', calc: 'calc', timebok: 'timebok', sjekkliste: 'sjekkliste' };
+// form-autofill: alle (skjemaene brukeren ikke har, skjules på siden via data-acc).
 var _ACC_SETTINGS_MODULE = { 'timebok': 'timebok', 'form-ordreseddel': 'ordreseddel', 'form-service': 'servicebil', 'form-kappe': 'kappe', 'form-sjekkliste': 'sjekkliste' };
 function _accSettingsPageAllowed(page) {
     // Admin-sider + alt som gjelder ALLE brukere (Admin › Felles for alle).
@@ -26638,6 +26654,21 @@ if (typeof auth !== 'undefined' && auth) {
         _accUnsubs.push(_fsSettings('ansatte').onSnapshot(function (d) {
             if (d.exists) safeSetItem(ANSATTE_KEY, JSON.stringify({ list: (d.data() || {}).list || [] }));
             else localStorage.removeItem(ANSATTE_KEY);
+        }, function () {}));
+        // Felles kappe-katalog (produkter, dimensjoner, plater — Admin › Materialer) — live.
+        // Finnes den ikke ennå, blir admins egen (gamle personlige) katalog startlista for alle.
+        _accUnsubs.push(_fsSettings('kappe_catalog').onSnapshot(function (d) {
+            var data = d.exists ? d.data() : null;
+            if (data && Array.isArray(data.products)) safeSetItem(KAPPE_CATALOG_SHARED_KEY, JSON.stringify(data));
+            else {
+                localStorage.removeItem(KAPPE_CATALOG_SHARED_KEY);
+                if (_acc.admin && isAdmin) _saveSharedKappeCatalog(getKappeCatalog());
+            }
+            var mp = document.getElementById('settings-page-materials');
+            if (mp && mp.style.display !== 'none' && !mp.contains(document.activeElement)) {
+                if (typeof renderKappeProductSettings === 'function') renderKappeProductSettings();
+                if (typeof renderKappePlateSettings === 'function') renderKappePlateSettings();
+            }
         }, function () {}));
         // Felles bladbredde (Admin › Kappeskjema) — live. Finnes den ikke ennå og admin har en
         // egen (gammel personlig) verdi, blir den startverdien for alle.
@@ -27312,7 +27343,29 @@ function _sjNormOptions(raw) {
     });
     return out;
 }
-function _sjOptions() { return _sjNormOptions(safeParseJSON(SJ_OPTIONS_KEY, null)); }
+// Etasjer = den FELLES etasjelista (settings/plans, samme som ordreseddelen) — én liste for begge
+// skjemaene (15-11-2026). Sjekklistens gamle egen liste brukes bare til den er slått inn
+// (_sjMergeFloorsIntoPlans) eller hvis det ikke finnes noen felles etasjer ennå.
+function _sjOptions() {
+    var o = _sjNormOptions(safeParseJSON(SJ_OPTIONS_KEY, null));
+    var plans = safeParseJSON(PLANS_KEY, []);
+    if (Array.isArray(plans) && plans.length) o.floors = sortPlans(plans.slice());
+    return o;
+}
+// Én gang (admin): sjekklistens egne etasjer slås inn i den felles lista, og sjekklistens kopi
+// tømmes — så en etasje admin senere sletter ikke kommer tilbake. Ingen etasjer forsvinner.
+function _sjMergeFloorsIntoPlans() {
+    if (!isAdmin) return;
+    var raw = _sjNormOptions(safeParseJSON(SJ_OPTIONS_KEY, null));
+    if (!raw.floors || !raw.floors.length) return;
+    var plans = safeParseJSON(PLANS_KEY, []) || [];
+    var have = {}; plans.forEach(function (p) { have[String(p).toUpperCase()] = 1; });
+    raw.floors.forEach(function (f) { if (!have[String(f).toUpperCase()]) { plans.push(f); have[String(f).toUpperCase()] = 1; } });
+    _persistPlanList(plans);
+    raw.floors = [];
+    _sjSaveOptions(raw);
+}
+window._sjMergeFloorsIntoPlans = _sjMergeFloorsIntoPlans;
 function _sjRefreshOptions() {
     if (!_sjRemote()) return Promise.resolve(_sjOptions());
     return _fsSettings('sjekkliste').get().then(function (doc) {
@@ -27344,17 +27397,40 @@ function renderSjekklisteSettings() {
     var host = document.getElementById('sj-settings');
     if (!host) return;
     var opts = _sjOptions(), ro = !isAdmin;
-    host.innerHTML = '<div class="set-foot set-foot-top">' + escapeHtml(t(ro ? 'sj_settings_readonly' : 'sj_settings_intro')) + '</div>' +
-        '<div class="set-card adm-list">' + SJ_GROUPS.map(function (g) {
-            return '<div class="adm-user sj-set-row" onclick="openSjListPopup(\'' + g.key + '\')">' +
-                '<span class="adm-main"><span class="adm-name">' + escapeHtml(t(g.labelKey)) + '</span>' +
-                    '<span class="adm-sub sj-set-prev" id="sj-set-prev-' + g.key + '"></span></span>' +
-                '<span class="sj-set-count" id="sj-set-count-' + g.key + '"></span>' +
-                '<span class="settings-menu-arrow">&rsaquo;</span>' +
-            '</div>';
-        }).join('') + '</div>';
-    SJ_GROUPS.forEach(function (g) { _sjRenderSetGroup(g.key, opts); });
+    var plans = sortPlans((safeParseJSON(PLANS_KEY, []) || []).slice());
+    var preview = function (list) { return list.length ? list.slice(0, 4).join(', ') + (list.length > 4 ? ' …' : '') : t('sj_settings_empty'); };
+    var rowHtml = function (onclick, label, prevId, prevTxt, cntId, cnt) {
+        return '<div class="adm-user sj-set-row" onclick="' + onclick + '">' +
+            '<span class="adm-main"><span class="adm-name">' + escapeHtml(label) + '</span>' +
+                '<span class="adm-sub sj-set-prev"' + (prevId ? ' id="' + prevId + '"' : '') + '>' + escapeHtml(prevTxt || '') + '</span></span>' +
+            '<span class="sj-set-count"' + (cntId ? ' id="' + cntId + '"' : '') + '>' + (cnt != null ? cnt : '') + '</span>' +
+            '<span class="settings-menu-arrow">&rsaquo;</span>' +
+        '</div>';
+    };
+    // Etasjer: felles for ordreseddel og sjekkliste — egen del øverst, så det er tydelig.
+    host.innerHTML = '<div class="set-foot set-foot-top">' + escapeHtml(t(ro ? 'sj_settings_readonly' : 'settings_lists_intro')) + '</div>' +
+        '<div class="set-section-title">' + escapeHtml(t('settings_lists_shared')) + '</div>' +
+        '<div class="set-card adm-list">' + rowHtml('openPlansPopup()', t('settings_floors'), '', preview(plans), '', plans.length) + '</div>' +
+        '<div class="set-section"><div class="set-section-title">' + escapeHtml(t('sj_single')) + '</div>' +
+        '<div class="set-card adm-list">' + SJ_GROUPS.filter(function (g) { return g.key !== 'floors'; }).map(function (g) {
+            return rowHtml("openSjListPopup('" + g.key + "')", t(g.labelKey), 'sj-set-prev-' + g.key, '', 'sj-set-count-' + g.key, null);
+        }).join('') + '</div></div>';
+    SJ_GROUPS.forEach(function (g) { if (g.key !== 'floors') _sjRenderSetGroup(g.key, opts); });
 }
+function openPlansPopup() {
+    var inp = document.getElementById('settings-new-plan');
+    if (inp) inp.value = '';
+    settingsPlans = sortPlans((safeParseJSON(PLANS_KEY, []) || []).slice());
+    renderPlanSettingsItems();
+    document.getElementById('plans-popup').classList.add('active');
+    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
+}
+function closePlansPopup() {
+    document.getElementById('plans-popup').classList.remove('active');
+    renderSjekklisteSettings();   // antall/forhåndsvisning på Etasjer-raden
+}
+window.openPlansPopup = openPlansPopup;
+window.closePlansPopup = closePlansPopup;
 function openSjListPopup(key) {
     var g = _sjGroup(key);
     if (!g) return;

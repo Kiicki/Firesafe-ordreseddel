@@ -18,6 +18,11 @@ const KVITTERING_STORAGE_KEY = 'firesafe_kvittering';
 const KVITTERING_ARCHIVE_KEY = 'firesafe_kvittering_arkiv';
 const KAPPE_DEFAULTS_KEY = 'firesafe_defaults_kappe';
 const KAPPE_CATALOG_KEY = 'firesafe_kappe_catalog';
+// Firmaets FELLES kappe-katalog (produkter, dimensjoner, plater) — firms/{firma}/settings/kappe_catalog,
+// lest live (script-ui.js, _accUnsubs). Admin eier den; montørens egne ekstra dimensjoner (fra
+// velgerens «+ Ny dimensjon») ligger i den personlige katalogen som extraDims. Finnes ingen felles
+// katalog ennå, brukes den personlige som før.
+const KAPPE_CATALOG_SHARED_KEY = 'firesafe_kappe_catalog_shared';
 const KAPPE_PRODUCTS_KEY = 'firesafe_kappe_products';
 const KAPPE_STIFT_SIZES_KEY = 'firesafe_kappe_stift_sizes';
 const KAPPE_DEFAULT_PRODUCTS = [
@@ -1037,7 +1042,22 @@ function _migrateKappeCatalog() {
     return _buildKappeCatalog(products, dimensions, []);
 }
 
+function _kappeSharedCatalogRaw() {
+    try {
+        var sh = JSON.parse(localStorage.getItem(KAPPE_CATALOG_SHARED_KEY) || 'null');
+        return (sh && Array.isArray(sh.products)) ? sh : null;
+    } catch (e) { return null; }
+}
 function getKappeCatalog() {
+    var shared = _kappeSharedCatalogRaw();
+    if (shared) {
+        var extra = [];
+        try {
+            var own = JSON.parse(localStorage.getItem(KAPPE_CATALOG_KEY) || 'null');
+            if (own && Array.isArray(own.extraDims)) extra = own.extraDims;
+        } catch (e) {}
+        return _buildKappeCatalog(shared.products, (shared.dimensions || []).concat(extra), shared.plates || []);
+    }
     try {
         var raw = localStorage.getItem(KAPPE_CATALOG_KEY);
         if (raw) {
@@ -2195,7 +2215,7 @@ if (auth) {
              KAPPE_CATALOG_KEY, KAPPE_PRODUCTS_KEY, KAPPE_STIFT_SIZES_KEY, KAPPE_KERF_KEY, KAPPE_PLATE_KEY,
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY, ANSATTE_KEY,
-             MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY,
+             MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY, KAPPE_CATALOG_SHARED_KEY,
              'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });

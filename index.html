@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1158">
+    <link rel="stylesheet" href="styles.css?v=1160">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -99,7 +99,7 @@
         <!-- Mobile-friendly input form -->
         <div class="mobile-form" id="mobile-form">
             <div class="mobile-section">
-                <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openTemplatePicker()" data-i18n="template_pick">Velg prosjektmal</button>
+                <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openTemplatePicker()" data-i18n="template_pick">Velg prosjekt</button>
             </div>
             <div class="mobile-section">
                 <div class="mobile-field">
@@ -182,7 +182,7 @@
             <div class="form-actions" id="form-status-actions">
                 <button type="button" class="form-action-btn" onclick="openPreview()">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    <span data-i18n="btn_preview">Forhåndsvis</span>
+                    <span data-i18n="btn_preview">Vis</span>
                 </button>
                 <button type="button" class="form-action-btn btn-form-export" onclick="showExportMenu()">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -412,13 +412,13 @@
             <div class="sticky-header">
                 <div class="modal-header">
                     <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-                    <span id="saved-modal-title" data-i18n="modal_load_title">Hent skjema</span>
+                    <span id="saved-modal-title" data-i18n="modal_load_title">Skjemaer</span>
                     <button class="header-select-btn" id="saved-select-btn" onclick="toggleSelectMode()" data-i18n="btn_select">Velg</button>
                     <button class="header-save-btn" id="saved-new-btn" type="button" onclick="hentNewForm()"><span data-i18n="btn_new_short">+ Ny</span></button>
                 </div>
                 <div class="modal-tabs-wrap" id="saved-tabs-wrap">
                     <div class="modal-tabs">
-                        <button class="modal-tab" data-acc="ordreseddel" onclick="switchHentTab('own')" data-i18n="tab_own">Egne</button>
+                        <button class="modal-tab" data-acc="ordreseddel" onclick="switchHentTab('own')" data-i18n="tab_own">Ordreseddel</button>
                         <button class="modal-tab" data-acc="servicebil" onclick="switchHentTab('servicebil')" data-i18n="tab_servicebil">Servicebil</button>
                         <button class="modal-tab" data-acc="kappe" onclick="switchHentTab('kappe')" data-i18n="tab_kappe">Kappeskjema</button>
                         <!-- Kvittering-fanen er fjernet: kvitteringer hører til Timebok (gamle flyttes dit, _tbMigrateOldReceipts). -->
@@ -436,7 +436,7 @@
                 </div>
                 <div class="modal-search" id="service-search-wrap" style="display:none;">
                     <div class="search-input-wrap">
-                        <input type="text" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('service-list', 'service-search'); updateSearchClearBtn('service-search')">
+                        <input type="text" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt..." oninput="filterList('service-list', 'service-search'); updateSearchClearBtn('service-search')">
                         <button type="button" class="search-clear-btn" id="service-search-clear" onclick="clearSearchInput('service-search', 'service-list')" aria-label="Tøm søk">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                         </button>
@@ -444,7 +444,7 @@
                 </div>
                 <div class="modal-search" id="kappe-search-wrap" style="display:none;">
                     <div class="search-input-wrap">
-                        <input type="text" id="kappe-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('kappe-list', 'kappe-search'); updateSearchClearBtn('kappe-search')">
+                        <input type="text" id="kappe-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt..." oninput="filterList('kappe-list', 'kappe-search'); updateSearchClearBtn('kappe-search')">
                         <button type="button" class="search-clear-btn" id="kappe-search-clear" onclick="clearSearchInput('kappe-search', 'kappe-list')" aria-label="Tøm søk">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                         </button>
@@ -452,7 +452,7 @@
                 </div>
                 <div class="modal-search" id="kvittering-search-wrap" style="display:none;">
                     <div class="search-input-wrap">
-                        <input type="text" id="kvittering-search" data-i18n-placeholder="search_placeholder" placeholder="Søk..." oninput="filterList('kvittering-list', 'kvittering-search'); updateSearchClearBtn('kvittering-search')">
+                        <input type="text" id="kvittering-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt..." oninput="filterList('kvittering-list', 'kvittering-search'); updateSearchClearBtn('kvittering-search')">
                         <button type="button" class="search-clear-btn" id="kvittering-search-clear" onclick="clearSearchInput('kvittering-search', 'kvittering-list')" aria-label="Tøm søk">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                         </button>
@@ -659,7 +659,7 @@
     <div class="confirm-modal" id="template-editor-overlay" onclick="closeTemplateEditor()">
         <div class="template-editor-content" onclick="event.stopPropagation()">
             <div class="template-editor-header">
-                <span id="template-editor-title" data-i18n="settings_new_template">Ny mal</span>
+                <span id="template-editor-title" data-i18n="settings_new_template">+ Nytt prosjekt</span>
                 <button class="template-editor-close" onclick="closeTemplateEditor()">&times;</button>
             </div>
             <div class="template-editor-body">
@@ -721,6 +721,17 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Kun lokal testing (localhost = DEV_MODE): se appen som admin eller montør. Øverst sammen med
+                         Firma (bruker 15-11-2026) — begge er hovedadmins egne kontroller, ikke innstillinger. -->
+                    <div class="set-section dev-only dev-top">
+                        <div class="set-section-title" data-i18n="dev_role_title">Testmodus (kun lokalt)</div>
+                        <div class="set-card dev-role-card">
+                            <div class="tb-seg" id="dev-role-seg">
+                                <button type="button" class="tb-seg-btn" data-role="admin" onclick="setDevRole('admin')" data-i18n="dev_role_admin">Admin</button>
+                                <button type="button" class="tb-seg-btn" data-role="montor" onclick="setDevRole('montor')" data-i18n="dev_role_montor">Montør</button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="set-profile" onclick="showSettingsPage('min-info')">
                         <span class="set-avatar" id="set-profile-avatar"></span>
                         <span class="set-text">
@@ -734,21 +745,13 @@
                     <!-- Skjemaer = BARE det montøren selv styrer (bruker 09-11-2026: «kun admin ting skal
                          være i admin kategori. hva normale montører kan styre og se skal være under skjemaer»). -->
                     <div class="set-section">
-                        <div class="set-section-title" data-i18n="settings_section_skjemaer">Skjemaer</div>
+                        <!-- «Personlig» (ikke «Skjemaer»): det som gjelder deg selv — ordrenumre, timebok, autofyll
+                             — i motsetning til Admin under, som gjelder hele firmaet (15-11-2026). -->
+                        <div class="set-section-title" data-i18n="settings_section_personal">Personlig</div>
                         <div class="set-card">
                         <div class="set-row" data-acc="ordreseddel" onclick="showSettingsPage('form-ordreseddel')">
                             <span class="set-ico set-ico--orange"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="form_title">Ordreseddel</span><span class="set-desc" data-i18n="settings_desc_ordreseddel">Ordrenummer og autofyll</span></span>
-                            <span class="set-chev">&rsaquo;</span>
-                        </div>
-                        <div class="set-row" data-acc="kappe" onclick="showSettingsPage('form-kappe')">
-                            <span class="set-ico set-ico--purple"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="kappe_title">Kappeskjema</span><span class="set-desc" data-i18n="settings_desc_kappe_user">Autofyll</span></span>
-                            <span class="set-chev">&rsaquo;</span>
-                        </div>
-                        <div class="set-row" data-acc="servicebil" onclick="showSettingsPage('form-service')">
-                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc" data-i18n="settings_desc_service">Autofyll</span></span>
+                            <span class="set-text"><span class="set-title" data-i18n="form_title">Ordreseddel</span><span class="set-desc" data-i18n="settings_desc_ordreseddel">Ordrenumre</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" data-acc="timebok" onclick="showSettingsPage('timebok')">
@@ -756,17 +759,26 @@
                             <span class="set-text"><span class="set-title" data-i18n="settings_timebok">Timebok</span><span class="set-desc" data-i18n="settings_desc_timebok">Lønn og reise · autofyll</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
+                        <div class="set-row" onclick="showSettingsPage('form-autofill')">
+                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_autofill_title">Autofyll</span><span class="set-desc" data-i18n="settings_desc_autofill">Hva som fylles inn i nye skjemaer</span></span>
+                            <span class="set-chev">&rsaquo;</span>
+                        </div>
                         </div>
                     </div>
 
                     <!-- Admin (kun admin): ÉN kategori (bruker 09-11-2026: «det holder med 2 kategorier. admin og
-                         det andre») — firmaets ting først, deretter det admin styrer for hvert skjema. -->
+                         det andre»). Sortert etter HVA det er, ikke etter skjema (15-11-2026): hver ting ett sted —
+                         folk, firma, registre (prosjekter, materialer, valglister), skjemaoppsett, timebok. -->
                     <div class="set-section admin-only">
                         <div class="set-section-title"><span data-i18n="settings_section_admin">Admin</span> · <span id="set-admin-firma">Firesafe</span></div>
+                        <!-- Riktig firma i velgeren og i «Admin · …» FØR første tegning (før byttet firma ga et
+                             glimt av «Firesafe» etter omlastingen). Samme logikk som _syncFirmaUi for hovedadmin. -->
+                        <script>(function () { try { var d = localStorage.getItem('firesafe_active_firma') === 'damsgard'; var el = document.getElementById('set-admin-firma'); if (el) el.textContent = d ? 'Damsgård Brannsikring' : 'Firesafe'; document.querySelectorAll('#firma-seg .tb-seg-btn').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-firma') === (d ? 'damsgard' : 'firesafe')); }); } catch (e) {} })();</script>
                         <div class="set-card">
                         <div class="set-row" onclick="showSettingsPage('admin-users')">
                             <span class="set-ico set-ico--slate"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_users">Brukere</span><span class="set-desc" data-i18n="settings_desc_admin_users">Tilgang og invitasjoner</span></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_users">Brukere</span><span class="set-desc" data-i18n="settings_desc_admin_users">Ansatte, tilgang og ansattnr.</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" onclick="showSettingsPage('admin-employers')">
@@ -776,32 +788,22 @@
                         </div>
                         <div class="set-row" onclick="showSettingsPage('templates')">
                             <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="settings_prosjekter_section">Prosjekter</span><span class="set-desc" data-i18n="settings_desc_templates">Adresser, avstand og felt</span></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_prosjekter_section">Prosjekter</span><span class="set-desc" data-i18n="settings_desc_templates">Prosjektliste med adresser</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" onclick="showSettingsPage('materials')">
                             <span class="set-ico set-ico--amber"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="settings_materials">Materialer</span><span class="set-desc" data-i18n="settings_desc_materials">Materialliste og enheter</span></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_materials">Materialer</span><span class="set-desc" data-i18n="settings_desc_materials">Materialer, dimensjoner og plater</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="set-row" onclick="showSettingsPage('admin-ordreseddel')">
-                            <span class="set-ico set-ico--orange"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="form_title">Ordreseddel</span><span class="set-desc" data-i18n="settings_desc_adm_ordreseddel">Obligatoriske felt og etasjer</span></span>
+                        <div class="set-row" onclick="showSettingsPage('admin-lists')">
+                            <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_lists">Valglister</span><span class="set-desc" data-i18n="settings_desc_admin_lists">Etasjer, brannkrav, flate m.m.</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
-                        <div class="set-row" onclick="showSettingsPage('admin-sjekkliste')">
-                            <span class="set-ico set-ico--teal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="sj_single">Sjekkliste</span><span class="set-desc" data-i18n="settings_desc_sjekkliste">Valg og obligatoriske felt</span></span>
-                            <span class="set-chev">&rsaquo;</span>
-                        </div>
-                        <div class="set-row" onclick="showSettingsPage('admin-kappe')">
-                            <span class="set-ico set-ico--purple"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="kappe_title">Kappeskjema</span><span class="set-desc" data-i18n="settings_desc_kappe">Bladbredde, plater og felt</span></span>
-                            <span class="set-chev">&rsaquo;</span>
-                        </div>
-                        <div class="set-row" onclick="showSettingsPage('admin-service')">
-                            <span class="set-ico set-ico--blue"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h14v12H1z"/><path d="M15 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="tab_servicebil">Servicebil</span><span class="set-desc" data-i18n="settings_desc_adm_service">Obligatoriske felt</span></span>
+                        <div class="set-row" onclick="showSettingsPage('admin-forms')">
+                            <span class="set-ico set-ico--orange"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13l2 2 4-4"/></svg></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_forms">Skjemaoppsett</span><span class="set-desc" data-i18n="settings_desc_admin_forms">Obligatoriske felt og bladbredde</span></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
                         <div class="set-row" onclick="showSettingsPage('admin-satser')">
@@ -812,16 +814,6 @@
                         </div>
                     </div>
 
-                    <!-- Kun lokal testing (localhost = DEV_MODE): se appen som admin eller montør -->
-                    <div class="set-section dev-only">
-                        <div class="set-section-title" data-i18n="dev_role_title">Testmodus (kun lokalt)</div>
-                        <div class="set-card dev-role-card">
-                            <div class="tb-seg" id="dev-role-seg">
-                                <button type="button" class="tb-seg-btn" data-role="admin" onclick="setDevRole('admin')" data-i18n="dev_role_admin">Admin</button>
-                                <button type="button" class="tb-seg-btn" data-role="montor" onclick="setDevRole('montor')" data-i18n="dev_role_montor">Montør</button>
-                            </div>
-                        </div>
-                    </div>
 
                     <div class="set-card set-logout" onclick="handleAuth()">
                         <span class="set-ico set-ico--red"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
@@ -905,164 +897,134 @@
                     </div>
                 </div>
 
-                <!-- Ordreseddel-skjema (obligatoriske felt + ordrenr + plan, alle som collapsibles) -->
-                <!-- Meny › Ordreseddel. Kort-stil som hovedmenyen (grå side, små grå titler, hvite kort)
-                     og faner øverst i stedet for sammenleggbare seksjoner: én del vises om gangen, så
-                     siden holdes kort også når det kommer flere deler. Generelt mønster for undersider:
-                     .settings-page.set-sub + .set-tabs / .set-tab-panel (setSettingsTab). -->
+                <!-- Meny › Ordreseddel: montørens egne ordrenumre. (Autofyll for alle skjemaer ligger
+                     samlet på Meny › Autofyll — 15-11-2026.) -->
                 <div id="settings-page-form-ordreseddel" class="settings-page set-sub" style="display:none;">
-                    <div class="tb-seg set-tabs">
-                        <button type="button" class="tb-seg-btn active" data-tab="nr" onclick="setSettingsTab(this)" data-i18n="settings_tab_ordrenr">Ordrenummer</button>
-                        <button type="button" class="tb-seg-btn" data-tab="autofill" onclick="setSettingsTab(this)" data-i18n="settings_autofill_title">Autofyll</button>
+                    <!-- Sammendrag øverst: neste nummer er det montøren trenger mest. Skjult uten serier. -->
+                    <div class="set-card set-summary" id="settings-next-card" hidden>
+                        <div class="set-summary-label" data-i18n="settings_next_title">Neste nummer</div>
+                        <div class="set-summary-row">
+                            <span class="set-summary-big" id="settings-next-nr"></span>
+                            <span class="set-summary-meta" id="settings-status"></span>
+                        </div>
+                    </div>
+                    <div class="set-section">
+                    <div class="set-section-title"><span data-i18n="settings_my_numbers">Mine numre</span></div>
+                    <div class="set-card">
+                        <div id="settings-ranges" class="set-range-list"></div>
+                        <div class="settings-add-row set-add-row">
+                            <input type="text" id="settings-new-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
+                            <input type="text" id="settings-new-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
+                            <button type="button" class="settings-add-btn" onclick="addSettingsRange()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                    </div>
                     </div>
 
-                    <div class="set-tab-panel" data-tab="nr">
-                        <!-- Sammendrag øverst: neste nummer er det montøren trenger mest. Skjult uten serier. -->
-                        <div class="set-card set-summary" id="settings-next-card" hidden>
-                            <div class="set-summary-label" data-i18n="settings_next_title">Neste nummer</div>
-                            <div class="set-summary-row">
-                                <span class="set-summary-big" id="settings-next-nr"></span>
-                                <span class="set-summary-meta" id="settings-status"></span>
-                            </div>
-                        </div>
-                        <div class="set-section">
-                        <div class="set-section-title"><span data-i18n="settings_my_numbers">Mine numre</span></div>
+                    <div class="set-section">
+                        <div class="set-section-title"><span data-i18n="settings_given_away">Gitt bort</span></div>
                         <div class="set-card">
-                            <div id="settings-ranges" class="set-range-list"></div>
+                            <div id="settings-given-away" class="set-range-list"></div>
                             <div class="settings-add-row set-add-row">
-                                <input type="text" id="settings-new-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
-                                <input type="text" id="settings-new-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
-                                <button type="button" class="settings-add-btn" onclick="addSettingsRange()" data-i18n="btn_add">Legg til</button>
+                                <input type="text" id="settings-give-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
+                                <input type="text" id="settings-give-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
+                                <button type="button" class="settings-give-btn" onclick="addGivenAwayRange()" data-i18n="settings_give_btn">Gi bort</button>
                             </div>
                         </div>
-                        </div>
-
-                        <div class="set-section">
-                            <div class="set-section-title"><span data-i18n="settings_given_away">Gitt bort</span></div>
-                            <div class="set-card">
-                                <div id="settings-given-away" class="set-range-list"></div>
-                                <div class="settings-add-row set-add-row">
-                                    <input type="text" id="settings-give-start" inputmode="numeric" data-i18n-placeholder="placeholder_from" placeholder="Fra">
-                                    <input type="text" id="settings-give-end" inputmode="numeric" data-i18n-placeholder="placeholder_to" placeholder="Til">
-                                    <button type="button" class="settings-give-btn" onclick="addGivenAwayRange()" data-i18n="settings_give_btn">Gi bort</button>
-                                </div>
-                            </div>
-                            <div class="set-foot" data-i18n="settings_given_away_hint">Numre du har gitt til en kollega. De hoppes over når neste nummer velges.</div>
-                        </div>
+                        <div class="set-foot" data-i18n="settings_given_away_hint">Numre du har gitt til en kollega. De hoppes over når neste nummer velges.</div>
                     </div>
-
-                    <div class="set-tab-panel" data-tab="autofill" hidden>
+                </div>
+                <!-- Meny › Autofyll: hva som fylles inn fra Profil når du lager et nytt skjema — én del pr.
+                     skjema (før én side pr. skjema, der Servicebil/Kappeskjema bare hadde dette). Samme
+                     brytere/id-er som før (data-af-form/-field, mininfo-sted, mininfo-autofill-sted). -->
+                <div id="settings-page-form-autofill" class="settings-page set-sub" style="display:none;">
+                    <!-- Faner pr. skjema (som resten av Innstillinger). data-acc skjuler fane + innhold for
+                         skjemaer brukeren ikke har; siden åpner på første synlige fane. -->
+                    <div class="tb-seg set-tabs">
+                        <button type="button" class="tb-seg-btn active" data-acc="ordreseddel" data-tab="ordreseddel" onclick="setSettingsTab(this)" data-i18n="form_title">Ordreseddel</button>
+                        <button type="button" class="tb-seg-btn" data-acc="servicebil" data-tab="servicebil" onclick="setSettingsTab(this)" data-i18n="tab_servicebil">Servicebil</button>
+                        <button type="button" class="tb-seg-btn" data-acc="kappe" data-tab="kappe" onclick="setSettingsTab(this)" data-i18n="kappe_title">Kappeskjema</button>
+                    </div>
+                    <div class="set-foot set-foot-top" data-i18n="settings_autofill_hint">Det som er slått på, hentes fra Profil › Personalia når du lager et nytt skjema.</div>
+                    <div class="set-tab-panel" data-tab="ordreseddel">
                         <div class="set-card autofill-group">
                             <div class="set-toggle-row"><span data-i18n="settings_autofill_navn">Navn (montør)</span><label class="settings-toggle"><input type="checkbox" data-af-form="ordreseddel" data-af-field="montor" checked><span class="settings-toggle-slider"></span></label></div>
                             <div class="set-toggle-row"><span data-i18n="label_avdeling">Avdeling</span><label class="settings-toggle"><input type="checkbox" data-af-form="ordreseddel" data-af-field="avdeling" checked><span class="settings-toggle-slider"></span></label></div>
-                            <div class="set-toggle-row set-toggle-row-input">
-                                <label for="mininfo-sted" data-i18n="label_sted">Sted</label>
-                                <input type="text" id="mininfo-sted">
-                                <label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-sted" checked><span class="settings-toggle-slider"></span></label>
-                            </div>
+                            <div class="set-toggle-row set-toggle-row-input"><label for="mininfo-sted" data-i18n="label_sted">Sted</label><input type="text" id="mininfo-sted"><label class="settings-toggle"><input type="checkbox" id="mininfo-autofill-sted" checked><span class="settings-toggle-slider"></span></label></div>
                         </div>
-                        <div class="set-foot" data-i18n="settings_autofill_hint">Det som er slått på, hentes fra Profil › Personalia når du lager et nytt skjema.</div>
+                    </div>
+                    <div class="set-tab-panel" data-tab="servicebil" hidden>
+                        <div class="set-card autofill-group">
+                            <div class="set-toggle-row"><span data-i18n="settings_autofill_navn">Navn (montør)</span><label class="settings-toggle"><input type="checkbox" data-af-form="service" data-af-field="montor" checked><span class="settings-toggle-slider"></span></label></div>
+                        </div>
+                    </div>
+                    <div class="set-tab-panel" data-tab="kappe" hidden>
+                        <div class="set-card autofill-group">
+                            <div class="set-toggle-row"><span data-i18n="settings_autofill_bestiller">Bestiller (navn)</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="montor" checked><span class="settings-toggle-slider"></span></label></div>
+                            <div class="set-toggle-row"><span data-i18n="label_avdeling">Avdeling</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="avdeling" checked><span class="settings-toggle-slider"></span></label></div>
+                            <div class="set-toggle-row"><span data-i18n="settings_min_info_mobil">Mobil</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="mobil" checked><span class="settings-toggle-slider"></span></label></div>
+                            <div class="set-toggle-row"><span data-i18n="settings_min_info_epost">E-post</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="epost" checked><span class="settings-toggle-slider"></span></label></div>
+                        </div>
                     </div>
                 </div>
 
-
-                <!-- Admin › Skjemaer › Ordreseddel: obligatoriske felt + etasjer (felles for firmaet) -->
-                <div id="settings-page-admin-ordreseddel" class="settings-page set-sub" style="display:none;">
-                    <!-- Kort-stil + faner (ingen sammenleggbare bokser i Innstillinger, bruker 15-11-2026). -->
-                    <div class="tb-seg set-tabs">
-                        <button type="button" class="tb-seg-btn active" data-tab="required" onclick="setSettingsTab(this)" data-i18n="settings_section_required">Obligatoriske felt</button>
-                        <button type="button" class="tb-seg-btn" data-tab="plans" onclick="setSettingsTab(this)" data-i18n="settings_admin_plans">Etasjer</button>
+                <!-- Admin › Valglister: alle valglister ett sted. Etasjer er ÉN liste for ordreseddel og
+                     sjekkliste (før to separate lister). Rader → popup (renderSjekklisteSettings). -->
+                <div id="settings-page-admin-lists" class="settings-page set-sub" style="display:none;">
+                    <div id="sj-settings"></div>
+                </div>
+                <!-- Admin › Skjemaoppsett: det som styrer selve skjemaene — obligatoriske felt for alle
+                     skjemaer (før spredt på 5 sider) + bladbredde for kappeskjema. Skjema velges øverst. -->
+                <div id="settings-page-admin-forms" class="settings-page set-sub" style="display:none;">
+                    <div class="set-card">
+                        <div class="set-field-row"><label for="adm-forms-sel" class="set-field-label" data-i18n="settings_form_label">Skjema</label>
+                            <select id="adm-forms-sel" class="set-field-select" onchange="setAdminFormsTab(this.value)">
+                                <option value="ordreseddel" data-i18n="form_title">Ordreseddel</option>
+                                <option value="servicebil" data-i18n="tab_servicebil">Servicebil</option>
+                                <option value="kappe" data-i18n="kappe_title">Kappeskjema</option>
+                                <option value="sjekkliste" data-i18n="sj_single">Sjekkliste</option>
+                                <option value="prosjekt" data-i18n="settings_form_project">Prosjekt</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="set-tab-panel" data-tab="required">
+                    <div class="set-section">
+                    <div class="set-tab-panel" data-tab="ordreseddel">
+                        <div class="set-section-title" data-i18n="settings_section_required">Obligatoriske felt</div>
                         <div class="set-card" id="required-own-content">
                             <div id="settings-fields-save-items" class="settings-list-container settings-group"></div>
                         </div>
                     </div>
-                    <div class="set-tab-panel" data-tab="plans" hidden>
-                        <div class="set-card">
-                            <div id="settings-plan-items" class="settings-list-container"></div>
-                            <div class="settings-add-plan-row set-add-row">
-                                <input type="text" id="settings-new-plan" data-i18n-placeholder="settings_plan_placeholder" placeholder="Etasjenavn..." autocapitalize="characters" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingsPlan()}">
-                                <button type="button" class="settings-add-plan-btn" onclick="addSettingsPlan()" data-i18n="btn_add">Legg til</button>
-                            </div>
+                    <div class="set-tab-panel" data-tab="servicebil" hidden>
+                        <div class="set-section-title" data-i18n="settings_section_required">Obligatoriske felt</div>
+                        <div class="set-card" id="required-service-content">
+                            <div id="settings-fields-service-items" class="settings-list-container settings-group"></div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Admin › Skjemaer › Servicebil: obligatoriske felt -->
-                <div id="settings-page-admin-service" class="settings-page set-sub" style="display:none;">
-                    <div class="set-section-title" data-i18n="settings_section_required">Obligatoriske felt</div>
-                    <div class="set-card" id="required-service-content">
-                        <div id="settings-fields-service-items" class="settings-list-container settings-group"></div>
-                    </div>
-                </div>
-
-                <!-- Admin › Skjemaer › Kappeskjema: bladbredde, plater, obligatoriske felt -->
-                <div id="settings-page-admin-kappe" class="settings-page set-sub" style="display:none;">
-                    <div class="tb-seg set-tabs">
-                        <button type="button" class="tb-seg-btn active" data-tab="cut" onclick="setSettingsTab(this)" data-i18n="kappe_settings_tab_cut">Kapping</button>
-                        <button type="button" class="tb-seg-btn" data-tab="required" onclick="setSettingsTab(this)" data-i18n="settings_section_required">Obligatoriske felt</button>
-                    </div>
-                    <div class="set-tab-panel" data-tab="cut">
+                    <div class="set-tab-panel" data-tab="kappe" hidden>
                         <div class="set-card">
                             <div class="set-field-row"><label for="settings-kappe-kerf" class="set-field-label" data-i18n="kappe_settings_kerf">Bladbredde (mm)</label><input type="text" id="settings-kappe-kerf" class="set-field-input" inputmode="decimal" pattern="[0-9,.]*" placeholder="2"></div>
                         </div>
                         <div class="set-section">
-                            <div class="set-section-title"><span data-i18n="kappe_settings_plates">Plater (mm)</span> <span class="set-count" id="settings-count-kappe-plates"></span></div>
-                            <div class="set-card">
-                                <div id="settings-kappe-plate-items" class="set-range-list"></div>
-                                <div class="settings-add-row set-add-row">
-                                    <input type="text" id="settings-new-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
-                                    <span class="settings-plate-x">×</span>
-                                    <input type="text" id="settings-new-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
-                                    <button type="button" class="settings-add-btn" onclick="addKappePlate()" data-i18n="btn_add">Legg til</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="set-tab-panel" data-tab="required" hidden>
+                        <div class="set-section-title" data-i18n="settings_section_required">Obligatoriske felt</div>
                         <div class="set-card" id="required-kappe-content">
                             <div id="settings-fields-kappe-items" class="settings-list-container required-fields-grouped"></div>
                         </div>
+                        </div>
                     </div>
-                </div>
-
-                <!-- Skjemaer › Servicebil: det montøren styrer selv (utfylling). Admin-delen: admin-service. -->
-                <div id="settings-page-form-service" class="settings-page set-sub" style="display:none;">
-                    <div class="set-section-title" data-i18n="settings_autofill_title">Autofyll</div>
-                    <div class="set-card autofill-group">
-                        <div class="set-toggle-row"><span data-i18n="settings_autofill_navn">Navn (montør)</span><label class="settings-toggle"><input type="checkbox" data-af-form="service" data-af-field="montor" checked><span class="settings-toggle-slider"></span></label></div>
-                    </div>
-                    <div class="set-foot" data-i18n="settings_autofill_hint">Det som er slått på, hentes fra Profil › Personalia når du lager et nytt skjema.</div>
-                </div>
-
-                <!-- Admin › Skjemaer › Sjekkliste: valglistene + obligatoriske felt -->
-                <div id="settings-page-admin-sjekkliste" class="settings-page set-sub" style="display:none;">
-                    <div class="tb-seg set-tabs">
-                        <button type="button" class="tb-seg-btn active" data-tab="lists" onclick="setSettingsTab(this)" data-i18n="sj_settings_tab_lists">Valglister</button>
-                        <button type="button" class="tb-seg-btn" data-tab="required" onclick="setSettingsTab(this)" data-i18n="settings_section_required">Obligatoriske felt</button>
-                    </div>
-                    <div class="set-tab-panel" data-tab="lists">
-                        <div id="sj-settings"></div>
-                    </div>
-                    <div class="set-tab-panel" data-tab="required" hidden>
+                    <div class="set-tab-panel" data-tab="sjekkliste" hidden>
+                        <div class="set-section-title" data-i18n="settings_section_required">Obligatoriske felt</div>
                         <div class="set-card">
                             <div id="settings-fields-sjekkliste-items" class="settings-list-container settings-group"></div>
                         </div>
                     </div>
+                    <div class="set-tab-panel" data-tab="prosjekt" hidden>
+                        <div class="set-section-title" data-i18n="settings_section_required">Obligatoriske felt</div>
+                        <div class="set-card">
+                            <div id="settings-fields-template-items" class="settings-list-container"></div>
+                        </div>
+                    </div>
+                    </div>
                 </div>
 
-                <!-- Skjemaer › Kappeskjema: det montøren styrer selv (utfylling). Admin-delen: admin-kappe. -->
-                <div id="settings-page-form-kappe" class="settings-page set-sub" style="display:none;">
-                    <div class="set-section-title" data-i18n="settings_autofill_title">Autofyll</div>
-                    <div class="set-card autofill-group">
-                        <div class="set-toggle-row"><span data-i18n="settings_autofill_bestiller">Bestiller (navn)</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="montor" checked><span class="settings-toggle-slider"></span></label></div>
-                        <div class="set-toggle-row"><span data-i18n="label_avdeling">Avdeling</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="avdeling" checked><span class="settings-toggle-slider"></span></label></div>
-                        <div class="set-toggle-row"><span data-i18n="settings_min_info_mobil">Mobil</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="mobil" checked><span class="settings-toggle-slider"></span></label></div>
-                        <div class="set-toggle-row"><span data-i18n="settings_min_info_epost">E-post</span><label class="settings-toggle"><input type="checkbox" data-af-form="kappe" data-af-field="epost" checked><span class="settings-toggle-slider"></span></label></div>
-                    </div>
-                    <div class="set-foot" data-i18n="settings_autofill_hint">Det som er slått på, hentes fra Profil › Personalia når du lager et nytt skjema.</div>
-                </div>
 
                 <!-- Modal for å tildele produkter til en plate -->
                 <div class="confirm-modal" id="kappe-plate-assign-modal" onclick="if(event.target===this)closeKappePlateAssignModal()">
@@ -1080,6 +1042,7 @@
                     <div class="tb-seg set-tabs">
                         <button type="button" class="tb-seg-btn active" data-tab="mat" onclick="setSettingsTab(this)" data-i18n="settings_materials">Materialer</button>
                         <button type="button" class="tb-seg-btn" data-tab="dims" onclick="setSettingsTab(this)" data-i18n="settings_tab_dimensions">Dimensjoner</button>
+                        <button type="button" class="tb-seg-btn" data-tab="plates" onclick="setSettingsTab(this)" data-i18n="settings_tab_plates">Plater</button>
                     </div>
                     <div class="set-tab-panel" data-tab="mat">
                         <div class="set-card">
@@ -1088,10 +1051,9 @@
                         <div class="set-section">
                             <div class="set-section-title">Nytt materiale</div>
                         <div class="settings-add-material-row">
-                            <!-- Overskrift som binder navn + type + variant sammen til ÉN
-                                 operasjon. «Nytt materiale» flyttet hit fra feltetiketten,
-                                 som nå heter «Navn». Speiler _pickerAddMaterialFormHtml. -->
-                                                    <div class="settings-add-material-row-top">
+                            <!-- Navn + type + variant = ÉN operasjon (overskriften «Nytt materiale» står over kortet).
+                                 Speiler _pickerAddMaterialFormHtml. -->
+                            <div class="settings-add-material-row-top">
                                 <div class="settings-add-material-field">
                                     <label class="settings-add-label">Navn <span class="spec-required-star">*</span></label>
                                     <input type="text" id="settings-new-material" autocapitalize="sentences">
@@ -1127,29 +1089,30 @@
                         <div class="set-card">
                             <div id="settings-kappe-dim-items" class="settings-list-container"></div>
                             <div class="settings-add-row set-add-row">
-                                <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 25" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
+                                <input type="text" id="settings-new-kappe-dim" inputmode="numeric" data-i18n-placeholder="kappe_settings_new_dimension_placeholder" placeholder="f.eks. 50" onkeydown="if(event.key==='Enter'){event.preventDefault();addGlobalKappeDimension()}">
                                 <button type="button" class="settings-add-btn" onclick="addGlobalKappeDimension()" data-i18n="btn_add">Legg til</button>
                             </div>
                         </div>
                     </div>
+                    <div class="set-tab-panel" data-tab="plates" hidden>
+                        <div class="set-section-title"><span data-i18n="kappe_settings_plates">Plater (mm)</span> <span class="set-count" id="settings-count-kappe-plates"></span></div>
+                        <div class="set-card">
+                        <div id="settings-kappe-plate-items" class="set-range-list"></div>
+                        <div class="settings-add-row set-add-row">
+                        <input type="text" id="settings-new-plate-length" inputmode="numeric" pattern="[0-9]*" placeholder="1200">
+                        <span class="settings-plate-x">×</span>
+                        <input type="text" id="settings-new-plate-width" inputmode="numeric" pattern="[0-9]*" placeholder="1000">
+                        <button type="button" class="settings-add-btn" onclick="addKappePlate()" data-i18n="btn_add">Legg til</button>
+                        </div>
+                        </div>
+                        <div class="set-foot" data-i18n="settings_plates_hint">Platestørrelser for isolasjonsprodukter. Knytt produkter til en plate; produkter uten plate bruker den første.</div>
+                    </div>
                 </div>
 
-                <!-- Maler-side -->
                 <div id="settings-page-templates" class="settings-page set-sub" style="display:none;">
-                    <div class="tb-seg set-tabs">
-                        <button type="button" class="tb-seg-btn active" data-tab="prosjekter" onclick="setSettingsTab(this)" data-i18n="settings_prosjekter_section">Prosjekter</button>
-                        <button type="button" class="tb-seg-btn" data-tab="required" onclick="setSettingsTab(this)" data-i18n="settings_section_required">Obligatoriske felt</button>
-                    </div>
-                    <div class="set-tab-panel" data-tab="prosjekter">
-                        <div class="set-card adm-list settings-prosjekter-section">
-                            <button type="button" class="adm-add-row" onclick="showTemplateEditor()"><span class="adm-add-ico">+</span><span data-i18n="settings_new_template_short">Nytt prosjekt</span></button>
-                            <div id="settings-template-list"></div>
-                        </div>
-                    </div>
-                    <div class="set-tab-panel" data-tab="required" hidden>
-                        <div class="set-card">
-                            <div id="settings-fields-template-items" class="settings-list-container"></div>
-                        </div>
+                    <div class="set-card adm-list settings-prosjekter-section">
+                        <button type="button" class="adm-add-row" onclick="showTemplateEditor()"><span class="adm-add-ico">+</span><span data-i18n="settings_new_template_short">Nytt prosjekt</span></button>
+                        <div id="settings-template-list"></div>
                     </div>
                 </div>
 
@@ -1182,7 +1145,7 @@
 
                 <!-- Uttak-modus seksjoner: full lageruttak-skjema -->
                 <div class="mobile-section servicebil-uttak-only">
-                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openServiceTemplatePicker(this)" data-i18n="template_pick">Velg prosjektmal</button>
+                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openServiceTemplatePicker(this)" data-i18n="template_pick">Velg prosjekt</button>
                 </div>
                 <div class="mobile-section servicebil-uttak-only">
                     <div class="mobile-field field-required">
@@ -1203,7 +1166,7 @@
                 <div class="mobile-section servicebil-uttak-only">
                     <div class="mobile-section-title" data-i18n="section_signing">Signering</div>
                     <div class="mobile-field">
-                        <label data-i18n="service_label_signatur">Min signatur</label>
+                        <label data-i18n="service_label_signatur">Signatur</label>
                         <div class="signature-preview" id="service-signature-preview">
                             <img id="service-signature-preview-img" style="display:none">
                             <span class="signature-placeholder" data-i18n="signature_not_signed">Ikke signert</span>
@@ -1242,7 +1205,7 @@
             </div>
             <div class="mobile-form" id="kappe-form">
                 <div class="mobile-section">
-                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openKappeTemplatePicker()" data-i18n="template_pick">Velg prosjektmal</button>
+                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openKappeTemplatePicker()" data-i18n="template_pick">Velg prosjekt</button>
                 </div>
                 <div class="mobile-section">
                     <div class="mobile-section-title" data-i18n="kappe_section_project">Prosjekt</div>
@@ -1316,7 +1279,7 @@
                     </div>
                 </div>
                 <div class="mobile-section">
-                    <div class="mobile-section-title" data-i18n="kappe_section_products">Produkter</div>
+                    <div class="mobile-section-title" data-i18n="kappe_section_products">Kappeliste</div>
                     <div id="kappe-lines"></div>
                     <button type="button" class="mobile-add-line-btn" onclick="addKappeLine()" data-i18n="kappe_add_product">+ Legg til gruppe</button>
                 </div>
@@ -1418,7 +1381,7 @@
             </div>
             <div class="mobile-form" id="kvittering-form">
                 <div class="mobile-section">
-                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openKvitteringTemplatePicker()" data-i18n="template_pick">Velg prosjektmal</button>
+                    <button type="button" class="btn-skip-template bil-btn-pafylling btn-template-picker" onclick="openKvitteringTemplatePicker()" data-i18n="template_pick">Velg prosjekt</button>
                 </div>
                 <div class="mobile-section">
                     <div class="mobile-section-title" data-i18n="kappe_section_project">Prosjekt</div>
@@ -1739,10 +1702,10 @@
     <div class="spec-popup-backdrop" id="template-picker-overlay" onclick="if(event.target===this)closeTemplatePicker()">
         <div class="spec-popup-sheet template-picker-sheet">
             <div class="spec-popup-header">
-                <span data-i18n="template_picker_title">Prosjektmaler</span>
+                <span data-i18n="template_picker_title">Prosjekter</span>
             </div>
             <div class="modal-search" style="margin-bottom:10px">
-                <input type="text" id="template-picker-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjektmal..." oninput="filterList('template-picker-list', 'template-picker-search')">
+                <input type="text" id="template-picker-search" data-i18n-placeholder="search_template_placeholder" placeholder="Søk prosjekt..." oninput="filterList('template-picker-list', 'template-picker-search')">
             </div>
             <div class="spec-popup-body">
                 <div id="template-picker-list"></div>
@@ -1819,7 +1782,7 @@
     <div class="spec-popup-backdrop" id="timebok-type-popup" onclick="if(event.target===this)closeTimebokTypePicker()">
         <div class="spec-popup-sheet">
             <div class="spec-popup-header">
-                <span data-i18n="timebok_pick_type">Velg timetype</span>
+                <span data-i18n="timebok_pick_type">Velg kode</span>
             </div>
             <div class="spec-popup-body" id="timebok-type-list"></div>
             <div class="spec-popup-buttons">
@@ -1832,6 +1795,26 @@
     <!-- Timebok: kopier dagen til flere dager (ukevelger, flere uker via ‹ ›). -->
     <!-- Admin › Satser › Tilleggskoder: detaljer for én kode (flagg, −Normtid, «Vises for»; for
          Reisegodtgjørelse også avstandstabellen). Lista viser bare en grå oppsummering. -->
+    <!-- Admin › Valglister › Etasjer: ÉN felles etasjeliste (ordreseddel + sjekkliste), settings/plans. -->
+    <div class="spec-popup-backdrop" id="plans-popup" onclick="if(event.target===this)closePlansPopup()">
+        <div class="spec-popup-sheet">
+            <div class="spec-popup-header"><span data-i18n="settings_floors">Etasjer</span></div>
+            <div class="spec-popup-body">
+                <div class="sj-set-hint" data-i18n="settings_floors_hint">Brukes i ordreseddelen (arbeidstid) og sjekklisten. Sorteres automatisk: U-etasjer, tall, resten.</div>
+                <div class="set-card">
+                    <div id="settings-plan-items" class="settings-list-container"></div>
+                    <div class="settings-add-plan-row set-add-row">
+                        <input type="text" id="settings-new-plan" data-i18n-placeholder="settings_plan_placeholder" placeholder="Etasjenavn..." autocapitalize="characters" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingsPlan()}">
+                        <button type="button" class="settings-add-plan-btn" onclick="addSettingsPlan()" data-i18n="btn_add">Legg til</button>
+                    </div>
+                </div>
+            </div>
+            <div class="spec-popup-buttons">
+                <button type="button" class="spec-popup-ok" onclick="closePlansPopup()" data-i18n="btn_done">Ferdig</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin › Sjekkliste: én valgliste (rediger, flytt, slett, legg til). -->
     <div class="spec-popup-backdrop" id="sj-list-popup" onclick="if(event.target===this)closeSjListPopup()">
         <div class="spec-popup-sheet">
@@ -2164,8 +2147,8 @@
                     <div class="calc-card" data-acc="verktoy" onclick="showCalcPage('stopwatch')">
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="13" r="8"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="13" x2="15" y2="15"/><line x1="9" y1="2" x2="15" y2="2"/><line x1="12" y1="2" x2="12" y2="5"/></svg></div>
                         <div class="calc-card-text">
-                            <div class="calc-card-title" data-i18n="calc_sw_title">Stoppeklokke</div>
-                            <div class="calc-card-desc" data-i18n="calc_sw_desc">Mål tid på ekstra jobber</div>
+                            <div class="calc-card-title" data-i18n="calc_sw_title">Stoppeklokker</div>
+                            <div class="calc-card-desc" data-i18n="calc_sw_desc">Mål tid på flere bestillinger</div>
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
@@ -2566,7 +2549,7 @@
                     </div>
                     <!-- Én eksport-knapp (som ordresedlene): Last ned / Del × PDF / Excel i popup. -->
                     <div class="tb-exp-actions">
-                        <button type="button" class="tb-exp-btn" id="tb-exp-btn" onclick="showTimebokExportMenu()" data-i18n="timebok_exp_btn">Eksporter</button>
+                        <button type="button" class="tb-exp-btn" id="tb-exp-btn" onclick="showTimebokExportMenu()" data-i18n="timebok_exp_btn">Last ned / del</button>
                     </div>
                     <div class="timebok-summary-card">
                         <div class="timebok-summary-head">
@@ -2590,9 +2573,9 @@
         <button class="btn-settings" onclick="showSettingsModal()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="toolbar_settings">Meny</span></button>
     </div>
 
-    <script src="lang.js?v=459"></script>
-    <script src="script.js?v=602"></script>
-    <script src="script-ui.js?v=1389"></script>
+    <script src="lang.js?v=461"></script>
+    <script src="script.js?v=603"></script>
+    <script src="script-ui.js?v=1391"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

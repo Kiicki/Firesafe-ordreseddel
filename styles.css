@@ -13541,6 +13541,9 @@ body.sjekkliste-view-open #view-form { display: none; }
 /* Firmavelger øverst i Meny — bare hovedadmin (is-super) og lokal test. */
 html:not(.is-super):not(.dev-mode) .super-only { display: none !important; }
 .firma-switch { margin-bottom: 16px; }
+/* Testmodus rett under Firma (lokalt): vanlig avstand mellom seksjonene, og luft ned til profilkortet. */
+.dev-top { margin-bottom: 16px; }
+.firma-switch + .dev-top { margin-top: 6px; }   /* 16 (firma) + 6 = 22, som mellom andre seksjoner */
 .firma-card { padding: 10px 12px; }
 .firma-card .tb-seg { width: 100%; margin-bottom: 0; }
 
