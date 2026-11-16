@@ -4708,14 +4708,15 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
             pickerGroupMap[baseName].items.push(e);
         });
 
-        // To seksjoner som Admin › Materialer: «Materialer» (alfabetisk; mansjett/brannpakning/
-        // kabelhylse hører hit) og «Isolasjon og festemidler» nederst (Isolasjon før Festemidler).
+        // Tre seksjoner (bruker 16-11-2026: rader med Antall-felt og rader med pil skal ikke stå
+        // om hverandre): «Materialer» (Antall i raden, alfabetisk) → «Med størrelser» (mansjett/
+        // brannpakning/kabelhylse — pil til eget vindu, alfabetisk) → «Isolasjon og festemidler».
         var _isKappeGrp = function(g) { return !!(g.isIsolationGroup || g.isStiftGroup); };
+        var _secOf = function(g) { return _isKappeGrp(g) ? 2 : (g.isSpecGroup ? 1 : 0); };
         pickerGroups.sort(function(a, b) {
-            var ak = _isKappeGrp(a) ? 1 : 0, bk = _isKappeGrp(b) ? 1 : 0;
+            var ak = _secOf(a), bk = _secOf(b);
             if (ak !== bk) return ak - bk;
-            if (ak) return (a.isIsolationGroup ? 0 : 1) - (b.isIsolationGroup ? 0 : 1);
-            // Materialer: rent alfabetisk (også mansjett/brannpakning/kabelhylse, med eller uten valg).
+            if (ak === 2) return (a.isIsolationGroup ? 0 : 1) - (b.isIsolationGroup ? 0 : 1);
             return _cmpText((a.displayName || a.baseName), b.displayName || b.baseName);
         });
         // Søk (feltet over lista vises når det er mange materialer): treff på gruppenavn eller
@@ -4735,15 +4736,17 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                 return texts.some(function(x) { return String(x).toLowerCase().indexOf(_q) !== -1; });
             });
         }
-        var _hasMain = pickerGroups.some(function(g) { return !_isKappeGrp(g); });
-        var _hasKappe = pickerGroups.some(_isKappeGrp);
-        var _kappeHeaderDone = false;
+        // Seksjonstitler bare når det finnes mer enn én seksjon.
+        var _secs = [0, 1, 2].filter(function(k) { return pickerGroups.some(function(g) { return _secOf(g) === k; }); });
+        var _secTitle = [t('order_materials_label'), t('picker_section_specs'), t('picker_section_kappe')];
+        var _lastSec = -1;
 
-        let html = (_hasMain && _hasKappe) ? '<div class="picker-section-title">' + escapeHtml(t('order_materials_label')) + '</div>' : '';
+        let html = '';
         pickerGroups.forEach(function(group) {
-            if (_isKappeGrp(group) && !_kappeHeaderDone) {
-                _kappeHeaderDone = true;
-                if (_hasMain) html += '<div class="picker-section-title">' + escapeHtml(t('picker_section_kappe')) + '</div>';
+            var _gs = _secOf(group);
+            if (_gs !== _lastSec) {
+                _lastSec = _gs;
+                if (_secs.length > 1) html += '<div class="picker-section-title">' + escapeHtml(_secTitle[_gs]) + '</div>';
             }
             // Isolering: bold header + KUN-VISNING underrader for hvert valg (produkt/
             // festemiddel + dimensjon), som specs/ordrekort. Tap på header eller underrad
