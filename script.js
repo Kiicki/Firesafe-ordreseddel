@@ -3958,6 +3958,17 @@ function parseMaterialPickerKey(key) {
 // retry → fortsatt tom → retry … Velgeren står på «Laster…» for alltid, knappene
 // svarer ikke fordi overlayet rives ned og bygges opp på nytt hver runde, og
 // konsollen fylles med én feil pr. runde.
+// Typen til spec-materialer som grå tekst til høyre (foran pila), som en verdi i telefonens
+// innstillinger. Vises ikke når den er lik navnet (Kabelhylse) eller for isolasjon/festemidler.
+// Mansjett skilles som i Meny › Materialer: «Mansjett · rull» / «Mansjett · fast» (bruker 16-11-2026).
+function _pickerTypeTag(type, name, baseName) {
+    var key = { mansjett: 'material_type_mansjett', brannpakning: 'material_type_brannpakning', kabelhylse: 'material_type_kabelhylse' }[type];
+    if (!key) return '';
+    var lbl = t(key);
+    if (type === 'mansjett') lbl += ' · ' + t(isFixedSizeMaterial(baseName || name) ? 'material_subtype_fast_short' : 'material_subtype_rull_short');
+    if (String(name || '').trim().toLowerCase() === lbl.toLowerCase()) return '';
+    return '<span class="picker-mat-type">' + escapeHtml(lbl) + '</span>';
+}
 function openMaterialPicker(btn, onConfirm, _didFetch) {
     // Nytt søk hver gang velgeren åpnes.
     window._pickerSearchQ = '';
@@ -4131,17 +4142,16 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         // Standard med varianter får et tall-badge (antall varianter) i stedet
         // — samme mønster som Innstillinger → Materialer, så prikk-fargekoden
         // ikke forveksles med spec/popup-materialer.
-        const typeDot = matType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
-            : matType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
-            : matType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
-            : matType === 'kappe-isolation' ? '<span class="picker-mat-dot picker-mat-dot-isolation"></span>'
-            : matType === 'kappe-stift' ? '<span class="picker-mat-dot picker-mat-dot-stift"></span>'
-            : '';
+        // Ingen fargeprikker lenger (bruker 16-11-2026: «ser uprofesjonelt ut» — fargene var ikke
+        // forklart). Spec-rader står i egen seksjon med pil; typen vises som grå tekst foran pila.
+        const typeDot = '';
+        const isSpecLike = ['mansjett', 'brannpakning', 'kabelhylse', 'kappe-isolation', 'kappe-stift'].indexOf(matType) !== -1;
+        const typeTag = _pickerTypeTag(matType, cleanedDisplayName, parseMaterialPickerKey(name).baseName || name);
         // Montørens eget materiale som venter på admin.
         const pendingChip = (typeof _matIsPending === 'function' && _matIsPending(parseMaterialPickerKey(name).baseName || name))
             ? '<span class="proj-pending-chip picker-pending-chip">' + escapeHtml(t('mat_pending_chip')) + '</span>' : '';
         let variantBadge = '';
-        if (hasVariants && !typeDot) {
+        if (hasVariants && !isSpecLike) {
             var _bm = allMaterials.find(function(m) { return m.name === (parseMaterialPickerKey(name).baseName || name); });
             var _vc = _bm && _bm.allowedUnits ? _bm.allowedUnits.length : 0;
             if (_vc > 0) {
@@ -4164,8 +4174,8 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         // «materiale picker synest jeg burde se litt mer ryddigere ut»). Hele raden er trykkflaten.
         if (isSpecLauncher) {
             return `<div class="picker-mat-row picker-mat-launcher" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="0" data-mat-source="${escapeHtml(source || '')}">
-            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}</span>${typeDot}${pendingChip}</div>
-            <span class="picker-mat-chev" aria-hidden="true">&rsaquo;</span>
+            <div class="picker-mat-check"><span class="picker-mat-name">${escapeHtml(cleanedDisplayName)}</span>${pendingChip}</div>
+            ${typeTag}<span class="picker-mat-chev" aria-hidden="true">&rsaquo;</span>
         </div>`;
         }
         return `<div class="picker-mat-row${isChecked ? ' picker-mat-selected' : ''}" data-mat-name="${escapeHtml(name)}" data-mat-type="${matType || 'standard'}" data-has-variants="${hasVariants ? '1' : '0'}" data-mat-source="${escapeHtml(source || '')}">
@@ -4772,7 +4782,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                     var _grpKind = _isStiftGroup ? 'stift' : 'iso';
                     html += '<div class="picker-mat-group-header" data-mat-name="' + escapeHtml(group.baseName) + '" data-mat-type="' + _grpType + '">'
                         + '<span class="picker-mat-name">' + escapeHtml(_grpLabel) + '</span>'
-                        + '<span class="picker-mat-dot ' + _grpDot + '"></span></div>';
+                        + '</div>';
                     var _isoDupIcon = duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"');
                     var _isoDelIcon = '&times;';   // linje i et kort → × (designstandard: søppelkasse = hel ting)
                     _gEntries.forEach(function(e, _i) {
@@ -4819,12 +4829,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                     ? 'kappe-isolation'
                     : (group.isStiftGroup ? 'kappe-stift' : group.groupType);
                 var isSpec = gType === 'mansjett' || gType === 'brannpakning' || gType === 'kabelhylse';
-                var typeDot = gType === 'mansjett' ? '<span class="picker-mat-dot picker-mat-dot-mansjett"></span>'
-                    : gType === 'brannpakning' ? '<span class="picker-mat-dot picker-mat-dot-brannpakning"></span>'
-                    : gType === 'kabelhylse' ? '<span class="picker-mat-dot picker-mat-dot-kabelhylse"></span>'
-                    : gType === 'kappe-isolation' ? '<span class="picker-mat-dot picker-mat-dot-isolation"></span>'
-                    : gType === 'kappe-stift' ? '<span class="picker-mat-dot picker-mat-dot-stift"></span>'
-                    : '';
+                var typeDot = _pickerTypeTag(gType, group.displayName || group.baseName, group.baseName);   // grå typetekst (ingen prikk)
                 html += '<div class="picker-mat-group-header" data-mat-name="' + escapeHtml(group.baseName) + '" data-mat-type="' + (gType || 'standard') + '">'
                     + '<span class="picker-mat-name">' + escapeHtml(group.displayName || group.baseName) + '</span>' + typeDot + '</div>';
                 group.items.forEach(function(e) {

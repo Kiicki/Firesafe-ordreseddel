@@ -19203,8 +19203,10 @@ function _renderKappePickerTabs(products) {
         if (_productDimensionPickerMultiDim && isActive) cls += ' kappe-product-picker-row-active';
         // Ingen «N ✓»-badge — highlight er nok som valgt-indikator.
         return '<div class="' + cls + '" onclick="_selectKappePickerBrand(\'' + safe + '\')">' +
-            '<span class="' + dotCls + '" aria-hidden="true"></span>' +
+            // Ingen fargeprikk (uforklart farge, bruker 16-11-2026). Blander lista begge typer,
+            // står typen som grå tekst til høyre — som i materialvelgeren.
             '<span class="kappe-product-picker-name">' + escapeHtml(p.name) + '</span>' +
+            (mixed ? '<span class="picker-mat-type">' + escapeHtml(t(p.type === 'festemiddel' ? 'kappe_product_type_festemiddel' : 'kappe_product_type_isolasjon')) + '</span>' : '') +
         '</div>';
     }
 
