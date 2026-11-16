@@ -21272,13 +21272,16 @@ function openSpecMultiPopup(baseName, matType, callback, prefillEntries) {
     // en meningsløs meter-total (enhet==='meter' bidrar uavhengig av fixedSize).
     _specMultiFixedSize = (typeof isFixedSizeMaterial === 'function') && isFixedSizeMaterial(baseName);
     var hasMeter = (_specMultiMatType === 'mansjett' || _specMultiMatType === 'brannpakning') && !_specMultiFixedSize;
+    // Mål har 4 like felt når typen har Lag/Dybde, ellers 3. Esker har alltid 3 og fyller
+    // også hele bredden (bruker 16-11-2026: tom plass for å flukte kolonnene «ser ikke bra ut»).
+    popup.classList.toggle('spm-cols-4', _specMultiMatType !== 'mansjett');
+    popup.classList.toggle('spm-eske-4', _specMultiMatType === 'kabelhylse');   // eske med Dybde
     // HELE løpemeter-seksjonen skjules — ikke bare knappen. En tittel uten innhold
     // og uten måte å fylle den på ville lovet noe produktet ikke har.
     var meterSection = document.getElementById('spec-multi-meter-section');
     if (meterSection) meterSection.style.display = hasMeter ? '' : 'none';
 
-    // INGEN default-rad — bruker velger selv (dimensjon, løpende meter eller eske),
-    // som isolering der man velger kapp/plate. Kun forhåndsfylte poster vises.
+    // Forhåndsfylte poster vises; seksjoner uten poster får én tom rad klar (se under).
     var dimEntries = [], meterEntries = [], eskeEntries = [];
     (prefillEntries || []).forEach(function(e) {
         if (!e) return;
@@ -21291,6 +21294,11 @@ function openSpecMultiPopup(baseName, matType, callback, prefillEntries) {
     if (rowsC) dimEntries.forEach(function(e) { rowsC.appendChild(_createSpecRow(_specMultiMatType, e)); });
     if (meterC) meterEntries.forEach(function(e) { meterC.appendChild(_createSpecMeterRow(e)); });
     if (eskeC) eskeEntries.forEach(function(e) { eskeC.appendChild(_createSpecEskeRow(e)); });
+    // Én tom rad klar i hver seksjon som ikke har noe (bruker 16-11-2026: «tvinger oss til å
+    // trykke uansett … unødvendig trykk»). Tomme rader hoppes over ved «Velg» (confirm-sjekken).
+    if (rowsC && !rowsC.children.length) rowsC.appendChild(_createSpecRow(_specMultiMatType, null));
+    if (eskeC && !eskeC.children.length) eskeC.appendChild(_createSpecEskeRow(null));
+    if (meterC && hasMeter && !meterC.children.length) meterC.appendChild(_createSpecMeterRow(null));
     if (typeof applyTranslations === 'function') applyTranslations();
     popup.classList.add('active');
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
@@ -21323,8 +21331,9 @@ function _createSpecRow(matType, data) {
             // raden på 360px — den eldre popupen har plass til «Bredde / Diameter (mm)».
             // UTEN mellomrom rundt skråstreken: med dem ble etiketten kuttet til
             // «Ø / BREDD…» i 4-felts-radene (brannpakning og kabelhylse).
-            '<div class="mobile-field field-required"><label>Ø/Bredde</label>' +
-                '<input type="text" class="spm-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
+            // «Bredde» + «Ø» som plassholder (som Sjekkliste): «Ø/Bredde *» ble kuttet i 4 like kolonner.
+            '<div class="mobile-field field-required"><label>Bredde</label>' +
+                '<input type="text" class="spm-f1" inputmode="numeric" pattern="[0-9]*" placeholder="Ø" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
             '<div class="mobile-field"><label>Høyde</label>' +
                 '<input type="text" class="spm-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>' +
             f3 +
@@ -21369,10 +21378,26 @@ function _createSpecEskeRow(data) {
     var d = data || {};
     var row = document.createElement('div');
     row.className = 'spec-multi-row spec-multi-eske-row';
-    var f1 = '<div class="mobile-field' + (_specMultiFixedSize ? ' field-required' : '') + '"><label>Ø/Bredde</label>' +
-        '<input type="text" class="spm-eske-f1" inputmode="numeric" pattern="[0-9]*" placeholder="mm" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
+    // Kabelhylser kommer alltid i en bestemt størrelse (Ø og lengde), som faste mansjetter:
+    // eske-raden har da SAMME felt som Mål — Bredde* · Høyde · Dybde* (bruker 16-11-2026).
+    var isHylse = _specMultiMatType === 'kabelhylse';
+    // Rull-produkter (FSC, FSW — ikke fast størrelse): esken er alltid den samme pakningen →
+    // bare Antall (bruker 16-11-2026: «eskene er alltid det samme»). Eldre esker som ble ført
+    // MED mål, beholder målfeltene så ingenting går tapt ved lagring.
+    var isRoll = !isHylse && !_specMultiFixedSize;
+    if (isRoll && !d.width && !d.height) {
+        row.classList.add('spm-eske-simple');
+        row.innerHTML = '<div class="kappe-quad-row"><div class="mobile-field field-required"><label>Antall</label>' +
+            '<input type="text" class="spm-eske" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.antall != null ? String(d.antall) : '') + '"></div></div>' +
+            '<button type="button" class="kappe-kapp-remove-btn" onclick="_specMultiRemoveRow(this)" title="Fjern rad">&times;</button>';
+        return row;
+    }
+    var f1 = '<div class="mobile-field' + ((_specMultiFixedSize || isHylse) ? ' field-required' : '') + '"><label>Bredde</label>' +
+        '<input type="text" class="spm-eske-f1" inputmode="numeric" pattern="[0-9]*" placeholder="Ø" value="' + escapeHtml(d.width != null ? String(d.width) : '') + '"></div>' +
         '<div class="mobile-field"><label>Høyde</label>' +
-        '<input type="text" class="spm-eske-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>';
+        '<input type="text" class="spm-eske-f2" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.height ? String(d.height) : '') + '"></div>' +
+        (isHylse ? '<div class="mobile-field field-required"><label>Dybde</label>' +
+            '<input type="text" class="spm-eske-f3" inputmode="numeric" pattern="[0-9]*" value="' + escapeHtml(d.depth ? String(d.depth) : '') + '"></div>' : '');
     row.innerHTML =
         '<div class="kappe-quad-row">' +
             f1 +
@@ -21453,7 +21478,10 @@ function confirmSpecMultiPopup() {
         var ef = efEl ? String(efEl.value || '').trim() : '';
         var ef2El = eskeRows[k].querySelector('.spm-eske-f2');
         var ef2 = ef2El ? String(ef2El.value || '').trim() : '';
-        if (!ev && !ef && !ef2) continue;   // helt tom rad
+        var ef3El = eskeRows[k].querySelector('.spm-eske-f3');   // Dybde (kabelhylse)
+        var ef3 = ef3El ? String(ef3El.value || '').trim() : '';
+        if (!ev && !ef && !ef2 && !ef3) continue;   // helt tom rad
+        if (ef3El && (!ef || !ef3)) { showNotificationModal('Fyll inn Bredde og Dybde for esken, eller fjern raden.'); return; }
         // Fast størrelse: målet er påkrevd. Uten dette ville raden blitt lagret
         // som en dimensjonsløs eske og vist «Standard» i eksporten — men et
         // fast-størrelse-produkt HAR ingen standardpakning.
@@ -21474,6 +21502,12 @@ function confirmSpecMultiPopup() {
             // «100x200mm» er identiske med mål-radenes runde/firkantede former og
             // parses tilbake av _parseSpecFromName.
             eSpec = ef2Num > 0 ? (efNum + 'x' + ef2Num + 'mm') : ('Ø' + efNum + 'mm');
+            // Kabelhylse: med dybde, samme format som mål-radene («Ø50x250mm» / «100x50x250mm»).
+            if (ef3El) {
+                var ef3Num = parseInt(ef3, 10);
+                if (isNaN(ef3Num) || ef3Num <= 0) { showNotificationModal(t('dim_invalid_diameter')); return; }
+                eSpec = _buildSpecString('kabelhylse', efNum, ef2Num, ef3Num);
+            }
         }
         var eSel = { isEske: true, antall: String(en), enhet: 'eske' };
         if (eSpec) eSel.spec = eSpec;

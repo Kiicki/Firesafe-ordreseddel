@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1230">
+    <link rel="stylesheet" href="styles.css?v=1237">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -1755,27 +1755,19 @@
                  etterlater ikke et hull midt i popupen når den er av. -->
             <div id="spec-multi-scroll">
                 <div class="spm-section" id="spec-multi-maal-section">
-                    <div class="spm-section-title">Mål</div>
+                    <div class="spm-section-head"><div class="spm-section-title">Mål</div><button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add" onclick="_specMultiAddRow()">+ Legg til</button></div>
                     <div id="spec-multi-rows"></div>
-                    <button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add" onclick="_specMultiAddRow()">+ Legg til</button>
                 </div>
                 <div class="spm-section" id="spec-multi-eske-section">
-                    <div class="spm-section-title">Esker</div>
+                    <div class="spm-section-head"><div class="spm-section-title">Esker</div><button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add-eske" onclick="_specMultiAddEskeRow()">+ Legg til</button></div>
                     <div id="spec-multi-eske-rows"></div>
-                    <button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add-eske" onclick="_specMultiAddEskeRow()">+ Legg til</button>
                 </div>
                 <div class="spm-section" id="spec-multi-meter-section">
-                    <div class="spm-section-title">Løpemeter</div>
+                    <div class="spm-section-head"><div class="spm-section-title">Løpemeter</div><button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add-meter" onclick="_specMultiAddMeterRow()">+ Legg til</button></div>
                     <div id="spec-multi-meter-rows"></div>
-                    <button type="button" class="kappe-add-kapp-btn spm-add-btn" id="spec-multi-add-meter" onclick="_specMultiAddMeterRow()">+ Legg til</button>
                 </div>
             </div>
-            <!-- Stjerne-forklaring. Nødvendig HER selv om stjerna er en kjent
-                 konvensjon: i denne popupen er SAMME felt («Ø / Bredde») obligatorisk
-                 under Mål og valgfritt under Esker. To like felt med ulik regel er
-                 nettopp der brukeren trenger å få bekreftet hva stjerna betyr.
-                 Utenfor scrollen → alltid synlig, også med mange rader. -->
-            <div class="spm-legend"><span>*</span> må fylles ut &middot; øvrige felt er valgfrie</div>
+            <!-- (Stjerne-forklaringen er fjernet 16-11-2026 — bruker: hjelpetekster «tar bare plass»; stjernene sier det.) -->
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeSpecMultiPopup()" data-i18n="btn_cancel">Avbryt</button>
                 <button type="button" class="spec-popup-confirm" onclick="confirmSpecMultiPopup()" data-i18n="btn_select">Velg</button>
@@ -2727,8 +2719,8 @@
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
     <script src="lang.js?v=500"></script>
-    <script src="script.js?v=624"></script>
-    <script src="script-ui.js?v=1453"></script>
+    <script src="script.js?v=625"></script>
+    <script src="script-ui.js?v=1459"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

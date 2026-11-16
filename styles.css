@@ -14237,3 +14237,35 @@ button, input, select, textarea { font-family: inherit; }
    erstatter de uforklarte fargeprikkene. */
 .picker-mat-type { margin-left: auto; padding-left: 8px; font-size: 14px; color: var(--text-2); white-space: nowrap; flex-shrink: 0; }
 .picker-mat-group-header .picker-mat-type { margin-left: auto; }
+/* Spec-vinduet: «+ Legg til» = standard legg-til-knapp (hvit, lys ramme, oransje 500) — var grå/fet. */
+#spec-multi-popup .spm-add-btn { background: #fff; border: 1px solid var(--control-border); border-radius: var(--control-radius); color: #E8501A; font-weight: 500; }
+#spec-multi-popup .spm-add-btn:active { background: var(--press-bg); }
+
+/* ── Spec-vinduet (mansjett/brannpakning/kabelhylse) etter designstandarden (16-11-2026):
+   like brede felt som fyller hele bredden i hver seksjon (Mål 3 eller 4, Esker 3 — ingen
+   tom plass for å flukte kolonner, bruker: «ser ikke bra ut»); kolonnenavn i vanlig grå skrift (som Timebok); felt 36 px /
+   6 px hjørner; ingen strek under seksjonstitlene. Løpemeter = ett felt i full bredde. ── */
+#spec-multi-scroll .kappe-quad-row { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#spec-multi-popup.spm-cols-4 #spec-multi-rows .kappe-quad-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }   /* bare Mål; Esker = 3 like felt i full bredde */
+#spec-multi-popup #spec-multi-scroll .spec-multi-meter-row .kappe-quad-row { grid-template-columns: minmax(0, 1fr); }
+#spec-multi-popup .kappe-quad-row .mobile-field label {
+    font-size: 12px; font-weight: 400; color: var(--text-2); text-transform: none; letter-spacing: 0; text-align: center; white-space: nowrap;
+}
+#spec-multi-popup .kappe-quad-row .mobile-field input {
+    height: var(--control-h); border-radius: var(--control-radius); border-color: var(--field-border); font-size: 16px; font-weight: 400;
+}
+#spec-multi-popup .spec-multi-row .kappe-kapp-remove-btn { height: var(--control-h); }
+#spec-multi-popup .spm-section-title { border-bottom: none; padding-bottom: 4px; }
+#spec-multi-popup.spm-eske-4 #spec-multi-eske-rows .kappe-quad-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }   /* kabelhylse-eske: Bredde · Høyde · Dybde · Antall */
+/* Spec-vinduet kompakt (bruker 16-11-2026): «+ Legg til» på tittellinjen til høyre — som
+   «+ Legg til kode» i Timebok — i stedet for egen linje under radene. */
+#spec-multi-popup .spm-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+#spec-multi-popup .spm-section-head .spm-section-title { padding: 0; margin: 0; }
+#spec-multi-popup .spm-section-head .spm-add-btn {
+    width: auto; height: 30px; padding: 0 10px; margin: 0; font-size: 13px; align-self: center; flex-shrink: 0;
+}
+#spec-multi-popup .spm-section + .spm-section { margin-top: 14px; }
+#spec-multi-popup #spec-multi-scroll .spm-eske-simple .kappe-quad-row { grid-template-columns: minmax(0, 1fr); }   /* rull-eske: bare Antall */
+/* Spec-vinduet: tynn skillestrek mellom seksjonene (som tilleggskodene i Timebok og rør-gruppene
+   i Sjekkliste) — bare luft gjorde det uklart hvor en seksjon slutter (bruker 16-11-2026). */
+#spec-multi-popup .spm-section + .spm-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider); }

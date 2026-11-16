@@ -4483,6 +4483,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                         isEske: true,
                         width: eDims ? eDims.width : '',
                         height: eDims ? eDims.height : '',
+                        depth: eDims && eDims.depth ? eDims.depth : '',   // kabelhylse-eske (bruker 16-11-2026)
                         antall: st.antall || ''
                     });
                     return;
