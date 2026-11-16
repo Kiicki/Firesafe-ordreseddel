@@ -5361,34 +5361,23 @@ var _pickerAddMatOpen = false;
 // Velgerens jobb er å vise REGISTRERTE materialer. «Nytt materiale» er en
 // snarvei så admin slipper å gå via Innstillinger, men den skal ikke ta plass
 // fra lista — derfor sammenslått til én rad som folder ut ved trykk.
+// Skjemaet står nå alltid åpent (bruker 16-11-2026: «hvorfor ikke ha den ekspandert hele tiden?»
+// — det ligger nederst og tar ikke plass fra lista). Kallet beholdes for eldre lenker: fokus i navnet.
 function _togglePickerAddMaterial() {
-    _pickerAddMatOpen = !_pickerAddMatOpen;
     var wrap = document.getElementById('picker-add-material-wrap');
-    var body = document.getElementById('picker-add-material-body');
-    if (!wrap || !body) return;
-    wrap.classList.toggle('picker-add-mat--open', _pickerAddMatOpen);
-    body.style.display = _pickerAddMatOpen ? '' : 'none';
-    if (_pickerAddMatOpen) {
-        var inp = document.getElementById('picker-new-material');
-        if (inp) inp.focus();
-        if (wrap.scrollIntoView) wrap.scrollIntoView({ block: 'nearest' });
-    }
+    var inp = document.getElementById('picker-new-material');
+    if (inp) inp.focus();
+    if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ block: 'nearest' });
 }
 
 function _pickerAddMaterialFormHtml() {
-    var openCls = _pickerAddMatOpen ? ' picker-add-mat--open' : '';
-    return '<div class="picker-add-material-wrap' + openCls + '" id="picker-add-material-wrap">' +
-        '<button type="button" class="picker-add-mat-trigger" onclick="_togglePickerAddMaterial()">' +
-            '<span class="picker-add-mat-plus">+</span>' +
-            '<span class="picker-add-mat-label">Nytt materiale</span>' +
-            '<span class="picker-add-mat-chev">›</span>' +
-        '</button>' +
-    '<div class="settings-add-material-row picker-add-material" id="picker-add-material-body"' +
-        (_pickerAddMatOpen ? '' : ' style="display:none"') + '>' +
-        // Ingen overskrift her — trigger-raden over ER overskriften.
+    // Alltid åpent nederst, skilt fra lista med samme grå stripe som seksjonene.
+    return '<div class="picker-section-gap" aria-hidden="true"></div>' +
+    '<div class="picker-add-material-wrap picker-add-mat--open" id="picker-add-material-wrap">' +
+    '<div class="settings-add-material-row picker-add-material" id="picker-add-material-body">' +
         '<div class="settings-add-material-row-top">' +
             '<div class="settings-add-material-field">' +
-                '<label class="settings-add-label">Navn <span class="spec-required-star">*</span></label>' +
+                '<label class="settings-add-label">' + escapeHtml(t('placeholder_new_material')) + ' <span class="spec-required-star">*</span></label>' +
                 '<input type="text" id="picker-new-material" autocapitalize="sentences">' +
             '</div>' +
         '</div>' +

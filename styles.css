@@ -14231,3 +14231,5 @@ button, input, select, textarea { font-family: inherit; }
     border-color: var(--control-border); border-radius: var(--control-radius);
 }
 #sj-pane-form .sj-card .sj-pick select.sj-pick-more { height: var(--control-h); border-color: var(--control-border); border-radius: var(--control-radius); }
+/* Materialvelgeren: seksjonene skilles med en smal grå stripe (ingen titler). */
+.picker-section-gap { height: 10px; background: var(--page-bg); border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }

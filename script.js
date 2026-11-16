@@ -4709,8 +4709,8 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         });
 
         // Tre seksjoner (bruker 16-11-2026: rader med Antall-felt og rader med pil skal ikke stå
-        // om hverandre): «Materialer» (Antall i raden, alfabetisk) → «Med størrelser» (mansjett/
-        // brannpakning/kabelhylse — pil til eget vindu, alfabetisk) → «Isolasjon og festemidler».
+        // om hverandre): vanlige materialer (Antall i raden, alfabetisk) → mansjett/brannpakning/
+        // kabelhylse (pil til eget vindu, alfabetisk) → isolasjon og festemidler.
         var _isKappeGrp = function(g) { return !!(g.isIsolationGroup || g.isStiftGroup); };
         var _secOf = function(g) { return _isKappeGrp(g) ? 2 : (g.isSpecGroup ? 1 : 0); };
         pickerGroups.sort(function(a, b) {
@@ -4736,17 +4736,16 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                 return texts.some(function(x) { return String(x).toLowerCase().indexOf(_q) !== -1; });
             });
         }
-        // Seksjonstitler bare når det finnes mer enn én seksjon.
-        var _secs = [0, 1, 2].filter(function(k) { return pickerGroups.some(function(g) { return _secOf(g) === k; }); });
-        var _secTitle = [t('order_materials_label'), t('picker_section_specs'), t('picker_section_kappe')];
+        // Seksjonene skilles med en smal grå stripe — INGEN titler (bruker 16-11-2026: «tar bare
+        // unødvendig plass»; samme prinsipp som skjemakortene). Ingen stripe før første seksjon.
         var _lastSec = -1;
 
         let html = '';
         pickerGroups.forEach(function(group) {
             var _gs = _secOf(group);
             if (_gs !== _lastSec) {
+                if (_lastSec !== -1) html += '<div class="picker-section-gap" aria-hidden="true"></div>';
                 _lastSec = _gs;
-                if (_secs.length > 1) html += '<div class="picker-section-title">' + escapeHtml(_secTitle[_gs]) + '</div>';
             }
             // Isolering: bold header + KUN-VISNING underrader for hvert valg (produkt/
             // festemiddel + dimensjon), som specs/ordrekort. Tap på header eller underrad
