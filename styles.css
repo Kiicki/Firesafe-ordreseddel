@@ -14063,3 +14063,171 @@ body.settings-modal-open #settings-modal .modal-body { background: var(--page-bg
 #iso-card-popup .iso-group-card .mobile-order-header,
 #iso-card-popup .iso-group-card:has(.mobile-order-body-wrap.expanded) .mobile-order-header,
 #iso-card-popup .iso-group-card .iso-group-header { background: #f5f5f7; }
+
+/* ── Lettere skjema-uttrykk (16-11-2026, bruker om Sjekkliste: «tungt å se på … en vegg av bokser»).
+   Alle valgknapper/felt hadde like mørk ramme og samme tyngde. Nå: lys ramme på knapper og felt,
+   så bare det VALGTE (oransje) skiller seg ut. Gjelder alle skjemaer (felles variabler). ── */
+:root { --field-border: #dcdce1; --control-border: #e4e4e9; --field-radius: 9px; }
+/* Sjekkliste: valgknapper, «Annet», felt, bytt-knapp, hjelpeknapper — lys ramme, 38 px */
+#sj-pane-form .sj-pick .sj-chip, #sj-pane-form .sj-empty-seg .sj-chip { height: 38px; border-color: var(--control-border); color: #333; }
+#sj-pane-form .sj-pick-chips { height: 38px; }
+#sj-pane-form .sj-pick .sj-chip.active, #sj-pane-form .sj-empty-seg .sj-chip.active { border-color: #E8501A; }
+#sj-pane-form .sj-combo, #sj-pane-form .sj-combo .sj-combo-arrow { height: 38px; }
+#sj-pane-form .sj-card .sj-pick .sj-combo input.sj-combo-input,
+#sj-pane-form .sj-card .sj-pick .sj-combo select.sj-combo-select { height: 38px; }
+#sj-pane-form .sj-card .sj-pick .sj-combo input.sj-combo-input:not(.active) { border-color: var(--control-border); }
+#sj-pane-form .sj-card .sj-pick input.sj-qty-other { height: 38px; border-color: var(--control-border); }
+#sj-pane-form .sj-card input[type="text"], #sj-pane-form .sj-card textarea,
+#sj-pane-form .sj-card .sj-content-row select { border-color: var(--field-border); }
+#sj-pane-form .sj-swap, #sj-pane-form .sj-icon-btn, #sj-pane-form .sj-soft-btn, #sj-pane-form .sj-add-row { border-color: var(--control-border); }
+/* Mer luft mellom spørsmålene: hvert spørsmål + svarene blir en tydelig gruppe */
+#sj-pane-form .sj-row { padding: 14px 0 2px; }
+#sj-pane-form .sj-sec .sj-sec-title + .sj-card > .sj-row:first-child { padding-top: 8px; }
+/* Feltene i de andre skjemaene: samme lyse ramme og hjørner (var #ccc / 6 px) */
+.mobile-field input, .mobile-field select, .mobile-field textarea,
+.fakturaadresse-display, .signature-preview { border-color: var(--field-border); border-radius: var(--field-radius); }
+
+/* ════ Lett og rolig skjema-uttrykk (16-11-2026) — lært av brukerens gamle sjekkliste-app ════
+   Spørsmålet (etiketten) skal bære siden, ikke boksene: etikett mørk 14/600; knapper og felt
+   mindre, roligere (36 px, 14 px tekst, 6 px hjørner, lys ramme). Seksjonstitler (inni og over
+   kort) = små grå store bokstaver. Systemskrift i stedet for Arial (lettere, særlig på PC). */
+:root { --control-h: 36px; --control-radius: 6px; --label-size: 14px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+/* Eksport/forhåndsvisning beholder Arial (dokumentet skal se likt ut som før). */
+.form-container, .form-container *, .service-export-page, .kappe-export-page, .preview-overlay .preview-page { font-family: Arial, sans-serif; }
+button, input, select, textarea { font-family: inherit; }
+
+/* Seksjonstitler INNI kortene (skjemaer, sjekkliste, Timebok-kort) = samme som gruppetitlene over kort */
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section .mobile-section-title,
+#sj-pane-form .sj-sec .sj-sec-title,
+.timebok-summary-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-2);
+}
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section .mobile-section-title { margin-bottom: 10px; }
+
+/* Etiketten = spørsmålet: mørk 14/600 */
+.mobile-field label, #sj-pane-form .sj-row-label { font-size: var(--label-size); font-weight: 600; color: var(--text); margin-bottom: 6px; }
+
+/* Felt i skjemaene: 36 px, 6 px hjørner, lys ramme (16 px tekst beholdes — hindrer iOS-zoom) */
+.mobile-field input, .mobile-field select, #sj-pane-form .sj-card input[type="text"], #sj-pane-form .sj-card .sj-content-row select,
+.fakturaadresse-display {
+    min-height: var(--control-h); height: auto; padding-top: 6px; padding-bottom: 6px; border-radius: var(--control-radius); box-sizing: border-box;
+}
+.mobile-field textarea, #sj-pane-form .sj-card textarea { min-height: var(--control-h); padding-top: 7px; padding-bottom: 7px; border-radius: var(--control-radius); }
+.proj-field { min-height: var(--control-h); padding-top: 6px; padding-bottom: 6px; border-radius: var(--control-radius); }
+
+/* Sjekkliste: valgknapper, «Annet», Antall-felt, bytt- og hjelpeknapper — 36 px, 14 px, 6 px hjørner */
+#sj-pane-form .sj-pick .sj-chip, #sj-pane-form .sj-empty-seg .sj-chip { height: var(--control-h); font-size: 14px; border-radius: var(--control-radius); }
+#sj-pane-form .sj-pick-chips { height: var(--control-h); }
+#sj-pane-form .sj-combo, #sj-pane-form .sj-combo .sj-combo-arrow,
+#sj-pane-form .sj-card .sj-pick .sj-combo input.sj-combo-input,
+#sj-pane-form .sj-card .sj-pick .sj-combo select.sj-combo-select,
+#sj-pane-form .sj-card .sj-pick input.sj-qty-other { height: var(--control-h); }
+#sj-pane-form .sj-card .sj-pick .sj-combo input.sj-combo-input, #sj-pane-form .sj-card .sj-pick input.sj-qty-other { font-size: 14px; border-radius: var(--control-radius); }
+#sj-pane-form .sj-swap, #sj-pane-form .sj-soft-btn, #sj-pane-form .sj-add-row { height: var(--control-h); border-radius: var(--control-radius); }
+#sj-pane-form .sj-icon-btn { border-radius: var(--control-radius); }
+/* Valgt knapp: tydelig, men ikke fet (mindre fet) */
+#sj-pane-form .sj-pick .sj-chip.active, #sj-pane-form .sj-empty-seg .sj-chip.active { font-weight: 500; }
+/* Jevn rytme: lik luft mellom spørsmålene */
+#sj-pane-form .sj-row { padding: 12px 0 2px; }
+
+/* ── Ingen titler INNI skjemakortene (bruker 16-11-2026: «plassering, hullet, mål … tar bare
+   plass»). Kortene selv skiller seksjonene. Der tittelen var eneste forklaring på et felt, er den
+   en vanlig feltetikett (--label). Titler OVER kortlister (Bestillinger, Kappeliste, Prosjekter)
+   beholdes — der står «Lukk alle». ── */
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section:not(:has(#mobile-orders, #service-entries, #kappe-lines, > .mobile-order-card)) > .mobile-section-title:not(.mobile-section-title--label),
+#sj-pane-form .sj-sec > .sj-sec-title { display: none; }
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section .mobile-section-title.mobile-section-title--label {
+    font-size: var(--label-size); font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); margin-bottom: 6px;
+}
+#sj-pane-form .sj-sec { padding-top: 6px; }
+#sj-pane-form .sj-sec .sj-sec-title + .sj-card > .sj-row:first-child { padding-top: 8px; }
+/* Sjekkliste «Ferdig» = grønn (grønn = ferdig for brukeren); «Lagre» i headeren forblir oransje. */
+:root { --success: #2e9e5b; }
+#sj-pane-form .sj-btn-save { background: var(--success); border-color: var(--success); }
+#sj-pane-form .sj-btn-save:active { background: var(--success); }
+/* «Ferdig» står alene (avslutter skjemaet), men med samme luft over som mellom kortene (var 22 px). */
+#sj-pane-form .sj-actions { margin-top: 4px; }
+
+/* ── Sjekkliste «Innhold i hullet»: ÉN rad = Type · Bredde · Høyde · Antall · slett (samme
+   felt + forklaring som hulldimensjonen). Rader skilles med tynn strek. ── */
+#sj-pane-form .sj-ct-grid { grid-template-columns: minmax(0, 1fr) 54px 54px 40px 22px; gap: 5px; }   /* Type · Bredde · Høyde · Antall · slett */
+#sj-pane-form .sj-ct-head { font-size: 12px; margin-bottom: 4px; white-space: nowrap; }
+#sj-pane-form .sj-ct-item { display: block; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--divider); }
+#sj-pane-form .sj-ct-item:last-of-type { border-bottom: none; padding-bottom: 0; }
+#sj-pane-form .sj-ct-item .sj-times { text-align: center; color: #a0a0a6; }
+#sj-pane-form .sj-ct-hint { margin-top: 4px; }
+#sj-pane-form .sj-ct-hint:empty { display: none; }
+#sj-pane-form .sj-card .sj-content-row select, #sj-pane-form .sj-card .sj-content-row input[type="text"] { height: var(--control-h); }
+#sj-pane-form .sj-card .sj-content-row input[type="text"] { padding: 0 4px; text-align: center; }
+#sj-pane-form .sj-ct-grid .sj-content-del { width: 22px; }
+/* Type-feltet i raden: 14 px og smal pil-luft så typenavn som «Ventilasjon» får plass på 360 px
+   (selecten åpnes som appens liste-popup på mobil, så <16 px gir ingen iOS-zoom). */
+#sj-pane-form .sj-card .sj-content-row select[data-cf="type"] { font-size: 14px; padding: 0 16px 0 5px; background-position: right 3px center; }
+#sj-pane-form .sj-ct-head > span:nth-child(2), #sj-pane-form .sj-ct-head > span:nth-child(3), #sj-pane-form .sj-ct-head > span:nth-child(4) { text-align: center; }
+#sj-dim-hint:empty { display: none; }
+
+/* ── Plan B: «Innhold i hullet» gruppert pr. type (Rør / Kabel / Ventilasjon …). Under typenavnet:
+   Bredde · Høyde · Antall i FULL størrelse (16 px, 36 px — som alle andre felt), kolonnenavn over.
+   «+ Rør», «+ Kabel» … legger til en rad i typens gruppe. Erstatter én-rad-med-fire-kolonner. ── */
+#sj-pane-form .sj-ct-group { padding: 10px 0 4px; border-top: 1px solid var(--divider); }
+#sj-pane-form .sj-ct-group:first-of-type { border-top: none; padding-top: 6px; }
+#sj-pane-form .sj-ct-group-name { font-size: var(--label-size); font-weight: 600; color: var(--text); margin-bottom: 6px; }
+#sj-pane-form .sj-ct-group .sj-ct-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px 26px; gap: 6px; align-items: center; }
+#sj-pane-form .sj-ct-group .sj-ct-head { font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+#sj-pane-form .sj-ct-group .sj-ct-head > span { text-align: center; }
+#sj-pane-form .sj-ct-group .sj-ct-item { margin: 0 0 6px; padding: 0; border-bottom: none; }
+#sj-pane-form .sj-card .sj-ct-group .sj-content-row input[type="text"] { height: var(--control-h); font-size: 16px; text-align: center; padding: 0 6px; }
+#sj-pane-form .sj-ct-group .sj-content-del { width: 26px; }
+#sj-pane-form .sj-ct-adds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#sj-pane-form .sj-ct-add {
+    display: inline-flex; align-items: center; gap: 5px; height: var(--control-h); padding: 0 12px;
+    background: #fff; border: 1px solid var(--control-border); border-radius: var(--control-radius);
+    color: #E8501A; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+#sj-pane-form .sj-ct-add svg { width: 14px; height: 14px; flex-shrink: 0; }
+#sj-pane-form .sj-ct-add:active { background: var(--press-bg); }
+
+/* ════ SLETT-SYMBOLER = ÉN regel (16-11-2026) ════
+   • Søppelkasse (rød) = slette en HEL ting: lagret skjema, bestilling, prosjektkort (Ordreseddel,
+     Servicebil, Timebok), gruppe (GPG, utsparing, kappegruppe), oppføring i en register-liste i Meny.
+   • × (rød, liten) = fjerne en LINJE inni et kort: tabellrader (Kappeskjema, Isolering, Festemidler,
+     Sjekkliste-rør, Lysåpning), tilleggskoder i Timebok, materiallinjer i velgeren, avstander i Satser.
+   • × (grå) = lukke en popup / tømme et felt.
+   Ny slett-knapp: velg etter regelen og bruk klassene under (eller legg selektoren til her). */
+.picker-mat-delete-btn, .kappe-kapp-remove-btn, .kappe-plate-remove-btn, #sj-pane-form .sj-content-del,
+.tb-sec-remove, .la-pipe-remove, .tb-sat-del {
+    color: #c0392b; font-size: 22px; line-height: 1; font-weight: 400; font-family: inherit;
+    background: none; border: none; opacity: 1; cursor: pointer; min-width: 24px; justify-content: center;
+}
+/* Plassering (luft/justering) beholdes fra hver komponent; bare rader uten egen justering sentreres. */
+.picker-mat-delete-btn, #sj-pane-form .sj-content-del, .la-pipe-remove { display: inline-flex; align-items: center; padding: 0; }
+.picker-mat-delete-btn:active, .kappe-kapp-remove-btn:active, .kappe-plate-remove-btn:active,
+#sj-pane-form .sj-content-del:active, .tb-sec-remove:active, .la-pipe-remove:active, .tb-sat-del:active { opacity: 0.6; }
+.picker-mat-delete-btn[disabled] { opacity: 0.3; }
+.timebok-pb-remove, .gpg-group-remove, .la-section-remove {
+    color: #c0392b; background: none; border: none; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; cursor: pointer;
+}
+.timebok-pb-remove svg, .gpg-group-remove svg, .la-section-remove svg { width: 18px; height: 18px; }
+/* Plassholdere i stedet for kolonnenavn (som hulldimensjonen): «Bredde / Ø» må få plass på 360 px
+   → Antall-kolonnen 62 px og 4 px sideluft i feltene. */
+#sj-pane-form .sj-ct-group .sj-ct-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 62px 26px; }
+#sj-pane-form .sj-card .sj-ct-group .sj-content-row input[type="text"] { padding: 0 4px; }
+/* Sjekkliste: av/på-rad (Sjakt) — etikett + forklaring til venstre, bryter til høyre (hele raden trykkbar). */
+#sj-pane-form .sj-switch-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
+#sj-pane-form .sj-switch-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+#sj-pane-form .sj-switch-txt .sj-row-label { margin-bottom: 0; }
+#sj-pane-form .sj-switch-sub { font-size: 12.5px; color: var(--text-2); }
+/* «+ type»-raden i Innhold i hullet: samme knapperad som Etasje/Brannkrav (én rad + «Flere ▾»). */
+#sj-pane-form .sj-ct-adds { display: block; margin-top: 8px; }
+#sj-pane-form .sj-pick .sj-chip.sj-chip-add { color: #E8501A; font-weight: 500; border-style: solid; }
+#sj-pane-form .sj-ct-adds select.sj-pick-more { height: var(--control-h); color: #E8501A; font-weight: 500; border-color: var(--control-border); border-radius: var(--control-radius); }
+/* «Tomt hull»-bryteren øverst i Innhold-kortet: én linje, litt luft ned til rør-gruppene. */
+#sj-pane-form .sj-empty-switch > .sj-row { padding: 0 0 6px; }
+/* «Flere ▾» i «+ type»-raden: samme høyde som knappene og oransje (den legger også til). Høyere
+   spesifisitet enn den generelle «#sj-pane-form .sj-card .sj-pick select.sj-pick-more». */
+#sj-pane-form .sj-card .sj-ct-adds .sj-pick select.sj-pick-more {
+    height: var(--control-h); color: #E8501A; font-weight: 500; font-size: 14px;
+    border-color: var(--control-border); border-radius: var(--control-radius);
+}
+#sj-pane-form .sj-card .sj-pick select.sj-pick-more { height: var(--control-h); border-color: var(--control-border); border-radius: var(--control-radius); }

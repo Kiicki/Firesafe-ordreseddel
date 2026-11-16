@@ -4120,7 +4120,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
         // Slett-knappen er disabled på default-produkter (kan ikke fjernes) og på inaktive rader
         // (ingen data å slette). Brukerskapte duplikater/spec-rader beholder slett-knappen aktiv.
         const delDisabled = !deletable || !isChecked || isIsolationLauncher;
-        const delBtn = '<button type="button" class="picker-mat-delete-btn" title="Fjern"' + (delDisabled ? ' disabled' : '') + '>' + deleteIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"') + '</button>';
+        const delBtn = '<button type="button" class="picker-mat-delete-btn" title="Fjern"' + (delDisabled ? ' disabled' : '') + '>' + '&times;' + '</button>';
         // Kappe-rader (isolasjon/festemiddel): klikkbar enhetsbryter til høyre.
         //   Isolasjon (source='kappe-products'): veksler 'meter' ↔ 'stk'
         //   Festemiddel (source='kappe-stift'/'kappe-fastener'): veksler 'stk' ↔ 'eske'
@@ -4772,7 +4772,7 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
                         + '<span class="picker-mat-name">' + escapeHtml(_grpLabel) + '</span>'
                         + '<span class="picker-mat-dot ' + _grpDot + '"></span></div>';
                     var _isoDupIcon = duplicateIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"');
-                    var _isoDelIcon = deleteIcon.replace('width="24"', 'width="18"').replace('height="24"', 'height="18"');
+                    var _isoDelIcon = '&times;';   // linje i et kort → × (designstandard: søppelkasse = hel ting)
                     _gEntries.forEach(function(e, _i) {
                         var _key = _gKeys[_i];
                         var _isStift = isKappeStiftMaterial(e.name, e.source, e.enhet);
