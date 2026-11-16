@@ -30026,7 +30026,8 @@ function _sjRow(labelKey, body, reqKey, headExtra) {
         (headExtra ? '<div class="sj-row-head">' + label + headExtra + '</div>' : label) + body + '</div>';
 }
 function _sjSection(titleKey, rows) {
-    return '<div class="sj-sec-title">' + escapeHtml(t(titleKey)) + '</div><div class="sj-card">' + rows + '</div>';
+    // .sj-sec = hvitt kort med tittelen inni — samme som seksjonene i de andre skjemaene (designstandard).
+    return '<div class="sj-sec"><div class="sj-sec-title">' + escapeHtml(t(titleKey)) + '</div><div class="sj-card">' + rows + '</div></div>';
 }
 
 // ── Obligatoriske felt ──────────────────────────────────────────────────────

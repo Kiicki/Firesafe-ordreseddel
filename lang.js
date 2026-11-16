@@ -519,7 +519,7 @@ const TRANSLATIONS = {
         template_delete_confirm: 'Er du sikker på at du vil slette dette prosjektet?',
 
         // Settings
-        settings_title: 'Innstillinger',
+        settings_title: 'Meny',
         settings_ordrenr: 'Ordreseddelnummer',
         settings_defaults: 'Autofyll',
         settings_min_info: 'Profil',
@@ -1135,7 +1135,7 @@ const TRANSLATIONS = {
 
         // Calculator
         toolbar_calc: 'Verktøy',
-        calc_title: 'Kalkulator',
+        calc_title: 'Verktøy',
         calc_multicollar_desc: 'Rørdiameter → segmenter',
         calc_pipe_diameter: 'Rørdiameter (mm)',
         calc_segments: 'Segmenter',
@@ -1765,7 +1765,7 @@ const TRANSLATIONS = {
         template_delete_confirm: 'Are you sure you want to delete this project?',
 
         // Settings
-        settings_title: 'Settings',
+        settings_title: 'Menu',
         settings_ordrenr: 'Order numbers',
         settings_defaults: 'Autofill',
         settings_min_info: 'Profile',
@@ -2376,7 +2376,7 @@ const TRANSLATIONS = {
 
         // Calculator
         toolbar_calc: 'Tools',
-        calc_title: 'Calculator',
+        calc_title: 'Tools',
         calc_multicollar_desc: 'Pipe diameter → segments',
         calc_pipe_diameter: 'Pipe diameter (mm)',
         calc_segments: 'Segments',

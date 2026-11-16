@@ -245,6 +245,36 @@ Tab-switch (f.eks. `switchHentTab`) endrer modal-body via inline `style.display`
 - [ ] Scroll fungerer jevnt (ingen avbrudd midt i momentum)
 - [ ] Toolbar oppfører seg riktig (i flow under tastatur-åpent, fixed bottom ellers)
 
+## **DESIGNSTANDARD: Én stil på ALLE sider (ikke et lotteri)**
+
+Hver side i appen skal se ut som den hører til samme app. Standarden er **Meny-stilen (kort-stil)**, og den ligger som variabler + felles klasser i `styles.css` (blokken «DESIGNSTANDARD», helt nederst). **Bruk dem — aldri egne farger, rammer, hjørner eller skygger på en ny side/komponent.**
+
+**Variabler (`:root`):** `--page-bg` (#f2f2f5), `--card-bg` (#fff), `--card-radius` (14px), `--card-shadow`, `--divider`, `--inset-bg`, `--text`, `--text-2`, `--press-bg`.
+
+**Regler:**
+1. **Sidebakgrunn = `--page-bg` overalt** — alle views (også skjemaene og Timebok), og samme grå i margen på PC. Ingen hvite sider, ingen «søyle-skygge» rundt 800 px-innholdet.
+2. **Innhold ligger i hvite kort:** `background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow)` — INGEN ramme (`border`). Klasse: `.set-card`.
+3. **Lister/menyer = ÉN gruppert kort-liste** (ikke ett kort per rad): rader `.set-row` (15px/500 tittel `.set-title`, 12.5px grå undertekst `.set-desc`, ikon `.set-ico` 30px med farget bakgrunn), skillestrek `--divider` mellom radene. Lagret-/sjekkliste-lister: samme kort (første/siste rad avrundet).
+4. **Seksjonstitler:**
+   - *Over* en gruppe kort/liste → `.set-section-title` (12px, 600, store bokstaver, grå `--text-2`).
+   - *Inni* et innholdskort (skjemaseksjoner, Timebok-kort) → 15px/600 `--text`, uten strek under.
+   - Aldri kort i kort: en seksjon hvis innhold selv er kort (bestillinger, kappegrupper, servicebil-prosjekter) har ingen ytre boks, bare gruppetittel over.
+4b. **Sammenleggbare kort** (Bestilling, Servicebil-prosjekt, Kappe-gruppe, Timebok-prosjekt): samme kort som over — hvitt korthode, skillestrek under hodet når åpent, oransje pil. Ingen farget hode eller venstrestripe.
+4c. **Flate-veksling:** grå side → hvite kort; hvit flate (popup/kort) → grått innfelt felt (`--inset-bg`). Samme komponent kan derfor være hvit på siden og grå i en popup (f.eks. kappegruppen) — scope fargen til konteksten, aldri hvit-på-hvit.
+5. **«Legg til»-knapper (+ …):** `.add-btn` — hvit, 1px `#e4e4e9`-ramme, radius 12, oransje tekst 500. **Aldri stiplet ramme.** «+»-brikker i brikkelister: heltrukket oransje kant.
+6. **Fanebryter / modusvalg:** `.tb-seg` + `.tb-seg-btn` (grå bane, aktivt valg hvitt med oransje tekst). Ikke understrek-faner, ikke oransje fylte knapper.
+7. **Tekstvekt:** kun overskrifter fet (600–700); radtitler 500; knapper/felt 400–500 (se «mindre fet»).
+8. **Tittel i headeren = navnet på knappen som åpner siden** (toolbar: Hjem, Verktøy, Timebok, Meny).
+9. **PC: appen står i en innrammet kolonne (800 px)** — kolonnen = `--page-bg` med svak skygge (`--column-shadow`), området utenfor = litt mørkere `--gutter-bg`. Header og toolbar = kolonnens bredde; kortene har samme sideluft inne i kolonnen som på mobil. Prøvd og avvist: full-bredde-striper («ser bare rart ut»), og kort helt ut til kanten uten ramme («stort og tomt»). Ny view: legg den til i «PC: appen står i en INNRAMMET kolonne»-blokken i styles.css.
+
+**Bevisste unntak (dokumentert):** innloggingssiden (mørk merkevare-side), Firesafe-logoen øverst på Hjem, Timebok-periodestripen (lys oransje = inneværende periode), popuper/overlays (egen konvensjon, se «Popup-størrelse»).
+
+**Når du lager en ny side eller komponent:**
+- [ ] Bruker variablene/klassene over — ingen nye hex-farger for bakgrunn/kort/ramme
+- [ ] Sjekket ved siden av en eksisterende side (f.eks. Meny) på mobil (360/412) OG PC
+- [ ] Ny view-ID lagt til i bakgrunnsreglene i DESIGNSTANDARD-blokken (og i PC-dokumentflyt-lista om den er en `.modal`-view)
+- [ ] Endrer du standarden: oppdater variabelen/klassen (ikke én side), og denne seksjonen
+
 ## Popup-størrelse (konvensjon)
 
 Apple-prinsipp: **toppen av popupen står fast** mens den er åpen; boksen følger innholdet (ingen tomrom, ingen toggle-hopp).

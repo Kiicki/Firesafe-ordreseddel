@@ -751,8 +751,8 @@ body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #
 .view.active {
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 60px);
-    min-height: calc(100dvh - 60px);
+    min-height: calc(100vh - var(--toolbar-h, 60px));
+    min-height: calc(100dvh - var(--toolbar-h, 60px));
 }
 
 /* Modal: visual styling only (positioning handled by .view) */
@@ -1267,7 +1267,7 @@ body.template-modal-open:not(.keyboard-open) #template-modal.view.active .modal-
     right: 0;
     bottom: var(--toolbar-h, 60px);
     min-height: 0;
-    background: #fff;
+    background: var(--page-bg);   /* designstandard: grå side overalt */
 }
 
 
@@ -1587,7 +1587,7 @@ body.kbd-editing #sjekkliste-view.view.active {
     right: auto;
     bottom: auto;
     height: auto;
-    min-height: calc(100dvh - 60px);
+    min-height: calc(100dvh - var(--toolbar-h, 60px));
     overflow: visible;
 }
 
@@ -2290,7 +2290,7 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
 /* Mobile form - visible on all devices */
 .mobile-form {
     display: block;
-    background: white;
+    background: var(--page-bg);   /* designstandard: seksjonene er hvite kort på grå side */
     padding: 15px;
     width: 100%;
     overflow-anchor: none;
@@ -2315,7 +2315,7 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
 
 @media screen and (min-width: 1025px) {
     .container.form-view {
-        background: #fff;
+        background: var(--page-bg);
     }
 }
 
@@ -7449,7 +7449,7 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
         position: static;
         bottom: auto;
         height: auto;
-        min-height: calc(100vh - 60px);
+        min-height: calc(100vh - var(--toolbar-h, 60px));
         overflow: visible;
     }
     html.device-pc #template-modal.view.active > .modal-content,
@@ -7472,14 +7472,7 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
         overflow-y: visible;
     }
 
-    /* Service- og Kappe-view: skygge rundt sentrert 800px-kort, samme som modaler. */
-    html.device-pc .container.service-view,
-    html.device-pc .container.kappe-view,
-    html.device-pc .container.kvittering-view,
-    html.device-pc .container.timebok-view,
-    html.device-pc .container.sjekkliste-view {
-        box-shadow: 0 0 20px rgba(0,0,0,0.1);
-    }
+    /* (Søyle-skyggen rundt 800 px-innholdet er fjernet — designstandard: én grå flate, kortene bærer innholdet.) */
 }
 
 /* Fakturaadresse display (klikkbar, ser ut som input) */
@@ -8960,7 +8953,7 @@ body.bulk-select-active .toolbar {
 body.timebok-view-open #view-form { display: none; }
 .container.timebok-view {
     flex: 1;
-    background: #fff;
+    background: var(--page-bg);
     margin: 0 auto;
     padding: 0;
     overflow-y: auto;
@@ -13813,3 +13806,260 @@ body:has(.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-pop
 .timebok-project-block.collapsed .timebok-pb-head { padding-bottom: 0; }
 .timebok-pb-sumrows > .tb-sum-note { margin-top: 2px; }
 .timebok-pb-sumrows > .tb-sum-rows { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e4e4e8; }
+
+/* ════════════════════════════════════════════════════════════════════════════════
+ * DESIGNSTANDARD — ÉN stil for HELE appen (16-11-2026)
+ * Bruker: «det kan ikke være slik at hver side vi lager så er det et lotteri over
+ * hvilken stil den har». Standard = Meny-stilen (kort-stil): grå side, hvite kort med
+ * myk skygge, små grå seksjonstitler, rader 15 px normal + grå undertekst.
+ * Reglene står i CLAUDE.md («Designstandard»). Nye sider/komponenter SKAL bruke
+ * variablene og klassene under (.set-card / .set-section-title / .set-row / .set-ico),
+ * aldri egne farger/rammer/hjørner.
+ * ════════════════════════════════════════════════════════════════════════════════ */
+:root {
+    --page-bg: #f2f2f5;                 /* bakgrunn på ALLE sider (også margen på PC) */
+    --card-bg: #fff;                    /* kort */
+    --card-radius: 14px;
+    --card-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.04);
+    --divider: #ececf0;                 /* skillestrek mellom rader i et kort */
+    --inset-bg: #f5f5f7;                /* grå felt INNE i et kort (fliser, segment) */
+    --text: #1a1a1a;
+    --text-2: #8a8a90;                  /* undertekst, seksjonstitler */
+    --press-bg: #f7f7f9;                /* trykk på rad */
+}
+/* Sidebakgrunn: samme grå overalt — body, alle views, deres innhold og PC-margen. */
+body { background: var(--page-bg); }
+#template-modal, #saved-modal, #settings-modal, #calculator-modal,
+#template-modal > .modal-content, #saved-modal > .modal-content, #settings-modal > .modal-content, #calculator-modal > .modal-content,
+#template-modal > .modal-content > .modal-body, #saved-modal > .modal-content > .modal-body,
+#settings-modal > .modal-content > .modal-body, #calculator-modal > .modal-content > .modal-body,
+#timebok-view, #timebok-view > .modal-content,
+body.settings-modal-open #settings-modal .modal-body { background: var(--page-bg); }
+@media screen and (min-width: 800px) {
+    html.device-pc #template-modal, html.device-pc #saved-modal, html.device-pc #settings-modal, html.device-pc #calculator-modal { background: var(--page-bg); }
+    /* Ingen «søyle-skygge» rundt 800 px-innholdet: siden er én flate, kortene bærer innholdet. */
+    html.device-pc .modal-content { box-shadow: none; }
+    html.device-pc #calculator-modal.view.active { position: static; bottom: auto; height: auto; min-height: calc(100vh - var(--toolbar-h, 60px)); overflow: visible; }
+    html.device-pc #calculator-modal.view.active > .modal-content { overflow: visible; }
+    html.device-pc #calculator-modal.view.active .modal-body { overflow-y: visible; flex: none; }
+}
+/* Felles kort- og tittelstil (Meny-klassene får variablene). */
+.set-profile, .set-card { background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow); }
+.set-section-title { color: var(--text-2); }
+
+/* ── Hjem: seksjonstitler + lister i kort-stil ── */
+#template-modal .mobile-section-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--text-2); border-bottom: none; padding: 0 4px 7px; margin: 22px 0 0;
+}
+#template-modal .home-forms-list { border: none; border-radius: var(--card-radius); box-shadow: var(--card-shadow); }
+#template-modal .useful-links-list, #template-modal .apps-list, #template-modal .app-list {
+    background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden;
+}
+#template-modal .useful-link, #template-modal .app-row {
+    border: none; border-radius: 0; background: var(--card-bg); font-size: 15px; font-weight: 400; color: var(--text); position: relative;
+}
+#template-modal .useful-link + .useful-link::before, #template-modal .app-row + .app-row::before {
+    content: ''; position: absolute; top: 0; left: 14px; right: 0; border-top: 1px solid var(--divider);
+}
+#template-modal .useful-link-name, #template-modal .app-row-name { font-size: 15px; font-weight: 400; color: var(--text); }
+#template-modal .useful-link:active, #template-modal .useful-link:hover { background: var(--press-bg); }
+
+/* ── Verktøy: menyen = ÉN gruppert liste (som Meny), ikon 30 px, tittel 15/500 ── */
+.calc-section { background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; padding: 0; margin-top: 4px; }
+.calc-section .calc-card { border: none; border-radius: 0; padding: 11px 14px; gap: 12px; position: relative; background: none; }
+.calc-section .calc-card + .calc-card::before { content: ''; position: absolute; top: 0; left: 56px; right: 0; border-top: 1px solid var(--divider); }
+.calc-section .calc-card:active { background: var(--press-bg); }
+.calc-section .calc-card-icon { width: 30px; height: 30px; border-radius: 8px; background: #fff1ea; }
+.calc-section .calc-card-icon svg { width: 18px; height: 18px; }
+.calc-section .calc-card-title { font-size: 15px; font-weight: 500; color: var(--text); }
+.calc-section .calc-card-desc { font-size: 12.5px; color: var(--text-2); margin-top: 1px; }
+.calc-section .calc-card-arrow { color: #c4c4ca; }
+
+/* ── Verktøy-sidene (kalkulatorene): alle bokser = standard kort ── */
+#calculator-modal .calc-table, #calculator-modal .bp-table, #calculator-modal .la-section, #calculator-modal .gpg-group,
+#calculator-modal .gpg-summary, #calculator-modal .fp-answer, #calculator-modal .iso-result, #calculator-modal .gpg-info-body,
+#calculator-modal #iso-stift-canvas {
+    background: var(--card-bg); border: none; border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+}
+#calculator-modal .la-section .bp-table, #calculator-modal .gpg-group .bp-table { box-shadow: none; border-radius: 0; }
+#calculator-modal .bp-total { background: var(--card-bg); border: none; border-radius: var(--card-radius); box-shadow: var(--card-shadow); margin-top: 10px; }
+
+/* ── Timebok: dagkort, sammendragskort og prosjektkort = standard kort ── */
+.timebok-day-card, .timebok-summary-card, .timebok-project-block {
+    border: none; border-radius: var(--card-radius); box-shadow: var(--card-shadow); background: var(--card-bg);
+}
+/* Helg: grå tekst i stedet for grå kort (grått kort forsvinner mot grå side). */
+.timebok-day-card.weekend { background: var(--card-bg); border: none; }
+.timebok-day-card.weekend .timebok-day-date { color: #6b6b73; }
+.timebok-day-card.nav.weekend:active, .timebok-day-card.nav:active { background: var(--press-bg); }
+/* I dag / valgt: oransje ring (i stedet for ramme). */
+.timebok-day-card.selected { box-shadow: 0 0 0 1.5px #E8501A; }
+.timebok-pb-head, .timebok-pb-sumrows { background: var(--card-bg); }
+.timebok-project-block:not(.collapsed) .timebok-pb-head { border-bottom: 1px solid var(--divider); }
+.timebok-pb-sumrows > .tb-sum-rows { border-top-color: var(--divider); }
+
+/* ── Lagret-listene: radene samlet i ett hvitt kort (første/siste rad avrundet) ── */
+#saved-list, #service-list, #kappe-list, #bil-history-list { padding: 14px 15px 16px; }
+#saved-list .saved-item, #service-list .saved-item, #kappe-list .saved-item, #bil-history-list .saved-item {
+    background: var(--card-bg); padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--divider);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.04);
+}
+#saved-list .saved-item:first-of-type, #service-list .saved-item:first-of-type, #kappe-list .saved-item:first-of-type, #bil-history-list .saved-item:first-of-type { border-radius: var(--card-radius) var(--card-radius) 0 0; }
+#saved-list .saved-item:last-of-type, #service-list .saved-item:last-of-type, #kappe-list .saved-item:last-of-type, #bil-history-list .saved-item:last-of-type { border-radius: 0 0 var(--card-radius) var(--card-radius); border-bottom: none; }
+#saved-list .saved-item:only-of-type, #service-list .saved-item:only-of-type, #kappe-list .saved-item:only-of-type, #bil-history-list .saved-item:only-of-type { border-radius: var(--card-radius); }
+#saved-list .saved-item:hover, #service-list .saved-item:hover, #kappe-list .saved-item:hover { background: var(--press-bg); }
+#saved-modal .modal-search { background: var(--page-bg); border-bottom: none; }
+
+/* ── «Legg til»-knapper (+ …) = ÉN stil i hele appen: hvit, tynn grå ramme, oransje tekst.
+   Aldri stiplet ramme (bruker: stiplede linjer «ser ekstremt dårlig ut»). Nye legg-til-knapper:
+   bruk klassen .add-btn (eller legg selektoren til her). ── */
+.add-btn,
+.calc-action-btn, .sw-add-btn, .timebok-add-project, .timebok-add-line, .mobile-add-line-btn, #kappe-form .mobile-add-line-btn,
+.kv-add-btn, .sj-add-btn, .sj-add-row, .kappe-add-kapp-btn, #kappe-maal-popup .kappe-add-kapp-btn, .kappe-dim-add-btn,
+#iso-card-add-product, .template-picker-add, .settings-add-template-btn, .dag-timer-person-add, .settings-plate-assign-btn {
+    background: #fff; border: 1px solid #e4e4e9; border-radius: 12px; color: #E8501A; font-weight: 500; box-shadow: none;
+}
+.add-btn:active, .calc-action-btn:active, .sw-add-btn:active, .timebok-add-project:active, .timebok-add-line:active, .mobile-add-line-btn:active,
+.kv-add-btn:active, .sj-add-btn:active, .sj-add-row:active, .kappe-add-kapp-btn:active, .kappe-dim-add-btn:active, #iso-card-add-product:active,
+.template-picker-add:active, .dag-timer-person-add:active { background: var(--press-bg); }
+.calc-action-btn.calc-reset-btn { color: #8a8a90; }
+/* Små «+»-brikker i brikke-lister: heltrukket oransje kant (ikke stiplet). */
+.dag-timer-plan-chip-add, .fastener-dim-chip--add, .sj-chip-add, .sj-chip.sj-chip-other, .kappe-picker-add-dim { border-style: solid; }
+.bp-add-btn { background: var(--card-bg); }
+.timebok-pb-codes-head { border-top: 1px solid var(--divider); }
+
+/* ── Skjemaene (Ordreseddel, Servicebil, Kappeskjema, Kvittering, Sjekkliste): samme grå side.
+   Hver seksjon = hvitt kort med tittelen INNI (som Timebok-kortene). Seksjoner der innholdet
+   selv er kort (bestillinger, kappegrupper, servicebil-prosjekter) har tittelen OVER kortene
+   (som Meny-gruppene) og ingen ytre boks — aldri kort i kort. ── */
+#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view,
+.container.form-view, #view-form > .modal-content, #service-view > .modal-content, #kappe-view > .modal-content,
+#kvittering-view > .modal-content, #sjekkliste-view > .modal-content { background: var(--page-bg); }
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section {
+    background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+    padding: 14px 14px 2px; margin-bottom: 12px;
+}
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section .mobile-section {
+    background: none; box-shadow: none; padding: 0; border-radius: 0;
+}
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section .mobile-section-title {
+    font-size: 15px; font-weight: 600; color: var(--text); border-bottom: none; padding-bottom: 0; margin-bottom: 12px;
+}
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section .collapse-all-row { border-bottom: none; padding-bottom: 0; margin-bottom: 12px; }
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section .collapse-all-row .mobile-section-title { margin-bottom: 0; }
+/* Seksjoner med kort inni: ingen ytre boks, gruppetittel over (Meny-stil). */
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section:has(#mobile-orders, #service-entries, #kappe-lines, > .mobile-order-card) {
+    background: none; box-shadow: none; padding: 0; border-radius: 0;
+}
+:is(#view-form, #service-view, #kappe-view, #kvittering-view) .mobile-section:has(#mobile-orders, #service-entries, #kappe-lines, > .mobile-order-card) .mobile-section-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-2); padding: 0 4px 7px; margin-bottom: 0;
+}
+/* Sjekkliste: samme seksjonskort som de andre skjemaene (tittel inni, 15/600). */
+#sjekkliste-view, #sj-pane-form, #sj-pane-list { background: var(--page-bg); }
+#sj-pane-form .sj-sec {
+    background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+    padding: 14px 14px 8px; margin-bottom: 12px;
+}
+#sj-pane-form .sj-sec .sj-sec-title { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 2px; padding: 0; border-bottom: none; }
+/* Sjekkliste-oversikten (prosjekter) og hull-lista = samme kort-liste som Lagret. */
+#sj-proj-list .saved-item, #sj-reg-list .saved-item {
+    margin: 0; border: none; border-bottom: 1px solid var(--divider); border-radius: 0; background: var(--card-bg);
+    padding: 10px 10px 10px 14px; box-shadow: 0 0 0 1px rgba(0,0,0,0.04);
+}
+#sj-proj-list .saved-item:first-of-type, #sj-reg-list .saved-item:first-of-type { border-radius: var(--card-radius) var(--card-radius) 0 0; }
+#sj-proj-list .saved-item:last-of-type, #sj-reg-list .saved-item:last-of-type { border-radius: 0 0 var(--card-radius) var(--card-radius); border-bottom: none; }
+#sj-proj-list .saved-item:only-of-type, #sj-reg-list .saved-item:only-of-type { border-radius: var(--card-radius); }
+#sj-proj-list .saved-item:hover, #sj-reg-list .saved-item:hover { background: var(--press-bg); border-color: var(--divider); }
+#sj-pane-overview > .mobile-section-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-2);
+    border-bottom: none; padding: 0 4px 7px; margin-bottom: 0;
+}
+
+/* ── Fanebryter / modusvalg = ÉN stil (som .tb-seg i Meny og Timebok): grå bane, aktivt valg
+   hvitt med oransje tekst. Gjelder også Servicebil (Inntak | Uttak) og popupenes modusvalg
+   (Bredde | Plate, Stk | Eske, Stk | Meter). Nye fanebrytere: bruk .tb-seg/.tb-seg-btn. ── */
+.servicebil-mode-toggle {
+    /* Total høyde = 52 px som før (Inntak-velgeren starter på 44 + 52 = 96 px). */
+    background: var(--page-bg); border-bottom: none; padding: 11px 18px 8px; gap: 3px; box-sizing: border-box; height: 52px;
+}
+.servicebil-mode-toggle::before {
+    content: ''; position: absolute; top: 8px; left: 15px; right: 15px; bottom: 5px;
+    background: #e4e4e9; border-radius: 10px; z-index: -1;
+}
+.servicebil-mode-toggle .mode-btn {
+    padding: 8px 4px; border: none; border-radius: 8px; margin: 0; background: none;
+    font-size: 14px; font-weight: 500; color: #444; font-family: inherit;
+}
+.servicebil-mode-toggle .mode-btn.active { background: #fff; color: #E8501A; box-shadow: 0 1px 3px rgba(0,0,0,0.12); border-bottom-color: transparent; }
+.kappe-picker-mode-toggle, #iso-card-popup .kappe-picker-mode-toggle {
+    border: none; border-radius: 10px; background: #f0f0f3; padding: 3px; gap: 3px;
+}
+.kappe-picker-mode-btn { border-radius: 8px; background: none; color: #444; font-weight: 500; font-size: 14px; }
+.kappe-picker-mode-btn + .kappe-picker-mode-btn { border-left: none; }
+.kappe-picker-mode-btn.active { background: #fff; color: #E8501A; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+/* «Har verdier»-prikken: alltid oransje med hvit ring (aktivt valg er nå hvitt, ikke oransje). */
+.kappe-picker-mode-btn.active.mode-has-data::after { background: #E8501A; box-shadow: 0 0 0 2px #fff; }
+/* Servicebil Inntak: seksjonen er bare vert for materialvelgeren (som legger seg over) — ikke et kort. */
+#service-view .mobile-section.servicebil-inntak-only { background: none; box-shadow: none; padding: 0; }
+
+/* ── PC: appen står i en INNRAMMET kolonne (800 px). Bruker 16-11-2026: uten ramme «kan det se
+   litt stort og tomt ut» (særlig på ultrawide). Kolonnen = sidegrå (--page-bg) med svak skygge;
+   området utenfor = litt mørkere grå (--gutter-bg), så tomrommet leses som bakgrunn. Header og
+   toolbar = kolonnens bredde; kortene har samme sideluft inne i rammen som på mobil.
+   (Prøvd og avvist: full-bredde-striper, og kort helt ut til kanten uten ramme.) ── */
+:root { --gutter-bg: #e2e2e7; --column-shadow: 0 0 0 1px rgba(0,0,0,0.05), 0 0 28px rgba(0,0,0,0.07); }
+#saved-modal .sticky-header, #settings-modal .sticky-header, #timebok-view .sticky-header { background: var(--page-bg); }
+@media screen and (min-width: 800px) {
+    html.device-pc body,
+    html.device-pc :is(#template-modal, #saved-modal, #settings-modal, #calculator-modal) { background: var(--gutter-bg); }
+    html.device-pc :is(#template-modal, #saved-modal, #settings-modal, #calculator-modal) > .modal-content {
+        background: var(--page-bg); box-shadow: var(--column-shadow);
+        min-height: calc(100vh - var(--toolbar-h, 60px)); min-height: calc(100dvh - var(--toolbar-h, 60px));
+    }
+    html.device-pc :is(#view-form, #service-view, #kappe-view, #kvittering-view, #timebok-view, #sjekkliste-view).view.active {
+        box-shadow: var(--column-shadow);
+    }
+}
+
+/* ── Sammenleggbare kort i skjemaene (Bestilling, Servicebil-prosjekt, Kappe-gruppe) = samme
+   kort som Timebok-prosjektkortet: hvitt, myk skygge, hjørner 14, ingen ramme, ingen farget
+   hode/venstrestripe. Åpent kort: skillestrek under hodet + oransje pil. ── */
+.mobile-order-card, .service-entry-card {
+    border: none; border-radius: var(--card-radius); box-shadow: var(--card-shadow); background: var(--card-bg); margin-bottom: 12px;
+}
+/* Kappegruppene: på SIDEN (grå) = hvitt standardkort, feltene inni får ramme (de er hvite).
+   I popupen (Isolering, hvit flate) beholdes det grå innfelte kortet — lys/mørk veksling:
+   grå side → hvitt kort, hvit flate → grått innfelt kort. */
+#kappe-view .iso-group-card.mobile-order-card,
+#kappe-view .iso-group-card.mobile-order-card:has(.mobile-order-body-wrap.expanded) {
+    border: none; border-radius: var(--card-radius); box-shadow: var(--card-shadow); background: var(--card-bg); margin-bottom: 12px;
+}
+#kappe-view .iso-group-card .iso-group-header, #kappe-view .iso-group-card .iso-group-body { background: var(--card-bg); }
+#kappe-view .iso-group-card .iso-group-name,
+#kappe-view .iso-group-card .kappe-line-product-btn,
+#kappe-view .iso-group-card input[type="text"], #kappe-view .iso-group-card input:not([type]),
+#kappe-view .iso-group-card select, #kappe-view .iso-group-card textarea { border: 1px solid #d8d8de; }
+.mobile-order-card:has(.mobile-order-body-wrap.expanded), .service-entry-card:has(.mobile-order-body-wrap.expanded) { border-left-color: transparent; }
+.mobile-order-header, .service-entry-header,
+.mobile-order-card:has(.mobile-order-body-wrap.expanded) .mobile-order-header,
+.service-entry-card:has(.mobile-order-body-wrap.expanded) .service-entry-header { background: var(--card-bg); }
+.mobile-order-card:has(.mobile-order-body-wrap.expanded) .mobile-order-header,
+.service-entry-card:has(.mobile-order-body-wrap.expanded) .service-entry-header { border-bottom: 1px solid var(--divider); }
+.mobile-order-header:active, .service-entry-header:active { background: var(--press-bg); }
+.mobile-order-title, .service-entry-title { font-size: 15px; font-weight: 500; color: var(--text); }
+#kappe-lines .mobile-order-body { background: var(--card-bg); }
+/* Kvittering «Firmakort | Privat utlegg» = samme fanebryter som .tb-seg */
+.kv-seg { background: #f0f0f3; }
+.kv-seg-btn { font-weight: 500; color: #444; }
+/* «+ Materialer» / «+ Arbeidstid og etasje» inni kortene = samme «legg til»-knapp (tom tilstand).
+   Utfylt tilstand (.has-materials / .has-data) beholder den tonede oransje flaten. */
+.mobile-add-mat-btn:not(.has-materials), .mobile-arbeidstid-btn:not(.has-data):not(.has-days), .mobile-plan-btn {
+    background: #fff; border: 1px solid #e4e4e9; border-radius: 12px; color: #E8501A; font-weight: 500;
+}
+.mobile-add-mat-btn:not(.has-materials):active, .mobile-arbeidstid-btn:not(.has-data):not(.has-days):active, .mobile-plan-btn:active { background: var(--press-bg); }
+/* Popupen (hvit flate): kappegruppe-kortet er grått innfelt — også hodet (den generelle
+   «hvitt korthode»-regelen over gjelder bare kort som ligger på den grå siden). */
+#iso-card-popup .iso-group-card .mobile-order-header,
+#iso-card-popup .iso-group-card:has(.mobile-order-body-wrap.expanded) .mobile-order-header,
+#iso-card-popup .iso-group-card .iso-group-header { background: #f5f5f7; }
