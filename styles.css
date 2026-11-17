@@ -14269,3 +14269,92 @@ button, input, select, textarea { font-family: inherit; }
 /* Spec-vinduet: tynn skillestrek mellom seksjonene (som tilleggskodene i Timebok og rør-gruppene
    i Sjekkliste) — bare luft gjorde det uklart hvor en seksjon slutter (bruker 16-11-2026). */
 #spec-multi-popup .spm-section + .spm-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider); }
+
+/* ════ DOKUMENTER (17-11-2026) — dokumentarkiv; følger designstandarden (grå side, kort, Meny-rader) ════ */
+#docs-modal, #docs-modal > .modal-content, #docs-modal > .modal-content > .modal-body { background: var(--page-bg); }
+#docs-modal .sticky-header { background: var(--page-bg); }
+#docs-body { position: relative; }
+.docs-search { margin-bottom: 12px; }
+.docs-search input, .doc-move-search {
+    width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; font-size: 16px; font-family: inherit;
+    border: 1px solid var(--field-border); border-radius: 10px; background: #fff; outline: none;
+}
+.docs-search input:focus, .doc-move-search:focus { border-color: #E8501A; }
+/* Sti: Bibliotek › Datablader › Mansjetter */
+.docs-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 12px 0 0; font-size: 14px; }
+.docs-crumb { background: none; border: none; padding: 4px 6px; margin: 0 -2px; border-radius: 6px; font: inherit; color: #E8501A; cursor: pointer; overflow-wrap: anywhere; text-align: left; }
+.docs-crumb.current { color: var(--text); font-weight: 600; cursor: default; }
+.docs-crumb-sep { color: #b4b4ba; }
+/* Ny mappe / Last opp */
+.docs-actions { display: flex; gap: 10px; margin-top: 12px; }
+.docs-actions .add-btn { flex: 1; height: 42px; font-size: 15px; font-family: inherit; cursor: pointer; }
+/* Fremdrift ved opplasting */
+.docs-progress { margin-top: 12px; padding: 12px 14px; }
+.docs-progress-text { font-size: 14px; color: var(--text); margin-bottom: 8px; }
+.docs-progress-bar { height: 6px; border-radius: 3px; background: var(--inset-bg); overflow: hidden; }
+.docs-progress-bar span { display: block; height: 100%; background: #E8501A; border-radius: 3px; transition: width .2s; }
+#docs-list { margin-top: 14px; }
+#docs-list .docs-group + .docs-group { margin-top: 18px; }
+.doc-row .doc-row-name { overflow-wrap: anywhere; }
+.doc-row-offline { flex-shrink: 0; color: var(--text-2); display: inline-flex; }
+.doc-row-more {
+    flex-shrink: 0; width: 34px; height: 34px; margin: -6px -8px -6px 0; display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 8px; color: #9a9aa2; cursor: pointer;
+}
+.doc-row-more:active, .doc-row-more:hover { background: var(--press-bg); }
+.doc-row--folder .doc-row-more { margin-right: -4px; }
+.docs-link-btn { background: none; border: none; padding: 0; color: #E8501A; font: inherit; cursor: pointer; }
+#docs-offline-foot { padding-top: 14px; }
+/* Dra og slipp (PC) */
+.doc-row.doc-dragging { opacity: .45; }
+.doc-drop-target { outline: 2px solid #E8501A; outline-offset: -2px; background: #fff6f1 !important; border-radius: 10px; }
+.docs-drop-hint { display: none; }
+#docs-body.docs-dropping { outline: 2px dashed #E8501A; outline-offset: -6px; border-radius: 14px; }
+#docs-body.docs-dropping .docs-drop-hint {
+    display: block; position: sticky; bottom: 12px; margin: 12px auto 0; width: max-content; max-width: 100%;
+    padding: 10px 16px; border-radius: 10px; background: #E8501A; color: #fff; font-size: 14px; font-weight: 500; box-shadow: var(--card-shadow);
+}
+@media screen and (min-width: 800px) {
+    html.device-pc #docs-modal { background: var(--gutter-bg); }
+    html.device-pc #docs-modal > .modal-content { background: var(--page-bg); box-shadow: var(--column-shadow); min-height: calc(100vh - var(--toolbar-h, 60px)); }
+    html.device-pc #docs-modal.view.active { position: static; bottom: auto; height: auto; min-height: calc(100vh - var(--toolbar-h, 60px)); overflow: visible; }
+    html.device-pc #docs-modal.view.active > .modal-content { overflow: visible; }
+    html.device-pc #docs-modal.view.active .modal-body { overflow-y: visible; flex: none; }
+}
+
+/* Visning av et dokument: fullskjerm, mørk bakgrunn, sidene i midten; zoom = bredden på sidene. */
+.doc-viewer { display: none; position: fixed; inset: 0; z-index: 55; background: #2a2a2e; flex-direction: column; }
+.doc-viewer.active { display: flex; }
+.doc-viewer-header {
+    flex-shrink: 0; height: 48px; display: flex; align-items: center; gap: 4px; padding: 0 6px;
+    background: #333; color: #fff; padding-top: env(safe-area-inset-top);
+}
+.doc-viewer-close, .doc-viewer-act {
+    flex-shrink: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: #fff; cursor: pointer; border-radius: 8px;
+}
+.doc-viewer-close { color: #E8501A; }
+.doc-viewer-close:active, .doc-viewer-act:active { background: rgba(255,255,255,0.12); }
+.doc-viewer-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-viewer-scroll { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; padding: 8px 0 24px; }
+.doc-viewer-pages { margin: 0 auto; }
+.doc-viewer-page { display: block; width: 100%; height: auto; background: #fff; margin: 0 0 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+.doc-viewer-msg { color: #d8d8de; text-align: center; padding: 40px 16px; font-size: 15px; }
+/* Meny / bekreftelse / navn / flytt over visningen. */
+body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.doc-viewer-open #input-modal, body.doc-viewer-open #doc-move-popup { z-index: 70; }
+
+/* Flytt til … (mappetreet). Hvit popup → grå innfelt søkefelt (flate-veksling). */
+.doc-move-sheet { display: flex; flex-direction: column; gap: 10px; max-height: 80vh; }
+.doc-move-search { background: var(--inset-bg); border-color: transparent; flex-shrink: 0; }
+.doc-move-list { overflow-y: auto; min-height: 0; flex: 1; margin: 0 -8px; }
+.doc-move-row {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 12px; box-sizing: border-box;
+    background: none; border: none; border-radius: 10px; font: inherit; font-size: 15px; color: var(--text); text-align: left; cursor: pointer;
+}
+.doc-move-row:active, .doc-move-row:hover { background: var(--press-bg); }
+.doc-move-row.disabled { opacity: .4; cursor: default; background: none; }
+.doc-move-row .set-ico { width: 28px; height: 28px; }
+.doc-move-name { min-width: 0; overflow-wrap: anywhere; }
+.doc-move-sec { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); padding: 12px 12px 4px; }
+.doc-row .set-desc { white-space: normal; overflow-wrap: anywhere; }
+#docs-body { min-height: calc(100vh - var(--toolbar-h, 60px) - 60px); box-sizing: border-box; }   /* hele kolonnen er slippflate */

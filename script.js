@@ -2271,11 +2271,13 @@ if (auth) {
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY, ANSATTE_KEY,
              MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY, KAPPE_CATALOG_SHARED_KEY,
-             'firesafe_project_overrides', 'firesafe_my_materials', 'firesafe_my_people', 'firesafe_ansatte_extra', 'firesafe_sug_pending', 'firesafe_sug_badge', 'firesafe_adm_users', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
+             'firesafe_project_overrides', 'firesafe_my_materials', 'firesafe_my_people', 'firesafe_ansatte_extra', 'firesafe_sug_pending', 'firesafe_sug_badge', 'firesafe_adm_users', 'firesafe_docs_cache', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             // Kvitteringsbildene (IndexedDB) tilhører forrige bruker.
             if (typeof _kvImgClearAll === 'function') _kvImgClearAll();
+            // Dokumenter lagret for bruk uten nett tilhører også forrige bruker.
+            if (typeof _docsClearLocal === 'function') _docsClearLocal();
             cachedRequiredSettings = null;
             if (typeof cachedMaterialOptions !== 'undefined') cachedMaterialOptions = null;
             if (typeof cachedPlanOptions !== 'undefined') cachedPlanOptions = [];
