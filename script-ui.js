@@ -48,35 +48,32 @@ function resetPaginationState() {
     _serviceHasMore = false; _serviceSentHasMore = false;
 }
 
-// Refresh data for the currently active view after auth completes
+// ── Last den ÅPNE siden på nytt når innloggingen blir klar — gjelder ALLE sider ──────────
+// Bruker 18-11-2026: «ting skal ikke mangle etter refresh». Etter en oppdatering tegnes siden
+// med en gang fra lokal cache (snappy), FØR Firebase-innloggingen er klar; alt som må hentes
+// fra Firestore hoppes over da (currentUser er null). Denne funksjonen henter så den åpne
+// sidens data på nytt, uten at brukeren må gå ut og inn igjen. Den kjøres:
+//   1. så snart innlogging + tilgang (firma/admin) er kjent — _accEnforce (firstReady)
+//   2. etter full synk ved innlogging (script.js) — for sider som leser synkede innstillinger.
+// Ny view/side med data fra Firestore: legg inn en gren her (gate på view-ID-en, ikke på hvor
+// man kom fra). Skjema-viewene (ordreseddel/servicebil/kappe/kvittering) og Verktøy trenger ingen
+// gren: innholdet kommer fra økten (sessionStorage) / lokale beregninger, og prosjektfeltene
+// oppdateres av _rerenderListsAfterProjectCorrection.
 function refreshActiveView() {
     if (!currentUser || !db) return;
-    if (document.body.classList.contains('saved-modal-open')) {
-        Promise.all([getSavedForms(), getSentForms()]).then(function(results) {
-            if (Date.now() - _lastLocalSaveTs < 5000) return;
-            var savedResult = results[0], sentResult = results[1];
-            _savedLastDoc = savedResult.lastDoc;
-            _sentLastDoc = sentResult.lastDoc;
-            _savedHasMore = savedResult.hasMore;
-            _sentHasMore = sentResult.hasMore;
-            safeSetItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
-            safeSetItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
-            window.loadedForms = _mergeAndDedup(
-                savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); }),
-                sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); })
-            );
-            if (document.body.classList.contains('saved-modal-open')) {
-                renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
-            }
-        }).catch(function(e) { console.error('Refresh saved forms:', e); });
-    } else if (document.body.classList.contains('template-modal-open')) {
+    var v = document.querySelector('.view.active');
+    var id = v ? v.id : '';
+    if (id === 'saved-modal') {
+        _hentRefreshActiveTab();
+    } else if (id === 'template-modal') {
         getTemplates().then(function(result) {
             _templateLastDoc = result.lastDoc;
             _templateHasMore = result.hasMore;
             window.loadedTemplates = result.forms;
             _projCache(result.forms);
         }).catch(function(e) { console.error('Refresh templates:', e); });
-    } else if (document.body.classList.contains('timebok-view-open')) {
+        if (typeof _homeRenderCounts === 'function') _homeRenderCounts();   // «N utkast» fra synkede lister
+    } else if (id === 'timebok-view') {
         // Hent gjeldende periode på nytt; hopp over hvis vi nettopp lagret lokalt.
         var range = _timebokPeriodRange();
         getTimebokDays(range.start, range.end).then(function(days) {
@@ -85,9 +82,53 @@ function refreshActiveView() {
             _timebokMergeDaysToCache(days);
             if (document.body.classList.contains('timebok-view-open') && !_timebokIsDirty()) renderTimebok();
         }).catch(function(e) { console.error('Refresh timebok:', e); });
-    } else if (document.body.classList.contains('sjekkliste-view-open')) {
+    } else if (id === 'sjekkliste-view') {
         _sjRefreshActive();
+    } else if (id === 'docs-modal') {
+        // Bare om lista ikke alt er hentet i denne økten (kalles to ganger ved innlogging).
+        if (typeof _docsLoad === 'function' && !_docsFetched) _docsLoad();
+    } else if (id === 'settings-modal') {
+        // Innstillingssiden ble tegnet FØR innlogging/admin-status var klar (Admin-sidene ble da
+        // tomme, f.eks. Brukere). Tegn den åpne undersiden på nytt — men ikke midt i skriving.
+        var page = sessionStorage.getItem('firesafe_settings_page');
+        var pageEl = page && document.getElementById('settings-page-' + page);
+        var editing = pageEl && pageEl.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+        if (page && document.body.classList.contains('settings-subpage-open') && !editing) showSettingsPage(page, true);
     }
+}
+// Lagret-lista: hent fanen som står åpen (Egne / Servicebil / Kappeskjema), ikke bare Egne.
+function _hentRefreshActiveTab() {
+    if (!currentUser || !db) return;
+    var tab = sessionStorage.getItem('firesafe_hent_tab') || 'own';
+    if (tab === 'kappe') { if (typeof loadKappeTab === 'function') loadKappeTab(); return; }
+    if (tab === 'servicebil') { _hentRefreshServicebil(); return; }
+    Promise.all([getSavedForms(), getSentForms()]).then(function(results) {
+        if (Date.now() - _lastLocalSaveTs < 5000) return;
+        var savedResult = results[0], sentResult = results[1];
+        _savedLastDoc = savedResult.lastDoc;
+        _sentLastDoc = sentResult.lastDoc;
+        _savedHasMore = savedResult.hasMore;
+        _sentHasMore = sentResult.hasMore;
+        safeSetItem(STORAGE_KEY, JSON.stringify(savedResult.forms.slice(0, 50)));
+        safeSetItem(ARCHIVE_KEY, JSON.stringify(sentResult.forms.slice(0, 50)));
+        window.loadedForms = _mergeAndDedup(
+            savedResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: false }); }),
+            sentResult.forms.map(function(f) { return Object.assign({}, f, { _isSent: true }); })
+        );
+        if (document.body.classList.contains('saved-modal-open')) {
+            renderSavedFormsList(window.loadedForms, false, _savedHasMore || _sentHasMore);
+        }
+    }).catch(function(e) { console.error('Refresh saved forms:', e); });
+}
+// Servicebil-fanen: påfylling (INNTAK) + sendte service-skjemaer (UTTAK) fra Firebase.
+function _hentRefreshServicebil() {
+    if (!(currentUser && db && typeof getServiceForms === 'function' && typeof getServiceSentForms === 'function')) return;
+    Promise.all([getServiceForms(), getServiceSentForms()]).then(function(results) {
+        if (Date.now() - _lastLocalSaveTs < 5000) return;
+        safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify((results[0].forms || []).slice(0, 50)));
+        safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify((results[1].forms || []).slice(0, 50)));
+        if (document.body.classList.contains('saved-modal-open')) renderBilHistory();
+    }).catch(function() {});
 }
 
 // Helper: format date with time
@@ -1102,14 +1143,7 @@ function switchHentTab(tab) {
         renderBilHistory();
         _bilHistoryRendered = true;
         // Refresh uttak-data fra Firebase i bakgrunnen og re-render
-        if (currentUser && db && typeof getServiceForms === 'function' && typeof getServiceSentForms === 'function') {
-            Promise.all([getServiceForms(), getServiceSentForms()]).then(function(results) {
-                if (Date.now() - _lastLocalSaveTs < 5000) return;
-                safeSetItem(SERVICE_STORAGE_KEY, JSON.stringify((results[0].forms || []).slice(0, 50)));
-                safeSetItem(SERVICE_ARCHIVE_KEY, JSON.stringify((results[1].forms || []).slice(0, 50)));
-                if (document.body.classList.contains('saved-modal-open')) renderBilHistory();
-            }).catch(function() {});
-        }
+        _hentRefreshServicebil();
     } else if (tab === 'kappe') {
         if (tabs[2]) tabs[2].classList.add('active');
         if (kappeList) { kappeList.style.display = ''; kappeList.scrollTop = 0; }
@@ -28237,18 +28271,18 @@ function _accEnforce() {
     if (v.id === 'settings-modal') {
         var page = sessionStorage.getItem('firesafe_settings_page');
         if (page && !_accSettingsPageAllowed(page)) { showSettingsMenu(); return; }
-        // Omlasting på en innstillingsside: siden ble tegnet FØR innlogging/admin-status var
-        // klar (Admin-sidene ble da tomme, f.eks. Brukere). Tegn den åpne siden på nytt ÉN gang
-        // når innloggingen er klar. Gjelder alle innstillingssider, ikke bare Brukere.
-        if (page && firstReady && document.body.classList.contains('settings-subpage-open')) showSettingsPage(page, true);
+        if (firstReady) refreshActiveView();
         return;
     }
     if (v.id === 'saved-modal') {
         var cur = sessionStorage.getItem('firesafe_hent_tab') || 'own';
-        if (_accAllowed('lagret') && _accHentTab(cur) !== cur) { switchHentTab(_accHentTab(cur)); return; }
+        if (_accAllowed('lagret') && _accHentTab(cur) !== cur) { switchHentTab(_accHentTab(cur)); if (firstReady) refreshActiveView(); return; }
     }
     var m = _ACC_VIEW_MODULE[v.id];
-    if (m && !_accAllowed(m)) _accGoStart();
+    if (m && !_accAllowed(m)) { _accGoStart(); return; }
+    // Omlasting: siden ble tegnet fra cache FØR innloggingen var klar — hent den åpne sidens
+    // data nå (ALLE sider, se refreshActiveView). Ikke vent på hele innloggings-synken.
+    if (firstReady) refreshActiveView();
 }
 // Deaktivert / ikke lagt inn (når appen er lukket for ukjente) → ut. Venter til både
 // admin-status og tilgangsdokumentet er kjent, så en admin aldri kastes ut ved et uhell.
@@ -29901,7 +29935,8 @@ function _sjOpenFormFor(id, isReopen) {
     _sjPendingNew = null;
     var draft = null;
     try { draft = JSON.parse(sessionStorage.getItem(SJ_SESSION_KEY) || 'null'); } catch (e) {}
-    if (!pending && draft && (draft.id || null) === (id || null)) {
+    // (En økt som bare er plassholderen «Laster …» gjenopprettes ikke — da hentes skjemaet på nytt.)
+    if (!pending && draft && (draft.id || null) === (id || null) && !(draft.original && draft.original._loading)) {
         _sjForm = {
             id: draft.id || null, data: Object.assign(_sjEmptyData(), draft.data || {}), original: draft.original || null,
             savedSnap: draft.savedSnap, savedImageIds: draft.savedImageIds || [], sessionNewIds: draft.sessionNewIds || []
@@ -29929,7 +29964,12 @@ function _sjOpenFormFor(id, isReopen) {
     _sjCloseForm();
     _sjStartForm(id, {}, { id: id, _loading: true });
     _sjRender();
-    if (!_sjRemote()) { _sjNotFound(); return; }
+    if (!_sjRemote()) {
+        // Oppdatering: innloggingen er ikke klar ennå → «Laster …» står, og _sjRefreshActive
+        // henter sjekklisten når den er klar (ikke «finnes ikke» på usikkert grunnlag).
+        if (!currentUser && db) { _sjPendingOpenId = id; return; }
+        _sjNotFound(); return;
+    }
     _firmaRef().collection(_SJ_COLL).doc(id).get().then(function (snap) {
         if (!_sjForm || _sjForm.id !== id) return;
         if (!snap.exists) { _sjNotFound(); return; }
@@ -30965,8 +31005,14 @@ function sjDelete() {
 window.sjDelete = sjDelete;
 
 // Hent på nytt når appen kommer i forgrunnen / etter innlogging (refreshActiveView).
+var _sjPendingOpenId = null;   // sjekkliste åpnet via adressen før innloggingen var klar
 function _sjRefreshActive() {
     if (!_sjViewOpen()) return;
+    if (_sjPendingOpenId) {
+        var pid = _sjPendingOpenId; _sjPendingOpenId = null;
+        if (_sjMode === 'form' && _sjForm && _sjForm.id === pid && _sjForm.original && _sjForm.original._loading) _sjOpenFormFor(pid);
+        return;
+    }
     if (_sjMode === 'overview') _sjRefreshProjects();
     else if (_sjMode === 'project' && !_sjList.loading) _sjLoadProject(true);
 }
@@ -31016,8 +31062,14 @@ var _docsBlobMem = {};           // id → Blob (denne økten; raskere gjenåpni
 var _docsViewing = null;         // fila som vises nå
 var _docsReplaceItem = null;     // fila som skal byttes ut (ny versjon)
 var _docsLoadedOnce = false;
+var _docsPendingHash = null;    // dokumenter/m/<id> eller /d/<id> åpnet før lista var hentet
+var _docsFetched = false;        // lista er hentet fra Firestore i denne økten (før det: cache / «Henter …»)
 
-function _docsIsDev() { return !currentUser || currentUser.uid === 'dev-local' || !db; }
+// Lokal test = den falske DEV-brukeren (localhost). IKKE «ingen bruker ennå»: rett etter en
+// oppdatering er currentUser null til Firebase-innloggingen er klar — da skal den lagrede lista
+// vises og hentes på nytt når innloggingen kommer (refreshActiveView), ikke byttes ut med den
+// tomme test-lista.
+function _docsIsDev() { return !!(currentUser && currentUser.uid === 'dev-local') || !db; }
 function _docsColl() { return _firmaRef().collection('documents'); }
 function _docsSafeName(n) { return String(n || 'fil').replace(/[\\/#?%*:|"<>]/g, '_').slice(0, 120); }
 function _docsNewId() { return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -31147,7 +31199,7 @@ function _docsLocalRefresh() {
 }
 // Ved brukerbytte (script.js) — kopiene tilhører forrige bruker.
 function _docsClearLocal() {
-    _docsLocal = {}; _docsBlobMem = {}; _docsText = {};
+    _docsLocal = {}; _docsBlobMem = {}; _docsText = {}; _docs = []; _docsFetched = false;
     _docsIdb('readwrite', function (st) { return st.clear(); }, 'text').catch(function () {});
     return _docsIdb('readwrite', function (st) { return st.clear(); }).catch(function () {});
 }
@@ -31164,9 +31216,17 @@ function _docsLoad() {
     var c = safeParseJSON(DOCS_CACHE_KEY, null);
     if (c && c.firma === _firma() && Array.isArray(c.items) && (!currentUser || !c.uid || c.uid === currentUser.uid)) { _docs = c.items; _docsRender(); }
     _docsLocalRefresh().then(_docsRender);
-    if (_docsIsDev()) { _docs = _docsDevList(); _docsMigrate(); _docsRender(); _docsAfterLoad(); return Promise.resolve(); }
+    // Innloggingen er ikke klar ennå (oppdatering): vis cachen; refreshActiveView henter
+    // lista når den er klar.
+    if (!currentUser) return Promise.resolve();
+    if (_docsIsDev()) { _docs = _docsDevList(); _docsFetched = true; _docsMigrate(); _docsRender(); _docsAfterLoad(); return Promise.resolve(); }
     return _docsColl().limit(5000).get().then(function (snap) {
         _docs = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        _docsFetched = true;
+        if (_docsPendingHash) {   // adressen pekte på en mappe/fil som ikke var hentet ennå
+            var ph = _docsPendingHash; _docsPendingHash = null;
+            if (window.location.hash.slice(1) === ph) setTimeout(function () { _docsApplyHash(ph); }, 0);
+        }
         _docsMigrate();
         _docsSaveCache();
         _docsRender();
@@ -31358,6 +31418,9 @@ function _docsRender() {
     // «Spør dokumentene» (AI) er en egen visning i samme side: søk/faner/sti skjules.
     var aiMode = !!l.ai;
     document.getElementById('docs-modal').classList.toggle('docs-ai-mode', aiMode);
+    // Tittel i headeren = knappen som åpnet siden: «Spør AI» (Hjem/Dokumenter) eller «Dokumenter».
+    var ttl = document.getElementById('docs-title');
+    if (ttl) ttl.textContent = (aiMode && !l.ai.docId) ? t('docs_ai_title') : t('docs_title');
     if (aiMode) { host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
     // Står man i en mappe som ikke finnes lenger (slettet på en annen enhet) → roten.
     if (l.folderId && !_docsById(l.folderId) && _docsLoadedOnce && _docs.length) l.folderId = '';
@@ -31395,12 +31458,12 @@ function _docsRender() {
         var pids = _docsProjectIds();
         if (_docsAiAllowed()) html += _docsAiEntryHtml('');
         html += pids.length ? _docsCard(pids.map(_docsProjRowHtml).join(''))
-            : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(admin ? 'docs_no_projects_admin' : 'docs_no_projects')) + '</div>';
+            : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(!_docsFetched ? 'docs_list_loading' : admin ? 'docs_no_projects_admin' : 'docs_no_projects')) + '</div>';
     } else {
         if (_docsAiAllowed() && !l.folderId && !l.projectId) html += _docsAiEntryHtml('');
         var items = _docsSortItems(_docsChildren(l.projectId, l.folderId));
         html += items.length ? _docsCard(items.map(function (d) { return _docsRowHtml(d, false); }).join(''))
-            : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(admin ? 'docs_empty_admin' : 'docs_empty')) + '</div>';
+            : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(!_docsFetched ? 'docs_list_loading' : admin ? 'docs_empty_admin' : 'docs_empty')) + '</div>';
     }
     host.innerHTML = html;
     // Lagret for bruk uten nett: antall + plass + «Fjern alle»
@@ -32051,9 +32114,13 @@ function _docsApplyHash(hash) {
     }
     var parts = hash.split('/'), kind = parts[1] || '', id = parts[2] || '', page = parseInt(parts[3], 10) || 0;
     if (kind && kind !== 'prosjekter' && kind !== 'p' && kind !== 'm' && kind !== 'd' && kind !== 'ai') { id = parts[1]; kind = 'd'; }   // gammel adresse dokumenter/<id>
+    // Mappen/fila i adressen er ikke hentet ennå (oppdatering før innloggingen var klar):
+    // husk adressen og åpne den når lista kommer (_docsLoad), i stedet for å havne på roten.
+    var missing = function (x) { if (!x && !_docsFetched) _docsPendingHash = hash; return !x; };
     var apply = function () {
         if (kind === 'd') {
             var d = _docsById(id);
+            missing(d);
             if (d) _docsLoc = { tab: d.projectId ? 'proj' : 'lib', projectId: d.projectId || '', folderId: d.parentId || '' };
             _docsRender();
             if (d) _docsOpenViewer(id, page);
@@ -32064,6 +32131,7 @@ function _docsApplyHash(hash) {
         if (kind === 'm') {
             var f = _docsById(id);
             _docsLoc = f ? { tab: f.projectId ? 'proj' : 'lib', projectId: f.projectId || '', folderId: id } : { tab: 'lib', projectId: '', folderId: '' };
+            missing(f);
         } else if (kind === 'p') _docsLoc = { tab: 'proj', projectId: id, folderId: '' };
         else _docsLoc = { tab: kind === 'prosjekter' ? 'proj' : 'lib', projectId: '', folderId: '' };
         _docsRender();
@@ -32271,7 +32339,17 @@ var DOCS_AI_SESSION = 'firesafe_docs_ai';
 var _DOCS_ICON_AI = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
 var _docsAiHist = (function () { try { var a = JSON.parse(sessionStorage.getItem(DOCS_AI_SESSION) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } })();
 var _docsAiDraft = '';
-function _docsAiAllowed() { return !!_acc.fbAdmin; }
+// Spør AI: ALLE brukere (bruker 18-11-2026). Hva AI-en får se, styres på serveren (askDocs):
+// nøyaktig det brukeren ser i appen — admin-data bare for admin. Montører: 50 spørsmål pr. dag.
+function _docsAiAllowed() { return true; }
+// Fra Hjem (og andre steder utenfor Dokumenter): åpne «Spør AI».
+function openAiAssistant() {
+    if (isOnFormPage() && hasUnsavedChanges()) { _showUnsavedGuard(openAiAssistant); return; }
+    _docsAiDraft = _docsAiDraft || '';
+    if (window.location.hash.slice(1) === 'dokumenter/ai') _docsApplyHash('dokumenter/ai');
+    else window.location.hash = 'dokumenter/ai';
+}
+window.openAiAssistant = openAiAssistant;
 function _docsAiSave() {
     try { sessionStorage.setItem(DOCS_AI_SESSION, JSON.stringify(_docsAiHist.filter(function (h) { return h.status !== 'loading'; }).slice(0, 20))); } catch (e) {}
 }
@@ -32302,7 +32380,9 @@ function _docsAiRender(r) {
     var inline = function (x) {
         return x.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\u0001(\d+)\u0002/g, function (m, n) {
             var s = r.sources[+n];
-            return s ? '<button type="button" class="docs-ai-cite" onclick="openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')">' + (+n + 1) + '</button>' : '';
+            if (!s) return '';
+            var act = s.docId ? 'openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')' : (s.open ? '_docsAiOpenSrc(\'' + escapeHtml(s.open) + '\')' : '');
+            return act ? '<button type="button" class="docs-ai-cite" onclick="' + act + '">' + (+n + 1) + '</button>' : '<span class="docs-ai-cite docs-ai-cite--static">' + (+n + 1) + '</span>';
         });
     };
     var lines = escapeHtml(full).split('\n'), out = [], para = [], i = 0;
@@ -32342,10 +32422,12 @@ function _docsAiRender(r) {
     flush();
     return out.join('');
 }
-function _docsAiCost(u) {
+// $ pr. million tokens: [inn, ut, cache-lesing, cache-skriving]. Modellen står i svaret (res.model).
+var _DOCS_AI_PRICE = { 'claude-sonnet-5-5': [2, 10, 0.1, 2.5], 'claude-sonnet-5': [2, 10, 0.2, 2.5], 'claude-opus-5-5': [4, 20, 0.2, 5], 'claude-haiku-5-5': [0.1, 0.5, 0.01, 0.125] };
+function _docsAiCost(u, model) {
     if (!u) return '';
-    // Claude Opus 5.5: $4 / 1M inn, $20 / 1M ut, cache-lesing $0,20, cache-skriving $5 (ca.)
-    var usd = (u.input * 4 + u.output * 20 + u.cacheRead * 0.2 + u.cacheWrite * 5) / 1e6;
+    var p = _DOCS_AI_PRICE[model] || _DOCS_AI_PRICE['claude-sonnet-5-5'];
+    var usd = (u.input * p[0] + u.output * p[1] + u.cacheRead * p[2] + u.cacheWrite * p[3]) / 1e6;
     return '$' + (usd < 0.01 ? usd.toFixed(3) : usd.toFixed(2)).replace('.', ',');
 }
 function _docsAiAnswerHtml(h, idx) {
@@ -32358,14 +32440,22 @@ function _docsAiAnswerHtml(h, idx) {
         var r = h.res || { parts: [], sources: [] };
         var txt = _docsAiRender(r);
         var src = r.sources.length ? '<div class="docs-ai-src-title">' + escapeHtml(t('docs_ai_sources')) + '</div>' + r.sources.map(function (s, i) {
-            return '<button type="button" class="docs-ai-src" onclick="openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')">' +
-                '<span class="docs-ai-src-n">' + (i + 1) + '</span><span class="docs-ai-src-text"><span class="docs-ai-src-name">' + escapeHtml(s.name + ' · ' + t('docs_page').replace('{0}', s.page)) + '</span>' +
+            // Dokument → åpnes på siden; post med adresse (timebok-dag, sjekkliste, veiledning) → åpnes; ellers bare vist.
+            var act = s.docId ? 'openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')' : (s.open ? '_docsAiOpenSrc(\'' + escapeHtml(s.open) + '\')' : '');
+            var name = s.docId ? (s.name || s.title || '') + ' · ' + t('docs_page').replace('{0}', s.page) : (s.title || s.name || '');
+            var tag = act ? 'button type="button"' : 'div';
+            return '<' + tag + ' class="docs-ai-src' + (act ? '' : ' docs-ai-src--static') + '"' + (act ? ' onclick="' + act + '"' : '') + '>' +
+                '<span class="docs-ai-src-n">' + (i + 1) + '</span><span class="docs-ai-src-text"><span class="docs-ai-src-name">' + escapeHtml(name) + '</span>' +
                 (s.path ? '<span class="docs-ai-src-path">' + escapeHtml(s.path) + '</span>' : '') +
                 s.quotes.map(function (q) { return '<span class="docs-ai-quote">«' + escapeHtml(q.length > 260 ? q.slice(0, 260) + ' …' : q) + '»</span>'; }).join('') +
-                '</span></button>';
+                '</span></' + (act ? 'button' : 'div') + '>';
         }).join('') : '<div class="docs-ai-nosrc">' + escapeHtml(t('docs_ai_no_sources')) + '</div>';
+        // Admin: omtrentlig kostnad. Montør: hvor mange spørsmål som er igjen i dag.
+        var meta = (h.res && h.res.admin === false && typeof h.res.igjen === 'number')
+            ? t('docs_ai_left').replace('{0}', h.res.igjen)
+            : t('docs_ai_cost').replace('{0}', _docsAiCost(h.res && h.res.usage, h.res && h.res.model));
         body = '<div class="docs-ai-a">' + txt + '</div>' + src +
-            '<div class="docs-ai-meta">' + escapeHtml(t('docs_ai_cost').replace('{0}', _docsAiCost(h.res && h.res.usage))) + '</div>';
+            '<div class="docs-ai-meta">' + escapeHtml(meta) + '</div>';
     }
     return '<div class="set-card docs-ai-answer">' + head + body +
         (h.status !== 'loading' ? '<button type="button" class="docs-ai-remove" aria-label="' + escapeHtml(t('docs_ai_remove')) + '" onclick="docsAiRemove(' + idx + ')">&times;</button>' : '') + '</div>';
@@ -32388,6 +32478,13 @@ function _docsAiAfterRender() {
     var busy = _docsAiHist.some(function (h) { return h.status === 'loading'; });
     var b = document.getElementById('docs-ai-send'); if (b) b.disabled = busy;
 }
+// Kilde med adresse i appen (#timebok/<dato>, #sjekkliste/r/<id>, #settings/… fra veiledningen).
+function _docsAiOpenSrc(hash) {
+    hash = String(hash || '').replace(/^#/, '');
+    if (!/^[a-z0-9\/_.-]+$/i.test(hash)) return;
+    window.location.hash = hash;
+}
+window._docsAiOpenSrc = _docsAiOpenSrc;
 function docsAiRemove(i) { _docsAiHist.splice(i, 1); _docsAiSave(); _docsRender(); }
 window.docsAiRemove = docsAiRemove;
 var _docsFnP = null;

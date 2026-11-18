@@ -139,6 +139,13 @@ async function getMyData(lastDoc) {
 
 **Det er ikke akseptabelt å implementere ny brukerdata uten Firebase-sync.** Hvis du er i tvil om data tilhører "brukerdata" (synces) eller "midlertidig state" (kun lokal): synces det.
 
+## **KRITISK: Ingenting skal mangle etter oppdatering (refresh)**
+
+Bruker 18-11-2026: «ting skal ikke mangle etter refresh … dette gjelder alt på nettsiden». Ved oppdatering tegnes siden med en gang fra lokal cache, FØR Firebase-innloggingen er klar (`currentUser` er null de første ~1–2 s). Derfor:
+- **`!currentUser` betyr «ikke klar ennå», ALDRI «lokal test»/«tom».** Lokal test = `currentUser.uid === 'dev-local'`. Vis cachen (eller «Henter …»), aldri «tom»/«finnes ikke» før data faktisk er hentet.
+- **`refreshActiveView()` (script-ui.js) laster den ÅPNE siden på nytt** når innloggingen er klar — kalles fra `_accEnforce` (første gang tilgang/firma er kjent) og etter full synk i `auth.onAuthStateChanged`. **Ny side/view med Firestore-data → legg til en gren der** (gate på view-ID).
+- Adresser som peker på én ting (mappe, fil, sjekkliste) åpnet før data er hentet: husk adressen og åpne den når data kommer (mønster: `_docsPendingHash`, `_sjPendingOpenId`) — ikke fall tilbake til roten.
+
 ## VIKTIG: Montørforslag og «Til godkjenning» skal alltid stemme
 
 Felles registre (prosjekter, materialer, isolasjon, festemidler, personer) eies av admin. Når en **montør** legger til noe nytt, blir det montørens eget (brukes med en gang) **og** sendes som forslag til admin (`firms/{firma}/projectSuggestions`, felt `kind`). Admin godkjenner/retter/slår sammen/avviser i **Admin › Til godkjenning**, og fanen **«Hva sendes hit»** viser reglene for admin.
@@ -344,9 +351,11 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 ## Dokumenter + AI-svar (serverfunksjon)
 
 - **Dokumenter** (toolbar): arkiv med mapper/undermapper, Bibliotek + Prosjekter, bare admin endrer. Fulltekstsøk: tekst pr. side i `firms/{f}/documents/{id}/text/p*`. Kode: blokkene «DOKUMENTER» i script-ui.js.
-- **AI-svar** («Spør dokumentene» / «Spør dette dokumentet») går via serverfunksjonen `askDocs` i mappa **`C:\Users\Igor\Desktop\Firesafe-functions`** (IKKE i denne repoen — publiseres med `firebase deploy --only functions` fra den mappa, se README.txt der).
-- **Regel (bruker, 18-11-2026): AI-en skal KUN svare ut fra dokumentene i appen** — aldri internett (ingen web_search/web_fetch), aldri egen kunnskap, alltid kilde (dokument + side). Teksten hentes på serveren fra Firestore, ikke fra appen.
-- Bare hovedadmin har AI-tilgang nå (brukerens private API-kreditt). API-nøkkelen ligger i Google Secret Manager (`ANTHROPIC_API_KEY`), aldri i appen.
+- **«Spør AI»** (Hjem-raden + Dokumenter; «Spør dette dokumentet» i fil-menyen) går via serverfunksjonen `askDocs` i mappa **`C:\Users\Igor\Desktop\Firesafe-functions`** (IKKE i denne repoen — publiseres med `FUNCTIONS_DISCOVERY_TIMEOUT=120 firebase deploy --only functions` fra den mappa, se README.txt der). Modell: Sonnet 5.5, effort low.
+- **Regel (bruker, 18-11-2026): AI-en svarer KUN ut fra appen** — aldri internett (ingen web_search/web_fetch), aldri egen kunnskap, alltid kilde. Alt hentes på serveren fra Firestore, ikke fra appen.
+- **AI-en søker i HELE appen, men ser NØYAKTIG det brukeren ser i appen (aldri mer):** veiledningen (`functions/app-guide.md`), Dokumenter, egne skjemaer/timebok/innstillinger (`users/{egen uid}`), firmaets prosjekter/materialer/valglister/sjekklister — og BARE for admin: Admin-sidenes data (brukere/tilgang, satser, forslag). «Veldig viktig at montører ikke får opp admin info.» Andres private data leses aldri. Deler som er skrudd av (userAccess.modules) tas ikke med. Hvitelisten står i `korpus()`/`lastFirma()`/`MINE` i index.js.
+- **Alle brukere** har AI; montører maks 50 spørsmål/dag (`aiUsage/{uid}_{dato}`), admin uten grense. Brukerens private API-kreditt; nøkkelen i Google Secret Manager (`ANTHROPIC_API_KEY`), aldri i appen.
+- **Ny funksjon / ny side / endret oppførsel i appen → oppdater `app-guide.md`** (seksjon `## Tittel {#slug}`, `[admin]` på admin-seksjoner, valgfri `Åpne: #hash`) og publiser funksjonen. **Ny samling med brukerdata eller firmadata → legg den inn i `MINE` / `lastFirma()`** med riktig rolle (admin-data → `out.admin`).
 
 ## GitHub Pages
 Nettsiden hostes på: https://kiicki.github.io/Firesafe-ordreseddel/
