@@ -32493,7 +32493,12 @@ function _docsAiCost(u, model) {
 function _docsAiAnswerHtml(h) {
     var head = '<div class="docs-ai-q">' + escapeHtml(h.q) + '</div>';
     var body;
-    if (h.status === 'loading') body = '<div class="docs-ai-wait"><span class="docs-ai-spin"></span>' + escapeHtml(t(h.docName ? 'docs_ai_reading' : 'docs_ai_searching')) + '</div>';
+    if (h.status === 'loading') {
+        // Strømming: teksten vises mens den skrives; før det, hva AI-en søker etter.
+        if (h.draft) body = '<div class="docs-ai-a">' + _docsAiRender({ parts: [{ text: h.draft, cites: [] }], sources: [] }) + '</div>' +
+            '<div class="docs-ai-wait docs-ai-wait--writing"><span class="docs-ai-spin"></span>' + escapeHtml(t('docs_ai_writing')) + '</div>';
+        else body = '<div class="docs-ai-wait"><span class="docs-ai-spin"></span>' + escapeHtml(h.statusQ ? t('docs_ai_searching_q').replace('{0}', h.statusQ) : t(h.docName ? 'docs_ai_reading' : 'docs_ai_searching')) + '</div>';
+    }
     else if (h.status === 'error') body = '<div class="docs-ai-err">' + escapeHtml(h.err || t('docs_ai_error')) + '</div>';
     else {
         var r = h.res || { parts: [], sources: [] };
@@ -32516,7 +32521,7 @@ function _docsAiAnswerHtml(h) {
         body = '<div class="docs-ai-a">' + txt + '</div>' + src +
             '<div class="docs-ai-meta">' + escapeHtml(meta) + '</div>';
     }
-    return '<div class="set-card docs-ai-answer">' + head + body + '</div>';
+    return '<div class="set-card docs-ai-answer"' + (h._cid ? ' id="ai-turn-' + escapeHtml(h._cid) + '"' : '') + '>' + head + body + '</div>';
 }
 function _docsAiAskBox(follow) {
     return '<div class="set-card docs-ai-ask">' +
@@ -32543,7 +32548,7 @@ function _docsAiHtml() {
         // Samtale: spørsmål/svar i rekkefølge, «Spør videre» under det siste.
         html += '<div class="docs-ai-head"><div class="set-section-title">' + escapeHtml(title) + '</div>' +
             '<button type="button" class="add-btn docs-ai-new" onclick="docsAiNewChat()">' + escapeHtml(t('docs_ai_new_chat')) + '</button></div>' +
-            '<div class="docs-ai-list">' + (chat.turns || []).map(function (tn) { return _docsAiAnswerHtml(Object.assign({ docName: chat.docName }, tn)); }).join('') + '</div>' +
+            '<div class="docs-ai-list">' + (chat.turns || []).map(function (tn, i) { return _docsAiAnswerHtml(Object.assign({ docName: chat.docName, _cid: chat.id + '-' + i }, tn)); }).join('') + '</div>' +
             '<div class="docs-ai-follow">' + _docsAiAskBox(true) + '</div>' +
             '<div class="set-foot">' + escapeHtml(t('docs_ai_rule')) + '</div>';
     } else {
@@ -32594,6 +32599,50 @@ function _aiAnswerText(tn) {
     if (!tn || tn.status !== 'done' || !tn.res) return '';
     return (tn.res.parts || []).map(function (p) { return p.text || ''; }).join('').trim().slice(0, 4000);
 }
+// Strømmet svar (serverfunksjonen askAppStream): NDJSON, én hendelse pr. linje.
+var AI_STREAM_URL = 'https://europe-north1-firesafe-ordreseddler.cloudfunctions.net/askAppStream';
+async function _aiAskStream(payload, onEv) {
+    var tok = await currentUser.getIdToken();
+    var r;
+    try {
+        r = await fetch(AI_STREAM_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(payload) });
+    } catch (e) { e.fallback = true; throw e; }   // ikke fram (nett/CORS) → vanlig kall
+    if (!r.ok || !r.body) {
+        var j = null; try { j = await r.json(); } catch (e2) {}
+        var err = new Error((j && j.message) || t('docs_ai_error'));
+        err.fallback = r.status === 404 || r.status >= 500 || !r.body;   // strømmingen finnes ikke / feilet før start
+        throw err;
+    }
+    var reader = r.body.getReader(), dec = new TextDecoder(), buf = '', result = null;
+    for (;;) {
+        var x = await reader.read();
+        if (x.value) buf += dec.decode(x.value, { stream: true });
+        var lines = buf.split('\n');
+        buf = x.done ? '' : lines.pop();
+        for (var i = 0; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            var ev; try { ev = JSON.parse(lines[i]); } catch (e3) { continue; }
+            if (ev.t === 'done') result = ev.res;
+            else if (ev.t === 'error') throw new Error(ev.message || t('docs_ai_error'));
+            else onEv(ev);
+        }
+        if (x.done) break;
+    }
+    if (!result) throw new Error(t('docs_ai_error'));
+    return result;
+}
+// Tegn bare kortet til svaret som er på vei (ikke hele siden — ingen hopp, tastatur i ro).
+var _aiPaintPending = false;
+function _aiPaintTurn(chat, turn) {
+    if (_aiPaintPending) return;
+    _aiPaintPending = true;
+    requestAnimationFrame(function () {
+        _aiPaintPending = false;
+        var i = chat.turns.indexOf(turn);
+        var el = document.getElementById('ai-turn-' + chat.id + '-' + i);
+        if (el) el.outerHTML = _docsAiAnswerHtml(Object.assign({ docName: chat.docName, _cid: chat.id + '-' + i }, turn));
+    });
+}
 async function docsAiAsk() {
     var ta = document.getElementById('docs-ai-q');
     var q = String((ta && ta.value) || '').trim();
@@ -32627,9 +32676,20 @@ async function docsAiAsk() {
         else {
             if (_docsIsDev()) throw new Error(t('docs_ai_dev'));
             if (navigator.onLine === false) throw new Error(t('docs_ai_offline'));
-            await _docsFunctions();
-            var fn = firebase.app().functions('europe-north1').httpsCallable('askDocs', { timeout: 300000 });
-            res = (await fn(payload)).data;
+            try {
+                res = await _aiAskStream(payload, function (ev) {
+                    if (ev.t === 'delta') turn.draft = (turn.draft || '') + (ev.text || '');
+                    else if (ev.t === 'round') turn.draft = '';   // tekst før et nytt søk var ikke svaret
+                    else if (ev.t === 'status') turn.statusQ = ev.q || '';
+                    _aiPaintTurn(chat, turn);
+                });
+            } catch (se) {
+                if (!se.fallback) throw se;
+                console.warn('AI-strømming utilgjengelig, bruker vanlig kall:', se);
+                await _docsFunctions();
+                var fn = firebase.app().functions('europe-north1').httpsCallable('askDocs', { timeout: 300000 });
+                res = (await fn(payload)).data;
+            }
         }
         turn.res = res; turn.status = 'done';
     } catch (e) {
@@ -32637,6 +32697,7 @@ async function docsAiAsk() {
         turn.status = 'error';
         turn.err = (e && e.code && /functions\/(not-found|internal|unavailable)/.test(e.code) && !/AI-tjenesten/.test(e.message || '')) ? t('docs_ai_not_ready') : ((e && e.message) || t('docs_ai_error'));
     }
+    delete turn.draft; delete turn.statusQ;
     chat.updatedAt = new Date().toISOString();
     _aiChatSave(chat);
     if (_docsLoc.ai && document.body.classList.contains('docs-modal-open')) _docsRender();

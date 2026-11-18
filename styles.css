@@ -14432,6 +14432,7 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .docs-ai-nosrc { margin-top: 12px; font-size: 13px; color: #c0392b; }
 .docs-ai-meta { margin-top: 10px; font-size: 12px; color: var(--text-2); }
 .docs-ai-wait { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: var(--text-2); }
+.docs-ai-wait--writing { margin-top: 8px; font-size: 12.5px; }
 .docs-ai-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #f3c9b6; border-top-color: #E8501A; animation: docsAiSpin .8s linear infinite; }
 @keyframes docsAiSpin { to { transform: rotate(360deg); } }
 .docs-ai-err { margin-top: 10px; font-size: 14px; color: #c0392b; }
