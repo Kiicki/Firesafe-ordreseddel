@@ -14370,3 +14370,51 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .doc-hit mark { background: #ffe1d1; color: var(--text); border-radius: 3px; padding: 0 1px; }
 .doc-hit-page { font-weight: 600; color: #E8501A; margin-right: 6px; }
 .doc-hit-more { font-size: 12.5px; color: var(--text-2); padding-left: 2px; }
+
+/* ════ DOKUMENTER: AI-svar (18-11-2026) ════ */
+#docs-modal.docs-ai-mode .docs-search, #docs-modal.docs-ai-mode #docs-tabs, #docs-modal.docs-ai-mode #docs-crumbs,
+#docs-modal.docs-ai-mode #docs-actions, #docs-modal.docs-ai-mode #docs-progress { display: none !important; }
+#docs-modal.docs-ai-mode #docs-list { margin-top: 0; }
+.docs-ai-entry .set-title { color: var(--text); }
+#docs-list > .docs-group:first-child .docs-ai-entry { }
+.docs-ai-ask { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.docs-ai-ask textarea {
+    width: 100%; box-sizing: border-box; min-height: 76px; resize: vertical; padding: 10px 12px;
+    font: inherit; font-size: 16px; line-height: 1.4; color: var(--text);
+    background: var(--inset-bg); border: 1px solid transparent; border-radius: 10px; outline: none;
+}
+.docs-ai-ask textarea:focus { border-color: #E8501A; background: #fff; }
+.docs-ai-send {
+    align-self: flex-end; height: var(--control-h, 36px); padding: 0 22px; border: none; border-radius: 10px;
+    background: #E8501A; color: #fff; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer;
+}
+.docs-ai-send:disabled { opacity: .5; cursor: default; }
+.docs-ai-list { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.docs-ai-answer { position: relative; padding: 14px 14px 12px; }
+.docs-ai-q { font-size: var(--label-size, 14px); font-weight: 600; color: var(--text); padding-right: 28px; overflow-wrap: anywhere; }
+.docs-ai-scope { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+.docs-ai-a { margin-top: 10px; font-size: 15px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.docs-ai-cite {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; margin: 0 1px 0 3px;
+    border: none; border-radius: 9px; background: #fff1ea; color: #E8501A; font: inherit; font-size: 11.5px; font-weight: 600;
+    vertical-align: 2px; cursor: pointer;
+}
+.docs-ai-src-title { margin-top: 14px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
+.docs-ai-src {
+    display: flex; gap: 10px; width: 100%; text-align: left; margin-top: 6px; padding: 8px 10px;
+    background: var(--inset-bg); border: none; border-radius: 10px; font: inherit; cursor: pointer;
+}
+.docs-ai-src:active, .docs-ai-src:hover { background: var(--press-bg); }
+.docs-ai-src-n { flex-shrink: 0; width: 20px; height: 20px; border-radius: 10px; background: #fff1ea; color: #E8501A; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.docs-ai-src-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.docs-ai-src-name { font-size: 14px; font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
+.docs-ai-src-path { font-size: 12.5px; color: var(--text-2); }
+.docs-ai-quote { font-size: 13px; line-height: 1.4; color: var(--text-2); overflow-wrap: anywhere; }
+.docs-ai-nosrc { margin-top: 12px; font-size: 13px; color: #c0392b; }
+.docs-ai-meta { margin-top: 10px; font-size: 12px; color: var(--text-2); }
+.docs-ai-wait { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: var(--text-2); }
+.docs-ai-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #f3c9b6; border-top-color: #E8501A; animation: docsAiSpin .8s linear infinite; }
+@keyframes docsAiSpin { to { transform: rotate(360deg); } }
+.docs-ai-err { margin-top: 10px; font-size: 14px; color: #c0392b; }
+.docs-ai-remove { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: none; background: none; color: #9a9aa2; font-size: 20px; line-height: 1; border-radius: 8px; cursor: pointer; }
+.docs-ai-remove:hover { background: var(--press-bg); }

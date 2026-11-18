@@ -341,6 +341,13 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 
 **Regel: Ny kode plasseres i filen som matcher kategorien. Ved tvil, bruk `script-ui.js`.**
 
+## Dokumenter + AI-svar (serverfunksjon)
+
+- **Dokumenter** (toolbar): arkiv med mapper/undermapper, Bibliotek + Prosjekter, bare admin endrer. Fulltekstsøk: tekst pr. side i `firms/{f}/documents/{id}/text/p*`. Kode: blokkene «DOKUMENTER» i script-ui.js.
+- **AI-svar** («Spør dokumentene» / «Spør dette dokumentet») går via serverfunksjonen `askDocs` i mappa **`C:\Users\Igor\Desktop\Firesafe-functions`** (IKKE i denne repoen — publiseres med `firebase deploy --only functions` fra den mappa, se README.txt der).
+- **Regel (bruker, 18-11-2026): AI-en skal KUN svare ut fra dokumentene i appen** — aldri internett (ingen web_search/web_fetch), aldri egen kunnskap, alltid kilde (dokument + side). Teksten hentes på serveren fra Firestore, ikke fra appen.
+- Bare hovedadmin har AI-tilgang nå (brukerens private API-kreditt). API-nøkkelen ligger i Google Secret Manager (`ANTHROPIC_API_KEY`), aldri i appen.
+
 ## GitHub Pages
 Nettsiden hostes på: https://kiicki.github.io/Firesafe-ordreseddel/
 

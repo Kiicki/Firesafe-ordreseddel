@@ -31264,6 +31264,7 @@ function _docsShowShell() {
 }
 window.showDocs = showDocs;
 function _docsHashOf(loc) {
+    if (loc.ai) return 'dokumenter/ai' + (loc.ai.docId ? '/' + loc.ai.docId : '');
     if (loc.folderId) return 'dokumenter/m/' + loc.folderId;
     if (loc.projectId) return 'dokumenter/p/' + loc.projectId;
     return loc.tab === 'proj' ? 'dokumenter/prosjekter' : 'dokumenter';
@@ -31287,6 +31288,7 @@ function docsBack() {
     var l = _docsLoc;
     if (l.folderId) { var f = _docsById(l.folderId); _docsGo({ tab: l.tab, projectId: l.projectId, folderId: f ? (f.parentId || '') : '' }); }
     else if (l.projectId) _docsGo({ tab: 'proj', projectId: '', folderId: '' });
+    else if (l.ai) _docsGo({ tab: l.tab, projectId: '', folderId: '' });
     else showTemplateModal();
 }
 window.docsSetTab = docsSetTab; window.docsOpenFolder = docsOpenFolder; window.docsOpenProject = docsOpenProject;
@@ -31353,6 +31355,10 @@ function _docsRender() {
     var host = document.getElementById('docs-list');
     if (!host) return;
     var l = _docsLoc, admin = !!_acc.admin;
+    // «Spør dokumentene» (AI) er en egen visning i samme side: søk/faner/sti skjules.
+    var aiMode = !!l.ai;
+    document.getElementById('docs-modal').classList.toggle('docs-ai-mode', aiMode);
+    if (aiMode) { host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
     // Står man i en mappe som ikke finnes lenger (slettet på en annen enhet) → roten.
     if (l.folderId && !_docsById(l.folderId) && _docsLoadedOnce && _docs.length) l.folderId = '';
     var libFiles = _docs.filter(function (d) { return !_docsIsFolder(d) && !d.projectId; }).length;
@@ -31384,14 +31390,16 @@ function _docsRender() {
     if (acts) acts.style.display = (admin && !searching && !(l.tab === 'proj' && !l.projectId)) ? '' : 'none';
     var html = '';
     if (searching) {
-        html = _docsSearchHtml(l.tab);
+        html = (_docsAiAllowed() ? _docsAiEntryHtml(_docsQuery) : '') + _docsSearchHtml(l.tab);
     } else if (l.tab === 'proj' && !l.projectId) {
         var pids = _docsProjectIds();
-        html = pids.length ? _docsCard(pids.map(_docsProjRowHtml).join(''))
+        if (_docsAiAllowed()) html += _docsAiEntryHtml('');
+        html += pids.length ? _docsCard(pids.map(_docsProjRowHtml).join(''))
             : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(admin ? 'docs_no_projects_admin' : 'docs_no_projects')) + '</div>';
     } else {
+        if (_docsAiAllowed() && !l.folderId && !l.projectId) html += _docsAiEntryHtml('');
         var items = _docsSortItems(_docsChildren(l.projectId, l.folderId));
-        html = items.length ? _docsCard(items.map(function (d) { return _docsRowHtml(d, false); }).join(''))
+        html += items.length ? _docsCard(items.map(function (d) { return _docsRowHtml(d, false); }).join(''))
             : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(admin ? 'docs_empty_admin' : 'docs_empty')) + '</div>';
     }
     host.innerHTML = html;
@@ -31664,6 +31672,7 @@ function docsItemMenu(id) {
             opts.push({ icon: deleteIcon, label: t('delete_btn'), danger: true, onClick: function () { _docsDelete(d); } });
         }
     } else {
+        if (_docsAiAllowed() && d.textChars) opts.push({ icon: _DOCS_ICON_AI, label: t('docs_ai_ask_doc'), onClick: function () { docsAiOpen(d.id); } });
         if (!inViewer) opts.push({ icon: _DOCS_ICON_SHARE, label: t('docs_share'), onClick: function () { _docsShare(d); } });
         opts.push({ icon: _menuExportIcon, label: t('docs_download'), onClick: function () { _docsGetBlob(d).then(function (b) { if (b) _docsDownload(d, b); else showNotificationModal(t('docs_load_error')); }).catch(function () { showNotificationModal(t('docs_load_error')); }); } });
         var off = _docsIsOffline(d.id);
@@ -32041,7 +32050,7 @@ function _docsApplyHash(hash) {
         _docsShowShell();
     }
     var parts = hash.split('/'), kind = parts[1] || '', id = parts[2] || '', page = parseInt(parts[3], 10) || 0;
-    if (kind && kind !== 'prosjekter' && kind !== 'p' && kind !== 'm' && kind !== 'd') { id = parts[1]; kind = 'd'; }   // gammel adresse dokumenter/<id>
+    if (kind && kind !== 'prosjekter' && kind !== 'p' && kind !== 'm' && kind !== 'd' && kind !== 'ai') { id = parts[1]; kind = 'd'; }   // gammel adresse dokumenter/<id>
     var apply = function () {
         if (kind === 'd') {
             var d = _docsById(id);
@@ -32051,6 +32060,7 @@ function _docsApplyHash(hash) {
             return;
         }
         if (document.body.classList.contains('doc-viewer-open')) _docsCloseViewer();
+        if (kind === 'ai') { _docsLoc = { tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: id } }; _docsRender(); return; }
         if (kind === 'm') {
             var f = _docsById(id);
             _docsLoc = f ? { tab: f.projectId ? 'proj' : 'lib', projectId: f.projectId || '', folderId: id } : { tab: 'lib', projectId: '', folderId: '' };
@@ -32248,3 +32258,135 @@ function _docsSearchHtml(tab) {
     if (!html) html = '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t('docs_no_hits')) + '</div>';
     return html;
 }
+
+
+// ════ DOKUMENTER: AI-SVAR (18-11-2026) ════
+// «Spør dokumentene» (hele arkivet) og «Spør dette dokumentet». Svarene lages av
+// serverfunksjonen askDocs (mappa Firesafe-functions på skrivebordet), som bare bruker
+// firmaets dokumenttekst — aldri internett eller egen kunnskap — og alltid gir kilder
+// (dokument + side + sitat). Trykk på en kilde = åpner fila på siden.
+// Tilgang: bare hovedadmin foreløpig (brukerens private API-kreditt); serveren sjekker det
+// også. Svarene er midlertidige (denne økten, sessionStorage) — ikke brukerdata som synkes.
+var DOCS_AI_SESSION = 'firesafe_docs_ai';
+var _DOCS_ICON_AI = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
+var _docsAiHist = (function () { try { var a = JSON.parse(sessionStorage.getItem(DOCS_AI_SESSION) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } })();
+var _docsAiDraft = '';
+function _docsAiAllowed() { return !!_acc.fbAdmin; }
+function _docsAiSave() {
+    try { sessionStorage.setItem(DOCS_AI_SESSION, JSON.stringify(_docsAiHist.filter(function (h) { return h.status !== 'loading'; }).slice(0, 20))); } catch (e) {}
+}
+function _docsAiEntryHtml(q) {
+    var label = q ? t('docs_ai_ask_q').replace('{0}', q) : t('docs_ai_title');
+    return _docsCard('<div class="set-row doc-row docs-ai-entry" onclick="docsAiOpen(\'\', ' + (q ? 'true' : 'false') + ')">' +
+        '<span class="set-ico set-ico--purple">' + _DOCS_ICON_AI + '</span>' +
+        '<span class="set-text"><span class="set-title doc-row-name">' + escapeHtml(label) + '</span><span class="set-desc">' + escapeHtml(t('docs_ai_entry_desc')) + '</span></span>' +
+        '<span class="set-chev">&rsaquo;</span></div>');
+}
+function docsAiOpen(docId, fromSearch) {
+    if (!_docsAiAllowed()) return;
+    if (fromSearch && _docsQuery) _docsAiDraft = (document.getElementById('docs-search') || {}).value || _docsQuery;
+    if (document.body.classList.contains('doc-viewer-open')) _docsCloseViewer();
+    _docsGo({ tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: docId || '' } });
+}
+window.docsAiOpen = docsAiOpen;
+// Litt markdown fra svaret: **fet**, linjeskift, punktlister.
+function _docsAiMd(text) {
+    return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+}
+function _docsAiCost(u) {
+    if (!u) return '';
+    // Claude Opus 5.5: $4 / 1M inn, $20 / 1M ut, cache-lesing $0,20, cache-skriving $5 (ca.)
+    var usd = (u.input * 4 + u.output * 20 + u.cacheRead * 0.2 + u.cacheWrite * 5) / 1e6;
+    return '$' + (usd < 0.01 ? usd.toFixed(3) : usd.toFixed(2)).replace('.', ',');
+}
+function _docsAiAnswerHtml(h, idx) {
+    var head = '<div class="docs-ai-q">' + escapeHtml(h.q) + '</div>' +
+        (h.docName ? '<div class="docs-ai-scope">' + escapeHtml(t('docs_ai_in_doc').replace('{0}', h.docName)) + '</div>' : '');
+    var body;
+    if (h.status === 'loading') body = '<div class="docs-ai-wait"><span class="docs-ai-spin"></span>' + escapeHtml(t(h.docName ? 'docs_ai_reading' : 'docs_ai_searching')) + '</div>';
+    else if (h.status === 'error') body = '<div class="docs-ai-err">' + escapeHtml(h.err || t('docs_ai_error')) + '</div>';
+    else {
+        var r = h.res || { parts: [], sources: [] };
+        var txt = r.parts.map(function (p) {
+            return _docsAiMd(p.text) + p.cites.map(function (c) {
+                var s = r.sources[c];
+                return s ? '<button type="button" class="docs-ai-cite" onclick="openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')">' + (c + 1) + '</button>' : '';
+            }).join('');
+        }).join('');
+        var src = r.sources.length ? '<div class="docs-ai-src-title">' + escapeHtml(t('docs_ai_sources')) + '</div>' + r.sources.map(function (s, i) {
+            return '<button type="button" class="docs-ai-src" onclick="openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')">' +
+                '<span class="docs-ai-src-n">' + (i + 1) + '</span><span class="docs-ai-src-text"><span class="docs-ai-src-name">' + escapeHtml(s.name + ' · ' + t('docs_page').replace('{0}', s.page)) + '</span>' +
+                (s.path ? '<span class="docs-ai-src-path">' + escapeHtml(s.path) + '</span>' : '') +
+                s.quotes.map(function (q) { return '<span class="docs-ai-quote">«' + escapeHtml(q.length > 260 ? q.slice(0, 260) + ' …' : q) + '»</span>'; }).join('') +
+                '</span></button>';
+        }).join('') : '<div class="docs-ai-nosrc">' + escapeHtml(t('docs_ai_no_sources')) + '</div>';
+        body = '<div class="docs-ai-a">' + txt + '</div>' + src +
+            '<div class="docs-ai-meta">' + escapeHtml(t('docs_ai_cost').replace('{0}', _docsAiCost(h.res && h.res.usage))) + '</div>';
+    }
+    return '<div class="set-card docs-ai-answer">' + head + body +
+        (h.status !== 'loading' ? '<button type="button" class="docs-ai-remove" aria-label="' + escapeHtml(t('docs_ai_remove')) + '" onclick="docsAiRemove(' + idx + ')">&times;</button>' : '') + '</div>';
+}
+function _docsAiHtml() {
+    var docId = _docsLoc.ai.docId, d = docId ? _docsById(docId) : null;
+    var title = d ? t('docs_ai_title_doc').replace('{0}', d.name || d.file || '') : t('docs_ai_title');
+    var list = _docsAiHist.filter(function (h) { return (h.docId || '') === (docId || ''); });
+    return '<div class="set-section docs-ai">' +
+        '<div class="set-section-title">' + escapeHtml(title) + '</div>' +
+        '<div class="set-card docs-ai-ask">' +
+        '<textarea id="docs-ai-q" rows="3" placeholder="' + escapeHtml(t('docs_ai_ph')) + '" oninput="_docsAiDraft=this.value" onkeydown="if(event.key===\'Enter\'&&(event.ctrlKey||event.metaKey)){event.preventDefault();docsAiAsk();}">' + escapeHtml(_docsAiDraft) + '</textarea>' +
+        '<button type="button" class="docs-ai-send" id="docs-ai-send" onclick="docsAiAsk()">' + escapeHtml(t('docs_ai_send')) + '</button>' +
+        '</div>' +
+        '<div class="set-foot">' + escapeHtml(t('docs_ai_rule')) + '</div>' +
+        '<div class="docs-ai-list">' + list.map(function (h) { return _docsAiAnswerHtml(h, _docsAiHist.indexOf(h)); }).join('') + '</div>' +
+        '</div>';
+}
+function _docsAiAfterRender() {
+    var busy = _docsAiHist.some(function (h) { return h.status === 'loading'; });
+    var b = document.getElementById('docs-ai-send'); if (b) b.disabled = busy;
+}
+function docsAiRemove(i) { _docsAiHist.splice(i, 1); _docsAiSave(); _docsRender(); }
+window.docsAiRemove = docsAiRemove;
+var _docsFnP = null;
+function _docsFunctions() {
+    if (_docsFnP) return _docsFnP;
+    _docsFnP = new Promise(function (resolve, reject) {
+        if (firebase.functions) { resolve(); return; }
+        var sc = document.createElement('script');
+        sc.src = 'https://www.gstatic.com/firebasejs/10.7.0/firebase-functions-compat.js';
+        sc.onload = function () { resolve(); };
+        sc.onerror = function () { _docsFnP = null; reject(new Error('Kunne ikke laste Firebase Functions')); };
+        document.head.appendChild(sc);
+    });
+    return _docsFnP;
+}
+async function docsAiAsk() {
+    var ta = document.getElementById('docs-ai-q');
+    var q = String((ta && ta.value) || '').trim();
+    if (!q || !_docsAiAllowed()) return;
+    if (_docsAiHist.some(function (x) { return x.status === 'loading'; })) return;
+    var docId = _docsLoc.ai ? _docsLoc.ai.docId : '', d = docId ? _docsById(docId) : null;
+    var h = { q: q, docId: docId || '', docName: d ? (d.name || d.file || '') : '', status: 'loading', at: new Date().toISOString() };
+    _docsAiHist.unshift(h);
+    _docsAiDraft = '';
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    _docsRender();
+    try {
+        var res;
+        if (window._docsAiMock) res = await window._docsAiMock({ firma: _firma(), question: q, docId: docId });   // lokal test
+        else {
+            if (_docsIsDev()) throw new Error(t('docs_ai_dev'));
+            if (navigator.onLine === false) throw new Error(t('docs_ai_offline'));
+            await _docsFunctions();
+            var fn = firebase.app().functions('europe-north1').httpsCallable('askDocs', { timeout: 300000 });
+            res = (await fn({ firma: _firma(), question: q, docId: docId })).data;
+        }
+        h.res = res; h.status = 'done';
+    } catch (e) {
+        console.error('AI-svar:', e);
+        h.status = 'error';
+        h.err = (e && e.code && /functions\/(not-found|internal|unavailable)/.test(e.code) && !/AI-tjenesten/.test(e.message || '')) ? t('docs_ai_not_ready') : ((e && e.message) || t('docs_ai_error'));
+    }
+    _docsAiSave();
+    _docsRender();
+}
+window.docsAiAsk = docsAiAsk;
