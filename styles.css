@@ -14358,3 +14358,15 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .doc-move-sec { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); padding: 12px 12px 4px; }
 .doc-row .set-desc { white-space: normal; overflow-wrap: anywhere; }
 #docs-body { min-height: calc(100vh - var(--toolbar-h, 60px) - 60px); box-sizing: border-box; }   /* hele kolonnen er slippflate */
+/* Fulltekstsøk: treff med side + utdrag (grått innfelt på hvitt kort = flate-veksling) */
+.doc-row--hits { align-items: flex-start; }
+.doc-row--hits .set-ico { margin-top: 2px; }
+.doc-hits { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.doc-hit {
+    display: block; width: 100%; text-align: left; font: inherit; font-size: 13px; line-height: 1.4; color: var(--text-2);
+    background: var(--inset-bg); border: none; border-radius: 8px; padding: 7px 9px; cursor: pointer; overflow-wrap: anywhere;
+}
+.doc-hit:active, .doc-hit:hover { background: var(--press-bg); }
+.doc-hit mark { background: #ffe1d1; color: var(--text); border-radius: 3px; padding: 0 1px; }
+.doc-hit-page { font-weight: 600; color: #E8501A; margin-right: 6px; }
+.doc-hit-more { font-size: 12.5px; color: var(--text-2); padding-left: 2px; }
