@@ -31200,6 +31200,7 @@ function _docsLocalRefresh() {
 // Ved brukerbytte (script.js) — kopiene tilhører forrige bruker.
 function _docsClearLocal() {
     _docsLocal = {}; _docsBlobMem = {}; _docsText = {}; _docs = []; _docsFetched = false;
+    _aiChats = []; _aiChatsFetched = false;   // AI-samtalene tilhører også forrige bruker
     _docsIdb('readwrite', function (st) { return st.clear(); }, 'text').catch(function () {});
     return _docsIdb('readwrite', function (st) { return st.clear(); }).catch(function () {});
 }
@@ -31324,7 +31325,7 @@ function _docsShowShell() {
 }
 window.showDocs = showDocs;
 function _docsHashOf(loc) {
-    if (loc.ai) return 'dokumenter/ai' + (loc.ai.docId ? '/' + loc.ai.docId : '');
+    if (loc.ai) return 'dokumenter/ai' + (loc.ai.chatId ? '/s/' + loc.ai.chatId : loc.ai.docId ? '/' + loc.ai.docId : '');
     if (loc.folderId) return 'dokumenter/m/' + loc.folderId;
     if (loc.projectId) return 'dokumenter/p/' + loc.projectId;
     return loc.tab === 'proj' ? 'dokumenter/prosjekter' : 'dokumenter';
@@ -31348,6 +31349,7 @@ function docsBack() {
     var l = _docsLoc;
     if (l.folderId) { var f = _docsById(l.folderId); _docsGo({ tab: l.tab, projectId: l.projectId, folderId: f ? (f.parentId || '') : '' }); }
     else if (l.projectId) _docsGo({ tab: 'proj', projectId: '', folderId: '' });
+    else if (l.ai && l.ai.chatId) docsAiNewChat();
     else if (l.ai) _docsGo({ tab: l.tab, projectId: '', folderId: '' });
     else showTemplateModal();
 }
@@ -32127,7 +32129,7 @@ function _docsApplyHash(hash) {
             return;
         }
         if (document.body.classList.contains('doc-viewer-open')) _docsCloseViewer();
-        if (kind === 'ai') { _docsLoc = { tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: id } }; _docsRender(); return; }
+        if (kind === 'ai') { _docsLoc = { tab: _docsLoc.tab, projectId: '', folderId: '', ai: id === 's' ? { docId: '', chatId: parts[3] || '' } : { docId: id, chatId: '' } }; _docsRender(); return; }
         if (kind === 'm') {
             var f = _docsById(id);
             _docsLoc = f ? { tab: f.projectId ? 'proj' : 'lib', projectId: f.projectId || '', folderId: id } : { tab: 'lib', projectId: '', folderId: '' };
@@ -32328,31 +32330,75 @@ function _docsSearchHtml(tab) {
 }
 
 
-// ════ DOKUMENTER: AI-SVAR (18-11-2026) ════
-// «Spør dokumentene» (hele arkivet) og «Spør dette dokumentet». Svarene lages av
-// serverfunksjonen askDocs (mappa Firesafe-functions på skrivebordet), som bare bruker
-// firmaets dokumenttekst — aldri internett eller egen kunnskap — og alltid gir kilder
-// (dokument + side + sitat). Trykk på en kilde = åpner fila på siden.
-// Tilgang: bare hovedadmin foreløpig (brukerens private API-kreditt); serveren sjekker det
-// også. Svarene er midlertidige (denne økten, sessionStorage) — ikke brukerdata som synkes.
-var DOCS_AI_SESSION = 'firesafe_docs_ai';
+// ════ SPØR AI (18-11-2026) ════
+// «Spør AI» (Hjem-raden + Dokumenter) og «Spør dette dokumentet». Svarene lages av
+// serverfunksjonen askDocs (mappa Firesafe-functions på skrivebordet), som bare bruker det
+// som finnes i appen — aldri internett eller egen kunnskap — og alltid gir kilder.
+// Tilgang: alle brukere; hva AI-en ser styres på serveren (nøyaktig det brukeren ser i appen,
+// admin-data bare for admin). Montører: 50 spørsmål pr. dag.
+// SAMTALER (bruker 18-11-2026 «gjør det du anbefaler»): spørsmål og svar samles i samtaler, og
+// et oppfølgingsspørsmål sender med de siste spørsmålene/svarene (AI-en forstår «og i vegg da?»).
+// Samtalene er brukerdata: localStorage (cache) + Firestore users/{uid}/aiChats/{id}; hentes ved
+// innlogging og når Spør AI åpnes; slettes begge steder; ryddes ved brukerbytte.
+var AI_CHATS_KEY = 'firesafe_ai_chats';
+var AI_CHATS_MAX = 50;          // samtaler som holdes (nyeste først)
+var AI_TURNS_MAX = 40;          // spørsmål pr. samtale
+var AI_HISTORY_TURNS = 6;       // tidligere spørsmål/svar som sendes med et oppfølgingsspørsmål
 var _DOCS_ICON_AI = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
-var _docsAiHist = (function () { try { var a = JSON.parse(sessionStorage.getItem(DOCS_AI_SESSION) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } })();
+var _AI_ICON_TRASH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>';
 var _docsAiDraft = '';
-// Spør AI: ALLE brukere (bruker 18-11-2026). Hva AI-en får se, styres på serveren (askDocs):
-// nøyaktig det brukeren ser i appen — admin-data bare for admin. Montører: 50 spørsmål pr. dag.
+var _aiChats = (function () {
+    var a = safeParseJSON(AI_CHATS_KEY, []);
+    if (!Array.isArray(a)) return [];
+    // Et svar som var på vei da appen ble lukket/oppdatert, kommer aldri — vis det som avbrutt.
+    a.forEach(function (c) { (c.turns || []).forEach(function (tn) { if (tn.status === 'loading') { tn.status = 'error'; tn.err = t('docs_ai_interrupted'); } }); });
+    return a;
+})();
+var _aiChatsFetched = false;
+function _aiChatById(id) { for (var i = 0; i < _aiChats.length; i++) if (_aiChats[i].id === id) return _aiChats[i]; return null; }
+function _aiChatsSort() { _aiChats.sort(function (a, b) { return _cmpIsoDesc(a.updatedAt, b.updatedAt); }); }
+// Til lagring: uten svar som er på vei (de lagres når de kommer).
+function _aiChatClean(c) {
+    return { id: c.id, title: c.title || '', docId: c.docId || '', docName: c.docName || '', createdAt: c.createdAt, updatedAt: c.updatedAt,
+        turns: (c.turns || []).filter(function (tn) { return tn.status !== 'loading'; }).slice(-AI_TURNS_MAX) };
+}
+function _aiChatsSaveLocal() {
+    _aiChatsSort();
+    if (_aiChats.length > AI_CHATS_MAX) _aiChats = _aiChats.slice(0, AI_CHATS_MAX);
+    safeSetItem(AI_CHATS_KEY, JSON.stringify(_aiChats.map(_aiChatClean)));
+}
+function _aiChatSave(c) {
+    _aiChatsSaveLocal();
+    if (typeof enqueueUserDocSet === 'function' && currentUser && currentUser.uid !== 'dev-local') enqueueUserDocSet('aiChats', c.id, _aiChatClean(c), 'AI-samtale');
+}
+function _aiChatRemove(id) {
+    _aiChats = _aiChats.filter(function (c) { return c.id !== id; });
+    _aiChatsSaveLocal();
+    if (typeof enqueueUserDocDelete === 'function' && currentUser && currentUser.uid !== 'dev-local') enqueueUserDocDelete('aiChats', id, 'Slett AI-samtale');
+}
+// Hent samtalene fra Firebase (innlogging + når Spør AI åpnes). Samtaler med et svar på vei
+// i denne økten beholdes som de er.
+function _aiChatsSync() {
+    if (!currentUser || !db || currentUser.uid === 'dev-local') return Promise.resolve();
+    return db.collection('users').doc(currentUser.uid).collection('aiChats').orderBy('updatedAt', 'desc').limit(AI_CHATS_MAX).get().then(function (snap) {
+        var busy = _aiChats.filter(function (c) { return (c.turns || []).some(function (tn) { return tn.status === 'loading'; }); });
+        var fresh = snap.docs.map(function (d) { return Object.assign({}, d.data(), { id: d.id }); });
+        busy.forEach(function (b) { fresh = fresh.filter(function (c) { return c.id !== b.id; }); fresh.push(b); });
+        _aiChats = fresh;
+        _aiChatsFetched = true;
+        _aiChatsSaveLocal();
+        if (_docsLoc.ai && document.body.classList.contains('docs-modal-open')) _docsRender();
+    }).catch(function (e) { console.error('AI-samtaler:', e); });
+}
+window._aiChatsSync = _aiChatsSync;
 function _docsAiAllowed() { return true; }
 // Fra Hjem (og andre steder utenfor Dokumenter): åpne «Spør AI».
 function openAiAssistant() {
     if (isOnFormPage() && hasUnsavedChanges()) { _showUnsavedGuard(openAiAssistant); return; }
-    _docsAiDraft = _docsAiDraft || '';
     if (window.location.hash.slice(1) === 'dokumenter/ai') _docsApplyHash('dokumenter/ai');
     else window.location.hash = 'dokumenter/ai';
 }
 window.openAiAssistant = openAiAssistant;
-function _docsAiSave() {
-    try { sessionStorage.setItem(DOCS_AI_SESSION, JSON.stringify(_docsAiHist.filter(function (h) { return h.status !== 'loading'; }).slice(0, 20))); } catch (e) {}
-}
 function _docsAiEntryHtml(q) {
     var label = q ? t('docs_ai_ask_q').replace('{0}', q) : t('docs_ai_title');
     return _docsCard('<div class="set-row doc-row docs-ai-entry" onclick="docsAiOpen(\'\', ' + (q ? 'true' : 'false') + ')">' +
@@ -32364,9 +32410,23 @@ function docsAiOpen(docId, fromSearch) {
     if (!_docsAiAllowed()) return;
     if (fromSearch && _docsQuery) _docsAiDraft = (document.getElementById('docs-search') || {}).value || _docsQuery;
     if (document.body.classList.contains('doc-viewer-open')) _docsCloseViewer();
-    _docsGo({ tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: docId || '' } });
+    _docsGo({ tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: docId || '', chatId: '' } });
 }
 window.docsAiOpen = docsAiOpen;
+function docsAiOpenChat(id) { _docsGo({ tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: '', chatId: id } }); }
+// «+ Ny samtale»: samme omfang (hele appen / samme dokument) som samtalen man står i.
+function docsAiNewChat() {
+    var c = _docsLoc.ai && _docsLoc.ai.chatId ? _aiChatById(_docsLoc.ai.chatId) : null;
+    _docsAiDraft = '';
+    _docsGo({ tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: c ? (c.docId || '') : '', chatId: '' } });
+}
+function docsAiDeleteChat(id) {
+    showConfirmModal(t('docs_ai_delete_confirm'), function () {
+        _aiChatRemove(id);
+        if (_docsLoc.ai && _docsLoc.ai.chatId === id) docsAiNewChat(); else _docsRender();
+    }, t('delete_btn'), '#c0392b');
+}
+window.docsAiOpenChat = docsAiOpenChat; window.docsAiNewChat = docsAiNewChat; window.docsAiDeleteChat = docsAiDeleteChat;
 // Svaret fra AI-en i enkel markdown → HTML: avsnitt, **fet**, overskrifter (#), punkt- og
 // nummerlister, og tabeller (| a | b |). Kildenumrene (cites) kommer pr. tekstbit og kan stå midt
 // i en tabell eller liste, så hele svaret settes sammen først med plassholdere (\u0001n\u0002) der
@@ -32430,9 +32490,8 @@ function _docsAiCost(u, model) {
     var usd = (u.input * p[0] + u.output * p[1] + u.cacheRead * p[2] + u.cacheWrite * p[3]) / 1e6;
     return '$' + (usd < 0.01 ? usd.toFixed(3) : usd.toFixed(2)).replace('.', ',');
 }
-function _docsAiAnswerHtml(h, idx) {
-    var head = '<div class="docs-ai-q">' + escapeHtml(h.q) + '</div>' +
-        (h.docName ? '<div class="docs-ai-scope">' + escapeHtml(t('docs_ai_in_doc').replace('{0}', h.docName)) + '</div>' : '');
+function _docsAiAnswerHtml(h) {
+    var head = '<div class="docs-ai-q">' + escapeHtml(h.q) + '</div>';
     var body;
     if (h.status === 'loading') body = '<div class="docs-ai-wait"><span class="docs-ai-spin"></span>' + escapeHtml(t(h.docName ? 'docs_ai_reading' : 'docs_ai_searching')) + '</div>';
     else if (h.status === 'error') body = '<div class="docs-ai-err">' + escapeHtml(h.err || t('docs_ai_error')) + '</div>';
@@ -32457,26 +32516,58 @@ function _docsAiAnswerHtml(h, idx) {
         body = '<div class="docs-ai-a">' + txt + '</div>' + src +
             '<div class="docs-ai-meta">' + escapeHtml(meta) + '</div>';
     }
-    return '<div class="set-card docs-ai-answer">' + head + body +
-        (h.status !== 'loading' ? '<button type="button" class="docs-ai-remove" aria-label="' + escapeHtml(t('docs_ai_remove')) + '" onclick="docsAiRemove(' + idx + ')">&times;</button>' : '') + '</div>';
+    return '<div class="set-card docs-ai-answer">' + head + body + '</div>';
 }
-function _docsAiHtml() {
-    var docId = _docsLoc.ai.docId, d = docId ? _docsById(docId) : null;
-    var title = d ? t('docs_ai_title_doc').replace('{0}', d.name || d.file || '') : t('docs_ai_title');
-    var list = _docsAiHist.filter(function (h) { return (h.docId || '') === (docId || ''); });
-    return '<div class="set-section docs-ai">' +
-        '<div class="set-section-title">' + escapeHtml(title) + '</div>' +
-        '<div class="set-card docs-ai-ask">' +
-        '<textarea id="docs-ai-q" rows="3" placeholder="' + escapeHtml(t('docs_ai_ph')) + '" oninput="_docsAiDraft=this.value" onkeydown="if(event.key===\'Enter\'&&(event.ctrlKey||event.metaKey)){event.preventDefault();docsAiAsk();}">' + escapeHtml(_docsAiDraft) + '</textarea>' +
+function _docsAiAskBox(follow) {
+    return '<div class="set-card docs-ai-ask">' +
+        '<textarea id="docs-ai-q" rows="' + (follow ? 2 : 3) + '" placeholder="' + escapeHtml(t(follow ? 'docs_ai_ph_follow' : 'docs_ai_ph')) + '" oninput="_docsAiDraft=this.value" onkeydown="if(event.key===\'Enter\'&&(event.ctrlKey||event.metaKey)){event.preventDefault();docsAiAsk();}">' + escapeHtml(_docsAiDraft) + '</textarea>' +
         '<button type="button" class="docs-ai-send" id="docs-ai-send" onclick="docsAiAsk()">' + escapeHtml(t('docs_ai_send')) + '</button>' +
-        '</div>' +
-        '<div class="set-foot">' + escapeHtml(t('docs_ai_rule')) + '</div>' +
-        '<div class="docs-ai-list">' + list.map(function (h) { return _docsAiAnswerHtml(h, _docsAiHist.indexOf(h)); }).join('') + '</div>' +
         '</div>';
 }
+function _aiDateLabel(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
+    if (!m) return '';
+    var d = new Date(iso), today = new Date();
+    var same = d.toDateString() === today.toDateString();
+    return same ? t('docs_ai_today').replace('{0}', ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2))
+        : ('0' + d.getDate()).slice(-2) + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + d.getFullYear();
+}
+function _docsAiHtml() {
+    var loc = _docsLoc.ai, chat = loc.chatId ? _aiChatById(loc.chatId) : null;
+    var docId = chat ? (chat.docId || '') : (loc.docId || '');
+    var d = docId ? _docsById(docId) : null;
+    var docName = d ? (d.name || d.file || '') : (chat ? chat.docName : '');
+    var title = docName ? t('docs_ai_title_doc').replace('{0}', docName) : t('docs_ai_title');
+    var html = '<div class="set-section docs-ai">';
+    if (chat) {
+        // Samtale: spørsmål/svar i rekkefølge, «Spør videre» under det siste.
+        html += '<div class="docs-ai-head"><div class="set-section-title">' + escapeHtml(title) + '</div>' +
+            '<button type="button" class="add-btn docs-ai-new" onclick="docsAiNewChat()">' + escapeHtml(t('docs_ai_new_chat')) + '</button></div>' +
+            '<div class="docs-ai-list">' + (chat.turns || []).map(function (tn) { return _docsAiAnswerHtml(Object.assign({ docName: chat.docName }, tn)); }).join('') + '</div>' +
+            '<div class="docs-ai-follow">' + _docsAiAskBox(true) + '</div>' +
+            '<div class="set-foot">' + escapeHtml(t('docs_ai_rule')) + '</div>';
+    } else {
+        html += '<div class="set-section-title">' + escapeHtml(title) + '</div>' + _docsAiAskBox(false) +
+            '<div class="set-foot">' + escapeHtml(t('docs_ai_rule')) + '</div>';
+        // Tidligere samtaler (for dette dokumentet, eller alle når man spør hele appen).
+        var list = _aiChats.filter(function (c) { return !docId || c.docId === docId; });
+        if (list.length) {
+            html += '<div class="set-section-title docs-ai-hist-title">' + escapeHtml(t('docs_ai_history')) + '</div>' +
+                _docsCard(list.map(function (c) {
+                    var n = (c.turns || []).length;
+                    var desc = [_aiDateLabel(c.updatedAt), t(n === 1 ? 'docs_ai_n_q_one' : 'docs_ai_n_q').replace('{0}', n), (!docId && c.docName) ? c.docName : ''].filter(Boolean).join(' · ');
+                    return '<div class="set-row doc-row docs-ai-chat" onclick="docsAiOpenChat(\'' + escapeHtml(c.id) + '\')">' +
+                        '<span class="set-text"><span class="set-title doc-row-name">' + escapeHtml(c.title || '') + '</span><span class="set-desc">' + escapeHtml(desc) + '</span></span>' +
+                        '<button type="button" class="docs-ai-chat-del" aria-label="' + escapeHtml(t('delete_btn')) + '" onclick="event.stopPropagation();docsAiDeleteChat(\'' + escapeHtml(c.id) + '\')">' + _AI_ICON_TRASH + '</button></div>';
+                }).join(''));
+        }
+    }
+    return html + '</div>';
+}
+function _docsAiBusy() { return _aiChats.some(function (c) { return (c.turns || []).some(function (tn) { return tn.status === 'loading'; }); }); }
 function _docsAiAfterRender() {
-    var busy = _docsAiHist.some(function (h) { return h.status === 'loading'; });
-    var b = document.getElementById('docs-ai-send'); if (b) b.disabled = busy;
+    var b = document.getElementById('docs-ai-send'); if (b) b.disabled = _docsAiBusy();
+    if (!_aiChatsFetched && currentUser) _aiChatsSync();   // første gang i økten: hent fra Firebase
 }
 // Kilde med adresse i appen (#timebok/<dato>, #sjekkliste/r/<id>, #settings/… fra veiledningen).
 function _docsAiOpenSrc(hash) {
@@ -32485,8 +32576,6 @@ function _docsAiOpenSrc(hash) {
     window.location.hash = hash;
 }
 window._docsAiOpenSrc = _docsAiOpenSrc;
-function docsAiRemove(i) { _docsAiHist.splice(i, 1); _docsAiSave(); _docsRender(); }
-window.docsAiRemove = docsAiRemove;
 var _docsFnP = null;
 function _docsFunctions() {
     if (_docsFnP) return _docsFnP;
@@ -32500,34 +32589,56 @@ function _docsFunctions() {
     });
     return _docsFnP;
 }
+// Svarteksten (uten kildeknapper) til et oppfølgingsspørsmål — lengden begrenses.
+function _aiAnswerText(tn) {
+    if (!tn || tn.status !== 'done' || !tn.res) return '';
+    return (tn.res.parts || []).map(function (p) { return p.text || ''; }).join('').trim().slice(0, 4000);
+}
 async function docsAiAsk() {
     var ta = document.getElementById('docs-ai-q');
     var q = String((ta && ta.value) || '').trim();
-    if (!q || !_docsAiAllowed()) return;
-    if (_docsAiHist.some(function (x) { return x.status === 'loading'; })) return;
-    var docId = _docsLoc.ai ? _docsLoc.ai.docId : '', d = docId ? _docsById(docId) : null;
-    var h = { q: q, docId: docId || '', docName: d ? (d.name || d.file || '') : '', status: 'loading', at: new Date().toISOString() };
-    _docsAiHist.unshift(h);
+    if (!q || !_docsAiAllowed() || _docsAiBusy()) return;
+    var loc = _docsLoc.ai || { docId: '', chatId: '' };
+    var chat = loc.chatId ? _aiChatById(loc.chatId) : null;
+    var now = new Date().toISOString();
+    if (!chat) {   // første spørsmål = ny samtale (samme omfang: hele appen eller ett dokument)
+        var d = loc.docId ? _docsById(loc.docId) : null;
+        chat = { id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: q.slice(0, 120), docId: loc.docId || '',
+            docName: d ? (d.name || d.file || '') : '', createdAt: now, updatedAt: now, turns: [] };
+        _aiChats.unshift(chat);
+    }
+    // Tidligere spørsmål/svar i samtalen (bare de som fikk svar), så AI-en forstår oppfølgingen.
+    var history = (chat.turns || []).filter(function (tn) { return tn.status === 'done'; }).slice(-AI_HISTORY_TURNS)
+        .map(function (tn) { return { q: String(tn.q || '').slice(0, 2000), a: _aiAnswerText(tn) }; });
+    var turn = { q: q, status: 'loading', at: now };
+    chat.turns.push(turn);
+    chat.updatedAt = now;
     _docsAiDraft = '';
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-    _docsRender();
+    if (_docsLoc.ai && _docsLoc.ai.chatId === chat.id) _docsRender();
+    else _docsGo({ tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: '', chatId: chat.id } });
+    // Vis det nye spørsmålet (nederst i samtalen).
+    var cards = document.querySelectorAll('#docs-list .docs-ai-answer');
+    if (cards.length) cards[cards.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' });
     try {
         var res;
-        if (window._docsAiMock) res = await window._docsAiMock({ firma: _firma(), question: q, docId: docId });   // lokal test
+        var payload = { firma: _firma(), question: q, docId: chat.docId || '', history: history };
+        if (window._docsAiMock) res = await window._docsAiMock(payload);   // lokal test
         else {
             if (_docsIsDev()) throw new Error(t('docs_ai_dev'));
             if (navigator.onLine === false) throw new Error(t('docs_ai_offline'));
             await _docsFunctions();
             var fn = firebase.app().functions('europe-north1').httpsCallable('askDocs', { timeout: 300000 });
-            res = (await fn({ firma: _firma(), question: q, docId: docId })).data;
+            res = (await fn(payload)).data;
         }
-        h.res = res; h.status = 'done';
+        turn.res = res; turn.status = 'done';
     } catch (e) {
         console.error('AI-svar:', e);
-        h.status = 'error';
-        h.err = (e && e.code && /functions\/(not-found|internal|unavailable)/.test(e.code) && !/AI-tjenesten/.test(e.message || '')) ? t('docs_ai_not_ready') : ((e && e.message) || t('docs_ai_error'));
+        turn.status = 'error';
+        turn.err = (e && e.code && /functions\/(not-found|internal|unavailable)/.test(e.code) && !/AI-tjenesten/.test(e.message || '')) ? t('docs_ai_not_ready') : ((e && e.message) || t('docs_ai_error'));
     }
-    _docsAiSave();
-    _docsRender();
+    chat.updatedAt = new Date().toISOString();
+    _aiChatSave(chat);
+    if (_docsLoc.ai && document.body.classList.contains('docs-modal-open')) _docsRender();
 }
 window.docsAiAsk = docsAiAsk;

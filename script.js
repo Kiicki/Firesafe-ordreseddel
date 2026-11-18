@@ -2271,7 +2271,7 @@ if (auth) {
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY, ANSATTE_KEY,
              MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY, KAPPE_CATALOG_SHARED_KEY,
-             'firesafe_project_overrides', 'firesafe_my_materials', 'firesafe_my_people', 'firesafe_ansatte_extra', 'firesafe_sug_pending', 'firesafe_sug_badge', 'firesafe_adm_users', 'firesafe_docs_cache', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
+             'firesafe_project_overrides', 'firesafe_my_materials', 'firesafe_my_people', 'firesafe_ansatte_extra', 'firesafe_sug_pending', 'firesafe_sug_badge', 'firesafe_adm_users', 'firesafe_docs_cache', 'firesafe_ai_chats', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             // Kvitteringsbildene (IndexedDB) tilhører forrige bruker.
@@ -2315,6 +2315,8 @@ if (auth) {
                 typeof loadPlanOptions === 'function' ? loadPlanOptions().catch(function() {}) : Promise.resolve(),
                 typeof _sjRefreshOptions === 'function' ? _sjRefreshOptions().catch(function() {}) : Promise.resolve(),
                 typeof syncBilHistory === 'function' ? syncBilHistory().catch(function() {}) : Promise.resolve(),
+                // AI-samtaler (Spør AI) — brukerdata, synkes mellom enheter
+                typeof _aiChatsSync === 'function' ? _aiChatsSync().catch(function() {}) : Promise.resolve(),
                 typeof getRequiredSettings === 'function' ? getRequiredSettings().then(function(data) {
                     cachedRequiredSettings = data;
                     if (typeof updateRequiredIndicators === 'function') updateRequiredIndicators();

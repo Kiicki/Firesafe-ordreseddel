@@ -14435,5 +14435,16 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .docs-ai-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #f3c9b6; border-top-color: #E8501A; animation: docsAiSpin .8s linear infinite; }
 @keyframes docsAiSpin { to { transform: rotate(360deg); } }
 .docs-ai-err { margin-top: 10px; font-size: 14px; color: #c0392b; }
+/* Samtale: tittel + «+ Ny samtale» på én linje; «Spør videre» under siste svar */
+.docs-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.docs-ai-head .set-section-title { margin-bottom: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docs-ai-new { flex-shrink: 0; width: auto; height: 34px; padding: 0 12px; font-size: 14px; font-family: inherit; cursor: pointer; }
+.docs-ai-head + .docs-ai-list { margin-top: 10px; }
+.docs-ai-follow { margin-top: 12px; }
+.docs-ai-hist-title { margin-top: 22px; }
+.docs-ai-chat .set-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Slette en hel samtale = rød søppelkasse (SLETT-SYMBOLER-regelen) */
+.docs-ai-chat-del { flex-shrink: 0; width: 36px; height: 36px; margin-right: -6px; border: none; background: none; color: #c0392b; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.docs-ai-chat-del:active { background: var(--press-bg); }
 .docs-ai-remove { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: none; background: none; color: #9a9aa2; font-size: 20px; line-height: 1; border-radius: 8px; cursor: pointer; }
 .docs-ai-remove:hover { background: var(--press-bg); }
