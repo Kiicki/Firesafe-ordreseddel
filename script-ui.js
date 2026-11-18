@@ -32289,9 +32289,58 @@ function docsAiOpen(docId, fromSearch) {
     _docsGo({ tab: _docsLoc.tab, projectId: '', folderId: '', ai: { docId: docId || '' } });
 }
 window.docsAiOpen = docsAiOpen;
-// Litt markdown fra svaret: **fet**, linjeskift, punktlister.
-function _docsAiMd(text) {
-    return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+// Svaret fra AI-en i enkel markdown → HTML: avsnitt, **fet**, overskrifter (#), punkt- og
+// nummerlister, og tabeller (| a | b |). Kildenumrene (cites) kommer pr. tekstbit og kan stå midt
+// i en tabell eller liste, så hele svaret settes sammen først med plassholdere (\u0001n\u0002) der
+// kildeknappene skal stå, deretter tolkes markdown, og til slutt byttes plassholderne ut med knapper.
+function _docsAiRender(r) {
+    var full = r.parts.map(function (p) {
+        var ph = p.cites.map(function (c) { return '\u0001' + c + '\u0002'; }).join('');
+        var txt = String(p.text || ''), tail = (/\s*$/.exec(txt) || [''])[0];
+        return txt.slice(0, txt.length - tail.length) + ph + tail;   // knappen før linjeskiftet, ikke først på neste linje
+    }).join('');
+    var inline = function (x) {
+        return x.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\u0001(\d+)\u0002/g, function (m, n) {
+            var s = r.sources[+n];
+            return s ? '<button type="button" class="docs-ai-cite" onclick="openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')">' + (+n + 1) + '</button>' : '';
+        });
+    };
+    var lines = escapeHtml(full).split('\n'), out = [], para = [], i = 0;
+    var flush = function () { if (para.length) { out.push('<p>' + inline(para.join('<br>')) + '</p>'); para = []; } };
+    var cells = function (line) {
+        var c = line.trim().replace(/^\|/, '').split('|');
+        var last = c[c.length - 1];
+        if (c.length > 1 && !last.replace(/\u0001\d+\u0002/g, '').trim()) { c.pop(); c[c.length - 1] += last.trim(); }   // kilde etter siste |
+        return c.map(function (x) { return x.trim(); });
+    };
+    var isSep = function (line) { return /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line.trim()); };
+    while (i < lines.length) {
+        var L = lines[i], T = L.trim();
+        if (!T) { flush(); i++; continue; }
+        if (/^\|/.test(T)) {
+            flush();
+            var rows = [];
+            while (i < lines.length && /^\|/.test(lines[i].trim())) rows.push(lines[i++]);
+            var head = rows.length > 1 && isSep(rows[1]) ? cells(rows[0]) : null;
+            var body = rows.filter(function (x, k) { return !(head && k <= 1) && !isSep(x); });
+            out.push('<div class="docs-ai-table-wrap"><table class="docs-ai-table">' +
+                (head ? '<thead><tr>' + head.map(function (c) { return '<th>' + inline(c) + '</th>'; }).join('') + '</tr></thead>' : '') +
+                '<tbody>' + body.map(function (x) { return '<tr>' + cells(x).map(function (c) { return '<td>' + inline(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>');
+            continue;
+        }
+        var h = /^#{1,4}\s+(.*)$/.exec(T);
+        if (h) { flush(); out.push('<div class="docs-ai-h">' + inline(h[1].replace(/\*\*/g, '')) + '</div>'); i++; continue; }
+        if (/^([-*•]|\d+[.)])\s+/.test(T)) {
+            flush();
+            var ol = /^\d/.test(T), items = [];
+            while (i < lines.length && /^([-*•]|\d+[.)])\s+/.test(lines[i].trim()) && /^\d/.test(lines[i].trim()) === ol) items.push(lines[i++].trim().replace(/^([-*•]|\d+[.)])\s+/, ''));
+            out.push('<' + (ol ? 'ol' : 'ul') + ' class="docs-ai-list-md">' + items.map(function (x) { return '<li>' + inline(x) + '</li>'; }).join('') + '</' + (ol ? 'ol' : 'ul') + '>');
+            continue;
+        }
+        para.push(L); i++;
+    }
+    flush();
+    return out.join('');
 }
 function _docsAiCost(u) {
     if (!u) return '';
@@ -32307,12 +32356,7 @@ function _docsAiAnswerHtml(h, idx) {
     else if (h.status === 'error') body = '<div class="docs-ai-err">' + escapeHtml(h.err || t('docs_ai_error')) + '</div>';
     else {
         var r = h.res || { parts: [], sources: [] };
-        var txt = r.parts.map(function (p) {
-            return _docsAiMd(p.text) + p.cites.map(function (c) {
-                var s = r.sources[c];
-                return s ? '<button type="button" class="docs-ai-cite" onclick="openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')">' + (c + 1) + '</button>' : '';
-            }).join('');
-        }).join('');
+        var txt = _docsAiRender(r);
         var src = r.sources.length ? '<div class="docs-ai-src-title">' + escapeHtml(t('docs_ai_sources')) + '</div>' + r.sources.map(function (s, i) {
             return '<button type="button" class="docs-ai-src" onclick="openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')">' +
                 '<span class="docs-ai-src-n">' + (i + 1) + '</span><span class="docs-ai-src-text"><span class="docs-ai-src-name">' + escapeHtml(s.name + ' · ' + t('docs_page').replace('{0}', s.page)) + '</span>' +

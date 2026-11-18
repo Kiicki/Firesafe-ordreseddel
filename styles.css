@@ -14394,6 +14394,18 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .docs-ai-q { font-size: var(--label-size, 14px); font-weight: 600; color: var(--text); padding-right: 28px; overflow-wrap: anywhere; }
 .docs-ai-scope { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
 .docs-ai-a { margin-top: 10px; font-size: 15px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.docs-ai-a p { margin: 0 0 8px; }
+.docs-ai-a > :last-child { margin-bottom: 0; }
+.docs-ai-h { margin: 12px 0 4px; font-size: 15px; font-weight: 600; }
+.docs-ai-a > .docs-ai-h:first-child { margin-top: 0; }
+.docs-ai-list-md { margin: 0 0 8px; padding-left: 20px; }
+.docs-ai-list-md li { margin: 2px 0; }
+/* Tabell i svaret: grått innfelt felt i det hvite kortet (flate-veksling), rulles sideveis om den er for bred */
+.docs-ai-table-wrap { margin: 4px 0 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; background: var(--inset-bg); }
+.docs-ai-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; line-height: 1.35; overflow-wrap: normal; }
+.docs-ai-table th, .docs-ai-table td { padding: 7px 10px; text-align: left; vertical-align: top; white-space: nowrap; border-bottom: 1px solid var(--divider); }
+.docs-ai-table th { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.docs-ai-table tr:last-child td { border-bottom: none; }
 .docs-ai-cite {
     display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; margin: 0 1px 0 3px;
     border: none; border-radius: 9px; background: #fff1ea; color: #E8501A; font: inherit; font-size: 11.5px; font-weight: 600;
