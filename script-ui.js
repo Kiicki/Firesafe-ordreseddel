@@ -31055,7 +31055,7 @@ function _sjRefreshActive() {
 // ════════════════════════════════════════════════════════════════════════════
 var DOCS_CACHE_KEY = 'firesafe_docs_cache';
 var DOCS_DEV_KEY = 'firesafe_dev_docs';
-var DOCS_MAX_BYTES = 30 * 1024 * 1024;   // 30 MB pr. fil (branntegninger er typisk 1–2 MB)
+var DOCS_MAX_BYTES = 100 * 1024 * 1024;   // 100 MB pr. fil (20-11-2026: montasjeanvisninger med bilder kan være 50 MB+). = Storage-reglene (isDoc)
 var _docs = [];                  // alle filer og mapper i firmaet
 var _docsLoc = { tab: 'lib', projectId: '', folderId: '' };   // der man står
 var _docsQuery = '';
@@ -31435,7 +31435,7 @@ function _docsTextState(d) {
     if (!d || _docsIsFolder(d)) return '';
     if (_docsReadingIds[d.id] || _docsQIndex.some(function (x) { return x.doc.id === d.id; })) return 'reading';
     // Serveren leser (låsen gjelder 12 min — står den lenger, har lesingen stoppet → «ikke lest»).
-    if (d.readStatus === 'reading' && Date.now() - _docsMs(d.readLockAt) < 15 * 60 * 1000) return 'reading';
+    if (d.readStatus === 'reading' && Date.now() - _docsMs(d.readLockAt) < 60 * 60 * 1000) return 'reading';   // = låsen på serveren
     if (!d.textAt) {
         if (d.readStatus === 'error') return 'unreadable';
         // Nettopp lastet opp: serveren starter lesingen om et øyeblikk.
@@ -31934,6 +31934,62 @@ function _docsScrollToPage(page) {
 ['touchstart', 'wheel', 'mousedown', 'keydown'].forEach(function (ev) {
     document.addEventListener(ev, function (e) { var s = document.getElementById('doc-viewer-scroll'); if (s && s.contains(e.target)) _docsViewPage = 0; }, { passive: true });
 });
+// ── Lat tegning av PDF-sider (bare de nær skjermen) ──────────────────────────────
+var _docsPdf = null, _docsPdfIO = null, _docsPdfFarIO = null, _docsPdfQ = [], _docsPdfBusy = false;
+function _docsPdfStop() {
+    if (_docsPdfIO) { _docsPdfIO.disconnect(); _docsPdfIO = null; }
+    if (_docsPdfFarIO) { _docsPdfFarIO.disconnect(); _docsPdfFarIO = null; }
+    _docsPdfQ = []; _docsPdfBusy = false;
+    if (_docsPdf) { try { _docsPdf.destroy(); } catch (e) {} _docsPdf = null; }
+}
+function _docsPdfWatch(pdf, d) {
+    var root = document.getElementById('doc-viewer-scroll');
+    var near = function (el) { return el.getAttribute('data-state'); };
+    // Nær skjermen (±2 skjermhøyder): tegn. Langt unna (> 6): slipp lerretet (minnet).
+    _docsPdfIO = new IntersectionObserver(function (ents) {
+        ents.forEach(function (en) {
+            if (!en.isIntersecting || near(en.target)) return;
+            en.target.setAttribute('data-state', 'queued');
+            _docsPdfQ.push(en.target);
+        });
+        _docsPdfPump(pdf, d);
+    }, { root: root, rootMargin: '200% 0px' });
+    _docsPdfFarIO = new IntersectionObserver(function (ents) {
+        ents.forEach(function (en) {
+            if (en.isIntersecting) return;
+            var el = en.target, c = el.querySelector('canvas');
+            if (c) { c.width = 0; c.height = 0; c.remove(); }
+            if (el.getAttribute('data-state') === 'queued') _docsPdfQ = _docsPdfQ.filter(function (x) { return x !== el; });
+            el.removeAttribute('data-state');
+        });
+    }, { root: root, rootMargin: '600% 0px' });
+    document.querySelectorAll('#doc-viewer-pages .doc-pg').forEach(function (el) { _docsPdfIO.observe(el); _docsPdfFarIO.observe(el); });
+}
+async function _docsPdfPump(pdf, d) {
+    if (_docsPdfBusy) return;
+    _docsPdfBusy = true;
+    try {
+        while (_docsPdfQ.length && _docsViewing === d && _docsPdf === pdf) {
+            var el = _docsPdfQ.shift();
+            if (el.getAttribute('data-state') !== 'queued') continue;
+            el.setAttribute('data-state', 'drawing');
+            var page = await pdf.getPage(parseInt(el.getAttribute('data-p'), 10));
+            var vp0 = page.getViewport({ scale: 1 });
+            el.style.aspectRatio = String(vp0.width / vp0.height);   // denne sidens eget format
+            var dpr = Math.min(window.devicePixelRatio || 1, 2);
+            // Skarp nok til ca. 2,5× zoom uten å bli altfor tung (maks ~2600 px bred).
+            var vp = page.getViewport({ scale: Math.min(2600, _docsBaseW() * dpr * 2) / vp0.width });
+            var c = document.createElement('canvas');
+            c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+            await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+            if (el.getAttribute('data-state') !== 'drawing' || _docsPdf !== pdf) { c.width = 0; continue; }   // sluppet imens
+            el.appendChild(c);
+            el.setAttribute('data-state', 'done');
+            if (_docsViewPage > 1) _docsScrollToPage(_docsViewPage);   // høyden kan ha endret seg over søketreffet
+        }
+    } catch (e) { console.error('PDF-side:', e); }
+    _docsPdfBusy = false;
+}
 async function _docsOpenViewer(id, pageNo) {
     var d = _docsById(id);
     var ov = document.getElementById('doc-viewer');
@@ -31941,6 +31997,7 @@ async function _docsOpenViewer(id, pageNo) {
     _docsViewPage = pageNo || 0;
     // Samme fil allerede åpen (annet søketreff): bare bla til siden.
     if (_docsViewing && _docsViewing.id === id && document.body.classList.contains('doc-viewer-open')) { if (pageNo) _docsScrollToPage(pageNo); return; }
+    _docsPdfStop();
     _docsViewing = d;
     document.getElementById('doc-viewer-title').textContent = d.name || d.file || '';
     var pages = document.getElementById('doc-viewer-pages');
@@ -31961,28 +32018,28 @@ async function _docsOpenViewer(id, pageNo) {
     if (_docsViewing !== d) return;   // lukket / byttet imens
     if (!blob) { pages.innerHTML = '<div class="doc-viewer-msg">' + escapeHtml(t(navigator.onLine === false ? 'docs_offline_missing' : 'docs_load_error')) + '</div>'; return; }
     if (_docsIsPdf(d) && window.pdfjsLib) {
+        // STORE PDF-er (bruker 20-11-2026, 50 MB-fil): tegn bare sidene nær det du ser på, én om
+        // gangen, og slipp sidene langt unna — før ble ALLE sidene tegnet med en gang i høy
+        // oppløsning (≈ 40 MB minne pr. side), som kunne få telefonen til å stoppe.
+        // Hver side får en plassholder med riktig høyde straks, så bla-til-side og zoom virker.
         pages.innerHTML = '';
         try {
             var lib = window.pdfjsLib;
             try { lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {}
             var pdf = await lib.getDocument({ data: await blob.arrayBuffer() }).promise;
-            var cw = _docsBaseW();
-            var dpr = Math.min(window.devicePixelRatio || 1, 2);
+            if (_docsViewing !== d) { pdf.destroy(); return; }
+            _docsPdf = pdf;
+            var first = (await pdf.getPage(1)).getViewport({ scale: 1 });
+            var ratio = first.width / first.height;
             for (var p = 1; p <= pdf.numPages; p++) {
-                if (_docsViewing !== d) return;
-                var page = await pdf.getPage(p);
-                var vp0 = page.getViewport({ scale: 1 });
-                // Skarp nok til ca. 2,5× zoom uten å bli altfor tung (maks ~2600 px bred).
-                var scale = Math.min(2600, cw * dpr * 2) / vp0.width;
-                var vp = page.getViewport({ scale: scale });
-                var c = document.createElement('canvas');
-                c.className = 'doc-viewer-page';
-                c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-                pages.appendChild(c);
-                if (_docsViewPage > 1 && p >= _docsViewPage) _docsScrollToPage(_docsViewPage);   // søketreff: vis siden med en gang
-                await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-                if (_docsViewPage > 1 && p >= _docsViewPage) _docsScrollToPage(_docsViewPage);
+                var ph = document.createElement('div');
+                ph.className = 'doc-viewer-page doc-pg';
+                ph.setAttribute('data-p', p);
+                ph.style.aspectRatio = String(ratio);
+                pages.appendChild(ph);
             }
+            _docsPdfWatch(pdf, d);
+            if (_docsViewPage > 1) _docsScrollToPage(_docsViewPage);   // søketreff: rett til siden
         } catch (e) {
             console.error('PDF-visning:', e);
             pages.innerHTML = '<div class="doc-viewer-msg">' + escapeHtml(t('docs_load_error')) + '</div>';
@@ -32009,6 +32066,7 @@ function closeDocViewer() {
 function _docsCloseViewer() {
     var ov = document.getElementById('doc-viewer');
     _docsViewing = null;
+    _docsPdfStop();
     if (ov) { ov.classList.remove('active'); ov.setAttribute('aria-hidden', 'true'); }
     document.body.classList.remove('doc-viewer-open');
     var pages = document.getElementById('doc-viewer-pages');
@@ -32181,7 +32239,7 @@ function docsItemMenu(id) {
 // Lesing på serveren (tekst + AI-lesing av bilder/tabeller/skannede sider): funksjonen readDocNow.
 async function _docsReadNow(id, force) {
     await _docsFunctions();
-    var fn = firebase.app().functions('europe-north1').httpsCallable('readDocNow', { timeout: 540000 });
+    var fn = firebase.app().functions('europe-north1').httpsCallable('readDocNow', { timeout: 3600000 });   // lange dokumenter: opptil 60 min
     return (await fn({ firma: _firma(), docId: id, force: !!force })).data;
 }
 function docsProjectMenu(pid) {
