@@ -31177,8 +31177,18 @@ function _docsDb() {
             if (!req.result.objectStoreNames.contains('text')) req.result.createObjectStore('text', { keyPath: 'id' });
             if (!req.result.objectStoreNames.contains('upq')) req.result.createObjectStore('upq', { keyPath: 'qid' });
         };
-        req.onsuccess = function () { resolve(req.result); };
-        req.onerror = function () { reject(req.error); };
+        // Låst av en eldre versjon av appen i en annen fane/vindu (oppgradering v2 → v3): ikke vent
+        // for alltid — gi opp etter 4 s, så appen henter fila fra skyen i stedet («Åpner …» hang).
+        var tm = setTimeout(function () { reject(new Error('IndexedDB opptatt (annen fane)')); }, 4000);
+        req.onblocked = function () { console.warn('Dokumenter: lokal lagring er låst av en annen fane med eldre versjon'); };
+        req.onsuccess = function () {
+            clearTimeout(tm);
+            var dbh = req.result;
+            // En nyere versjon (annen fane) vil oppgradere: slipp tak, så den ikke blir stående.
+            dbh.onversionchange = function () { try { dbh.close(); } catch (e) {} _docsDbP = null; };
+            resolve(dbh);
+        };
+        req.onerror = function () { clearTimeout(tm); reject(req.error); };
     });
     _docsDbP.catch(function () { _docsDbP = null; });
     return _docsDbP;
@@ -31864,7 +31874,7 @@ function _docsMidFit(root) {
 // ── Hente selve fila ──────────────────────────────────────────────────────────
 // Rekkefølge: denne økten → kopi for bruk uten nett (IndexedDB) → Storage. Fila lagres
 // IKKE på telefonen med mindre brukeren har slått på «Tilgjengelig uten nett».
-async function _docsGetBlob(d) {
+async function _docsGetBlob(d, onProgress) {
     if (_docsBlobMem[d.id]) return _docsBlobMem[d.id];
     try {
         var rec = await _docsIdb('readonly', function (st) { return st.get(d.id); });
@@ -31874,7 +31884,19 @@ async function _docsGetBlob(d) {
     var url = await _fbStorage().ref(d.path).getDownloadURL();
     var resp = await fetch(url);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    var blob = await resp.blob();
+    var blob;
+    // Fremdrift for store filer (bilder på flere MB): «Åpner … 40 %» i stedet for et stille «Åpner …».
+    var total = parseInt(resp.headers.get('content-length'), 10) || d.size || 0;
+    if (onProgress && resp.body && resp.body.getReader && total) {
+        var reader = resp.body.getReader(), chunks = [], got = 0;
+        for (;;) {
+            var r = await reader.read();
+            if (r.done) break;
+            chunks.push(r.value); got += r.value.length;
+            onProgress(Math.min(0.99, got / total));
+        }
+        blob = new Blob(chunks, { type: resp.headers.get('content-type') || d.mime || '' });
+    } else blob = await resp.blob();
     _docsBlobMem[d.id] = blob;
     return blob;
 }
@@ -31919,7 +31941,13 @@ async function _docsOpenViewer(id, pageNo) {
     pages.style.width = _docsBaseW() + 'px';
     document.getElementById('doc-viewer-scroll').scrollTop = 0;
     var blob;
-    try { blob = await _docsGetBlob(d); } catch (e) { console.error('Dokument:', e); }
+    try {
+        blob = await _docsGetBlob(d, function (f) {
+            if (_docsViewing !== d) return;
+            var m = pages.querySelector('.doc-viewer-msg');
+            if (m) m.textContent = t('docs_loading') + ' ' + Math.round(f * 100) + ' %';
+        });
+    } catch (e) { console.error('Dokument:', e); }
     if (_docsViewing !== d) return;   // lukket / byttet imens
     if (!blob) { pages.innerHTML = '<div class="doc-viewer-msg">' + escapeHtml(t(navigator.onLine === false ? 'docs_offline_missing' : 'docs_load_error')) + '</div>'; return; }
     if (_docsIsPdf(d) && window.pdfjsLib) {
@@ -31952,6 +31980,9 @@ async function _docsOpenViewer(id, pageNo) {
     } else {
         var url = URL.createObjectURL(blob);
         pages.innerHTML = '<img class="doc-viewer-page" alt="" src="' + url + '">';
+        // Format nettleseren ikke kan vise (f.eks. HEIC fra iPhone): si det, i stedet for et tomt bilde.
+        var im = pages.querySelector('img');
+        if (im) im.onerror = function () { if (_docsViewing === d) pages.innerHTML = '<div class="doc-viewer-msg">' + escapeHtml(t('docs_img_unsupported').replace('{0}', _docsTypeLabel(d))) + '</div>'; };
     }
 }
 // Lukk = dit du var (lista i mappen); åpnet direkte (oppdatering) → mappen fila ligger i.
