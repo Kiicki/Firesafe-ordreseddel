@@ -14313,6 +14313,20 @@ button, input, select, textarea { font-family: inherit; }
 .docs-fab:active { transform: scale(0.96); }
 body.keyboard-open .docs-fab, body.doc-viewer-open .docs-fab { display: none !important; }
 #docs-modal.docs-has-fab #docs-list { padding-bottom: 76px; }
+/* Flervalg (19-11-2026) — samme mønster som Lagret: «Velg» i headeren, rund hake, handlingslinje nederst */
+.docs-bulk-bar { display: none; }
+body.docs-select-active .docs-bulk-bar { display: flex; }
+body.docs-select-active .toolbar, body.docs-select-active .docs-fab { display: none !important; }
+#docs-modal.docs-select #docs-list { padding-bottom: 96px; }
+#docs-modal.docs-select .doc-row-more, #docs-modal.docs-select .doc-row .set-chev { display: none; }
+.doc-sel-check { margin-left: 4px; background: #fff; }
+.doc-tile .doc-sel-check { position: absolute; top: 8px; left: 8px; margin: 0; }
+.doc-selected .doc-sel-check { background: #E8501A; border-color: #E8501A; }
+.doc-selected .doc-sel-check::after { content: ''; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
+.doc-row.doc-selected, .doc-tile.doc-selected { background: #fff7f3; }
+.doc-tile.doc-selected { box-shadow: 0 0 0 2px #E8501A, var(--card-shadow); }
+.docs-bulk-ico { width: 40px; padding: 0 !important; display: flex; align-items: center; justify-content: center; }
+.docs-bulk-del { color: #c0392b !important; }
 html.device-pc .docs-fab { right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
 /* Fremdrift ved opplasting */
 .docs-progress { margin-top: 12px; padding: 12px 14px; }
@@ -14381,7 +14395,7 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .doc-move-row:active, .doc-move-row:hover { background: var(--press-bg); }
 .doc-move-row.disabled { opacity: .4; cursor: default; background: none; }
 .doc-move-row .set-ico { width: 28px; height: 28px; }
-.doc-move-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-move-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-move-sec { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); padding: 12px 12px 4px; }
 #docs-body { min-height: calc(100vh - var(--toolbar-h, 60px) - 60px); box-sizing: border-box; }   /* hele kolonnen er slippflate */
 /* Fulltekstsøk: treff med side + utdrag (grått innfelt på hvitt kort = flate-veksling) */
