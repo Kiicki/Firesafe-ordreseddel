@@ -14289,8 +14289,31 @@ button, input, select, textarea { font-family: inherit; }
 .docs-crumb.current { color: var(--text); font-weight: 600; cursor: default; }
 .docs-crumb-sep { color: #b4b4ba; }
 /* Ny mappe / Last opp */
-.docs-actions { display: flex; gap: 10px; margin-top: 12px; }
-.docs-actions .add-btn { flex: 1; height: 42px; font-size: 15px; font-family: inherit; cursor: pointer; }
+/* ── Visning (19-11-2026, etter Dropbox/MEGA): sortering + liste/rutenett, «+»-knapp ── */
+.docs-viewbar { display: flex; align-items: center; justify-content: space-between; margin: 12px 0 4px; }
+.docs-sort-btn { border: none; background: none; padding: 6px 6px 6px 2px; font: inherit; font-size: 13.5px; font-weight: 500; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 8px; }
+.docs-view-btn { width: 36px; height: 36px; border: none; background: none; color: var(--text-2); border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.docs-sort-btn:active, .docs-view-btn:active { background: var(--press-bg); }
+.docs-viewbar + .docs-group, .docs-viewbar + .docs-grid { margin-top: 0; }
+/* Rutenett: hvite kort på grå side (designstandarden), 2 kolonner på mobil, flere på PC */
+.docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.doc-tile { position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.doc-tile:active { background: var(--press-bg); }
+.doc-tile-thumb { position: relative; aspect-ratio: 4 / 3; background: var(--inset-bg); display: flex; align-items: center; justify-content: center; }
+.doc-tile-ico { width: 60px; height: 60px; border-radius: 16px; }
+.doc-tile-ico svg { width: 30px; height: 30px; }
+.doc-tile-off { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 12px; background: #fff; color: #2e7d32; display: flex; align-items: center; justify-content: center; box-shadow: var(--card-shadow); }
+.doc-tile-foot { display: flex; align-items: flex-start; gap: 2px; padding: 8px 2px 10px 12px; }
+.doc-tile-text { flex: 1; min-width: 0; }
+.doc-tile-name { font-size: 14px; font-weight: 500; line-height: 1.3; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-tile-sub { margin-top: 2px; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-tile .doc-row-more { flex-shrink: 0; margin-top: -6px; }
+/* «+» flyter over toolbaren; skjult med tastaturet åpent (søkefeltet) som andre faste bunn-elementer */
+.docs-fab { position: fixed; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 16px); z-index: 35; width: 56px; height: 56px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.docs-fab:active { transform: scale(0.96); }
+body.keyboard-open .docs-fab, body.doc-viewer-open .docs-fab { display: none !important; }
+#docs-modal.docs-has-fab #docs-list { padding-bottom: 76px; }
+html.device-pc .docs-fab { right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
 /* Fremdrift ved opplasting */
 .docs-progress { margin-top: 12px; padding: 12px 14px; }
 .docs-progress-text { font-size: 14px; color: var(--text); margin-bottom: 8px; }
@@ -14298,7 +14321,8 @@ button, input, select, textarea { font-family: inherit; }
 .docs-progress-bar span { display: block; height: 100%; background: #E8501A; border-radius: 3px; transition: width .2s; }
 #docs-list { margin-top: 14px; }
 #docs-list .docs-group + .docs-group { margin-top: 18px; }
-.doc-row .doc-row-name { overflow-wrap: anywhere; }
+/* Navn på ÉN linje (bruker 19-11-2026): linje 1 = navnet, linje 2 = type · størrelse · dato. For langt → «…»; hele navnet i ⋯-menyen, visningen og som hover-tekst. */
+.doc-row .doc-row-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-row-offline { flex-shrink: 0; color: var(--text-2); display: inline-flex; }
 .doc-row-more {
     flex-shrink: 0; width: 34px; height: 34px; margin: -6px -8px -6px 0; display: flex; align-items: center; justify-content: center;
@@ -14357,9 +14381,8 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .doc-move-row:active, .doc-move-row:hover { background: var(--press-bg); }
 .doc-move-row.disabled { opacity: .4; cursor: default; background: none; }
 .doc-move-row .set-ico { width: 28px; height: 28px; }
-.doc-move-name { min-width: 0; overflow-wrap: anywhere; }
+.doc-move-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-move-sec { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); padding: 12px 12px 4px; }
-.doc-row .set-desc { white-space: normal; overflow-wrap: anywhere; }
 #docs-body { min-height: calc(100vh - var(--toolbar-h, 60px) - 60px); box-sizing: border-box; }   /* hele kolonnen er slippflate */
 /* Fulltekstsøk: treff med side + utdrag (grått innfelt på hvitt kort = flate-veksling) */
 .doc-row--hits { align-items: flex-start; }
@@ -14376,7 +14399,7 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 
 /* ════ DOKUMENTER: AI-svar (18-11-2026) ════ */
 #docs-modal.docs-ai-mode .docs-search, #docs-modal.docs-ai-mode #docs-tabs, #docs-modal.docs-ai-mode #docs-crumbs,
-#docs-modal.docs-ai-mode #docs-actions, #docs-modal.docs-ai-mode #docs-progress { display: none !important; }
+#docs-modal.docs-ai-mode #docs-progress { display: none !important; }
 #docs-modal.docs-ai-mode #docs-list { margin-top: 0; }
 .docs-ai-entry .set-title { color: var(--text); }
 #docs-list > .docs-group:first-child .docs-ai-entry { }

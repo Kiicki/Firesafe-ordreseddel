@@ -2271,7 +2271,7 @@ if (auth) {
              TIMEBOK_STORAGE_KEY, TIMEBOK_SETTINGS_KEY, TIMEBOK_TIMETYPES_KEY, TIMEBOK_BRACKETS_KEY, TIMEBOK_PROJECTS_KEY, TIMEBOK_TARIFFS_KEY,
              LEVERINGSADRESSE_KEY, MIN_INFO_KEY, KOLLEGER_KEY, ANSATTE_KEY,
              MATERIALS_KEY, REQUIRED_KEY, TIMEBOK_EMPLOYERS_KEY, TIMEBOK_COMPANY_KEY, KAPPE_KERF_SHARED_KEY, KAPPE_CATALOG_SHARED_KEY,
-             'firesafe_project_overrides', 'firesafe_my_materials', 'firesafe_my_people', 'firesafe_ansatte_extra', 'firesafe_sug_pending', 'firesafe_sug_badge', 'firesafe_adm_users', 'firesafe_docs_cache', 'firesafe_ai_chats', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
+             'firesafe_project_overrides', 'firesafe_my_materials', 'firesafe_my_people', 'firesafe_ansatte_extra', 'firesafe_sug_pending', 'firesafe_sug_badge', 'firesafe_adm_users', 'firesafe_docs_cache', 'firesafe_ai_chats', 'firesafe_docs_view', 'firesafe_active_firma', 'firesafe_firmcache_firesafe', 'firesafe_firmcache_damsgard', 'firesafe_img_queue',
              'firesafe_lang', 'firesafe_plate_size', 'firesafe_stopwatches']
                 .forEach(function(key) { localStorage.removeItem(key); });
             // Kvitteringsbildene (IndexedDB) tilhører forrige bruker.
@@ -2431,6 +2431,9 @@ if (auth) {
                     .then(function(d) { if (d.exists) safeSetItem(LEVERINGSADRESSE_KEY, JSON.stringify(d.data())); }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('plateSize').get()
                     .then(function(d) { if (d.exists) safeSetItem('firesafe_plate_size', JSON.stringify(d.data())); }).catch(function() {}),
+                // Dokumenter: liste/rutenett + sortering (brukerens valg, alle enheter)
+                db.collection('users').doc(user.uid).collection('settings').doc('docs_view').get()
+                    .then(function(d) { if (d.exists) safeSetItem('firesafe_docs_view', JSON.stringify(d.data())); }).catch(function() {}),
                 db.collection('users').doc(user.uid).collection('settings').doc('stopwatches').get()
                     .then(function(d) {
                         if (d.exists && Array.isArray(d.data().list)) {

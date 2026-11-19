@@ -31386,7 +31386,7 @@ function _docsRowHtml(d, withPath) {
         var sub = withPath ? [_docsPathText(d), _docsFolderSub(d)].filter(Boolean).join(' · ') : _docsFolderSub(d);
         return '<div class="set-row doc-row doc-row--folder" data-drop="m:' + escapeHtml(d.id) + '"' + drag + ' onclick="docsOpenFolder(\'' + escapeHtml(d.id) + '\')">' +
             '<span class="set-ico set-ico--amber">' + _DOCS_ICON_FOLDER + '</span>' +
-            '<span class="set-text"><span class="set-title doc-row-name">' + escapeHtml(d.name || '') + '</span><span class="set-desc">' + escapeHtml(sub) + '</span></span>' +
+            '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(d.name || '') + '" data-full="' + escapeHtml(d.name || '') + '">' + escapeHtml(d.name || '') + '</span><span class="set-desc">' + escapeHtml(sub) + '</span></span>' +
             (allOff ? '<span class="doc-row-offline" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
             '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button>' +
             '<span class="set-chev">&rsaquo;</span></div>';
@@ -31394,7 +31394,7 @@ function _docsRowHtml(d, withPath) {
     var pdf = _docsIsPdf(d);
     return '<div class="set-row doc-row"' + drag + ' onclick="openDoc(\'' + escapeHtml(d.id) + '\')">' +
         '<span class="set-ico ' + (pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
-        '<span class="set-text"><span class="set-title doc-row-name">' + escapeHtml(d.name || d.file || '') + '</span><span class="set-desc">' + escapeHtml(_docsFileSub(d, withPath)) + '</span></span>' +
+        '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</span><span class="set-desc">' + escapeHtml(_docsFileSub(d, withPath)) + '</span></span>' +
         (_docsIsOffline(d.id) ? '<span class="doc-row-offline" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
         '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div>';
 }
@@ -31404,10 +31404,110 @@ function _docsProjRowHtml(pid) {
     var sub = kids.length ? _docsPlural(files.length, 'docs_n_file', 'docs_n_files') : t('docs_folder_empty');
     return '<div class="set-row doc-row doc-row--folder" data-drop="p:' + escapeHtml(pid) + '" onclick="docsOpenProject(\'' + escapeHtml(pid) + '\')">' +
         '<span class="set-ico set-ico--orange">' + _DOCS_ICON_PROJ + '</span>' +
-        '<span class="set-text"><span class="set-title doc-row-name">' + escapeHtml(_docsProjName(pid)) + '</span><span class="set-desc">' + escapeHtml(sub) + '</span></span>' +
+        '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(_docsProjName(pid)) + '" data-full="' + escapeHtml(_docsProjName(pid)) + '">' + escapeHtml(_docsProjName(pid)) + '</span><span class="set-desc">' + escapeHtml(sub) + '</span></span>' +
         (allOff ? '<span class="doc-row-offline">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
         (files.length ? '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsProjectMenu(\'' + escapeHtml(pid) + '\')">' + _DOCS_MORE + '</button>' : '') +
         '<span class="set-chev">&rsaquo;</span></div>';
+}
+// ── Visning: liste / rutenett + sortering (bruker 19-11-2026, etter Dropbox/MEGA) ──
+// Brukerens valg (gjelder alle mapper og prosjektlista) = brukerdata: localStorage + Firestore
+// users/{uid}/settings/docs_view (hentes ved innlogging, ryddes ved brukerbytte).
+var DOCS_VIEW_KEY = 'firesafe_docs_view';
+var _DOCS_SORTS = ['name', 'date', 'size', 'type'];
+var _DOCS_SORT_DEFAULT_DIR = { name: 'asc', date: 'desc', size: 'desc', type: 'asc' };
+function _docsView() {
+    var v = safeParseJSON(DOCS_VIEW_KEY, null) || {};
+    var sort = _DOCS_SORTS.indexOf(v.sort) !== -1 ? v.sort : 'name';
+    return { view: v.view === 'grid' ? 'grid' : 'list', sort: sort, dir: (v.dir === 'asc' || v.dir === 'desc') ? v.dir : _DOCS_SORT_DEFAULT_DIR[sort] };
+}
+function _docsViewSave(v) { _syncKappeSetting(DOCS_VIEW_KEY, 'docs_view', v); }
+function _docsTimeOf(d) {
+    var own = d.updatedAt || d.createdAt || '';
+    if (!_docsIsFolder(d)) return own;
+    return _docsFilesUnder('', d.id).reduce(function (m, x) { var u = x.updatedAt || x.createdAt || ''; return u > m ? u : m; }, own);
+}
+function _docsSizeOf(d) { return _docsIsFolder(d) ? _docsFilesUnder('', d.id).reduce(function (n, x) { return n + (x.size || 0); }, 0) : (d.size || 0); }
+function _docsTypeRank(d) { return _docsIsFolder(d) ? 0 : _docsIsPdf(d) ? 1 : 2; }
+function _docsCmpBy(v, ka, kb, na, nb) {
+    var c = v.sort === 'date' ? (ka < kb ? -1 : ka > kb ? 1 : 0) : (v.sort === 'name' ? _cmpText(na, nb) : ka - kb);
+    return (v.dir === 'desc' ? -c : c) || _cmpText(na, nb);
+}
+// Mappene står alltid først (som Dropbox/MEGA), deretter etter brukerens valg.
+function _docsSortView(list) {
+    var v = _docsView();
+    var key = function (d) { return v.sort === 'date' ? _docsTimeOf(d) : v.sort === 'size' ? _docsSizeOf(d) : v.sort === 'type' ? _docsTypeRank(d) : 0; };
+    return list.sort(function (a, b) {
+        var fa = _docsIsFolder(a) ? 0 : 1, fb = _docsIsFolder(b) ? 0 : 1;
+        return fa - fb || _docsCmpBy(v, key(a), key(b), a.name || a.file || '', b.name || b.file || '');
+    });
+}
+function _docsSortProjects(ids) {
+    var v = _docsView();
+    var key = function (pid) {
+        var fs = _docsFilesUnder(pid, '');
+        if (v.sort === 'date') return fs.reduce(function (m, x) { var u = x.updatedAt || x.createdAt || ''; return u > m ? u : m; }, '');
+        if (v.sort === 'size') return fs.reduce(function (n, x) { return n + (x.size || 0); }, 0);
+        return 0;
+    };
+    var has = function (pid) { return _docsFilesUnder(pid, '').length ? 0 : 1; };
+    return ids.slice().sort(function (a, b) { return has(a) - has(b) || _docsCmpBy(v, key(a), key(b), _docsProjName(a), _docsProjName(b)); });
+}
+var _DOCS_ICON_GRID = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
+var _DOCS_ICON_LIST = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3.5" y1="6" x2="3.5" y2="6.01"/><line x1="3.5" y1="12" x2="3.5" y2="12.01"/><line x1="3.5" y1="18" x2="3.5" y2="18.01"/></svg>';
+var _DOCS_ICON_UP = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+var _DOCS_ICON_DOWN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+var _DOCS_ICON_UPLOAD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v4a2 2 0 002 2h12a2 2 0 002-2v-4"/><polyline points="16 8 12 4 8 8"/><line x1="12" y1="4" x2="12" y2="16"/></svg>';
+// Linja over innholdet: «Navn ↑» (sortering) til venstre, liste/rutenett til høyre.
+function _docsViewbarHtml() {
+    var v = _docsView();
+    return '<div class="docs-viewbar">' +
+        '<button type="button" class="docs-sort-btn" onclick="docsSortMenu()">' + escapeHtml(t('docs_sort_' + v.sort)) + ' <span class="docs-sort-dir">' + (v.dir === 'desc' ? '↓' : '↑') + '</span></button>' +
+        '<button type="button" class="docs-view-btn" aria-label="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" title="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" onclick="docsToggleView()">' +
+        (v.view === 'grid' ? _DOCS_ICON_LIST : _DOCS_ICON_GRID) + '</button></div>';
+}
+// Valgt sortering: trykk igjen = snu rekkefølgen.
+function docsSortMenu() {
+    var v = _docsView();
+    _docsShowMenu(t('docs_sort_title'), _DOCS_SORTS.map(function (k) {
+        var on = v.sort === k;
+        return { icon: on ? (v.dir === 'desc' ? _DOCS_ICON_DOWN : _DOCS_ICON_UP) : '', label: t('docs_sort_' + k), onClick: function () {
+            _docsViewSave({ view: v.view, sort: k, dir: on ? (v.dir === 'desc' ? 'asc' : 'desc') : _DOCS_SORT_DEFAULT_DIR[k] });
+            _docsRender();
+        } };
+    }));
+}
+function docsToggleView() { var v = _docsView(); v.view = v.view === 'grid' ? 'list' : 'grid'; _docsViewSave(v); _docsRender(); }
+// «+» (admin): ny mappe eller last opp — der man står.
+function docsAddMenu() {
+    if (!_acc.admin) return;
+    _docsShowMenu(t('docs_add_title'), [
+        { icon: _DOCS_ICON_UPLOAD, label: t('docs_add_upload'), onClick: docsPickFiles },
+        { icon: _DOCS_ICON_FOLDER.replace('width="18" height="18"', 'width="20" height="20"'), label: t('docs_add_folder'), onClick: docsNewFolder }
+    ]);
+}
+window.docsSortMenu = docsSortMenu; window.docsToggleView = docsToggleView; window.docsAddMenu = docsAddMenu;
+// Rutenett: samme innhold og handlinger som radene, større ikon.
+function _docsTileHtml(d) {
+    var pc = document.documentElement.classList.contains('device-pc') && _acc.admin;
+    var drag = pc ? ' draggable="true" data-drag="' + escapeHtml(d.id) + '"' : '';
+    var folder = _docsIsFolder(d), pdf = !folder && _docsIsPdf(d);
+    var off = folder ? (function () { var fs = _docsFilesUnder('', d.id); return fs.length && fs.every(function (x) { return _docsIsOffline(x.id); }); })() : _docsIsOffline(d.id);
+    var sub = folder ? _docsFolderSub(d) : [_docsFmtSize(d.size), _docsFmtDate(d.updatedAt || d.createdAt)].filter(Boolean).join(' · ');
+    return '<div class="doc-tile"' + (folder ? ' data-drop="m:' + escapeHtml(d.id) + '"' : '') + drag + ' onclick="' + (folder ? 'docsOpenFolder' : 'openDoc') + '(\'' + escapeHtml(d.id) + '\')">' +
+        '<div class="doc-tile-thumb"><span class="set-ico doc-tile-ico ' + (folder ? 'set-ico--amber' : pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (folder ? _DOCS_ICON_FOLDER : pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
+        (off ? '<span class="doc-tile-off" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') + '</div>' +
+        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</div><div class="doc-tile-sub">' + escapeHtml(sub) + '</div></div>' +
+        '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div></div>';
+}
+function _docsProjTileHtml(pid) {
+    var files = _docsFilesUnder(pid, ''), kids = _docsChildren(pid, '');
+    var off = files.length && files.every(function (x) { return _docsIsOffline(x.id); });
+    var sub = kids.length ? _docsPlural(files.length, 'docs_n_file', 'docs_n_files') : t('docs_folder_empty');
+    return '<div class="doc-tile" data-drop="p:' + escapeHtml(pid) + '" onclick="docsOpenProject(\'' + escapeHtml(pid) + '\')">' +
+        '<div class="doc-tile-thumb"><span class="set-ico doc-tile-ico set-ico--orange">' + _DOCS_ICON_PROJ + '</span>' +
+        (off ? '<span class="doc-tile-off">' + _DOCS_ICON_OFFLINE + '</span>' : '') + '</div>' +
+        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(_docsProjName(pid)) + '" data-full="' + escapeHtml(_docsProjName(pid)) + '">' + escapeHtml(_docsProjName(pid)) + '</div><div class="doc-tile-sub">' + escapeHtml(sub) + '</div></div>' +
+        (files.length ? '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsProjectMenu(\'' + escapeHtml(pid) + '\')">' + _DOCS_MORE + '</button>' : '') + '</div></div>';
 }
 function _docsCard(rowsHtml, title) {
     return '<div class="set-section docs-group">' + (title ? '<div class="set-section-title">' + escapeHtml(title) + '</div>' : '') + '<div class="set-card">' + rowsHtml + '</div></div>';
@@ -31423,7 +31523,8 @@ function _docsRender() {
     // Tittel i headeren = knappen som åpnet siden: «Spør AI» (Hjem/Dokumenter) eller «Dokumenter».
     var ttl = document.getElementById('docs-title');
     if (ttl) ttl.textContent = (aiMode && !l.ai.docId) ? t('docs_ai_title') : t('docs_title');
-    if (aiMode) { host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
+    var fab = document.getElementById('docs-fab');
+    if (aiMode) { if (fab) fab.style.display = 'none'; document.getElementById('docs-modal').classList.remove('docs-has-fab'); host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
     // Står man i en mappe som ikke finnes lenger (slettet på en annen enhet) → roten.
     if (l.folderId && !_docsById(l.folderId) && _docsLoadedOnce && _docs.length) l.folderId = '';
     var libFiles = _docs.filter(function (d) { return !_docsIsFolder(d) && !d.projectId; }).length;
@@ -31450,21 +31551,25 @@ function _docsRender() {
                 (c.drop ? ' data-drop="' + escapeHtml(c.drop) + '"' : '') + (last ? '' : ' onclick="' + c.go + '"') + '>' + escapeHtml(c.label) + '</button>';
         }).join('');
     }
-    // Ny mappe / Last opp — bare admin, og ikke på prosjekt-oversikten (velg prosjekt først).
-    var acts = document.getElementById('docs-actions');
-    if (acts) acts.style.display = (admin && !searching && !(l.tab === 'proj' && !l.projectId)) ? '' : 'none';
+    // «+» (ny mappe / last opp) — bare admin, og ikke på prosjekt-oversikten (velg prosjekt først).
+    var showFab = admin && !searching && !(l.tab === 'proj' && !l.projectId);
+    if (fab) fab.style.display = showFab ? '' : 'none';
+    document.getElementById('docs-modal').classList.toggle('docs-has-fab', showFab);
+    var grid = _docsView().view === 'grid';
     var html = '';
     if (searching) {
         html = (_docsAiAllowed() ? _docsAiEntryHtml(_docsQuery) : '') + _docsSearchHtml(l.tab);
     } else if (l.tab === 'proj' && !l.projectId) {
-        var pids = _docsProjectIds();
+        var pids = _docsSortProjects(_docsProjectIds());
         if (_docsAiAllowed()) html += _docsAiEntryHtml('');
-        html += pids.length ? _docsCard(pids.map(_docsProjRowHtml).join(''))
+        if (pids.length) html += _docsViewbarHtml();
+        html += pids.length ? (grid ? '<div class="docs-grid">' + pids.map(_docsProjTileHtml).join('') + '</div>' : _docsCard(pids.map(_docsProjRowHtml).join('')))
             : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(!_docsFetched ? 'docs_list_loading' : admin ? 'docs_no_projects_admin' : 'docs_no_projects')) + '</div>';
     } else {
         if (_docsAiAllowed() && !l.folderId && !l.projectId) html += _docsAiEntryHtml('');
-        var items = _docsSortItems(_docsChildren(l.projectId, l.folderId));
-        html += items.length ? _docsCard(items.map(function (d) { return _docsRowHtml(d, false); }).join(''))
+        var items = _docsSortView(_docsChildren(l.projectId, l.folderId));
+        if (items.length) html += _docsViewbarHtml();
+        html += items.length ? (grid ? '<div class="docs-grid">' + items.map(_docsTileHtml).join('') + '</div>' : _docsCard(items.map(function (d) { return _docsRowHtml(d, false); }).join('')))
             : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(!_docsFetched ? 'docs_list_loading' : admin ? 'docs_empty_admin' : 'docs_empty')) + '</div>';
     }
     host.innerHTML = html;
@@ -31477,7 +31582,65 @@ function _docsRender() {
             ' · <button type="button" class="docs-link-btn" onclick="docsClearOffline()">' + escapeHtml(t('docs_offline_clear')) + '</button>' : '';
     }
     _docsRenderProgress();
+    _docsMidFit(host);
 }
+
+// ── Navn som ikke får plass: «…» i MIDTEN (som Dropbox/MEGA) ──────────────────────
+// Bruker 19-11-2026: «filnavn...asdasd.pdf istedenfor filnavnasdasd....». Slutten av navnet
+// (siste tegn + filtypen) skiller ofte filer fra hverandre (datoer, «(2)», .pdf), så den beholdes.
+// CSS kan bare kutte på slutten → her måles tilgjengelig bredde og teksten (canvas, ingen ekstra
+// layout pr. forsøk), og den lengste starten som får plass velges. Gjelder alle .doc-mid
+// (rader, rutenett, prosjekter, søk, Flytt til). CSS-ellipsis på slutten står som reserve.
+var _docsMidCtx = null;
+function _docsMidText(ctx, font, full, w) {
+    ctx.font = font;
+    var fits = function (x) { return ctx.measureText(x).width <= w; };
+    if (fits(full)) return full;
+    var chars = Array.from(full);
+    var ext = /\.[A-Za-z0-9]{1,5}$/.exec(full), extLen = ext ? ext[0].length : 0;
+    var want = Math.min(chars.length - 2, extLen + Math.max(4, Math.min(8, Math.floor((chars.length - extLen) / 4))));
+    var tryTail = function (tl, minHead) {
+        if (tl < 0) return null;
+        var tail = chars.slice(chars.length - tl).join('');
+        var lo = 1, hi = chars.length - tl - 1, best = 0;
+        while (lo <= hi) {
+            var mid = (lo + hi) >> 1;
+            if (fits(chars.slice(0, mid).join('') + '…' + tail)) { best = mid; lo = mid + 1; } else hi = mid - 1;
+        }
+        return best >= (minHead || 1) ? chars.slice(0, best).join('').replace(/\s+$/, '') + '…' + tail.replace(/^\s+/, '') : null;
+    };
+    // Starten skal være lesbar (minst 4 tegn): er det trangt, krymper slutten først (ned til
+    // filtypen). Aller smalest: vanlig «…» på slutten.
+    for (var tl = want; tl >= extLen; tl--) { var r = tryTail(tl, Math.min(4, chars.length - tl - 1)); if (r) return r; }
+    return (extLen ? tryTail(extLen) : null) || tryTail(0) || full;
+}
+function _docsMidFit(root) {
+    if (!root) return;
+    var els = root.querySelectorAll('.doc-mid');
+    if (!els.length) return;
+    if (!_docsMidCtx) _docsMidCtx = document.createElement('canvas').getContext('2d');
+    var jobs = [];
+    // Les alt først (bredde + skrift), skriv etterpå — én utregning av siden, ikke én pr. navn.
+    els.forEach(function (el) {
+        var w = el.clientWidth;
+        if (!w) return;   // skjult
+        var cs = getComputedStyle(el);
+        jobs.push({ el: el, w: w - 1, font: cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily, full: el.getAttribute('data-full') || '' });
+    });
+    jobs.forEach(function (j) { j.text = _docsMidText(_docsMidCtx, j.font, j.full, j.w); });
+    jobs.forEach(function (j) { if (j.el.textContent !== j.text) j.el.textContent = j.text; });
+}
+// Ny bredde (rotere telefonen, endre vindu på PC) og skrift lastet → mål på nytt.
+(function () {
+    var tm = null;
+    var refit = function () {
+        if (document.body.classList.contains('docs-modal-open')) _docsMidFit(document.getElementById('docs-list'));
+        var mp = document.getElementById('doc-move-popup');
+        if (mp && mp.classList.contains('active')) _docsMidFit(mp);
+    };
+    window.addEventListener('resize', function () { clearTimeout(tm); tm = setTimeout(refit, 120); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit);
+})();
 
 // ── Hente selve fila ──────────────────────────────────────────────────────────
 // Rekkefølge: denne økten → kopi for bruk uten nett (IndexedDB) → Storage. Fila lagres
@@ -31862,13 +32025,14 @@ function openDocMove(id) {
         var head = (r.proj && projRows[0] === i) ? '<div class="doc-move-sec">' + escapeHtml(t('docs_tab_proj')) + '</div>' : '';
         return head + '<button type="button" class="doc-move-row' + (ok ? '' : ' disabled') + (r.proj ? ' doc-move-proj' : '') + '"' + (ok ? '' : ' disabled') +
             ' style="padding-left:' + (12 + r.depth * 18) + 'px" data-search="' + escapeHtml(r.label.toLowerCase()) + '" onclick="docMovePick(\'' + escapeHtml(r.drop) + '\')">' +
-            '<span class="set-ico ' + r.cls + '">' + r.icon + '</span><span class="doc-move-name">' + escapeHtml(r.label) + '</span></button>';
+            '<span class="set-ico ' + r.cls + '">' + r.icon + '</span><span class="doc-move-name doc-mid" data-full="' + escapeHtml(r.label) + '">' + escapeHtml(r.label) + '</span></button>';
     }).join('');
     document.getElementById('doc-move-title').textContent = t('docs_move_title').replace('{0}', d.name || '');
     document.getElementById('doc-move-list').innerHTML = html;
     var s = document.getElementById('doc-move-search'); if (s) { s.value = ''; s.style.display = rows.length > 12 ? '' : 'none'; }
     document.getElementById('doc-move-popup').classList.add('active');
     var list = document.getElementById('doc-move-list'); if (list) list.scrollTop = 0;
+    requestAnimationFrame(function () { _docsMidFit(document.getElementById('doc-move-popup')); });
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
 function docMoveFilter(v) {
@@ -32319,7 +32483,7 @@ function _docsSearchHtml(tab) {
             var more = h.pages.length > 3 ? '<span class="doc-hit-more">' + escapeHtml(t('docs_more_hits').replace('{0}', h.pages.length - 3)) + '</span>' : '';
             return '<div class="set-row doc-row doc-row--hits" onclick="openDoc(\'' + escapeHtml(d.id) + '\',' + (h.pages[0] + 1) + ')">' +
                 '<span class="set-ico ' + (pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
-                '<span class="set-text"><span class="set-title doc-row-name">' + escapeHtml(d.name || d.file || '') + '</span>' +
+                '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</span>' +
                 '<span class="set-desc">' + escapeHtml([_docsPathText(d), t(h.pages.length === 1 ? 'docs_hits_one' : 'docs_hits').replace('{0}', h.pages.length)].filter(Boolean).join(' · ')) + '</span>' +
                 '<span class="doc-hits">' + snips + more + '</span></span></div>';
         }).join(''), t('docs_sec_content'));

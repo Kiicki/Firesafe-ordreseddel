@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1245">
+    <link rel="stylesheet" href="styles.css?v=1247">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -2614,10 +2614,6 @@
                 <div class="docs-search"><input type="search" id="docs-search" data-i18n-placeholder="docs_search_ph" placeholder="Søk i navn og innhold" autocomplete="off" oninput="docsSetQuery(this.value)"></div>
                 <div class="tb-seg set-tabs" id="docs-tabs"></div>
                 <div class="docs-crumbs" id="docs-crumbs" style="display:none"></div>
-                <div class="docs-actions" id="docs-actions" style="display:none">
-                    <button type="button" class="add-btn" onclick="docsNewFolder()" data-i18n="docs_new_folder">+ Ny mappe</button>
-                    <button type="button" class="add-btn" onclick="docsPickFiles()" data-i18n="docs_upload">+ Last opp</button>
-                </div>
                 <div class="set-card docs-progress" id="docs-progress" style="display:none"></div>
                 <div id="docs-list"></div>
                 <div class="set-foot" id="docs-offline-foot"></div>
@@ -2626,6 +2622,8 @@
                 <input type="file" id="docs-replace-input" accept="application/pdf,image/*" hidden onchange="docsReplacePicked(this)">
             </div>
         </div>
+        <!-- «+» (admin): ny mappe / last opp — én flytende knapp (som Dropbox/MEGA), erstatter de to knappene -->
+        <button type="button" class="docs-fab" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     </div>
 
     <!-- Bulk action bar - vises over toolbar under flervalg -->
@@ -2785,9 +2783,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=509"></script>
-    <script src="script.js?v=627"></script>
-    <script src="script-ui.js?v=1469"></script>
+    <script src="lang.js?v=510"></script>
+    <script src="script.js?v=628"></script>
+    <script src="script-ui.js?v=1472"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
