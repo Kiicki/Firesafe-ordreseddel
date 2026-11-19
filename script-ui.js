@@ -31062,7 +31062,6 @@ var _docsQuery = '';
 var _docsLocal = {};             // id → { offline, size } — det som ligger i IndexedDB
 var _docsBlobMem = {};           // id → Blob (denne økten; raskere gjenåpning)
 var _docsViewing = null;         // fila som vises nå
-var _docsReplaceItem = null;     // fila som skal byttes ut (ny versjon)
 var _docsLoadedOnce = false;
 var _docsPendingHash = null;    // dokumenter/m/<id> eller /d/<id> åpnet før lista var hentet
 var _docsFetched = false;        // lista er hentet fra Firestore i denne økten (før det: cache / «Henter …»)
@@ -31369,7 +31368,11 @@ function docsSetTab(tab) {
 }
 function docsOpenFolder(id) { var f = _docsById(id); if (f) { _docsSearchReset(); _docsGo({ tab: f.projectId ? 'proj' : 'lib', projectId: f.projectId || '', folderId: id }); } }
 function docsOpenProject(pid) { _docsSearchReset(); _docsGo({ tab: 'proj', projectId: pid, folderId: '' }); }
-function docsSetQuery(v) { _docsQuery = String(v || '').trim().toLowerCase(); _docsRender(); if (_docsQuery) _docsEnsureTexts(); }
+function docsSetQuery(v) {
+    _docsQuery = String(v || '').trim().toLowerCase();
+    var w = document.getElementById('docs-search-top'); if (w) w.classList.toggle('has-q', !!String(v || ''));
+    _docsRender(); if (_docsQuery) _docsEnsureTexts();
+}
 // Søkemodus: feltet nederst er en knapp; trykk → feltet står øverst og tastaturet åpnes (et felt
 // nederst ville blitt dekket av tastaturet). ✕ / tilbake / bytte mappe = ut av søket.
 function docsSearchOpen() {
@@ -31380,23 +31383,25 @@ function docsSearchOpen() {
     _docsRender();
     _docsEnsureTexts();
 }
-function docsSearchClose() {
+function docsSearchClose() {   // ✕ i feltet: tøm søket
     var m = document.getElementById('docs-modal'), inp = document.getElementById('docs-search');
     m.classList.remove('docs-searching');
     if (inp) { inp.value = ''; inp.blur(); }
+    var w = document.getElementById('docs-search-top'); if (w) w.classList.remove('has-q');
     _docsQuery = '';
     _docsRender();
 }
 function _docsSearchReset() {   // ny mappe/fane: tøm søket uten å tegne (kalleren tegner)
     _docsQuery = ''; var inp = document.getElementById('docs-search'); if (inp) inp.value = '';
     var m = document.getElementById('docs-modal'); if (m) m.classList.remove('docs-searching');
+    var w = document.getElementById('docs-search-top'); if (w) w.classList.remove('has-q');
 }
 window.docsSearchOpen = docsSearchOpen; window.docsSearchClose = docsSearchClose;
 // Header-pila: dit du var (appens stabel); tom stabel → én mappe opp, så Hjem.
 function docsBack() {
     if (document.body.classList.contains('doc-viewer-open')) { closeDocViewer(); return; }
     if (_docsSel) { _docsSelExit(); return; }
-    if (document.getElementById('docs-modal').classList.contains('docs-searching')) { docsSearchClose(); return; }
+    if (_docsQuery) { docsSearchClose(); return; }   // tilbake med søk = tøm søket først
     if (_navBack()) return;
     var l = _docsLoc;
     if (l.folderId) { var f = _docsById(l.folderId); _docsGo({ tab: l.tab, projectId: l.projectId, folderId: f ? (f.parentId || '') : '' }); }
@@ -31415,7 +31420,6 @@ var _DOCS_ICON_PROJ = '<svg viewBox="0 0 24 24" width="18" height="18" fill="non
 var _DOCS_ICON_OFFLINE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><line x1="5" y1="20" x2="19" y2="20"/></svg>';
 var _DOCS_ICON_SHARE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>';
 var _DOCS_ICON_MOVE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/><polyline points="12 10 15 13 12 16"/><line x1="8" y1="13" x2="15" y2="13"/></svg>';
-var _DOCS_ICON_REPLACE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>';
 var _DOCS_MORE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
 
 // ── Klar for søk og AI? (bruker 19-11-2026: «hvordan vet jeg at AI har sjekket?») ──
@@ -32164,21 +32168,15 @@ function docsItemMenu(id) {
         if (admin) {
             opts.push({ icon: editIcon, label: t('docs_rename'), onClick: function () { _docsRename(d); } });
             opts.push({ icon: _DOCS_ICON_MOVE, label: t('docs_move'), onClick: function () { openDocMove(d.id); } });
-            opts.push({ icon: _DOCS_ICON_REPLACE, label: t('docs_replace'), onClick: function () { docsPickReplace(d.id); } });
-            if (_docsTextState(d) !== 'reading') opts.push({ icon: _DOCS_ICON_REREAD, label: t('docs_reread'), onClick: function () { docsReread(d.id); } });
             opts.push({ icon: deleteIcon, label: t('delete_btn'), danger: true, onClick: function () { _docsDelete(d); } });
         }
     }
-    if (opts.length) _docsShowMenu(d.name, opts, _docsIsFolder(d) ? '' : _docsMenuNote(d));
+    // (Ingen statuslinje øverst — bruker 19-11-2026: «ser ikke poenget». Status står på linje 2 i lista når fila ikke er klar.)
+    // Tittel = HELE filnavnet med filendelse — eneste stedet på mobil der et langt navn vises helt.
+    var ext = _docsIsFolder(d) ? '' : ((/\.[A-Za-z0-9]{1,5}$/.exec(d.file || '') || [''])[0]);
+    var full = (d.name || d.file || '') + (ext && !new RegExp(ext.replace('.', '\\.') + '$', 'i').test(d.name || '') ? ext.toLowerCase() : '');
+    if (opts.length) _docsShowMenu(full, opts);
 }
-// Status øverst i ⋯-menyen for en fil.
-function _docsMenuNote(d) {
-    var st = _docsTextState(d), n = d.textPages || 0;
-    var txt = st === 'ready' ? t(n === 1 ? 'docs_menu_st_ready_one' : 'docs_menu_st_ready').replace('{0}', n) + ' · ' + t(d.aiAt ? 'docs_menu_st_ai' : 'docs_menu_st_textonly') : t('docs_menu_st_' + st);
-    if (d.readStatus === 'error' && d.readError && st !== 'reading') txt += ' — ' + t('docs_menu_st_error').replace('{0}', d.readError);
-    return '<span class="doc-st doc-st--' + st + '">' + (st === 'reading' ? '<span class="doc-st-spin"></span>' : '') + escapeHtml(txt) + '</span>';
-}
-var _DOCS_ICON_REREAD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15a3 3 0 105.2-2"/><polyline points="14.5 10.5 14.5 13 12 13"/></svg>';
 // Admin: les teksten i én fil på nytt (f.eks. etter at lesingen feilet eller fila er byttet).
 // Lesing på serveren (tekst + AI-lesing av bilder/tabeller/skannede sider): funksjonen readDocNow.
 async function _docsReadNow(id, force) {
@@ -32186,21 +32184,6 @@ async function _docsReadNow(id, force) {
     var fn = firebase.app().functions('europe-north1').httpsCallable('readDocNow', { timeout: 540000 });
     return (await fn({ firma: _firma(), docId: id, force: !!force })).data;
 }
-async function docsReread(id) {
-    var d = _docsById(id); if (!d || !_acc.admin) return;
-    _docsReadingIds[id] = 1; _docsRender();
-    var ok = false, r = null;
-    try {
-        if (_docsIsDev()) { await _docsIndexFile(d); ok = true; }   // lokal test: ingen server
-        else { r = await _docsReadNow(id, true); ok = !!(r && (r.ok || r.skipped)); }
-    } catch (e) { console.error('Les på nytt:', e); }
-    delete _docsReadingIds[id]; _docsRender();
-    var nd = _docsById(id) || d;
-    if (!ok) showNotificationModal(t('docs_load_error'));
-    else if ((nd.textChars || (r && r.chars) || 0) < DOCS_MIN_TEXT) showNotificationModal(t('docs_reread_none'));
-    else showNotificationModal(t('docs_reread_ok').replace('{0}', (r && r.pages) || nd.textPages || 0).replace('{1}', (r && r.figs) || nd.aiFigs || 0), true);
-}
-window.docsReread = docsReread;
 function docsProjectMenu(pid) {
     var files = _docsFilesUnder(pid, '');
     if (!files.length) return;
@@ -32358,7 +32341,7 @@ var _docsQ = [];             // ventende jobber { qid, file, tg }
 var _docsQActive = {};       // qid → jobb som lastes opp nå (pct, task)
 var _docsQDone = 0, _docsQTotal = 0, _docsQFail = 0, _docsQRunning = 0;
 var _docsQIndex = [];        // lastet opp, venter på tekstlesing
-var _docsReplJob = null;     // «Bytt fil» (én fil) — egen fremdrift
+var _docsReplJob = null;     // (ubrukt etter at «Bytt fil» ble fjernet — beholdt så fremdriften er uendret)
 var _docsResumedUid = null;
 function _docsQBusy() { return _docsQRunning > 0 || _docsQ.length > 0; }
 function docsPickFiles() {
@@ -32565,40 +32548,8 @@ function _docsCheckUpSummary() {
     }
 }
 
-// Bytt fil (ny versjon): samme navn, plassering og id — ny fil i Storage, den gamle slettes.
-function docsPickReplace(id) {
-    _docsReplaceItem = _docsById(id);
-    var inp = document.getElementById('docs-replace-input');
-    if (inp && _docsReplaceItem) { inp.value = ''; inp.click(); }
-}
-async function docsReplacePicked(inp) {
-    var f = inp.files && inp.files[0], d = _docsReplaceItem;
-    inp.value = ''; _docsReplaceItem = null;
-    if (!f || !d) return;
-    if (!_docsAccepts(f)) { showNotificationModal(t('docs_wrong_type').replace('{0}', f.name)); return; }
-    if (f.size > DOCS_MAX_BYTES) { showNotificationModal(t('docs_too_big').replace('{0}', f.name)); return; }
-    if (!_docsIsDev() && navigator.onLine === false) { showNotificationModal(t('docs_need_net')); return; }
-    var mime = _docsMimeOf(f), oldPath = d.path, wasOff = _docsIsOffline(d.id);
-    var path = 'firms/' + _firma() + '/documents/' + d.id + '/' + Date.now().toString(36) + '_' + _docsSafeName(f.name);
-    _docsReplJob = { pct: 0 }; _docsRenderProgress();
-    try {
-        if (_docsIsDev()) await _docsIdb('readwrite', function (st) { return st.put({ id: d.id, blob: f, offline: wasOff, size: f.size }); });
-        else {
-            await _docsPutFile(f, path, mime, _docsReplJob);
-            if (wasOff) await _docsIdb('readwrite', function (st) { return st.put({ id: d.id, blob: f, offline: true, size: f.size, savedAt: new Date().toISOString() }); });
-        }
-        _docsBlobMem[d.id] = f;
-        var nd = Object.assign({}, d, { file: f.name, mime: mime, size: f.size, path: path, updatedAt: new Date().toISOString() }, _docsWho(), { createdBy: d.createdBy || '', createdByName: d.createdByName || '' });
-        await _docsWrite([nd]);
-        if (_docsIsDev()) { try { await _docsIndexFile(nd, f); } catch (e) { console.error('Dokumenttekst:', e); } }   // ellers: serveren leser den nye versjonen
-        if (!_docsIsDev() && oldPath && oldPath !== path) _fbStorage().ref(oldPath).delete().catch(function () {});
-        showNotificationModal(t('docs_replaced'), true);
-        if (_docsViewing && _docsViewing.id === d.id) _docsOpenViewer(d.id);
-    } catch (e) { console.error('Bytt fil:', e); showNotificationModal(t('docs_upload_error')); }
-    _docsReplJob = null; _docsRenderProgress();
-    _docsLocalRefresh().then(_docsRender);
-}
-window.docsPickReplace = docsPickReplace; window.docsReplacePicked = docsReplacePicked;
+// (Bytt fil / Les på nytt fjernet 19-11-2026 — bruker: «filer blir jo ikke oppdatert … ny versjon = ny fil»,
+//  «den blir lest en gang så holder ikke det?». Feilet lesing prøves igjen automatisk, se _docsAiBackfill.)
 
 // ── Dra og slipp (PC, admin) ──────────────────────────────────────────────────
 // • Filer/mapper fra datamaskinen → lastes opp i mappen under musepekeren (eller den man
@@ -32833,7 +32784,9 @@ async function _docsAiBackfill() {
         for (;;) {
             var now = Date.now();
             var d = _docs.filter(function (x) {
-                return !_docsIsFolder(x) && x.path && !x.aiAt && x.readStatus !== 'error' && !_docsAiTried[x.id] && _docsTextState(x) !== 'reading' &&
+                // Ikke AI-lest ennå, ELLER lesingen feilet: prøv igjen automatisk (høyst 3 ganger, ≥ 1 t imellom).
+                var retry = x.readStatus === 'error' && (x.readTries || 0) < 3 && now - _docsMs(x.readErrorAt) > 60 * 60 * 1000;
+                return !_docsIsFolder(x) && x.path && (retry || (!x.aiAt && x.readStatus !== 'error')) && !_docsAiTried[x.id] && _docsTextState(x) !== 'reading' &&
                     now - _docsMs(x.createdAt) > 10 * 60 * 1000;
             })[0];
             if (!d) break;

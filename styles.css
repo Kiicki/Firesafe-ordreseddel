@@ -14277,13 +14277,15 @@ button, input, select, textarea { font-family: inherit; }
 #docs-modal, #docs-modal > .modal-content, #docs-modal > .modal-content > .modal-body { background: var(--page-bg); }
 #docs-modal .sticky-header { background: var(--page-bg); }
 #docs-body { position: relative; }
-.docs-search { position: relative; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.docs-search { position: relative; margin-bottom: 12px; }
 .docs-search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-2); display: flex; pointer-events: none; }
-.docs-search input { flex: 1; min-width: 0; padding-left: 38px !important; height: 44px !important; border-radius: 22px !important; }
-.docs-search .docs-search-ai { margin-right: 0; }
-#docs-search::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }   /* egen ✕ ved siden av */
-.docs-search-close { flex-shrink: 0; width: 36px; height: 36px; border: none; background: none; color: #9a9aa2; font-size: 24px; line-height: 1; border-radius: 18px; cursor: pointer; }
-.docs-search-close:active { background: var(--press-bg); }
+.docs-search input { padding-left: 38px !important; padding-right: 52px !important; height: 44px !important; border-radius: 22px !important; }
+.docs-search.has-q input { padding-right: 88px !important; }
+#docs-search::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }   /* egen ✕ i feltet */
+.docs-search .docs-search-ai { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; margin: 0; border: none; border-radius: 18px; background: #f1eafd; color: #7c3aed; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.docs-search-clear { display: none; position: absolute; right: 44px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border: none; background: none; color: #9a9aa2; font-size: 22px; line-height: 1; border-radius: 16px; cursor: pointer; }
+.docs-search.has-q .docs-search-clear { display: block; }
+.docs-search-clear:active { background: var(--press-bg); }
 .docs-search input, .doc-move-search {
     width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; font-size: 16px; font-family: inherit;
     border: 1px solid var(--field-border); border-radius: 10px; background: #fff; outline: none;
@@ -14323,16 +14325,10 @@ button, input, select, textarea { font-family: inherit; }
 .doc-row-more-gap { flex-shrink: 0; width: 26px; }   /* = ⋯ (34 px − 8 px negativ marg) */
 /* Nederst (som Dropbox): søkefelt med ✨ + «+». Fast over toolbaren, under popupene (.confirm-modal = 20).
    Skjult når tastaturet er åpent, under søk (feltet står da øverst), flervalg, AI og filvisning. */
-.docs-bottombar { position: fixed; left: 16px; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 12px); z-index: 15; display: flex; align-items: center; gap: 10px; pointer-events: none; }
+.docs-bottombar { position: fixed; left: 16px; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 16px); z-index: 15; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; }
 .docs-bottombar > * { pointer-events: auto; }
 html.device-pc .docs-bottombar { left: max(16px, calc((100vw - 800px) / 2 + 16px)); right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
-.docs-bb-pill { flex: 1; min-width: 0; height: 50px; display: flex; align-items: center; background: #fff; border-radius: 25px; box-shadow: 0 4px 16px rgba(0,0,0,.14), 0 0 0 1px rgba(0,0,0,.04); }
-.docs-bb-field { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; border: none; background: none; font: inherit; font-size: 15px; color: var(--text-2); text-align: left; cursor: text; border-radius: 25px 0 0 25px; }
-.docs-bb-field span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.docs-bb-field svg { flex-shrink: 0; }
-.docs-bb-ai, .docs-search-ai { flex-shrink: 0; width: 42px; height: 42px; margin-right: 4px; border: none; border-radius: 21px; background: #f1eafd; color: #7c3aed; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.docs-bb-ai:active, .docs-search-ai:active { filter: brightness(.95); }
-.docs-fab { flex-shrink: 0; width: 50px; height: 50px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.docs-fab { flex-shrink: 0; width: 56px; height: 56px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .docs-fab:active { transform: scale(0.96); }
 /* Tastatur: bare når et tekstfelt FAKTISK har fokus (et ekte tastatur har alltid det). Feil-
    deteksjon (f.eks. DevTools/vindu som endrer høyde) skal aldri gjemme søket + «+» — det ble
@@ -14340,9 +14336,7 @@ html.device-pc .docs-bottombar { left: max(16px, calc((100vw - 800px) / 2 + 16px
 body.keyboard-open:has(:is(input, textarea, [contenteditable="true"]):focus) .docs-bottombar,
 body.doc-viewer-open .docs-bottombar, body.docs-select-active .docs-bottombar,
 #docs-modal.docs-searching .docs-bottombar, #docs-modal.docs-ai-mode .docs-bottombar { display: none !important; }
-#docs-modal:not(.docs-searching):not(.docs-ai-mode):not(.docs-select) #docs-list { padding-bottom: 80px; }
-/* Søkefeltet øverst = bare i søkemodus */
-#docs-modal:not(.docs-searching) #docs-search-top { display: none; }
+#docs-modal:not(.docs-ai-mode):not(.docs-select) #docs-list { padding-bottom: 84px; }   /* siste rad over «+» */
 /* Flervalg (19-11-2026) — samme mønster som Lagret: «Velg» i headeren, rund hake, handlingslinje nederst */
 .docs-bulk-bar { display: none; }
 body.docs-select-active .docs-bulk-bar { display: flex; }
