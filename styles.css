@@ -14309,7 +14309,7 @@ button, input, select, textarea { font-family: inherit; }
 .doc-tile-sub { margin-top: 2px; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-tile .doc-row-more { flex-shrink: 0; margin-top: -6px; }
 /* «+» flyter over toolbaren; skjult med tastaturet åpent (søkefeltet) som andre faste bunn-elementer */
-.docs-fab { position: fixed; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 16px); z-index: 35; width: 56px; height: 56px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.docs-fab { position: fixed; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 16px); z-index: 15;   /* under popupene (.confirm-modal = 20), over innholdet */ width: 56px; height: 56px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .docs-fab:active { transform: scale(0.96); }
 body.keyboard-open .docs-fab, body.doc-viewer-open .docs-fab { display: none !important; }
 #docs-modal.docs-has-fab #docs-list { padding-bottom: 76px; }
@@ -14330,13 +14330,22 @@ body.docs-select-active .toolbar, body.docs-select-active .docs-fab { display: n
 html.device-pc .docs-fab { right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
 /* Fremdrift ved opplasting */
 .docs-progress { margin-top: 12px; padding: 12px 14px; }
+/* Klar for søk og AI — vises bare når fila IKKE er klar (først på linje 2, så den aldri kuttes bort) */
+.doc-st { font-weight: 500; }
+.doc-st--reading, .doc-st--pending { color: var(--text-2); }
+.doc-st--unreadable { color: #b7791f; }
+.doc-st--ready { color: #2e7d32; }
+.doc-st-spin { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: -1px; border-radius: 50%; border: 1.6px solid #c9c9cf; border-top-color: var(--text-2); animation: docs-pill-spin 0.9s linear infinite; }
+.docs-menu-note { margin: -2px 0 10px; font-size: 13px; text-align: center; }
+.docs-unread-chev { transition: transform .15s; }
+.docs-unread-chev.open { transform: rotate(90deg); }
 .docs-progress-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .docs-progress-text { font-size: 14px; color: var(--text); }
 .docs-progress-cancel { flex-shrink: 0; border: 1px solid var(--control-border, #d7d7dd); background: #fff; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; height: 30px; padding: 0 12px; border-radius: 8px; cursor: pointer; }
 .docs-progress-cancel:active { background: var(--press-bg); }
 /* Opplasting pågår — synlig i hele appen, over toolbaren. Skjult i Dokumenter (der står kortet),
    med tastaturet åpent og under flervalg (fast bunn-element, samme regel som «+»-knappen). */
-.docs-upload-pill { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-h, 60px) + 10px); z-index: 36; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); height: 34px; padding: 0 14px; border: none; border-radius: 17px; background: #2b2b30; color: #fff; font: inherit; font-size: 13px; font-weight: 500; box-shadow: 0 4px 14px rgba(0,0,0,.22); cursor: pointer; white-space: nowrap; }
+.docs-upload-pill { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-h, 60px) + 10px); z-index: 16;   /* under popupene */ display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); height: 34px; padding: 0 14px; border: none; border-radius: 17px; background: #2b2b30; color: #fff; font: inherit; font-size: 13px; font-weight: 500; box-shadow: 0 4px 14px rgba(0,0,0,.22); cursor: pointer; white-space: nowrap; }
 .docs-upload-pill[hidden] { display: none; }
 .docs-pill-text { overflow: hidden; text-overflow: ellipsis; }
 .docs-pill-spin { flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: docs-pill-spin 0.9s linear infinite; }

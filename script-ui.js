@@ -31372,6 +31372,25 @@ var _DOCS_ICON_MOVE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="non
 var _DOCS_ICON_REPLACE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>';
 var _DOCS_MORE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
 
+// ── Klar for søk og AI? (bruker 19-11-2026: «hvordan vet jeg at AI har sjekket?») ──
+// Teksten i hver fil leses ut (PDF.js) og lagres; søket og «Spør AI» bruker den lagrede teksten.
+// Vises BARE når fila ikke er klar (de fleste er klare — merkelapp på alle blir støy):
+//   reading    = leses nå på denne enheten (opplasting / «Les på nytt» / bakgrunnslesing)
+//   pending    = ikke lest ennå (leses på admins enhet; feilet lesing prøves igjen automatisk)
+//   unreadable = lest, men nesten ingen tekst (skannet PDF / bilde) → AI kan ikke bruke den
+var DOCS_MIN_TEXT = 50;   // tegn — under dette regnes fila som ikke søkbar (f.eks. bare sidetall)
+var _docsReadingIds = {};
+function _docsTextState(d) {
+    if (!d || _docsIsFolder(d)) return '';
+    if (_docsReadingIds[d.id] || _docsQIndex.some(function (x) { return x.doc.id === d.id; })) return 'reading';
+    if (!d.textAt) return 'pending';
+    return (d.textChars || 0) < DOCS_MIN_TEXT ? 'unreadable' : 'ready';
+}
+function _docsStateHtml(d) {
+    var st = _docsTextState(d);
+    if (!st || st === 'ready') return '';
+    return '<span class="doc-st doc-st--' + st + '">' + (st === 'reading' ? '<span class="doc-st-spin"></span>' : '') + escapeHtml(t('docs_st_' + st)) + '</span> · ';
+}
 function _docsFolderSub(f) {
     var kids = _docsChildren(f.projectId, f.id);
     var nf = kids.filter(_docsIsFolder).length, nd = kids.length - nf;
@@ -31404,7 +31423,7 @@ function _docsRowHtmlPlain(d, withPath, drag) {
     var pdf = _docsIsPdf(d);
     return '<div class="set-row doc-row"' + drag + ' onclick="openDoc(\'' + escapeHtml(d.id) + '\')">' +
         '<span class="set-ico ' + (pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
-        '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</span><span class="set-desc">' + escapeHtml(_docsFileSub(d, withPath)) + '</span></span>' +
+        '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</span><span class="set-desc">' + _docsStateHtml(d) + escapeHtml(_docsFileSub(d, withPath)) + '</span></span>' +
         (_docsIsOffline(d.id) ? '<span class="doc-row-offline" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
         '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div>';
 }
@@ -31510,7 +31529,7 @@ function _docsTileHtmlPlain(d, drag) {
     return '<div class="doc-tile"' + (folder ? ' data-drop="m:' + escapeHtml(d.id) + '"' : '') + drag + ' onclick="' + (folder ? 'docsOpenFolder' : 'openDoc') + '(\'' + escapeHtml(d.id) + '\')">' +
         '<div class="doc-tile-thumb"><span class="set-ico doc-tile-ico ' + (folder ? 'set-ico--amber' : pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (folder ? _DOCS_ICON_FOLDER : pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
         (off ? '<span class="doc-tile-off" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') + '</div>' +
-        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</div><div class="doc-tile-sub">' + escapeHtml(sub) + '</div></div>' +
+        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</div><div class="doc-tile-sub">' + (folder ? '' : _docsStateHtml(d)) + escapeHtml(sub) + '</div></div>' +
         '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div></div>';
 }
 function _docsProjTileHtml(pid) {
@@ -31638,6 +31657,22 @@ function docsBulkDelete() {
 }
 window.docsToggleSelect = docsToggleSelect; window.docsSelToggle = docsSelToggle; window.docsSelAll = docsSelAll;
 window.docsBulkShare = docsBulkShare; window.docsBulkOffline = docsBulkOffline; window.docsBulkMove = docsBulkMove; window.docsBulkDelete = docsBulkDelete;
+// Admin, øverst i Bibliotek/Prosjekter: «N filer kan ikke leses av AI» — trykk = vis hvilke (i kortet).
+var _docsUnreadOpen = false;
+function _docsUnreadableHtml() {
+    if (!_acc.admin || !_docsFetched) return '';
+    var bad = _docs.filter(function (d) { return _docsTextState(d) === 'unreadable'; });
+    if (!bad.length) return '';
+    var head = '<div class="set-row doc-row docs-unread-head" onclick="docsToggleUnreadable()">' +
+        '<span class="set-ico set-ico--amber">' + _DOCS_ICON_WARN + '</span>' +
+        '<span class="set-text"><span class="set-title">' + escapeHtml(bad.length === 1 ? t('docs_unreadable_one') : t('docs_unreadable_n').replace('{0}', bad.length)) + '</span>' +
+        '<span class="set-desc">' + escapeHtml(t('docs_unreadable_desc')) + '</span></span>' +
+        '<span class="set-chev docs-unread-chev' + (_docsUnreadOpen ? ' open' : '') + '">&rsaquo;</span></div>';
+    return _docsCard(head + (_docsUnreadOpen ? _docsSortItems(bad).map(function (d) { return _docsRowHtml(d, true); }).join('') : ''));
+}
+function docsToggleUnreadable() { _docsUnreadOpen = !_docsUnreadOpen; _docsRender(); }
+window.docsToggleUnreadable = docsToggleUnreadable;
+var _DOCS_ICON_WARN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 function _docsCard(rowsHtml, title) {
     return '<div class="set-section docs-group">' + (title ? '<div class="set-section-title">' + escapeHtml(title) + '</div>' : '') + '<div class="set-card">' + rowsHtml + '</div></div>';
 }
@@ -31692,11 +31727,13 @@ function _docsRender() {
     } else if (l.tab === 'proj' && !l.projectId) {
         var pids = _docsSortProjects(_docsProjectIds());
         if (_docsAiAllowed()) html += _docsAiEntryHtml('');
+        html += _docsUnreadableHtml();
         if (pids.length) html += _docsViewbarHtml();
         html += pids.length ? (grid ? '<div class="docs-grid">' + pids.map(_docsProjTileHtml).join('') + '</div>' : _docsCard(pids.map(_docsProjRowHtml).join('')))
             : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(!_docsFetched ? 'docs_list_loading' : admin ? 'docs_no_projects_admin' : 'docs_no_projects')) + '</div>';
     } else {
         if (_docsAiAllowed() && !l.folderId && !l.projectId) html += _docsAiEntryHtml('');
+        if (!l.folderId && !l.projectId) html += _docsUnreadableHtml();
         var items = _docsSortView(_docsChildren(l.projectId, l.folderId));
         if (items.length) html += _docsViewbarHtml();
         html += items.length ? (grid ? '<div class="docs-grid">' + items.map(_docsTileHtml).join('') + '</div>' : _docsCard(items.map(function (d) { return _docsRowHtml(d, false); }).join('')))
@@ -32006,10 +32043,10 @@ function docsClearOffline() {
 window.docsClearOffline = docsClearOffline;
 
 // ── Meny (⋯ på raden / i visningen) ───────────────────────────────────────────
-function _docsShowMenu(title, opts) {
+function _docsShowMenu(title, opts, note) {
     _actionPopupBack(null);
     document.getElementById('action-popup-title').textContent = title || '';
-    document.getElementById('action-popup-buttons').innerHTML = '<div class="saved-item-menu">' + opts.map(function (o, i) {
+    document.getElementById('action-popup-buttons').innerHTML = (note ? '<div class="docs-menu-note">' + note + '</div>' : '') + '<div class="saved-item-menu">' + opts.map(function (o, i) {
         return '<button class="saved-item-menu-option' + (o.danger ? ' saved-item-menu-option--danger' : '') + '" data-i="' + i + '"><span class="saved-item-menu-option-icon">' + o.icon + '</span><span>' + escapeHtml(o.label) + '</span></button>';
     }).join('') + '</div>';
     var popup = document.getElementById('action-popup');
@@ -32041,11 +32078,32 @@ function docsItemMenu(id) {
             opts.push({ icon: editIcon, label: t('docs_rename'), onClick: function () { _docsRename(d); } });
             opts.push({ icon: _DOCS_ICON_MOVE, label: t('docs_move'), onClick: function () { openDocMove(d.id); } });
             opts.push({ icon: _DOCS_ICON_REPLACE, label: t('docs_replace'), onClick: function () { docsPickReplace(d.id); } });
+            if (_docsIsPdf(d) && _docsTextState(d) !== 'reading') opts.push({ icon: _DOCS_ICON_REREAD, label: t('docs_reread'), onClick: function () { docsReread(d.id); } });
             opts.push({ icon: deleteIcon, label: t('delete_btn'), danger: true, onClick: function () { _docsDelete(d); } });
         }
     }
-    if (opts.length) _docsShowMenu(d.name, opts);
+    if (opts.length) _docsShowMenu(d.name, opts, _docsIsFolder(d) ? '' : _docsMenuNote(d));
 }
+// Status øverst i ⋯-menyen for en fil.
+function _docsMenuNote(d) {
+    var st = _docsTextState(d), n = d.textPages || 0;
+    var txt = st === 'ready' ? t(n === 1 ? 'docs_menu_st_ready_one' : 'docs_menu_st_ready').replace('{0}', n) : t('docs_menu_st_' + st);
+    return '<span class="doc-st doc-st--' + st + '">' + (st === 'reading' ? '<span class="doc-st-spin"></span>' : '') + escapeHtml(txt) + '</span>';
+}
+var _DOCS_ICON_REREAD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15a3 3 0 105.2-2"/><polyline points="14.5 10.5 14.5 13 12 13"/></svg>';
+// Admin: les teksten i én fil på nytt (f.eks. etter at lesingen feilet eller fila er byttet).
+async function docsReread(id) {
+    var d = _docsById(id); if (!d || !_acc.admin) return;
+    _docsReadingIds[id] = 1; _docsRender();
+    var ok = false;
+    try { await _docsIndexFile(d); ok = true; } catch (e) { console.error('Les teksten på nytt:', e); }
+    delete _docsReadingIds[id]; _docsRender();
+    var nd = _docsById(id) || d;
+    if (!ok) showNotificationModal(t('docs_load_error'));
+    else if ((nd.textChars || 0) < DOCS_MIN_TEXT) showNotificationModal(t('docs_reread_none'));
+    else showNotificationModal(t('docs_reread_ok').replace('{0}', nd.textPages || 0), true);
+}
+window.docsReread = docsReread;
 function docsProjectMenu(pid) {
     var files = _docsFilesUnder(pid, '');
     if (!files.length) return;
@@ -32334,8 +32392,9 @@ async function _docsQWorker(job) {
     _docsRenderProgress();
     _docsLocalRefresh().then(_docsRender);
     if (fail) showNotificationModal(t('docs_upload_failed').replace('{0}', fail).replace('{1}', done));
-    else if (done) showNotificationModal(t(done === 1 ? 'docs_uploaded_one' : 'docs_uploaded').replace('{0}', done), true);
-    else showNotificationModal(t('docs_upload_cancelled'), true);
+    else if (!done) showNotificationModal(t('docs_upload_cancelled'), true);
+    // Meldingen om at filene er klare kommer når teksten er lest (_docsIndexRun).
+    if (done - fail > 0) _docsUpSummary = { ids: _docsQIndex.map(function (x) { return x.doc.id; }), fail: fail };
     _docsIndexRun();
 }
 function _docsPutFile(f, path, mime, job) {
@@ -32367,6 +32426,7 @@ async function _docsUploadOne(job) {
 // Tekst for søk/AI: én fil om gangen, etter opplastingen. Lukkes appen før dette, fyller
 // _docsBackfillText inn teksten senere (filer uten textAt).
 var _docsIndexing = false;
+var _docsUpSummary = null;   // { ids, fail } — opplastingen som venter på «klare for søk og AI»-meldingen
 async function _docsIndexRun() {
     if (_docsIndexing) return;
     _docsIndexing = true;
@@ -32376,9 +32436,19 @@ async function _docsIndexRun() {
         var cur = _docsById(it.doc.id) || it.doc;
         try { await _docsIndexFile(cur, it.blob); } catch (e) { console.error('Dokumenttekst:', e); }
         _docsQIndex.shift();
+        _docsRender();   // merkelappen «Leser tekst …» forsvinner fil for fil
     }
     _docsIndexing = false;
     _docsRenderProgress();
+    // Ferdig: si hvor mange som er klare for søk og AI (og hvor mange som ikke kan leses).
+    if (_docsUpSummary && !_docsQIndex.length && !_docsQBusy()) {
+        var sm = _docsUpSummary; _docsUpSummary = null;
+        var n = sm.ids.length, ready = 0, bad = 0;
+        sm.ids.forEach(function (id) { var st = _docsTextState(_docsById(id)); if (st === 'ready') ready++; else if (st === 'unreadable') bad++; });
+        if (sm.fail) return;   // feilmeldingen er alt vist
+        if (ready === n) showNotificationModal(n === 1 ? t('docs_ready_one') : t('docs_ready_all').replace('{0}', n), true);
+        else showNotificationModal(t('docs_ready_some').replace('{0}', n).replace('{1}', ready).replace('{2}', n - ready), !bad);
+    }
 }
 
 // Bytt fil (ny versjon): samme navn, plassering og id — ny fil i Storage, den gamle slettes.
@@ -32649,8 +32719,10 @@ async function _docsBackfillText() {
     try {
         for (var i = 0; i < todo.length; i++) {
             var d = todo[i], had = !!_docsBlobMem[d.id];
+            _docsReadingIds[d.id] = 1; _docsRender();
             try { await _docsIndexFile(d); }
-            catch (e) { console.error('Dokumenttekst (' + (d.name || d.id) + '):', e); if (e && e.code === 'permission-denied') break; }
+            catch (e) { console.error('Dokumenttekst (' + (d.name || d.id) + '):', e); delete _docsReadingIds[d.id]; if (e && e.code === 'permission-denied') break; }
+            delete _docsReadingIds[d.id]; _docsRender();
             if (!had && !(_docsViewing && _docsViewing.id === d.id)) delete _docsBlobMem[d.id];   // ikke hold store filer i minnet
         }
     } finally { _docsBackfilling = false; }
