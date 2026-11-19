@@ -14330,7 +14330,19 @@ body.docs-select-active .toolbar, body.docs-select-active .docs-fab { display: n
 html.device-pc .docs-fab { right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
 /* Fremdrift ved opplasting */
 .docs-progress { margin-top: 12px; padding: 12px 14px; }
-.docs-progress-text { font-size: 14px; color: var(--text); margin-bottom: 8px; }
+.docs-progress-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.docs-progress-text { font-size: 14px; color: var(--text); }
+.docs-progress-cancel { flex-shrink: 0; border: 1px solid var(--control-border, #d7d7dd); background: #fff; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; height: 30px; padding: 0 12px; border-radius: 8px; cursor: pointer; }
+.docs-progress-cancel:active { background: var(--press-bg); }
+/* Opplasting pågår — synlig i hele appen, over toolbaren. Skjult i Dokumenter (der står kortet),
+   med tastaturet åpent og under flervalg (fast bunn-element, samme regel som «+»-knappen). */
+.docs-upload-pill { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-h, 60px) + 10px); z-index: 36; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); height: 34px; padding: 0 14px; border: none; border-radius: 17px; background: #2b2b30; color: #fff; font: inherit; font-size: 13px; font-weight: 500; box-shadow: 0 4px 14px rgba(0,0,0,.22); cursor: pointer; white-space: nowrap; }
+.docs-upload-pill[hidden] { display: none; }
+.docs-pill-text { overflow: hidden; text-overflow: ellipsis; }
+.docs-pill-spin { flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: docs-pill-spin 0.9s linear infinite; }
+@keyframes docs-pill-spin { to { transform: rotate(360deg); } }
+body.docs-modal-open .docs-upload-pill, body.keyboard-open .docs-upload-pill, body.bulk-select-active .docs-upload-pill,
+body.docs-select-active .docs-upload-pill, #login-view.active ~ .docs-upload-pill { display: none !important; }
 .docs-progress-bar { height: 6px; border-radius: 3px; background: var(--inset-bg); overflow: hidden; }
 .docs-progress-bar span { display: block; height: 100%; background: #E8501A; border-radius: 3px; transition: width .2s; }
 #docs-list { margin-top: 14px; }

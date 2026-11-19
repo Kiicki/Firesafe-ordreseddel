@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1248">
+    <link rel="stylesheet" href="styles.css?v=1249">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -2638,6 +2638,9 @@
         <button type="button" class="docs-fab" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     </div>
 
+    <!-- Opplasting av dokumenter pågår: synlig i hele appen (over toolbaren); trykk = åpne Dokumenter -->
+    <button type="button" class="docs-upload-pill" id="docs-upload-pill" onclick="docsOpenUploads()" hidden></button>
+
     <!-- Bulk action bar - vises over toolbar under flervalg -->
     <div class="bulk-action-bar" id="bulk-action-bar">
         <span class="bulk-count" id="bulk-count">0</span>
@@ -2795,9 +2798,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=511"></script>
+    <script src="lang.js?v=512"></script>
     <script src="script.js?v=628"></script>
-    <script src="script-ui.js?v=1473"></script>
+    <script src="script-ui.js?v=1474"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

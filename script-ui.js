@@ -28256,6 +28256,7 @@ function _accApply() {
     _accEnforce();
     if (_acc.adminKnown) _admMaybeSyncAnsatte();   // én gang pr. økt som admin
     _sugLive();   // admin: live tall for «Til godkjenning»
+    if (_acc.adminKnown && _acc.admin && typeof _docsResumeUploads === 'function') _docsResumeUploads();   // opplasting som ikke ble ferdig
 }
 var _ACC_VIEW_MODULE = { 'template-modal': 'hjem', 'saved-modal': 'lagret', 'view-form': 'ordreseddel', 'service-view': 'servicebil', 'kappe-view': 'kappe', 'kvittering-view': 'timebok', 'calculator-modal': 'calc', 'timebok-view': 'timebok', 'sjekkliste-view': 'sjekkliste' };
 var _accPageRefreshedUid = null;   // innstillingssiden tegnet på nytt når innloggingen ble klar
@@ -31169,10 +31170,12 @@ function _docsDb() {
     _docsDbP = new Promise(function (resolve, reject) {
         if (!window.indexedDB) { reject(new Error('IndexedDB mangler')); return; }
         // v2 (18-11-2026): + 'text' = uttrukket tekst pr. side (søk; cache av Firestore, primær i lokal test)
-        var req = indexedDB.open('firesafe-docs', 2);
+        // v3 (19-11-2026): + 'upq' = opplastingskøen (fortsetter etter at appen er lukket)
+        var req = indexedDB.open('firesafe-docs', 3);
         req.onupgradeneeded = function () {
             if (!req.result.objectStoreNames.contains('files')) req.result.createObjectStore('files', { keyPath: 'id' });
             if (!req.result.objectStoreNames.contains('text')) req.result.createObjectStore('text', { keyPath: 'id' });
+            if (!req.result.objectStoreNames.contains('upq')) req.result.createObjectStore('upq', { keyPath: 'qid' });
         };
         req.onsuccess = function () { resolve(req.result); };
         req.onerror = function () { reject(req.error); };
@@ -31203,6 +31206,7 @@ function _docsClearLocal() {
     _docsLocal = {}; _docsBlobMem = {}; _docsText = {}; _docs = []; _docsFetched = false;
     _aiChats = []; _aiChatsFetched = false;   // AI-samtalene tilhører også forrige bruker
     _docsIdb('readwrite', function (st) { return st.clear(); }, 'text').catch(function () {});
+    _docsIdb('readwrite', function (st) { return st.clear(); }, 'upq').catch(function () {});   // køen tilhører forrige bruker
     return _docsIdb('readwrite', function (st) { return st.clear(); }).catch(function () {});
 }
 window._docsClearLocal = _docsClearLocal;
@@ -32186,7 +32190,22 @@ function closeDocMove() {
 window.openDocMove = openDocMove; window.docMoveFilter = docMoveFilter; window.docMovePick = docMovePick; window.closeDocMove = closeDocMove;
 
 // ── Opplasting: kø med fremdrift, rett inn i mappen man står i (eller slippmålet) ─
-var _docsQ = [], _docsQBusy = false, _docsQDone = 0, _docsQTotal = 0, _docsQFail = 0, _docsQPct = 0;
+// Bruker 19-11-2026 (23 filer, tregt, «kan jeg avbryte / lukke appen?»):
+//  • 3 filer lastes opp SAMTIDIG; teksten (søk/AI) leses ETTER at alle er oppe — før ventet
+//    hver fil på at forrige PDF var ferdig lest.
+//  • Køen ligger i IndexedDB (store 'upq'): lukkes / oppdateres appen, fortsetter den der den
+//    slapp neste gang admin åpner appen (_docsResumeUploads). Fila som var halvveis, starter
+//    på nytt. (Ekte opplasting mens appen er lukket går ikke an i en nettapp.)
+//  • «Avbryt» på fremdriftskortet stopper filene som er på vei og tømmer køen.
+//  • Fremdriften vises også utenfor Dokumenter (#docs-upload-pill over toolbaren).
+var DOCS_Q_PAR = 3;
+var _docsQ = [];             // ventende jobber { qid, file, tg }
+var _docsQActive = {};       // qid → jobb som lastes opp nå (pct, task)
+var _docsQDone = 0, _docsQTotal = 0, _docsQFail = 0, _docsQRunning = 0;
+var _docsQIndex = [];        // lastet opp, venter på tekstlesing
+var _docsReplJob = null;     // «Bytt fil» (én fil) — egen fremdrift
+var _docsResumedUid = null;
+function _docsQBusy() { return _docsQRunning > 0 || _docsQ.length > 0; }
 function docsPickFiles() {
     if (!_acc.admin) return;
     var inp = document.getElementById('docs-file-input');
@@ -32199,6 +32218,16 @@ function docsFilesPicked(inp) {
     if (files.length) _docsEnqueue(files, { projectId: _docsLoc.projectId, parentId: _docsLoc.folderId });
 }
 window.docsFilesPicked = docsFilesPicked;
+function _docsQNewId() { return 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+// Lagre jobben på enheten (så køen overlever at appen lukkes). Feiler det (privat modus o.l.),
+// lastes fila likevel opp nå — den huskes bare ikke etter lukking.
+function _docsQSave(job) {
+    if (_docsIsDev()) return Promise.resolve();
+    return _docsIdb('readwrite', function (st) {
+        return st.put({ qid: job.qid, file: job.file, name: job.file.name, type: job.file.type, tg: job.tg, uid: currentUser ? currentUser.uid : '', firma: _firma(), at: new Date().toISOString() });
+    }, 'upq').catch(function (e) { console.warn('Opplastingskø (lagring):', e); });
+}
+function _docsQForget(qid) { return _docsIdb('readwrite', function (st) { return st.delete(qid); }, 'upq').catch(function () {}); }
 function _docsEnqueue(files, tg) {
     if (!_acc.admin) return;
     var bad = files.filter(function (f) { return !_docsAccepts(f); });
@@ -32208,61 +32237,148 @@ function _docsEnqueue(files, tg) {
     else if (big.length) showNotificationModal(t('docs_too_big').replace('{0}', big.map(function (f) { return f.name; }).join(', ')));
     if (!ok.length) return;
     if (!_docsIsDev() && navigator.onLine === false) { showNotificationModal(t('docs_need_net')); return; }
-    ok.forEach(function (f) { _docsQ.push({ file: f, tg: tg }); });
+    ok.forEach(function (f) { var job = { qid: _docsQNewId(), file: f, tg: tg }; _docsQ.push(job); _docsQSave(job); });
     _docsQTotal += ok.length;
     _docsRenderProgress();
     _docsRunQ();
 }
-function _docsRenderProgress() {
-    var el = document.getElementById('docs-progress');
-    if (!el) return;
-    if (!_docsQTotal) { el.innerHTML = ''; el.style.display = 'none'; return; }
-    var cur = Math.min(_docsQDone + 1, _docsQTotal);
-    var pct = Math.round(((_docsQDone + (_docsQBusy ? _docsQPct : 0)) / _docsQTotal) * 100);
-    el.style.display = '';
-    el.innerHTML = '<div class="docs-progress-text">' + escapeHtml(t('docs_uploading').replace('{0}', cur).replace('{1}', _docsQTotal)) + ' · ' + pct + ' %</div>' +
-        '<div class="docs-progress-bar"><span style="width:' + pct + '%"></span></div>';
+// Neste gang appen åpnes (admin, innlogget): fortsett køen som ikke ble ferdig.
+function _docsResumeUploads() {
+    if (!currentUser || _docsIsDev() || !_acc.admin || _docsResumedUid === currentUser.uid) return;
+    _docsResumedUid = currentUser.uid;
+    var uid = currentUser.uid, firma = _firma();
+    _docsIdb('readonly', function (st) { return st.getAll(); }, 'upq').then(function (all) {
+        var mine = (all || []).filter(function (r) { return r.uid === uid && r.firma === firma && r.file; })
+            .sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); });
+        if (!mine.length) return;
+        // Mappene må være kjent, så en slettet målmappe ikke gir en usynlig fil.
+        return (_docsFetched ? Promise.resolve() : _docsLoad()).then(function () {
+            mine.forEach(function (r) {
+                if (_docsQ.some(function (j) { return j.qid === r.qid; }) || _docsQActive[r.qid]) return;
+                _docsQ.push({ qid: r.qid, file: r.file, tg: r.tg || { projectId: '', parentId: '' } });
+                _docsQTotal++;
+            });
+            showNotificationModal(t('docs_upload_resumed').replace('{0}', mine.length), true);
+            _docsRenderProgress();
+            _docsRunQ();
+        });
+    }).catch(function (e) { console.warn('Opplastingskø (gjenoppta):', e); });
 }
-async function _docsRunQ() {
-    if (_docsQBusy) return;
-    _docsQBusy = true;
-    while (_docsQ.length) {
-        var job = _docsQ.shift();
-        _docsQPct = 0; _docsRenderProgress();
-        try { await _docsUploadOne(job.file, job.tg); }
-        catch (e) { console.error('Opplasting:', e); _docsQFail++; }
-        _docsQDone++;
-        _docsRender();
+function _docsRenderProgress() {
+    var pct = 0, text = '', active = !!_docsQTotal;
+    if (active) {
+        var part = 0; Object.keys(_docsQActive).forEach(function (k) { part += _docsQActive[k].pct || 0; });
+        pct = Math.min(100, Math.round(((_docsQDone + part) / _docsQTotal) * 100));
+        text = t('docs_uploading_n').replace('{0}', _docsQDone).replace('{1}', _docsQTotal);
+    } else if (_docsReplJob) {
+        pct = Math.round((_docsReplJob.pct || 0) * 100);
+        text = t('docs_uploading_new');
+    } else if (_docsQIndex.length && _docsIndexing) {
+        text = t('docs_reading_text').replace('{0}', _docsQIndex.length);
     }
-    _docsQBusy = false;
+    var el = document.getElementById('docs-progress');
+    if (el) {
+        if (!text) { el.innerHTML = ''; el.style.display = 'none'; }
+        else {
+            el.style.display = '';
+            el.innerHTML = '<div class="docs-progress-head"><div class="docs-progress-text">' + escapeHtml(text) + (active || _docsReplJob ? ' · ' + pct + ' %' : '') + '</div>' +
+                (active ? '<button type="button" class="docs-progress-cancel" onclick="docsCancelUploads()">' + escapeHtml(t('btn_cancel')) + '</button>' : '') + '</div>' +
+                (active || _docsReplJob ? '<div class="docs-progress-bar"><span style="width:' + pct + '%"></span></div>' : '');
+        }
+    }
+    // Utenfor Dokumenter: liten linje over toolbaren (trykk = åpne Dokumenter).
+    var pill = document.getElementById('docs-upload-pill');
+    if (pill) {
+        var showPill = active || !!_docsReplJob;
+        pill.hidden = !showPill;
+        if (showPill) pill.innerHTML = '<span class="docs-pill-spin"></span><span class="docs-pill-text">' + escapeHtml(t('docs_upload_pill').replace('{0}', pct)) + '</span>';
+    }
+}
+function docsOpenUploads() { if (typeof showDocs === 'function') showDocs(); }
+window.docsOpenUploads = docsOpenUploads;
+function docsCancelUploads() {
+    if (!_docsQBusy()) return;
+    var left = _docsQTotal - _docsQDone;
+    showConfirmModal(t('docs_upload_cancel_confirm').replace('{0}', left), function () {
+        var waiting = _docsQ.splice(0, _docsQ.length);
+        waiting.forEach(function (j) { _docsQForget(j.qid); });
+        _docsQTotal -= waiting.length;
+        Object.keys(_docsQActive).forEach(function (k) { var j = _docsQActive[k]; j.cancelled = true; try { if (j.task) j.task.cancel(); } catch (e) {} });
+        _docsRenderProgress();
+    }, t('docs_upload_cancel_btn'), '#e74c3c');
+}
+window.docsCancelUploads = docsCancelUploads;
+function _docsRunQ() {
+    while (_docsQRunning < DOCS_Q_PAR && _docsQ.length) _docsQWorker(_docsQ.shift());
+}
+async function _docsQWorker(job) {
+    _docsQRunning++;
+    job.pct = 0; _docsQActive[job.qid] = job;
+    _docsRenderProgress();
+    var cancelled = false;
+    try { await _docsUploadOne(job); }
+    catch (e) {
+        if (job.cancelled || (e && e.code === 'storage/canceled')) cancelled = true;
+        else { console.error('Opplasting:', e); _docsQFail++; }
+    }
+    delete _docsQActive[job.qid];
+    _docsQForget(job.qid);
+    if (cancelled) _docsQTotal--; else _docsQDone++;
+    _docsQRunning--;
+    _docsRender();
+    if (_docsQ.length) { _docsRunQ(); return; }
+    if (_docsQRunning) return;
+    // Hele køen er ferdig.
     var done = _docsQDone, fail = _docsQFail;
-    _docsQDone = 0; _docsQTotal = 0; _docsQFail = 0; _docsQPct = 0;
+    _docsQDone = 0; _docsQTotal = 0; _docsQFail = 0;
     _docsRenderProgress();
     _docsLocalRefresh().then(_docsRender);
     if (fail) showNotificationModal(t('docs_upload_failed').replace('{0}', fail).replace('{1}', done));
-    else showNotificationModal(t(done === 1 ? 'docs_uploaded_one' : 'docs_uploaded').replace('{0}', done), true);
+    else if (done) showNotificationModal(t(done === 1 ? 'docs_uploaded_one' : 'docs_uploaded').replace('{0}', done), true);
+    else showNotificationModal(t('docs_upload_cancelled'), true);
+    _docsIndexRun();
 }
-function _docsPutFile(f, path, mime) {
+function _docsPutFile(f, path, mime, job) {
     return new Promise(function (resolve, reject) {
-        if (_docsIsDev()) { _docsQPct = 1; resolve(); return; }
+        if (_docsIsDev()) { if (job) job.pct = 1; resolve(); return; }
         var task = _fbStorage().ref(path).put(f, { contentType: mime, cacheControl: 'private, max-age=31536000' });
+        if (job) job.task = task;
         task.on('state_changed', function (snap) {
-            _docsQPct = snap.totalBytes ? snap.bytesTransferred / snap.totalBytes : 0;
+            if (job) job.pct = snap.totalBytes ? snap.bytesTransferred / snap.totalBytes : 0;
             _docsRenderProgress();
         }, reject, resolve);
     });
 }
-async function _docsUploadOne(f, tg) {
+async function _docsUploadOne(job) {
+    var f = job.file, tg = job.tg || { projectId: '', parentId: '' };
+    if (tg.parentId && _docsFetched && !_docsById(tg.parentId)) tg = { projectId: tg.projectId || '', parentId: '' };   // målmappen er slettet → roten
     var id = _docsNewId(), now = new Date().toISOString();
     var path = 'firms/' + _firma() + '/documents/' + id + '/' + _docsSafeName(f.name);
     var mime = _docsMimeOf(f);
     if (_docsIsDev()) await _docsIdb('readwrite', function (st) { return st.put({ id: id, blob: f, offline: false, size: f.size }); });
-    else await _docsPutFile(f, path, mime);
+    else await _docsPutFile(f, path, mime, job);
+    if (job.cancelled) { if (!_docsIsDev()) _fbStorage().ref(path).delete().catch(function () {}); throw { code: 'storage/canceled' }; }
     _docsBlobMem[id] = f;
     var doc = Object.assign({ id: id, name: f.name.replace(/\.[^.]+$/, '') || f.name, file: f.name, mime: mime, size: f.size, path: path,
         parentId: tg.parentId || '', createdAt: now, updatedAt: now }, _docsProjMeta(tg.projectId), _docsWho());
     await _docsWrite([doc]);
-    try { await _docsIndexFile(doc, f); } catch (e) { console.error('Dokumenttekst:', e); }   // søket: prøves igjen senere
+    _docsQIndex.push({ doc: doc, blob: f });   // teksten leses når alle filene er oppe
+}
+// Tekst for søk/AI: én fil om gangen, etter opplastingen. Lukkes appen før dette, fyller
+// _docsBackfillText inn teksten senere (filer uten textAt).
+var _docsIndexing = false;
+async function _docsIndexRun() {
+    if (_docsIndexing) return;
+    _docsIndexing = true;
+    while (_docsQIndex.length && !_docsQBusy()) {
+        _docsRenderProgress();
+        var it = _docsQIndex[0];
+        var cur = _docsById(it.doc.id) || it.doc;
+        try { await _docsIndexFile(cur, it.blob); } catch (e) { console.error('Dokumenttekst:', e); }
+        _docsQIndex.shift();
+    }
+    _docsIndexing = false;
+    _docsRenderProgress();
 }
 
 // Bytt fil (ny versjon): samme navn, plassering og id — ny fil i Storage, den gamle slettes.
@@ -32280,11 +32396,11 @@ async function docsReplacePicked(inp) {
     if (!_docsIsDev() && navigator.onLine === false) { showNotificationModal(t('docs_need_net')); return; }
     var mime = _docsMimeOf(f), oldPath = d.path, wasOff = _docsIsOffline(d.id);
     var path = 'firms/' + _firma() + '/documents/' + d.id + '/' + Date.now().toString(36) + '_' + _docsSafeName(f.name);
-    _docsQTotal = 1; _docsQBusy = true; _docsQPct = 0; _docsRenderProgress();
+    _docsReplJob = { pct: 0 }; _docsRenderProgress();
     try {
         if (_docsIsDev()) await _docsIdb('readwrite', function (st) { return st.put({ id: d.id, blob: f, offline: wasOff, size: f.size }); });
         else {
-            await _docsPutFile(f, path, mime);
+            await _docsPutFile(f, path, mime, _docsReplJob);
             if (wasOff) await _docsIdb('readwrite', function (st) { return st.put({ id: d.id, blob: f, offline: true, size: f.size, savedAt: new Date().toISOString() }); });
         }
         _docsBlobMem[d.id] = f;
@@ -32295,7 +32411,7 @@ async function docsReplacePicked(inp) {
         showNotificationModal(t('docs_replaced'), true);
         if (_docsViewing && _docsViewing.id === d.id) _docsOpenViewer(d.id);
     } catch (e) { console.error('Bytt fil:', e); showNotificationModal(t('docs_upload_error')); }
-    _docsQTotal = 0; _docsQBusy = false; _docsQPct = 0;
+    _docsReplJob = null; _docsRenderProgress();
     _docsLocalRefresh().then(_docsRender);
 }
 window.docsPickReplace = docsPickReplace; window.docsReplacePicked = docsReplacePicked;
@@ -32525,7 +32641,9 @@ function _docsAfterLoad() {
 // Admin: les teksten i filer som mangler den (lastet opp før søket fantes / feilet sist).
 async function _docsBackfillText() {
     if (_docsBackfilling || !_acc.admin || (!_docsIsDev() && navigator.onLine === false)) return;
-    var todo = _docs.filter(function (d) { return !_docsIsFolder(d) && !d.textAt; });
+    if (_docsQBusy() || _docsIndexing) return;   // opplastingen leser teksten selv etterpå
+    var queued = {}; _docsQIndex.forEach(function (x) { queued[x.doc.id] = 1; });
+    var todo = _docs.filter(function (d) { return !_docsIsFolder(d) && !d.textAt && !queued[d.id]; });
     if (!todo.length) return;
     _docsBackfilling = true;
     try {
