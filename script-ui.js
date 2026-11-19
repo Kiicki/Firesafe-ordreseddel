@@ -31588,21 +31588,25 @@ function _docsTileHtml(d) {
 function _docsTileHtmlPlain(d, drag) {
     var folder = _docsIsFolder(d), pdf = !folder && _docsIsPdf(d);
     var off = folder ? (function () { var fs = _docsFilesUnder('', d.id); return fs.length && fs.every(function (x) { return _docsIsOffline(x.id); }); })() : _docsIsOffline(d.id);
-    var sub = folder ? _docsFolderSub(d) : [_docsFmtSize(d.size), _docsFmtDate(d.updatedAt || d.createdAt)].filter(Boolean).join(' · ');
     return '<div class="doc-tile"' + (folder ? ' data-drop="m:' + escapeHtml(d.id) + '"' : '') + drag + ' onclick="' + (folder ? 'docsOpenFolder' : 'openDoc') + '(\'' + escapeHtml(d.id) + '\')">' +
         '<div class="doc-tile-thumb"><span class="set-ico doc-tile-ico ' + (folder ? 'set-ico--amber' : pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (folder ? _DOCS_ICON_FOLDER : pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
         (off ? '<span class="doc-tile-off" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') + '</div>' +
-        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</div><div class="doc-tile-sub">' + (folder ? '' : _docsStateHtml(d)) + escapeHtml(sub) + '</div></div>' +
+        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</div>' + _docsTileSub(folder ? '' : _docsStateHtml(d)) + '</div>' +
         '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div></div>';
+}
+// Rutenett = bare navnet (bruker 19-11-2026: «trenger ikke 2 linjer»). Linje 2 kun når fila ikke er
+// klar for søk/AI («Leser …» / «Ikke søkbar») — det skal alltid synes.
+function _docsTileSub(stateHtml) {
+    stateHtml = String(stateHtml || '').replace(/ · $/, '');
+    return stateHtml ? '<div class="doc-tile-sub">' + stateHtml + '</div>' : '';
 }
 function _docsProjTileHtml(pid) {
     var files = _docsFilesUnder(pid, ''), kids = _docsChildren(pid, '');
     var off = files.length && files.every(function (x) { return _docsIsOffline(x.id); });
-    var sub = kids.length ? _docsPlural(files.length, 'docs_n_file', 'docs_n_files') : t('docs_folder_empty');
-    return '<div class="doc-tile" data-drop="p:' + escapeHtml(pid) + '" onclick="docsOpenProject(\'' + escapeHtml(pid) + '\')">' +
+        return '<div class="doc-tile" data-drop="p:' + escapeHtml(pid) + '" onclick="docsOpenProject(\'' + escapeHtml(pid) + '\')">' +
         '<div class="doc-tile-thumb"><span class="set-ico doc-tile-ico set-ico--orange">' + _DOCS_ICON_PROJ + '</span>' +
         (off ? '<span class="doc-tile-off">' + _DOCS_ICON_OFFLINE + '</span>' : '') + '</div>' +
-        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(_docsProjName(pid)) + '" data-full="' + escapeHtml(_docsProjName(pid)) + '">' + escapeHtml(_docsProjName(pid)) + '</div><div class="doc-tile-sub">' + escapeHtml(sub) + '</div></div>' +
+        '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(_docsProjName(pid)) + '" data-full="' + escapeHtml(_docsProjName(pid)) + '">' + escapeHtml(_docsProjName(pid)) + '</div></div>' +
         (files.length ? '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsProjectMenu(\'' + escapeHtml(pid) + '\')">' + _DOCS_MORE + '</button>' : '') + '</div></div>';
 }
 // ── Flervalg (bruker 19-11-2026, som Dropbox/MEGA) — samme mønster som Lagret ──────

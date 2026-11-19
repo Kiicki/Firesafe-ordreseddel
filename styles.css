@@ -14308,14 +14308,17 @@ button, input, select, textarea { font-family: inherit; }
 .doc-tile { position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--card-bg); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .doc-tile:active { background: var(--press-bg); }
 .doc-tile-thumb { position: relative; aspect-ratio: 4 / 3; background: var(--inset-bg); display: flex; align-items: center; justify-content: center; }
-.doc-tile-ico { width: 60px; height: 60px; border-radius: 16px; }
-.doc-tile-ico svg { width: 30px; height: 30px; }
+/* Stort ikon som fyller ruta (som Dropbox/MEGA) — uten fargefeltet radene har; samme farge pr. type.
+   Tynnere strek når ikonet er stort, ellers ser streken klumpete ut. */
+.doc-tile-thumb .doc-tile-ico { width: auto; height: auto; background: transparent; border-radius: 0; }
+.doc-tile-ico svg { width: 76px; height: 76px; stroke-width: 1.35; }
+.doc-tile-ico.set-ico--amber { color: #e0a526; }   /* mappe: varm gul som i filutforskere */
 .doc-tile-off { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 12px; background: #fff; color: #2e7d32; display: flex; align-items: center; justify-content: center; box-shadow: var(--card-shadow); }
-.doc-tile-foot { display: flex; align-items: flex-start; gap: 2px; padding: 8px 2px 10px 12px; }
+.doc-tile-foot { display: flex; align-items: center; gap: 2px; padding: 6px 2px 6px 12px; min-height: 44px; box-sizing: border-box; }
 .doc-tile-text { flex: 1; min-width: 0; }
 .doc-tile-name { font-size: 14px; font-weight: 500; line-height: 1.3; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-tile-sub { margin-top: 2px; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.doc-tile .doc-row-more { flex-shrink: 0; margin-top: -6px; }
+.doc-tile .doc-row-more { flex-shrink: 0; }
 /* Prosjekt uten filer (ingen ⋯): tom plass like bred som ⋯, så radene står likt */
 .doc-row-more-gap { flex-shrink: 0; width: 26px; }   /* = ⋯ (34 px − 8 px negativ marg) */
 /* Nederst (som Dropbox): søkefelt med ✨ + «+». Fast over toolbaren, under popupene (.confirm-modal = 20).
