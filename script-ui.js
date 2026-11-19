@@ -31083,11 +31083,13 @@ function _docsFmtSize(b) {
     if (b >= 1024 * 1024) return formatLocaleNum(Math.round(b / 1024 / 1024 * 10) / 10, 1) + ' MB';
     return Math.max(1, Math.round(b / 1024)) + ' kB';
 }
+// «5 Apr 2026» (bruker 19-11-2026, som Dropbox/MEGA): dag uten null foran, kort norsk måned.
+var _DOCS_MND = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
+var _DOCS_MND_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function _docsFmtDate(iso) {
     var d = iso ? new Date(iso) : null;
     if (!d || isNaN(d)) return '';
-    var p = function (n) { return (n < 10 ? '0' : '') + n; };
-    return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear();
+    return d.getDate() + ' ' + (currentLang === 'en' ? _DOCS_MND_EN : _DOCS_MND)[d.getMonth()] + ' ' + d.getFullYear();
 }
 function _docsPlural(n, one, many) { return n + ' ' + t(n === 1 ? one : many); }
 // Bare PDF og bilder (samme som Storage-reglene).
@@ -33152,7 +33154,7 @@ function _aiDateLabel(iso) {
     var d = new Date(iso), today = new Date();
     var same = d.toDateString() === today.toDateString();
     return same ? t('docs_ai_today').replace('{0}', ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2))
-        : ('0' + d.getDate()).slice(-2) + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + d.getFullYear();
+        : _docsFmtDate(iso);
 }
 function _docsAiHtml() {
     var loc = _docsLoc.ai, chat = loc.chatId ? _aiChatById(loc.chatId) : null;
