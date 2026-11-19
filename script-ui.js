@@ -31205,6 +31205,7 @@ function _docsLocalRefresh() {
 function _docsClearLocal() {
     _docsLocal = {}; _docsBlobMem = {}; _docsText = {}; _docs = []; _docsFetched = false;
     _aiChats = []; _aiChatsFetched = false;   // AI-samtalene tilhører også forrige bruker
+    if (_docsUnsub) { _docsUnsub(); _docsUnsub = null; }
     _docsIdb('readwrite', function (st) { return st.clear(); }, 'text').catch(function () {});
     _docsIdb('readwrite', function (st) { return st.clear(); }, 'upq').catch(function () {});   // køen tilhører forrige bruker
     return _docsIdb('readwrite', function (st) { return st.clear(); }).catch(function () {});
@@ -31226,19 +31227,30 @@ function _docsLoad() {
     // lista når den er klar.
     if (!currentUser) return Promise.resolve();
     if (_docsIsDev()) { _docs = _docsDevList(); _docsFetched = true; _docsMigrate(); _docsRender(); _docsAfterLoad(); return Promise.resolve(); }
-    return _docsColl().limit(5000).get().then(function (snap) {
-        _docs = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-        _docsFetched = true;
-        if (_docsPendingHash) {   // adressen pekte på en mappe/fil som ikke var hentet ennå
-            var ph = _docsPendingHash; _docsPendingHash = null;
-            if (window.location.hash.slice(1) === ph) setTimeout(function () { _docsApplyHash(ph); }, 0);
-        }
-        _docsMigrate();
-        _docsSaveCache();
-        _docsRender();
-        _docsAfterLoad();
-    }).catch(function (e) { console.error('Dokumenter:', e); });
+    // LEVENDE liste (19-11-2026): serveren leser filene etter opplasting (tekst + AI) og
+    // oppdaterer status/tekst på dokumentet — endringer (også fra andre enheter) vises straks.
+    if (_docsUnsub && _docsLiveFirma === _firma()) return _docsLiveP;
+    if (_docsUnsub) { _docsUnsub(); _docsUnsub = null; }
+    _docsLiveFirma = _firma();
+    _docsLiveP = new Promise(function (resolve) {
+        var first = true;
+        _docsUnsub = _docsColl().limit(5000).onSnapshot(function (snap) {
+            _docs = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+            _docsFetched = true;
+            if (first && _docsPendingHash) {   // adressen pekte på en mappe/fil som ikke var hentet ennå
+                var ph = _docsPendingHash; _docsPendingHash = null;
+                if (window.location.hash.slice(1) === ph) setTimeout(function () { _docsApplyHash(ph); }, 0);
+            }
+            if (first) _docsMigrate();
+            _docsSaveCache();
+            _docsRender();
+            _docsCheckUpSummary();
+            if (first) { first = false; _docsAfterLoad(); resolve(); }
+        }, function (e) { console.error('Dokumenter:', e); _docsUnsub = null; resolve(); });
+    });
+    return _docsLiveP;
 }
+var _docsUnsub = null, _docsLiveP = null, _docsLiveFirma = null;
 // Lagre én eller flere (nye eller endrede) — lokalt straks, Firestore i én batch.
 function _docsWrite(items) {
     items.forEach(function (doc) {
@@ -31402,10 +31414,18 @@ var _DOCS_MORE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentC
 //   unreadable = lest, men nesten ingen tekst (skannet PDF / bilde) → AI kan ikke bruke den
 var DOCS_MIN_TEXT = 50;   // tegn — under dette regnes fila som ikke søkbar (f.eks. bare sidetall)
 var _docsReadingIds = {};
+function _docsMs(v) { if (!v) return 0; if (typeof v === 'string') return Date.parse(v) || 0; if (v.toMillis) return v.toMillis(); return (v.seconds || 0) * 1000; }
 function _docsTextState(d) {
     if (!d || _docsIsFolder(d)) return '';
     if (_docsReadingIds[d.id] || _docsQIndex.some(function (x) { return x.doc.id === d.id; })) return 'reading';
-    if (!d.textAt) return 'pending';
+    // Serveren leser (låsen gjelder 12 min — står den lenger, har lesingen stoppet → «ikke lest»).
+    if (d.readStatus === 'reading' && Date.now() - _docsMs(d.readLockAt) < 15 * 60 * 1000) return 'reading';
+    if (!d.textAt) {
+        if (d.readStatus === 'error') return 'unreadable';
+        // Nettopp lastet opp: serveren starter lesingen om et øyeblikk.
+        if (!_docsIsDev() && Date.now() - _docsMs(d.createdAt) < 10 * 60 * 1000) return 'reading';
+        return 'pending';
+    }
     return (d.textChars || 0) < DOCS_MIN_TEXT ? 'unreadable' : 'ready';
 }
 function _docsStateHtml(d) {
@@ -31419,8 +31439,16 @@ function _docsFolderSub(f) {
     if (!kids.length) return t('docs_folder_empty');
     return [nf ? _docsPlural(nf, 'docs_n_folder', 'docs_n_folders') : '', nd ? _docsPlural(nd, 'docs_n_file', 'docs_n_files') : ''].filter(Boolean).join(' · ');
 }
+// Filtypen slik brukeren kjenner den (bruker 19-11-2026: «hvorfor står det ikke filtype?»):
+// endelsen på fila (JPG, PNG, HEIC …), ellers fra mime-typen. «Bilde» bare som siste utvei.
+function _docsTypeLabel(d) {
+    if (_docsIsPdf(d)) return 'PDF';
+    var m = /\.([a-z0-9]{2,5})$/i.exec(d.file || '') || /\/([a-z0-9.+-]+)$/i.exec(d.mime || '');
+    var x = m ? m[1].toUpperCase().replace(/^JPEG$/, 'JPG').replace(/^SVG\+XML$/, 'SVG') : '';
+    return x || t('docs_image');
+}
 function _docsFileSub(d, withPath) {
-    var s = [_docsIsPdf(d) ? 'PDF' : t('docs_image'), _docsFmtSize(d.size), _docsFmtDate(d.updatedAt || d.createdAt)];
+    var s = [_docsTypeLabel(d), _docsFmtSize(d.size), _docsFmtDate(d.updatedAt || d.createdAt)];
     if (withPath) { var p = _docsPathText(d); if (p) s.unshift(p); }
     return s.filter(Boolean).join(' · ');
 }
@@ -31683,7 +31711,9 @@ window.docsBulkShare = docsBulkShare; window.docsBulkOffline = docsBulkOffline; 
 // Admin, øverst i Bibliotek/Prosjekter: «N filer kan ikke leses av AI» — trykk = vis hvilke (i kortet).
 var _docsUnreadOpen = false;
 function _docsUnreadableHtml() {
-    if (!_acc.admin || !_docsFetched) return '';
+    // Fra lista vi alt har (cache) — ikke vent på Firestore: ellers dukket varselet opp sekunder
+    // etter oppdatering og dyttet lista ned (regel: ingenting skal mangle/hoppe etter refresh).
+    if (!_acc.admin || !_docs.length) return '';
     var bad = _docs.filter(function (d) { return _docsTextState(d) === 'unreadable'; });
     if (!bad.length) return '';
     var head = '<div class="set-row doc-row docs-unread-head" onclick="docsToggleUnreadable()">' +
@@ -32098,7 +32128,7 @@ function docsItemMenu(id) {
             opts.push({ icon: editIcon, label: t('docs_rename'), onClick: function () { _docsRename(d); } });
             opts.push({ icon: _DOCS_ICON_MOVE, label: t('docs_move'), onClick: function () { openDocMove(d.id); } });
             opts.push({ icon: _DOCS_ICON_REPLACE, label: t('docs_replace'), onClick: function () { docsPickReplace(d.id); } });
-            if (_docsIsPdf(d) && _docsTextState(d) !== 'reading') opts.push({ icon: _DOCS_ICON_REREAD, label: t('docs_reread'), onClick: function () { docsReread(d.id); } });
+            if (_docsTextState(d) !== 'reading') opts.push({ icon: _DOCS_ICON_REREAD, label: t('docs_reread'), onClick: function () { docsReread(d.id); } });
             opts.push({ icon: deleteIcon, label: t('delete_btn'), danger: true, onClick: function () { _docsDelete(d); } });
         }
     }
@@ -32107,21 +32137,31 @@ function docsItemMenu(id) {
 // Status øverst i ⋯-menyen for en fil.
 function _docsMenuNote(d) {
     var st = _docsTextState(d), n = d.textPages || 0;
-    var txt = st === 'ready' ? t(n === 1 ? 'docs_menu_st_ready_one' : 'docs_menu_st_ready').replace('{0}', n) : t('docs_menu_st_' + st);
+    var txt = st === 'ready' ? t(n === 1 ? 'docs_menu_st_ready_one' : 'docs_menu_st_ready').replace('{0}', n) + ' · ' + t(d.aiAt ? 'docs_menu_st_ai' : 'docs_menu_st_textonly') : t('docs_menu_st_' + st);
+    if (d.readStatus === 'error' && d.readError && st !== 'reading') txt += ' — ' + t('docs_menu_st_error').replace('{0}', d.readError);
     return '<span class="doc-st doc-st--' + st + '">' + (st === 'reading' ? '<span class="doc-st-spin"></span>' : '') + escapeHtml(txt) + '</span>';
 }
 var _DOCS_ICON_REREAD = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15a3 3 0 105.2-2"/><polyline points="14.5 10.5 14.5 13 12 13"/></svg>';
 // Admin: les teksten i én fil på nytt (f.eks. etter at lesingen feilet eller fila er byttet).
+// Lesing på serveren (tekst + AI-lesing av bilder/tabeller/skannede sider): funksjonen readDocNow.
+async function _docsReadNow(id, force) {
+    await _docsFunctions();
+    var fn = firebase.app().functions('europe-north1').httpsCallable('readDocNow', { timeout: 540000 });
+    return (await fn({ firma: _firma(), docId: id, force: !!force })).data;
+}
 async function docsReread(id) {
     var d = _docsById(id); if (!d || !_acc.admin) return;
     _docsReadingIds[id] = 1; _docsRender();
-    var ok = false;
-    try { await _docsIndexFile(d); ok = true; } catch (e) { console.error('Les teksten på nytt:', e); }
+    var ok = false, r = null;
+    try {
+        if (_docsIsDev()) { await _docsIndexFile(d); ok = true; }   // lokal test: ingen server
+        else { r = await _docsReadNow(id, true); ok = !!(r && (r.ok || r.skipped)); }
+    } catch (e) { console.error('Les på nytt:', e); }
     delete _docsReadingIds[id]; _docsRender();
     var nd = _docsById(id) || d;
     if (!ok) showNotificationModal(t('docs_load_error'));
-    else if ((nd.textChars || 0) < DOCS_MIN_TEXT) showNotificationModal(t('docs_reread_none'));
-    else showNotificationModal(t('docs_reread_ok').replace('{0}', nd.textPages || 0), true);
+    else if ((nd.textChars || (r && r.chars) || 0) < DOCS_MIN_TEXT) showNotificationModal(t('docs_reread_none'));
+    else showNotificationModal(t('docs_reread_ok').replace('{0}', (r && r.pages) || nd.textPages || 0).replace('{1}', (r && r.figs) || nd.aiFigs || 0), true);
 }
 window.docsReread = docsReread;
 function docsProjectMenu(pid) {
@@ -32413,9 +32453,17 @@ async function _docsQWorker(job) {
     _docsLocalRefresh().then(_docsRender);
     if (fail) showNotificationModal(t('docs_upload_failed').replace('{0}', fail).replace('{1}', done));
     else if (!done) showNotificationModal(t('docs_upload_cancelled'), true);
-    // Meldingen om at filene er klare kommer når teksten er lest (_docsIndexRun).
-    if (done - fail > 0) _docsUpSummary = { ids: _docsQIndex.map(function (x) { return x.doc.id; }), fail: fail };
-    _docsIndexRun();
+    // Meldingen om at filene er klare kommer når teksten er lest (serveren / _docsIndexRun lokalt).
+    if (_docsIsDev()) {
+        if (done - fail > 0) _docsUpSummary = { ids: _docsQIndex.map(function (x) { return x.doc.id; }), fail: fail };
+        _docsIndexRun();
+    } else if (_docsUpIds.length) {
+        var n = _docsUpIds.length;
+        _docsUpSummary = { ids: _docsUpIds.slice(), fail: fail };
+        _docsUpIds = [];
+        if (!fail) showNotificationModal(n === 1 ? t('docs_uploaded_reading_one') : t('docs_uploaded_reading').replace('{0}', n), true);
+        _docsCheckUpSummary();
+    }
 }
 function _docsPutFile(f, path, mime, job) {
     return new Promise(function (resolve, reject) {
@@ -32441,8 +32489,12 @@ async function _docsUploadOne(job) {
     var doc = Object.assign({ id: id, name: f.name.replace(/\.[^.]+$/, '') || f.name, file: f.name, mime: mime, size: f.size, path: path,
         parentId: tg.parentId || '', createdAt: now, updatedAt: now }, _docsProjMeta(tg.projectId), _docsWho());
     await _docsWrite([doc]);
-    _docsQIndex.push({ doc: doc, blob: f });   // teksten leses når alle filene er oppe
+    // Teksten (og AI-lesingen av bilder/tabeller) gjøres på SERVEREN (readDocOnUpload) — appen kan
+    // lukkes rett etter opplastingen. Lokal test har ingen server: les her som før.
+    if (_docsIsDev()) _docsQIndex.push({ doc: doc, blob: f });
+    else _docsUpIds.push(id);
 }
+var _docsUpIds = [];   // lastet opp i denne runden — venter på at serveren er ferdig å lese
 // Tekst for søk/AI: én fil om gangen, etter opplastingen. Lukkes appen før dette, fyller
 // _docsBackfillText inn teksten senere (filer uten textAt).
 var _docsIndexing = false;
@@ -32460,8 +32512,13 @@ async function _docsIndexRun() {
     }
     _docsIndexing = false;
     _docsRenderProgress();
-    // Ferdig: si hvor mange som er klare for søk og AI (og hvor mange som ikke kan leses).
+    _docsCheckUpSummary();
+}
+// Ferdig lest (alle filene i opplastingen): si hvor mange som er klare for søk og AI.
+function _docsCheckUpSummary() {
     if (_docsUpSummary && !_docsQIndex.length && !_docsQBusy()) {
+        var done = _docsUpSummary.ids.every(function (id) { var st = _docsTextState(_docsById(id)); return st !== 'reading'; });   // slettet = ferdig
+        if (!done) return;
         var sm = _docsUpSummary; _docsUpSummary = null;
         var n = sm.ids.length, ready = 0, bad = 0;
         sm.ids.forEach(function (id) { var st = _docsTextState(_docsById(id)); if (st === 'ready') ready++; else if (st === 'unreadable') bad++; });
@@ -32496,7 +32553,7 @@ async function docsReplacePicked(inp) {
         _docsBlobMem[d.id] = f;
         var nd = Object.assign({}, d, { file: f.name, mime: mime, size: f.size, path: path, updatedAt: new Date().toISOString() }, _docsWho(), { createdBy: d.createdBy || '', createdByName: d.createdByName || '' });
         await _docsWrite([nd]);
-        try { await _docsIndexFile(nd, f); } catch (e) { console.error('Dokumenttekst:', e); }
+        if (_docsIsDev()) { try { await _docsIndexFile(nd, f); } catch (e) { console.error('Dokumenttekst:', e); } }   // ellers: serveren leser den nye versjonen
         if (!_docsIsDev() && oldPath && oldPath !== path) _fbStorage().ref(oldPath).delete().catch(function () {});
         showNotificationModal(t('docs_replaced'), true);
         if (_docsViewing && _docsViewing.id === d.id) _docsOpenViewer(d.id);
@@ -32729,7 +32786,30 @@ function _docsAfterLoad() {
     else setTimeout(_docsEnsureTexts, 1500);   // hent teksten i bakgrunnen, så første søk er raskt
 }
 // Admin: les teksten i filer som mangler den (lastet opp før søket fantes / feilet sist).
+// Eldre dokumenter (lastet opp før serverlesingen fantes / uten AI-lesing): admin-enheten ber
+// serveren lese dem én om gangen (tekst + AI). Nye filer leses av opplastings-triggeren.
+var _docsAiFilling = false, _docsAiTried = {};
+async function _docsAiBackfill() {
+    if (_docsAiFilling || !_acc.admin || _docsIsDev() || !currentUser || navigator.onLine === false) return;
+    _docsAiFilling = true;
+    try {
+        for (;;) {
+            var now = Date.now();
+            var d = _docs.filter(function (x) {
+                return !_docsIsFolder(x) && x.path && !x.aiAt && x.readStatus !== 'error' && !_docsAiTried[x.id] && _docsTextState(x) !== 'reading' &&
+                    now - _docsMs(x.createdAt) > 10 * 60 * 1000;
+            })[0];
+            if (!d) break;
+            _docsAiTried[d.id] = 1;
+            _docsReadingIds[d.id] = 1; _docsRender();
+            try { await _docsReadNow(d.id, false); }
+            catch (e) { console.warn('AI-lesing (' + (d.name || d.id) + '):', e); if (e && /permission|unauthenticated/.test(e.code || '')) break; }
+            finally { delete _docsReadingIds[d.id]; _docsRender(); }
+        }
+    } finally { _docsAiFilling = false; }
+}
 async function _docsBackfillText() {
+    if (!_docsIsDev()) { _docsAiBackfill(); return; }
     if (_docsBackfilling || !_acc.admin || (!_docsIsDev() && navigator.onLine === false)) return;
     if (_docsQBusy() || _docsIndexing) return;   // opplastingen leser teksten selv etterpå
     var queued = {}; _docsQIndex.forEach(function (x) { queued[x.doc.id] = 1; });
