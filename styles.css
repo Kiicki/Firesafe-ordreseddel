@@ -14331,7 +14331,11 @@ html.device-pc .docs-bottombar { left: max(16px, calc((100vw - 800px) / 2 + 16px
 .docs-bb-ai:active, .docs-search-ai:active { filter: brightness(.95); }
 .docs-fab { flex-shrink: 0; width: 50px; height: 50px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .docs-fab:active { transform: scale(0.96); }
-body.keyboard-open .docs-bottombar, body.doc-viewer-open .docs-bottombar, body.docs-select-active .docs-bottombar,
+/* Tastatur: bare når et tekstfelt FAKTISK har fokus (et ekte tastatur har alltid det). Feil-
+   deteksjon (f.eks. DevTools/vindu som endrer høyde) skal aldri gjemme søket + «+» — det ble
+   borte til omlasting (bruker 19-11-2026). */
+body.keyboard-open:has(:is(input, textarea, [contenteditable="true"]):focus) .docs-bottombar,
+body.doc-viewer-open .docs-bottombar, body.docs-select-active .docs-bottombar,
 #docs-modal.docs-searching .docs-bottombar, #docs-modal.docs-ai-mode .docs-bottombar { display: none !important; }
 #docs-modal:not(.docs-searching):not(.docs-ai-mode):not(.docs-select) #docs-list { padding-bottom: 80px; }
 /* Søkefeltet øverst = bare i søkemodus */
@@ -14372,7 +14376,7 @@ body.docs-select-active .toolbar { display: none !important; }
 .docs-pill-text { overflow: hidden; text-overflow: ellipsis; }
 .docs-pill-spin { flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: docs-pill-spin 0.9s linear infinite; }
 @keyframes docs-pill-spin { to { transform: rotate(360deg); } }
-body.docs-modal-open .docs-upload-pill, body.keyboard-open .docs-upload-pill, body.bulk-select-active .docs-upload-pill,
+body.docs-modal-open .docs-upload-pill, body.keyboard-open:has(:is(input, textarea, [contenteditable="true"]):focus) .docs-upload-pill, body.bulk-select-active .docs-upload-pill,
 body.docs-select-active .docs-upload-pill, #login-view.active ~ .docs-upload-pill { display: none !important; }
 .docs-progress-bar { height: 6px; border-radius: 3px; background: var(--inset-bg); overflow: hidden; }
 .docs-progress-bar span { display: block; height: 100%; background: #E8501A; border-radius: 3px; transition: width .2s; }
