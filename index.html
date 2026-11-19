@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1250">
+    <link rel="stylesheet" href="styles.css?v=1253">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -2612,7 +2612,14 @@
                 </div>
             </div>
             <div class="modal-body" id="docs-body">
-                <div class="docs-search"><input type="search" id="docs-search" data-i18n-placeholder="docs_search_ph" placeholder="Søk i navn og innhold" autocomplete="off" oninput="docsSetQuery(this.value)"></div>
+                <!-- Søk (19-11-2026, som Dropbox): feltet står nederst (#docs-bottombar); trykk = søkemodus, feltet
+                     står da her øverst (tastaturet dekker aldri et felt nederst). ✨ = send teksten til «Spør AI». -->
+                <div class="docs-search" id="docs-search-top">
+                    <span class="docs-search-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                    <input type="search" id="docs-search" data-i18n-placeholder="docs_search_ph" placeholder="Søk i dokumenter" autocomplete="off" oninput="docsSetQuery(this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
+                    <button type="button" class="docs-search-ai" onclick="docsAiOpen('', true)" aria-label="Spør AI" title="Spør AI"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></button>
+                    <button type="button" class="docs-search-close" onclick="docsSearchClose()" aria-label="Lukk søk">&times;</button>
+                </div>
                 <div class="tb-seg set-tabs" id="docs-tabs"></div>
                 <div class="docs-crumbs" id="docs-crumbs" style="display:none"></div>
                 <div class="set-card docs-progress" id="docs-progress" style="display:none"></div>
@@ -2634,8 +2641,14 @@
                 <button type="button" id="docs-bulk-delete" class="docs-bulk-ico docs-bulk-del" onclick="docsBulkDelete()" title="Slett" aria-label="Slett" disabled><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg></button>
             </div>
         </div>
-        <!-- «+» (admin): ny mappe / last opp — én flytende knapp (som Dropbox/MEGA), erstatter de to knappene -->
-        <button type="button" class="docs-fab" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        <!-- Nederst (som Dropbox): søkefelt med ✨ (Spør AI) + «+» (admin: ny mappe / last opp) -->
+        <div class="docs-bottombar" id="docs-bottombar">
+            <div class="docs-bb-pill">
+                <button type="button" class="docs-bb-field" onclick="docsSearchOpen()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span data-i18n="docs_search_ph">Søk i dokumenter</span></button>
+                <button type="button" class="docs-bb-ai" onclick="docsAiOpen('')" aria-label="Spør AI" title="Spør AI"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></button>
+            </div>
+            <button type="button" class="docs-fab" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        </div>
     </div>
 
     <!-- Opplasting av dokumenter pågår: synlig i hele appen (over toolbaren); trykk = åpne Dokumenter -->
@@ -2798,9 +2811,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=513"></script>
+    <script src="lang.js?v=514"></script>
     <script src="script.js?v=628"></script>
-    <script src="script-ui.js?v=1475"></script>
+    <script src="script-ui.js?v=1477"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

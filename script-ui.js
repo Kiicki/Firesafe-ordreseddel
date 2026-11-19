@@ -31315,8 +31315,7 @@ function showDocs() {
 }
 function _showDocsDirectly() {
     closeAllModals();
-    _docsQuery = '';
-    var s = document.getElementById('docs-search'); if (s) s.value = '';
+    _docsSearchReset();
     _docsLoc = { tab: 'lib', projectId: '', folderId: '' };
     window.location.hash = 'dokumenter';
     _docsShowShell();
@@ -31341,16 +31340,39 @@ function _docsGo(loc) {
     else _docsApplyHash(h);
 }
 function docsSetTab(tab) {
-    _docsQuery = ''; var s = document.getElementById('docs-search'); if (s) s.value = '';
+    _docsSearchReset();
     _docsGo({ tab: tab === 'proj' ? 'proj' : 'lib', projectId: '', folderId: '' });
 }
-function docsOpenFolder(id) { var f = _docsById(id); if (f) { _docsQuery = ''; var s = document.getElementById('docs-search'); if (s) s.value = ''; _docsGo({ tab: f.projectId ? 'proj' : 'lib', projectId: f.projectId || '', folderId: id }); } }
-function docsOpenProject(pid) { _docsQuery = ''; var s = document.getElementById('docs-search'); if (s) s.value = ''; _docsGo({ tab: 'proj', projectId: pid, folderId: '' }); }
+function docsOpenFolder(id) { var f = _docsById(id); if (f) { _docsSearchReset(); _docsGo({ tab: f.projectId ? 'proj' : 'lib', projectId: f.projectId || '', folderId: id }); } }
+function docsOpenProject(pid) { _docsSearchReset(); _docsGo({ tab: 'proj', projectId: pid, folderId: '' }); }
 function docsSetQuery(v) { _docsQuery = String(v || '').trim().toLowerCase(); _docsRender(); if (_docsQuery) _docsEnsureTexts(); }
+// Søkemodus: feltet nederst er en knapp; trykk → feltet står øverst og tastaturet åpnes (et felt
+// nederst ville blitt dekket av tastaturet). ✕ / tilbake / bytte mappe = ut av søket.
+function docsSearchOpen() {
+    var m = document.getElementById('docs-modal'), inp = document.getElementById('docs-search');
+    if (_docsSel) _docsSelExit(true);
+    m.classList.add('docs-searching');
+    if (inp) inp.focus();   // i samme trykk, så tastaturet åpnes (iOS/Android)
+    _docsRender();
+    _docsEnsureTexts();
+}
+function docsSearchClose() {
+    var m = document.getElementById('docs-modal'), inp = document.getElementById('docs-search');
+    m.classList.remove('docs-searching');
+    if (inp) { inp.value = ''; inp.blur(); }
+    _docsQuery = '';
+    _docsRender();
+}
+function _docsSearchReset() {   // ny mappe/fane: tøm søket uten å tegne (kalleren tegner)
+    _docsQuery = ''; var inp = document.getElementById('docs-search'); if (inp) inp.value = '';
+    var m = document.getElementById('docs-modal'); if (m) m.classList.remove('docs-searching');
+}
+window.docsSearchOpen = docsSearchOpen; window.docsSearchClose = docsSearchClose;
 // Header-pila: dit du var (appens stabel); tom stabel → én mappe opp, så Hjem.
 function docsBack() {
     if (document.body.classList.contains('doc-viewer-open')) { closeDocViewer(); return; }
     if (_docsSel) { _docsSelExit(); return; }
+    if (document.getElementById('docs-modal').classList.contains('docs-searching')) { docsSearchClose(); return; }
     if (_navBack()) return;
     var l = _docsLoc;
     if (l.folderId) { var f = _docsById(l.folderId); _docsGo({ tab: l.tab, projectId: l.projectId, folderId: f ? (f.parentId || '') : '' }); }
@@ -31417,8 +31439,7 @@ function _docsRowHtmlPlain(d, withPath, drag) {
             '<span class="set-ico set-ico--amber">' + _DOCS_ICON_FOLDER + '</span>' +
             '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(d.name || '') + '" data-full="' + escapeHtml(d.name || '') + '">' + escapeHtml(d.name || '') + '</span><span class="set-desc">' + escapeHtml(sub) + '</span></span>' +
             (allOff ? '<span class="doc-row-offline" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
-            '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button>' +
-            '<span class="set-chev">&rsaquo;</span></div>';
+            '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div>';   // ingen pil: ⋯ står likt på mapper og filer
     }
     var pdf = _docsIsPdf(d);
     return '<div class="set-row doc-row"' + drag + ' onclick="openDoc(\'' + escapeHtml(d.id) + '\')">' +
@@ -31435,8 +31456,7 @@ function _docsProjRowHtml(pid) {
         '<span class="set-ico set-ico--orange">' + _DOCS_ICON_PROJ + '</span>' +
         '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(_docsProjName(pid)) + '" data-full="' + escapeHtml(_docsProjName(pid)) + '">' + escapeHtml(_docsProjName(pid)) + '</span><span class="set-desc">' + escapeHtml(sub) + '</span></span>' +
         (allOff ? '<span class="doc-row-offline">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
-        (files.length ? '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsProjectMenu(\'' + escapeHtml(pid) + '\')">' + _DOCS_MORE + '</button>' : '') +
-        '<span class="set-chev">&rsaquo;</span></div>';
+        (files.length ? '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsProjectMenu(\'' + escapeHtml(pid) + '\')">' + _DOCS_MORE + '</button>' : '<span class="doc-row-more-gap"></span>') + '</div>';
 }
 // ── Visning: liste / rutenett + sortering (bruker 19-11-2026, etter Dropbox/MEGA) ──
 // Brukerens valg (gjelder alle mapper og prosjektlista) = brukerdata: localStorage + Firestore
@@ -31481,6 +31501,7 @@ function _docsSortProjects(ids) {
     var has = function (pid) { return _docsFilesUnder(pid, '').length ? 0 : 1; };
     return ids.slice().sort(function (a, b) { return has(a) - has(b) || _docsCmpBy(v, key(a), key(b), _docsProjName(a), _docsProjName(b)); });
 }
+var _DOCS_ICON_SELECT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg>';
 var _DOCS_ICON_GRID = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
 var _DOCS_ICON_LIST = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3.5" y1="6" x2="3.5" y2="6.01"/><line x1="3.5" y1="12" x2="3.5" y2="12.01"/><line x1="3.5" y1="18" x2="3.5" y2="18.01"/></svg>';
 var _DOCS_ICON_UP = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
@@ -31491,8 +31512,10 @@ function _docsViewbarHtml() {
     var v = _docsView();
     return '<div class="docs-viewbar">' +
         '<button type="button" class="docs-sort-btn" onclick="docsSortMenu()">' + escapeHtml(t('docs_sort_' + v.sort)) + ' <span class="docs-sort-dir">' + (v.dir === 'desc' ? '↓' : '↑') + '</span></button>' +
+        '<span class="docs-viewbar-right">' +
+        (_docsSelCanUse() ? '<button type="button" class="docs-view-btn docs-sel-btn' + (_docsSel ? ' active' : '') + '" aria-label="' + escapeHtml(t('docs_select_btn')) + '" title="' + escapeHtml(t('docs_select_btn')) + '" onclick="docsToggleSelect()">' + _DOCS_ICON_SELECT + '</button>' : '') +
         '<button type="button" class="docs-view-btn" aria-label="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" title="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" onclick="docsToggleView()">' +
-        (v.view === 'grid' ? _DOCS_ICON_LIST : _DOCS_ICON_GRID) + '</button></div>';
+        (v.view === 'grid' ? _DOCS_ICON_LIST : _DOCS_ICON_GRID) + '</button></span></div>';
 }
 // Valgt sortering: trykk igjen = snu rekkefølgen.
 function docsSortMenu() {
@@ -31599,7 +31622,7 @@ function _docsSelFiles() {
 function _docsSelHeader() {
     var btn = document.getElementById('docs-select-btn'), ttl = document.getElementById('docs-title');
     if (btn) {
-        btn.style.display = (_docsSel || _docsSelCanUse()) ? '' : 'none';
+        btn.style.display = _docsSel ? '' : 'none';   // starte valg = ☑ over filene; her bare «Avbryt»
         btn.textContent = t(_docsSel ? 'btn_cancel' : 'btn_select');
         btn.classList.toggle('active', !!_docsSel);
     }
@@ -31688,7 +31711,7 @@ function _docsRender() {
     var ttl = document.getElementById('docs-title');
     if (ttl) ttl.textContent = (aiMode && !l.ai.docId) ? t('docs_ai_title') : t('docs_title');
     var fab = document.getElementById('docs-fab');
-    if (aiMode) { if (_docsSel) _docsSelExit(true); var sb = document.getElementById('docs-select-btn'); if (sb) sb.style.display = 'none'; if (fab) fab.style.display = 'none'; document.getElementById('docs-modal').classList.remove('docs-has-fab'); host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
+    if (aiMode) { if (_docsSel) _docsSelExit(true); var sb = document.getElementById('docs-select-btn'); if (sb) sb.style.display = 'none'; if (fab) fab.style.display = 'none'; host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
     // Står man i en mappe som ikke finnes lenger (slettet på en annen enhet) → roten.
     if (l.folderId && !_docsById(l.folderId) && _docsLoadedOnce && _docs.length) l.folderId = '';
     var libFiles = _docs.filter(function (d) { return !_docsIsFolder(d) && !d.projectId; }).length;
@@ -31717,22 +31740,19 @@ function _docsRender() {
     }
     // «+» (ny mappe / last opp) — bare admin, og ikke på prosjekt-oversikten (velg prosjekt først).
     if (_docsSel && !_docsSelCanUse()) _docsSelExit(true);   // søk / annen visning → ut av valget
-    var showFab = admin && !searching && !(l.tab === 'proj' && !l.projectId) && !_docsSel;
+    var showFab = admin && !(l.tab === 'proj' && !l.projectId) && !_docsSel;
     if (fab) fab.style.display = showFab ? '' : 'none';
-    document.getElementById('docs-modal').classList.toggle('docs-has-fab', showFab);
     var grid = _docsView().view === 'grid';
     var html = '';
     if (searching) {
         html = (_docsAiAllowed() ? _docsAiEntryHtml(_docsQuery) : '') + _docsSearchHtml(l.tab);
     } else if (l.tab === 'proj' && !l.projectId) {
         var pids = _docsSortProjects(_docsProjectIds());
-        if (_docsAiAllowed()) html += _docsAiEntryHtml('');
         html += _docsUnreadableHtml();
         if (pids.length) html += _docsViewbarHtml();
         html += pids.length ? (grid ? '<div class="docs-grid">' + pids.map(_docsProjTileHtml).join('') + '</div>' : _docsCard(pids.map(_docsProjRowHtml).join('')))
             : '<div class="set-foot set-foot-top docs-empty">' + escapeHtml(t(!_docsFetched ? 'docs_list_loading' : admin ? 'docs_no_projects_admin' : 'docs_no_projects')) + '</div>';
     } else {
-        if (_docsAiAllowed() && !l.folderId && !l.projectId) html += _docsAiEntryHtml('');
         if (!l.folderId && !l.projectId) html += _docsUnreadableHtml();
         var items = _docsSortView(_docsChildren(l.projectId, l.folderId));
         if (items.length) html += _docsViewbarHtml();
@@ -31794,7 +31814,7 @@ function _docsMidFit(root) {
         var w = el.clientWidth;
         if (!w) return;   // skjult
         var cs = getComputedStyle(el);
-        jobs.push({ el: el, w: w + 0.5, font: cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily, full: el.getAttribute('data-full') || '' });
+        jobs.push({ el: el, w: w - 1, font: cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily, full: el.getAttribute('data-full') || '' });
     });
     jobs.forEach(function (j) { j.text = _docsMidText(_docsMidCtx, j.font, j.full, j.w); });
     jobs.forEach(function (j) { if (j.el.textContent !== j.text) j.el.textContent = j.text; });
