@@ -12572,6 +12572,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        // Felt + knapp som hører sammen (f.eks. AI-feltet + «Spør»): merk beholderen med
+        // data-kbd-reveal, så løftes HELE beholderen over tastaturet — knappen skal ikke ligge
+        // bak tastaturet mens man skriver. Gjelder alle slike i appen. Feltets topp holdes synlig.
+        var reveal = el.closest && el.closest('[data-kbd-reveal]');
+        if (reveal) {
+            var extra = reveal.getBoundingClientRect().bottom - elRect.bottom;
+            if (extra > 0) targetBottom = Math.min(targetBottom, kbdTop - 4 - extra);
+            var vvTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
+            targetBottom = Math.max(targetBottom, vvTop + 60 + elRect.height);
+        }
+
         var delta = elRect.bottom - targetBottom;
         // KUN scroll opp når trengs (delta > 0). Hvis delta <= 0 betyr det at
         // fokusert allerede er høyt nok til at neste felt er synlig under
@@ -31787,12 +31798,16 @@ function _docsUnreadableHtml() {
     // Fra lista vi alt har (cache) — ikke vent på Firestore: ellers dukket varselet opp sekunder
     // etter oppdatering og dyttet lista ned (regel: ingenting skal mangle/hoppe etter refresh).
     if (!_acc.admin || !_docs.length) return '';
-    var bad = _docs.filter(function (d) { return _docsTextState(d) === 'unreadable'; });
+    // Også filer som LESES PÅ NYTT (feilet / ikke søkbar før) står i lista, med «Leser …» — ellers
+    // forsvant de bare og tallet krympet uten at man så at noe skjedde (bruker 20-11-2026).
+    var retrying = function (d) { return _docsTextState(d) === 'reading' && (d.readStatus === 'error' || (d.textAt && (d.textChars || 0) < DOCS_MIN_TEXT)); };
+    var bad = _docs.filter(function (d) { return _docsTextState(d) === 'unreadable' || retrying(d); });
     if (!bad.length) return '';
+    var nRead = bad.filter(retrying).length;
     var head = '<div class="set-row doc-row docs-unread-head" onclick="docsToggleUnreadable()">' +
         '<span class="set-ico set-ico--amber">' + _DOCS_ICON_WARN + '</span>' +
         '<span class="set-text"><span class="set-title">' + escapeHtml(bad.length === 1 ? t('docs_unreadable_one') : t('docs_unreadable_n').replace('{0}', bad.length)) + '</span>' +
-        '<span class="set-desc">' + escapeHtml(t('docs_unreadable_desc')) + '</span></span>' +
+        '<span class="set-desc">' + (nRead ? '<span class="doc-st doc-st--reading"><span class="doc-st-spin"></span>' + escapeHtml(t('docs_unreadable_reading').replace('{0}', nRead)) + '</span>' : escapeHtml(t('docs_unreadable_desc'))) + '</span></span>' +
         '<span class="set-chev docs-unread-chev' + (_docsUnreadOpen ? ' open' : '') + '">&rsaquo;</span></div>';
     return _docsCard(head + (_docsUnreadOpen ? _docsSortItems(bad).map(function (d) { return _docsRowHtml(d, true); }).join('') : ''));
 }
@@ -33389,7 +33404,7 @@ function _docsAiAnswerHtml(h) {
     return '<div class="set-card docs-ai-answer"' + (h._cid ? ' id="ai-turn-' + escapeHtml(h._cid) + '"' : '') + '>' + head + body + '</div>';
 }
 function _docsAiAskBox(follow) {
-    return '<div class="set-card docs-ai-ask">' +
+    return '<div class="set-card docs-ai-ask" data-kbd-reveal>' +
         '<textarea id="docs-ai-q" rows="' + (follow ? 2 : 3) + '" placeholder="' + escapeHtml(t(follow ? 'docs_ai_ph_follow' : 'docs_ai_ph')) + '" oninput="_docsAiDraft=this.value" onkeydown="if(event.key===\'Enter\'&&(event.ctrlKey||event.metaKey)){event.preventDefault();docsAiAsk();}">' + escapeHtml(_docsAiDraft) + '</textarea>' +
         '<button type="button" class="docs-ai-send" id="docs-ai-send" onclick="docsAiAsk()">' + escapeHtml(t('docs_ai_send')) + '</button>' +
         '</div>';

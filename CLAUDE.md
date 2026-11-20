@@ -229,6 +229,10 @@ Da plukkes den AUTOMATISK opp av `applyKeyboardLayout` og MutationObserveren. Ba
 
 **Ny view (full-skjerm scrollable):** Bruk `.view`-klassen og legg view-IDen til CSS-blokken `body.keyboard-open #din-view.view.active { ... }` så CSS-laget håndterer den.
 
+**Felt + knapp som hører sammen** (f.eks. AI-feltet + «Spør»): sett `data-kbd-reveal` på beholderen — da løfter `ensureKeyboardTargetVisible` hele beholderen over tastaturet, ikke bare feltet.
+
+**Ikke gi en innholdsboks `overflow-y: auto` uten fast høyde** (f.eks. arvet `.modal-body` i en view som ruller som dokument): da «ruller» tastatur-logikken boksen i stedet for siden. `_findScrollableAncestor` hopper nå over slike (høyere enn skjermen uten eget overløp), men sett `overflow-y: visible` i CSS også.
+
 **Ny fullscreen overlay (som picker):** Legg ID-en til `FULLSCREEN_OVERLAY_IDS` i `script-ui.js` (én linje endring).
 
 ### Hva du IKKE skal gjøre

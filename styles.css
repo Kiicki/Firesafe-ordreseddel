@@ -14284,6 +14284,11 @@ button, input, select, textarea { font-family: inherit; }
 #docs-modal, #docs-modal > .modal-content, #docs-modal > .modal-content > .modal-body { background: var(--page-bg); }
 #docs-modal .sticky-header { background: var(--page-bg); }
 #docs-body { position: relative; }
+/* Dokumenter ruller som ETT dokument (som skjemaene), ikke i en indre boks. Den generelle
+   .modal-body { overflow-y:auto } gjorde #docs-body til en «falsk» rulleflate: tastatur-logikken
+   (ensureKeyboardTargetVisible → _findScrollableAncestor) rullet den i stedet for siden, så
+   AI-feltet og «Spør» ble liggende bak tastaturet (20-11-2026). */
+#docs-modal.view.active .modal-body { overflow-y: visible; }
 .docs-search { position: relative; margin-bottom: 12px; }
 .docs-search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-2); display: flex; pointer-events: none; }
 .docs-search input { padding-left: 38px !important; padding-right: 52px !important; height: 44px !important; border-radius: 22px !important; }

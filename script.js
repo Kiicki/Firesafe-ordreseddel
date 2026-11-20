@@ -2883,7 +2883,12 @@ function _findScrollableAncestor(el) {
     while (p && p !== document.body) {
         var cs = getComputedStyle(p);
         var oy = cs.overflowY;
-        if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') return p;
+        if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') {
+            // «Falsk» rulleflate: overflow:auto, men høyden følger innholdet (ruller aldri selv) —
+            // da er det SIDEN som ruller. Kjennetegn: høyere enn skjermen uten eget overløp.
+            // (Dokumenter 20-11-2026: tastaturet dekket AI-feltet fordi en slik boks ble «rullet».)
+            if (!(p.scrollHeight <= p.clientHeight + 1 && p.getBoundingClientRect().height > (window.innerHeight || 0))) return p;
+        }
         p = p.parentElement;
     }
     return document.scrollingElement || document.documentElement;
