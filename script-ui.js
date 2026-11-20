@@ -31948,29 +31948,51 @@ var _docsPdf = null, _docsPdfIO = null, _docsPdfFarIO = null, _docsPdfQ = [], _d
 function _docsPdfStop() {
     if (_docsPdfIO) { _docsPdfIO.disconnect(); _docsPdfIO = null; }
     if (_docsPdfFarIO) { _docsPdfFarIO.disconnect(); _docsPdfFarIO = null; }
-    _docsPdfQ = []; _docsPdfHiQ = []; _docsPdfBusy = false;
+    _docsPdfQ = []; _docsPdfHiQ = []; _docsPdfHiList = []; _docsPdfBusy = false;
     if (_docsPdf) { try { _docsPdf.destroy(); } catch (e) {} _docsPdf = null; }
+}
+// Minne for sider du har sett (bruker 20-11-2026: «når jeg scroller opp igjen må sider lastes på nytt»):
+//  • GROV versjon av hver side du har sett beholdes (~0,2 MB pr. side) → vises straks når du blar tilbake.
+//  • De DOCS_PDF_KEEP siste SKARPE sidene beholdes; eldre skarpe slippes (minnet) — grov står igjen.
+var DOCS_PDF_KEEP = 12, _docsPdfHiList = [];
+function _docsPdfNear(el) {
+    var s = document.getElementById('doc-viewer-scroll'); if (!s) return false;
+    var r = s.getBoundingClientRect(), b = el.getBoundingClientRect();
+    return b.bottom > r.top - 2 * r.height && b.top < r.bottom + 2 * r.height;
+}
+function _docsPdfKeepHi(el) {
+    _docsPdfHiList = _docsPdfHiList.filter(function (x) { return x !== el; });
+    _docsPdfHiList.push(el);
+    while (_docsPdfHiList.length > DOCS_PDF_KEEP) {
+        var old = null;
+        for (var i = 0; i < _docsPdfHiList.length - 1; i++) if (!_docsPdfNear(_docsPdfHiList[i])) { old = _docsPdfHiList[i]; break; }
+        if (!old) break;   // alle er på/nær skjermen
+        _docsPdfHiList = _docsPdfHiList.filter(function (x) { return x !== old; });
+        var c = old.querySelector('canvas.doc-pg-hi');
+        if (c) { c.width = 0; c.height = 0; c.remove(); }
+        old.setAttribute('data-state', 'lo'); old.removeAttribute('data-w');
+    }
 }
 function _docsPdfWatch(pdf, d) {
     var root = document.getElementById('doc-viewer-scroll');
-    var near = function (el) { return el.getAttribute('data-state'); };
-    // Nær skjermen (±2 skjermhøyder): tegn. Langt unna (> 6): slipp lerretet (minnet).
+    // Nær skjermen (±2 skjermhøyder): tegn grov → skarp. Har siden alt grov (sett før), bare skarp.
     _docsPdfIO = new IntersectionObserver(function (ents) {
         ents.forEach(function (en) {
-            if (!en.isIntersecting || near(en.target)) return;
-            en.target.setAttribute('data-state', 'queued');
-            _docsPdfQ.push(en.target);
+            if (!en.isIntersecting) return;
+            var el = en.target, st = el.getAttribute('data-state');
+            if (!st) { el.setAttribute('data-state', 'queued'); _docsPdfQ.push(el); }
+            else if (st === 'lo') { el.setAttribute('data-state', 'hi-queued'); _docsPdfHiQ.push(el); }
+            else if (st === 'done') _docsPdfKeepHi(el);   // sett igjen = nyest
         });
         _docsPdfPump(pdf, d);
     }, { root: root, rootMargin: '200% 0px' });
+    // Langt unna: ikke tegn den likevel (fort forbiblading) — det som alt er tegnet, beholdes.
     _docsPdfFarIO = new IntersectionObserver(function (ents) {
         ents.forEach(function (en) {
             if (en.isIntersecting) return;
-            var el = en.target, c = el.querySelector('canvas');
-            if (c) { c.width = 0; c.height = 0; c.remove(); }
-            _docsPdfQ = _docsPdfQ.filter(function (x) { return x !== el; });
-            _docsPdfHiQ = _docsPdfHiQ.filter(function (x) { return x !== el; });
-            el.removeAttribute('data-state'); el.removeAttribute('data-w');
+            var el = en.target, st = el.getAttribute('data-state');
+            if (st === 'queued') { _docsPdfQ = _docsPdfQ.filter(function (x) { return x !== el; }); el.removeAttribute('data-state'); }
+            else if (st === 'hi-queued') { _docsPdfHiQ = _docsPdfHiQ.filter(function (x) { return x !== el; }); el.setAttribute('data-state', el.querySelector('canvas.doc-pg-lo') ? 'lo' : ''); if (!el.getAttribute('data-state')) el.removeAttribute('data-state'); }
         });
     }, { root: root, rootMargin: '600% 0px' });
     document.querySelectorAll('#doc-viewer-pages .doc-pg').forEach(function (el) { _docsPdfIO.observe(el); _docsPdfFarIO.observe(el); });
@@ -32001,10 +32023,10 @@ async function _docsPdfPump(pdf, d) {
             var w = hi ? _docsPdfSharpW() : Math.max(240, Math.round(_docsBaseW() * 0.5));
             var c = await _docsPdfDraw(pdf, el, w, hi ? 'doc-pg-hi' : 'doc-pg-lo');
             if (el.getAttribute('data-state') !== (hi ? 'hi-drawing' : 'drawing') || _docsPdf !== pdf) { c.width = 0; continue; }   // sluppet imens
-            el.querySelectorAll('canvas').forEach(function (o) { o.width = 0; o.remove(); });
+            // Grov blir liggende under den skarpe (vises straks hvis den skarpe slippes senere).
+            el.querySelectorAll(hi ? 'canvas.doc-pg-hi' : 'canvas').forEach(function (o) { o.width = 0; o.remove(); });
             el.appendChild(c);
-            el.setAttribute('data-w', w);
-            if (hi) el.setAttribute('data-state', 'done');
+            if (hi) { el.setAttribute('data-w', w); el.setAttribute('data-state', 'done'); _docsPdfKeepHi(el); }
             else { el.setAttribute('data-state', 'hi-queued'); _docsPdfHiQ.push(el); }
             if (_docsViewPage > 1) _docsScrollToPage(_docsViewPage);   // høyden kan ha endret seg over søketreffet
         }
@@ -32082,7 +32104,7 @@ async function _docsOpenViewer(id, pageNo) {
                 ph.className = 'doc-viewer-page doc-pg';
                 ph.setAttribute('data-p', p);
                 ph.style.aspectRatio = String(ratio);
-                ph.innerHTML = '<span class="doc-pg-num">' + escapeHtml(t('docs_page_n').replace('{0}', p)) + '</span>';
+                ph.innerHTML = '<span class="doc-pg-num"><span class="doc-pg-spin"></span>' + escapeHtml(t('docs_page_n').replace('{0}', p)) + '</span>';
                 pages.appendChild(ph);
             }
             _docsPdfWatch(pdf, d);

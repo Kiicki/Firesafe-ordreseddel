@@ -14427,7 +14427,11 @@ body.docs-select-active .docs-upload-pill, #login-view.active ~ .docs-upload-pil
 .doc-pg { position: relative; overflow: hidden; }
 .doc-pg canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 /* Sidetall på siden som ikke er tegnet ennå (blar man fort, ser man hvor man er) */
-.doc-pg-num { position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%); text-align: center; color: #b4b4ba; font-size: 15px; font-weight: 500; }
+.doc-pg-num { position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; color: #b4b4ba; font-size: 15px; font-weight: 500; }
+/* Lasteikon på siden som ikke er tegnet ennå (skjules av tegningen når den kommer) */
+/* Tegnet (grov eller skarp): skjul sidetall + lasteikon, så animasjonen ikke går bak tegningen */
+.doc-pg[data-state="lo"] .doc-pg-num, .doc-pg[data-state="hi-queued"] .doc-pg-num, .doc-pg[data-state="hi-drawing"] .doc-pg-num, .doc-pg[data-state="done"] .doc-pg-num { display: none; }
+.doc-pg-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #e4e4e9; border-top-color: #E8501A; animation: docs-pill-spin 0.9s linear infinite; }
 .doc-viewer-msg { color: #d8d8de; text-align: center; padding: 40px 16px; font-size: 15px; }
 /* Meny / bekreftelse / navn / flytt over visningen. */
 body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.doc-viewer-open #input-modal, body.doc-viewer-open #doc-move-popup { z-index: 70; }
