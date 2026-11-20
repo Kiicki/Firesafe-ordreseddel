@@ -33101,6 +33101,27 @@ async function _docsAiBackfill() {
             finally { delete _docsReadingIds[d.id]; _docsRender(); }
         }
     } finally { _docsAiFilling = false; }
+    _docsCardsBackfill();
+}
+// INNHOLDSKORT (20-11-2026): hver fil får et kort sammendrag som AI-en ser for ALLE filer ved hvert
+// spørsmål (så den kjenner hele arkivet og velger hvilke filer den leser i sin helhet). Nye filer
+// får kortet på serveren når de er lest; eldre filer etterfylles her — ÉN serverkjøring for alle
+// (flere samtidig der), startet fra admins app. Går fint om appen lukkes underveis.
+var _docsCardsRunning = false, _docsCardsAt = 0;
+async function _docsCardsBackfill() {
+    if (_docsCardsRunning || !_acc.admin || _docsIsDev() || !currentUser || navigator.onLine === false) return;
+    if (Date.now() - _docsCardsAt < 20 * 60 * 1000) return;   // høyst hvert 20. min (serveren låser pr. fil)
+    var mangler = _docs.some(function (x) { return !_docsIsFolder(x) && (x.textChars || 0) >= DOCS_MIN_TEXT && (x.kortVer || 0) < 1 && x.readStatus !== 'reading'; });
+    if (!mangler) return;
+    _docsCardsRunning = true; _docsCardsAt = Date.now();
+    try {
+        await _docsFunctions();
+        var fn = firebase.app().functions('europe-north1').httpsCallable('readDocNow', { timeout: 3600000 });
+        var r = (await fn({ firma: _firma(), kortAlle: true })).data || {};
+        console.info('Innholdskort:', r);
+        if (r.gjenstar) _docsCardsAt = 0;   // tiden gikk ut: fortsett neste gang
+    } catch (e) { console.warn('Innholdskort:', e); }
+    finally { _docsCardsRunning = false; }
 }
 async function _docsBackfillText() {
     if (!_docsIsDev()) { _docsAiBackfill(); return; }
@@ -33377,7 +33398,7 @@ function _docsAiAnswerHtml(h) {
         // Strømming: teksten vises mens den skrives; før det, hva AI-en søker etter.
         if (h.draft) body = '<div class="docs-ai-a">' + _docsAiRender({ parts: [{ text: h.draft, cites: [] }], sources: [] }) + '</div>' +
             '<div class="docs-ai-wait docs-ai-wait--writing"><span class="docs-ai-spin"></span>' + escapeHtml(t('docs_ai_writing')) + '</div>';
-        else body = '<div class="docs-ai-wait"><span class="docs-ai-spin"></span>' + escapeHtml(h.statusQ ? t('docs_ai_searching_q').replace('{0}', h.statusQ) : t(h.docName ? 'docs_ai_reading' : 'docs_ai_searching')) + '</div>';
+        else body = '<div class="docs-ai-wait"><span class="docs-ai-spin"></span>' + escapeHtml(h.statusK === 'read' && h.statusQ ? t('docs_ai_reading_q').replace('{0}', h.statusQ) : h.statusK === 'list' ? t('docs_ai_listing') : h.statusQ ? t('docs_ai_searching_q').replace('{0}', h.statusQ) : t(h.docName ? 'docs_ai_reading' : 'docs_ai_searching')) + '</div>';
     }
     else if (h.status === 'error') body = '<div class="docs-ai-err">' + escapeHtml(h.err || t('docs_ai_error')) + '</div>';
     else {
@@ -33560,7 +33581,7 @@ async function docsAiAsk() {
                 res = await _aiAskStream(payload, function (ev) {
                     if (ev.t === 'delta') turn.draft = (turn.draft || '') + (ev.text || '');
                     else if (ev.t === 'round') turn.draft = '';   // tekst før et nytt søk var ikke svaret
-                    else if (ev.t === 'status') turn.statusQ = ev.q || '';
+                    else if (ev.t === 'status') { turn.statusQ = ev.q || ''; turn.statusK = ev.k || 'search'; }
                     _aiPaintTurn(chat, turn);
                 });
             } catch (se) {
