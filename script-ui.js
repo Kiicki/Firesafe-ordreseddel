@@ -31528,7 +31528,13 @@ function _docsTextState(d) {
         if (!_docsIsDev() && Date.now() - _docsMs(d.createdAt) < 10 * 60 * 1000) return 'reading';
         return 'pending';
     }
-    return (d.textChars || 0) < DOCS_MIN_TEXT ? 'unreadable' : 'ready';
+    // «Ikke søkbar» = vi fikk IKKE lest teksten — ikke «lite tekst». Under 50 tegn betyr bare noe for en
+    // PDF/et bilde som AI-en ikke har lest ennå (typisk skannet). En kort tekstfil (én linje), eller noe
+    // AI-en har lest, ER lest (bruker 20-11-2026: «kan den ikke lese en txt fil som kun har en linje?»).
+    var chars = d.textChars || 0;
+    if (!chars) return 'unreadable';
+    if (chars < DOCS_MIN_TEXT && !d.aiAt && (_docsIsPdf(d) || _docsIsImg(d))) return 'unreadable';
+    return 'ready';
 }
 function _docsStateHtml(d) {
     var st = _docsTextState(d);
