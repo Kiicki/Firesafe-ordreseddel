@@ -14373,6 +14373,26 @@ body.docs-select-active .toolbar { display: none !important; }
 .doc-st { font-weight: 500; }
 .doc-st--reading, .doc-st--pending { color: var(--text-2); }
 .doc-st--unreadable { color: #b7791f; }
+.doc-st--nofmt { color: var(--text-2); }   /* filtype som ikke kan leses (zip, dwg …) — ikke en feil */
+/* Visning av Word/Excel/tekst/andre filer (20-11-2026): hvite «sider» på den mørke visningen. */
+.doc-viewer-page.doc-html { padding: 16px 18px; box-sizing: border-box; color: #1a1a1a; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.doc-word img { max-width: 100%; height: auto; }
+.doc-word table { border-collapse: separate; border-spacing: 0; margin: 8px 0; }
+.doc-word td, .doc-word th { border: 1px solid #d8d8de; padding: 4px 6px; vertical-align: top; }
+.doc-word p { margin: 0 0 8px; }
+.doc-text { margin: 0; white-space: pre-wrap; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.doc-part-label { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .03em; margin: 0 0 8px; }
+.doc-sheet { padding: 10px; }
+.doc-sheet-scroll { overflow: auto; max-height: 75vh; }
+.doc-sheet table { border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.doc-sheet td, .doc-sheet th { border-right: 1px solid #e4e4e9; border-bottom: 1px solid #e4e4e9; padding: 3px 7px; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.doc-sheet th { position: sticky; left: 0; background: #f2f2f5; color: var(--text-2); font-weight: 500; text-align: right; }
+.doc-other-bar { display: flex; align-items: center; gap: 10px; justify-content: space-between; color: #d8d8de; font-size: 13px; margin: 0 0 10px; }
+.doc-other-open { margin-left: auto; height: 34px; padding: 0 14px; border: none; border-radius: 10px; background: #E8501A; color: #fff; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.doc-other-none { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; text-align: center; color: #d8d8de; }
+.doc-other-none .doc-other-name { color: #fff; font-weight: 600; overflow-wrap: anywhere; }
+.doc-other-none .doc-other-bar { justify-content: center; }
+.doc-other-none .doc-other-open { margin-left: 0; }
 .doc-st--ready { color: #2e7d32; }
 .doc-st-spin { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: -1px; border-radius: 50%; border: 1.6px solid #c9c9cf; border-top-color: var(--text-2); animation: docs-pill-spin 0.9s linear infinite; }
 .docs-menu-note { margin: -2px 0 10px; font-size: 13px; text-align: center; }

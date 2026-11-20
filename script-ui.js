@@ -31153,14 +31153,33 @@ function _docsFmtDate(iso) {
     return d.getDate() + ' ' + (currentLang === 'en' ? _DOCS_MND_EN : _DOCS_MND)[d.getMonth()] + ' ' + d.getFullYear();
 }
 function _docsPlural(n, one, many) { return n + ' ' + t(n === 1 ? one : many); }
-// Bare PDF og bilder (samme som Storage-reglene).
-function _docsAccepts(f) { return /^image\//.test(f.type || '') || f.type === 'application/pdf' || /\.(pdf|jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(f.name || ''); }
+// ALLE filtyper kan lastes opp (bruker 20-11-2026: «det blir for dumt å ikke kunne laste opp txt,
+// doc, excel osv.»). Serveren leser PDF, bilder, Word (DOCX/DOC), Excel (XLSX/XLS/CSV), PowerPoint,
+// OpenDocument, RTF og tekst for søk/AI; andre filer (zip, dwg …) lagres og åpnes i en annen app.
+function _docsAccepts(f) { return !!(f && f.name); }
+var _DOCS_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heic',
+    txt: 'text/plain', csv: 'text/csv', md: 'text/markdown', json: 'application/json', xml: 'application/xml', rtf: 'application/rtf', html: 'text/html', htm: 'text/html',
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    odt: 'application/vnd.oasis.opendocument.text', ods: 'application/vnd.oasis.opendocument.spreadsheet', odp: 'application/vnd.oasis.opendocument.presentation', zip: 'application/zip' };
 function _docsMimeOf(f) {
-    if (f.type) return f.type;
     var m = /\.([a-z0-9]+)$/i.exec(f.name || ''), e = m ? m[1].toLowerCase() : '';
-    return e === 'pdf' ? 'application/pdf' : e === 'png' ? 'image/png' : (e === 'jpg' || e === 'jpeg') ? 'image/jpeg' :
-        e === 'gif' ? 'image/gif' : e === 'webp' ? 'image/webp' : (e === 'heic' || e === 'heif') ? 'image/heic' : 'application/octet-stream';
+    return f.type || _DOCS_MIME[e] || 'application/octet-stream';
 }
+function _docsExt(d) { var m = /\.([a-z0-9]+)$/i.exec((d && (d.file || d.name)) || ''); return m ? m[1].toLowerCase() : ''; }
+// Hva slags fil (ikon, visning, forhåndsbilde): pdf | img | word | excel | ppt | text | other.
+function _docsKind(d) {
+    if (_docsIsPdf(d)) return 'pdf';
+    var e = _docsExt(d), mt = String((d && d.mime) || '').toLowerCase();
+    if (/^(jpe?g|png|gif|webp|heic|heif|bmp|tiff?|avif|svg)$/.test(e) || (!e && /^image\//.test(mt))) return 'img';
+    if (/^(docx?|docm|dotx?|odt|rtf|pages)$/.test(e)) return 'word';
+    if (/^(xlsx|xlsm|xlsb|xls|ods|csv|tsv|numbers)$/.test(e)) return 'excel';
+    if (/^(pptx?|pptm|ppsx|odp|key)$/.test(e)) return 'ppt';
+    if (/^(txt|md|json|xml|log|ini|cfg|ya?ml|sql|html?)$/.test(e) || /^text\//.test(mt)) return 'text';
+    return 'other';
+}
+function _docsIsImg(d) { return _docsKind(d) === 'img'; }
 
 // ── Treet ─────────────────────────────────────────────────────────────────────
 function _docsChildren(projectId, parentId) {
@@ -31477,6 +31496,9 @@ window.docsSetTab = docsSetTab; window.docsOpenFolder = docsOpenFolder; window.d
 window.docsSetQuery = docsSetQuery; window.docsBack = docsBack;
 
 var _DOCS_ICON_PDF = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>';
+var _DOCS_ICON_GRID = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>';
+var _DOCS_ICON_SLIDES = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>';
+var _DOCS_ICON_FILE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
 var _DOCS_ICON_IMG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
 var _DOCS_ICON_FOLDER = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/></svg>';
 var _DOCS_ICON_PROJ = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><path d="M10 22v-4h4v4"/></svg>';
@@ -31499,6 +31521,7 @@ function _docsTextState(d) {
     if (_docsReadingIds[d.id] || _docsQIndex.some(function (x) { return x.doc.id === d.id; })) return 'reading';
     // Serveren leser (låsen gjelder 12 min — står den lenger, har lesingen stoppet → «ikke lest»).
     if (d.readStatus === 'reading' && Date.now() - _docsMs(d.readLockAt) < 60 * 60 * 1000) return 'reading';   // = låsen på serveren
+    if (d.readNote === 'filtype') return 'nofmt';   // zip, dwg …: lagret, men ikke søkbar (ikke en feil — ikke i admin-varselet)
     if (!d.textAt) {
         if (d.readStatus === 'error') return 'unreadable';
         // Nettopp lastet opp: serveren starter lesingen om et øyeblikk.
@@ -31522,9 +31545,15 @@ function _docsFolderSub(f) {
 // endelsen på fila (JPG, PNG, HEIC …), ellers fra mime-typen. «Bilde» bare som siste utvei.
 function _docsTypeLabel(d) {
     if (_docsIsPdf(d)) return 'PDF';
-    var m = /\.([a-z0-9]{2,5})$/i.exec(d.file || '') || /\/([a-z0-9.+-]+)$/i.exec(d.mime || '');
+    var m = /\.([a-z0-9]{2,5})$/i.exec(d.file || '') || (_docsIsImg(d) ? /\/([a-z0-9.+-]+)$/i.exec(d.mime || '') : null);
     var x = m ? m[1].toUpperCase().replace(/^JPEG$/, 'JPG').replace(/^SVG\+XML$/, 'SVG') : '';
-    return x || t('docs_image');
+    return x || t(_docsIsImg(d) ? 'docs_image' : 'docs_file');
+}
+// Ikon pr. filtype (farge + form): PDF rød, bilde/Word blå, Excel grønn, PowerPoint oransje, annet grå.
+var _DOCS_KIND_ICO = { pdf: ['red', 'PDF'], img: ['blue', 'IMG'], word: ['blue', 'PDF'], excel: ['green', 'GRID'], ppt: ['orange', 'SLIDES'], text: ['slate', 'PDF'], other: ['slate', 'FILE'] };
+function _docsIcoHtml(d, extra) {
+    var k = _DOCS_KIND_ICO[_docsKind(d)] || _DOCS_KIND_ICO.other;
+    return '<span class="set-ico ' + (extra ? extra + ' ' : '') + 'set-ico--' + k[0] + '">' + window['_DOCS_ICON_' + k[1]] + '</span>';
 }
 function _docsFileSub(d, withPath) {
     var s = [_docsTypeLabel(d), _docsFmtSize(d.size), _docsFmtDate(d.updatedAt || d.createdAt)];
@@ -31548,9 +31577,8 @@ function _docsRowHtmlPlain(d, withPath, drag) {
             (allOff ? '<span class="doc-row-offline" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
             '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div>';   // ingen pil: ⋯ står likt på mapper og filer
     }
-    var pdf = _docsIsPdf(d);
     return '<div class="set-row doc-row"' + drag + ' onclick="openDoc(\'' + escapeHtml(d.id) + '\')">' +
-        '<span class="set-ico ' + (pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
+        _docsIcoHtml(d) +
         '<span class="set-text"><span class="set-title doc-row-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</span><span class="set-desc">' + _docsStateHtml(d) + escapeHtml(_docsFileSub(d, withPath)) + '</span></span>' +
         (_docsIsOffline(d.id) ? '<span class="doc-row-offline" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') +
         '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div>';
@@ -31583,7 +31611,7 @@ function _docsTimeOf(d) {
     return _docsFilesUnder('', d.id).reduce(function (m, x) { var u = x.updatedAt || x.createdAt || ''; return u > m ? u : m; }, own);
 }
 function _docsSizeOf(d) { return _docsIsFolder(d) ? _docsFilesUnder('', d.id).reduce(function (n, x) { return n + (x.size || 0); }, 0) : (d.size || 0); }
-function _docsTypeRank(d) { return _docsIsFolder(d) ? 0 : _docsIsPdf(d) ? 1 : 2; }
+function _docsTypeRank(d) { return _docsIsFolder(d) ? 0 : ({ pdf: 1, word: 2, excel: 3, ppt: 4, text: 5, img: 6 })[_docsKind(d)] || 7; }
 function _docsCmpBy(v, ka, kb, na, nb) {
     var c = v.sort === 'date' ? (ka < kb ? -1 : ka > kb ? 1 : 0) : (v.sort === 'name' ? _cmpText(na, nb) : ka - kb);
     return (v.dir === 'desc' ? -c : c) || _cmpText(na, nb);
@@ -31653,11 +31681,11 @@ function _docsTileHtml(d) {
     return _docsTileHtmlPlain(d, drag);
 }
 function _docsTileHtmlPlain(d, drag) {
-    var folder = _docsIsFolder(d), pdf = !folder && _docsIsPdf(d);
+    var folder = _docsIsFolder(d), img = !folder && _docsIsImg(d);
     var off = folder ? (function () { var fs = _docsFilesUnder('', d.id); return fs.length && fs.every(function (x) { return _docsIsOffline(x.id); }); })() : _docsIsOffline(d.id);
     return '<div class="doc-tile"' + (folder ? ' data-drop="m:' + escapeHtml(d.id) + '"' : '') + drag + ' onclick="' + (folder ? 'docsOpenFolder' : 'openDoc') + '(\'' + escapeHtml(d.id) + '\')">' +
-        '<div class="doc-tile-thumb"><span class="set-ico doc-tile-ico ' + (folder ? 'set-ico--amber' : pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (folder ? _DOCS_ICON_FOLDER : pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
-        (!folder && !pdf && d.thumbUrl ? '<img class="doc-tile-img" alt="" loading="lazy" src="' + escapeHtml(d.thumbUrl) + '" onerror="this.remove()">' : '') +   // bare BILDER (PDF = ikon, bruker 20-11-2026)
+        '<div class="doc-tile-thumb">' + (folder ? '<span class="set-ico doc-tile-ico set-ico--amber">' + _DOCS_ICON_FOLDER + '</span>' : _docsIcoHtml(d, 'doc-tile-ico')) +
+        (img && d.thumbUrl ? '<img class="doc-tile-img" alt="" loading="lazy" src="' + escapeHtml(d.thumbUrl) + '" onerror="this.remove()">' : '') +   // bare BILDER (PDF = ikon, bruker 20-11-2026)
         (off ? '<span class="doc-tile-off" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') + '</div>' +
         '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</div>' + _docsTileSub(folder ? '' : _docsStateHtml(d)) + '</div>' +
         '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div></div>';
@@ -31887,7 +31915,7 @@ async function _docsThumbRun() {
 function _docsThumbBackfill() {
     if (!_acc.admin || (!_docsIsDev() && navigator.onLine === false)) return;
     _docs.forEach(function (d) {
-        if (_docsIsFolder(d) || _docsIsPdf(d) || d.thumbAt || d.thumbFail || _docsThumbTried[d.id] || (!d.path && !_docsIsDev())) return;   // bare bilder
+        if (_docsIsFolder(d) || !_docsIsImg(d) || d.thumbAt || d.thumbFail || _docsThumbTried[d.id] || (!d.path && !_docsIsDev())) return;   // bare bilder
         if (_docsThumbQ.some(function (j) { return j.id === d.id; })) return;
         _docsThumbQ.push({ id: d.id, blob: null });
     });
@@ -32266,11 +32294,97 @@ async function _docsOpenViewer(id, pageNo) {
     try { blob = await _docsGetBlob(d, setMsg); } catch (e) { console.error('Dokument:', e); }
     if (_docsViewing !== d) return;   // lukket / byttet imens
     if (!blob) { pages.innerHTML = '<div class="doc-viewer-msg">' + escapeHtml(t(navigator.onLine === false ? 'docs_offline_missing' : 'docs_load_error')) + '</div>'; return; }
+    if (!_docsIsImg(d)) { await _docsShowOther(d, blob, pages); return; }
     var url = URL.createObjectURL(blob);
     pages.innerHTML = '<img class="doc-viewer-page" alt="" src="' + url + '">';
     // Format nettleseren ikke kan vise (f.eks. HEIC fra iPhone): si det, i stedet for et tomt bilde.
     var im = pages.querySelector('img');
     if (im) im.onerror = function () { if (_docsViewing === d) pages.innerHTML = '<div class="doc-viewer-msg">' + escapeHtml(t('docs_img_unsupported').replace('{0}', _docsTypeLabel(d))) + '</div>'; };
+}
+// ── Visning av Word, Excel, tekst og andre filer (20-11-2026) ─────────────────
+// Excel/CSV → tabell pr. ark (SheetJS). Word (DOCX) → siden som HTML (mammoth). Tekstfiler → teksten.
+// Andre (DOC, PowerPoint, RTF, OpenDocument …) → teksten serveren leste, pr. del/lysbilde, med
+// «Åpne i annen app» for originalen. Ingen tekst → bare «Åpne i annen app».
+// Bibliotekene lastes først når de trengs (og ligger i service workeren for bruk uten nett).
+var DOCS_LIB_XLSX = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+var DOCS_LIB_MAMMOTH = 'https://cdn.jsdelivr.net/npm/mammoth@1.13.0/mammoth.browser.min.js';
+var DOCS_SHEET_ROWS = 2000, _docsLibP = {};
+function _docsLoadLib(name, url) {
+    if (window[name]) return Promise.resolve();
+    if (!_docsLibP[url]) _docsLibP[url] = new Promise(function (res, rej) {
+        var sc = document.createElement('script'); sc.src = url; sc.async = true;
+        sc.onload = function () { res(); }; sc.onerror = function () { delete _docsLibP[url]; rej(new Error('Kunne ikke laste ' + url)); };
+        document.head.appendChild(sc);
+    });
+    return _docsLibP[url];
+}
+// HTML fra Word-fila: bare trygge elementer (ingen skript, hendelser eller javascript:-lenker).
+function _docsSanitize(html) {
+    var doc = new DOMParser().parseFromString('<div>' + html + '</div>', 'text/html');
+    doc.querySelectorAll('script,style,iframe,object,embed,link,meta,form,input,button').forEach(function (n) { n.remove(); });
+    doc.querySelectorAll('*').forEach(function (n) {
+        Array.prototype.slice.call(n.attributes).forEach(function (a) {
+            var v = String(a.value || '').trim().toLowerCase();
+            if (/^on/i.test(a.name) || ((a.name === 'href' || a.name === 'src') && !/^(https?:|mailto:|#|data:image\/)/.test(v))) n.removeAttribute(a.name);
+        });
+        if (n.tagName === 'A') { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener'); }
+    });
+    return doc.body.firstChild.innerHTML;
+}
+function _docsOtherBar(d, note) {
+    return '<div class="doc-other-bar">' + (note ? '<span>' + escapeHtml(note) + '</span>' : '') +
+        '<button type="button" class="doc-other-open" onclick="docsOpenExternal(\'' + escapeHtml(d.id) + '\')">' + escapeHtml(t('docs_open_external')) + '</button></div>';
+}
+async function _docsShowOther(d, blob, pages) {
+    var kind = _docsKind(d), e = _docsExt(d);
+    var out = function (html) { if (_docsViewing === d) pages.innerHTML = html; };
+    try {
+        if (kind === 'excel' && e !== 'numbers') {
+            await _docsLoadLib('XLSX', DOCS_LIB_XLSX);
+            var wb = (e === 'csv' || e === 'tsv') ? XLSX.read(await blob.text(), { type: 'string' }) : XLSX.read(await blob.arrayBuffer(), { type: 'array', cellDates: true });
+            var html = wb.SheetNames.map(function (n) {
+                var rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, blankrows: false, defval: '' });
+                var more = rows.length > DOCS_SHEET_ROWS;
+                rows = rows.slice(0, DOCS_SHEET_ROWS);
+                var w = rows.reduce(function (m, r) { for (var k = r.length - 1; k >= 0; k--) if (String(r[k]).trim()) return Math.max(m, k + 1); return m; }, 0);
+                var body = rows.map(function (r, i) {
+                    var cells = ''; for (var k = 0; k < w; k++) cells += '<td>' + escapeHtml(r[k] == null ? '' : String(r[k])) + '</td>';
+                    return '<tr><th>' + (i + 1) + '</th>' + cells + '</tr>';
+                }).join('');
+                return '<div class="doc-viewer-page doc-html doc-sheet">' + (wb.SheetNames.length > 1 ? '<div class="doc-part-label">' + escapeHtml(n) + '</div>' : '') +
+                    '<div class="doc-sheet-scroll"><table>' + body + '</table></div>' + (more ? '<div class="doc-part-label">' + escapeHtml(t('docs_sheet_more').replace('{0}', DOCS_SHEET_ROWS)) + '</div>' : '') + '</div>';
+            }).join('');
+            out(_docsOtherBar(d, '') + (html || '<div class="doc-viewer-msg">' + escapeHtml(t('docs_view_empty')) + '</div>'));
+            return;
+        }
+        if (e === 'docx' || e === 'docm' || e === 'dotx') {
+            await _docsLoadLib('mammoth', DOCS_LIB_MAMMOTH);
+            var r = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() });
+            out(_docsOtherBar(d, '') + '<div class="doc-viewer-page doc-html doc-word">' + _docsSanitize(r.value || '') + '</div>');
+            return;
+        }
+        if (kind === 'text' && !/^html?$/.test(e)) {
+            var txt = await blob.text();
+            if (/\uFFFD/.test(txt.slice(0, 4000))) { try { txt = new TextDecoder('windows-1252').decode(await blob.arrayBuffer()); } catch (x) {} }   // eldre norske tekstfiler
+            out(_docsOtherBar(d, '') + '<div class="doc-viewer-page doc-html"><pre class="doc-text">' + escapeHtml(txt.length > 2000000 ? txt.slice(0, 2000000) + '\n…' : txt) + '</pre></div>');
+            return;
+        }
+    } catch (err) { console.error('Visning (' + (d.file || d.name) + '):', err); }
+    // DOC, PowerPoint, RTF, OpenDocument …: teksten serveren leste.
+    try { await _docsEnsureTexts(); } catch (x) {}
+    if (_docsViewing !== d) return;
+    var tx = _docsText[d.id];
+    var word = { del: 'docs_pw_del', ark: 'docs_pw_del', lysbilde: 'docs_pw_lysbilde' }[d.pageWord] || 'docs_page_n';
+    if (tx && tx.pages && tx.pages.some(function (p) { return String(p || '').trim(); })) {
+        out(_docsOtherBar(d, t('docs_view_text_note')) + tx.pages.map(function (p, i) {
+            return '<div class="doc-viewer-page doc-html">' + (tx.pages.length > 1 ? '<div class="doc-part-label">' + escapeHtml(t(word).replace('{0}', i + 1)) + '</div>' : '') +
+                '<pre class="doc-text">' + escapeHtml(String(p || '').replace(/\[Lest av AI — bilder og tabeller\]\n?/g, '')) + '</pre></div>';
+        }).join(''));
+        if (_docsViewPage > 1) _docsScrollToPage(_docsViewPage);
+        return;
+    }
+    out('<div class="doc-other-none">' + _docsIcoHtml(d, 'doc-tile-ico') + '<div class="doc-other-name">' + escapeHtml(d.file || d.name || '') + '</div>' +
+        '<div class="doc-other-msg">' + escapeHtml(t('docs_view_none').replace('{0}', _docsTypeLabel(d))) + '</div>' + _docsOtherBar(d, '') + '</div>');
 }
 // Lukk = dit du var (lista i mappen); åpnet direkte (oppdatering) → mappen fila ligger i.
 function closeDocViewer() {
@@ -32812,7 +32926,7 @@ async function _docsUploadOne(job) {
     // lukkes rett etter opplastingen. Lokal test har ingen server: les her som før.
     if (_docsIsDev()) _docsQIndex.push({ doc: doc, blob: f });
     else _docsUpIds.push(id);
-    if (!_docsIsPdf(doc)) { _docsThumbQ.push({ id: id, blob: f }); _docsThumbRun(); }   // forhåndsbilde av BILDER (PDF = ikon)
+    if (_docsIsImg(doc)) { _docsThumbQ.push({ id: id, blob: f }); _docsThumbRun(); }   // forhåndsbilde bare av BILDER (andre filer = ikon)
 }
 var _docsUpIds = [];   // lastet opp i denne runden — venter på at serveren er ferdig å lese
 // Tekst for søk/AI: én fil om gangen, etter opplastingen. Lukkes appen før dette, fyller
@@ -33407,7 +33521,7 @@ function _docsAiAnswerHtml(h) {
         var src = r.sources.length ? '<div class="docs-ai-src-title">' + escapeHtml(t('docs_ai_sources')) + '</div>' + r.sources.map(function (s, i) {
             // Dokument → åpnes på siden; post med adresse (timebok-dag, sjekkliste, veiledning) → åpnes; ellers bare vist.
             var act = s.docId ? 'openDoc(\'' + escapeHtml(s.docId) + '\',' + s.page + ')' : (s.open ? '_docsAiOpenSrc(\'' + escapeHtml(s.open) + '\')' : '');
-            var name = s.docId ? (s.name || s.title || '') + ' · ' + t('docs_page').replace('{0}', s.page) : (s.title || s.name || '');
+            var name = s.docId ? (s.name || s.title || '') + ' · ' + t(s.pageWord === 'del' || s.pageWord === 'ark' ? 'docs_pw_del' : s.pageWord === 'lysbilde' ? 'docs_pw_lysbilde' : 'docs_page').replace('{0}', s.page) : (s.title || s.name || '');
             var tag = act ? 'button type="button"' : 'div';
             return '<' + tag + ' class="docs-ai-src' + (act ? '' : ' docs-ai-src--static') + '"' + (act ? ' onclick="' + act + '"' : '') + '>' +
                 '<span class="docs-ai-src-n">' + (i + 1) + '</span><span class="docs-ai-src-text"><span class="docs-ai-src-name">' + escapeHtml(name) + '</span>' +
