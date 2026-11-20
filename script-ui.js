@@ -32859,6 +32859,7 @@ function docsCancelUploads() {
     }, t('docs_upload_cancel_btn'), '#e74c3c');
 }
 window.docsCancelUploads = docsCancelUploads;
+var _docsQDenied = [];   // filer lagringsreglene avviste i denne runden
 function _docsRunQ() {
     while (_docsQRunning < DOCS_Q_PAR && _docsQ.length) _docsQWorker(_docsQ.shift());
 }
@@ -32870,7 +32871,11 @@ async function _docsQWorker(job) {
     try { await _docsUploadOne(job); }
     catch (e) {
         if (job.cancelled || (e && e.code === 'storage/canceled')) cancelled = true;
-        else { console.error('Opplasting:', e); _docsQFail++; }
+        else {
+            console.error('Opplasting:', e); _docsQFail++;
+            // Avvist av lagringsreglene (filtype/størrelse/tilgang) — ikke nettet. Si det som det er.
+            if (e && (e.code === 'storage/unauthorized' || e.code === 'permission-denied')) _docsQDenied.push(job.file && job.file.name || '');
+        }
     }
     delete _docsQActive[job.qid];
     _docsQForget(job.qid);
@@ -32880,11 +32885,12 @@ async function _docsQWorker(job) {
     if (_docsQ.length) { _docsRunQ(); return; }
     if (_docsQRunning) return;
     // Hele køen er ferdig.
-    var done = _docsQDone, fail = _docsQFail;
-    _docsQDone = 0; _docsQTotal = 0; _docsQFail = 0;
+    var done = _docsQDone, fail = _docsQFail, denied = _docsQDenied.slice();
+    _docsQDone = 0; _docsQTotal = 0; _docsQFail = 0; _docsQDenied = [];
     _docsRenderProgress();
     _docsLocalRefresh().then(_docsRender);
-    if (fail) showNotificationModal(t('docs_upload_failed').replace('{0}', fail).replace('{1}', done));
+    if (denied.length) showNotificationModal(t('docs_upload_denied').replace('{0}', denied.join(', ')));
+    else if (fail) showNotificationModal(t('docs_upload_failed').replace('{0}', fail).replace('{1}', done));
     else if (!done) showNotificationModal(t('docs_upload_cancelled'), true);
     // Meldingen om at filene er klare kommer når teksten er lest (serveren / _docsIndexRun lokalt).
     if (_docsIsDev()) {
