@@ -7931,9 +7931,14 @@ function setServiceFormData(data) {
 async function getTimebokRecentDays() {
     if (currentUser && db) {
         try {
+            // Stigende dato-intervall (siste 120 dager), nyeste først etterpå. Synkende sortering på
+            // dokument-ID krever en egen indeks i Firestore («query requires an index») — feilet ved
+            // hver innlogging, så cachen ble aldri oppdatert. Intervallet trenger ingen indeks.
+            var fra = new Date(Date.now() - 120 * 86400000);
+            var fraId = fra.getFullYear() + '-' + String(fra.getMonth() + 1).padStart(2, '0') + '-' + String(fra.getDate()).padStart(2, '0');
             var snapshot = await db.collection('users').doc(currentUser.uid).collection('timebok')
-                .orderBy(firebase.firestore.FieldPath.documentId(), 'desc').limit(60).get();
-            return snapshot.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+                .orderBy(firebase.firestore.FieldPath.documentId()).startAt(fraId).endAt('9999-12-31').get();
+            return snapshot.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }).reverse().slice(0, 60);
         } catch (e) { console.error('getTimebokRecentDays error:', e); }
     }
     return safeParseJSON(TIMEBOK_STORAGE_KEY, []);
