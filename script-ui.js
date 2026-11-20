@@ -31298,6 +31298,7 @@ function _docsRemove(items) {
     _docsSaveCache();
     items.forEach(function (d) {
         if (d.path) _fbStorage().ref(d.path).delete().catch(function (e) { if (!e || e.code !== 'storage/object-not-found') console.error('Slett fil:', e); });
+        if (d.thumbPath) _fbStorage().ref(d.thumbPath).delete().catch(function () {});
     });
     var chunks = [];
     for (var k = 0; k < items.length; k += 400) chunks.push(items.slice(k, k + 400));
@@ -31594,6 +31595,7 @@ function _docsTileHtmlPlain(d, drag) {
     var off = folder ? (function () { var fs = _docsFilesUnder('', d.id); return fs.length && fs.every(function (x) { return _docsIsOffline(x.id); }); })() : _docsIsOffline(d.id);
     return '<div class="doc-tile"' + (folder ? ' data-drop="m:' + escapeHtml(d.id) + '"' : '') + drag + ' onclick="' + (folder ? 'docsOpenFolder' : 'openDoc') + '(\'' + escapeHtml(d.id) + '\')">' +
         '<div class="doc-tile-thumb"><span class="set-ico doc-tile-ico ' + (folder ? 'set-ico--amber' : pdf ? 'set-ico--red' : 'set-ico--blue') + '">' + (folder ? _DOCS_ICON_FOLDER : pdf ? _DOCS_ICON_PDF : _DOCS_ICON_IMG) + '</span>' +
+        (!folder && !pdf && d.thumbUrl ? '<img class="doc-tile-img" alt="" loading="lazy" src="' + escapeHtml(d.thumbUrl) + '" onerror="this.remove()">' : '') +   // bare BILDER (PDF = ikon, bruker 20-11-2026)
         (off ? '<span class="doc-tile-off" title="' + escapeHtml(t('docs_offline_on')) + '">' + _DOCS_ICON_OFFLINE + '</span>' : '') + '</div>' +
         '<div class="doc-tile-foot"><div class="doc-tile-text"><div class="doc-tile-name doc-mid" title="' + escapeHtml(d.name || d.file || '') + '" data-full="' + escapeHtml(d.name || d.file || '') + '">' + escapeHtml(d.name || d.file || '') + '</div>' + _docsTileSub(folder ? '' : _docsStateHtml(d)) + '</div>' +
         '<button type="button" class="doc-row-more" aria-label="' + escapeHtml(t('docs_more')) + '" onclick="event.stopPropagation();docsItemMenu(\'' + escapeHtml(d.id) + '\')">' + _DOCS_MORE + '</button></div></div>';
@@ -31746,6 +31748,85 @@ function _docsUnreadableHtml() {
 function docsToggleUnreadable() { _docsUnreadOpen = !_docsUnreadOpen; _docsRender(); }
 window.docsToggleUnreadable = docsToggleUnreadable;
 var _DOCS_ICON_WARN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+// ── Forhåndsbilder i rutenettet (bruker 20-11-2026: «skal den ikke vises for bilder?») ────────
+// BARE BILDER (nedskalert bilde). PDF-er beholder PDF-ikonet («det er vel ikke normalt at pdf har en
+// "ekte" logo») — PDF-grenen i _docsMakeThumb står igjen, men brukes ikke. Lages på ADMIN-enheten (bare admin får skrive):
+// ved opplasting fra fila vi alt har, og i bakgrunnen for eldre filer (PDF: PDF.js henter bare
+// bytene side 1 trenger — rekkevidde-CORS). Lagres som …/documents/{id}/_thumb.jpg; feltene
+// thumbPath/thumbUrl/thumbAt oppdateres med update() (ikke set — serveren skriver lesestatus samtidig).
+// Ikonet ligger under og vises hvis bildet ikke laster (uten nett) eller ikke kan lages (HEIC).
+var DOCS_THUMB_W = 480, _docsThumbQ = [], _docsThumbBusy = false, _docsThumbTried = {};
+async function _docsMakeThumb(d, blob) {
+    var canvas = document.createElement('canvas'), ctx;
+    if (_docsIsPdf(d)) {
+        var lib = window.pdfjsLib; if (!lib) throw new Error('PDF.js mangler');
+        try { lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {}
+        var src = blob ? { data: await blob.arrayBuffer() }
+            : { url: await _fbStorage().ref(d.path).getDownloadURL(), rangeChunkSize: 65536, disableAutoFetch: true, disableStream: true };
+        var pdf = await lib.getDocument(src).promise;
+        try {
+            var page = await pdf.getPage(1), vp0 = page.getViewport({ scale: 1 });
+            var vp = page.getViewport({ scale: DOCS_THUMB_W / vp0.width });
+            canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+            ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        } finally { pdf.destroy(); }
+    } else {
+        if (!blob) { var r = await fetch(await _fbStorage().ref(d.path).getDownloadURL()); if (!r.ok) throw new Error('HTTP ' + r.status); blob = await r.blob(); }
+        var bmp = await createImageBitmap(blob);   // HEIC o.l. som nettleseren ikke kan lese → feiler (ikonet står)
+        var sc = Math.min(1, DOCS_THUMB_W / bmp.width);
+        canvas.width = Math.max(1, Math.round(bmp.width * sc)); canvas.height = Math.max(1, Math.round(bmp.height * sc));
+        canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        if (bmp.close) bmp.close();
+    }
+    var jpg = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.75); });
+    canvas.width = 0; canvas.height = 0;
+    if (!jpg) throw new Error('Kunne ikke lage bilde');
+    return jpg;
+}
+async function _docsSaveThumb(id, blob) {
+    var d = _docsById(id); if (!d || _docsIsFolder(d)) return;
+    var jpg;
+    try { jpg = await _docsMakeThumb(d, blob); }
+    catch (e) {
+        console.warn('Forhåndsbilde (' + (d.name || id) + '):', e);
+        if (!_docsIsDev()) _docsColl().doc(id).update({ thumbFail: true }).catch(function () {});   // ikke prøv igjen og igjen
+        return;
+    }
+    var now = new Date().toISOString();
+    if (_docsIsDev()) {   // lokal test: ingen Storage — lagre bildet i dokumentet
+        var url = await new Promise(function (res) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.readAsDataURL(jpg); });
+        var cur = _docsById(id); if (cur) await _docsWrite([Object.assign({}, cur, { thumbUrl: url, thumbAt: now })]);
+        _docsRender(); return;
+    }
+    var path = 'firms/' + _firma() + '/documents/' + id + '/_thumb.jpg';
+    var ref = _fbStorage().ref(path);
+    await ref.put(jpg, { contentType: 'image/jpeg', cacheControl: 'private, max-age=31536000' });
+    var dl = await ref.getDownloadURL();
+    await _docsColl().doc(id).update({ thumbPath: path, thumbUrl: dl, thumbAt: now, thumbFail: firebase.firestore.FieldValue.delete() });
+}
+async function _docsThumbRun() {
+    if (_docsThumbBusy || !_acc.admin) return;
+    _docsThumbBusy = true;
+    try {
+        while (_docsThumbQ.length) {
+            var j = _docsThumbQ.shift();
+            if (_docsThumbTried[j.id]) continue;
+            _docsThumbTried[j.id] = 1;
+            try { await _docsSaveThumb(j.id, j.blob); } catch (e) { console.warn('Forhåndsbilde:', e); }
+        }
+    } finally { _docsThumbBusy = false; }
+}
+// Eldre filer uten forhåndsbilde: lag dem i bakgrunnen (admin, én om gangen, ikke uten nett).
+function _docsThumbBackfill() {
+    if (!_acc.admin || (!_docsIsDev() && navigator.onLine === false)) return;
+    _docs.forEach(function (d) {
+        if (_docsIsFolder(d) || _docsIsPdf(d) || d.thumbAt || d.thumbFail || _docsThumbTried[d.id] || (!d.path && !_docsIsDev())) return;   // bare bilder
+        if (_docsThumbQ.some(function (j) { return j.id === d.id; })) return;
+        _docsThumbQ.push({ id: d.id, blob: null });
+    });
+    _docsThumbRun();
+}
 function _docsCard(rowsHtml, title) {
     return '<div class="set-section docs-group">' + (title ? '<div class="set-section-title">' + escapeHtml(title) + '</div>' : '') + '<div class="set-card">' + rowsHtml + '</div></div>';
 }
@@ -32665,6 +32746,7 @@ async function _docsUploadOne(job) {
     // lukkes rett etter opplastingen. Lokal test har ingen server: les her som før.
     if (_docsIsDev()) _docsQIndex.push({ doc: doc, blob: f });
     else _docsUpIds.push(id);
+    if (!_docsIsPdf(doc)) { _docsThumbQ.push({ id: id, blob: f }); _docsThumbRun(); }   // forhåndsbilde av BILDER (PDF = ikon)
 }
 var _docsUpIds = [];   // lastet opp i denne runden — venter på at serveren er ferdig å lese
 // Tekst for søk/AI: én fil om gangen, etter opplastingen. Lukkes appen før dette, fyller
@@ -32922,6 +33004,7 @@ async function _docsIndexFile(d, blob) {
 }
 function _docsAfterLoad() {
     _docsBackfillText();
+    _docsThumbBackfill();
     if (_docsQuery) _docsEnsureTexts();
     else setTimeout(_docsEnsureTexts, 1500);   // hent teksten i bakgrunnen, så første søk er raskt
 }

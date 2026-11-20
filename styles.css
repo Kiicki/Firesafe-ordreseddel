@@ -14315,6 +14315,10 @@ button, input, select, textarea { font-family: inherit; }
 .doc-tile-thumb .doc-tile-ico { width: auto; height: auto; background: transparent; border-radius: 0; }
 .doc-tile-ico svg { width: 76px; height: 76px; stroke-width: 1.35; }
 .doc-tile-ico.set-ico--amber { color: #e0a526; }   /* mappe: varm gul som i filutforskere */
+/* Forhåndsbilde av BILDER over ikonet (ikonet vises hvis bildet ikke laster). PDF-er: bare ikon. */
+.doc-tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.doc-tile-thumb { overflow: hidden; }
+.doc-tile-off { z-index: 1; }
 .doc-tile-off { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 12px; background: #fff; color: #2e7d32; display: flex; align-items: center; justify-content: center; box-shadow: var(--card-shadow); }
 .doc-tile-foot { display: flex; align-items: center; gap: 2px; padding: 6px 2px 6px 12px; min-height: 44px; box-sizing: border-box; }
 .doc-tile-text { flex: 1; min-width: 0; }
