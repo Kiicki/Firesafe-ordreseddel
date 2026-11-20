@@ -5259,6 +5259,9 @@ body.keyboard-open #spec-popup .spec-popup-sheet {
     box-sizing: border-box;
 }
 
+/* Vindu åpnet fra en meny: toppen der menyen sto (margin-top settes i JS, _anchorToMenu) */
+.confirm-modal.popup-from-menu { align-items: flex-start; }
+
 /* Når picker er åpen må confirm-modal heves over den (z-index: 50) */
 body.picker-active .confirm-modal {
     z-index: 70;

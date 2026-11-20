@@ -1214,9 +1214,41 @@ function _actionPopupBack(onBack) {
 
 function closeActionPopup(e) {
     if (e && e.target !== document.getElementById('action-popup')) return;
+    _rememberMenuTop();
     document.getElementById('action-popup').classList.remove('active');
     _actionPopupBack(null);
 }
+// ── Vindu åpnet fra en meny står der menyen sto (bruker 20-11-2026: «det er ingen grunn for at
+// boksen skal endre posisjon fordi jeg trykker ny mappe … slike ting irriterer meg»).
+// Velger man noe i en meny (#action-popup) som åpner et navnefelt (#input-modal) eller en
+// bekreftelse (#confirm-modal), legges det nye vinduet med TOPPEN der menyen sto — ikke sentrert
+// på nytt etter sin egen høyde. Gjelder hele appen (alle menyer → vinduer), ikke bare Dokumenter.
+var _lastMenuTop = null;
+function _rememberMenuTop() {
+    var c = document.querySelector('#action-popup.active .confirm-modal-content');
+    _lastMenuTop = c ? { top: c.getBoundingClientRect().top, at: Date.now() } : null;
+}
+function _anchorToMenu(modalId) {
+    var m = document.getElementById(modalId), c = m && m.querySelector('.confirm-modal-content');
+    var last = _lastMenuTop; _lastMenuTop = null;
+    if (!c || !last || Date.now() - last.at > 600) return;   // ikke åpnet rett fra en meny
+    m.classList.add('popup-from-menu');
+    c.style.marginTop = '0px';
+    var room = window.innerHeight - c.offsetHeight - 16;     // aldri utenfor skjermen nederst
+    c.style.marginTop = Math.max(16, Math.min(Math.round(last.top), room)) + 'px';
+}
+function _unanchorMenu(modalId) {
+    var m = document.getElementById(modalId), c = m && m.querySelector('.confirm-modal-content');
+    if (m) m.classList.remove('popup-from-menu');
+    if (c) c.style.marginTop = '';
+}
+['input-modal', 'confirm-modal'].forEach(function (id) {
+    var show = id === 'input-modal' ? 'showInputModal' : 'showConfirmModal';
+    var close = id === 'input-modal' ? 'closeInputModal' : 'closeConfirmModal';
+    var s0 = window[show], c0 = window[close];
+    if (typeof s0 === 'function') window[show] = function () { _unanchorMenu(id); var r = s0.apply(this, arguments); _anchorToMenu(id); return r; };
+    if (typeof c0 === 'function') window[close] = function () { var r = c0.apply(this, arguments); if (!document.getElementById(id).classList.contains('active')) _unanchorMenu(id); return r; };
+});
 
 // ─── Preview overlay ────────────────────────────────────────────────────────
 
