@@ -32931,8 +32931,9 @@ async function _docsUploadOne(job) {
     else await _docsPutFile(f, path, mime, job);
     if (job.cancelled) { if (!_docsIsDev()) _fbStorage().ref(path).delete().catch(function () {}); throw { code: 'storage/canceled' }; }
     _docsBlobMem[id] = f;
+    // readStatus 'pending': serverens feier (readDocSweep) finner fila hvis opplastings-triggeren av en eller annen grunn ikke leser den.
     var doc = Object.assign({ id: id, name: f.name.replace(/\.[^.]+$/, '') || f.name, file: f.name, mime: mime, size: f.size, path: path,
-        parentId: tg.parentId || '', createdAt: now, updatedAt: now }, _docsProjMeta(tg.projectId), _docsWho());
+        parentId: tg.parentId || '', createdAt: now, updatedAt: now }, _docsIsDev() ? {} : { readStatus: 'pending' }, _docsProjMeta(tg.projectId), _docsWho());
     await _docsWrite([doc]);
     // Teksten (og AI-lesingen av bilder/tabeller) gjøres på SERVEREN (readDocOnUpload) — appen kan
     // lukkes rett etter opplastingen. Lokal test har ingen server: les her som før.
@@ -33237,7 +33238,7 @@ var _docsCardsRunning = false, _docsCardsAt = 0;
 async function _docsCardsBackfill() {
     if (_docsCardsRunning || !_acc.admin || _docsIsDev() || !currentUser || navigator.onLine === false) return;
     if (Date.now() - _docsCardsAt < 20 * 60 * 1000) return;   // høyst hvert 20. min (serveren låser pr. fil)
-    var mangler = _docs.some(function (x) { return !_docsIsFolder(x) && (x.textChars || 0) >= DOCS_MIN_TEXT && (x.kortVer || 0) < 1 && x.readStatus !== 'reading'; });
+    var mangler = _docs.some(function (x) { return !_docsIsFolder(x) && (x.textChars || 0) > 0 && (x.kortVer || 0) < 1 && x.readStatus !== 'reading'; });   // ALLE filer med tekst, også små
     if (!mangler) return;
     _docsCardsRunning = true; _docsCardsAt = Date.now();
     try {
