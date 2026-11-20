@@ -3209,6 +3209,16 @@ function rejectMaterialSuggestion() {
 // LIVE (onSnapshot på forslagene som venter), så det dukker opp mens appen er åpen.
 var _sugPending = [];
 var _sugUnsub = null, _sugLiveFailed = false;
+// Utlogging (21-11-2026): live-tilkoblinger som står åpne når innloggingen forsvinner, avvises av
+// Firestore («Missing or insufficient permissions» / permission-denied i konsollen), og «Til
+// godkjenning» ble ikke live igjen før omlasting. Alle live-lister stenges ved utlogging, og en
+// avvisning UTEN innlogget bruker er forventet (ikke en feil) — gjelder alle live-tilkoblinger.
+function _fsAuthGone(e) { return !!(e && e.code === 'permission-denied' && typeof auth !== 'undefined' && auth && !auth.currentUser); }
+function _liveStopAll() {
+    if (typeof _docsUnsub !== 'undefined' && _docsUnsub) { _docsUnsub(); _docsUnsub = null; _docsLiveFirma = null; }
+    if (_sugUnsub) { _sugUnsub(); _sugUnsub = null; }
+    _sugLiveFailed = false;
+}
 function _matPendingList() { return _sugPending.filter(function (s) { return s.kind === 'material'; }); }
 var SUG_CACHE_KEY = 'firesafe_sug_pending';
 function _sugSetPending(list, fromCache) {
@@ -3233,7 +3243,7 @@ function _sugLoadPending() {
     // Reglene mangler (felles liste kunne ikke leses) → ingenting å hente; behold det vi har.
     if (_projSharedOk === false && !_admDev()) return Promise.resolve();
     return _projStore.listSuggPending().then(_sugSetPending)
-        .catch(function (e) { console.warn('Til godkjenning:', e && (e.code || e.message)); });
+        .catch(function (e) { if (!_fsAuthGone(e)) console.warn('Til godkjenning:', e && (e.code || e.message)); });
 }
 // Live for admin (startes/stoppes fra _accApply når admin-status er kjent). Ved oppstart:
 // lagret liste først (straks synlig), så ferskt fra Firebase. Uten live-tilkobling (lokal test,
@@ -3262,8 +3272,10 @@ function _sugLive() {
             _sugUnsub = _firmaRef().collection('projectSuggestions').where('status', '==', 'pending').onSnapshot(function (snap) {
                 _sugSetPending(_projDocs(snap));
             }, function (e) {
+                _sugUnsub = null;
+                if (_fsAuthGone(e)) return;   // utlogget — startes igjen ved neste innlogging
                 console.warn('Til godkjenning (live):', e && (e.code || e.message));
-                _sugLiveFailed = true; _sugUnsub = null;
+                _sugLiveFailed = true;
                 _sugPollMaybe();
             });
         } catch (e) { _sugUnsub = null; }
@@ -28561,6 +28573,7 @@ if (typeof auth !== 'undefined' && auth) {
     auth.onAuthStateChanged(function (user) {
         _accUnsubs.forEach(function (u) { u(); });
         _accUnsubs = [];
+        if (!user) _liveStopAll();   // utlogget: steng også Dokumenter / Til godkjenning
         // Lokal test (index.html / localhost = DEV_MODE): ingen ekte innlogging, script.js
         // setter isAdmin = true med en falsk bruker — vis admin-delen også her.
         if (!user && typeof DEV_MODE !== 'undefined' && DEV_MODE) { _tbCompanyKnown = true; _devApplyRole(); return; }
@@ -31338,7 +31351,7 @@ function _docsLoad() {
             _docsRender();
             _docsCheckUpSummary();
             if (first) { first = false; _docsAfterLoad(); resolve(); }
-        }, function (e) { console.error('Dokumenter:', e); _docsUnsub = null; resolve(); });
+        }, function (e) { _docsUnsub = null; _docsLiveFirma = null; if (!_fsAuthGone(e)) console.error('Dokumenter:', e); resolve(); });
     });
     return _docsLiveP;
 }
