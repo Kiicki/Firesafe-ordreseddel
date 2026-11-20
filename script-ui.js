@@ -13031,6 +13031,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // View is already activated by inline script in HTML.
     // Here we only do data-specific init based on hash.
     const hash = window.location.hash.slice(1);
+    // Tilbake fra en gjenopprettet side (bruker 20-11-2026: sveip tilbake lukket appen → oppstartsbildet).
+    // Starter appen rett på en underside (#dokumenter, #timebok …) uten historikk bak seg, legg Hjem
+    // UNDER den i nettleserhistorikken: tilbake går da til Hjem (som i andre apper), ikke ut av appen.
+    if (hash && history.length <= 1) {
+        try { history.replaceState(null, '', location.pathname + location.search); history.pushState(null, '', '#' + hash); } catch (e) {}
+    }
     var formTypeFromSession = sessionStorage.getItem('firesafe_form_type');
     if (hash === 'skjema' || (!hash && formTypeFromSession)) {
         document.getElementById('form-header-title').textContent = t('form_title');
