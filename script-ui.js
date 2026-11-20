@@ -33072,7 +33072,7 @@ async function _docsAiBackfill() {
             var d = _docs.filter(function (x) {
                 // Ikke AI-lest ennå, ELLER lesingen feilet: prøv igjen automatisk (høyst 3 ganger, ≥ 1 t imellom).
                 // Feilet: prøv igjen (høyst 3), etter 1 t — eller MED EN GANG hvis feilen kom fra eldre serverkode (readErrVer < 3).
-                var retry = x.readStatus === 'error' && (x.readTries || 0) < 3 && (now - _docsMs(x.readErrorAt) > 60 * 60 * 1000 || (x.readErrVer || 1) < 3);
+                var retry = x.readStatus === 'error' && ((x.readErrVer || 1) < 4 || ((x.readTries || 0) < 3 && now - _docsMs(x.readErrorAt) > 60 * 60 * 1000));   // eldre kode-feil: alltid ett nytt forsøk
                 // Lest med eldre AI-versjon og endte «ikke søkbar» → les én gang til med ny instruks (aiVer 2).
                 var redo = x.aiAt && (x.aiVer || 1) < 2 && (x.textChars || 0) < DOCS_MIN_TEXT && x.readStatus !== 'error';
                 return !_docsIsFolder(x) && x.path && (retry || redo || (!x.aiAt && x.readStatus !== 'error')) && !_docsAiTried[x.id] && _docsTextState(x) !== 'reading' &&
