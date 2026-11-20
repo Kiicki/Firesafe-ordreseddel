@@ -172,8 +172,12 @@ body:has(#template-editor-overlay.active) .toolbar::before {
    posisjonerte forelder (hele visningen) — og la et EKSTRA mørkt lag over hele siden bak
    popupen (bruker 15-11-2026: «hvorfor blir bakgrunnen så mye mørkere?»). Toolbaren ligger
    da uansett under popupens egen backdrop, så laget trengs ikke. Gjelder hele appen. */
-body.keyboard-open .toolbar::before,
+/* Bare når toolbaren FAKTISK ligger i flyten (keyboard-focus / kbd-editing / --inflow / --keyboard-form).
+   Ikke på «keyboard-open» alene: der står den fortsatt fast nederst (f.eks. Dokumenter) og må dempes
+   som resten — ellers lyste den hvit bak popupen (bruker 20-11-2026). */
 body.keyboard-focus .toolbar::before,
+body.kbd-editing .toolbar::before,
+.toolbar.toolbar--keyboard-form::before,
 .toolbar.toolbar--inflow::before {
     display: none;
 }

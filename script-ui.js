@@ -12929,6 +12929,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // scroll-gesten (= "knapp kan ikke brukes til å scrolle"-buggen).
     var _pdArmed = false;
     var _pdStartX = 0, _pdStartY = 0;
+    // Knapp i en popup mens et tekstfelt i SAMME popup har fokus (f.eks. «Lagre» i Ny mappe):
+    // behold fokuset til klikket er ferdig. Ellers mister feltet fokus allerede på pointerdown →
+    // tastaturet begynner å lukke seg → popupen flytter seg under fingeren → trykket bommer og må
+    // gjentas (bruker 20-11-2026). Gjelder ALLE popuper; knappen lukker popupen selv.
+    document.addEventListener('pointerdown', function(e) {
+        var btn = e.target && e.target.closest && e.target.closest('button, [role="button"], .confirm-btn-ok, .confirm-btn-cancel');
+        if (!btn) return;
+        var bd = btn.closest(POPUP_BACKDROP_SELECTOR);
+        if (!bd || !bd.classList.contains('active')) return;
+        var ae = document.activeElement;
+        if (!ae || ae === btn || !bd.contains(ae) || !isKeyboardOpeningElement(ae)) return;
+        e.preventDefault();
+    }, true);
     document.addEventListener('pointerdown', function(e) {
         _pdArmed = false;
         if (!_kbdDismissArmed()) return;
