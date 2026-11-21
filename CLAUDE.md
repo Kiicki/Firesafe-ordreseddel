@@ -372,6 +372,12 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 - **Ny kode som deler/laster ned:** bruk vanlig `navigator.share` / `<a download>` — da virker den automatisk i appen. Ikke bruk `window.open` på blob-adresser (virker ikke i appen).
 - Tastatur: skallet (MainActivity.java) gir WebView samme oppførsel som Chrome med `interactive-widget=resizes-visual` (visualViewport krymper, siden beholder høyden) på WebView ≥ 139; eldre WebView = siden krymper. Statuslinje oransje, navigasjonslinje grå.
 - Signeringsnøkkelen `firesafe-release.jks` + `keystore.properties` må aldri mistes (da kan appen ikke oppdateres).
+- **Oppdateringer — nettside vs. APK (bruker 21-11-2026: «jeg ønsker at jeg blir informert når ny APK må installeres»):**
+  - Endringer i denne repoen (HTML/CSS/JS/lang, pushet til GitHub) og i serverfunksjonene kommer **automatisk** i appen — ingen ny APK. Som i PWA-en kan appen måtte lukkes og åpnes igjen (service worker-cachen).
+  - **Ny APK trengs BARE når skallet i `Desktop\Firesafe-app` endres:** native kode (MainActivity/FilerPlugin), AndroidManifest (tillatelser), Capacitor-plugins/-versjon, `capacitor.config.json`, ikon/navn/oppstartsbilde, `google-services.json`, signering.
+  - **Plikt:** når en endring krever ny APK, si det TYDELIG i svaret (egen linje: «⚠ Krever ny APK»), øk `versionCode` (+1) / `versionName` i `android/app/build.gradle` og kjør `./bygg-apk.sh` i Firesafe-app. Skriptet legger APK-en i `app/Ordreseddel-<nr>.apk` + `app/version.json` i DENNE repoen (og `Firesafe-Ordreseddel.apk` i Firesafe-app). Når brukeren pusher, får appene **«Oppdater?»** neste gang de åpnes (`_appCheckUpdate` i APP-blokken → native `Filer.install` → Androids installasjonsboks; fra versjon 2 / 1.1 — eldre må installeres manuelt). Krever endringen IKKE ny APK, trenger det ikke nevnes.
+  - Mappa `app/` (APK + version.json) skal ligge i repoen og publiseres — ikke slett den. Bare én APK der om gangen (skriptet fjerner gamle).
+  - Ny web-kode som trenger en native funksjon som ikke finnes i den installerte APK-en: sjekk at funksjonen finnes før bruk (eldre APK skal ikke krasje), og si fra at ny APK trengs.
 
 ## GitHub Pages
 Nettsiden hostes på: https://kiicki.github.io/Firesafe-ordreseddel/

@@ -44,6 +44,7 @@ document.addEventListener('click', function(e) {
 //   • nedlasting (<a download>)      → Filer.download → telefonens Nedlastinger
 //   • «Åpne i annen app»             → Filer.open = Androids «Åpne med» (med «Alltid»)
 //   • Google/Microsoft-innlogging    → telefonens innlogging (_appSignIn, kalles fra script.js)
+//   • ny versjon av selve appen      → «Oppdater?» → Filer.install (_appCheckUpdate)
 // Utenfor appen er _IN_APP false og ingenting her gjør noe.
 var _IN_APP = !!(window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()
     && typeof Capacitor.getPlatform === 'function' && Capacitor.getPlatform() === 'android' && typeof Capacitor.nativePromise === 'function');
@@ -155,6 +156,62 @@ function _appSignOutNative() {
 async function _appOpenFile(blob, name, mime) {
     var path = await _appWriteBlob(blob, name);
     await _appCall('Filer', 'open', { path: path, mime: mime || blob.type || '' });
+}
+// Oppdatering av selve appen (skallet). Nettsiden oppdateres av seg selv — ny APK trengs bare når
+// skallet endres (sjelden). Den nyeste APK-en ligger i app/ på nettsiden (app/version.json +
+// app/Ordreseddel-<nr>.apk, lagt dit av Firesafe-app/bygg-apk.sh). Er den nyere enn den installerte,
+// spørres «Oppdater?» (én gang pr. oppstart; «Avbryt» = spør igjen neste gang appen åpnes).
+// Oppdater → Filer.install laster ned og åpner Androids installasjonsboks (data/innlogging beholdes).
+// APK før versjon 2 har ikke Filer.install → spørres ikke (må installeres manuelt).
+var _appUpdChecked = 0, _appUpdAsked = 0;
+async function _appCheckUpdate() {
+    if (!_IN_APP || Date.now() - _appUpdChecked < 6 * 3600 * 1000) return;
+    _appUpdChecked = Date.now();
+    try {
+        var info = await _appCall('App', 'getInfo');
+        var cur = parseInt(info && info.build, 10) || 0;
+        if (cur < 2) return;
+        var v = await (await fetch('app/version.json?t=' + Date.now(), { cache: 'no-store' })).json();
+        if (!v || !(v.versionCode > cur) || !v.apk || _appUpdAsked === v.versionCode) return;
+        _appUpdAsked = v.versionCode;
+        _appAskUpdate(v);
+    } catch (e) {
+        console.warn('Oppdateringssjekk:', e);
+        _appUpdChecked = Date.now() - 5.5 * 3600 * 1000;   // uten nett → prøv igjen om ½ time
+    }
+}
+function _appAskUpdate(v) {
+    // Ikke oppå et annet vindu brukeren holder på med — vent til det er lukket.
+    if (document.querySelector('.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active')) {
+        setTimeout(function () { _appAskUpdate(v); }, 5000);
+        return;
+    }
+    showConfirmModal(t('app_update_available').replace('{0}', v.versionName || v.versionCode),
+        function () { _appInstallUpdate(v); }, t('app_update_btn'), '#E8501A');
+}
+async function _appInstallUpdate(v) {
+    var loading = document.getElementById('loading'), old = loading.textContent;
+    loading.textContent = t('app_update_downloading');
+    loading.classList.add('active');
+    try {
+        await _appCall('Filer', 'install', { url: new URL(v.apk, location.href).href });
+    } catch (e) {
+        var code = e && e.code;
+        if (code === 'NEEDS_PERMISSION') {
+            showNotificationModal(t('app_update_permission'));
+            setTimeout(function () { _appAskUpdate(v); }, 3000);
+        } else if (code !== 'UP_TO_DATE' && !_appCanceled(e)) {
+            console.error('Oppdatering:', e);
+            showNotificationModal(t('app_update_failed'));
+        }
+    } finally {
+        loading.classList.remove('active');
+        loading.textContent = old;
+    }
+}
+if (_IN_APP) {
+    window.addEventListener('load', function () { setTimeout(_appCheckUpdate, 4000); });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') _appCheckUpdate(); });
 }
 
 // Bulk select mode state (saved-modal multi-select for bulk export)
