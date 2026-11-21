@@ -365,6 +365,14 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 - **Alle brukere** har AI; montører maks 50 spørsmål/dag (`aiUsage/{uid}_{dato}`), admin uten grense. Brukerens private API-kreditt; nøkkelen i Google Secret Manager (`ANTHROPIC_API_KEY`), aldri i appen.
 - **Ny funksjon / ny side / endret oppførsel i appen → oppdater `app-guide.md`** (seksjon `## Tittel {#slug}`, `[admin]` på admin-seksjoner, valgfri `Åpne: #hash`) og publiser funksjonen. **Ny samling med brukerdata eller firmadata → legg den inn i `MINE` / `lastFirma()`** med riktig rolle (admin-data → `out.admin`).
 
+## Ny versjon av nettsiden — ingen dra-ned-for-å-oppdatere (21-11-2026)
+
+- **Dra-ned-for-å-oppdatere er AV i hele appen** (`overscroll-behavior-y: contain` på html/body i styles.css). Bruker: et uhell kastet ulagret arbeid i skjemaer/Timebok. Ikke slå det på igjen, og ikke lag en egen dra-ned-funksjon.
+- I stedet ser appen selv etter ny versjon (script-ui.js, blokken **«NY VERSJON AV NETTSIDEN»**): henter `index.html` og sammenligner `?v=`-numrene med filene som kjører. Derfor er det ekstra viktig å bumpe `?v=` ved hver endring (se «Cache-versjon»).
+  - Sjekkes når appen hentes fram fra bakgrunnen og hvert 15. min mens den er åpen.
+  - Borte ≥ 5 min + står på Hjem/liste/Meny (ikke skjema), ingen popup, ikke trykket ennå → **stille omlasting**. Ellers banneret «Ny versjon er klar — Oppdater» (`#upd-banner`). Aldri automatisk omlasting midt i arbeid; «Oppdater» med ulagrede endringer → vanlig ulagret-varsel.
+  - Meny › «Se etter oppdatering» (`updCheckNow`) viser versjonsnummeret (script-ui-nummeret, + APK-versjon i appen).
+
 ## Android-appen (Capacitor-skall, 21-11-2026 — bare Android, ikke iPhone)
 
 - Mappa **`C:\Users\Igor\Desktop\Firesafe-app`** (IKKE i denne repoen; se README.txt der). Appen laster nettsiden fra GitHub Pages (`server.url`) → alt som publiseres her kommer i appen også. Ny APK bare når skallet endres.

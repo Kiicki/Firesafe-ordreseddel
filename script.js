@@ -2148,6 +2148,7 @@ function applyTranslations() {
     updateLoginButton();
     // Språkvalget på Profil-siden (Norsk | English) følger aktivt språk.
     if (typeof _syncProfileLangSeg === 'function') _syncProfileLangSeg();
+    if (typeof _updRenderVersion === 'function') _updRenderVersion();   // Meny › Se etter oppdatering
     // Re-number order cards
     renumberOrders();
     if (typeof renumberServiceEntries === 'function') renumberServiceEntries();

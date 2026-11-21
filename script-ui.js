@@ -171,7 +171,7 @@ async function _appCheckUpdate() {
         var info = await _appCall('App', 'getInfo');
         var cur = parseInt(info && info.build, 10) || 0;
         if (cur < 2) return;
-        var v = await (await fetch('app/version.json?t=' + Date.now(), { cache: 'no-store' })).json();
+        var v = await (await fetch('app/version.json', { cache: 'no-store' })).json();   // ikke ?t= (hver adresse lagres i SW-cachen)
         if (!v || !(v.versionCode > cur) || !v.apk || _appUpdAsked === v.versionCode) return;
         _appUpdAsked = v.versionCode;
         _appAskUpdate(v);
@@ -213,6 +213,111 @@ if (_IN_APP) {
     window.addEventListener('load', function () { setTimeout(_appCheckUpdate, 4000); });
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') _appCheckUpdate(); });
 }
+
+// ══ NY VERSJON AV NETTSIDEN (21-11-2026) ═════════════════════════════════════════════════════
+// Dra-ned-for-å-oppdatere er skrudd AV (styles.css, overscroll-behavior-y på html/body) — bruker:
+// et uhell kastet ulagret arbeid. I stedet ser appen selv etter ny versjon: index.html hentes og
+// ?v=-numrene sammenlignes med filene som kjører nå (alle endringer bumper dem, se CLAUDE.md).
+// Sjekkes når appen hentes fram fra bakgrunnen og hvert 15. minutt mens den er åpen.
+// Ny versjon funnet →
+//   • var appen i bakgrunnen ≥ 5 min, og du står på Hjem / en liste / Meny (ikke i et skjema), uten
+//     åpen popup og uten å ha trykket noe ennå → oppdateres stille (merkes knapt);
+//   • ellers banneret «Ny versjon er klar — Oppdater». ALDRI automatisk omlasting midt i arbeid.
+//   • «Oppdater» med ulagrede endringer → vanlig ulagret-varsel først.
+// Meny › «Se etter oppdatering» = sjekk nå. Likt på PC, PWA og i Android-appen.
+var _UPD_EVERY = 15 * 60 * 1000, _UPD_AUTO_AWAY = 5 * 60 * 1000;
+var _updLast = Date.now(), _updReady = false, _updDismissed = false, _updHiddenAt = 0, _updTouched = false;
+function _updMap(text) {
+    var o = {}, re = /([\w.-]+\.(?:js|css))\?v=(\d+)/g, m;
+    while ((m = re.exec(text))) o[m[1]] = parseInt(m[2], 10);
+    return o;
+}
+function _updLoaded() {
+    var srcs = [];
+    document.querySelectorAll('script[src*="?v="], link[rel="stylesheet"][href*="?v="]').forEach(function (el) {
+        srcs.push(el.getAttribute('src') || el.getAttribute('href') || '');
+    });
+    return _updMap(srcs.join(' '));
+}
+// true = nyere versjon publisert, false = du har nyeste, null = fikk ikke sjekket (uten nett o.l.)
+async function _updCheck() {
+    _updLast = Date.now();
+    if (navigator.onLine === false) return null;
+    try {
+        var r = await fetch('index.html', { cache: 'no-store' });
+        if (!r.ok) return null;
+        var remote = _updMap(await r.text()), loaded = _updLoaded(), keys = Object.keys(remote);
+        if (!keys.length) return null;
+        // Bare HØYERE nummer teller (en hurtigbuffer som henger etter, skal ikke gi «ny versjon»).
+        var newer = keys.some(function (k) { return loaded[k] != null && remote[k] > loaded[k]; });
+        if (newer) _updReady = true;
+        return newer;
+    } catch (e) { return null; }
+}
+function _updSafeToAuto() {
+    var v = document.querySelector('.view.active');
+    if (!v || ['template-modal', 'saved-modal', 'settings-modal'].indexOf(v.id) < 0) return false;
+    if (typeof isOnFormPage === 'function' && isOnFormPage()) return false;
+    if (document.querySelector('.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active, [id$="-overlay"].active, .loading.active')) return false;
+    var a = document.activeElement;
+    if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return false;
+    return true;
+}
+function _updShowBanner() {
+    var b = document.getElementById('upd-banner');
+    if (b && _updReady && !_updDismissed) b.hidden = false;
+}
+function _updDismiss() {
+    _updDismissed = true;   // til neste oppstart (da lastes den nye versjonen uansett)
+    var b = document.getElementById('upd-banner');
+    if (b) b.hidden = true;
+}
+function _updApply() {
+    var go = function () { location.reload(); };
+    if (typeof isOnFormPage === 'function' && isOnFormPage() && hasUnsavedChanges()) _showUnsavedGuard(go); else go();
+}
+async function _updOnResume() {
+    var away = _updHiddenAt ? Date.now() - _updHiddenAt : 0;
+    _updHiddenAt = 0;
+    _updTouched = false;
+    if (Date.now() - _updLast < 60 * 1000 && !_updReady) return;
+    var newer = _updReady || await _updCheck();
+    if (!newer) return;
+    if (away >= _UPD_AUTO_AWAY && !_updTouched && _updSafeToAuto()) { location.reload(); return; }
+    _updShowBanner();
+}
+async function updCheckNow() {
+    if (_IN_APP) { _appUpdChecked = 0; _appUpdAsked = 0; _appCheckUpdate(); }   // ny APK også
+    var r = await _updCheck();
+    if (r === true) _updApply();
+    else if (r === false) showNotificationModal(t('upd_latest'), true);
+    else showNotificationModal(t('upd_offline'));
+}
+window.updCheckNow = updCheckNow;
+(function () {
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') { if (!_updHiddenAt) _updHiddenAt = Date.now(); }
+        else _updOnResume();
+    });
+    document.addEventListener('pointerdown', function () { _updTouched = true; }, true);
+    setInterval(function () {
+        if (document.visibilityState !== 'visible' || Date.now() - _updLast < _UPD_EVERY) return;
+        _updCheck().then(function (newer) { if (newer) _updShowBanner(); });
+    }, 60 * 1000);
+})();
+// Versjonsnummeret i Meny › «Se etter oppdatering» (nettsiden = script-ui-nummeret; i appen + APK-versjonen).
+// Kalles ved oppstart og fra applyTranslations-kroken under (språkbytte).
+function _updRenderVersion() {
+    var el = document.getElementById('upd-version');
+    if (!el) return;
+    var n = _updLoaded()['script-ui.js'] || '';
+    el.textContent = t('upd_version').replace('{0}', n) + (_updAppVer ? ' · app ' + _updAppVer : '');
+}
+var _updAppVer = '';
+document.addEventListener('DOMContentLoaded', function () {
+    _updRenderVersion();
+    if (_IN_APP) _appCall('App', 'getInfo').then(function (i) { _updAppVer = (i && i.version) || ''; _updRenderVersion(); }).catch(function () {});
+});
 
 // Bulk select mode state (saved-modal multi-select for bulk export)
 var _selectMode = false;

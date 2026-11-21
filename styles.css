@@ -17,6 +17,9 @@ html {
        iOS/Firefox der visualViewport krymper og handles native. */
     scroll-padding-top: 60px;
     scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 4px);
+    /* Dra-ned-for-å-oppdatere er AV i hele appen (bruker 21-11-2026: et uhell kastet ulagret
+       arbeid). Nye versjoner varsles i stedet av appen selv (script-ui.js, «NY VERSJON»). */
+    overscroll-behavior-y: contain;
 }
 
 /* Skjemafelt arver sidens skrift. Uten dette bruker nettleseren sin egen
@@ -28,6 +31,7 @@ input, textarea, select, button {
 
 body {
     font-family: Arial, sans-serif;
+    overscroll-behavior-y: contain;   /* dra-ned-for-å-oppdatere av — se html over */
     margin: 0;
     padding: 0;
     padding-bottom: var(--toolbar-h, 60px); /* Space for fixed toolbar */
@@ -14574,3 +14578,21 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .docs-ai-chat-del:active { background: var(--press-bg); }
 .docs-ai-remove { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: none; background: none; color: #9a9aa2; font-size: 20px; line-height: 1; border-radius: 8px; cursor: pointer; }
 .docs-ai-remove:hover { background: var(--press-bg); }
+
+/* ══ NY VERSJON-banner (script-ui.js, blokken «NY VERSJON AV NETTSIDEN») ══
+   Hvitt kort rett over toolbaren. Skjules når tastaturet er åpent (dekker ikke det man skriver). */
+.upd-banner {
+    position: fixed; left: 12px; right: 12px; bottom: calc(var(--toolbar-h, 60px) + 10px);
+    max-width: 776px; margin: 0 auto; z-index: 45;
+    display: flex; align-items: center; gap: 10px; padding: 8px 6px 8px 14px;
+    background: var(--card-bg); border-radius: var(--card-radius); box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+    font-size: 14px; color: var(--text);
+}
+.upd-banner[hidden] { display: none; }
+body.keyboard-open .upd-banner { display: none; }
+.upd-banner-text { flex: 1; min-width: 0; font-weight: 500; }
+.upd-banner-btn {
+    flex: none; height: var(--control-h, 36px); padding: 0 14px; border: 0; border-radius: var(--control-radius, 6px);
+    background: #E8501A; color: #fff; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.upd-banner-close { flex: none; width: 32px; height: 32px; border: 0; background: none; color: #999; font-size: 22px; line-height: 1; cursor: pointer; }
