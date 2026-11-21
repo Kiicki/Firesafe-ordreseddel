@@ -365,6 +365,14 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 - **Alle brukere** har AI; montører maks 50 spørsmål/dag (`aiUsage/{uid}_{dato}`), admin uten grense. Brukerens private API-kreditt; nøkkelen i Google Secret Manager (`ANTHROPIC_API_KEY`), aldri i appen.
 - **Ny funksjon / ny side / endret oppførsel i appen → oppdater `app-guide.md`** (seksjon `## Tittel {#slug}`, `[admin]` på admin-seksjoner, valgfri `Åpne: #hash`) og publiser funksjonen. **Ny samling med brukerdata eller firmadata → legg den inn i `MINE` / `lastFirma()`** med riktig rolle (admin-data → `out.admin`).
 
+## Android-appen (Capacitor-skall, 21-11-2026 — bare Android, ikke iPhone)
+
+- Mappa **`C:\Users\Igor\Desktop\Firesafe-app`** (IKKE i denne repoen; se README.txt der). Appen laster nettsiden fra GitHub Pages (`server.url`) → alt som publiseres her kommer i appen også. Ny APK bare når skallet endres.
+- **Én kode:** app-forskjellene står i script-ui.js, blokken **«APP (Android-skall)»** (`_IN_APP`). Utenfor appen gjør den ingenting. Inni appen: `navigator.share`/`canShare` erstattes (dele-arket via native `Filer.share`), `<a download>` med blob:/data: fanges (også `a.click()` og jsPDF sin `dispatchEvent`) → Nedlastinger, «Åpne i annen app» = Androids «Åpne med» (`Filer.open`, med «Alltid»), Google/Microsoft-innlogging via telefonen (`_appSignIn`, kalles først i `signInWithGoogle`/`signInWithMicrosoft` i script.js; Microsoft byttes til innloggingstoken hos serverfunksjonen `appLogin`).
+- **Ny kode som deler/laster ned:** bruk vanlig `navigator.share` / `<a download>` — da virker den automatisk i appen. Ikke bruk `window.open` på blob-adresser (virker ikke i appen).
+- Tastatur: skallet (MainActivity.java) gir WebView samme oppførsel som Chrome med `interactive-widget=resizes-visual` (visualViewport krymper, siden beholder høyden) på WebView ≥ 139; eldre WebView = siden krymper. Statuslinje oransje, navigasjonslinje grå.
+- Signeringsnøkkelen `firesafe-release.jks` + `keystore.properties` må aldri mistes (da kan appen ikke oppdateres).
+
 ## GitHub Pages
 Nettsiden hostes på: https://kiicki.github.io/Firesafe-ordreseddel/
 

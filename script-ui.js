@@ -35,6 +35,128 @@ document.addEventListener('click', function(e) {
     window.open(url.href, '_blank', 'noopener,noreferrer');
 });
 
+// ══ APP (Android-skall, 21-11-2026) ══════════════════════════════════════════════════════════
+// Nettsiden kjører også inni Android-appen (mappa Desktop\Firesafe-app, Capacitor). Appen laster
+// DENNE nettsiden fra GitHub Pages, så alt som publiseres kommer i appen også — én kode.
+// Inni appen (Androids WebView) mangler noe av det Chrome har; det byttes her mot telefonens egne
+// funksjoner (pluginen «Filer» i Firesafe-app/android/…/FilerPlugin.java):
+//   • dele-arket (navigator.share)   → Filer.share — ALLE delings-veier i appen går via dette
+//   • nedlasting (<a download>)      → Filer.download → telefonens Nedlastinger
+//   • «Åpne i annen app»             → Filer.open = Androids «Åpne med» (med «Alltid»)
+//   • Google/Microsoft-innlogging    → telefonens innlogging (_appSignIn, kalles fra script.js)
+// Utenfor appen er _IN_APP false og ingenting her gjør noe.
+var _IN_APP = !!(window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()
+    && typeof Capacitor.getPlatform === 'function' && Capacitor.getPlatform() === 'android' && typeof Capacitor.nativePromise === 'function');
+function _appCall(plugin, method, opts) { return Capacitor.nativePromise(plugin, method, opts || {}); }
+function _appCanceled(e) { return /cancel/i.test(String((e && e.code) || '') + ' ' + String((e && e.message) || e || '')); }
+function _appB64(blob) {
+    return new Promise(function (res, rej) {
+        var fr = new FileReader();
+        fr.onload = function () { var s = String(fr.result); res(s.slice(s.indexOf(',') + 1)); };
+        fr.onerror = function () { rej(fr.error); };
+        fr.readAsDataURL(blob);
+    });
+}
+// Blob → fil i appens midlertidige mappe (i biter à 3 MB, så store filer går fint) → sti.
+async function _appWriteBlob(blob, name) {
+    var CH = 3 * 1024 * 1024, path = null, off = 0;
+    do {
+        var r = await _appCall('Filer', 'write', { name: name, data: await _appB64(blob.slice(off, off + CH)), append: off > 0 });
+        path = r.path; off += CH;
+    } while (off < blob.size);
+    return path;
+}
+if (_IN_APP) {
+    // Dele-arket: samme navigator.share som i Chrome, så eksisterende kode (skjemaer, Dokumenter,
+    // Timebok …) virker uendret. Avbrutt = AbortError, som i Chrome (= ikke merket som sendt).
+    var _appShare = async function (data) {
+        data = data || {};
+        var files = Array.prototype.slice.call(data.files || []), paths = [], mimes = [];
+        for (var i = 0; i < files.length; i++) {
+            paths.push(await _appWriteBlob(files[i], files[i].name || ('fil-' + (i + 1))));
+            mimes.push(files[i].type || '');
+        }
+        try {
+            await _appCall('Filer', 'share', { paths: paths, mimes: mimes, title: data.title || '', text: [data.text, data.url].filter(Boolean).join('\n') });
+        } catch (e) {
+            if (_appCanceled(e)) throw new DOMException('Avbrutt', 'AbortError');
+            throw e;
+        }
+    };
+    try {
+        Object.defineProperty(navigator, 'share', { value: _appShare, configurable: true, writable: true });
+        Object.defineProperty(navigator, 'canShare', { value: function (d) { return !!d; }, configurable: true, writable: true });
+    } catch (e) { console.error('App-deling:', e); }
+
+    // Nedlasting: WebView laster ikke ned blob:/data:-lenker selv. Fanger både vanlige trykk og
+    // programmatiske a.click()/dispatchEvent (jsPDF sin pdf.save bruker dispatchEvent).
+    (function () {
+        function isDl(a) { return !!(a && a.hasAttribute && a.hasAttribute('download') && /^(blob:|data:)/i.test(a.href || '')); }
+        function save(a) {
+            var name = a.getAttribute('download') || 'fil';
+            var p = fetch(a.href);   // startes MED EN GANG (før koden rekker å frigi blob-adressen)
+            (async function () {
+                try {
+                    var blob = await (await p).blob();
+                    var path = await _appWriteBlob(blob, name);
+                    await _appCall('Filer', 'download', { path: path, name: name, mime: blob.type || '' });
+                    showNotificationModal(t('app_saved_downloads').replace('{0}', name), true);
+                } catch (e) { console.error('Lagring:', e); showNotificationModal(t('app_save_failed')); }
+            })();
+        }
+        var origClick = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function () { if (isDl(this)) { save(this); return; } return origClick.apply(this, arguments); };
+        var origDispatch = EventTarget.prototype.dispatchEvent;
+        HTMLAnchorElement.prototype.dispatchEvent = function (ev) {
+            if (ev && ev.type === 'click' && isDl(this)) { save(this); return false; }
+            return origDispatch.apply(this, arguments);
+        };
+        document.addEventListener('click', function (e) {
+            var a = e.target && e.target.closest ? e.target.closest('a[download]') : null;
+            if (a && isDl(a)) { e.preventDefault(); e.stopPropagation(); save(a); }
+        }, true);
+    })();
+}
+// Innlogging i appen. Google/Microsoft tillater ikke innlogging inni en innebygd nettleser, så
+// telefonens egen innlogging brukes, og nettsiden logges inn med beviset derfra (samme bruker/uid
+// som på PC/PWA). Google: beviset godtas direkte. Microsoft: byttes hos serverfunksjonen appLogin.
+// Returnerer true når appen tar seg av innloggingen (da hopper script.js over vindus-innloggingen).
+function _appSignIn(provider) {
+    if (!_IN_APP) return false;
+    (async function () {
+        try {
+            var res;
+            if (provider === 'google') {
+                var r = await _appCall('FirebaseAuthentication', 'signInWithGoogle', {});
+                var tok = r && r.credential && r.credential.idToken;
+                if (!tok) throw new Error('Google ga ikke noe innloggingsbevis');
+                res = await auth.signInWithCredential(firebase.auth.GoogleAuthProvider.credential(tok));
+            } else {
+                await _appCall('FirebaseAuthentication', 'signInWithMicrosoft', { customParameters: [{ key: 'prompt', value: 'select_account' }] });
+                var it = await _appCall('FirebaseAuthentication', 'getIdToken', { forceRefresh: true });
+                await _docsFunctions();
+                var fn = firebase.app().functions('europe-north1').httpsCallable('appLogin');
+                res = await auth.signInWithCustomToken((await fn({ idToken: it.token })).data.token);
+            }
+            showNotificationModal(t('login_success') + ((res && res.user && res.user.email) || ''), true);
+        } catch (e) {
+            if (!_appCanceled(e)) showNotificationModal(t('login_failed') + ((e && e.message) || e));
+        }
+    })();
+    return true;
+}
+// Utlogget på nettsiden → logg også ut av telefonens innlogging (ellers velges samme konto
+// automatisk neste gang). Kalles fra auth.onAuthStateChanged nedenfor.
+function _appSignOutNative() {
+    if (_IN_APP) _appCall('FirebaseAuthentication', 'signOut').catch(function () {});
+}
+// «Åpne i annen app» i appen: fila lagres på telefonen og åpnes med Androids «Åpne med»
+// (velg app + «Alltid», eller standardappen hvis en er valgt). Mottakerappen åpnes i full skjerm.
+async function _appOpenFile(blob, name, mime) {
+    var path = await _appWriteBlob(blob, name);
+    await _appCall('Filer', 'open', { path: path, mime: mime || blob.type || '' });
+}
+
 // Bulk select mode state (saved-modal multi-select for bulk export)
 var _selectMode = false;
 var _selectedSet = new Set();  // indices into active tab's loaded array
@@ -28573,7 +28695,7 @@ if (typeof auth !== 'undefined' && auth) {
     auth.onAuthStateChanged(function (user) {
         _accUnsubs.forEach(function (u) { u(); });
         _accUnsubs = [];
-        if (!user) _liveStopAll();   // utlogget: steng også Dokumenter / Til godkjenning
+        if (!user) { _liveStopAll(); _appSignOutNative(); }   // utlogget: steng også Dokumenter / Til godkjenning (+ telefonens innlogging i appen)
         // Lokal test (index.html / localhost = DEV_MODE): ingen ekte innlogging, script.js
         // setter isAdmin = true med en falsk bruker — vis admin-delen også her.
         if (!user && typeof DEV_MODE !== 'undefined' && DEV_MODE) { _tbCompanyKnown = true; _devApplyRole(); return; }
@@ -32615,6 +32737,15 @@ var _DOCS_ICON_EXTERNAL = '<svg viewBox="0 0 24 24" width="20" height="20" fill=
 var _DOCS_ANDROID = /Android/i.test(navigator.userAgent);
 function docsOpenExternal(id) {
     var d = _docsById(id); if (!d) return;
+    if (_IN_APP) {   // Android-appen: ekte «Åpne med» (se blokken «APP» øverst)
+        _docsGetBlob(d).then(function (b) {
+            if (!b) throw new Error('mangler');
+            return _appOpenFile(b, _docsFileName(d), d.mime);
+        }).catch(function (e) {
+            showNotificationModal(e && e.code === 'NO_APP' ? t('app_open_noapp') : t(navigator.onLine === false ? 'docs_offline_missing' : 'docs_load_error'));
+        });
+        return;
+    }
     if (_DOCS_ANDROID) { _docsShare(d); return; }
     var w = null;
     try { w = window.open('', '_blank'); } catch (e) {}

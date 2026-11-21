@@ -2516,6 +2516,7 @@ function handleAuth() {
 }
 
 function signInWithGoogle() {
+    if (typeof _appSignIn === 'function' && _appSignIn('google')) return;   // Android-appen: telefonens innlogging (script-ui.js, blokken «APP»)
     var provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     auth.signInWithPopup(provider)
@@ -2530,6 +2531,7 @@ function signInWithGoogle() {
 }
 
 function signInWithMicrosoft() {
+    if (typeof _appSignIn === 'function' && _appSignIn('microsoft')) return;   // Android-appen: telefonens innlogging (script-ui.js, blokken «APP»)
     var provider = new firebase.auth.OAuthProvider('microsoft.com');
     provider.setCustomParameters({ prompt: 'select_account' });
     auth.signInWithPopup(provider)
