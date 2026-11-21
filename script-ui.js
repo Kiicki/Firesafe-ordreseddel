@@ -32608,37 +32608,14 @@ function docsProjectMenu(pid) {
 // nettleseren det), og får adressen når den er hentet.
 var _DOCS_ICON_EXTERNAL = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
 // Android (21-11-2026, bruker: «"åpne i annen app" åpner faktisk ikke i en annen app … hvorfor ikke
-// den boksen hvor man velger hvilken app»): en nettside kan ikke åpne Androids «Åpne med»-velger
-// selv — window.open viste fila i Chrome. En intent-lenke (VIEW + filtype) sendes av Chrome videre
-// til Android, som viser appene som kan åpne filtypen (eller åpner standard-appen direkte). Appen
-// henter fila fra lenken selv, så det krever nett; uten nett deles den lokale kopien (Del-arket).
+// den boksen hvor man velger hvilken app»): window.open viste fila i Chrome. Prøvd: intent-lenke
+// (VIEW + filtype) — men Android viser bare apper som tar imot fila fra en NETTLENKE, og ofte er det
+// bare én (Googles PDF-visning), så ingen velger og Xodo o.l. kom aldri med. Valgt (bruker): dele-arket
+// med selve fila — viser alle appene som tar imot filtypen, hver gang, og virker uten nett.
 var _DOCS_ANDROID = /Android/i.test(navigator.userAgent);
-function _docsIntentUrl(d, url) {
-    var m = /^https:\/\/([^#]+)$/.exec(String(url || ''));
-    if (!m) return '';
-    var mime = d.mime || _DOCS_MIME[_docsExt(d)] || 'application/octet-stream';
-    return 'intent://' + m[1] + '#Intent;scheme=https;action=android.intent.action.VIEW;type=' + mime + ';end';
-}
-function _docsOpenAndroid(d) {
-    if (navigator.onLine === false || _docsIsDev()) { _docsShare(d); return; }
-    _fbStorage().ref(d.path).getDownloadURL().then(function (url) {
-        var lenke = _docsIntentUrl(d, url);
-        if (!lenke) throw new Error('lenke');
-        // Gikk vi ikke fra appen (velger/annen app tar fokus), fantes ingen app for filtypen.
-        var borte = false, merk = function () { borte = true; };
-        window.addEventListener('blur', merk);
-        document.addEventListener('visibilitychange', merk);
-        window.location.href = lenke;
-        setTimeout(function () {
-            window.removeEventListener('blur', merk);
-            document.removeEventListener('visibilitychange', merk);
-            if (!borte) showNotificationModal(t('docs_open_noapp'));
-        }, 2500);
-    }).catch(function () { showNotificationModal(t('docs_load_error')); });
-}
 function docsOpenExternal(id) {
     var d = _docsById(id); if (!d) return;
-    if (_DOCS_ANDROID) { _docsOpenAndroid(d); return; }
+    if (_DOCS_ANDROID) { _docsShare(d); return; }
     var w = null;
     try { w = window.open('', '_blank'); } catch (e) {}
     var go = function (url) {
