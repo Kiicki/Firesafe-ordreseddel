@@ -14674,3 +14674,24 @@ body.bulk-select-active .list-fab-bar, body.docs-select-active .list-fab-bar { d
 /* Android-appen: oransje statuslinje som i PWA-en (script-ui.js, blokken «APP»). Høyde 0 når
    skallet selv holder siden under statuslinja. */
 #app-statusbar { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: #E8501A; z-index: 2147483000; pointer-events: none; }
+
+/* ══ SKJEMALISTENE på smal telefon (22-11-2026, brukerens telefon = 354 px) ══
+   Bruker: rad 1 ble kuttet med «…» etter datoen og prosjektnavnet brøt til 3. linje.
+   Alle tre listene (ordreseddel, servicebil, kappe) bygges nå likt:
+     rad 1 = nr/«Uke N» (15/500) • Uke • dato (12 px grå, uten klokkeslett)
+     rad 2 = prosjektnr • prosjektnavn — ALLTID én linje, «…» bare hvis navnet ikke får plass.
+   Litt smalere knapper (⌄ og ⋮) og mindre luft rundt skilleprikkene gir teksten mer plass. */
+#saved-list .saved-item-row1, #service-list .saved-item-row1, #kappe-list .saved-item-row1 {
+    display: flex; align-items: center; white-space: nowrap; overflow: hidden; min-width: 0;
+}
+#saved-list .saved-item-nr, #service-list .saved-item-nr, #kappe-list .saved-item-nr { flex: 0 0 auto; white-space: nowrap; }
+#saved-modal .saved-item-date-inline { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#saved-modal .saved-item-date-first::before { content: none; }
+#saved-modal .saved-item-uke-inline::before, #saved-modal .saved-item-date-inline::before { margin: 0 5px; }
+#saved-list .saved-item-subtitle, #service-list .saved-item-subtitle, #kappe-list .saved-item-subtitle {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#saved-modal .saved-item-subtitle .bil-history-sep::before { margin: 0 3px; }
+#saved-list .saved-item, #service-list .saved-item, #kappe-list .saved-item { gap: 4px; padding-right: 4px; }
+#saved-modal .saved-item-action-btn { width: 34px; }
+#saved-modal .saved-item-expand-btn { width: 28px; }

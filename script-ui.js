@@ -427,6 +427,14 @@ function _hentRefreshServicebil() {
 }
 
 // Helper: format date with time
+// Dato i skjemalistene (DD.MM.ÅÅÅÅ, uten klokkeslett — klokkeslettet tok plassen så linja ble
+// kuttet med «…» på smale telefoner, bruker 22-11-2026). Samme i alle listene.
+function _listDate(date) {
+    if (!date) return '';
+    var d = new Date(date);
+    return isNaN(d) ? '' : formatDate(d);
+}
+
 function formatDateWithTime(date) {
     if (!date) return '';
     const d = new Date(date);
@@ -917,7 +925,7 @@ window._showSingleExportMenu = _showSingleExportMenu;
 
 function _buildSavedItemHtml(item, index) {
     var ordrenr = item.ordreseddelNr || '';
-    var dato = formatDateWithTime(item.savedAt);
+    var dato = _listDate(item.savedAt);
     var isSent = item._isSent;
     var dotCls = _statusDotClass(item);
     var dot = '<span class="status-dot ' + dotCls + '"></span>';
@@ -10784,7 +10792,7 @@ function _buildServiceItemHtml(item, index) {
     if (projectParts.length > 0) {
         serviceSubtitle = '<div class="saved-item-subtitle">' + projectParts.join('<span class="bil-history-sep"></span>') + '</div>';
     }
-    var savedAtStr = formatDateWithTime(item.savedAt);
+    var savedAtStr = _listDate(item.savedAt);
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + _statusDotClass(item, 'service') + '"></span>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
@@ -10820,7 +10828,7 @@ function _buildServiceItemHtml(item, index) {
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-header">' +
-                '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + (savedAtStr ? '<span class="saved-item-date-inline">' + escapeHtml(savedAtStr) + '</span>' : '') + '</div>' +
+                '<div class="saved-item-row1">' + dot + '<span class="saved-item-nr">' + escapeHtml(title || t('no_name')) + '</span>' + (savedAtStr ? '<span class="saved-item-date-inline">' + escapeHtml(savedAtStr) + '</span>' : '') + '</div>' +
             '</div>' +
             serviceSubtitle +
         '</div>' +
@@ -24534,18 +24542,16 @@ function _kappeItemWeek(item) {
 }
 
 function _buildKappeItemHtml(item, index) {
-    var title = item.prosjektnavn || item.prosjektnr || '';
+    // Samme oppbygning som ordreseddel og servicebil (bruker 22-11-2026: listene skal være like):
+    // rad 1 = «Uke N» + dato (grå), rad 2 = prosjektnr • prosjektnavn (én linje, «…» hvis for langt).
     var uke = _kappeItemWeek(item);
-    if (uke) title = t('label_uke') + ' ' + uke + ' · ' + (title || t('no_name'));
-    var savedAtStr = formatDateWithTime(item.savedAt);
-    // Prosjektnavnet er ofte langt → gi det HELE topplinjen alene; dato + prosjektnr
-    // på undertittel. DATO FØR prosjektnr (samme rekkefølge som ordreseddel, der
-    // dato står før prosjektnr). «x produkter» droppes (bare rot).
-    var parts = [];
-    if (savedAtStr) parts.push(escapeHtml(savedAtStr));
-    if (item.prosjektnr && item.prosjektnavn) parts.push(escapeHtml(item.prosjektnr));
-    var subtitle = parts.length
-        ? '<div class="saved-item-subtitle">' + parts.join('<span class="bil-history-sep"></span>') + '</div>'
+    var title = uke ? t('label_uke') + ' ' + uke : '';
+    var dato = _listDate(item.savedAt);
+    var projectParts = [];
+    if (item.prosjektnr) projectParts.push(escapeHtml(item.prosjektnr));
+    if (item.prosjektnavn) projectParts.push(escapeHtml(item.prosjektnavn));
+    var subtitle = projectParts.length
+        ? '<div class="saved-item-subtitle">' + projectParts.join('<span class="bil-history-sep"></span>') + '</div>'
         : '';
     var isSent = item._isSent;
     var dot = '<span class="status-dot ' + _statusDotClass(item, 'kappe') + '"></span>';
@@ -24556,7 +24562,10 @@ function _buildKappeItemHtml(item, index) {
     return '<div class="saved-item" data-index="' + index + '">' +
         '<div class="saved-item-info">' +
             '<div class="saved-item-header">' +
-                '<div class="saved-item-row1">' + dot + escapeHtml(title || t('no_name')) + '</div>' +
+                '<div class="saved-item-row1">' + dot +
+                    (title ? '<span class="saved-item-nr">' + escapeHtml(title) + '</span>' : '') +
+                    (dato ? '<span class="saved-item-date-inline' + (title ? '' : ' saved-item-date-first') + '">' + escapeHtml(dato) + '</span>' : (title ? '' : escapeHtml(t('no_name')))) +
+                '</div>' +
             '</div>' +
             subtitle +
         '</div>' +
