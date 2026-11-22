@@ -1,4 +1,4 @@
-const CACHE_NAME = 'firesafe-v2406';
+const CACHE_NAME = 'firesafe-v2407';
 const ASSETS = [
     '/Firesafe-ordreseddel/',
     '/Firesafe-ordreseddel/index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
     '/Firesafe-ordreseddel/lang.js',
     '/Firesafe-ordreseddel/icon-192.png',
     '/Firesafe-ordreseddel/firesafe-logo.svg',
+    '/Firesafe-ordreseddel/fonts/roboto-latin-wght.woff2',   // appens egen skrift på telefon (styles.css AppRoboto)
     'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
