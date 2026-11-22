@@ -47,7 +47,7 @@
         } catch (e) {}
     })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=1267">
+    <link rel="stylesheet" href="styles.css?v=1269">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -420,8 +420,6 @@
                 <div class="modal-header">
                     <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <span id="saved-modal-title" data-i18n="modal_load_title">Skjemaer</span>
-                    <button class="header-select-btn" id="saved-select-btn" onclick="toggleSelectMode()" data-i18n="btn_select">Velg</button>
-                    <button class="header-save-btn" id="saved-new-btn" type="button" onclick="hentNewForm()"><span data-i18n="btn_new_short">+ Ny</span></button>
                 </div>
                 <div class="modal-tabs-wrap" id="saved-tabs-wrap">
                     <div class="modal-tabs">
@@ -434,36 +432,45 @@
                     <button type="button" class="modal-tabs-more modal-tabs-more--right" tabindex="-1" aria-label="Flere til høyre" onclick="_scrollSavedTabs(1)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
                 </div>
                 <div class="modal-search" id="own-search-wrap">
-                    <div class="search-input-wrap">
-                        <input type="text" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt..." oninput="filterList('saved-list', 'saved-search'); updateSearchClearBtn('saved-search')">
-                        <button type="button" class="search-clear-btn" id="saved-search-clear" onclick="clearSearchInput('saved-search', 'saved-list')" aria-label="Tøm søk">
+                    <div class="search-input-wrap list-search">
+                        <span class="list-search-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                        <input type="search" id="saved-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt" oninput="filterList('saved-list', 'saved-search'); updateSearchClearBtn('saved-search')">
+                        <button type="button" class="search-clear-btn list-search-clear" id="saved-search-clear" onclick="clearSearchInput('saved-search', 'saved-list')" aria-label="Tøm søk">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                         </button>
                     </div>
                 </div>
                 <div class="modal-search" id="service-search-wrap" style="display:none;">
-                    <div class="search-input-wrap">
-                        <input type="text" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt..." oninput="filterList('service-list', 'service-search'); updateSearchClearBtn('service-search')">
-                        <button type="button" class="search-clear-btn" id="service-search-clear" onclick="clearSearchInput('service-search', 'service-list')" aria-label="Tøm søk">
+                    <div class="search-input-wrap list-search">
+                        <span class="list-search-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                        <input type="search" id="service-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt" oninput="filterList('service-list', 'service-search'); updateSearchClearBtn('service-search')">
+                        <button type="button" class="search-clear-btn list-search-clear" id="service-search-clear" onclick="clearSearchInput('service-search', 'service-list')" aria-label="Tøm søk">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                         </button>
                     </div>
                 </div>
                 <div class="modal-search" id="kappe-search-wrap" style="display:none;">
-                    <div class="search-input-wrap">
-                        <input type="text" id="kappe-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt..." oninput="filterList('kappe-list', 'kappe-search'); updateSearchClearBtn('kappe-search')">
-                        <button type="button" class="search-clear-btn" id="kappe-search-clear" onclick="clearSearchInput('kappe-search', 'kappe-list')" aria-label="Tøm søk">
+                    <div class="search-input-wrap list-search">
+                        <span class="list-search-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                        <input type="search" id="kappe-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt" oninput="filterList('kappe-list', 'kappe-search'); updateSearchClearBtn('kappe-search')">
+                        <button type="button" class="search-clear-btn list-search-clear" id="kappe-search-clear" onclick="clearSearchInput('kappe-search', 'kappe-list')" aria-label="Tøm søk">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                         </button>
                     </div>
                 </div>
                 <div class="modal-search" id="kvittering-search-wrap" style="display:none;">
-                    <div class="search-input-wrap">
-                        <input type="text" id="kvittering-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt..." oninput="filterList('kvittering-list', 'kvittering-search'); updateSearchClearBtn('kvittering-search')">
-                        <button type="button" class="search-clear-btn" id="kvittering-search-clear" onclick="clearSearchInput('kvittering-search', 'kvittering-list')" aria-label="Tøm søk">
+                    <div class="search-input-wrap list-search">
+                        <span class="list-search-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                        <input type="search" id="kvittering-search" data-i18n-placeholder="search_placeholder" placeholder="Søk nr. eller prosjekt" oninput="filterList('kvittering-list', 'kvittering-search'); updateSearchClearBtn('kvittering-search')">
+                        <button type="button" class="search-clear-btn list-search-clear" id="kvittering-search-clear" onclick="clearSearchInput('kvittering-search', 'kvittering-list')" aria-label="Tøm søk">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                         </button>
                     </div>
+                </div>
+                <!-- Felles listelinje (DESIGNSTANDARD «Listesider»): ☑ (velg flere) rett over lista, samme sted og ikon som i Dokumenter -->
+                <div class="list-bar" id="saved-list-bar">
+                    <span class="list-bar-left"></span>
+                    <button type="button" class="list-bar-ico" id="saved-select-btn" onclick="toggleSelectMode()" aria-label="Velg flere" title="Velg flere"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg></button>
                 </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
@@ -472,6 +479,8 @@
             <div class="modal-body" id="kvittering-list" style="display:none;"></div>
             <div class="modal-body" id="bil-history-list" style="display:none;"></div>
         </div>
+        <!-- «+» = nytt skjema av typen lista viser (DESIGNSTANDARD «Listesider», som Dokumenter) -->
+        <div class="list-fab-bar"><button type="button" class="list-fab" onclick="hentNewForm()" aria-label="Ny"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>
     </div>
 
     <!-- Template Modal (Home Page) -->
@@ -1470,8 +1479,10 @@
             </div>
             <div class="mobile-form" id="sj-body">
                 <div class="sj-pane" id="sj-pane-overview">
-                    <div class="search-input-wrap sj-search">
-                        <input type="text" id="sj-proj-search" data-i18n-placeholder="sj_search_projects" placeholder="Søk prosjekt..." oninput="_sjRenderProjectList()">
+                    <div class="search-input-wrap list-search sj-search">
+                        <span class="list-search-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                        <input type="search" id="sj-proj-search" data-i18n-placeholder="sj_search_projects" placeholder="Søk prosjekt" autocomplete="off" oninput="updateSearchClearBtn('sj-proj-search'); _sjRenderProjectList()">
+                        <button type="button" class="search-clear-btn list-search-clear" id="sj-proj-search-clear" onclick="clearSearchInput('sj-proj-search', null, _sjRenderProjectList)" aria-label="Tøm søk"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
                     </div>
                     <div class="mobile-section-title" data-i18n="sj_projects">Prosjekter</div>
                     <div id="sj-proj-list"></div>
@@ -1489,6 +1500,7 @@
                     <button type="button" class="sj-more-btn" id="sj-more-btn" style="display:none;" onclick="sjLoadMore()" data-i18n="sj_load_more">Vis flere</button>
                 </div>
                 <div class="sj-pane" id="sj-pane-form" style="display:none;"></div>
+                <div class="list-fab-bar" id="sj-fab-bar"><button type="button" class="list-fab" onclick="sjNew()" aria-label="Ny"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>
                 <input type="file" id="sj-camera-input" accept="image/*" capture="environment" hidden onchange="onSjFilesPicked(this)">
                 <input type="file" id="sj-file-input" accept="image/*" multiple hidden onchange="onSjFilesPicked(this)">
             </div>
@@ -2624,14 +2636,13 @@
                 <div class="modal-header">
                     <button class="header-back-btn" onclick="docsBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <span id="docs-title" data-i18n="docs_title">Dokumenter</span>
-                    <button class="header-select-btn" id="docs-select-btn" onclick="docsToggleSelect()" data-i18n="btn_select" style="display:none">Velg</button>
                 </div>
             </div>
             <div class="modal-body" id="docs-body">
                 <!-- Søk (19-11-2026, forslag B): fast øverst, ✨ (Spør AI) og ✕ (tøm) inne i feltet. Søk nederst / i
                      headeren er prøvd og valgt bort («tungt» / «ønsker ikke en stor header»). -->
-                <div class="docs-search" id="docs-search-top">
-                    <span class="docs-search-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                <div class="docs-search list-search" id="docs-search-top">
+                    <span class="docs-search-ico list-search-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
                     <input type="search" id="docs-search" data-i18n-placeholder="docs_search_ph" placeholder="Søk i dokumenter" autocomplete="off" oninput="docsSetQuery(this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
                     <button type="button" class="docs-search-clear" onclick="docsSearchClose()" aria-label="Tøm søket">&times;</button>
                     <button type="button" class="docs-search-ai" onclick="docsAiOpen('', true)" aria-label="Spør AI" title="Spør AI"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></button>
@@ -2657,8 +2668,8 @@
             </div>
         </div>
         <!-- «+» (admin: ny mappe / last opp) — alene nederst til høyre -->
-        <div class="docs-bottombar" id="docs-bottombar">
-            <button type="button" class="docs-fab" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        <div class="docs-bottombar list-fab-bar" id="docs-bottombar">
+            <button type="button" class="docs-fab list-fab" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
         </div>
     </div>
 
@@ -2822,9 +2833,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=529"></script>
+    <script src="lang.js?v=530"></script>
     <script src="script.js?v=632"></script>
-    <script src="script-ui.js?v=1511"></script>
+    <script src="script-ui.js?v=1513"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

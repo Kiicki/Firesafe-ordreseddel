@@ -2412,12 +2412,13 @@ function updateSearchClearBtn(inputId) {
     btn.classList.toggle('visible', !!input.value);
 }
 
-function clearSearchInput(inputId, listId) {
+function clearSearchInput(inputId, listId, after) {
     var input = document.getElementById(inputId);
     if (!input) return;
     input.value = '';
     updateSearchClearBtn(inputId);
-    filterList(listId, inputId);
+    if (listId) filterList(listId, inputId);
+    if (typeof after === 'function') after();
     input.focus();
 }
 
@@ -8359,13 +8360,13 @@ function toggleSelectMode() {
         _selectTab = (rawTab === 'servicebil') ? 'service' : rawTab;
         modal.classList.add('select-mode');
         document.body.classList.add('bulk-select-active');
-        if (btn) { btn.classList.add('active'); btn.textContent = t('btn_cancel'); }
+        if (btn) btn.classList.add('active');   // ☑ lyser oransje; trykk igjen = avslutt
         if (title) title.textContent = t('select_mode_title');
     } else {
         _selectTab = null;
         modal.classList.remove('select-mode');
         document.body.classList.remove('bulk-select-active');
-        if (btn) { btn.classList.remove('active'); btn.textContent = t('btn_select'); }
+        if (btn) btn.classList.remove('active');
         if (title) title.textContent = _hentTitle();
         // Fjern markering fra alle lister (ordreseddel, kappe, og servicebil-uttak-kort)
         document.querySelectorAll(
@@ -30072,9 +30073,11 @@ function _sjRender() {
         if (btn) { btn.onclick = function () { sjSave(false); }; btn.classList.remove('sj-head-btn-new'); }
     } else {
         if (title) title.textContent = t('sj_title');
-        if (btnLbl) btnLbl.textContent = t('sj_new_short');
-        if (btn) { btn.onclick = sjNew; btn.classList.add('sj-head-btn-new'); }
     }
+    // Listesider (DESIGNSTANDARD «Listesider»): ny = «+» nede til høyre, ikke knapp i headeren.
+    if (btn) btn.style.display = (_sjMode === 'form') ? '' : 'none';
+    var fab = document.getElementById('sj-fab-bar');
+    if (fab) fab.style.display = (_sjMode === 'form') ? 'none' : '';
     if (_sjMode === 'overview') { _sjRenderProjectList(); _sjRefreshProjects(); }
     else if (_sjMode === 'project') { _sjRenderProjectHead(); _sjRenderFloorFilter(); _sjLoadProject(true); }
     else _sjRenderForm();
@@ -31951,7 +31954,7 @@ function _docsViewbarHtml() {
     return '<div class="docs-viewbar">' +
         '<button type="button" class="docs-sort-btn" onclick="docsSortMenu()">' + escapeHtml(t('docs_sort_' + v.sort)) + ' <span class="docs-sort-dir">' + (v.dir === 'desc' ? '↓' : '↑') + '</span></button>' +
         '<span class="docs-viewbar-right">' +
-        (_docsSelCanUse() ? '<button type="button" class="docs-view-btn docs-sel-btn' + (_docsSel ? ' active' : '') + '" aria-label="' + escapeHtml(t('docs_select_btn')) + '" title="' + escapeHtml(t('docs_select_btn')) + '" onclick="docsToggleSelect()">' + _DOCS_ICON_SELECT + '</button>' : '') +
+        ((_docsSel || _docsSelCanUse()) ? '<button type="button" class="list-bar-ico docs-sel-btn' + (_docsSel ? ' active' : '') + '" aria-label="' + escapeHtml(t('docs_select_btn')) + '" title="' + escapeHtml(t('docs_select_btn')) + '" onclick="docsToggleSelect()">' + _DOCS_ICON_SELECT + '</button>' : '') +
         '<button type="button" class="docs-view-btn" aria-label="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" title="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" onclick="docsToggleView()">' +
         (v.view === 'grid' ? _DOCS_ICON_LIST : _DOCS_ICON_GRID) + '</button></span></div>';
 }
@@ -32063,12 +32066,8 @@ function _docsSelFiles() {
     return out;
 }
 function _docsSelHeader() {
-    var btn = document.getElementById('docs-select-btn'), ttl = document.getElementById('docs-title');
-    if (btn) {
-        btn.style.display = _docsSel ? '' : 'none';   // starte valg = ☑ over filene; her bare «Avbryt»
-        btn.textContent = t(_docsSel ? 'btn_cancel' : 'btn_select');
-        btn.classList.toggle('active', !!_docsSel);
-    }
+    // ☑ (velg flere) står i listelinja over filene (_docsViewbarHtml), som i Skjemaer.
+    var ttl = document.getElementById('docs-title');
     if (ttl && _docsSel) ttl.textContent = t('docs_select_title');
 }
 function _docsSelBar() {

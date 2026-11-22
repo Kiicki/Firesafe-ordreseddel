@@ -13380,14 +13380,7 @@ body.sjekkliste-view-open #view-form { display: none; }
 /* Lista (saved-modal): én type om gangen → ingen fane-rad. Fane-DOM-en beholdes fordi
    switchHentTab/eksport fortsatt bruker den som tilstand. */
 #saved-tabs-wrap { display: none !important; }
-#saved-modal .modal-header #saved-new-btn { margin-left: 8px; }
-#saved-modal.select-mode #saved-new-btn { display: none; }
-/* «Velg» som kant-knapp, så «+ Ny» (fylt) er tydelig hovedhandling ved siden av. */
-#saved-modal #saved-select-btn:not(.active) {
-    background: transparent;
-    color: #E8501A;
-    box-shadow: inset 0 0 0 1.5px #E8501A;
-}
+/* «Velg» og «+ Ny» flyttet ut av headeren (22-11-2026) — se «LISTESIDER» nederst. */
 
 /* Sjekkliste: obligatorisk = rød stjerne på radens etikett (samme som .field-required ellers);
    felt som mangler ved lagring får rød ramme til det er fylt ut. */
@@ -14596,3 +14589,74 @@ body.keyboard-open .upd-banner { display: none; }
     background: #E8501A; color: #fff; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
 }
 .upd-banner-close { flex: none; width: 32px; height: 32px; border: 0; background: none; color: #999; font-size: 22px; line-height: 1; cursor: pointer; }
+
+/* ══ LISTESIDER (22-11-2026) — Skjemaer (Lagret), Sjekklister og Dokumenter ser LIKE ut ══
+   Bruker: «det virker ikke som å tilhøre samme app … det er viktig at designet er felles».
+   Mønster (etter Dokumenter/Dropbox):
+   • Header = bare tilbake + tittel. Ingen handlingsknapper i headeren på listesider.
+   • Søkefelt .list-search: rundt (44 px), forstørrelsesglass til venstre, ✕ inne i feltet.
+   • Listelinje .list-bar rett over lista: venstre = sortering/info (kan være tom), høyre = ☑ «velg flere»
+     (.list-bar-ico, samme stil som liste/rutenett-knappen; oransje under merking, trykk igjen = avslutt).
+   • Ny = «+» nede til høyre (.list-fab-bar/.list-fab), skjult med tastatur og under merking.
+   • Rader 15/500 tittel + 12.5 grå undertekst; merket rad = lys oransje + rund oransje hake til høyre.
+   • Tom liste = sentrert grå tekst. Ny listeside: bruk disse klassene. */
+.list-search { position: relative; }
+.list-search .list-search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-2); display: flex; pointer-events: none; z-index: 1; }
+.list-search input {
+    width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 38px; margin: 0;
+    font-size: 16px; font-family: inherit; color: var(--text);
+    border: 1px solid var(--field-border); border-radius: 22px; background: #fff; outline: none;
+    -webkit-appearance: none; appearance: none;
+}
+.list-search input:focus { border-color: #E8501A; }
+.list-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.list-search .list-search-clear { right: 6px; width: 32px; height: 32px; padding: 0; border-radius: 16px; color: #9a9aa2; }
+.list-search .list-search-clear.visible { display: flex; }
+#saved-modal .modal-search { padding: 10px 15px 0; }
+
+.list-bar { display: flex; align-items: center; justify-content: space-between; min-height: 36px; margin: 12px 0 4px; }
+.list-bar-left { min-width: 0; }
+#saved-list-bar { margin: 4px 0 0; padding: 0 15px; background: var(--page-bg); }
+/* ☑ = velg flere (samme ikon og knapp som liste/rutenett i Dokumenter). Under merking: oransje. */
+.list-bar-ico { width: 36px; height: 36px; border: none; background: none; color: var(--text-2); border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+#saved-list-bar .list-bar-ico { margin-right: -6px; }
+.list-bar-ico:active { background: var(--press-bg); }
+.list-bar-ico.active { color: #E8501A; background: #fff1ea; }
+#saved-list, #service-list, #kappe-list, #kvittering-list, #bil-history-list { padding-top: 4px; padding-bottom: 92px; }
+#sj-pane-overview, #sj-pane-project { padding-bottom: 76px; }
+
+.list-fab-bar { position: fixed; left: 16px; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 16px); z-index: 15; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; }
+.list-fab-bar > * { pointer-events: auto; }
+html.device-pc .list-fab-bar { left: max(16px, calc((100vw - 800px) / 2 + 16px)); right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
+.list-fab { flex-shrink: 0; width: 56px; height: 56px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.list-fab:active { transform: scale(0.96); }
+body.keyboard-open:has(:is(input, textarea, [contenteditable="true"]):focus) .list-fab-bar,
+body.bulk-select-active .list-fab-bar, body.docs-select-active .list-fab-bar { display: none !important; }
+
+/* Rader: samme tekst som Dokumenter (.set-title / .set-desc). */
+#saved-list .saved-item-row1, #service-list .saved-item-row1, #kappe-list .saved-item-row1,
+#sj-proj-list .saved-item-row1, #sj-reg-list .saved-item-row1 { font-size: 15px; font-weight: 500; color: #1a1a1a; }
+#saved-list .saved-item-subtitle, #service-list .saved-item-subtitle, #kappe-list .saved-item-subtitle,
+#saved-list .saved-item-row2, #service-list .saved-item-row2, #kappe-list .saved-item-row2,
+#sj-proj-list .saved-item-row2, #sj-reg-list .saved-item-row2 { font-size: 12.5px; color: #8a8a90; margin-top: 2px; }
+#saved-modal .saved-item-uke-inline, #saved-modal .saved-item-date-inline { font-size: 12px; color: #8a8a90; }
+
+/* Merking: samme som Dokumenter — lys oransje rad + rund hake til høyre (i stedet for knappene). */
+#saved-modal.select-mode .saved-item, #saved-modal.select-mode .bil-card-uttak { position: relative; padding-right: 50px !important; }
+#saved-modal.select-mode .saved-item-buttons, #saved-modal.select-mode .saved-item-details { display: none !important; }
+#saved-modal.select-mode .saved-item::after, #saved-modal.select-mode .bil-card-uttak::after {
+    content: ''; position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 2px solid #c9c9cf; background: #fff;
+}
+#saved-modal.select-mode .saved-item.selected::after, #saved-modal.select-mode .bil-card-uttak.selected::after {
+    background: #E8501A url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 12.5 10 17 19 7.5'/%3E%3C/svg%3E") center / 14px no-repeat;
+    border-color: #E8501A;
+}
+#saved-modal.select-mode #saved-list .saved-item.selected, #saved-modal.select-mode #service-list .saved-item.selected,
+#saved-modal.select-mode #kappe-list .saved-item.selected, #saved-modal.select-mode #bil-history-list .bil-card-uttak.selected { background: #fff7f3; }
+/* Hovedhandlingen i merke-linja er oransje begge steder (Eksporter / Del). */
+#docs-bulk-share { background: #E8501A; border-color: #E8501A; color: #fff; }
+#docs-bulk-share:active { background: #cf4716; }
+
+/* Tom liste: sentrert grå tekst overalt. */
+.no-saved, .sj-empty, #docs-list .docs-empty { text-align: center; color: var(--text-2); font-size: 14px; padding: 28px 16px; margin: 0; }
