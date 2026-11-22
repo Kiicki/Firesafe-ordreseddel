@@ -68,6 +68,17 @@ async function _appWriteBlob(blob, name) {
     return path;
 }
 if (_IN_APP) {
+    // Statuslinja oransje som i PWA-en (theme-color). Ligger siden under statuslinja i appen
+    // (safe-area-inset-top > 0), ble headerens mørke farge synlig der (22-11-2026). Stripa har
+    // høyde 0 når skallet selv holder siden under statuslinja — da gjør den ingenting.
+    document.documentElement.classList.add('in-app');
+    document.addEventListener('DOMContentLoaded', function () {
+        if (document.getElementById('app-statusbar')) return;
+        var sb = document.createElement('div');
+        sb.id = 'app-statusbar';
+        sb.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(sb);
+    });
     // Dele-arket: samme navigator.share som i Chrome, så eksisterende kode (skjemaer, Dokumenter,
     // Timebok …) virker uendret. Avbrutt = AbortError, som i Chrome (= ikke merket som sendt).
     var _appShare = async function (data) {
@@ -323,7 +334,12 @@ function _updScreenInfo() {
     document.body.appendChild(s);
     var h = s.getBoundingClientRect().height;
     s.remove();
-    return w + ' px · tekst ' + Math.round(h) + ' %';
+    var sa = document.createElement('div');
+    sa.style.cssText = 'position:fixed;top:0;height:env(safe-area-inset-top,0px);visibility:hidden';
+    document.body.appendChild(sa);
+    var top = Math.round(sa.getBoundingClientRect().height);
+    sa.remove();
+    return w + ' px · tekst ' + Math.round(h) + ' %' + (top ? ' · topp ' + top : '');
 }
 var _updAppVer = '';
 document.addEventListener('DOMContentLoaded', function () {

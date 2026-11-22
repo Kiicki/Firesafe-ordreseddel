@@ -14660,3 +14660,7 @@ body.bulk-select-active .list-fab-bar, body.docs-select-active .list-fab-bar { d
 
 /* Tom liste: sentrert grå tekst overalt. */
 .no-saved, .sj-empty, #docs-list .docs-empty { text-align: center; color: var(--text-2); font-size: 14px; padding: 28px 16px; margin: 0; }
+
+/* Android-appen: oransje statuslinje som i PWA-en (script-ui.js, blokken «APP»). Høyde 0 når
+   skallet selv holder siden under statuslinja. */
+#app-statusbar { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: #E8501A; z-index: 2147483000; pointer-events: none; }
