@@ -311,7 +311,19 @@ function _updRenderVersion() {
     var el = document.getElementById('upd-version');
     if (!el) return;
     var n = _updLoaded()['script-ui.js'] || '';
-    el.textContent = t('upd_version').replace('{0}', n) + (_updAppVer ? ' · app ' + _updAppVer : '');
+    el.textContent = t('upd_version').replace('{0}', n) + (_updAppVer ? ' · app ' + _updAppVer : '') + ' · ' + _updScreenInfo();
+}
+// MIDLERTIDIG (22-11-2026): måling av skjerm/tekst — appen (WebView) så større ut enn PWA-en.
+// Bredde i CSS-piksler (mindre = hele siden forstørret) + tekstskalering (100 % = normal).
+function _updScreenInfo() {
+    var w = Math.round(window.innerWidth || document.documentElement.clientWidth || 0);
+    var s = document.createElement('span');
+    s.style.cssText = 'position:absolute;visibility:hidden;font:100px/1 Arial,sans-serif;display:inline-block;white-space:nowrap';
+    s.textContent = 'M';
+    document.body.appendChild(s);
+    var h = s.getBoundingClientRect().height;
+    s.remove();
+    return w + ' px · tekst ' + Math.round(h) + ' %';
 }
 var _updAppVer = '';
 document.addEventListener('DOMContentLoaded', function () {
