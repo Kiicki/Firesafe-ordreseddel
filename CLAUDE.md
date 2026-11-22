@@ -283,7 +283,7 @@ Hver side i appen skal se ut som den hører til samme app. Standarden er **Meny-
 
 **Når du lager en ny side eller komponent:**
 - [ ] Bruker variablene/klassene over — ingen nye hex-farger for bakgrunn/kort/ramme
-- [ ] Sjekket ved siden av en eksisterende side (f.eks. Meny) på mobil (360/412) OG PC
+- [ ] Sjekket ved siden av en eksisterende side (f.eks. Meny) på mobil **354 px** (brukerens telefon = minste mål), rask sjekk ved **320 px** (ingenting utenfor/kuttet), nettbrett (768 stående/liggende) ved nye sider, OG PC
 - [ ] Ny view-ID lagt til i bakgrunnsreglene i DESIGNSTANDARD-blokken (og i PC-dokumentflyt-lista om den er en `.modal`-view)
 - [ ] Endrer du standarden: oppdater variabelen/klassen (ikke én side), og denne seksjonen
 
@@ -383,7 +383,7 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 - Tastatur: skallet (MainActivity.java) gir WebView samme oppførsel som Chrome med `interactive-widget=resizes-visual` (visualViewport krymper, siden beholder høyden) på WebView ≥ 139; eldre WebView = siden krymper. Statuslinje oransje, navigasjonslinje grå.
 - **Samme størrelse som PWA/Chrome:** WebView følger ellers telefonens skriftstørrelse (tekst større enn i PWA/developer tools → linjer brøt til 3 rader). `MainActivity.fixTextZoom()` låser teksten til 100 % (fra APK 1.2). Statuslinja males oransje av `#app-statusbar` (APP-blokken) når siden ligger under statuslinja. App-ikonet: foreground = maskable-ikonet skalert til 84 % (som Chrome sitt PWA-ikon).
 - **Lik visning overalt (bruker 22-11-2026: «det er ingen grunn til at samme enhet skal vises forskjellig på pwa, apk, developer tools»):** samme bredde (DevTools-enheten = bredden Meny viser), samme tekststørrelse (APK: textZoom 100; Chrome: Tekstskalering 100 %), samme skrift (AppRoboto). Ny forskjell mellom PWA/app/DevTools = feil som skal rettes.
-- **Developer tools ≠ telefonen hvis bredden er feil:** telefonens faktiske CSS-bredde vises i Meny › «Se etter oppdatering» (MIDLERTIDIG måling `_updScreenInfo`, fjernes når appen er bekreftet lik PWA-en). Brukerens egendefinerte enhet i DevTools må ha den bredden.
+- **Developer tools ≠ telefonen hvis bredden er feil:** bekreftet av bruker 22-11-2026 at PWA, app og DevTools ser like ut. Brukerens telefon: **354 px** — test tekst/knapper ved 354 px. DevTools-enheten må ha den bredden OG Android-UA (Windows-UA gir PC-oppførsel).
 - Signeringsnøkkelen `firesafe-release.jks` + `keystore.properties` må aldri mistes (da kan appen ikke oppdateres).
 - **Oppdateringer — nettside vs. APK (bruker 21-11-2026: «jeg ønsker at jeg blir informert når ny APK må installeres»):**
   - Endringer i denne repoen (HTML/CSS/JS/lang, pushet til GitHub) og i serverfunksjonene kommer **automatisk** i appen — ingen ny APK. Som i PWA-en kan appen måtte lukkes og åpnes igjen (service worker-cachen).
