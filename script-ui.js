@@ -29614,7 +29614,7 @@ var SJ_GROUPS = [
 var SJ_DEFAULT_OPTIONS = {
     floors: ['U2', 'U1', '1', '2', '3', '4', '5', '6'],
     quantity: ['1', '2', '3', '4', '5'],
-    fireClass: ['EI 30', 'EI 60', 'EI 90', 'EI 120', 'E 30', 'E 60', 'Lyd'],
+    fireClass: ['EI 30', 'EI 60', 'EI 90', 'EI 120', 'E 30', 'E 60'],
     surface: ['Vegg', 'Gulv', 'Tak'],
     surfaceMaterial: ['Gips', 'Betong', 'Lettbetong', 'Murverk', 'Tre', 'Stål'],
     sides: ['1 side', '2 sider'],
@@ -29625,12 +29625,25 @@ var SJ_DEFAULT_OPTIONS = {
 var SJ_SINGLE_FIELD = { floors: 'etasje', quantity: 'antall', fireClass: 'brannkrav', surface: 'flate', surfaceMaterial: 'underlag', sides: 'sider' };
 // Feltene som utgjør selve sjekklisten (snapshot for «ulagret»-sjekk).
 var SJ_FIELDS = ['prosjektnr', 'prosjektnavn', 'etasje', 'antall', 'brannkrav', 'omrade1', 'omrade2',
-    'bredde', 'hoyde', 'flate', 'underlag', 'sider', 'hullTomt', 'innhold', 'produkter', 'kommentar', 'imageIds', 'sjakt'];
+    'bredde', 'hoyde', 'flate', 'underlag', 'sider', 'hullTomt', 'innhold', 'produkter', 'kommentar', 'imageIds', 'sjakt',
+    'tettes', 'fugeLengde', 'fugeBredde', 'lyd'];
+// Lydtetting (bruker 23-11-2026): egen bryter, UAVHENGIG av brannkrav — en vegg kan ha både
+// brannkrav og lydkrav (f.eks. mellom leiligheter), bare lydkrav, eller bare brannkrav.
+// Før var «Lyd» et valg under Brannkrav (da gikk det ikke å ha begge) → gjøres om ved åpning.
+var _SJ_SOUND_RE = /^lyd(tetting|krav)?$/i;
+// «Hva tettes» (bruker 23-11-2026): Hull | Sjakt | Fuge. Sjakt = hull med egne priser (som før
+// bryteren «Sjakt» — feltet `sjakt` lagres fortsatt = tettes==='sjakt', så eldre visning/data stemmer).
+// Fuge = fugelengde (m) + fugebredde (mm), uten hullmål, antall og innhold (ingen dybde — bruker 23-11-2026).
+var SJ_TETTES = ['hull', 'sjakt', 'fuge'];
+function _sjTettes(d) {
+    var v = d && SJ_TETTES.indexOf(d.tettes) !== -1 ? d.tettes : 'hull';
+    return (v === 'hull' && d && d.sjakt) ? 'sjakt' : v;   // eldre sjekklister: bryteren Sjakt
+}
 // Lagre/Ferdig på en NY sjekkliste → nytt skjema øverst som beholder disse (neste hull er
 // som regel i samme vegg/dekke). Valgt av bruker 08-11-2026 (+ «Tettes fra», som følger
 // veggen som underlag/brannkrav). Hull-spesifikt nullstilles: antall, mål, innhold,
 // materialer, bilder.
-var SJ_KEEP_ON_NEXT = ['prosjektnr', 'prosjektnavn', 'etasje', 'brannkrav', 'omrade1', 'omrade2', 'flate', 'underlag', 'sider', 'kommentar', 'sjakt'];
+var SJ_KEEP_ON_NEXT = ['prosjektnr', 'prosjektnavn', 'etasje', 'brannkrav', 'omrade1', 'omrade2', 'flate', 'underlag', 'sider', 'kommentar', 'sjakt', 'tettes', 'lyd'];
 
 var _sjMode = 'overview';          // 'overview' | 'project' | 'form'
 var _sjProjectKeyCur = null;       // prosjektet i prosjekt-visningen
@@ -29667,6 +29680,7 @@ function _sjNormOptions(raw) {
         out[g.key] = list.map(_sjStr).filter(function (v) {
             var k = v.toLowerCase();
             if (!v || seen[k]) return false;
+            if (g.key === 'fireClass' && _SJ_SOUND_RE.test(v)) return false;   // «Lyd» er bryteren Lydtetting nå
             seen[k] = 1;
             return true;
         });
@@ -30211,7 +30225,13 @@ function _sjDimText(d) {
     if (b) return 'Ø' + b + ' mm';
     return '';
 }
+// Fuge: «12,5 m × 20 mm» (lengde × bredde).
+function _sjFugeText(d) {
+    var l = _sjStr(d.fugeLengde).replace('.', ','), b = _sjStr(d.fugeBredde);
+    return [l ? l + ' m' : '', b ? b + ' mm' : ''].filter(Boolean).join(' × ');
+}
 function _sjContentText(d) {
+    if (_sjTettes(d) === 'fuge') return '';
     if (d.hullTomt) return t('sj_hole_empty');
     return (d.innhold || []).map(function (r) {
         return [(_sjStr(r.antall) && r.antall !== '1') ? r.antall + '×' : '', r.type, _sjRowDimText(r)].filter(Boolean).join(' ');
@@ -30238,8 +30258,9 @@ function _sjRenderRegList() {
         el.innerHTML = '<div class="sj-empty">' + escapeHtml(t(_sjList.loading ? 'sj_loading' : 'sj_no_items')) + '</div>';
     } else {
         el.innerHTML = items.map(function (d) {
-            var qty = _sjStr(d.antall) && d.antall !== '1' ? d.antall + ' stk' : '';
-            var row1 = [d.etasje, d.sjakt ? t('sj_shaft') : '', d.brannkrav, _sjDimText(d), qty].filter(Boolean).map(escapeHtml).join(' • ') || escapeHtml(t('sj_no_details'));
+            var tt = _sjTettes(d), fuge = tt === 'fuge';
+            var qty = !fuge && _sjStr(d.antall) && d.antall !== '1' ? d.antall + ' stk' : '';
+            var row1 = [d.etasje, tt === 'sjakt' ? t('sj_shaft') : (fuge ? t('sj_joint') : ''), _SJ_SOUND_RE.test(d.brannkrav) ? '' : d.brannkrav, (d.lyd || _SJ_SOUND_RE.test(d.brannkrav)) ? t('sj_sound_short') : '', fuge ? _sjFugeText(d) : _sjDimText(d), qty].filter(Boolean).map(escapeHtml).join(' • ') || escapeHtml(t('sj_no_details'));
             var row2 = [_sjContentText(d), d.flate, d.underlag, _sjTwoSided(d.sider) ? t('sj_two_sided') : ''].filter(Boolean).map(escapeHtml).join(' • ');
             var row3 = [_sjFmtTime(d.createdAt), d.createdByName].filter(Boolean).map(escapeHtml).join(' • ');
             var nImg = (d.imageIds || []).length;
@@ -30262,7 +30283,7 @@ function _sjRenderRegList() {
 function _sjEmptyData() {
     return { prosjektnr: '', prosjektnavn: '', etasje: '', antall: '', brannkrav: '', omrade1: '', omrade2: '',
         bredde: '', hoyde: '', flate: '', underlag: '', sider: '', hullTomt: false, sjakt: false, innhold: [], produkter: [],
-        kommentar: '', imageIds: [] };
+        kommentar: '', imageIds: [], tettes: 'hull', fugeLengde: '', fugeBredde: '', lyd: false };
 }
 function _sjCleanData(d) {
     var o = {};
@@ -30271,12 +30292,19 @@ function _sjCleanData(d) {
         if (f === 'innhold') v = (v || []).filter(_sjContentRowFilled).map(function (r) { return { type: _sjStr(r.type), bredde: _sjStr(r.bredde), hoyde: _sjStr(r.hoyde), beskrivelse: _sjStr(r.beskrivelse), antall: _sjStr(r.antall) }; });
         else if (f === 'produkter') v = (v || []).map(function (m) { return typeof m === 'string' ? { name: m } : Object.assign({}, m); }).filter(function (m) { return m.name; });
         else if (f === 'imageIds') v = (v || []).slice();
-        else if (f === 'hullTomt' || f === 'sjakt') v = !!v;
+        else if (f === 'hullTomt' || f === 'sjakt' || f === 'lyd') v = !!v;
         else if (f === 'sider') v = _sjTwoSided(v) ? '2 sider' : '1 side';
         else v = _sjStr(v);
         o[f] = v;
     });
     if (o.hullTomt) o.innhold = [];   // skjulte rader (Tomt på) er ikke en del av sjekklisten
+    // Det som er skjult for typen er ikke en del av sjekklisten (som Tomt hull: verdiene står i
+    // skjemaet til det lagres, så man kan bytte fram og tilbake uten å miste noe).
+    if (_SJ_SOUND_RE.test(o.brannkrav)) { o.lyd = true; o.brannkrav = ''; }   // eldre «Lyd» under Brannkrav
+    o.tettes = _sjTettes(d);
+    o.sjakt = o.tettes === 'sjakt';
+    if (o.tettes === 'fuge') { o.bredde = ''; o.hoyde = ''; o.antall = ''; o.innhold = []; o.hullTomt = false; }
+    else { o.fugeLengde = ''; o.fugeBredde = ''; }
     return o;
 }
 function _sjSnapshot(d) { return JSON.stringify(_sjCleanData(d)); }
@@ -30402,10 +30430,12 @@ function _sjPick(g, options, selected, mode, tail, leadHtml) {
         if (mode === 'action') return '<button type="button" class="sj-chip sj-chip-add" data-add="' + escapeHtml(v) + '">+ ' + escapeHtml(v) + '</button>';
         return _sjChip(g, v, sel.indexOf(v) !== -1);
     }).join('');
-    var grpLbl = combo && _sjGroup(g) ? t(_sjGroup(g).labelKey) : t('sj_more');
+    // Tittel i appens liste (mobil): «Legg til» for «+ type»-raden, ellers gruppens navn.
+    var grpLbl = mode === 'action' ? t('sj_more_add_title') : (_sjGroup(g) ? t(_sjGroup(g).labelKey) : t('sj_more'));
     var selectHtml = (all.length ? '<select class="sj-pick-more' + (combo ? ' sj-combo-select' : '') + '" data-pick="' + g + '" aria-label="' + escapeHtml(grpLbl) + '">' +
         // Kombifelt: «Flere»-linja er bare en plassholder — skjult i lista som åpnes.
-        '<option value=""' + (combo ? ' hidden' : '') + '>' + escapeHtml(t(mode === 'action' ? 'sj_more_add' : 'sj_more')) + '</option>' +
+        // Plassholderen («Flere») er aldri et valg i lista (ellers sto «Flere ✓» øverst i appens liste).
+        '<option value="" hidden>' + escapeHtml(t(mode === 'action' ? 'sj_more_add' : 'sj_more')) + '</option>' +
         all.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') +
         '</select>' : '');
     var cur = sel[0] || '';
@@ -30505,8 +30535,10 @@ function _sjInput(field, val, attrs) {
 // Nesten alt er obligatorisk, så sjekklisten merker det VALGFRIE («valgfritt» ved etiketten,
 // via data-opt + CSS) i stedet for å sette stjerne på alt. Bevisst unntak fra stjerne-
 // konvensjonen i de andre skjemaene (bruker: «rotete»). Mangler ved lagring markeres rødt.
+// Rader som følger en annen innstillings-nøkkel (ingen nå; fugemålene bruker «dimensjon» direkte).
+var _SJ_REQ_ALIAS = {};
 function _sjRow(labelKey, body, reqKey, headExtra) {
-    var req = reqKey && _sjRequired()[reqKey] === true;
+    var req = reqKey && _sjRequired()[_SJ_REQ_ALIAS[reqKey] || reqKey] === true;
     var label = labelKey ? '<div class="sj-row-label" data-opt="' + escapeHtml(t('sj_optional')) + '">' + escapeHtml(t(labelKey)) + '</div>' : '';
     return '<div class="sj-row' + (req ? ' field-required' : '') + '"' + (reqKey ? ' data-req="' + reqKey + '"' : '') + '>' +
         (headExtra ? '<div class="sj-row-head">' + label + headExtra + '</div>' : label) + body + '</div>';
@@ -30539,24 +30571,26 @@ function _sjUpdateRequiredIndicators() {
     if (!pane) return;
     var req = _sjRequired();
     pane.querySelectorAll('.sj-row[data-req]').forEach(function (r) {
-        r.classList.toggle('field-required', req[r.getAttribute('data-req')] === true);
+        var k = r.getAttribute('data-req');
+        r.classList.toggle('field-required', req[_SJ_REQ_ALIAS[k] || k] === true);
     });
 }
 // Første obligatoriske felt som mangler (i skjemaets rekkefølge), eller null. En valggruppe
 // uten valg i Innstillinger kreves ikke (ellers kunne skjemaet aldri lagres).
 function _sjMissingRequired(d) {
-    var req = _sjRequired(), o = _sjOptions();
+    var req = _sjRequired(), o = _sjOptions(), fuge = _sjTettes(d) === 'fuge';
     var checks = [
         ['prosjektnavn', 'label_prosjektnavn', function () { return !!(d.prosjektnavn || d.prosjektnr); }],
         ['etasje', 'sj_grp_floors', function () { return !!d.etasje || !o.floors.length; }],
-        ['antall', 'sj_grp_quantity', function () { return !!d.antall; }],
-        ['brannkrav', 'sj_grp_fireclass', function () { return !!d.brannkrav || !o.fireClass.length; }],
+        ['antall', 'sj_grp_quantity', function () { return fuge || !!d.antall; }],
+        // Bare lydtetting (ingen brannkrav) er gyldig: med Lydtetting på kreves ikke brannkrav.
+        ['brannkrav', 'sj_grp_fireclass', function () { return !!d.brannkrav || !!d.lyd || !o.fireClass.length; }],
         ['omrade', 'sj_req_area', function () { return !!(d.omrade1 && d.omrade2); }],
-        ['dimensjon', 'sj_grp_dim', function () { return !!d.bredde; }],
+        ['dimensjon', fuge ? 'sj_grp_fuge' : 'sj_grp_dim', function () { return fuge ? !!(_sjStr(d.fugeLengde) && _sjStr(d.fugeBredde)) : !!d.bredde; }],
         ['flate', 'sj_grp_surface', function () { return !!d.flate || !o.surface.length; }],
         ['underlag', 'sj_grp_surface_material', function () { return !!d.underlag || !o.surfaceMaterial.length; }],
         ['innhold', 'sj_grp_content', function () {
-            if (d.hullTomt) return true;
+            if (fuge || d.hullTomt) return true;
             var rows = d.innhold || [];
             return rows.length > 0 && rows.every(function (r) { return !!_sjStr(r.type); });
         }],
@@ -30565,7 +30599,7 @@ function _sjMissingRequired(d) {
         ['bilder', 'sj_images', function () { return (d.imageIds || []).length > 0; }]
     ];
     for (var i = 0; i < checks.length; i++) {
-        if (req[checks[i][0]] === true && !checks[i][2]()) return { key: checks[i][0], labelKey: checks[i][1] };
+        if (req[_SJ_REQ_ALIAS[checks[i][0]] || checks[i][0]] === true && !checks[i][2]()) return { key: checks[i][0], labelKey: checks[i][1] };
     }
     return null;
 }
@@ -30577,8 +30611,9 @@ function _sjMarkMissing(key) {
     pane.querySelectorAll('.sj-row.sj-missing').forEach(function (r) { r.classList.remove('sj-missing'); });
     row.classList.add('sj-missing');
     if (_sjForm) _sjForm.missing = true;
-    var input = row.querySelector('input[type="text"], textarea');
-    if (input && !input.value) input.focus();
+    // Første TOMME felt i raden (fuge: er lengden fylt ut, er det bredden som mangler).
+    var input = Array.prototype.filter.call(row.querySelectorAll('input[type="text"], textarea'), function (x) { return !x.value; })[0];
+    if (input) input.focus();
     else row.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 function _sjClearMissing(row) {
@@ -30616,6 +30651,13 @@ function _sjRenderForm() {
         // Mangler prosjektet, lages det der med «+» (blir eget + forslag til admin).
         _sjRow('sj_sec_project', _projFieldHtml('sjPickProject()', d.prosjektnavn || '', d.prosjektnavn ? (d.prosjektnr || '') : '', 'proj-field-sj'), 'prosjektnavn'));
 
+    // «Hva tettes» — avgjør hvilke felt som vises under (Mål, Innhold).
+    var tt = _sjTettes(d), fuge = tt === 'fuge';
+    html += _sjSection('sj_sec_what',
+        _sjRow('sj_sec_what', '<div class="tb-seg sj-tettes-seg">' + SJ_TETTES.map(function (k) {
+            return '<button type="button" class="tb-seg-btn' + (k === tt ? ' active' : '') + '" onclick="sjSetTettes(\'' + k + '\')">' + escapeHtml(t(k === 'hull' ? 'sj_kind_hole' : (k === 'sjakt' ? 'sj_shaft' : 'sj_joint'))) + '</button>';
+        }).join('') + '</div>'));
+
     html += _sjSection('sj_sec_location',
         _sjRow('sj_grp_floors', _sjPick('floors', o.floors, d.etasje, 'single'), 'etasje') +
         _sjRow('sj_grp_area',
@@ -30623,11 +30665,11 @@ function _sjRenderForm() {
                 _sjInput('omrade1', d.omrade1, 'autocapitalize="sentences" placeholder="' + escapeHtml(t('sj_area1_ph')) + '"') +
                 '<button type="button" class="sj-swap" onclick="sjSwapAreas()" aria-label="' + escapeHtml(t('sj_swap')) + '" title="' + escapeHtml(t('sj_swap')) + '">' + swapSvg + '</button>' +
                 _sjInput('omrade2', d.omrade2, 'autocapitalize="sentences" placeholder="' + escapeHtml(t('sj_area2_ph')) + '"') +
-            '</div>', 'omrade') +
-        // Sjakt (bruker 16-11-2026: egne priser for sjakter). Av som standard; følger med til neste hull.
-        _sjSwitchRow('sjakt', 'sj_shaft', 'sj_shaft_sub', !!d.sjakt));
+            '</div>', 'omrade'));
+        // (Bryteren «Sjakt» her er erstattet av «Hva tettes» øverst, 23-11-2026.)
 
     html += _sjSection('sj_sec_hole',
+        _sjSwitchRow('lyd', 'sj_sound', null, !!d.lyd) +
         _sjRow('sj_grp_fireclass', _sjPick('fireClass', o.fireClass, d.brannkrav, 'single'), 'brannkrav') +
         _sjRow('sj_grp_surface', _sjPick('surface', o.surface, d.flate, 'single'), 'flate') +
         _sjRow('sj_grp_surface_material', _sjPick('surfaceMaterial', o.surfaceMaterial, d.underlag, 'single'), 'underlag') +
@@ -30636,7 +30678,15 @@ function _sjRenderForm() {
         _sjSwitchRow('sider', 'sj_two_sided', 'sj_two_sided_sub', _sjTwoSided(d.sider), '2 sider', '1 side'));
 
     // «Mål» eget kort (bruker 16-11-2026: «tungt å se på» — kortere kort er lettere å skumme).
-    html += _sjSection('sj_sec_size',
+    // Fuge: lengde (m) × bredde (mm) på ÉN rad, som hulldimensjonen (bruker 23-11-2026).
+    if (fuge) html += _sjSection('sj_sec_size',
+        _sjRow('sj_grp_fuge',
+            '<div class="sj-line">' +
+                _sjInput('fugeLengde', d.fugeLengde, 'inputmode="decimal" placeholder="' + escapeHtml(t('sj_fuge_len_ph')) + '" aria-label="' + escapeHtml(t('sj_fuge_len_ph')) + '"') +
+                '<span class="sj-times" aria-hidden="true">×</span>' +
+                _sjInput('fugeBredde', d.fugeBredde, 'inputmode="numeric" placeholder="' + escapeHtml(t('sj_fuge_w_ph')) + '" aria-label="' + escapeHtml(t('sj_fuge_w_ph')) + '"') +
+            '</div>', 'dimensjon'));
+    else html += _sjSection('sj_sec_size',
         _sjRow('sj_grp_dim',
             '<div class="sj-line">' +
                 _sjInput('bredde', d.bredde, 'inputmode="numeric" placeholder="' + escapeHtml(t('sj_width')) + '" aria-label="' + escapeHtml(t('sj_width')) + '"') +
@@ -30648,7 +30698,7 @@ function _sjRenderForm() {
             '<input type="text" class="sj-qty-other" data-f="antallAnnet" inputmode="numeric" placeholder="' + escapeHtml(t('sj_other')) + '" value="' + escapeHtml(qtyIsChip ? '' : d.antall) + '">'), 'antall'));
 
     // Innhold: bryteren «Tomt hull» øverst (av = rør-gruppene + «+ type»), ingen egen etikett.
-    html += _sjSection('sj_sec_content',
+    if (!fuge) html += _sjSection('sj_sec_content',
         _sjRow(null, '<div id="sj-content">' + _sjEmptySegHtml() + _sjContentHtml() + '</div>', 'innhold'));
 
     // Materialer i eget kort (bruker 16-11-2026). Samme velger/visning som ordreseddelen.
@@ -30800,11 +30850,23 @@ function sjAddContent(type) {
     var last = -1;
     d.innhold.forEach(function (r, i) { if (r.type === type) last = i; });
     var at = last === -1 ? d.innhold.length : last + 1;
-    d.innhold.splice(at, 0, _sjEmptyContentRow(type));
-    _sjRenderContent();
+    // «+ Kabel»-knappen står i ro (bruker 23-11-2026: «jeg ønsker at kabel-knappen er i samme
+    // posisjon som før og etter jeg har trykket»): den nye raden skyver det OVER knappen opp,
+    // i stedet for at knappen (og alt under) hopper ned. Samme regel som når en rad fjernes.
+    var adds = function () { return document.querySelector('#sj-content .sj-ct-adds'); };
+    _preserveScrollAround(adds, function () {
+        d.innhold.splice(at, 0, _sjEmptyContentRow(type));
+        _sjRenderContent();
+    });
     _sjPersistSession();
     var inp = document.querySelector('#sj-pane-form .sj-ct-item[data-ci="' + at + '"] input[data-cf="bredde"]');
-    if (inp) inp.focus();
+    if (!inp) return;
+    // Uten egen scroll ved fokus (ellers flytter nettleseren siden likevel). Havnet den nye
+    // raden under headeren (knappen sto helt øverst), vises den — da er et lite hopp nødvendig.
+    var hdr = document.querySelector('#sjekkliste-view .modal-header, #sjekkliste-view .sj-header, #sjekkliste-view header');
+    var hb = hdr ? hdr.getBoundingClientRect().bottom : 0;
+    if (inp.getBoundingClientRect().top < hb + 8) inp.scrollIntoView({ block: 'center' });
+    try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }
 }
 function sjRemoveContent(i) {
     if (!_sjForm) return;
@@ -30837,6 +30899,17 @@ function sjToggleEmpty() {
     });
     _sjPersistSession();
 }
+// Hull | Sjakt | Fuge. Feltene for de andre typene skjules (ikke slettet før lagring).
+function sjSetTettes(v) {
+    if (!_sjForm || SJ_TETTES.indexOf(v) === -1) return;
+    var d = _sjForm.data;
+    if (_sjTettes(d) === v) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    d.tettes = v; d.sjakt = v === 'sjakt';
+    _sjRenderForm();   // det over (prosjekt, valget) står i ro; Mål/Innhold under byttes
+    _sjPersistSession();
+}
+window.sjSetTettes = sjSetTettes;
 function sjSwapAreas() {
     if (!_sjForm) return;
     var d = _sjForm.data, tmp = d.omrade1;

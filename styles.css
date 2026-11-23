@@ -13018,6 +13018,8 @@ body.sjekkliste-view-open #view-form { display: none; }
 }
 /* Flere felt på samme linje (prosjekt, rom A ⇄ B, bredde × høyde, bilde-knapper) */
 .sj-line { display: flex; align-items: center; gap: 6px; }
+.sj-tettes-seg { margin-bottom: 0; }
+.sj-tettes-seg .tb-seg-btn { padding: 9px 4px; }
 .sj-line > input[type="text"] { flex: 1 1 0; min-width: 0; }
 .sj-card .sj-line > input.sj-w-nr { flex: 0 0 34%; }
 .sj-times { color: #999; font-size: 15px; flex-shrink: 0; }
