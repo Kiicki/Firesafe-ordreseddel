@@ -44,7 +44,7 @@ document.addEventListener('click', function(e) {
 //   • nedlasting (<a download>)      → Filer.download → telefonens Nedlastinger
 //   • «Åpne i annen app»             → Filer.open = Androids «Åpne med» (med «Alltid»)
 //   • Google/Microsoft-innlogging    → telefonens innlogging (_appSignIn, kalles fra script.js)
-//   • ny versjon av selve appen      → «Oppdater?» → Filer.install (_appCheckUpdate)
+//   • ny versjon av selve appen      → Filer.install (_appCheckUpdate — aldri popup midt i arbeid)
 // Utenfor appen er _IN_APP false og ingenting her gjør noe.
 var _IN_APP = !!(window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()
     && typeof Capacitor.getPlatform === 'function' && Capacitor.getPlatform() === 'android' && typeof Capacitor.nativePromise === 'function');
@@ -112,7 +112,7 @@ if (_IN_APP) {
                     var blob = await (await p).blob();
                     var path = await _appWriteBlob(blob, name);
                     await _appCall('Filer', 'download', { path: path, name: name, mime: blob.type || '' });
-                    showNotificationModal(t('app_saved_downloads').replace('{0}', name), true);
+                    showNotificationModal(t('app_saved_downloads').replace('{0}', name));   // tekst: hvor fila ble lagret
                 } catch (e) { console.error('Lagring:', e); showNotificationModal(t('app_save_failed')); }
             })();
         }
@@ -168,35 +168,49 @@ async function _appOpenFile(blob, name, mime) {
     var path = await _appWriteBlob(blob, name);
     await _appCall('Filer', 'open', { path: path, mime: mime || blob.type || '' });
 }
-// Oppdatering av selve appen (skallet). Nettsiden oppdateres av seg selv — ny APK trengs bare når
-// skallet endres (sjelden). Den nyeste APK-en ligger i app/ på nettsiden (app/version.json +
-// app/Ordreseddel-<nr>.apk, lagt dit av Firesafe-app/bygg-apk.sh). Er den nyere enn den installerte,
-// spørres «Oppdater?» (én gang pr. oppstart; «Avbryt» = spør igjen neste gang appen åpnes).
-// Oppdater → Filer.install laster ned og åpner Androids installasjonsboks (data/innlogging beholdes).
-// APK før versjon 2 har ikke Filer.install → spørres ikke (må installeres manuelt).
-var _appUpdChecked = 0, _appUpdAsked = 0;
-async function _appCheckUpdate() {
-    if (!_IN_APP || Date.now() - _appUpdChecked < 6 * 3600 * 1000) return;
+// ══ OPPDATERINGER — ALDRI POPUP MIDT I ARBEID (22-11-2026) ═══════════════════════════════════
+// Bruker: «jeg tviler på at folk som driver å lager sjekklister osv ønsker at en popup dukker opp
+// med en ny oppdatering. slik kan vi ikke ha det.» Derfor:
+//   • Ny versjon av NETTSIDEN: ingen banner/popup. Den tas i bruk når appen startes (henter alltid
+//     nyeste), eller stille når appen hentes fram etter ≥ 5 min i bakgrunnen og står på Hjem / en
+//     liste / Meny uten åpen popup (merkes ikke). Ellers bare «Ny versjon klar — trykk her» i
+//     Meny › «Se etter oppdatering» (trykk = oppdater nå; ulagrede endringer → vanlig varsel).
+//   • Ny APK (sjelden, app/version.json + app/Ordreseddel-<nr>.apk fra Firesafe-app/bygg-apk.sh):
+//     spørsmålet vises BARE rett etter oppstart når appen står på Hjem og ingen har trykket noe
+//     ennå; ellers bare «Ny app-versjon klar — trykk her» i Meny-raden. Oppdater → Filer.install
+//     (Androids installasjonsboks; data/innlogging beholdes). APK før versjon 2 har ikke Filer.install.
+// Sjekkes ved oppstart, når appen hentes fram fra bakgrunnen og hvert 15. min mens den er åpen.
+var _appUpdChecked = 0, _appUpdAsked = 0, _appUpdPending = null;
+// → true = ny APK funnet (og spurt hvis brukeren selv ba om det / trygt ved oppstart)
+async function _appCheckUpdate(fromUser, atStartup) {
+    if (!_IN_APP) return false;
+    if (!fromUser && Date.now() - _appUpdChecked < 6 * 3600 * 1000) return !!_appUpdPending;
     _appUpdChecked = Date.now();
     try {
         var info = await _appCall('App', 'getInfo');
         var cur = parseInt(info && info.build, 10) || 0;
-        if (cur < 2) return;
+        if (cur < 2) return false;
         var v = await (await fetch('app/version.json', { cache: 'no-store' })).json();   // ikke ?t= (hver adresse lagres i SW-cachen)
-        if (!v || !(v.versionCode > cur) || !v.apk || _appUpdAsked === v.versionCode) return;
-        _appUpdAsked = v.versionCode;
-        _appAskUpdate(v);
+        if (!v || !(v.versionCode > cur) || !v.apk) { _appUpdPending = null; _updRenderVersion(); return false; }
+        _appUpdPending = v;
+        _updRenderVersion();
+        if (fromUser) _appAskUpdate(v);
+        else if (atStartup && !_appUpdAsked && _appIdleOnHome()) { _appUpdAsked = v.versionCode; _appAskUpdate(v); }
+        return true;
     } catch (e) {
         console.warn('Oppdateringssjekk:', e);
         _appUpdChecked = Date.now() - 5.5 * 3600 * 1000;   // uten nett → prøv igjen om ½ time
+        return false;
     }
 }
+// Står på Hjem rett etter oppstart, ingen popup, ikke trykket noe → ingen er i gang med noe.
+function _appIdleOnHome() {
+    var v = document.querySelector('.view.active');
+    return !!(v && v.id === 'template-modal' && !_updTouched && _updNoPopup());
+}
 function _appAskUpdate(v) {
-    // Ikke oppå et annet vindu brukeren holder på med — vent til det er lukket.
-    if (document.querySelector('.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active')) {
-        setTimeout(function () { _appAskUpdate(v); }, 5000);
-        return;
-    }
+    // Ikke oppå et annet vindu — vent til det er lukket.
+    if (!_updNoPopup()) { setTimeout(function () { _appAskUpdate(v); }, 5000); return; }
     showConfirmModal(t('app_update_available').replace('{0}', v.versionName || v.versionCode),
         function () { _appInstallUpdate(v); }, t('app_update_btn'), '#E8501A');
 }
@@ -210,7 +224,7 @@ async function _appInstallUpdate(v) {
         var code = e && e.code;
         if (code === 'NEEDS_PERMISSION') {
             showNotificationModal(t('app_update_permission'));
-            setTimeout(function () { _appAskUpdate(v); }, 3000);
+            setTimeout(function () { _appAskUpdate(v); }, 3000);   // brukeren startet selv oppdateringen
         } else if (code !== 'UP_TO_DATE' && !_appCanceled(e)) {
             console.error('Oppdatering:', e);
             showNotificationModal(t('app_update_failed'));
@@ -221,23 +235,14 @@ async function _appInstallUpdate(v) {
     }
 }
 if (_IN_APP) {
-    window.addEventListener('load', function () { setTimeout(_appCheckUpdate, 4000); });
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') _appCheckUpdate(); });
+    window.addEventListener('load', function () { setTimeout(function () { _appCheckUpdate(false, true); }, 4000); });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') _appCheckUpdate(false, false); });
 }
 
-// ══ NY VERSJON AV NETTSIDEN (21-11-2026) ═════════════════════════════════════════════════════
-// Dra-ned-for-å-oppdatere er skrudd AV (styles.css, overscroll-behavior-y på html/body) — bruker:
-// et uhell kastet ulagret arbeid. I stedet ser appen selv etter ny versjon: index.html hentes og
-// ?v=-numrene sammenlignes med filene som kjører nå (alle endringer bumper dem, se CLAUDE.md).
-// Sjekkes når appen hentes fram fra bakgrunnen og hvert 15. minutt mens den er åpen.
-// Ny versjon funnet →
-//   • var appen i bakgrunnen ≥ 5 min, og du står på Hjem / en liste / Meny (ikke i et skjema), uten
-//     åpen popup og uten å ha trykket noe ennå → oppdateres stille (merkes knapt);
-//   • ellers banneret «Ny versjon er klar — Oppdater». ALDRI automatisk omlasting midt i arbeid.
-//   • «Oppdater» med ulagrede endringer → vanlig ulagret-varsel først.
-// Meny › «Se etter oppdatering» = sjekk nå. Likt på PC, PWA og i Android-appen.
+// Ny versjon av nettsiden: index.html hentes og ?v=-numrene sammenlignes med filene som kjører nå
+// (alle endringer bumper dem, se CLAUDE.md). Dra-ned-for-å-oppdatere er AV (styles.css).
 var _UPD_EVERY = 15 * 60 * 1000, _UPD_AUTO_AWAY = 5 * 60 * 1000;
-var _updLast = Date.now(), _updReady = false, _updDismissed = false, _updHiddenAt = 0, _updTouched = false;
+var _updLast = Date.now(), _updReady = false, _updHiddenAt = 0, _updTouched = false;
 function _updMap(text) {
     var o = {}, re = /([\w.-]+\.(?:js|css))\?v=(\d+)/g, m;
     while ((m = re.exec(text))) o[m[1]] = parseInt(m[2], 10);
@@ -261,27 +266,21 @@ async function _updCheck() {
         if (!keys.length) return null;
         // Bare HØYERE nummer teller (en hurtigbuffer som henger etter, skal ikke gi «ny versjon»).
         var newer = keys.some(function (k) { return loaded[k] != null && remote[k] > loaded[k]; });
-        if (newer) _updReady = true;
+        if (newer && !_updReady) { _updReady = true; _updRenderVersion(); }
         return newer;
     } catch (e) { return null; }
+}
+function _updNoPopup() {
+    return !document.querySelector('.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active, [id$="-overlay"].active, .loading.active');
 }
 function _updSafeToAuto() {
     var v = document.querySelector('.view.active');
     if (!v || ['template-modal', 'saved-modal', 'settings-modal'].indexOf(v.id) < 0) return false;
     if (typeof isOnFormPage === 'function' && isOnFormPage()) return false;
-    if (document.querySelector('.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active, [id$="-overlay"].active, .loading.active')) return false;
+    if (!_updNoPopup()) return false;
     var a = document.activeElement;
     if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return false;
     return true;
-}
-function _updShowBanner() {
-    var b = document.getElementById('upd-banner');
-    if (b && _updReady && !_updDismissed) b.hidden = false;
-}
-function _updDismiss() {
-    _updDismissed = true;   // til neste oppstart (da lastes den nye versjonen uansett)
-    var b = document.getElementById('upd-banner');
-    if (b) b.hidden = true;
 }
 function _updApply() {
     var go = function () { location.reload(); };
@@ -293,15 +292,17 @@ async function _updOnResume() {
     _updTouched = false;
     if (Date.now() - _updLast < 60 * 1000 && !_updReady) return;
     var newer = _updReady || await _updCheck();
-    if (!newer) return;
-    if (away >= _UPD_AUTO_AWAY && !_updTouched && _updSafeToAuto()) { location.reload(); return; }
-    _updShowBanner();
+    // Stille omlasting bare når ingen holder på med noe. Ellers: bare markering i Meny (ingen popup).
+    if (newer && away >= _UPD_AUTO_AWAY && !_updTouched && _updSafeToAuto()) location.reload();
 }
+// Meny › «Se etter oppdatering» (brukeren ber selv om det → her kan det spørres/oppdateres).
 async function updCheckNow() {
-    if (_IN_APP) { _appUpdChecked = 0; _appUpdAsked = 0; _appCheckUpdate(); }   // ny APK også
+    if (_IN_APP && _appUpdPending) { _appAskUpdate(_appUpdPending); return; }
     var r = await _updCheck();
-    if (r === true) _updApply();
-    else if (r === false) showNotificationModal(t('upd_latest'), true);
+    if (r === true) { _updApply(); return; }
+    if (_IN_APP && await _appCheckUpdate(true)) return;   // ny APK → spørsmålet vises
+    // Tekstmelding (ikke bare ✓-haken): brukeren skal se at det er nyeste versjon, og hvilken.
+    if (r === false) showNotificationModal(t('upd_latest').replace('{0}', _updLoaded()['script-ui.js'] || ''));
     else showNotificationModal(t('upd_offline'));
 }
 window.updCheckNow = updCheckNow;
@@ -313,16 +314,18 @@ window.updCheckNow = updCheckNow;
     document.addEventListener('pointerdown', function () { _updTouched = true; }, true);
     setInterval(function () {
         if (document.visibilityState !== 'visible' || Date.now() - _updLast < _UPD_EVERY) return;
-        _updCheck().then(function (newer) { if (newer) _updShowBanner(); });
+        _updCheck();   // bare markering i Meny — aldri popup
     }, 60 * 1000);
 })();
-// Versjonsnummeret i Meny › «Se etter oppdatering» (nettsiden = script-ui-nummeret; i appen + APK-versjonen).
-// Kalles ved oppstart og fra applyTranslations-kroken under (språkbytte).
+// Meny › «Se etter oppdatering»: versjonsnummeret, eller (oransje) at en ny versjon er klar.
+// Kalles ved oppstart, når en ny versjon er funnet, og fra applyTranslations (språkbytte).
 function _updRenderVersion() {
     var el = document.getElementById('upd-version');
     if (!el) return;
     var n = _updLoaded()['script-ui.js'] || '';
-    el.textContent = t('upd_version').replace('{0}', n) + (_updAppVer ? ' · app ' + _updAppVer : '');
+    var ready = _appUpdPending ? 'upd_app_ready' : (_updReady ? 'upd_ready' : '');
+    el.textContent = ready ? t(ready) : t('upd_version').replace('{0}', n) + (_updAppVer ? ' · app ' + _updAppVer : '');
+    el.classList.toggle('upd-ready', !!ready);
 }
 var _updAppVer = '';
 document.addEventListener('DOMContentLoaded', function () {
@@ -33019,64 +33022,110 @@ function _docsMoveTo(ids, tg) {
     return moved;
 }
 var _docsMoveIds = [];
-// id = én ting, eller en liste (flervalg). Et mål kan velges når minst én av tingene kan flyttes dit.
+// «Flytt til …» = mappeleser som Dropbox/Drive (bruker 23-11-2026: «det burde være slik at vi trykker på
+// en mappe og så en flytt knapp» — før flyttet ett trykk på en mappe med en gang, og hele treet med alle
+// undermapper sto åpent → rotete med mange mapper). Trykk på en rad = åpne den; «Flytt hit» flytter til
+// stedet man står. Steder: root (Bibliotek / Prosjekter) → projs (prosjektlista) → loc {projectId, parentId}.
+// Søk = flat liste over alle prosjekter og mapper; et treff åpner stedet.
+var _docsMv = null;
 function openDocMove(id) {
     var ids = (Array.isArray(id) ? id : [id]).filter(function (x) { return _docsById(x); });
     var d = _docsById(ids[0]); if (!d || !_acc.admin) return;
-    var many = ids.map(_docsById);
     _docsMoveIds = ids;
-    var rows = [];
-    function addTree(projectId, parentId, depth) {
-        _docsSortItems(_docsChildren(projectId, parentId).filter(_docsIsFolder)).forEach(function (f) {
-            if (ids.indexOf(f.id) !== -1) return;   // en mappe kan ikke flyttes inn i seg selv / sine undermapper
-            rows.push({ drop: 'm:' + f.id, label: f.name, depth: depth, icon: _DOCS_ICON_FOLDER, cls: 'set-ico--amber' });
-            addTree(projectId, f.id, depth + 1);
-        });
-    }
-    rows.push({ drop: 'lib', label: t('docs_tab_lib'), depth: 0, icon: _DOCS_ICON_FOLDER, cls: 'set-ico--slate' });
-    addTree('', '', 1);
-    var pids = _docsProjects().map(function (p) { return p.id; });
-    _docs.forEach(function (x) { if (x.projectId && pids.indexOf(x.projectId) === -1) pids.push(x.projectId); });
-    var projRows = [];
-    pids.sort(function (a, b) { return _cmpText(_docsProjName(a), _docsProjName(b)); }).forEach(function (pid) {
-        var before = rows.length;
-        rows.push({ drop: 'p:' + pid, label: _docsProjName(pid), depth: 0, icon: _DOCS_ICON_PROJ, cls: 'set-ico--orange', proj: true });
-        addTree(pid, '', 1);
-        projRows.push(before);
-    });
-    var html = rows.map(function (r, i) {
-        var tg = _docsTargetOf(r.drop), ok = many.some(function (x) { return _docsCanMove(x, tg); });
-        var head = (r.proj && projRows[0] === i) ? '<div class="doc-move-sec">' + escapeHtml(t('docs_tab_proj')) + '</div>' : '';
-        return head + '<button type="button" class="doc-move-row' + (ok ? '' : ' disabled') + (r.proj ? ' doc-move-proj' : '') + '"' + (ok ? '' : ' disabled') +
-            ' style="padding-left:' + (12 + r.depth * 18) + 'px" data-search="' + escapeHtml(r.label.toLowerCase()) + '" onclick="docMovePick(\'' + escapeHtml(r.drop) + '\')">' +
-            '<span class="set-ico ' + r.cls + '">' + r.icon + '</span><span class="doc-move-name doc-mid" data-full="' + escapeHtml(r.label) + '">' + escapeHtml(r.label) + '</span></button>';
-    }).join('');
+    // Start der tingene ligger nå (som Dropbox) — ligger de på ulike steder: i roten.
+    var same = ids.every(function (x) { var o = _docsById(x); return (o.projectId || '') === (d.projectId || '') && (o.parentId || '') === (d.parentId || ''); });
+    _docsMv = same ? { k: 'loc', projectId: d.projectId || '', parentId: d.parentId || '' } : { k: 'root' };
     document.getElementById('doc-move-title').textContent = ids.length > 1 ? t('docs_move_title_n').replace('{0}', _docsPlural(ids.length, 'docs_n_item', 'docs_n_items')) : t('docs_move_title').replace('{0}', d.name || '');
-    document.getElementById('doc-move-list').innerHTML = html;
-    var s = document.getElementById('doc-move-search'); if (s) { s.value = ''; s.style.display = rows.length > 12 ? '' : 'none'; }
+    var s = document.getElementById('doc-move-search');
+    if (s) { s.value = ''; s.style.display = (_docs.filter(_docsIsFolder).length + _docsMovePids().length) > 12 ? '' : 'none'; }
     document.getElementById('doc-move-popup').classList.add('active');
-    var list = document.getElementById('doc-move-list'); if (list) list.scrollTop = 0;
-    requestAnimationFrame(function () { _docsMidFit(document.getElementById('doc-move-popup')); });
+    _docsMoveRender();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
-function docMoveFilter(v) {
-    v = String(v || '').trim().toLowerCase();
-    document.querySelectorAll('#doc-move-list .doc-move-row').forEach(function (el) {
-        el.style.display = !v || el.getAttribute('data-search').indexOf(v) !== -1 ? '' : 'none';
-    });
-    document.querySelectorAll('#doc-move-list .doc-move-sec').forEach(function (el) { el.style.display = v ? 'none' : ''; });
+function _docsMovePids() {
+    var pids = _docsProjects().map(function (p) { return p.id; });
+    _docs.forEach(function (x) { if (x.projectId && pids.indexOf(x.projectId) === -1) pids.push(x.projectId); });
+    return pids.sort(function (a, b) { return _cmpText(_docsProjName(a), _docsProjName(b)); });
 }
-function docMovePick(drop) {
+function _docsMoveLocName(at) {
+    if (at.k === 'root') return t('docs_title');
+    if (at.k === 'projs') return t('docs_tab_proj');
+    return _docsTargetName({ projectId: at.projectId, parentId: at.parentId });
+}
+function _docsMoveUp(at) {
+    if (at.k === 'projs') return { k: 'root' };
+    if (at.k !== 'loc') return null;
+    if (at.parentId) { var f = _docsById(at.parentId); return { k: 'loc', projectId: at.projectId, parentId: f ? (f.parentId || '') : '' }; }
+    return at.projectId ? { k: 'projs' } : { k: 'root' };
+}
+// Sti under et søketreff: «Bibliotek › Mappe» / «Prosjekt › Mappe».
+function _docsMovePath(projectId, parentId) {
+    var parts = [projectId ? _docsProjName(projectId).split(' · ')[0] : t('docs_tab_lib')];
+    _docsChain(parentId).forEach(function (f) { parts.push(f.name || ''); });
+    return parts.join(' › ');
+}
+function _docsMoveRowHtml(go, label, icon, cls, sub) {
+    return '<button type="button" class="doc-move-row" onclick="docMoveGo(' + escapeHtml(JSON.stringify(go)) + ')">' +
+        '<span class="set-ico ' + cls + '">' + icon + '</span>' +
+        '<span class="doc-move-text"><span class="doc-move-name doc-mid" data-full="' + escapeHtml(label) + '">' + escapeHtml(label) + '</span>' +
+        (sub ? '<span class="doc-move-sub">' + escapeHtml(sub) + '</span>' : '') + '</span>' +
+        '<span class="doc-move-chev" aria-hidden="true">›</span></button>';
+}
+function _docsMoveRender() {
+    var at = _docsMv; if (!at) return;
+    var ids = _docsMoveIds, q = String((document.getElementById('doc-move-search') || {}).value || '').trim().toLowerCase();
+    var folderOk = function (f) { return ids.indexOf(f.id) === -1 && !ids.some(function (x) { var o = _docsById(x); return o && _docsIsFolder(o) && _docsDescendants(o.id).some(function (y) { return y.id === f.id; }); }); };
+    var html = '';
+    if (q) {
+        // Søk: alle prosjekter + alle mapper (ikke de som flyttes / ligger i dem), flatt med sti.
+        var hits = [];
+        _docsMovePids().forEach(function (pid) { var n = _docsProjName(pid); if (n.toLowerCase().indexOf(q) !== -1) hits.push(_docsMoveRowHtml({ k: 'loc', projectId: pid, parentId: '' }, n, _DOCS_ICON_PROJ, 'set-ico--orange', '')); });
+        _docsSortItems(_docs.filter(function (f) { return _docsIsFolder(f) && folderOk(f) && String(f.name || '').toLowerCase().indexOf(q) !== -1; })).forEach(function (f) {
+            hits.push(_docsMoveRowHtml({ k: 'loc', projectId: f.projectId || '', parentId: f.id }, f.name || '', _DOCS_ICON_FOLDER, 'set-ico--amber', _docsMovePath(f.projectId || '', f.parentId || '')));
+        });
+        html = hits.join('') || '<div class="doc-move-empty">' + escapeHtml(t('docs_move_no_hits')) + '</div>';
+    } else if (at.k === 'root') {
+        html = _docsMoveRowHtml({ k: 'loc', projectId: '', parentId: '' }, t('docs_tab_lib'), _DOCS_ICON_FOLDER, 'set-ico--slate', '') +
+            _docsMoveRowHtml({ k: 'projs' }, t('docs_tab_proj'), _DOCS_ICON_PROJ, 'set-ico--orange', '');
+    } else if (at.k === 'projs') {
+        html = _docsMovePids().map(function (pid) { return _docsMoveRowHtml({ k: 'loc', projectId: pid, parentId: '' }, _docsProjName(pid), _DOCS_ICON_PROJ, 'set-ico--orange', ''); }).join('');
+    } else {
+        html = _docsSortItems(_docsChildren(at.projectId, at.parentId).filter(function (f) { return _docsIsFolder(f) && folderOk(f); }))
+            .map(function (f) { return _docsMoveRowHtml({ k: 'loc', projectId: at.projectId, parentId: f.id }, f.name || '', _DOCS_ICON_FOLDER, 'set-ico--amber', ''); }).join('');
+        if (!html) html = '<div class="doc-move-empty">' + escapeHtml(t('docs_move_no_folders')) + '</div>';
+    }
+    // Stedet man står: ‹ tilbake + navn (ingen pil i roten).
+    var up = _docsMoveUp(at), nav = document.getElementById('doc-move-nav');
+    if (nav) {
+        nav.innerHTML = (up ? '<button type="button" class="doc-move-back" onclick="docMoveBack()" aria-label="' + escapeHtml(t('btn_back') || 'Tilbake') + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>' : '') +
+            '<span class="doc-move-here doc-mid" data-full="' + escapeHtml(_docsMoveLocName(at)) + '">' + escapeHtml(_docsMoveLocName(at)) + '</span>';
+        nav.style.display = q ? 'none' : '';
+    }
+    var list = document.getElementById('doc-move-list'); list.innerHTML = html; list.scrollTop = 0;
+    // «Flytt hit» bare der minst én av tingene kan ligge (ikke i roten/prosjektlista, ikke der de ligger nå).
+    var tg = at.k === 'loc' ? { projectId: at.projectId, parentId: at.parentId } : null;
+    var ok = !q && !!tg && ids.some(function (x) { var o = _docsById(x); return o && _docsCanMove(o, tg); });
+    var btn = document.getElementById('doc-move-ok'); if (btn) btn.disabled = !ok;
+    requestAnimationFrame(function () { _docsMidFit(document.getElementById('doc-move-popup')); });
+}
+function docMoveGo(at) {
+    _docsMv = at;
+    var s = document.getElementById('doc-move-search'); if (s && s.value) { s.value = ''; s.blur(); }
+    _docsMoveRender();
+}
+function docMoveBack() { var up = _docsMv && _docsMoveUp(_docsMv); if (up) docMoveGo(up); }
+function docMoveFilter() { _docsMoveRender(); }
+function docMoveHere() {
+    var at = _docsMv; if (!at || at.k !== 'loc') return;
     var ids = _docsMoveIds.slice(); closeDocMove();
-    var tg = _docsTargetOf(drop);
-    if (ids.length && tg) { _docsSelExit(true); _docsMoveTo(ids, tg); }
+    if (ids.length) { _docsSelExit(true); _docsMoveTo(ids, { projectId: at.projectId, parentId: at.parentId }); }
 }
 function closeDocMove() {
     var p = document.getElementById('doc-move-popup'); if (p) p.classList.remove('active');
-    _docsMoveIds = [];
+    _docsMoveIds = []; _docsMv = null;
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
 }
-window.openDocMove = openDocMove; window.docMoveFilter = docMoveFilter; window.docMovePick = docMovePick; window.closeDocMove = closeDocMove;
+window.openDocMove = openDocMove; window.docMoveFilter = docMoveFilter; window.docMoveGo = docMoveGo; window.docMoveBack = docMoveBack; window.docMoveHere = docMoveHere; window.closeDocMove = closeDocMove;
 
 // ── Opplasting: kø med fremdrift, rett inn i mappen man står i (eller slippmålet) ─
 // Bruker 19-11-2026 (23 filer, tregt, «kan jeg avbryte / lukke appen?»):

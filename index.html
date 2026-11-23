@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1272">
+    <link rel="stylesheet" href="styles.css?v=1275">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -403,12 +403,6 @@
     </div>
 
     <!-- Toast notification -->
-    <!-- Ny versjon publisert (script-ui.js, «NY VERSJON AV NETTSIDEN») -->
-    <div class="upd-banner" id="upd-banner" hidden>
-        <span class="upd-banner-text" data-i18n="upd_banner">Ny versjon er klar</span>
-        <button type="button" class="upd-banner-btn" onclick="_updApply()" data-i18n="upd_btn">Oppdater</button>
-        <button type="button" class="upd-banner-close" onclick="_updDismiss()" aria-label="Lukk">&times;</button>
-    </div>
     <div class="toast" id="notification-modal" onclick="closeNotificationModal()">
         <svg class="toast-check" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         <span id="notification-modal-text"></span>
@@ -896,7 +890,7 @@
                         <!-- Innboks: montørenes prosjekter og materialer som venter (tall = varsel). -->
                         <div class="set-row" onclick="showSettingsPage('admin-inbox')">
                             <span class="set-ico set-ico--red"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
-                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_inbox">Til godkjenning</span><span class="set-desc" data-i18n="settings_desc_admin_inbox">Prosjekter, materialer og personer fra montører</span></span>
+                            <span class="set-text"><span class="set-title" data-i18n="settings_admin_inbox">Til godkjenning</span><span class="set-desc" data-i18n="settings_desc_admin_inbox">Forslag fra montørene</span></span>
                             <span class="set-badge" id="inbox-badge" hidden></span>
                             <span class="set-chev">&rsaquo;</span>
                         </div>
@@ -939,7 +933,7 @@
                     </div>
 
 
-                    <!-- Se etter oppdatering (script-ui.js, «NY VERSJON AV NETTSIDEN») — erstatter dra-ned-for-å-oppdatere. -->
+                    <!-- Se etter oppdatering (script-ui.js, «OPPDATERINGER») — erstatter dra-ned-for-å-oppdatere; viser også «Ny versjon klar» (aldri popup). -->
                     <div class="set-section">
                         <div class="set-card">
                         <div class="set-row" onclick="updCheckNow()">
@@ -2365,7 +2359,7 @@
                         <div class="calc-card-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h8M12 7v10M8 17h8"/></svg></div>
                         <div class="calc-card-text">
                             <div class="calc-card-title" data-i18n="calc_fp_title">Brannisolering stål</div>
-                            <div class="calc-card-desc" data-i18n="calc_fp_desc">Isover FireProtect — tykkelse fra profil og R-krav</div>
+                            <div class="calc-card-desc" data-i18n="calc_fp_desc">Tykkelse fra profil og R-krav</div>
                         </div>
                         <svg class="calc-card-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
@@ -2813,14 +2807,16 @@
         <div class="doc-viewer-scroll" id="doc-viewer-scroll"><div class="doc-viewer-pages" id="doc-viewer-pages"></div></div>
     </div>
 
-    <!-- Flytt dokument/mappe (bare admin): hele mappetreet, Bibliotek + prosjekter. -->
+    <!-- Flytt dokument/mappe (bare admin): bla i mappene (trykk = åpne), «Flytt hit» = flytt til stedet man står. -->
     <div class="spec-popup-backdrop" id="doc-move-popup" onclick="if(event.target===this)closeDocMove()">
         <div class="spec-popup-sheet doc-move-sheet">
             <div class="spec-popup-header" id="doc-move-title"></div>
             <input type="search" class="doc-move-search" id="doc-move-search" data-i18n-placeholder="docs_move_search_ph" placeholder="Søk etter mappe eller prosjekt" autocomplete="off" oninput="docMoveFilter(this.value)">
+            <div class="doc-move-nav" id="doc-move-nav"></div>
             <div class="doc-move-list" id="doc-move-list"></div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closeDocMove()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-ok" id="doc-move-ok" onclick="docMoveHere()" data-i18n="docs_move_here">Flytt hit</button>
             </div>
         </div>
     </div>
@@ -2834,9 +2830,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=530"></script>
+    <script src="lang.js?v=535"></script>
     <script src="script.js?v=632"></script>
-    <script src="script-ui.js?v=1517"></script>
+    <script src="script-ui.js?v=1520"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

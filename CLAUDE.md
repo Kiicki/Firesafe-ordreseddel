@@ -370,10 +370,10 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 ## Ny versjon av nettsiden — ingen dra-ned-for-å-oppdatere (21-11-2026)
 
 - **Dra-ned-for-å-oppdatere er AV i hele appen** (`overscroll-behavior-y: contain` på html/body i styles.css). Bruker: et uhell kastet ulagret arbeid i skjemaer/Timebok. Ikke slå det på igjen, og ikke lag en egen dra-ned-funksjon.
-- I stedet ser appen selv etter ny versjon (script-ui.js, blokken **«NY VERSJON AV NETTSIDEN»**): henter `index.html` og sammenligner `?v=`-numrene med filene som kjører. Derfor er det ekstra viktig å bumpe `?v=` ved hver endring (se «Cache-versjon»).
-  - Sjekkes når appen hentes fram fra bakgrunnen og hvert 15. min mens den er åpen.
-  - Borte ≥ 5 min + står på Hjem/liste/Meny (ikke skjema), ingen popup, ikke trykket ennå → **stille omlasting**. Ellers banneret «Ny versjon er klar — Oppdater» (`#upd-banner`). Aldri automatisk omlasting midt i arbeid; «Oppdater» med ulagrede endringer → vanlig ulagret-varsel.
-  - Meny › «Se etter oppdatering» (`updCheckNow`) viser versjonsnummeret (script-ui-nummeret, + APK-versjon i appen).
+- I stedet ser appen selv etter ny versjon (script-ui.js, blokken **«OPPDATERINGER»**): henter `index.html` og sammenligner `?v=`-numrene med filene som kjører. Derfor er det ekstra viktig å bumpe `?v=` ved hver endring (se «Cache-versjon»).
+  - **ALDRI popup/banner midt i arbeid** (bruker 22-11-2026: «jeg tviler på at folk som driver å lager sjekklister osv ønsker at en popup dukker opp med en ny oppdatering. slik kan vi ikke ha det»).
+  - Ny versjon tas i bruk ved oppstart (henter alltid nyeste), eller stille når appen hentes fram etter ≥ 5 min i bakgrunnen og står på Hjem/liste/Meny uten popup og uten trykk. Ellers bare oransje «Ny versjon klar — trykk her» i Meny › «Se etter oppdatering» (`updCheckNow`; ulagrede endringer → vanlig varsel). Sjekkes ved oppstart, ved retur fra bakgrunnen og hvert 15. min.
+  - Ny APK: spørsmålet vises BARE rett etter oppstart på Hjem før brukeren har trykket noe; ellers «Ny app-versjon klar — trykk her» i samme Meny-rad.
 
 ## Android-appen (Capacitor-skall, 21-11-2026 — bare Android, ikke iPhone)
 
@@ -388,7 +388,7 @@ Begge filer deler globalt scope. Ny kode skal plasseres i riktig fil basert på 
 - **Oppdateringer — nettside vs. APK (bruker 21-11-2026: «jeg ønsker at jeg blir informert når ny APK må installeres»):**
   - Endringer i denne repoen (HTML/CSS/JS/lang, pushet til GitHub) og i serverfunksjonene kommer **automatisk** i appen — ingen ny APK. Som i PWA-en kan appen måtte lukkes og åpnes igjen (service worker-cachen).
   - **Ny APK trengs BARE når skallet i `Desktop\Firesafe-app` endres:** native kode (MainActivity/FilerPlugin), AndroidManifest (tillatelser), Capacitor-plugins/-versjon, `capacitor.config.json`, ikon/navn/oppstartsbilde, `google-services.json`, signering.
-  - **Plikt:** når en endring krever ny APK, si det TYDELIG i svaret (egen linje: «⚠ Krever ny APK»), øk `versionCode` (+1) / `versionName` i `android/app/build.gradle` og kjør `./bygg-apk.sh` i Firesafe-app. Skriptet legger APK-en i `app/Ordreseddel-<nr>.apk` + `app/version.json` i DENNE repoen (og `Firesafe-Ordreseddel.apk` i Firesafe-app). Når brukeren pusher, får appene **«Oppdater?»** neste gang de åpnes (`_appCheckUpdate` i APP-blokken → native `Filer.install` → Androids installasjonsboks; fra versjon 2 / 1.1 — eldre må installeres manuelt). Krever endringen IKKE ny APK, trenger det ikke nevnes.
+  - **Plikt:** når en endring krever ny APK, si det TYDELIG i svaret (egen linje: «⚠ Krever ny APK»), øk `versionCode` (+1) / `versionName` i `android/app/build.gradle` og kjør `./bygg-apk.sh` i Firesafe-app. Skriptet legger APK-en i `app/Ordreseddel-<nr>.apk` + `app/version.json` i DENNE repoen (og `Firesafe-Ordreseddel.apk` i Firesafe-app). Når brukeren pusher, får appene spørsmålet ved neste oppstart på Hjem, ellers markering i Meny (`_appCheckUpdate` → native `Filer.install` → Androids installasjonsboks; fra versjon 2 / 1.1 — eldre må installeres manuelt). Krever endringen IKKE ny APK, trenger det ikke nevnes.
   - Mappa `app/` (APK + version.json) skal ligge i repoen og publiseres — ikke slett den. Bare én APK der om gangen (skriptet fjerner gamle).
   - Ny web-kode som trenger en native funksjon som ikke finnes i den installerte APK-en: sjekk at funksjonen finnes før bruk (eldre APK skal ikke krasje), og si fra at ny APK trengs.
 

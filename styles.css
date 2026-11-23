@@ -18,7 +18,7 @@ html {
     scroll-padding-top: 60px;
     scroll-padding-bottom: calc(env(keyboard-inset-height, 0px) + 4px);
     /* Dra-ned-for-å-oppdatere er AV i hele appen (bruker 21-11-2026: et uhell kastet ulagret
-       arbeid). Nye versjoner varsles i stedet av appen selv (script-ui.js, «NY VERSJON»). */
+       arbeid). Nye versjoner tas i bruk av appen selv (script-ui.js, «OPPDATERINGER»). */
     overscroll-behavior-y: contain;
 }
 
@@ -5388,6 +5388,12 @@ body.picker-active .confirm-modal {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     font-size: 14px;
+    /* Tekstmeldinger kan bli så brede som skjermen tillater (left:50% ga før bare halv bredde →
+       korte meldinger brøt på to linjer, 22-11-2026). ✓-varianten (.success) har egen bredde. */
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    text-align: center;
     z-index: 100;
     cursor: pointer;
     opacity: 0;
@@ -14480,7 +14486,22 @@ body.docs-select-active .docs-upload-pill, #login-view.active ~ .docs-upload-pil
 body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.doc-viewer-open #input-modal, body.doc-viewer-open #doc-move-popup { z-index: 70; }
 
 /* Flytt til … (mappetreet). Hvit popup → grå innfelt søkefelt (flate-veksling). */
-.doc-move-sheet { display: flex; flex-direction: column; gap: 10px; max-height: 80vh; }
+/* Fast høyde (bevisst unntak fra «innholds-tilpasset»): man blar mellom mapper med ulikt antall
+   rader — med innholdshøyde ville popupen og «Flytt hit» hoppe ved hvert trykk. */
+.doc-move-sheet { display: flex; flex-direction: column; gap: 10px; height: 80vh; max-height: min(80vh, 640px); }
+.doc-move-sheet .spec-popup-buttons { margin-top: 6px; }
+.spec-popup-ok:disabled { opacity: .4; cursor: default; }
+.doc-move-nav { display: flex; align-items: center; gap: 4px; min-height: 36px; flex-shrink: 0; border-bottom: 1px solid var(--divider); padding-bottom: 6px; }
+.doc-move-back {
+    width: 36px; height: 36px; flex-shrink: 0; border: none; background: none; border-radius: 8px;
+    color: #E8501A; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; margin-left: -6px;
+}
+.doc-move-back:active { background: var(--press-bg); }
+.doc-move-here { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; }
+.doc-move-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.doc-move-sub { font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-move-chev { color: var(--text-2); font-size: 22px; line-height: 1; flex-shrink: 0; padding-left: 4px; }
+.doc-move-empty { text-align: center; color: var(--text-2); font-size: 14px; padding: 32px 12px; }
 .doc-move-search { background: var(--inset-bg); border-color: transparent; flex-shrink: 0; }
 .doc-move-list { overflow-y: auto; min-height: 0; flex: 1; margin: 0 -8px; }
 .doc-move-row {
@@ -14488,10 +14509,8 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
     background: none; border: none; border-radius: 10px; font: inherit; font-size: 15px; color: var(--text); text-align: left; cursor: pointer;
 }
 .doc-move-row:active, .doc-move-row:hover { background: var(--press-bg); }
-.doc-move-row.disabled { opacity: .4; cursor: default; background: none; }
 .doc-move-row .set-ico { width: 28px; height: 28px; }
 .doc-move-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.doc-move-sec { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); padding: 12px 12px 4px; }
 #docs-body { min-height: calc(100vh - var(--toolbar-h, 60px) - 60px); box-sizing: border-box; }   /* hele kolonnen er slippflate */
 /* Fulltekstsøk: treff med side + utdrag (grått innfelt på hvitt kort = flate-veksling) */
 .doc-row--hits { align-items: flex-start; }
@@ -14582,23 +14601,8 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .docs-ai-remove { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: none; background: none; color: #9a9aa2; font-size: 20px; line-height: 1; border-radius: 8px; cursor: pointer; }
 .docs-ai-remove:hover { background: var(--press-bg); }
 
-/* ══ NY VERSJON-banner (script-ui.js, blokken «NY VERSJON AV NETTSIDEN») ══
-   Hvitt kort rett over toolbaren. Skjules når tastaturet er åpent (dekker ikke det man skriver). */
-.upd-banner {
-    position: fixed; left: 12px; right: 12px; bottom: calc(var(--toolbar-h, 60px) + 10px);
-    max-width: 776px; margin: 0 auto; z-index: 45;
-    display: flex; align-items: center; gap: 10px; padding: 8px 6px 8px 14px;
-    background: var(--card-bg); border-radius: var(--card-radius); box-shadow: 0 4px 18px rgba(0,0,0,0.18);
-    font-size: 14px; color: var(--text);
-}
-.upd-banner[hidden] { display: none; }
-body.keyboard-open .upd-banner { display: none; }
-.upd-banner-text { flex: 1; min-width: 0; font-weight: 500; }
-.upd-banner-btn {
-    flex: none; height: var(--control-h, 36px); padding: 0 14px; border: 0; border-radius: var(--control-radius, 6px);
-    background: #E8501A; color: #fff; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
-}
-.upd-banner-close { flex: none; width: 32px; height: 32px; border: 0; background: none; color: #999; font-size: 22px; line-height: 1; cursor: pointer; }
+/* Meny › «Se etter oppdatering»: «Ny versjon klar — trykk her» i oransje (script-ui.js «OPPDATERINGER»). */
+.set-desc.upd-ready { color: #E8501A; font-weight: 500; }
 
 /* ══ LISTESIDER (22-11-2026) — Skjemaer (Lagret), Sjekklister og Dokumenter ser LIKE ut ══
    Bruker: «det virker ikke som å tilhøre samme app … det er viktig at designet er felles».
