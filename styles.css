@@ -9275,6 +9275,9 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-project-block.collapsed .timebok-pb-body { display: none; }
 .timebok-project-block.collapsed .timebok-pb-head { border-bottom: none; }
 .timebok-pb-body { padding: 10px 12px 12px; }
+/* Ett prosjekt på dagen: ingen overskrift (se createTimebokProjectBlock). */
+.timebok-project-block.tb-single .timebok-pb-head, .timebok-project-block.tb-single .timebok-pb-sumrows { display: none; }
+.timebok-project-block.tb-single .timebok-pb-body { padding-top: 12px; }
 /* «Prosjekt 1 *» er en etikett (grå, normal) — prosjektnavnet under/i velgeren er innholdet. */
 .timebok-pb-label { font-size: 13px; font-weight: 400; color: #6b6b73; }
 .timebok-req { color: #E8501A; }

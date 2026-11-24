@@ -14395,7 +14395,10 @@ function createTimebokProjectBlock(proj) {
         // Sammenlagt viser det et sammendrag (prosjekt · timer · reise) i stedet for innholdet.
         '<div class="timebok-pb-head" onclick="_timebokToggleBlock(this)">' +
             '<div class="timebok-pb-headtxt">' +
-                '<span class="timebok-pb-label">' + escapeHtml(t('timebok_project')) + '<span class="timebok-pb-num"></span> <span class="timebok-req">*</span></span>' +
+                // Hodet vises bare når dagen har FLERE prosjekter («Prosjekt 1», «Prosjekt 2») — med ett
+                // prosjekt er det skjult (.tb-single): «Prosjekt *» som legger kortet sammen ble forvekslet
+                // med prosjektvelgeren (bruker 24-11-2026). Ingen stjerne: «Velg prosjekt» viser at det mangler.
+                '<span class="timebok-pb-label">' + escapeHtml(t('timebok_project')) + '<span class="timebok-pb-num"></span></span>' +
                 '<div class="timebok-pb-sum"></div>' +
             '</div>' +
             '<svg class="timebok-pb-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
@@ -14962,6 +14965,10 @@ function _timebokUpdateDayTotals() {
         // Nummerér kortene når det er flere prosjekter samme dag.
         var num = block.querySelector('.timebok-pb-num');
         if (num) num.textContent = blocks.length > 1 ? ' ' + (bi + 1) : '';
+        // Ett prosjekt: ingen overskrift/sammenlegging (alltid åpent). Flere: «Prosjekt N» + pil + søppelkasse.
+        var single = blocks.length === 1;
+        block.classList.toggle('tb-single', single);
+        if (single) block.classList.remove('collapsed');
         _timebokUpdateBlockSummary(block);
         var rm = block.querySelector('.timebok-pb-remove');
         // Alltid synlig, men disabled når det bare er én prosjekt-blokk (kan ikke fjerne
