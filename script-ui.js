@@ -6124,6 +6124,86 @@ function closeMatTypeDropdown() {
     }, 150);
 }
 
+// ── «Forbedre» med AI i tekstfelt (bruker 25-11-2026, Beskrivelse i ordreseddelen) ──
+// Knappen står til høyre for feltets etikett (absolutt plassert — etiketten og stjerna er urørt,
+// ingenting hopper). Trykk = teksten skrives om av serverfunksjonen improveText (Firesafe-functions):
+// kort og ryddig, ALL informasjon beholdes, bare «-» (aldri – —), aldri «é». Trykk igjen («Ny
+// versjon») = ny formulering av BRUKERENS tekst (ikke av forrige forslag). «Angre» = tilbake til
+// det brukeren skrev. Skriver brukeren selv i feltet etterpå, gjelder den nye teksten (Forbedre).
+// Brukes ved å legge _aiFixBtnHtml(kind) rett etter <label> i en .mobile-field med <textarea>.
+var _AI_FIX_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
+function _aiFixBtnHtml(kind) {
+    return '<span class="ai-fix" data-kind="' + escapeHtml(kind || 'beskrivelse') + '">' +
+        '<button type="button" class="ai-fix-undo" hidden onclick="aiFixUndo(this)">' + escapeHtml(t('ai_fix_undo')) + '</button>' +
+        '<button type="button" class="ai-fix-btn" onclick="aiFixRun(this)">' + _AI_FIX_ICON + '<span class="ai-fix-lbl">' + escapeHtml(t('ai_fix')) + '</span></button>' +
+    '</span>';
+}
+function _aiFixParts(btn) {
+    var wrap = btn && btn.closest('.ai-fix'), field = wrap && wrap.parentNode;
+    var ta = field && field.querySelector('textarea');
+    return { wrap: wrap, ta: ta, btn: wrap && wrap.querySelector('.ai-fix-btn'), undo: wrap && wrap.querySelector('.ai-fix-undo') };
+}
+function _aiFixSet(ta, val) {
+    ta._aiSetting = true;
+    ta.value = val;
+    try { ta.dispatchEvent(new Event('input', { bubbles: true })); } finally { ta._aiSetting = false; }
+    if (typeof autoResizeTextarea === 'function') autoResizeTextarea(ta);
+}
+function _aiFixReset(ta) {
+    if (!ta) return;
+    delete ta._aiBase; delete ta._aiLast; ta._aiPrev = null;
+    var wrap = ta.parentNode && ta.parentNode.querySelector('.ai-fix');
+    if (!wrap) return;
+    wrap.querySelector('.ai-fix-undo').hidden = true;
+    wrap.querySelector('.ai-fix-lbl').textContent = t('ai_fix');
+}
+async function aiFixRun(el) {
+    var p = _aiFixParts(el), ta = p.ta;
+    if (!ta || ta.disabled || ta.readOnly || ta._aiBusy) return;
+    var again = ta._aiLast !== undefined && ta.value === ta._aiLast;
+    var base = again ? ta._aiBase : ta.value;
+    if (!String(base || '').trim()) { showNotificationModal(t('ai_fix_empty')); return; }
+    if (!currentUser || currentUser.uid === 'dev-local') { showNotificationModal(t('ai_fix_login')); return; }
+    if (navigator.onLine === false) { showNotificationModal(t('ai_fix_offline')); return; }
+    if (!again) { ta._aiBase = base; ta._aiPrev = []; }
+    var before = ta.value;
+    ta._aiBusy = true;
+    p.btn.disabled = true; p.btn.classList.add('busy');
+    p.btn.querySelector('.ai-fix-lbl').textContent = t('ai_fix_busy');
+    try {
+        await _docsFunctions();   // Functions-SDK-en lastes ved behov (som «Spør AI»)
+        var fn = firebase.app().functions('europe-north1').httpsCallable('improveText', { timeout: 60000 });
+        var res = await fn({ text: base, kind: p.wrap.getAttribute('data-kind'), prev: ta._aiPrev || [] });
+        var txt = String((res && res.data && res.data.text) || '').trim();
+        // Skrev brukeren i feltet mens AI-en jobbet, eller er skjemaet lukket: ikke overskriv.
+        if (!txt || !ta.isConnected || ta.value !== before) return;
+        _aiFixSet(ta, txt);
+        ta._aiLast = ta.value;
+        (ta._aiPrev = ta._aiPrev || []).push(txt);
+        p.undo.hidden = false;
+    } catch (e) {
+        console.error('improveText:', e);
+        showNotificationModal((e && e.code && /resource-exhausted|invalid-argument|permission-denied|failed-precondition/.test(e.code) && e.message) || t('ai_fix_error'));
+    } finally {
+        ta._aiBusy = false;
+        p.btn.disabled = false; p.btn.classList.remove('busy');
+        p.btn.querySelector('.ai-fix-lbl').textContent = t(ta._aiLast !== undefined && ta.value === ta._aiLast ? 'ai_fix_again' : 'ai_fix');
+    }
+}
+function aiFixUndo(el) {
+    var p = _aiFixParts(el), ta = p.ta;
+    if (!ta || ta._aiBase === undefined || ta._aiBusy) return;
+    _aiFixSet(ta, ta._aiBase);
+    _aiFixReset(ta);
+}
+// Brukeren skriver selv → den nye teksten er utgangspunktet (Forbedre, ikke Ny versjon/Angre).
+document.addEventListener('input', function (e) {
+    var ta = e.target;
+    if (!ta || ta.tagName !== 'TEXTAREA' || ta._aiSetting || ta._aiBase === undefined) return;
+    if (ta.value !== ta._aiLast) _aiFixReset(ta);
+}, true);
+window.aiFixRun = aiFixRun; window.aiFixUndo = aiFixUndo;
+
 // ── Mobil-nedtrekksliste for <select> (hele appen) ──
 // På mobil/nettbrett (ingen html.device-pc) åpnes ALLE <select> som appens egen
 // liste-popup (samme utseende som Type-velgeren over) i stedet for nettleserens

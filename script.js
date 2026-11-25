@@ -3247,6 +3247,7 @@ function createOrderCard(orderData, expanded) {
         <div class="mobile-order-body">
             <div class="mobile-field${((cachedRequiredSettings || getDefaultRequiredSettings()).save.beskrivelse !== false) ? ' field-required' : ''}">
                 <label data-i18n="order_description">${t('order_description')}</label>
+                ${typeof _aiFixBtnHtml === 'function' ? _aiFixBtnHtml('beskrivelse') : ''}
                 <textarea class="mobile-order-desc" rows="1" autocapitalize="sentences"></textarea>
             </div>
             <div class="mobile-field${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.merknad ? ' field-required' : ''}">

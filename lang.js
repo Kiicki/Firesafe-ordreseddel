@@ -358,6 +358,14 @@ const TRANSLATIONS = {
 
         // Order cards
         order_description: 'Beskrivelse',
+        ai_fix: 'Forbedre',
+        ai_fix_again: 'Ny versjon',
+        ai_fix_busy: 'Forbedrer …',
+        ai_fix_undo: 'Angre',
+        ai_fix_empty: 'Skriv teksten først.',
+        ai_fix_login: 'Logg inn for å bruke AI.',
+        ai_fix_offline: 'Forbedre krever internett.',
+        ai_fix_error: 'Fikk ikke forbedret teksten. Prøv igjen.',
         order_title: 'Bestilling',
         timer_chip_label: 'Timer ført',
         timer_week_label: 'Timer uke',
@@ -1809,6 +1817,14 @@ const TRANSLATIONS = {
 
         // Order cards
         order_description: 'Description',
+        ai_fix: 'Improve',
+        ai_fix_again: 'New version',
+        ai_fix_busy: 'Improving …',
+        ai_fix_undo: 'Undo',
+        ai_fix_empty: 'Write the text first.',
+        ai_fix_login: 'Log in to use AI.',
+        ai_fix_offline: 'Improve needs internet.',
+        ai_fix_error: 'Could not improve the text. Try again.',
         order_title: 'Order',
         timer_chip_label: 'Hours logged',
         timer_of_total: 'of',

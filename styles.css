@@ -14704,3 +14704,22 @@ body.bulk-select-active .list-fab-bar, body.docs-select-active .list-fab-bar { d
 #saved-list .saved-item, #service-list .saved-item, #kappe-list .saved-item { gap: 4px; padding-right: 4px; }
 #saved-modal .saved-item-action-btn { width: 34px; }
 #saved-modal .saved-item-expand-btn { width: 28px; }
+
+
+/* «Forbedre» med AI ved et tekstfelt (_aiFixBtnHtml i script-ui.js): til høyre for etiketten,
+   absolutt plassert så etiketten/stjerna er urørt og ingenting hopper når «Angre» dukker opp. */
+.mobile-field:has(> .ai-fix) { position: relative; }
+.ai-fix { position: absolute; right: -6px; top: -6px; display: flex; align-items: center; gap: 2px; }
+.ai-fix-btn, .ai-fix-undo {
+    display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: none; background: none;
+    border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.ai-fix-btn { color: #E8501A; }
+.ai-fix-undo { color: var(--text-2); }
+.ai-fix-undo[hidden] { display: none; }
+.ai-fix-btn:active, .ai-fix-undo:active { background: var(--press-bg); }
+.ai-fix-btn:disabled { cursor: default; opacity: .75; }
+.ai-fix-btn.busy svg { animation: aiFixSpin 1.2s linear infinite; }
+@keyframes aiFixSpin { to { transform: rotate(360deg); } }
+/* Sendt/låst skjema: ingen AI-knapp. */
+.mobile-field:has(> textarea:disabled) > .ai-fix, .mobile-field:has(> textarea[readonly]) > .ai-fix { display: none; }
