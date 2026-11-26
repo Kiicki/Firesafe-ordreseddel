@@ -5249,13 +5249,30 @@ body.keyboard-open #spec-popup .spec-popup-sheet {
 
 /* Materialer lagt til: raffinert «utfylt»-tilstand i appens aksent —
    dempet tonet flate + aksenttekst (ikke en kraftig farget boks). */
-.mobile-add-mat-btn.has-materials {
-    background: rgba(232, 80, 26, 0.09);
-    color: #E8501A;
+/* Materialer UTFYLT = trykkbar boks med › (samme som Arbeidstid og etasje-boksen
+   .dag-timer-display), ingen egen «Endre materialer»-knapp (bruker 26-11-2026).
+   Gjelder ordreseddel, servicebil og sjekkliste (alle bruker .mobile-order-materials).
+   Tomt: «+ Materialer»-knappen. */
+.mobile-add-mat-btn.has-materials,
+#sj-mat-btn.has-materials { display: none; }
+.mobile-order-materials:not(:empty) {
+    position: relative;
+    padding-right: 34px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
-.mobile-add-mat-btn.has-materials:active {
-    background: rgba(232, 80, 26, 0.16);
+.mobile-order-materials:not(:empty):active { background: #efeff1; }
+.mobile-order-materials:not(:empty)::after {
+    content: '›';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #c4c4c9;
+    font-size: 18px;
 }
+.mobile-order-materials.mat-ro { pointer-events: none; }
+.mobile-order-materials.mat-ro::after { content: none; }
 
 
 /* Confirmation modal.
@@ -12796,6 +12813,9 @@ html:not(.dev-mode) .dev-only { display: none !important; }
     flex: 1; min-width: 0; padding: 0; border: none; background: none; outline: none; text-align: right;
     font: inherit; font-size: 20px; font-weight: 700; color: #1a1a1a; font-variant-numeric: tabular-nums;
 }
+/* Plassholder «0» = hint, ikke verdi: lys og tynn, samme som feltene i Arbeidstid-tabellen
+   (bruker 26-11-2026: den fete grå nullen så ut som en satt verdi). */
+.tb-clock-hours-box input::placeholder { color: #c2c2c7; font-weight: 400; opacity: 1; }
 .tb-clock-hours-box i { font-style: normal; font-size: 14px; font-weight: 600; color: #8a8a90; }
 .tb-clock-range-cap { font-size: 12px; color: #8a8a90; margin: 0 0 6px; padding-top: 10px; border-top: 1px solid #ececf0; }
 .tb-clock-rbtn.empty b { color: #a0a0a8; font-weight: 500; }

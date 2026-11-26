@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1288">
+    <link rel="stylesheet" href="styles.css?v=1290">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -129,6 +129,16 @@
                     <input type="text" id="mobile-oppdragsgiver" autocapitalize="sentences">
                 </div>
                 <div class="mobile-field">
+                    <label data-i18n="label_prosjektnr">Prosjektnr.</label>
+                    <input type="text" id="mobile-prosjektnr" inputmode="numeric">
+                </div>
+                <div class="mobile-field">
+                    <label data-i18n="label_prosjektnavn">Prosjektnavn</label>
+                    <input type="text" id="mobile-prosjektnavn" autocapitalize="sentences">
+                </div>
+                <!-- Sjelden utfylt (valgfrie) står SIST, så tomme felt ikke ligger mellom de som
+                     alltid er fylt (bruker 26-11-2026). Fast rekkefølge — ingenting flytter seg. -->
+                <div class="mobile-field">
                     <label data-i18n="label_kundens_ref">Kundens ref.</label>
                     <input type="text" id="mobile-kundens-ref" autocapitalize="sentences">
                 </div>
@@ -139,14 +149,6 @@
                         <span class="fakturaadresse-chevron">›</span>
                     </div>
                     <input type="hidden" id="mobile-fakturaadresse">
-                </div>
-                <div class="mobile-field">
-                    <label data-i18n="label_prosjektnr">Prosjektnr.</label>
-                    <input type="text" id="mobile-prosjektnr" inputmode="numeric">
-                </div>
-                <div class="mobile-field">
-                    <label data-i18n="label_prosjektnavn">Prosjektnavn</label>
-                    <input type="text" id="mobile-prosjektnavn" autocapitalize="sentences">
                 </div>
             </div>
 
@@ -2056,6 +2058,9 @@
     <div class="spec-popup-backdrop" id="timebok-clock-popup" onclick="if(event.target===this)closeTimebokClock()">
         <div class="spec-popup-sheet tb-clock-sheet">
             <div class="spec-popup-header"><span id="tb-clock-title"></span></div>
+            <!-- Type-faner (Arbeidstid: Ord. · 50% · 100% for SAMME dag) — bytte lagrer det som er
+                 ført og hopper til samme dag i den andre typen, uten å gå tilbake (bruker 26-11-2026). -->
+            <div class="tb-seg tb-clock-tabs" id="tb-clock-tabs" hidden></div>
             <!-- Tidsrom-modus (openTimeRange, Arbeidstid i ordreseddelen):
                  1) TIMER øverst — et vanlig inputfelt, det er timene som teller.
                  2) «Regn ut fra tid (valgfritt)»: Start · Slutt · Lunsj + urskiva, synlig med
@@ -2842,8 +2847,8 @@
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
     <script src="lang.js?v=544"></script>
-    <script src="script.js?v=639"></script>
-    <script src="script-ui.js?v=1541"></script>
+    <script src="script.js?v=641"></script>
+    <script src="script-ui.js?v=1545"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

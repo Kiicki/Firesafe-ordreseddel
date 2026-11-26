@@ -1282,6 +1282,11 @@ function setFormReadOnly(readOnly) {
         btn.style.opacity = readOnly ? '0.5' : '';
     });
 
+    // Utfylt materialboks åpner velgeren — ikke i lese-modus (› skjules også).
+    document.querySelectorAll('.mobile-order-materials').forEach(box => {
+        box.classList.toggle('mat-ro', readOnly);
+    });
+
     // Disable clicking on material rows to edit
     document.querySelectorAll('.mobile-material-row').forEach(row => {
         row.style.pointerEvents = readOnly ? 'none' : '';
@@ -6237,6 +6242,8 @@ document.addEventListener('input', function (e) {
 window.aiFixRun = aiFixRun; window.aiFixUndo = aiFixUndo;
 
 // ── POPUP-STABEL: bare den ØVERSTE popupen vises (bruker 26-11-2026) ──
+// Sider som dekker hele skjermen (materialvelgeren) skjules ALDRI — bare popuper MELLOM siden og
+// den øverste popupen (se isPage under).
 // «popup på popup ser veldig forvirrende ut, og dette gjelder vell egentlig generelt i appen».
 // Åpnes en popup over en annen, får den bak klassen .popup-under (innholdet usynlig, ingen
 // dobbel mørk bakgrunn); lukkes den øverste, kommer den bak tilbake uendret. Gjelder ALLE
@@ -6292,7 +6299,17 @@ function _popupStackSync() {
     var above = function (a, b) { return a.z !== b.z ? a.z > b.z : a.dom > b.dom; };
     var top = null;
     open.forEach(function (o) { if (!_POPUP_STACK_KEEP_BEHIND[o.el.id] && (!top || above(o, top))) top = o; });
-    open.forEach(function (o) { _popupUnder(o.el, !!top && o !== top && above(top, o)); });
+    // En «popup» som dekker hele skjermen (materialvelgeren o.l.) er en SIDE, ikke en popup — den
+    // skjules aldri (bruker 27-11-2026: «side med fullscreen, popup og enda en popup» → vis siden +
+    // bare den øverste popupen; å skjule helskjerms-siden ga grå, tom bakgrunn).
+    var vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+    var isPage = function (el) {
+        var c = el.firstElementChild;
+        if (!c) return false;
+        var r = c.getBoundingClientRect();
+        return r.width >= vw * 0.95 && r.height >= vh * 0.85;
+    };
+    open.forEach(function (o) { _popupUnder(o.el, !!top && o !== top && above(top, o) && !isPage(o.el)); });
 }
 (function () {
     var raf = 0;
@@ -14862,6 +14879,13 @@ function openTimeRange(opts) {
     _tbClock = { btn: null, h: st.h, m: st.m, mode: 'h', drag: false,
         range: { which: null, start: st, end: en, had: had, touched: false, onDone: opts.onDone, onClear: opts.onClear } };
     document.getElementById('tb-clock-title').textContent = opts.title || '';
+    // Valgfrie type-faner (opts.tabs = [{ label, active }], opts.onTab(i)) — se _tbClockTab.
+    _tbClock.range.onTab = opts.onTab || null;
+    var tabsEl = document.getElementById('tb-clock-tabs');
+    tabsEl.hidden = !(opts.tabs && opts.tabs.length);
+    tabsEl.innerHTML = (opts.tabs || []).map(function (tb, i) {
+        return '<button type="button" class="tb-seg-btn' + (tb.active ? ' active' : '') + '" onclick="_tbClockTab(' + i + ')">' + escapeHtml(tb.label) + '</button>';
+    }).join('');
     document.querySelector('#timebok-clock-popup .tb-clock-sheet').classList.add('tb-clock-rangemode');
     document.getElementById('tb-clock-range').hidden = true;
     document.getElementById('tb-clock-face').hidden = true;
@@ -15037,20 +15061,35 @@ function closeTimebokClock() {
     document.getElementById('tb-clock-range').hidden = true;
     document.getElementById('tb-clock-total').hidden = true;
     document.getElementById('tb-clock-clear').hidden = true;
+    var tabsEl = document.getElementById('tb-clock-tabs');
+    tabsEl.hidden = true; tabsEl.innerHTML = '';
+}
+// Verdiene i popupen akkurat nå (det OK ville lagret).
+function _tbClockResult() {
+    var r = _tbClock.range;
+    if (r.which) r[r.which] = { h: _tbClock.h, m: _tbClock.m };
+    var fmt = function (x) { return _timebokPad2(x.h) + ':' + _timebokPad2(x.m); };
+    return [fmt(r.start), fmt(r.end), _timerNum(document.getElementById('tb-clock-lunch').value),
+        String(document.getElementById('tb-clock-hours').value || '').trim(), r.had || r.touched];
 }
 function confirmTimebokClock() {
     var r = _tbClock.range;
     if (r) {
-        if (r.which) r[r.which] = { h: _tbClock.h, m: _tbClock.m };
-        var fmt = function (x) { return _timebokPad2(x.h) + ':' + _timebokPad2(x.m); };
-        var lunch = _timerNum(document.getElementById('tb-clock-lunch').value);
-        var hours = String(document.getElementById('tb-clock-hours').value || '').trim();
-        var done = r.onDone, timeSet = r.had || r.touched;
+        var res = _tbClockResult(), done = r.onDone;
         closeTimebokClock();
-        if (done) done(fmt(r.start), fmt(r.end), lunch, hours, timeSet);
+        if (done) done.apply(null, res);
         return;
     }
     closeTimebokClock();
+}
+// Bytte type-fane (Ord. · 50% · 100%): lagre det som er ført (som OK), og la eieren åpne
+// popupen på nytt for samme dag i den andre typen — popupen blir stående, ingen vei tilbake.
+function _tbClockTab(i) {
+    var r = _tbClock.range;
+    if (!r || !r.onTab) return;
+    var res = _tbClockResult();
+    if (r.onDone) r.onDone.apply(null, res);
+    r.onTab(i);
 }
 function _tbClockMode(mode) { _tbClock.mode = mode; _tbClockRender(); }
 // Posisjon på urskiva i % av skiva: vinkel (grader fra kl. 12, med klokka) + radius.
@@ -31007,7 +31046,7 @@ function _sjRenderForm() {
         _sjRow('sj_grp_products',
             '<div class="material-picker-host sj-mat-host">' +
                 '<div class="mobile-order-materials sj-mat-list" id="sj-materials" onclick="sjPickMaterials(this)"></div>' +
-                '<button type="button" class="sj-soft-btn" id="sj-mat-btn" onclick="sjPickMaterials(this)">' + _sjMatBtnHtml(d.produkter.length) + '</button>' +
+                '<button type="button" class="sj-soft-btn' + (d.produkter.length ? ' has-materials' : '') + '" id="sj-mat-btn" onclick="sjPickMaterials(this)">' + _sjMatBtnHtml(0) + '</button>' +
             '</div>', 'produkter'));
 
     html += _sjSection('sj_sec_docs',
@@ -31049,7 +31088,10 @@ function _sjRenderMaterials() {
     var el = document.getElementById('sj-materials'), btn = document.getElementById('sj-mat-btn');
     if (!el || !_sjForm) return;
     renderMaterialSummary(el, _sjForm.data.produkter || []);
-    if (btn) btn.innerHTML = _sjMatBtnHtml(_sjForm.data.produkter.length);
+    if (btn) {
+        btn.innerHTML = _sjMatBtnHtml(0);   // alltid «+ Velg materialer» — utfylt: trykk på boksen (›)
+        btn.classList.toggle('has-materials', _sjForm.data.produkter.length > 0);
+    }
 }
 // Hjelpeknappene har nøytral ramme + mørk tekst; bare ikonet er oransje (så «Lagre» og
 // valgte knapper er det eneste som er helt oransje).
@@ -31781,7 +31823,10 @@ function _sjRefreshActive() {
 // Felles prosjektfelt: oppdater teksten etter alt som fyller skjemaene på nytt (åpne lagret,
 // nytt/tømt skjema, prosjektrettelse, visningsbytte). Pakkes inn her (lastes sist) i stedet for
 // én linje i hver funksjon — de ligger spredt i script.js/script-ui.js.
-['setFormData', 'setKappeFormData', 'setKvitteringFormData', 'setServiceFormData', 'clearForm', '_correctProjectInOpenForms', 'showView'].forEach(function (name) {
+// applyTranslations: feltets navn har data-i18n="template_pick" (riktig tekst før JS er klar),
+// så hver språk-oversetting satte «Velg prosjekt» tilbake over valgt prosjekt — ved oppdatering
+// sto det «Velg prosjekt» med prosjektnr under (bruker 26-11-2026). Synk etter oversetting.
+['setFormData', 'setKappeFormData', 'setKvitteringFormData', 'setServiceFormData', 'clearForm', '_correctProjectInOpenForms', 'showView', 'applyTranslations'].forEach(function (name) {
     var orig = window[name];
     if (typeof orig !== 'function') return;
     window[name] = function () {

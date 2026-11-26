@@ -3256,7 +3256,7 @@ function createOrderCard(orderData, expanded) {
             </div>
             <div class="mobile-order-materials-section${cachedRequiredSettings && cachedRequiredSettings.save && cachedRequiredSettings.save.materialer ? ' field-required' : ''}">
                 <label class="mobile-order-sublabel" data-i18n="order_materials_label">${t('order_materials_label')}</label>
-                <div class="mobile-order-materials"></div>
+                <div class="mobile-order-materials" onclick="openMaterialPicker(this)"></div>
                 <button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ${t('order_add_material')}</button>
                 <button type="button" class="section-skip-link" onclick="toggleOrderSkip(this, 'materier')" data-i18n="order_skip_materialer">${t('order_skip_materialer')}</button>
                 <div class="section-skip-status" hidden>
@@ -3788,8 +3788,9 @@ function renderMaterialSummary(matContainer, materials) {
     _updateAddMatBtnState(matContainer);
 }
 
-// Når materialer er lagt til skal "+ Materialer"-knappen vise det tydelig
-// (egen stil + endret tekst), så den ikke ser identisk ut tom vs. utfylt.
+// Tomt: «+ Materialer»-knappen. Utfylt: knappen skjules (CSS .has-materials) og selve
+// materialboksen er trykkbar med › — samme mønster som Arbeidstid og etasje (bruker
+// 26-11-2026: «Endre materialer»-knappen var ikke konsistent med resten).
 function _updateAddMatBtnState(matContainer) {
     if (!matContainer) return;
     var section = matContainer.closest('.mobile-order-materials-section');
@@ -3797,9 +3798,7 @@ function _updateAddMatBtnState(matContainer) {
     if (!btn) return;
     var hasMat = !!matContainer.querySelector('.mobile-material-row');
     btn.classList.toggle('has-materials', hasMat);
-    btn.textContent = hasMat
-        ? t('order_edit_material')
-        : '+ ' + t('order_add_material');
+    btn.textContent = '+ ' + t('order_add_material');
 }
 
 function getMaterialsFromContainer(matContainer) {
@@ -7545,8 +7544,16 @@ function openDtClock(inp) {
         }
         _updateDagTimerTotal();
     };
+    // Fanene Ord. · 50% · 100% øverst: bytt type for SAMME dag uten å gå tilbake til
+    // tabellen (bruker 26-11-2026). Bytte lagrer det som er ført (_tbClockTab i script-ui).
+    var rowEl = inp.closest('.dag-timer-modal-row-top');
     openTimeRange({
-        title: dayName + ' · ' + (ot ? 'Overtid ' + ot + '%' : t('dt_clock_ord')),
+        title: dayName,
+        tabs: _DAG_TIMER_COLS.map(function (c) { return { label: c.label, active: c.ot === ot }; }),
+        onTab: function (i) {
+            var next = rowEl && rowEl.querySelector('.dag-timer-modal-input[data-dag="' + timerKey(day, _DAG_TIMER_COLS[i].ot) + '"]');
+            if (next) openDtClock(next); else closeTimebokClock();
+        },
         start: clk ? clk.start : '', end: clk ? clk.end : '',
         // Lunsj: lagret verdi, ellers tom (bruker 26-11-2026: «0.5 timer lunch default må fjernes»).
         lunch: clk ? clk.lunch : '',
@@ -7812,7 +7819,7 @@ function createServiceEntryCard(entryData, expanded) {
                 '<input type="text" class="service-entry-prosjektnavn" autocapitalize="sentences" value="' + escapeHtml(data.prosjektnavn || '') + '"></div>' +
             '<div class="mobile-order-materials-section' + matReq + '">' +
                 '<label class="mobile-order-sublabel" data-i18n="order_materials_label">' + t('order_materials_label') + '</label>' +
-                '<div class="mobile-order-materials"></div>' +
+                '<div class="mobile-order-materials" onclick="openMaterialPicker(this)"></div>' +
                 '<button type="button" class="mobile-add-mat-btn" onclick="openMaterialPicker(this)">+ ' + t('order_add_material') + '</button>' +
                 '<button type="button" class="section-skip-link" onclick="toggleOrderSkip(this, \'materier\')" data-i18n="order_skip_materialer">' + t('order_skip_materialer') + '</button>' +
                 '<div class="section-skip-status" hidden>' +
