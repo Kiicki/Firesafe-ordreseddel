@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1290">
+    <link rel="stylesheet" href="styles.css?v=1293">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -153,12 +153,14 @@
             </div>
 
             <div class="mobile-section">
-                <div class="mobile-section-title" data-i18n="section_work">Utførte arbeider</div>
+                <!-- «Ført uke N»: timer pr. person i ukas ordresedler (bare info, ingen fasit) — updateTimerChip.
+                     «Utførte arbeider»-overskriften er fjernet (26-11-2026); «Bestillinger» står rett over kortene. -->
                 <button type="button" class="timer-overview-chip" id="timer-overview-chip" onclick="openWeekTimerOverview()">
                     <span class="timer-chip-label" data-i18n="timer_chip_label">Timer ført</span>
-                    <span class="timer-chip-value">0 t</span>
+                    <span class="timer-chip-value"><span class="ph-part"><b>0 t</b></span></span>
                     <span class="fakturaadresse-chevron">›</span>
                 </button>
+                <div class="mobile-section-title" data-i18n="orders_list_title">Bestillinger</div>
                 <div id="mobile-orders"></div>
                 <button type="button" class="mobile-add-line-btn" onclick="addOrder()" data-i18n="order_add">+ Legg til bestilling</button>
             </div>
@@ -390,7 +392,6 @@
     <div class="confirm-modal" id="timer-overview-modal" onclick="closeTimerOverview()">
         <div class="confirm-modal-content timer-overview-content" onclick="event.stopPropagation()">
             <div class="timer-overview-head">
-                <button type="button" class="timer-overview-back" id="timer-overview-back" onclick="openWeekTimerOverview()" style="display:none" aria-label="Tilbake">‹</button>
                 <div class="dag-timer-modal-title" id="timer-overview-title">Timer i denne ordreseddelen</div>
             </div>
             <div class="timer-overview-list" id="timer-overview-list"></div>
@@ -399,7 +400,7 @@
                 <span id="timer-overview-total-value">0 t</span>
             </div>
             <div class="confirm-modal-buttons">
-                <button class="confirm-btn-ok" style="background:#E8501A" onclick="closeTimerOverview()" data-i18n="btn_close">Lukk</button>
+                <button class="confirm-btn-cancel" onclick="closeTimerOverview()" data-i18n="btn_close">Lukk</button>
             </div>
         </div>
     </div>
@@ -2846,9 +2847,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=544"></script>
-    <script src="script.js?v=641"></script>
-    <script src="script-ui.js?v=1545"></script>
+    <script src="lang.js?v=545"></script>
+    <script src="script.js?v=642"></script>
+    <script src="script-ui.js?v=1549"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

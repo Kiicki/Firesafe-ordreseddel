@@ -6046,8 +6046,7 @@ var dagTimerActiveCard = null;
 var _dagTimerSession = null;
 
 // DOM-kort-session: leser/skriver kortets data-attributter (uendret oppførsel).
-// afterClose kan overstyres (f.eks. dag-visningen returnerer dit i stedet for
-// bestilling-oversikten); default = _maybeReturnToTimerOverview.
+// afterClose kan overstyres (kalleren bestemmer hva som skjer etter lukking).
 // ── Uker og timer ────────────────────────────────────────────────────────────
 // Uke-feltet er fritekst og skrives ut verbatim på ordreseddelen. Men det brukes
 // OGSÅ som nøkkel: hvilke uker gjelder timene? De to rollene skilles her — teksten
@@ -6834,7 +6833,7 @@ function _dagTimerCardSession(card, afterClose) {
             updateDagTimerSummary(card);
             if (typeof updateTimerChip === 'function') updateTimerChip();
         },
-        afterClose: afterClose || function() { _maybeReturnToTimerOverview(); }
+        afterClose: afterClose || null
     };
 }
 
@@ -7676,13 +7675,6 @@ function closeDagTimerModal(confirmed) {
     if (s.afterClose) s.afterClose();
 }
 
-// Åpnet Dager & tid fra Timer-oversikten? Gå tilbake dit (oppdatert) ved
-// både OK og Avbryt, så brukeren blir værende i oversikts-flyten.
-function _maybeReturnToTimerOverview() {
-    if (!window._timerOverviewReturn) return;
-    window._timerOverviewReturn = false;
-    if (typeof openTimerOverview === 'function') openTimerOverview();
-}
 
 function scrollCardToTop(card, smooth) {
     if (!card) return;

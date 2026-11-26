@@ -1771,23 +1771,55 @@ function _navCaptureForm(base) {
             sent: sessionStorage.getItem('firesafe_kappe_sent') === '1' };
     }
     if (base === 'kvittering' && _kvCurrentId) return { entry: 'kvittering:' + _kvCurrentId };
+    // Ordreseddel: lagres på nr. Bare et skjema som FINNES lagret (utkast eller sendt) huskes
+    // med nr; et nytt, ulagret skjema står som 'skjema' (= økt-utkastet, som før).
+    if (base === 'skjema' && typeof lastSavedData === 'string' && lastSavedData) {
+        var nr = '';
+        try { nr = String(JSON.parse(lastSavedData).ordreseddelNr || '').trim(); } catch (e) {}
+        if (nr && _navFindOwnForm(nr)) return { entry: 'skjema:' + nr, data: lastSavedData,
+            sent: sessionStorage.getItem('firesafe_current_sent') === '1' };
+    }
     return null;
+}
+// Lagret ordreseddel med nr (nyeste av utkast/sendt), merket _isSent for loadFormDirect.
+function _navFindOwnForm(nr) {
+    var best = null;
+    [[STORAGE_KEY, false], [ARCHIVE_KEY, true]].forEach(function (src) {
+        safeParseJSON(src[0], []).forEach(function (f) {
+            if (!f || String(f.ordreseddelNr || '').trim() !== nr) return;
+            if (!best || (f.savedAt || '') > (best.savedAt || '')) best = Object.assign({}, f, { _isSent: src[1] });
+        });
+    });
+    return best;
 }
 // Kalles først i closeServiceView/closeKappeView/closeKvitteringView (før id-en nulles).
 function _navStashForm(base) { _navFormStash = _navCaptureForm(base) ? Object.assign({ base: base }, _navCaptureForm(base)) : null; }
 function _navFormsMap() { try { return JSON.parse(sessionStorage.getItem(_NAV_FORMS_KEY) || '{}') || {}; } catch (e) { return {}; } }
 // Stedet vi forlater → stabel-oppføring (skjema med id hvis det kan gjenopprettes).
 function _navEntryFor(loc) {
-    if (!_NAV_NOT_RESTORABLE[loc]) return loc;
+    if (!_NAV_NOT_RESTORABLE[loc] && loc !== 'skjema') return loc;
     var f = (_navFormStash && _navFormStash.base === loc) ? _navFormStash : _navCaptureForm(loc);
     if (!f) return loc;
     var m = _navFormsMap();
-    m[f.entry] = { data: f.data || null, sent: !!f.sent, mode: f.mode || '' };
+    m[f.entry] = { data: f.data || null, sent: !!f.sent, mode: f.mode || '', reopen: f.reopen || '' };
     try { sessionStorage.setItem(_NAV_FORMS_KEY, JSON.stringify(m)); } catch (e) {}
     return f.entry;
 }
 // Åpne et lagret skjema igjen fra stabel-oppføringen '<type>:<id>'.
 function _navRestoreForm(entry) {
+    var ok = _navRestoreFormOnly(entry);
+    // Åpnet du noe FRA ET VINDU (f.eks. en ordreseddel fra «Ført uke»), var det vinduet stedet
+    // du var — åpne det igjen oppå skjemaet (bruker 26-11-2026).
+    var re = ok && (_navFormsMap()[entry] || {}).reopen;
+    if (re && _NAV_REOPEN[re]) setTimeout(_NAV_REOPEN[re], 0);
+    return ok;
+}
+// Vinduer som kan være «stedet du var» (nøkkel → åpne-funksjon). Se _navOpenedFromPopup.
+var _NAV_REOPEN = { 'timer-week': function () { if (typeof openWeekTimerOverview === 'function') openWeekTimerOverview(); } };
+var _navReopenNext = '';
+// Kalles rett før et skjema åpnes fra et vindu: tilbake skal åpne vinduet igjen.
+function _navOpenedFromPopup(key) { _navReopenNext = key; }
+function _navRestoreFormOnly(entry) {
     var base = _navBase(entry), id = entry.slice(base.length + 1);
     var p = _navFormsMap()[entry];
     if (base === 'kvittering') {
@@ -1796,6 +1828,20 @@ function _navRestoreForm(entry) {
         if (!kv) return false;
         closeAllModals();
         loadKvitteringFormDirect(Object.assign({}, kv, arch.some(function (f) { return f.id === id; }) ? { _isSent: true } : {}));
+        return true;
+    }
+    if (base === 'skjema') {
+        // Står samme ordreseddel fortsatt åpen (f.eks. tilbake fra Lagret)? Vis den som den er
+        // (beholder rulleposisjonen) — samme som før for 'skjema'.
+        var curNr = '';
+        try { curNr = String(JSON.parse(lastSavedData || '{}').ordreseddelNr || '').trim(); } catch (e) {}
+        if (curNr === id && !hasUnsavedChanges()) { _applyHashNavigation('skjema'); window.location.hash = 'skjema'; return true; }
+        // Ellers: nyeste lagrede versjon (status/sendt kan ha endret seg), eller versjonen fra stabelen.
+        var own = _navFindOwnForm(id);
+        if (!own && p && p.data) { try { own = Object.assign(JSON.parse(p.data), p.sent ? { _isSent: true } : {}); } catch (e) {} }
+        if (!own) return false;
+        closeAllModals();
+        loadFormDirect(own);
         return true;
     }
     if (!p || !p.data) return false;
@@ -1831,7 +1877,22 @@ function _navCommit() {
     _navDir = 'fwd';
     var stash = _navFormStash;
     _navFormStash = null;
-    if (k === _navLoc) return;
+    var force = _navForceStep;
+    _navForceStep = false;
+    if (k === _navLoc) {
+        // Samme adresse, men et ANNET skjema (se _navSameView): tilbake fjerner skjemaet vi
+        // gikk tilbake til fra stabelen; fremover legges skjemaet vi forlot på stabelen.
+        var top = _navStack[_navStack.length - 1];
+        if (back && top && top !== k && _navBase(top) === k) _navStack.pop();
+        else if (!back && force && stash) {
+            _navFormStash = stash;
+            _navStack.push(_navEntryFor(_navLoc));
+            _navFormStash = null;
+            if (_navStack.length > 30) _navStack.shift();
+        } else return;
+        try { sessionStorage.setItem(_NAV_KEY, JSON.stringify(_navStack)); } catch (e) {}
+        return;
+    }
     if (back) {
         // Tilbake: fjern målet og alt over det (nettleser-tilbake kan hoppe over steg).
         // Skjema-oppføringer ('service:<id>') matches på typen.
@@ -1850,6 +1911,44 @@ function _navCommit() {
     Object.keys(fm).forEach(function (e) { if (_navStack.indexOf(e) === -1) { delete fm[e]; changed = true; } });
     if (changed) try { sessionStorage.setItem(_NAV_FORMS_KEY, JSON.stringify(fm)); } catch (e) {}
 }
+// ── Annet skjema i SAMME visning ──
+// Skjemaene har én adresse pr. type (#skjema, #service …). Åpnes et annet skjema mens et av
+// samme type er åpent (f.eks. en ordreseddel fra «Ført uke»), endres ikke adressen — så byttet
+// ble ikke et steg, og tilbake hoppet over skjemaet man var på (bruker 26-11-2026). Derfor:
+// skjemaet vi forlater legges på stabelen (med nr/id), og det legges et steg i nettleser-
+// historikken, så både tilbakeknappen og telefonens tilbake går til det. Gjelder alle
+// load*FormDirect (pakket inn under), uansett hvor de kalles fra.
+var _navForceStep = false;
+var _NAV_FORM_VIEW = { skjema: 'view-form', service: 'service-view', kappe: 'kappe-view', kvittering: 'kvittering-view' };
+[['loadFormDirect', 'skjema'], ['loadServiceFormDirect', 'service'], ['loadKappeFormDirect', 'kappe'], ['loadKvitteringFormDirect', 'kvittering']].forEach(function (pair) {
+    var orig = window[pair[0]], base = pair[1];
+    if (typeof orig !== 'function') return;
+    window[pair[0]] = function () {
+        var v = document.getElementById(_NAV_FORM_VIEW[base]);
+        var same = _navDir !== 'back' && !!(v && v.classList.contains('active')) && window.location.hash.slice(1) === base;
+        if (same) _navStashForm(base);   // før skjemaet byttes ut
+        if (same && _navFormStash) _navFormStash.reopen = _navReopenNext || '';
+        _navReopenNext = '';
+        var r = orig.apply(this, arguments);
+        if (same && _navFormStash) {
+            _navForceStep = true;
+            _navNote();
+            history.pushState(history.state, '', '#' + base);   // telefon-/nettleser-tilbake
+        } else if (same) _navFormStash = null;
+        return r;
+    };
+});
+// Telefon-/nettleser-tilbake etter et slikt bytte: adressen er den samme, så hashchange kommer
+// ikke — åpne skjemaet fra stabelen her. (Lytteren øverst har allerede satt _navDir = 'back'.)
+window.addEventListener('popstate', function () {
+    if (_navDir !== 'back') return;
+    var k = window.location.hash.slice(1), top = _navStack[_navStack.length - 1];
+    if (k !== _navLoc || !top || top === k || _navBase(top) !== k) return;
+    var go = _navOpenFn(top);
+    if (!go) return;
+    var run = function () { _navDir = 'back'; go(); _navNote(); setTimeout(function () { _navDir = 'fwd'; }, 0); };
+    if (isOnFormPage() && hasUnsavedChanges()) { _navDir = 'fwd'; _showUnsavedGuard(run); } else run();
+});
 // Funksjon som åpner et sted direkte (uten ulagret-vakt — den tas i _navBack).
 function _navOpenFn(k) {
     if (k === '') return _accAllowed('hjem') ? showTemplateModal : null;
@@ -1857,7 +1956,7 @@ function _navOpenFn(k) {
     if (k.indexOf(':') !== -1) {
         var fb = _navBase(k), fm = _ACC_HASH_MODULE[fb];
         if (fm && !_accAllowed(fm)) return null;
-        if (fb !== 'kvittering' && !(_navFormsMap()[k] || {}).data) return null;
+        if (fb !== 'kvittering' && fb !== 'skjema' && !(_navFormsMap()[k] || {}).data) return null;
         return function () { if (!_navRestoreForm(k)) showTemplateModal(); };
     }
     // Innstillinger allerede åpen (underside → menyen/annen side): bare bytt side.
@@ -23019,13 +23118,14 @@ function _showFastenerPopupAfterPicker() {
 }
 window._showFastenerPopupAfterPicker = _showFastenerPopupAfterPicker;
 
-// ─── Timer-oversikt ─────────────────────────────────────────────────────────
-// Lesbar oversikt over timer PER BESTILLING innenfor DENNE ordreseddelen.
-// Hver bestilling kan ha timer på flere dager — derfor lister vi bestillinger
-// (ikke dager: én dag kan ha mange bestillinger), viser dag-fordelingen
-// kompakt + sum, og lar deg åpne bestillingens egen Arbeidstid-popup for å
-// redigere (den håndterer fler-dagers korrekt). Ingen dato-/uke-logikk,
-// ingenting på tvers av ordresedler.
+// ─── «Ført uke N» (ordreseddel) ─────────────────────────────────────────────
+// Forenklet 26-11-2026 (bruker: «den er komplisert å forstå og bruke så den brukes ikke»).
+// Formål: vite CA. hvor mange timer som ALLEREDE er ført i uka, så man ikke fører for lite
+// eller for mye. INGEN fasit/mål — timene varierer fra uke til uke og person til person, og
+// ordresedler føres ofte for kolleger (Arbeidstid › personer). Derfor: sum PER PERSON for alle
+// ordresedlene i uka (den åpne telles live), ingenting annet. Trykk → ukas ordresedler med
+// timer pr. person; trykk en → den åpnes (vanlig ulagret-varsel). Ingen dagsoppdeling, ingen
+// redigering av andre ordresedler inne i oversikten (det var det som gjorde den komplisert).
 var TIMER_DAY_KEYS = ['ma', 'ti', 'on', 'to', 'fr', 'lo', 'so'];
 
 function _orderTimerObj(card) {
@@ -23036,46 +23136,14 @@ function _fmtHours(n) {
     if (!n) return '0';
     return (Math.round(n * 100) / 100).toString().replace('.', ',');
 }
-// Summer timer per ukedag (+ Annet) på tvers av alle bestillinger i
-// ordreseddelen. _generelt har forrang over legacy _total.
-function _weekTimerTotals() {
-    var tot = { _generelt: 0, total: 0 };
-    TIMER_DAY_KEYS.forEach(function(k) { tot[k] = 0; });
-    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
-        var tm = _orderTimerObj(card);
-        // Ordinære + overtid (timerDayHours) — timeoversikten teller alle timer.
-        TIMER_DAY_KEYS.forEach(function(k) { tot[k] += timerDayHours(tm, k); });
-        tot._generelt += timerDayHours(tm, '_generelt');
-    });
-    tot.total = TIMER_DAY_KEYS.reduce(function(a, k) { return a + tot[k]; }, 0) + tot._generelt;
-    return tot;
-}
-
-// ── Uke-total på tvers av ordresedler ───────────────────────────────────────
-// Chipen viser nå totale timer for UKEN (alle ordresedler med samme uke), ikke
-// bare den åpne. Summen = lagrede ordresedler i uken (localStorage-cache) + de
-// LIVE timene i den åpne (så den oppdateres mens du skriver). Den åpnes lagrede
-// kopi ekskluderes (matches på ordreseddelNr) for å unngå dobbelttelling.
 function _normUke(v) {
     return v == null ? '' : String(v).trim().replace(/^uke\s*/i, '').trim();
 }
 function _currentFormUke() {
     return _normUke((document.getElementById('mobile-dato') || {}).value || '');
 }
-function _savedFormHoursSum(form, onlyMine) {
-    if (!form || !Array.isArray(form.orders)) return 0;
-    var me = onlyMine ? _myNameForHours() : '';
-    var s = 0;
-    form.orders.forEach(function(o) {
-        if (!o || !o.timer || typeof o.timer !== 'object') return;
-        s += onlyMine ? orderTimerSumMine(o.timer, me) : _orderHoursSum(o.timer);
-    });
-    return s;
-}
-
-// Hvem er «meg» i time-summeringen? Montør-feltet i det åpne skjemaet, med Min
-// info som reserve. Samme kilde som Arbeidstid-popupen bruker når den avgjør om
-// timene skal lagres uten personfordeling, så de to kan ikke bli uenige.
+// Hvem er «meg»? Montør-feltet i det åpne skjemaet, med Min info som reserve. Samme kilde som
+// Arbeidstid-popupen bruker når den avgjør om timene lagres uten personfordeling.
 function _myNameForHours() {
     if (typeof currentFormMontorName === 'function') {
         var n = currentFormMontorName();
@@ -23084,561 +23152,128 @@ function _myNameForHours() {
     var info = (typeof getMinInfo === 'function') ? getMinInfo() : {};
     return (typeof stripEtternavn === 'function') ? stripEtternavn(info.montor) : (info.montor || '');
 }
-// { uke, currentRow:{nr,navn,hours}, savedRows:[{nr,navn,hours}], total }
-// Timer i EN lagret ordreseddel som tilhører et gitt sett med uker.
-// Tre tilfeller, i rekkefølge:
-//   1. timer.uker finnes  → eksakt: summer bare bøttene for de aktuelle ukene.
-//   2. flate timer + ÉN uke på skjemaet → entydig, alt tilhører den uken.
-//   3. flate timer + FLERE uker → fordelingen finnes ikke. Alt legges på første
-//      uke, samme regel som migreringen i timerWeekBuckets, så tallet stemmer med
-//      det popupen viser. Kan rettes ved å åpne Arbeidstid og fordele.
-function _formHoursForWeeks(form, weeks, onlyMine) {
-    if (!form || !Array.isArray(form.orders)) return 0;
-    var want = {};
-    (weeks || []).forEach(function(w) { want[String(w)] = true; });
-    var fWeeks = parseUkeNumbers(form.dato);
-    var me = onlyMine ? _myNameForHours() : '';
-    var sum = 0;
-    form.orders.forEach(function(o) {
-        var tm = (o && o.timer && typeof o.timer === 'object') ? o.timer : null;
-        if (!tm) return;
-        if (tm.uker && typeof tm.uker === 'object') {
-            Object.keys(tm.uker).forEach(function(w) {
-                if (!want[w]) return;
-                sum += onlyMine ? orderHoursForWeekMine(tm, w, me) : orderHoursForWeek(tm, w);
-            });
-            return;
-        }
-        var attributTil = fWeeks.length ? String(fWeeks[0]) : null;
-        if (attributTil && want[attributTil]) sum += onlyMine ? orderTimerSumMine(tm, me) : _orderHoursSum(tm);
+
+// acc = { nøkkel: { navn, hours, order } } — navn uten skille på store/små bokstaver.
+function _phAdd(acc, name, h) {
+    if (!(h > 0)) return;
+    name = String(name || '').trim() || '?';
+    var k = name.toLowerCase();
+    if (!acc[k]) acc[k] = { navn: name, hours: 0, order: Object.keys(acc).length };
+    acc[k].hours += h;
+}
+function _phBucketSum(b) {
+    var s = 0;
+    TIMER_BUCKET_KEYS.forEach(function (d) { s += timerDayHours(b || {}, d); });   // ordinær + overtid
+    return s;
+}
+// Timer pr. person i ÉN bestilling for ukene i `want` (null = alle uker — Uke-feltet har ingen
+// ukenumre). Flate timer uten uke-bøtter hører til første uke på skjemaet (attrib), samme
+// regel som migreringen i timerWeekBuckets. Uten personfordeling er timene montørens (owner).
+function _orderPersonHours(acc, tm, want, attrib, owner) {
+    if (!tm || typeof tm !== 'object') return;
+    if (timerHasPersons(tm)) {
+        tm.personer.forEach(function (p) {
+            var uk = (p && p.uker) || {};
+            Object.keys(uk).forEach(function (w) { if (!want || want[w]) _phAdd(acc, p.navn, _phBucketSum(uk[w])); });
+        });
+        return;
+    }
+    var h = 0;
+    if (!want) h = orderTimerSum(tm);
+    else if (tm.uker && typeof tm.uker === 'object') Object.keys(tm.uker).forEach(function (w) { if (want[w]) h += _phBucketSum(tm.uker[w]); });
+    else if (attrib && want[attrib]) h = orderTimerSum(tm);
+    _phAdd(acc, owner, h);
+}
+function _phMerge(into, from) {
+    Object.keys(from).forEach(function (k) { _phAdd(into, from[k].navn, from[k].hours); });
+}
+// Sortert liste: meg først, ellers i den rekkefølgen personene dukket opp.
+function _phList(acc, me) {
+    var mk = String(me || '').trim().toLowerCase();
+    return Object.keys(acc).map(function (k) { return acc[k]; }).sort(function (a, b) {
+        var am = a.navn.toLowerCase() === mk, bm = b.navn.toLowerCase() === mk;
+        if (am !== bm) return am ? -1 : 1;
+        return a.order - b.order;
     });
-    return sum;
+}
+// «asd 19 t · Kari 6 t» som HTML (navn dempet, timer tydelig).
+function _phHtml(list) {
+    if (!list.length) return '<span class="ph-part"><b>0 t</b></span>';
+    return list.map(function (p) {
+        return '<span class="ph-part"><span class="ph-name">' + escapeHtml(p.navn) + '</span> <b>' + escapeHtml(_fmtHours(p.hours)) + ' t</b></span>';
+    }).join('<span class="ph-sep">·</span>');
 }
 
-// Timer i det ÅPNE skjemaets bestillinger som tilhører et gitt sett med uker.
-// Samme tre-trinns regel som _formHoursForWeeks for lagrede skjemaer.
-function _liveHoursForWeeks(weeks, onlyMine) {
-    var want = {};
-    (weeks || []).forEach(function(w) { want[String(w)] = true; });
-    var mine = currentFormUkeNumbers();
-    var attributTil = mine.length ? String(mine[0]) : null;
-    var me = onlyMine ? _myNameForHours() : '';
-    var sum = 0;
-    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
-        var tm = _orderTimerObj(card);
-        if (tm && tm.uker && typeof tm.uker === 'object') {
-            Object.keys(tm.uker).forEach(function(w) {
-                if (!want[w]) return;
-                sum += onlyMine ? orderHoursForWeekMine(tm, w, me) : orderHoursForWeek(tm, w);
-            });
-            return;
-        }
-        if (attributTil && want[attributTil]) sum += onlyMine ? orderTimerSumMine(tm || {}, me) : _orderHoursSum(tm || {});
-    });
-    return sum;
-}
-
-// Alle bestillingenes timer i det åpne skjemaet, kun MINE. Fallback når Uke-feltet
-// ikke lar seg tolke — da finnes ingen uke-fordeling å filtrere på.
-function _liveHoursMineFlat() {
-    var me = _myNameForHours();
-    var sum = 0;
-    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card) {
-        sum += orderTimerSumMine(_orderTimerObj(card) || {}, me);
-    });
-    return sum;
-}
-
-function _weekTimerData() {
+// { uke, rows:[{ current, nr, navn, persons:[…], form }], total:[…] }
+function _weekPersonData() {
     var uke = _currentFormUke();
-    var mineUker = currentFormUkeNumbers();
+    var weeks = currentFormUkeNumbers();
+    var toSet = function (arr) { var o = {}; arr.forEach(function (w) { o[String(w)] = true; }); return o; };
+    var want = weeks.length ? toSet(weeks) : null;
+    var me = _myNameForHours();
     var currentNr = String(((document.getElementById('mobile-ordreseddel-nr') || {}).value) || '').trim();
-    // Den ÅPNE ordreseddelens egne timer må filtreres på uke akkurat som de
-    // lagrede. _weekTimerTotals() summerer de FLATE ukedags-feltene, altså alle
-    // uker under ett — med «30 & 31» ført på skjemaet ga den samme tall enten
-    // chipen sa uke 30 eller uke 31. Den brukes bare som fallback når Uke-feltet
-    // ikke lar seg tolke, der det ikke finnes noen fordeling å ta hensyn til.
-    var liveTotal = mineUker.length ? _liveHoursForWeeks(mineUker) : _weekTimerTotals().total;
-    // ...og det samme regnestykket for KUN mine timer. Chipen viser mine, med
-    // lagets total i parentes — uten dette ville den hoppet fra 35t til 53t bare
-    // fordi jeg førte kollegaens timer på min ordreseddel.
-    var liveMine = mineUker.length ? _liveHoursForWeeks(mineUker, true) : _liveHoursMineFlat();
-    var savedRows = [];
-    var savedSum = 0;
-    var savedMine = 0;
+    var total = {}, rows = [];
+    // Den ÅPNE ordreseddelen — live fra kortene, så tallet følger med mens du fører.
+    var cur = {};
+    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function (card) {
+        _orderPersonHours(cur, _orderTimerObj(card), want, weeks.length ? String(weeks[0]) : null, me);
+    });
+    _phMerge(total, cur);
+    rows.push({ current: true, nr: currentNr, navn: ((document.getElementById('mobile-prosjektnavn') || {}).value) || '', persons: _phList(cur, me) });
     if (uke) {
-        // Tag opphav (_isSent) så loadFormDirect setter riktig status/banner når
-        // en lagret ordreseddel åpnes herfra. Arkiverte = sendt/ferdig/avvist.
-        // Fasit-synk: leser localStorage direkte, så prosjektfeltene må synkes her
-        // også (Timer-oversikten kan åpnes uten at Hent-lista har vært innom).
-        var drafts = syncFormsWithProjects(safeParseJSON(STORAGE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: false }) : f; }), 'full');
-        var archived = syncFormsWithProjects(safeParseJSON(ARCHIVE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: true }) : f; }), 'full');
+        // Lagrede + sendte (nyeste pr. nr). _isSent så loadFormDirect setter riktig status.
+        var drafts = syncFormsWithProjects(safeParseJSON(STORAGE_KEY, []).map(function (f) { return f ? Object.assign({}, f, { _isSent: false }) : f; }), 'full');
+        var archived = syncFormsWithProjects(safeParseJSON(ARCHIVE_KEY, []).map(function (f) { return f ? Object.assign({}, f, { _isSent: true }) : f; }), 'full');
         var byNr = {};
-        drafts.concat(archived).forEach(function(f) {
+        drafts.concat(archived).forEach(function (f) {
             if (!f) return;
             var nr = String(f.ordreseddelNr || '').trim();
             if (!byNr[nr] || (f.savedAt || '') > (byNr[nr].savedAt || '')) byNr[nr] = f;
         });
-        // Ukenumre fra det ÅPNE skjemaet. Er de tolkbare, matcher vi på UKE-OVERLAPP
-        // i stedet for eksakt streng — «30 & 31» fanger da også opp ordresedler ført
-        // på bare «30», og «31 & 30» / «30-31» / «30, 31» regnes som det samme.
-        // Gir teksten ingen ukenumre («sommerferie»), faller vi tilbake til den
-        // eksakte streng-sammenligningen, altså nøyaktig oppførselen fra før.
-        Object.keys(byNr).forEach(function(nr) {
+        var saved = [];
+        Object.keys(byNr).forEach(function (nr) {
             var f = byNr[nr];
-            if (currentNr && nr === currentNr) return;   // den åpne telles live, ikke fra lagret
-            var h, hMine;
-            if (mineUker.length) {
+            if (currentNr && nr === currentNr) return;   // den åpne telles live
+            var fWant, attrib = null;
+            if (weeks.length) {
+                // Uke-OVERLAPP: «30 & 31» fanger også ordresedler ført på bare «30».
                 var fUker = parseUkeNumbers(f.dato);
-                var overlapp = fUker.filter(function(w) { return mineUker.indexOf(w) !== -1; });
-                if (!overlapp.length) return;
-                h = _formHoursForWeeks(f, overlapp);
-                if (!h) return;   // deler uke, men har ingen timer der
-                hMine = _formHoursForWeeks(f, overlapp, true);
+                var ov = fUker.filter(function (w) { return weeks.indexOf(w) !== -1; });
+                if (!ov.length) return;
+                fWant = toSet(ov);
+                attrib = String(fUker[0]);
             } else {
-                if (_normUke(f.dato) !== uke) return;
-                h = _savedFormHoursSum(f);
-                hMine = _savedFormHoursSum(f, true);
+                if (_normUke(f.dato) !== uke) return;   // ingen ukenumre: eksakt tekst
+                fWant = null;
             }
-            savedSum += h;
-            savedMine += hMine;
-            savedRows.push({ nr: nr, navn: f.prosjektnavn || '', hours: h, form: f });
+            var owner = (typeof stripEtternavn === 'function' ? stripEtternavn(f.montor) : f.montor) || me;
+            var acc = {};
+            (Array.isArray(f.orders) ? f.orders : []).forEach(function (o) {
+                _orderPersonHours(acc, o && o.timer, fWant, attrib, owner);
+            });
+            if (!Object.keys(acc).length) return;   // deler uke, men ingen timer der
+            _phMerge(total, acc);
+            saved.push({ current: false, nr: nr, navn: f.prosjektnavn || '', persons: _phList(acc, me), form: f });
         });
-        savedRows.sort(function(a, b) { return String(a.nr).localeCompare(String(b.nr)); });
+        saved.sort(function (a, b) { return String(a.nr).localeCompare(String(b.nr), undefined, { numeric: true }); });
+        rows = rows.concat(saved);
     }
-    return {
-        uke: uke,
-        currentRow: {
-            nr: currentNr,
-            navn: ((document.getElementById('mobile-prosjektnavn') || {}).value) || '',
-            hours: liveTotal
-        },
-        savedRows: savedRows,
-        total: liveTotal + savedSum,
-        mine: liveMine + savedMine
-    };
-}
-
-// «35t (av 53t)»: mine timer først, lagets total i parentes. Parentesen vises BARE
-// når noen andre har timer i uka — ellers ville hver eneste solo-uke stått som
-// «35t (av 35t)», som bare er støy. Delt av chipen og Timer-oversikten så de to
-// aldri kan vise ulike tall for samme uke.
-function _timerMineOfTotalText(data) {
-    var total = data.total || 0;
-    var mine = (data.mine != null) ? data.mine : total;
-    var txt = _fmtHours(mine) + ' t';
-    if (Math.abs(total - mine) > 0.001) txt += ' (' + t('timer_of_total') + ' ' + _fmtHours(total) + ' t)';
-    return txt;
+    return { uke: uke, rows: rows, total: _phList(total, me) };
 }
 
 function updateTimerChip() {
     var chip = document.getElementById('timer-overview-chip');
     if (!chip) return;
-    var data = _weekTimerData();
+    var data = _weekPersonData();
     var labelEl = chip.querySelector('.timer-chip-label');
     var valEl = chip.querySelector('.timer-chip-value');
     if (labelEl) {
         labelEl.removeAttribute('data-i18n');   // dynamisk (inkl. ukenr) — ikke overstyr av applyTranslations
         labelEl.textContent = data.uke ? (t('timer_week_label') + ' ' + data.uke) : t('timer_chip_label');
     }
-    // «35t (av 53t)»: mine timer først, lagets total i parentes. Parentesen vises
-    // BARE når noen andre har timer i uka — ellers ville hver eneste solo-uke stått
-    // som «35t (av 35t)», som bare er støy.
-    if (valEl) valEl.textContent = _timerMineOfTotalText(data);
+    if (valEl) valEl.innerHTML = _phHtml(data.total);
 }
 window.updateTimerChip = updateTimerChip;
-
-// Sum timer for ÉN bestilling (alle dager + Annet).
-function _orderHoursSum(tm) {
-    return orderTimerSum(tm);   // ordinære + overtid
-}
-function _orderDayPlansObj(card) {
-    // Per-dag etasje-objekt: {ma: 'U3, U2', ti: 'U1'}. data-day-plans er nå
-    // primær (per dag); faller tilbake til bestilling-nivå data-plans med
-    // replikering til dager med timer (auto-migrering for eldre data).
-    if (!card || typeof _getCardDayPlans !== 'function') {
-        try { return JSON.parse(card.getAttribute('data-day-plans') || '{}') || {}; }
-        catch (e) { return {}; }
-    }
-    return _getCardDayPlans(card);
-}
-// Dag-fordeling for en bestilling. Etasjer er nå PER-DAG (data-day-plans).
-// Hver dag-del viser timer + sin egen etasje. "Annet" (_generelt) har kun
-// timer, ingen etasje (per design).
-function _orderDayBreakdown(tm, plans, dayPlans) {
-    var shortMap = (typeof dagShortMap === 'object' && dagShortMap) ? dagShortMap : {
-        ma: 'Ma', ti: 'Ti', on: 'On', to: 'To', fr: 'Fr', lo: 'Lø', so: 'Sø'
-    };
-    function _hasVal(v) { return v != null && String(v).trim() !== ''; }
-    var parts = [];
-    // Timer per dag (etasjer er bestilling-nivå og vises ÉN gang til slutt).
-    // Timer pr. dag = ordinære + overtid (timerDayHours).
-    var fmtH = function(n) { return (Math.round(n * 10) / 10).toString().replace('.', ',') + 't'; };
-    TIMER_DAY_KEYS.forEach(function(k) {
-        if (timerDayHasHours(tm, k)) parts.push({ day: shortMap[k] || k, hours: fmtH(timerDayHours(tm, k)), plan: '' });
-    });
-    if (timerDayHasHours(tm, '_generelt')) {
-        parts.push({ day: t('timer_overview_other'), hours: fmtH(timerDayHours(tm, '_generelt')), plan: '' });
-    }
-    // Etasjer — bestilling-nivå, vist som én egen del (ikke per dag).
-    if (plans && plans.length) {
-        parts.push({
-            isPlans: true,
-            day: 'Etasje',
-            hours: '',
-            plan: plans.join(', ')
-        });
-    }
-    return parts;
-}
-// Etikett som ordrekort-tittelen: "N. <beskrivelse>" når Beskrivelse er
-// fylt ut (både nummer OG innhold), ellers bare "Bestilling N".
-function _orderRowLabel(card, idx) {
-    var d = card.querySelector('.mobile-order-desc');
-    var txt = d ? String(d.value || '').trim() : '';
-    if (txt) {
-        // Slå sammen linjeskift/whitespace til mellomrom — CSS klipper til
-        // maks 2 linjer (kompakt + skannbart, men nok kontekst).
-        txt = txt.replace(/\s+/g, ' ').trim();
-        return (idx + 1) + '. ' + txt;
-    }
-    return t('order_title') + ' ' + (idx + 1);
-}
-
-// ── Per-bestilling-entries for HELE uken (på tvers av ordresedler) ──────────
-// Brukt til per-dag-totaler og dag-bidragsyter-visningen. Den åpne ordreseddelen
-// leses LIVE fra DOM; øvrige fra localStorage (samme uke, dedup på nr).
-function _bestLabel(desc, idx) {
-    var d = String(desc || '').replace(/\s+/g, ' ').trim();
-    return d ? ((idx + 1) + '. ' + d) : (t('order_title') + ' ' + (idx + 1));
-}
-function _weekBestillingEntries() {
-    var uke = _currentFormUke();
-    var currentNr = String(((document.getElementById('mobile-ordreseddel-nr') || {}).value) || '').trim();
-    var currentNavn = ((document.getElementById('mobile-prosjektnavn') || {}).value) || '';
-    var entries = [];
-    document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card, idx) {
-        var desc = card.querySelector('.mobile-order-desc');
-        entries.push({
-            isCurrent: true, card: card, form: null, orderIdx: idx,
-            ordrenr: currentNr, navn: currentNavn,
-            best: _bestLabel(desc ? desc.value : '', idx),
-            timer: _orderTimerObj(card)
-        });
-    });
-    if (uke) {
-        // Fasit-synk: leser localStorage direkte, så prosjektfeltene må synkes her
-        // også (Timer-oversikten kan åpnes uten at Hent-lista har vært innom).
-        var drafts = syncFormsWithProjects(safeParseJSON(STORAGE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: false }) : f; }), 'full');
-        var archived = syncFormsWithProjects(safeParseJSON(ARCHIVE_KEY, []).map(function(f) { return f ? Object.assign({}, f, { _isSent: true }) : f; }), 'full');
-        var byNr = {};
-        drafts.concat(archived).forEach(function(f) {
-            if (!f) return;
-            var nr = String(f.ordreseddelNr || '').trim();
-            if (!byNr[nr] || (f.savedAt || '') > (byNr[nr].savedAt || '')) byNr[nr] = f;
-        });
-        Object.keys(byNr).forEach(function(nr) {
-            var f = byNr[nr];
-            if (currentNr && nr === currentNr) return;
-            if (_normUke(f.dato) !== uke) return;
-            (Array.isArray(f.orders) ? f.orders : []).forEach(function(o, idx) {
-                entries.push({
-                    isCurrent: false, card: null, form: f, orderIdx: idx,
-                    ordrenr: nr, navn: f.prosjektnavn || '',
-                    best: _bestLabel(o.description || '', idx),
-                    timer: (o && o.timer && typeof o.timer === 'object') ? o.timer : {}
-                });
-            });
-        });
-    }
-    return { uke: uke, entries: entries };
-}
-// {ma:n, ..., so:n, _generelt:n} på tvers av alle ordresedlene i uken.
-function _weekDayTotals() {
-    var tot = { _generelt: 0 };
-    TIMER_DAY_KEYS.forEach(function(k) { tot[k] = 0; });
-    _weekBestillingEntries().entries.forEach(function(en) {
-        var tm = en.timer || {};
-        TIMER_DAY_KEYS.forEach(function(k) { tot[k] += timerDayHours(tm, k); });   // ordinære + overtid
-        tot._generelt += timerDayHours(tm, '_generelt');
-    });
-    return tot;
-}
-// Bidragsytere (bestillinger) som har timer på en gitt dag.
-function _weekDayContributorsData(dayKey) {
-    var total = 0;
-    var contributors = [];
-    _weekBestillingEntries().entries.forEach(function(en) {
-        var tm = en.timer || {};
-        var h = timerDayHours(tm, dayKey);   // ordinære + overtid
-        if (!(h > 0)) return;
-        total += h;
-        contributors.push({ entry: en, hours: h });
-    });
-    return { total: total, contributors: contributors };
-}
-
-// Nivå 2 (dag) — bidragsytere for ÉN dag på tvers av ordresedlene. Trykk en
-// bidragsyter → arbeidstid-editoren (flytt/endre). Tilbake → uke-oversikten.
-function openDayContributors(dayKey) {
-    var modal = document.getElementById('timer-overview-modal');
-    if (!modal) return;
-    var list = document.getElementById('timer-overview-list');
-    if (!list) return;
-    var data = _weekDayContributorsData(dayKey);
-    var dayName = (dayKey === '_generelt') ? t('timer_overview_other') : (dagNameMap[dayKey] || dayKey);
-    var titleEl = document.getElementById('timer-overview-title');
-    if (titleEl) titleEl.textContent = dayName;
-    var backBtn = document.getElementById('timer-overview-back');
-    if (backBtn) backBtn.style.display = '';
-    var totalLabelEl = document.getElementById('timer-overview-total-label');
-    if (totalLabelEl) totalLabelEl.textContent = t('timer_day_total');
-    list.innerHTML = '';
-
-    if (!data.contributors.length) {
-        var empty = document.createElement('div');
-        empty.className = 'timer-overview-empty';
-        empty.textContent = t('timer_overview_no_hours');
-        list.appendChild(empty);
-    }
-    data.contributors.forEach(function(c) {
-        var en = c.entry;
-        // Kort-layout (samme som bestilling-kortet): nr + timer øverst, FULL
-        // beskrivelse under (vises i sin helhet, ikke klippet).
-        var row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'timer-overview-row timer-overview-row--order' + (en.isCurrent ? ' timer-week-row--current' : '');
-        var main = document.createElement('div');
-        main.className = 'timer-ov-main';
-        var head = document.createElement('span');
-        head.className = 'timer-day-head';
-        var nrSpan = document.createElement('span');
-        nrSpan.className = 'timer-week-nr';
-        nrSpan.textContent = en.ordrenr || t('no_name');
-        head.appendChild(nrSpan);
-        if (en.isCurrent) {
-            var here = document.createElement('span');
-            here.className = 'timer-week-here';
-            here.textContent = t('timer_week_this');
-            head.appendChild(here);
-        }
-        var val = document.createElement('span');
-        val.className = 'timer-overview-value';
-        val.textContent = _fmtHours(c.hours) + ' t';
-        var chev = document.createElement('span');
-        chev.className = 'fakturaadresse-chevron';
-        chev.textContent = '›';
-        main.appendChild(head); main.appendChild(val); main.appendChild(chev);
-        row.appendChild(main);
-        var desc = document.createElement('div');
-        desc.className = 'timer-day-desc';
-        desc.textContent = en.best;
-        row.appendChild(desc);
-        row.addEventListener('click', function() {
-            closeTimerOverview();
-            var back = function() { openDayContributors(dayKey); };
-            if (en.isCurrent) {
-                openDagTimerModal(_dagTimerCardSession(en.card, back));
-            } else {
-                openDagTimerModal(_dagTimerFormOrderSession(en.form, en.orderIdx, back));
-            }
-        });
-        list.appendChild(row);
-    });
-
-    // Samme form som chipen: mine timer, lagets total i parentes når de skiller seg.
-    var totalEl = document.getElementById('timer-overview-total-value');
-    if (totalEl) totalEl.textContent = _timerMineOfTotalText(data);
-
-    modal.classList.add('active');
-    if (typeof applyTranslations === 'function') applyTranslations();
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-}
-window.openDayContributors = openDayContributors;
-
-// Nivå 2 — bestilling-oversikt for ÉN ordreseddel. ctx.kind:
-//   'current' (default) = den åpne ordreseddelen (DOM-kort, redigerer live).
-//   'saved'             = en lagret ordreseddel i uken (ctx.form, auto-lagres).
-// Tilbake-knapp → uke-oversikten. Hver bestilling tappes for å redigere arbeidstid.
-function openTimerOverview(ctx) {
-    ctx = ctx || { kind: 'current' };
-    var modal = document.getElementById('timer-overview-modal');
-    if (!modal) return;
-    var list = document.getElementById('timer-overview-list');
-    if (!list) return;
-    var titleEl = document.getElementById('timer-overview-title');
-    var backBtn = document.getElementById('timer-overview-back');
-    if (backBtn) backBtn.style.display = '';   // nivå 2 → vis tilbake til uke
-    var totalLabelEl = document.getElementById('timer-overview-total-label');
-    if (totalLabelEl) totalLabelEl.textContent = t('timer_overview_total');
-    list.innerHTML = '';
-
-    // Samle bestillinger (entries) uavhengig av kilde.
-    var entries = [];
-    if (ctx.kind === 'saved' && ctx.form) {
-        var nm = [];
-        if (ctx.form.ordreseddelNr) nm.push(ctx.form.ordreseddelNr);
-        if (ctx.form.prosjektnavn) nm.push(ctx.form.prosjektnavn);
-        if (titleEl) titleEl.textContent = nm.length ? nm.join(' · ') : t('timer_overview_title');
-        (Array.isArray(ctx.form.orders) ? ctx.form.orders : []).forEach(function(o, idx) {
-            var tm = (o && o.timer && typeof o.timer === 'object') ? o.timer : {};
-            var plans = (Array.isArray(o.plans) && o.plans.length) ? o.plans
-                : (o.plan ? String(o.plan).split(',').map(function(s) { return s.trim(); }).filter(Boolean) : []);
-            var lbl = (o.description && String(o.description).trim())
-                ? (idx + 1) + '. ' + String(o.description).replace(/\s+/g, ' ').trim()
-                : t('order_title') + ' ' + (idx + 1);
-            entries.push({ label: lbl, tm: tm, plans: plans, dayPlans: {}, openEdit: function() {
-                closeTimerOverview();
-                openDagTimerModal(_dagTimerFormOrderSession(ctx.form, idx, function() { openTimerOverview(ctx); }));
-            } });
-        });
-    } else {
-        if (titleEl) {
-            var cnm = [];
-            var cnr = String(((document.getElementById('mobile-ordreseddel-nr') || {}).value) || '').trim();
-            var cnavn = String(((document.getElementById('mobile-prosjektnavn') || {}).value) || '').trim();
-            if (cnr) cnm.push(cnr);
-            if (cnavn) cnm.push(cnavn);
-            titleEl.textContent = cnm.length ? cnm.join(' · ') : t('timer_overview_title');
-        }
-        document.querySelectorAll('#mobile-orders .mobile-order-card').forEach(function(card, idx) {
-            entries.push({
-                label: _orderRowLabel(card, idx),
-                tm: _orderTimerObj(card),
-                plans: (typeof _getCardPlans === 'function') ? _getCardPlans(card) : [],
-                dayPlans: _orderDayPlansObj(card),
-                openEdit: function() {
-                    window._timerOverviewReturn = true;   // card-session afterClose åpner denne igjen
-                    closeTimerOverview();
-                    openDagTimerModal(card);
-                }
-            });
-        });
-    }
-
-    if (!entries.length) {
-        var empty = document.createElement('div');
-        empty.className = 'timer-overview-empty';
-        empty.textContent = t('timer_overview_empty');
-        list.appendChild(empty);
-    }
-
-    var total = 0;
-    entries.forEach(function(en) {
-        var sum = _orderHoursSum(en.tm);
-        total += sum;
-        var breakdown = _orderDayBreakdown(en.tm, en.plans, en.dayPlans);
-
-        var row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'timer-overview-row timer-overview-row--order';
-
-        var main = document.createElement('div');
-        main.className = 'timer-ov-main';
-        var label = document.createElement('span');
-        label.className = 'timer-overview-label';
-        label.textContent = en.label;
-        var value = document.createElement('span');
-        value.className = 'timer-overview-value';
-        value.textContent = sum > 0 ? _fmtHours(sum) + ' t' : '–';
-        if (!(sum > 0)) value.classList.add('timer-overview-value--empty');
-        var chev = document.createElement('span');
-        chev.className = 'fakturaadresse-chevron';
-        chev.textContent = '›';
-        main.appendChild(label);
-        main.appendChild(value);
-        main.appendChild(chev);
-        row.appendChild(main);
-
-        var sub = document.createElement('div');
-        sub.className = 'timer-ov-sub';
-        if (!breakdown.length) {
-            sub.classList.add('timer-ov-sub--empty');
-            sub.textContent = t('timer_overview_no_hours');
-        } else {
-            breakdown.forEach(function(p) {
-                var part = document.createElement('span');
-                part.className = 'timer-ov-part' + (p.isPlans ? ' timer-ov-part-plans' : '');
-                var d = document.createElement('b');
-                d.className = 'timer-ov-day';
-                d.textContent = p.day;
-                part.appendChild(d);
-                if (p.hours) part.appendChild(document.createTextNode(' ' + p.hours));
-                if (p.plan) part.appendChild(document.createTextNode(' ' + p.plan));
-                sub.appendChild(part);
-            });
-        }
-        row.appendChild(sub);
-        row.addEventListener('click', en.openEdit);
-        list.appendChild(row);
-    });
-
-    var totalEl = document.getElementById('timer-overview-total-value');
-    if (totalEl) totalEl.textContent = _fmtHours(total) + ' t';
-
-    modal.classList.add('active');
-    if (typeof applyTranslations === 'function') applyTranslations();
-    if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
-}
-window.openTimerOverview = openTimerOverview;
-
-// Persister en redigert LAGRET ordreseddel (uke-oversikt) — localStorage-cache
-// + Firebase. Drafts → STORAGE_KEY/'forms', arkiverte → ARCHIVE_KEY/'archive'.
-function _saveWeekFormEdit(form) {
-    if (!form) return;
-    var isSent = !!form._isSent;
-    var key = isSent ? ARCHIVE_KEY : STORAGE_KEY;
-    var coll = isSent ? 'archive' : 'forms';
-    var clean = Object.assign({}, form);
-    delete clean._isSent;                          // runtime-flagg, ikke persister
-    if (!clean.id) clean.id = clean.ordreseddelNr ? String(clean.ordreseddelNr) : Date.now().toString();
-    var arr = safeParseJSON(key, []);
-    var idx = arr.findIndex(function(f) {
-        return (clean.id && f.id === clean.id) || (f.ordreseddelNr === clean.ordreseddelNr);
-    });
-    if (idx !== -1) arr[idx] = clean; else arr.unshift(clean);
-    safeSetItem(key, JSON.stringify(arr));
-    _lastLocalSaveTs = Date.now();
-    if (typeof enqueueUserDocSet === 'function') {
-        enqueueUserDocSet(coll, clean.id, clean, 'Edit hours from week overview');
-    }
-}
-
-// Data-session for arbeidstid-editoren: redigerer form.orders[idx] direkte og
-// auto-lagrer (valgt oppførsel). afterCommit kjøres etter lukking (åpner
-// bestilling-oversikten igjen).
-function _dagTimerFormOrderSession(form, orderIdx, afterCommit) {
-    return {
-        card: null,
-        // Ukene fra den LAGREDE ordreseddelens eget Uke-felt (feltet heter «dato»
-        // av historiske grunner, men inneholder uke).
-        getWeeks: function() { return parseUkeNumbers(form.dato); },
-        // «Meg» for en LAGRET ordreseddel = montøren som står på den, ikke den
-        // som tilfeldigvis er innlogget nå.
-        getMyName: function() { return stripEtternavn(form.montor); },
-        getTimer: function() {
-            var o = form.orders[orderIdx];
-            return (o && o.timer && typeof o.timer === 'object') ? o.timer : {};
-        },
-        getPlans: function() {
-            var o = form.orders[orderIdx] || {};
-            if (Array.isArray(o.plans) && o.plans.length) return o.plans;
-            if (o.plan) return String(o.plan).split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-            return [];
-        },
-        commit: function(timer, dager, plans) {
-            var o = form.orders[orderIdx];
-            o.timer = Object.keys(timer).length ? timer : '';
-            o.dager = dager;
-            o.dayPlans = '';
-            o.plans = plans.length ? plans : '';
-            o.plan = plans.join(', ');
-            _saveWeekFormEdit(form);
-            if (typeof updateTimerChip === 'function') updateTimerChip();
-        },
-        afterClose: function() { if (afterCommit) afterCommit(); }
-    };
-}
 
 function closeTimerOverview() {
     var modal = document.getElementById('timer-overview-modal');
@@ -23648,99 +23283,38 @@ function closeTimerOverview() {
 }
 window.closeTimerOverview = closeTimerOverview;
 
-// Uke-oversikt: hvilke ordresedler bidrar til ukens timer. Den åpne (live) først,
-// merket «(denne)» og tappbar → drill-down til bestilling-oversikten for denne
-// ordreseddelen. Øvrige er lagrede ordresedler i samme uke (kun visning).
+// Ukas ordresedler: nr · prosjekt, timer pr. person under. Den åpne først («(denne)»).
 function openWeekTimerOverview() {
     var modal = document.getElementById('timer-overview-modal');
-    if (!modal) return;
     var list = document.getElementById('timer-overview-list');
-    if (!list) return;
-    var data = _weekTimerData();
+    if (!modal || !list) return;
+    var data = _weekPersonData();
     var titleEl = document.getElementById('timer-overview-title');
     if (titleEl) titleEl.textContent = data.uke ? (t('timer_week_label') + ' ' + data.uke) : t('timer_chip_label');
-    var backBtn = document.getElementById('timer-overview-back');
-    if (backBtn) backBtn.style.display = 'none';   // nivå 1 (topp) → ingen tilbake
     var totalLabelEl = document.getElementById('timer-overview-total-label');
     if (totalLabelEl) totalLabelEl.textContent = t('timer_week_total');
     list.innerHTML = '';
-
-    // Kompakt rad — kun ordreseddelnr er fremhevet (som lagrede-lista), resten
-    // dempet. Alle rader er klikkbare for å redigere timer.
-    function _addRow(nr, navn, hours, isCurrent, onClick) {
-        var row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'timer-week-row' + (isCurrent ? ' timer-week-row--current' : '');
-        var main = document.createElement('div');
-        main.className = 'timer-ov-main';
-        var lab = document.createElement('span');
-        lab.className = 'timer-week-label';
-        var nrSpan = document.createElement('span');
-        nrSpan.className = 'timer-week-nr';
-        nrSpan.textContent = nr || t('no_name');
-        lab.appendChild(nrSpan);
-        if (navn) {
-            var navnSpan = document.createElement('span');
-            navnSpan.className = 'timer-week-navn';
-            navnSpan.textContent = navn;
-            lab.appendChild(navnSpan);
-        }
-        if (isCurrent) {
-            var hereSpan = document.createElement('span');
-            hereSpan.className = 'timer-week-here';
-            hereSpan.textContent = t('timer_week_this');
-            lab.appendChild(hereSpan);
-        }
-        var val = document.createElement('span');
-        val.className = 'timer-overview-value';
-        val.textContent = hours > 0 ? _fmtHours(hours) + ' t' : '–';
-        if (!(hours > 0)) val.classList.add('timer-overview-value--empty');
-        var chev = document.createElement('span');
-        chev.className = 'fakturaadresse-chevron';
-        chev.textContent = '›';
-        main.appendChild(lab);
-        main.appendChild(val);
-        main.appendChild(chev);
-        row.appendChild(main);
-        row.addEventListener('click', onClick);
-        list.appendChild(row);
-    }
-
-    // Per-dag-totaler (på tvers av ALLE ordresedlene i uken) — trykk en dag for
-    // å se/endre hvilke ordresedler som har timer den dagen. Hjelper deg å fange
-    // opp en overbelastet dag (f.eks. 10t på mandag fordelt på flere ordrer).
-    if (data.uke) {
-        var dt = _weekDayTotals();
-        var dayKeys = TIMER_DAY_KEYS.concat(['_generelt']);
-        var hasAnyDay = dayKeys.some(function(k) { return dt[k] > 0; });
-        if (hasAnyDay) {
-            var strip = document.createElement('div');
-            strip.className = 'timer-week-days';
-            dayKeys.forEach(function(k) {
-                if (!(dt[k] > 0)) return;
-                var label = (k === '_generelt') ? t('timer_overview_other') : (dagShortMap[k] || k);
-                var chip = document.createElement('button');
-                chip.type = 'button';
-                chip.className = 'timer-week-day';
-                chip.innerHTML = '<span class="twd-name">' + escapeHtml(label) + '</span>' +
-                    '<b class="twd-val">' + escapeHtml(_fmtHours(dt[k])) + 't</b>';
-                chip.addEventListener('click', function() { openDayContributors(k); });
-                strip.appendChild(chip);
-            });
-            list.appendChild(strip);
-        }
-    }
-
-    // Den åpne ordreseddelen (live) — drill til bestilling-oversikten (denne).
-    _addRow(data.currentRow.nr, data.currentRow.navn, data.currentRow.hours, true, function() {
-        openTimerOverview({ kind: 'current' });
-    });
-    // Andre ordresedler i uken — drill til DERES bestilling-oversikt (redigeres
-    // og auto-lagres uten å forlate den åpne ordreseddelen).
-    data.savedRows.forEach(function(r) {
-        _addRow(r.nr, r.navn, r.hours, false, function() {
-            openTimerOverview({ kind: 'saved', form: r.form });
+    // ÉN gruppert liste med skillestrek (DESIGNSTANDARD regel 3), ikke en boks pr. ordreseddel.
+    var group = document.createElement('div');
+    group.className = 'timer-week-group';
+    list.appendChild(group);
+    data.rows.forEach(function (r) {
+        var row = document.createElement(r.current ? 'div' : 'button');
+        if (!r.current) row.type = 'button';
+        row.className = 'timer-week-row';
+        row.innerHTML =
+            '<div class="timer-week-text">' +
+                '<span class="timer-week-label"><span class="timer-week-nr">' + escapeHtml(r.nr || t('no_name')) + '</span>' +
+                    (r.navn ? '<span class="timer-week-navn">' + escapeHtml(r.navn) + '</span>' : '') +
+                    (r.current ? '<span class="timer-week-here">' + escapeHtml(t('timer_week_this')) + '</span>' : '') + '</span>' +
+                '<span class="timer-week-persons">' + _phHtml(r.persons) + '</span>' +
+            '</div>' +
+            (r.current ? '' : '<span class="fakturaadresse-chevron">›</span>');
+        if (!r.current) row.addEventListener('click', function () {
+            var go = function () { closeTimerOverview(); _navOpenedFromPopup('timer-week'); loadFormDirect(r.form); };
+            if (typeof hasUnsavedChanges === 'function' && hasUnsavedChanges()) _showUnsavedGuard(go); else go();
         });
+        group.appendChild(row);
     });
     if (!data.uke) {
         var note = document.createElement('div');
@@ -23748,11 +23322,8 @@ function openWeekTimerOverview() {
         note.textContent = t('timer_week_no_uke');
         list.appendChild(note);
     }
-
-    // Samme form som chipen: mine timer, lagets total i parentes når de skiller seg.
     var totalEl = document.getElementById('timer-overview-total-value');
-    if (totalEl) totalEl.textContent = _timerMineOfTotalText(data);
-
+    if (totalEl) totalEl.innerHTML = _phHtml(data.total);
     modal.classList.add('active');
     if (typeof applyTranslations === 'function') applyTranslations();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();
@@ -27155,8 +26726,7 @@ function _loadServiceDefaults() {
 // åpnet/lukket ett og ett), så ingen toggle-funksjon trenger å kalle den.
 // Alle korttypene har samme struktur: header (1. barn) + .mobile-order-body-wrap.
 var _COLLAPSE_ALL_LISTS = [
-    { container: 'mobile-orders',  title: '.mobile-section-title[data-i18n="section_work"]',          card: '.mobile-order-card',
-      label: 'orders_list_title',   // egen overskrift når knappen får egen rad (Timer-kortet står imellom)
+    { container: 'mobile-orders',  title: '.mobile-section-title[data-i18n="orders_list_title"]',     card: '.mobile-order-card',
       after: function(card, open) {
           if (open) { var d = card.querySelector('.mobile-order-desc'); if (d && d.style.display !== 'none') autoResizeTextarea(d); }
           if (typeof updateOrderTitle === 'function') updateOrderTitle(card);

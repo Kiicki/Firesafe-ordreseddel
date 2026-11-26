@@ -146,6 +146,17 @@ Bruker 18-11-2026: «ting skal ikke mangle etter refresh … dette gjelder alt p
 - **`refreshActiveView()` (script-ui.js) laster den ÅPNE siden på nytt** når innloggingen er klar — kalles fra `_accEnforce` (første gang tilgang/firma er kjent) og etter full synk i `auth.onAuthStateChanged`. **Ny side/view med Firestore-data → legg til en gren der** (gate på view-ID).
 - Adresser som peker på én ting (mappe, fil, sjekkliste) åpnet før data er hentet: husk adressen og åpne den når data kommer (mønster: `_docsPendingHash`, `_sjPendingOpenId`) — ikke fall tilbake til roten.
 
+## **KRITISK: Tilbakeknappen tar deg ALLTID dit du var**
+
+Bruker (01-11-2026 og igjen 26-11-2026): «hvor mange ganger skal jeg si at en tilbakeknapp skal ta deg tilbake til siden du kom fra?» Tilbake = **forrige sted du faktisk var**, som tilbake i en nettleser — aldri en fast «forelder», aldri en liste du ikke kom fra. Gjelder appens tilbakeknapp OG telefonens/nettleserens tilbake, i hele appen.
+
+- **Ett system:** `_navStack` i script-ui.js (rett over `navigateBack`). Alle steds-bytter går via `showView`, `showSettingsPage`/`showSettingsMenu` eller hash, som melder `_navNote()`. `navigateBack`/`settingsBack` prøver `_navBack()` først; den gamle faste logikken er bare reserve når stabelen er tom. Lag aldri en egen tilbake-logikk for én side.
+- **Et sted = adresse + HVILKET dokument.** Skjemaene har én adresse pr. type (`#skjema`, `#service`, `#kappe`, `#kvittering`), så et lagret skjema huskes som `<type>:<nr/id>` (`_navCaptureForm`). Åpnes et ANNET skjema mens et av samme type er åpent (f.eks. en ordreseddel fra «Ført uke»), er adressen uendret — `load*FormDirect` er derfor pakket inn (blokken «Annet skjema i SAMME visning») så skjemaet du forlot legges på stabelen og det legges et steg i nettleser-historikken. Feilen 26-11-2026 var nettopp dette: byttet ble ikke et steg, og tilbake hoppet til lista.
+- **Åpnet fra et VINDU (popup) = vinduet var stedet.** Åpner en rad i et vindu noe annet (f.eks. en ordreseddel fra «Ført uke»), skal tilbake vise siden bak OG åpne vinduet igjen — ikke bare siden. Kall `_navOpenedFromPopup('<nøkkel>')` rett før åpningen og registrer åpne-funksjonen i `_NAV_REOPEN` (script-ui.js). Lukk vinduet først når man faktisk går (Avbryt i ulagret-varselet = bli i vinduet). Rettet 26-11-2026 etter at tilbake landet på ordreseddelen uten vinduet.
+- **Ny side, ny visning eller ny måte å åpne noe på** (lenke, rad i en oversikt, knapp i et vindu): sjekk at du kan gå tilbake til der du trykket. Åpner den noe i samme visning med samme adresse, må den gå via en innpakket `load*Direct` eller selv kalle `_navStashForm` + `_navForceStep`/`_navNote` (se blokken). Legg nye steder til i `_navOpenFn`.
+- **Testflyt før du sier ferdig:** gå A → B → (C) via den nye veien, trykk appens tilbake hele veien, og gjør det samme med telefonens tilbake. Hvert trykk skal lande på forrige sted — med det vinduet som var åpent, åpent igjen.
+- Bare et nytt skjema som aldri ble lagret (forkastet) kan ikke åpnes igjen — det steget hoppes over. Ingen andre unntak uten å spørre brukeren.
+
 ## VIKTIG: Montørforslag og «Til godkjenning» skal alltid stemme
 
 Felles registre (prosjekter, materialer, isolasjon, festemidler, personer) eies av admin. Når en **montør** legger til noe nytt, blir det montørens eget (brukes med en gang) **og** sendes som forslag til admin (`firms/{firma}/projectSuggestions`, felt `kind`). Admin godkjenner/retter/slår sammen/avviser i **Admin › Til godkjenning**, og fanen **«Hva sendes hit»** viser reglene for admin.
