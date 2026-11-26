@@ -358,6 +358,7 @@ const TRANSLATIONS = {
 
         // Order cards
         order_description: 'Beskrivelse',
+        plan_general: 'Generelt',
         ai_fix: 'Forbedre',
         ai_fix_again: 'Ny versjon',
         ai_fix_busy: 'Forbedrer …',
@@ -734,7 +735,7 @@ const TRANSLATIONS = {
         // Plan settings
         settings_plans: 'Plan / Etasjer',
         settings_plan_add: '+ Legg til etasje',
-        settings_plan_placeholder: 'Etasjenavn...',
+        settings_plan_placeholder: 'Ny etasje',
         settings_plan_exists: 'Denne etasjen finnes allerede',
         settings_plan_remove: 'Fjerne "{0}"?',
         settings_plan_edit_title: 'Rediger etasjenavn:',
@@ -1817,6 +1818,7 @@ const TRANSLATIONS = {
 
         // Order cards
         order_description: 'Description',
+        plan_general: 'General',
         ai_fix: 'Improve',
         ai_fix_again: 'New version',
         ai_fix_busy: 'Improving …',
@@ -2189,7 +2191,7 @@ const TRANSLATIONS = {
         // Plan settings
         settings_plans: 'Floor levels',
         settings_plan_add: '+ Add floor',
-        settings_plan_placeholder: 'Floor name...',
+        settings_plan_placeholder: 'New floor',
         settings_plan_exists: 'This floor already exists',
         settings_plan_remove: 'Remove "{0}"?',
         settings_plan_edit_title: 'Edit floor name:',

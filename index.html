@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1279">
+    <link rel="stylesheet" href="styles.css?v=1285">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -1963,7 +1963,7 @@
                 <div class="set-card">
                     <div id="settings-plan-items" class="settings-list-container"></div>
                     <div class="settings-add-plan-row set-add-row">
-                        <input type="text" id="settings-new-plan" data-i18n-placeholder="settings_plan_placeholder" placeholder="Etasjenavn..." autocapitalize="characters" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingsPlan()}">
+                        <input type="text" id="settings-new-plan" data-i18n-placeholder="settings_plan_placeholder" placeholder="Ny etasje" autocapitalize="characters" onkeydown="if(event.key==='Enter'){event.preventDefault();addSettingsPlan()}">
                         <button type="button" class="settings-add-plan-btn" onclick="addSettingsPlan()" data-i18n="btn_add">Legg til</button>
                     </div>
                 </div>
@@ -2060,14 +2060,25 @@
                  1) TIMER øverst — et vanlig inputfelt, det er timene som teller.
                  2) «Regn ut fra tid (valgfritt)»: Start · Slutt · Lunsj + urskiva, synlig med
                     en gang feltet trykkes (ingen mellomledd). -->
+            <!-- Lunsj og Timer på ÉN rad (sparer høyde til rullehjulene). Lunsj til venstre, Timer
+                 (resultatet: slutt − start − lunsj) til høyre — leses som regnestykket (bruker 26-11-2026). -->
+            <div class="tb-clock-tl">
+            <label class="tb-clock-hours-field tb-clock-lunchrow" id="tb-clock-lunchrow" hidden><span data-i18n="timebok_lunch">Lunsj</span>
+                <span class="tb-clock-hours-box"><input type="text" id="tb-clock-lunch" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" oninput="_tbClockRangeSum(true)"><i>t</i></span></label>
             <label class="tb-clock-hours-field" id="tb-clock-total" hidden><span data-i18n="timebok_hours_label">Timer</span>
                 <span class="tb-clock-hours-box"><input type="text" id="tb-clock-hours" inputmode="decimal" pattern="[0-9,.]*" placeholder="0"><i>t</i></span></label>
+            </div>
             <div class="tb-clock-range-cap" id="tb-clock-range-cap" hidden data-i18n="tb_clock_range_cap">Regn ut fra tid (valgfritt)</div>
             <div class="tb-clock-range" id="tb-clock-range" hidden>
                 <button type="button" class="tb-clock-rbtn" id="tb-clock-r-start" onclick="_tbClockRangeSel('start')"><span data-i18n="timebok_start">Start</span><b></b></button>
                 <button type="button" class="tb-clock-rbtn" id="tb-clock-r-end" onclick="_tbClockRangeSel('end')"><span data-i18n="timebok_end">Slutt</span><b></b></button>
-                <label class="tb-clock-rbtn tb-clock-rlunch"><span data-i18n="timebok_lunch">Lunsj</span>
-                    <b><input type="text" id="tb-clock-lunch" inputmode="decimal" pattern="[0-9,.]*" placeholder="0" oninput="_tbClockRangeSum(true)"><i>t</i></b></label>
+            </div>
+            <!-- Rullehjul: Start og Slutt ved siden av hverandre (timer : minutter), valgt rad i midten. -->
+            <div class="tb-wheels" id="tb-clock-wheels" hidden>
+                <div class="tb-wheel-group"><span class="tb-wheel-cap" data-i18n="timebok_start">Start</span>
+                    <div class="tb-wheel-pair"><div class="tb-wheel" id="tb-wh-start-h"></div><span class="tb-wheel-colon">:</span><div class="tb-wheel" id="tb-wh-start-m"></div></div></div>
+                <div class="tb-wheel-group"><span class="tb-wheel-cap" data-i18n="timebok_end">Slutt</span>
+                    <div class="tb-wheel-pair"><div class="tb-wheel" id="tb-wh-end-h"></div><span class="tb-wheel-colon">:</span><div class="tb-wheel" id="tb-wh-end-m"></div></div></div>
             </div>
             <div id="tb-clock-face">
                 <div class="tb-clock-display">
@@ -2830,9 +2841,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=541"></script>
-    <script src="script.js?v=633"></script>
-    <script src="script-ui.js?v=1528"></script>
+    <script src="lang.js?v=543"></script>
+    <script src="script.js?v=637"></script>
+    <script src="script-ui.js?v=1533"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

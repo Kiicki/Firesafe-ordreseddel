@@ -12785,6 +12785,45 @@ html:not(.dev-mode) .dev-only { display: none !important; }
 .tb-clock-range-cap { font-size: 12px; color: #8a8a90; margin: 0 0 6px; padding-top: 10px; border-top: 1px solid #ececf0; }
 .tb-clock-rbtn.empty b { color: #a0a0a8; font-weight: 500; }
 .tb-clock-clear { color: #c0392b; }
+/* Rullehjul (openTimeRange): Start | Slutt side om side, hver timer : minutter. Bruker
+   26-11-2026: «vi ønsker å vise så mange tall som mulig» → hjulene fyller høyden popupen
+   har (ca. 9-11 rader på telefon), valgt rad i midten på et lyst oransje bånd. Popupen er
+   bredere og høyere enn vanlige popuper (bevisst: den er et verktøy, ikke en melding). */
+#timebok-clock-popup .tb-clock-sheet.tb-clock-rangemode { max-width: 420px; width: calc(100% - 24px); padding: 16px; }
+.tb-clock-tl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 8px; }
+.tb-clock-tl:not(:has(> :not([hidden]))) { display: none; }
+.tb-clock-tl .tb-clock-hours-field { flex-direction: column; align-items: stretch; gap: 4px; margin: 0; font-size: 12px; font-weight: 500; color: #8a8a90; }
+.tb-clock-tl .tb-clock-hours-box { width: auto; padding: 7px 12px; }
+.tb-clock-tl .tb-clock-hours-box input { font-size: 20px; width: 100%; min-width: 0; }
+.tb-clock-tl > * { min-width: 0; }
+.tb-clock-tl .tb-clock-hours-box { min-width: 0; box-sizing: border-box; }
+.tb-wheels { --wh-h: clamp(180px, calc(100dvh - 330px), 468px); display: flex; justify-content: space-around; gap: 8px; margin: 0 0 6px; padding-top: 8px; border-top: 1px solid #ececf0; }
+.tb-wheel-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.tb-wheel-cap { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+.tb-wheel-pair { position: relative; display: flex; align-items: center; }
+.tb-wheel-pair::before {
+    content: ''; position: absolute; left: -4px; right: -4px; top: calc(50% - 18px); height: 36px;
+    border-radius: 8px; background: #fff1ea; pointer-events: none;
+}
+.tb-wheel {
+    position: relative; width: 52px; height: var(--wh-h); overflow-y: auto; scroll-snap-type: y mandatory;
+    overscroll-behavior: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+}
+.tb-wheel::-webkit-scrollbar { display: none; }
+.tb-wheel-pad { height: calc(50% - 18px); }
+.tb-wheel-it {
+    height: 36px; line-height: 36px; text-align: center; scroll-snap-align: center; cursor: pointer;
+    font-size: 18px; color: #b4b4bb; font-variant-numeric: tabular-nums; user-select: none;
+}
+.tb-wheel-it.n1 { color: #55555c; }
+.tb-wheel-it.n2 { color: #8a8a90; }
+.tb-wheel-it.sel { color: #E8501A; font-size: 21px; font-weight: 700; }
+.tb-wheel-colon { position: relative; font-size: 20px; font-weight: 700; color: #E8501A; padding: 0 2px 3px; }
+/* Ikke rørt og ingen lagret tid: grått (07:00/15:00 er bare utgangspunkt, lagres ikke). */
+.tb-wheels.empty .tb-wheel-it.sel, .tb-wheels.empty .tb-wheel-colon { color: #a0a0a8; }
+.tb-wheels.empty .tb-wheel-pair::before { background: #f0f0f3; }
 /* Tidsrom-modus (Arbeidstid): uten det store TT:MM-tallet (tiden står i Start/Slutt, og
    trykk på aktivt felt bytter timer/minutter), mindre urskive, og delen som endres
    (timer eller minutter) understreket i det aktive feltet. */
@@ -14723,3 +14762,31 @@ body.bulk-select-active .list-fab-bar, body.docs-select-active .list-fab-bar { d
 @keyframes aiFixSpin { to { transform: rotate(360deg); } }
 /* Sendt/låst skjema: ingen AI-knapp. */
 .mobile-field:has(> textarea:disabled) > .ai-fix, .mobile-field:has(> textarea[readonly]) > .ai-fix { display: none; }
+
+
+/* ── POPUP-STABEL (bruker 26-11-2026: «popup på popup ser veldig forvirrende ut») ──
+   Åpnes en popup fra en annen popup, skjules den bakerste (_popupStackSync i script-ui.js):
+   innholdet usynlig (visibility — beholder layout/scroll), ingen ekstra mørk bakgrunn.
+   Lukkes den øverste, kommer den bak tilbake akkurat slik den var. */
+.popup-under { background: transparent !important; box-shadow: none !important; }
+.popup-under > * { visibility: hidden !important; }
+
+/* «Generelt» øverst i etasjevelgeren, skilt fra etasjene. */
+/* Etasjevelgeren i appens valgknapp-stil (bruker 26-11-2026: «dette ser amatørmessig ut» — tykke
+   grå rammer, fet tekst, rødt valgt). Samme som valgknappene i sjekklisten (.sj-chip): lys 1px-ramme,
+   rolig tekst, BARE det valgte er oransje (lys oransje flate + oransje ramme/tekst). 3 kolonner. */
+#plan-popup #plan-popup-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: start; }
+#plan-popup .plan-popup-row {
+    height: 42px; padding: 0 6px; box-sizing: border-box;
+    border: 1px solid #dcdce1; border-radius: 9px; background: #fff; color: #1a1a1a; transition: none;
+}
+#plan-popup .plan-popup-row:active { background: var(--press-bg); }
+#plan-popup .plan-popup-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#plan-popup .plan-popup-selected { border-color: #E8501A; background: #fff3ee; color: #E8501A; }
+#plan-popup .plan-popup-selected .plan-popup-name { font-weight: 600; }
+/* «Generelt» i full bredde øverst, litt luft før etasjene. */
+#plan-popup .plan-popup-row.plan-popup-general { grid-column: 1 / -1; margin-bottom: 4px; }
+/* Ny etasje: felt + «+» i samme høyde og samme rolige ramme. */
+#plan-popup .plan-popup-add { margin-top: 6px; gap: 8px; }
+#plan-popup .plan-popup-add-input { height: 42px; padding: 0 12px; border-color: #dcdce1; border-radius: 9px; }
+#plan-popup .plan-popup-add-btn { width: 42px; height: 42px; border-color: #dcdce1; border-radius: 9px; font-size: 22px; font-weight: 500; }

@@ -5825,6 +5825,12 @@ function closeVariantPopup() {
 // ============================================
 let _planPickerDisplay = null;
 let _planPickerState = {};
+// «Generelt» (bruker 26-11-2026): fast valg øverst i etasjevelgeren — arbeid som ikke hører til
+// én etasje. IKKE i den felles etasjelista (den brukes også av sjekklistene, der hvert hull har en
+// ekte etasje). Utelukker etasjene: Generelt fjerner valgte etasjer, en etasje fjerner Generelt.
+// Lagres som teksten «Generelt» i samme felt som etasjene (eksport viser det der etasjen står).
+const PLAN_GENERAL = 'Generelt';
+function _isPlanGeneral(name) { return String(name || '').trim().toLowerCase() === PLAN_GENERAL.toLowerCase(); }
 
 function openPlanPicker(displayEl) {
     // Normalize: if called from "+ Plan" button, find the sibling .plan-display
@@ -5848,7 +5854,9 @@ function openPlanPicker(displayEl) {
 // dem på nytt fra elementet. Brukes etter at en etasje er lagt til fra popupen —
 // ellers ville brukerens valg blitt nullstilt av re-renderingen.
 function _renderPlanPickerList(displayEl, keepState) {
-    var existing = (displayEl.getAttribute('data-plan') || '').split(',').map(s => s.trim()).filter(s => s);
+    // keepState: bare det som er huket av i velgeren NÅ (ikke feltets gamle verdi — ellers kom
+    // en etasje man nettopp hadde fjernet tilbake når man la til en ny / valgte Generelt).
+    var existing = keepState ? [] : (displayEl.getAttribute('data-plan') || '').split(',').map(s => s.trim()).filter(s => s);
     var options = cachedPlanOptions || [];
     var prevState = keepState ? _planPickerState : null;
     _planPickerState = {};
@@ -5858,6 +5866,16 @@ function _renderPlanPickerList(displayEl, keepState) {
 
     var listEl = document.getElementById('plan-popup-list');
     var html = '';
+
+    // «Generelt» først (fast valg), med skillestrek under.
+    var genOn = existing.some(_isPlanGeneral);
+    _planPickerState[PLAN_GENERAL] = genOn;
+    html += '<div class="plan-popup-row plan-popup-general' + (genOn ? ' plan-popup-selected' : '') + '" data-plan="' + escapeHtml(PLAN_GENERAL) + '">' +
+        '<span class="plan-popup-check">\u2713</span>' +
+        '<span class="plan-popup-name">' + escapeHtml(t('plan_general')) + '</span>' +
+        '</div>';
+    existing = existing.filter(function (n) { return !_isPlanGeneral(n); });
+    options = options.filter(function (n) { return !_isPlanGeneral(n); });   // står den i lista fra før: bare én gang
 
     // Add configured options
     options.forEach(function(name) {
@@ -5879,8 +5897,8 @@ function _renderPlanPickerList(displayEl, keepState) {
         }
     });
 
-    if (!html) {
-        html = '<div class="popup-list-empty">' + t('settings_no_plans') + '</div>';
+    if (!options.length && !existing.length) {
+        html += '<div class="popup-list-empty">' + t('settings_no_plans') + '</div>';
     }
 
     // Alle kan legge til en etasje her (bruker 15-11-2026: «montør og admin har tilgang til det
@@ -5900,6 +5918,14 @@ function _renderPlanPickerList(displayEl, keepState) {
             var name = this.getAttribute('data-plan');
             _planPickerState[name] = !_planPickerState[name];
             this.classList.toggle('plan-popup-selected');
+            // Generelt ↔ etasjer utelukker hverandre.
+            if (_planPickerState[name]) {
+                var gen = _isPlanGeneral(name);
+                listEl.querySelectorAll('.plan-popup-row').forEach(function (r) {
+                    var n = r.getAttribute('data-plan');
+                    if (n !== name && (gen || _isPlanGeneral(n))) { _planPickerState[n] = false; r.classList.remove('plan-popup-selected'); }
+                });
+            }
         });
     });
 

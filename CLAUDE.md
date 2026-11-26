@@ -299,6 +299,8 @@ Apple-prinsipp: **toppen av popupen står fast** mens den er åpen; boksen følg
 
 4. **Aldri innhold utenfor skjermen — intern scroll.** Vokser innholdet > `max-height: 80vh` skal det scrolle internt (fast header/knapper, scrollbart innholds-/listeområde). Mønster: `#iso-card-rows { max-height:…vh; overflow-y:auto }`. Offsetet er ≥16px så liten skjerm/svært høy modus clampes trygt; innhold scroller.
 
+5. **Bare ÉN popup synlig om gangen** (bruker 26-11-2026: «popup på popup ser veldig forvirrende ut … gjelder vell egentlig generelt i appen»). Åpnes en popup fra en annen, skjules den bak automatisk (`_popupStackSync` i script-ui.js, klassen `.popup-under`, blokken «POPUP-STABEL» i styles.css) og kommer tilbake uendret når den øverste lukkes. Gjelder alle `.spec-popup-backdrop`, `.confirm-modal`, `.fakturaadresse-popup-backdrop`, `.picker-overlay` — ny popup med en av disse strukturene er dekket uten ekstra kode. Bevisste unntak (skjuler ikke det bak): `#confirm-modal`, `#unsaved-modal`, `#action-popup` (meldinger/spørsmål/meny om det man ser på) og nedtrekkslister (`.mat-type-backdrop`).
+
 Unntak: produkt-undervelger (`#kappe-product-picker-overlay`) er en liste-popup uten sparsom-modus-problem og beholder ratchet-låsen `_lockPopupSheetHeight`/`_unlockPopupSheetHeight`. Animert størrelsesendring er bevisst valgt bort (CSS kan ikke animere `height:auto`; JS-måling er høy risiko mot `applyKeyboardLayout`).
 
 ## VIKTIG: Cache-versjon ved hver endring

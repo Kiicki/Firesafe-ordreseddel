@@ -6204,6 +6204,54 @@ document.addEventListener('input', function (e) {
 }, true);
 window.aiFixRun = aiFixRun; window.aiFixUndo = aiFixUndo;
 
+// ── POPUP-STABEL: bare den ØVERSTE popupen vises (bruker 26-11-2026) ──
+// «popup på popup ser veldig forvirrende ut, og dette gjelder vell egentlig generelt i appen».
+// Åpnes en popup over en annen, får den bak klassen .popup-under (innholdet usynlig, ingen
+// dobbel mørk bakgrunn); lukkes den øverste, kommer den bak tilbake uendret. Gjelder ALLE
+// popuper/overlays (generisk, ingen ID-lister for vanlige popuper). BEVISSTE unntak — de
+// skjuler aldri det bak seg, fordi de handler om det man ser på:
+//   små meldinger/spørsmål (#confirm-modal «Er du sikker?», #unsaved-modal), handlingsmenyen
+//   (#action-popup) og nedtrekkslister (.mat-type-backdrop — som en vanlig <select>).
+var _POPUP_STACK_SEL = '.spec-popup-backdrop, .confirm-modal, .fakturaadresse-popup-backdrop, .picker-overlay';
+var _POPUP_STACK_KEEP_BEHIND = { 'confirm-modal': 1, 'unsaved-modal': 1, 'action-popup': 1 };
+var _popupStackSeq = 0;
+function _popupStackSync() {
+    var open = [];
+    document.querySelectorAll(_POPUP_STACK_SEL).forEach(function (el) {
+        if (el.classList.contains('active')) {
+            if (!el._popupOpenAt) el._popupOpenAt = ++_popupStackSeq;
+            open.push(el);
+        } else {
+            el._popupOpenAt = 0;
+            el.classList.remove('popup-under');
+        }
+    });
+    // Siste åpnede popup som skjuler det bak seg (ikke melding/meny).
+    var top = 0;
+    open.forEach(function (el) { if (!_POPUP_STACK_KEEP_BEHIND[el.id] && el._popupOpenAt > top) top = el._popupOpenAt; });
+    open.forEach(function (el) { el.classList.toggle('popup-under', el._popupOpenAt < top); });
+}
+(function () {
+    var raf = 0;
+    var mo = new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+            var t = muts[i].target;
+            // Klasse-endring på en popup, eller en popup satt inn/fjernet direkte i body.
+            if (muts[i].type === 'attributes' ? (t.matches && t.matches(_POPUP_STACK_SEL)) : t === document.body) {
+                if (!raf) raf = requestAnimationFrame(function () { raf = 0; _popupStackSync(); });
+                return;
+            }
+        }
+    });
+    function start() {
+        // ÉTT observe-kall: et nytt kall på samme node ERSTATTER innstillingene.
+        mo.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+        _popupStackSync();
+    }
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
+window._popupStackSync = _popupStackSync;
+
 // ── Mobil-nedtrekksliste for <select> (hele appen) ──
 // På mobil/nettbrett (ingen html.device-pc) åpnes ALLE <select> som appens egen
 // liste-popup (samme utseende som Type-velgeren over) i stedet for nettleserens
@@ -6419,6 +6467,15 @@ function addPlanFromPicker() {
         setTimeout(function() { input.classList.remove('settings-input-error'); }, 1500);
         return;
     }
+    // «Generelt» er et fast valg øverst (script.js PLAN_GENERAL), ikke en etasje i lista.
+    if (typeof _isPlanGeneral === 'function' && _isPlanGeneral(val)) {
+        input.value = '';
+        Object.keys(_planPickerState).forEach(function (k) { _planPickerState[k] = false; });
+        _planPickerState[PLAN_GENERAL] = true;
+        if (_planPickerDisplay) _renderPlanPickerList(_planPickerDisplay, true);
+        return;
+    }
+    if (typeof PLAN_GENERAL !== 'undefined') _planPickerState[PLAN_GENERAL] = false;   // ny etasje → ikke lenger Generelt
     var base = (cachedPlanOptions || []).slice();
     var exists = base.some(function(p) { return String(p).toUpperCase() === val; });
     if (!exists && isAdmin) {
@@ -14730,25 +14787,112 @@ function openTimeRange(opts) {
     var p = function (v, d) { var x = String(v || d).split(':'); return { h: +x[0] || 0, m: +x[1] || 0 }; };
     var had = !!(opts.start && opts.end);
     var st = p(opts.start, '07:00'), en = p(opts.end, '15:00');
-    // Urskiva vises MED EN GANG (brukerens krav — ingen mellomledd), klar for Start.
-    // Timer øverst kan likevel skrives direkte; tiden lagres bare om den røres/fantes.
-    var which = opts.which === 'end' ? 'end' : 'start';
-    var cur = which === 'end' ? en : st;
-    _tbClock = { btn: null, h: cur.h, m: cur.m, mode: 'h', drag: false,
-        range: { which: which, start: st, end: en, had: had, touched: false, onDone: opts.onDone, onClear: opts.onClear } };
+    // ROLLEHJUL (bruker 26-11-2026: «det er greit at start og slutt vises begge … lettere å
+    // kontrollere at begge er riktig»): Start og Slutt står ved siden av hverandre, hver med
+    // timer- og minutthjul — ingen Start/Slutt-knapper å bytte mellom. LIKT i Timebok og
+    // ordreseddel («jeg ønsker faktisk like systemer»). Urskiva (dial-koden under) brukes ikke
+    // lenger, men er beholdt så den kan tas tilbake.
+    _tbClock = { btn: null, h: st.h, m: st.m, mode: 'h', drag: false,
+        range: { which: null, start: st, end: en, had: had, touched: false, onDone: opts.onDone, onClear: opts.onClear } };
     document.getElementById('tb-clock-title').textContent = opts.title || '';
-    // Tidsrom-modus: det store TT:MM-tallet skjules (tiden står i Start/Slutt-feltene) og
-    // urskiva gjøres mindre (CSS .tb-clock-rangemode).
     document.querySelector('#timebok-clock-popup .tb-clock-sheet').classList.add('tb-clock-rangemode');
-    document.getElementById('tb-clock-range').hidden = false;
-    document.getElementById('tb-clock-range-cap').hidden = false;
+    document.getElementById('tb-clock-range').hidden = true;
+    document.getElementById('tb-clock-face').hidden = true;
+    // Ingen «Regn ut fra tid (valgfritt)»-tekst (bruker 26-11-2026: «tar plass»).
+    document.getElementById('tb-clock-range-cap').hidden = true;
     document.getElementById('tb-clock-total').hidden = false;
-    document.getElementById('tb-clock-face').hidden = false;
+    document.getElementById('tb-clock-wheels').hidden = false;
+    document.getElementById('tb-clock-lunchrow').hidden = false;
     document.getElementById('tb-clock-clear').hidden = !(had || String(opts.hours || '').trim());
     document.getElementById('tb-clock-lunch').value = opts.lunch ? String(opts.lunch).replace('.', ',') : '';
     document.getElementById('tb-clock-hours').value = opts.hours || '';
-    _tbClockRender();
     document.getElementById('timebok-clock-popup').classList.add('active');
+    // Hjulene bygges når popupen er synlig (scrollTop virker ikke på skjulte elementer).
+    _tbWheelsBuild();
+}
+// ── Rullehjul (Start/Slutt) ──
+var _TB_WH_ITEM = 36;   // px pr. rad (CSS .tb-wheel-it) — 5 rader synlige, valgt i midten
+function _tbWheelsBuild() {
+    var r = _tbClock.range;
+    if (!r) return;
+    var hours = []; for (var h = 0; h < 24; h++) hours.push(h);
+    var mins = function (cur) {
+        var l = []; for (var m = 0; m < 60; m += 5) l.push(m);
+        if (l.indexOf(cur) === -1) { l.push(cur); l.sort(function (a, b) { return a - b; }); }   // eldre tid som 07:03
+        return l;
+    };
+    _tbWheel('tb-wh-start-h', hours, r.start.h, function (v) { r.start = { h: v, m: r.start.m }; _tbWheelTouched(); });
+    _tbWheel('tb-wh-start-m', mins(r.start.m), r.start.m, function (v) { r.start = { h: r.start.h, m: v }; _tbWheelTouched(); });
+    _tbWheel('tb-wh-end-h', hours, r.end.h, function (v) { r.end = { h: v, m: r.end.m }; _tbWheelTouched(); });
+    _tbWheel('tb-wh-end-m', mins(r.end.m), r.end.m, function (v) { r.end = { h: r.end.h, m: v }; _tbWheelTouched(); });
+    // Uten lagret tid står hjulene grå (07:00/15:00 er bare utgangspunkt) til de røres.
+    document.getElementById('tb-clock-wheels').classList.toggle('empty', !r.had);
+}
+function _tbWheelTouched() {
+    var r = _tbClock.range;
+    if (!r) return;
+    r.touched = true;
+    document.getElementById('tb-clock-wheels').classList.remove('empty');
+    _tbClockRangeSum();
+}
+// Hjulene GÅR RUNDT (bruker 26-11-2026, som klokka på telefonen): etter 23 kommer 00, etter 55
+// kommer 00 — alltid tall over og under, og kveldsskift (22:00–06:00) er like lett. Lista står
+// _TB_WH_COPIES ganger etter hverandre; når hjulet har stoppet, flyttes det stille til samme
+// verdi i den midterste kopien (ingen synlig endring), så man aldri ruller tom.
+var _TB_WH_COPIES = 7;
+function _tbWheel(id, values, cur, onPick) {
+    var el = document.getElementById(id), n = values.length, html = '<div class="tb-wheel-pad"></div>';
+    for (var c = 0; c < _TB_WH_COPIES; c++) {
+        for (var i = 0; i < n; i++) html += '<div class="tb-wheel-it" data-i="' + (c * n + i) + '">' + _timebokPad2(values[i]) + '</div>';
+    }
+    el.innerHTML = html + '<div class="tb-wheel-pad"></div>';
+    var vi = Math.max(0, values.indexOf(cur));
+    el._vals = values; el._onPick = onPick;
+    el._idx = Math.floor(_TB_WH_COPIES / 2) * n + vi;   // midterste kopi
+    el.scrollTop = el._idx * _TB_WH_ITEM;
+    _tbWheelMark(el);
+    if (!el._bound) {
+        el._bound = true;
+        // Verdien følger hjulet mens det ruller (Timer regnes ut fortløpende); CSS scroll-snap
+        // legger det på nærmeste rad når fingeren slipper.
+        el.addEventListener('scroll', function () {
+            var len = el._vals.length, total = len * _TB_WH_COPIES;
+            var i = Math.max(0, Math.min(total - 1, Math.round(el.scrollTop / _TB_WH_ITEM)));
+            if (i !== el._idx) {
+                var changed = (i % len) !== (el._idx % len);
+                el._idx = i;
+                _tbWheelMark(el);
+                if (changed && el._onPick) el._onPick(el._vals[i % len]);
+            }
+            // Stoppet utenfor midten → hopp til samme verdi i midterste kopi.
+            clearTimeout(el._recenterT);
+            el._recenterT = setTimeout(function () {
+                var mid = Math.floor(_TB_WH_COPIES / 2) * len + (el._idx % len);
+                if (Math.abs(mid - el._idx) >= len) {
+                    el._idx = mid;
+                    el.scrollTop = mid * _TB_WH_ITEM;
+                    _tbWheelMark(el);
+                }
+            }, 180);
+        }, { passive: true });
+        // Trykk på et synlig tall = velg det.
+        el.addEventListener('click', function (e) {
+            var it = e.target.closest && e.target.closest('.tb-wheel-it');
+            if (!it) return;
+            el.scrollTo({ top: (+it.getAttribute('data-i')) * _TB_WH_ITEM, behavior: 'smooth' });
+        });
+    }
+}
+// Valgt rad + nærmeste naboer mørkere, resten lyst (den valgte tiden skiller seg ut).
+function _tbWheelMark(el) {
+    var its = el.querySelectorAll('.tb-wheel-it'), k = el._idx;
+    el.querySelectorAll('.sel, .n1, .n2').forEach(function (x) { x.classList.remove('sel', 'n1', 'n2'); });
+    for (var i = Math.max(0, k - 2); i < Math.min(its.length, k + 3); i++) {
+        var d = Math.abs(i - k);
+        its[i].classList.toggle('sel', d === 0);
+        its[i].classList.toggle('n1', d === 1);
+        its[i].classList.toggle('n2', d === 2);
+    }
 }
 function _tbClockRangeSel(which) {
     var r = _tbClock.range;
@@ -14815,10 +14959,13 @@ function openTimebokClock(btn) {
 }
 function closeTimebokClock() {
     document.getElementById('timebok-clock-popup').classList.remove('active');
+    _clearPopupTopAnchor('timebok-clock-popup');
     _tbClock.btn = null;
     _tbClock.range = null;
     document.querySelector('#timebok-clock-popup .tb-clock-sheet').classList.remove('tb-clock-rangemode');
     document.getElementById('tb-clock-face').hidden = false;   // Timebok-modus: urskiva alltid synlig
+    document.getElementById('tb-clock-wheels').hidden = true;
+    document.getElementById('tb-clock-lunchrow').hidden = true;
     document.getElementById('tb-clock-range-cap').hidden = true;
     document.getElementById('tb-clock-range').hidden = true;
     document.getElementById('tb-clock-total').hidden = true;
