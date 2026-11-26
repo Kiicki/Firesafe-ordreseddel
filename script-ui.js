@@ -33923,7 +33923,7 @@ function _docsAiAnswerHtml(h) {
 }
 function _docsAiAskBox(follow) {
     return '<div class="set-card docs-ai-ask" data-kbd-reveal>' +
-        '<textarea id="docs-ai-q" rows="' + (follow ? 2 : 3) + '" placeholder="' + escapeHtml(t(follow ? 'docs_ai_ph_follow' : 'docs_ai_ph')) + '" oninput="_docsAiDraft=this.value" onkeydown="if(event.key===\'Enter\'&&(event.ctrlKey||event.metaKey)){event.preventDefault();docsAiAsk();}">' + escapeHtml(_docsAiDraft) + '</textarea>' +
+        '<textarea id="docs-ai-q" rows="' + (follow ? 2 : 3) + '" autocorrect="on" spellcheck="true" autocapitalize="sentences" placeholder="' + escapeHtml(t(follow ? 'docs_ai_ph_follow' : 'docs_ai_ph')) + '" oninput="_docsAiDraft=this.value;_autoResizeMerknadAndScroll(this)" onkeydown="if(event.key===\'Enter\'&&(event.ctrlKey||event.metaKey)){event.preventDefault();docsAiAsk();}">' + escapeHtml(_docsAiDraft) + '</textarea>' +
         '<button type="button" class="docs-ai-send" id="docs-ai-send" onclick="docsAiAsk()">' + escapeHtml(t('docs_ai_send')) + '</button>' +
         '</div>';
 }
@@ -33970,6 +33970,10 @@ function _docsAiHtml() {
 function _docsAiBusy() { return _aiChats.some(function (c) { return (c.turns || []).some(function (tn) { return tn.status === 'loading'; }); }); }
 function _docsAiAfterRender() {
     var b = document.getElementById('docs-ai-send'); if (b) b.disabled = _docsAiBusy();
+    // Spørsmålsfeltet vokser med teksten (som Beskrivelse) — også når det er fylt ut fra søket.
+    // Autokorrektur er PÅ her (bruker 26-11-2026: «skriver ofte feil på mobil»); søkefeltet har
+    // den av med vilje (produktnavn/koder som FSC 110, EI60 skal ikke «rettes»).
+    var q = document.getElementById('docs-ai-q'); if (q) autoResizeTextarea(q);
     if (!_aiChatsFetched && currentUser) _aiChatsSync();   // første gang i økten: hent fra Firebase
 }
 // Kilde med adresse i appen (#timebok/<dato>, #sjekkliste/r/<id>, #settings/… fra veiledningen).

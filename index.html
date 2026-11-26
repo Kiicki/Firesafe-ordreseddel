@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1293">
+    <link rel="stylesheet" href="styles.css?v=1294">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -2655,7 +2655,7 @@
                      headeren er prøvd og valgt bort («tungt» / «ønsker ikke en stor header»). -->
                 <div class="docs-search list-search" id="docs-search-top">
                     <span class="docs-search-ico list-search-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-                    <input type="search" id="docs-search" data-i18n-placeholder="docs_search_ph" placeholder="Søk i dokumenter" autocomplete="off" oninput="docsSetQuery(this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
+                    <input type="search" id="docs-search" data-i18n-placeholder="docs_search_ph" placeholder="Søk i dokumenter" autocomplete="off" autocorrect="off" spellcheck="false" oninput="docsSetQuery(this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
                     <button type="button" class="docs-search-clear" onclick="docsSearchClose()" aria-label="Tøm søket">&times;</button>
                     <button type="button" class="docs-search-ai" onclick="docsAiOpen('', true)" aria-label="Spør AI" title="Spør AI"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></button>
                 </div>
@@ -2849,7 +2849,7 @@
 
     <script src="lang.js?v=545"></script>
     <script src="script.js?v=642"></script>
-    <script src="script-ui.js?v=1549"></script>
+    <script src="script-ui.js?v=1550"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

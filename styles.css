@@ -14473,10 +14473,13 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 #docs-modal.docs-ai-mode #docs-progress { display: none !important; }
 #docs-modal.docs-ai-mode #docs-list { margin-top: 0; }
 .docs-ai-entry .set-title { color: var(--text); }
+/* «Spør AI: «…»» fra søket: HELE teksten vises (brytes over flere linjer, ingen «…»), så man
+   ser hva man spør om (bruker 26-11-2026). */
+.docs-ai-entry .set-title.doc-row-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 #docs-list > .docs-group:first-child .docs-ai-entry { }
 .docs-ai-ask { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .docs-ai-ask textarea {
-    width: 100%; box-sizing: border-box; min-height: 76px; resize: vertical; padding: 10px 12px;
+    width: 100%; box-sizing: border-box; min-height: 76px; resize: none; overflow: hidden; padding: 10px 12px;
     font: inherit; font-size: 16px; line-height: 1.4; color: var(--text);
     background: var(--inset-bg); border: 1px solid transparent; border-radius: 10px; outline: none;
 }
