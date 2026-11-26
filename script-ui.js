@@ -34060,7 +34060,13 @@ async function docsAiAsk() {
     }
     // Tidligere spørsmål/svar i samtalen (bare de som fikk svar), så AI-en forstår oppfølgingen.
     var history = (chat.turns || []).filter(function (tn) { return tn.status === 'done'; }).slice(-AI_HISTORY_TURNS)
-        .map(function (tn) { return { q: String(tn.q || '').slice(0, 2000), a: _aiAnswerText(tn) }; });
+        .map(function (tn) {
+            // Filene AI-en leste for svaret (serveren sender dem som res.read; eldre svar: filene i
+            // kildene) — så den kan lese dem igjen i et oppfølgingsspørsmål i stedet for å starte på nytt.
+            var res = tn.res || {}, files = Array.isArray(res.read) ? res.read.slice() : [];
+            (res.sources || []).forEach(function (s) { if (s && s.docId && files.indexOf(s.docId) === -1) files.push(s.docId); });
+            return { q: String(tn.q || '').slice(0, 2000), a: _aiAnswerText(tn), files: files.slice(0, 20) };
+        });
     var turn = { q: q, status: 'loading', at: now };
     chat.turns.push(turn);
     chat.updatedAt = now;
