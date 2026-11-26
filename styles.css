@@ -164,8 +164,8 @@ body.keyboard-open {
    .spec-popup-backdrop (z60) ligger OVER toolbaren og dimmer den allerede
    via sin egen backdrop — å legge ::before der dobbel-dimmer (stygt mørkt
    felt). Derfor IKKE inkludert her. */
-body:has(.confirm-modal.active) .toolbar::before,
-body:has(.fakturaadresse-popup-backdrop.active) .toolbar::before,
+body:has(.confirm-modal.active:not([class*="--hidden"])) .toolbar::before,
+body:has(.fakturaadresse-popup-backdrop.active:not([class*="--hidden"])) .toolbar::before,
 body:has(#action-popup.active) .toolbar::before,
 body:has(#template-editor-overlay.active) .toolbar::before {
     opacity: 1;
@@ -659,14 +659,17 @@ body:has(#login-view.active) {
    egen position:fixed/overflow:auto-scroller, så body{overflow:hidden} alene
    stopper den ikke — den må fryses eksplisitt (!important slår
    body.kbd-editing overflow:visible-regelen). CSS-only: ingen JS-timing. */
-body:has(.confirm-modal.active),
-body:has(.spec-popup-backdrop.active),
-body:has(.fakturaadresse-popup-backdrop.active) {
+/* :not([class*="--hidden"]): en popup som har skjult seg selv (Arbeidstid mens etasjevelgeren
+   er åpen, Isolasjon/Festemidler mens produktvelgeren er åpen, prosjektvelgeren mens prosjekt-
+   redigeringen er åpen) låser ALDRI siden alene (27-11-2026: usynlig popup låste scrollen). */
+body:has(.confirm-modal.active:not([class*="--hidden"])),
+body:has(.spec-popup-backdrop.active:not([class*="--hidden"])),
+body:has(.fakturaadresse-popup-backdrop.active:not([class*="--hidden"])) {
     overflow: hidden;
 }
-body:has(.confirm-modal.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active,
-body:has(.spec-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active,
-body:has(.fakturaadresse-popup-backdrop.active) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active {
+body:has(.confirm-modal.active:not([class*="--hidden"])) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active,
+body:has(.spec-popup-backdrop.active:not([class*="--hidden"])) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active,
+body:has(.fakturaadresse-popup-backdrop.active:not([class*="--hidden"])) :is(#view-form, #service-view, #kappe-view, #kvittering-view, #sjekkliste-view).view.active {
     overflow: hidden !important;
 }
 
@@ -1888,6 +1891,18 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
     font-size: 13px; color: #333; line-height: 1.4;
     min-width: 0; word-break: break-word;
 }
+/* Utvidet ordreseddel (bruker 26-11-2026: «feltene ser litt rare ut»): INGEN boks i kortet
+   (designstandard: aldri kort i kort) — bestillingene står rett i kortet, skilt med en tynn
+   strek; under teksten etasje og personer med hvert sitt lille ikon. */
+.saved-item-details { padding-top: 2px; }
+.saved-item-order { padding: 10px 0 2px; background: none; border: none; border-radius: 0; gap: 8px; }
+.saved-item-order + .saved-item-order { margin-top: 0; border-top: 1px solid var(--divider); }
+.saved-item-order-num { width: 18px; height: 18px; font-size: 10.5px; margin-top: 1px; }
+.saved-item-order-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.saved-item-order-text { display: block; font-size: 13.5px; color: var(--text); }
+.saved-item-order-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12.5px; color: var(--text-2); line-height: 1.35; }
+.sio-meta-it { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.sio-meta-it svg { flex-shrink: 0; color: #a0a0a8; }
 /* Service-uttak: hver entry som eget kort (prosjekt-header + materiallinjer). */
 .saved-item-desc-entry {
     background: #f7f7f8; border: 1px solid #ececf0; border-radius: 8px;

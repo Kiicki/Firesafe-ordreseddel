@@ -582,6 +582,15 @@ function closeAllModals() {
     sessionStorage.removeItem('firesafe_kvittering_current');
     sessionStorage.removeItem('firesafe_servicebil_mode');
     if (typeof _sjCloseForm === 'function') _sjCloseForm();   // sjekkliste-økt (inkl. ulagrede bilder)
+    // Sidebytte: ingen popup får ligge igjen åpen. En glemt (særlig usynlig) popup låser ellers
+    // scrollen på den nye siden til neste oppdatering (body:has(.spec-popup-backdrop.active)).
+    // (#confirm-modal/#unsaved-modal/#input-modal lukkes av sine egne knapper — de står ofte
+    // rundt et sidebytte, f.eks. «Ulagrede endringer → Forkast».)
+    document.querySelectorAll('.spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active, .confirm-modal.active').forEach(function (el) {
+        if (el.id === 'confirm-modal' || el.id === 'unsaved-modal' || el.id === 'input-modal') return;
+        el.classList.remove('active', 'popup-under');
+        el.className = el.className.replace(/\s*\S+--hidden\b/g, '');
+    });
     showView('view-form');
 }
 
@@ -926,6 +935,8 @@ function _showSingleExportMenu(savedItem) {
 }
 window._showSingleExportMenu = _showSingleExportMenu;
 
+var _SIO_ICON_PIN = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
+var _SIO_ICON_USER = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
 function _buildSavedItemHtml(item, index) {
     var ordrenr = item.ordreseddelNr || '';
     var dato = _listDate(item.savedAt);
@@ -954,25 +965,46 @@ function _buildSavedItemHtml(item, index) {
     if (parts.length) {
         subtitle = '<div class="saved-item-subtitle">' + parts.join('<span class="bil-history-sep"></span>') + '</div>';
     }
-    // Ekspanderbar beskrivelse: samle ordre-/bestillings-beskrivelsene fra skjemaet, så
-    // bruker raskt kan se HVA ordreseddelen handler om uten å åpne den. Vises kun når det
-    // finnes minst én beskrivelse (ellers ingen ekspander-knapp).
-    var _descLines = [];
+    // Ekspanderbar visning pr. bestilling: beskrivelse + etasje + hvem som jobbet (bruker
+    // 26-11-2026: «når jeg ekspanderer så ønsker jeg også å se plan … lettere å skjønne hvor det
+    // kan være. Muligens jeg også ønsker at montøren vises»). Personer = navnene i Arbeidstid
+    // (timer.personer); uten egne personer er det skjemaets montør. Pilen vises når minst én
+    // bestilling har noe å vise.
+    var _montor = (typeof stripEtternavn === 'function') ? stripEtternavn(item.montor) : String(item.montor || '').trim();
+    var _orders = [];
     (Array.isArray(item.orders) ? item.orders : []).forEach(function (o) {
-        var d = (o && o.description != null) ? String(o.description).trim() : '';
-        if (d) _descLines.push(d);
+        if (!o) return;
+        var d = (o.description != null) ? String(o.description).trim() : '';
+        var plans = Array.isArray(o.plans) && o.plans.length ? o.plans : String(o.plan || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+        var hasHours = !!(o.timer && typeof o.timer === 'object' && Object.keys(o.timer).length);
+        var ppl = (o.timer && Array.isArray(o.timer.personer) && o.timer.personer.length)
+            ? o.timer.personer.map(function (p) { return String((p && p.navn) || '').trim(); }).filter(Boolean)
+            : (hasHours && _montor ? [_montor] : []);
+        if (d || plans.length || ppl.length) _orders.push({ d: d, plans: plans, ppl: ppl });
     });
-    var expandBtn = _descLines.length
+    var expandBtn = _orders.length
         ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'
         : '';
     // Hver bestilling som eget nummerert kort → tydelig atskilt (ikke sammenflytende
-    // avsnitt). Nummer vises kun når det er flere bestillinger.
-    var _multiDesc = _descLines.length > 1;
-    var detailsHtml = _descLines.length
+    // avsnitt). Nummer vises kun når det er flere bestillinger. Under teksten: etasje · personer.
+    var _multiDesc = _orders.length > 1;
+    var _planTxt = function (plans) {
+        if (!plans.length) return '';
+        if (plans.length === 1 && typeof _isPlanGeneral === 'function' && _isPlanGeneral(plans[0])) return t('plan_general');
+        return t('saved_meta_floor') + ' ' + plans.join(', ');
+    };
+    var detailsHtml = _orders.length
         ? '<div class="saved-item-details" hidden>' +
-              _descLines.map(function (d, i) {
+              _orders.map(function (o, i) {
                   var num = _multiDesc ? '<span class="saved-item-order-num">' + (i + 1) + '</span>' : '';
-                  return '<div class="saved-item-order">' + num + '<span class="saved-item-order-text">' + escapeHtml(d) + '</span></div>';
+                  // Etasje og personer med hvert sitt lille ikon (ikke «Etasje …»-tekst + prikk).
+                  var pl = _planTxt(o.plans);   // «Etasje 6, 7» / «Generelt» — ordet beholdes (bare tall kunne vært rom)
+                  var meta = (pl ? '<span class="sio-meta-it">' + _SIO_ICON_PIN + escapeHtml(pl) + '</span>' : '') +
+                      (o.ppl.length ? '<span class="sio-meta-it">' + _SIO_ICON_USER + escapeHtml(o.ppl.join(', ')) + '</span>' : '');
+                  return '<div class="saved-item-order">' + num + '<span class="saved-item-order-body">' +
+                      (o.d ? '<span class="saved-item-order-text">' + escapeHtml(o.d) + '</span>' : '') +
+                      (meta ? '<span class="saved-item-order-meta">' + meta + '</span>' : '') +
+                  '</span></div>';
               }).join('') +
           '</div>'
         : '';
@@ -6214,22 +6246,53 @@ window.aiFixRun = aiFixRun; window.aiFixUndo = aiFixUndo;
 //   (#action-popup) og nedtrekkslister (.mat-type-backdrop — som en vanlig <select>).
 var _POPUP_STACK_SEL = '.spec-popup-backdrop, .confirm-modal, .fakturaadresse-popup-backdrop, .picker-overlay';
 var _POPUP_STACK_KEEP_BEHIND = { 'confirm-modal': 1, 'unsaved-modal': 1, 'action-popup': 1 };
-var _popupStackSeq = 0;
+// HVILKEN popup er øverst avgjøres av det man faktisk SER: høyest z-index, og ved lik z den som
+// står sist i DOM (den tegnes øverst). Popuper som har skjult seg selv mens en undervelger er åpen
+// (#iso-card-popup--hidden, #fastener-popup--hidden, #dag-timer-modal--hidden, display:none) teller
+// IKKE som øverst. Feil 27-11-2026: første versjon brukte «sist åpnet» — Isolasjon/Festemidler i
+// materialvelgeren åpner undervelger + iso-kort i SAMME øyeblikk, iso-kortet (som skjuler seg selv)
+// ble regnet som øverst, og undervelgeren ble skjult → helt blank side.
+var _popupOrphanT = 0;
+// Endre klassen BARE når den faktisk skal endres: classList.remove/toggle uten endring skriver
+// likevel class-attributtet → MutationObserver → ny synk → evig løkke (fant 27-11-2026).
+function _popupUnder(el, on) {
+    if (el.classList.contains('popup-under') !== on) el.classList.toggle('popup-under', on);
+}
 function _popupStackSync() {
+    var all = Array.prototype.slice.call(document.querySelectorAll(_POPUP_STACK_SEL));
     var open = [];
-    document.querySelectorAll(_POPUP_STACK_SEL).forEach(function (el) {
-        if (el.classList.contains('active')) {
-            if (!el._popupOpenAt) el._popupOpenAt = ++_popupStackSeq;
-            open.push(el);
-        } else {
-            el._popupOpenAt = 0;
-            el.classList.remove('popup-under');
-        }
+    all.forEach(function (el, dom) {
+        if (!el.classList.contains('active')) { _popupUnder(el, false); return; }
+        var cs = getComputedStyle(el);
+        // Usynlig (skjult selv, eller ligger i et skjult element) → teller ikke.
+        if (cs.display === 'none' || cs.visibility === 'hidden' || !el.getClientRects().length) { _popupUnder(el, false); return; }
+        open.push({ el: el, z: parseInt(cs.zIndex, 10) || 0, dom: dom });
     });
-    // Siste åpnede popup som skjuler det bak seg (ikke melding/meny).
-    var top = 0;
-    open.forEach(function (el) { if (!_POPUP_STACK_KEEP_BEHIND[el.id] && el._popupOpenAt > top) top = el._popupOpenAt; });
-    open.forEach(function (el) { el.classList.toggle('popup-under', el._popupOpenAt < top); });
+    // SIKRING (27-11-2026): en popup som har skjult seg selv mens et undervindu er åpent
+    // (klasse «…--hidden»), men der undervinduet er borte (lukket på en vei som glemte å vise
+    // forelderen igjen) → vises igjen, så siden aldri blir blank/«død». Sjekkes etter 400 ms
+    // (tid for undervinduet å åpne seg når det skjer asynkront).
+    clearTimeout(_popupOrphanT);
+    if (!open.length) {
+        var selfHidden = all.filter(function (el) { return el.classList.contains('active') && /--hidden\b/.test(el.className); });
+        if (selfHidden.length) _popupOrphanT = setTimeout(function () {
+            var anyVisible = Array.prototype.some.call(document.querySelectorAll(_POPUP_STACK_SEL), function (el) {
+                if (!el.classList.contains('active')) return false;
+                var c = getComputedStyle(el);
+                return c.display !== 'none' && c.visibility !== 'hidden' && el.getClientRects().length > 0;
+            });
+            if (anyVisible) return;
+            selfHidden.forEach(function (el) {
+                if (!el.classList.contains('active')) return;
+                el.className = el.className.replace(/\s*\S+--hidden\b/g, '');
+                console.warn('Popup-sikring: viste igjen', el.id);
+            });
+        }, 400);
+    }
+    var above = function (a, b) { return a.z !== b.z ? a.z > b.z : a.dom > b.dom; };
+    var top = null;
+    open.forEach(function (o) { if (!_POPUP_STACK_KEEP_BEHIND[o.el.id] && (!top || above(o, top))) top = o; });
+    open.forEach(function (o) { _popupUnder(o.el, !!top && o !== top && above(top, o)); });
 }
 (function () {
     var raf = 0;
@@ -13491,7 +13554,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // overscroll-behavior:contain så de chainer ikke ut). Egen condition fra
     // tastatur-dismiss-lytteren (den krever fokus i #view-form-felt + ingen
     // popup) → ingen konflikt.
-    var _POPUP_ACTIVE_SELECTOR = '.confirm-modal.active, .spec-popup-backdrop.active, .fakturaadresse-popup-backdrop.active, .picker-overlay.active';
+    // :not([class*="--hidden"]): en popup som har skjult seg selv (mens et undervindu er åpent)
+    // blokkerer aldri scroll alene — samme regel som CSS-låsen (27-11-2026).
+    var _POPUP_ACTIVE_SELECTOR = ['.confirm-modal', '.spec-popup-backdrop', '.fakturaadresse-popup-backdrop', '.picker-overlay']
+        .map(function (c) { return c + '.active:not([class*="--hidden"])'; }).join(', ');
     // KUN faktiske interne scrollere — IKKE hele sheet-elementene (.spec-popup-
     // sheet o.l.). Hvis vi tillot native scroll på hele sheeten ville touch på
     // header/padding/knapp-området (som ikke har overflow:auto) la browseren
@@ -14687,8 +14753,9 @@ function createTimebokCodeCard(code) {
     if (kind === 'clock') {
         _tbSetTimeVal(card.querySelector('.tb-c-start'), code.start || '');
         _tbSetTimeVal(card.querySelector('.tb-c-end'), code.end || '');
-        // Ordinære timer: lunsj 0,5 som standard; andre arbeidskoder 0.
-        var lunch = code.lunch != null ? code.lunch : (id === _timebokOrdinaryTypeId() ? 0.5 : null);
+        // Lunsj: lagret verdi, ellers tom — ingen standard (bruker 26-11-2026: «0.5 timer lunch
+        // default må fjernes»). Gjelder alle koder, likt med Arbeidstid i ordreseddelen.
+        var lunch = code.lunch != null ? code.lunch : null;
         card.querySelector('.tb-c-lunch').value = lunch != null ? formatLocaleNum(lunch, 2) : '';
     }
     return card;

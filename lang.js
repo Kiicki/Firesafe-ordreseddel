@@ -359,6 +359,7 @@ const TRANSLATIONS = {
         // Order cards
         order_description: 'Beskrivelse',
         plan_general: 'Generelt',
+        saved_meta_floor: 'Etasje',
         ai_fix: 'Forbedre',
         ai_fix_again: 'Ny versjon',
         ai_fix_busy: 'Forbedrer …',
@@ -1819,6 +1820,7 @@ const TRANSLATIONS = {
         // Order cards
         order_description: 'Description',
         plan_general: 'General',
+        saved_meta_floor: 'Floor',
         ai_fix: 'Improve',
         ai_fix_again: 'New version',
         ai_fix_busy: 'Improving …',

@@ -5300,6 +5300,17 @@ function openMaterialPicker(btn, onConfirm, _didFetch) {
 }
 
 function closePickerOverlay() {
+    // Undervinduene som åpnes FRA materialvelgeren (isolasjon, festemidler, produkt-/mål-velgere)
+    // lukkes sammen med den. Ble ett av dem liggende åpent (usynlig), låste det scrollen på siden
+    // til neste oppdatering (body:has(.spec-popup-backdrop.active) → overflow hidden).
+    ['kappe-product-picker-overlay', 'fastener-popup', 'spec-multi-popup', 'spec-popup', 'iso-card-popup'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el || !el.classList.contains('active')) return;
+        var fn = { 'kappe-product-picker-overlay': 'closeKappeProductPicker', 'fastener-popup': 'closeFastenerPopup',
+            'spec-multi-popup': 'closeSpecMultiPopup', 'spec-popup': 'closeSpecPopup', 'iso-card-popup': 'closeIsoCardPopup' }[id];
+        try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.error(fn, e); }
+        el.classList.remove('active');
+    });
     document.getElementById('picker-overlay').classList.remove('active');
     document.body.classList.remove('picker-active');
     _restoreScrollPositions(window._pickerSavedScroll);
@@ -7537,8 +7548,8 @@ function openDtClock(inp) {
     openTimeRange({
         title: dayName + ' · ' + (ot ? 'Overtid ' + ot + '%' : t('dt_clock_ord')),
         start: clk ? clk.start : '', end: clk ? clk.end : '',
-        // Lunsj: lagret verdi, ellers 0,5 i Ord. og 0 i overtid (synlig, kan endres).
-        lunch: clk ? clk.lunch : (ot ? 0 : 0.5),
+        // Lunsj: lagret verdi, ellers tom (bruker 26-11-2026: «0.5 timer lunch default må fjernes»).
+        lunch: clk ? clk.lunch : '',
         hours: inp.value || '',
         onDone: function (st, en, lunch, hours, timeSet) {
             apply(hours, timeSet ? { start: st, end: en, lunch: lunch } : null);
