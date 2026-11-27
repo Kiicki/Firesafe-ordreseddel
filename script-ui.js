@@ -23114,44 +23114,71 @@ function openWeekTimerOverview() {
     var data = _weekPersonData();
     var titleEl = document.getElementById('timer-overview-title');
     if (titleEl) titleEl.textContent = data.uke ? (t('timer_week_label') + ' ' + data.uke) : t('timer_chip_label');
-    var totalLabelEl = document.getElementById('timer-overview-total-label');
-    if (totalLabelEl) totalLabelEl.textContent = t('timer_week_total');
+    // Bygd om 27-11-2026 (bruker: «timene er ikke alignet … ekstremt tungt å lese»):
+    //  • «Sum uke» ØVERST — det er svaret man ser etter (total + timer pr. montør).
+    //  • Ordresedlene under, GRUPPERT pr. prosjekt (navnet én gang, ikke på hver rad).
+    //  • Alle rader bruker samme kolonner (.tw-grid: nr | navn | timer | ›-plass), og ›-plassen
+    //    finnes også på «(denne)» og summen — derfor står ALLE timetallene rett under hverandre.
     list.innerHTML = '';
-    // ÉN gruppert liste med skillestrek (DESIGNSTANDARD regel 3), ikke en boks pr. ordreseddel.
-    var group = document.createElement('div');
-    group.className = 'timer-week-group';
-    list.appendChild(group);
+    var esc = escapeHtml, fh = function (h) { return esc(_fmtHours(h)) + ' t'; };
+    var personCells = function (persons) {
+        if (!persons || !persons.length) return '<span class="tw-name tw-none">' + esc(t('timer_week_none')) + '</span><b class="tw-h">0 t</b>';
+        return persons.map(function (p) { return '<span class="tw-name">' + esc(p.navn) + '</span><b class="tw-h">' + fh(p.hours) + '</b>'; }).join('');
+    };
+    // Sum uke
+    var sum = document.createElement('div');
+    sum.className = 'tw-card tw-sum';
+    var sumPersons = _phShowList(data.total) ? data.total.map(function (p) {
+        return '<span class="tw-name tw-wide">' + esc(p.navn) + '</span><b class="tw-h">' + fh(p.hours) + '</b><span class="tw-chev"></span>';
+    }).join('') : '';
+    sum.innerHTML = '<div class="tw-grid">' +
+        '<span class="tw-name tw-wide tw-total">' + esc(t('timer_week_total')) + '</span><b class="tw-h tw-total">' + fh(_phSum(data.total)) + '</b><span class="tw-chev"></span>' +
+        sumPersons + '</div>';
+    list.appendChild(sum);
+    // Ordresedler pr. prosjekt (den åpne først, så i nr-rekkefølge — som før)
+    var groups = [], byProj = {};
     data.rows.forEach(function (r) {
-        var row = document.createElement(r.current ? 'div' : 'button');
-        if (!r.current) row.type = 'button';
-        row.className = 'timer-week-row';
-        row.innerHTML =
-            '<div class="timer-week-text">' +
-                '<span class="timer-week-label"><span class="timer-week-nr">' + escapeHtml(r.nr || t('no_name')) + '</span>' +
-                    (r.navn ? '<span class="timer-week-navn">' + escapeHtml(r.navn) + '</span>' : '') +
-                    (r.current ? '<span class="timer-week-here">' + escapeHtml(t('timer_week_this')) + '</span>' : '') + '</span>' +
-                '<span class="timer-week-persons">' + (_phHtml(r.persons) || '<span class="ph-list"><span class="ph-name"></span><b class="ph-h">0 t</b></span>') + '</span>' +
-            '</div>' +
-            (r.current ? '' : '<span class="fakturaadresse-chevron">›</span>');
-        if (!r.current) row.addEventListener('click', function () {
-            var go = function () { closeTimerOverview(); _navOpenedFromPopup('timer-week'); loadFormDirect(r.form); };
-            if (typeof hasUnsavedChanges === 'function' && hasUnsavedChanges()) _showUnsavedGuard(go); else go();
+        var key = String(r.navn || '').trim();
+        if (!byProj.hasOwnProperty(key)) { byProj[key] = { navn: key, rows: [] }; groups.push(byProj[key]); }
+        byProj[key].rows.push(r);
+    });
+    var head = document.createElement('div');
+    head.className = 'tw-section-title';
+    head.textContent = t('timer_week_orders');
+    list.appendChild(head);
+    groups.forEach(function (g) {
+        if (g.navn) {
+            var ph = document.createElement('div');
+            ph.className = 'tw-proj';
+            ph.textContent = g.navn;
+            list.appendChild(ph);
+        }
+        var card = document.createElement('div');
+        card.className = 'tw-card';
+        g.rows.forEach(function (r) {
+            var row = document.createElement(r.current ? 'div' : 'button');
+            if (!r.current) row.type = 'button';
+            row.className = 'tw-row tw-grid';
+            var n = Math.max(1, (r.persons || []).length);
+            row.style.gridTemplateRows = 'repeat(' + n + ', auto)';
+            row.innerHTML =
+                '<span class="tw-nr" style="grid-row: 1 / span ' + n + '">' + esc(r.nr || t('no_name')) +
+                    (r.current ? '<span class="tw-here">' + esc(t('timer_week_this')) + '</span>' : '') + '</span>' +
+                personCells(r.persons) +
+                '<span class="tw-chev" style="grid-row: 1 / span ' + n + '">' + (r.current ? '' : '›') + '</span>';
+            if (!r.current) row.addEventListener('click', function () {
+                var go = function () { closeTimerOverview(); _navOpenedFromPopup('timer-week'); loadFormDirect(r.form); };
+                if (typeof hasUnsavedChanges === 'function' && hasUnsavedChanges()) _showUnsavedGuard(go); else go();
+            });
+            card.appendChild(row);
         });
-        group.appendChild(row);
+        list.appendChild(card);
     });
     if (!data.uke) {
         var note = document.createElement('div');
         note.className = 'timer-overview-empty';
         note.textContent = t('timer_week_no_uke');
         list.appendChild(note);
-    }
-    var totalEl = document.getElementById('timer-overview-total-value');
-    if (totalEl) totalEl.textContent = _fmtHours(_phSum(data.total)) + ' t';
-    var totalList = document.getElementById('timer-overview-total-list');
-    if (totalList) {
-        var showT = _phShowList(data.total);
-        totalList.innerHTML = showT ? _phHtml(data.total) : '';
-        totalList.hidden = !showT;
     }
     modal.classList.add('active');
     if (typeof applyTranslations === 'function') applyTranslations();
