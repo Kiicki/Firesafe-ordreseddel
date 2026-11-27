@@ -3250,12 +3250,12 @@ label.settings-default-label.field-required > span::after {
 .dag-timer-etasje-btn:active { opacity: 0.6; }
 
 /* ── Timer-oversikt ──────────────────────────────────────────────────── */
-/* «Ført uke N» (ordreseddel): hvit kort-rad (DESIGNSTANDARD) — bare info, derfor ingen
-   oransje flate. Timer pr. person til høyre, brytes pent ved mange personer. */
+/* «Ført uke N» (ordreseddel): hvit kort-rad (DESIGNSTANDARD) — bare info, ingen oransje flate.
+   Topp: tittel · sum · ›. Under: timer pr. montør som liste (navn | timer), se .ph-list. */
 .timer-overview-chip {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
     width: 100%;
     background: var(--card-bg);
     border: none;
@@ -3270,33 +3270,35 @@ label.settings-default-label.field-required > span::after {
     -webkit-tap-highlight-color: transparent;
 }
 .timer-overview-chip:active { background: var(--press-bg); }
+.timer-chip-head { display: flex; align-items: center; gap: 10px; width: 100%; }
 .timer-overview-chip .timer-chip-label {
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
     font-size: 14px;
     font-weight: 500;
     color: var(--text);
 }
-.timer-overview-chip .timer-chip-value {
-    margin-left: auto;
-    min-width: 0;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: baseline;
-    column-gap: 6px;
-    row-gap: 2px;
-    font-size: 14px;
-}
+.timer-chip-sum { flex-shrink: 0; font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.timer-overview-chip .timer-chip-value { width: 100%; padding-right: 22px; box-sizing: border-box; }   /* høyrekant på linje med summen (› til høyre) */
+.timer-overview-chip .timer-chip-value[hidden] { display: none; }
 .timer-overview-chip .fakturaadresse-chevron {
     color: #c4c4c9;
     flex-shrink: 0;
     font-size: 18px;
 }
-/* Timer pr. person («asd 19 t · Kari 6 t») — chip, rader og sum i oversikten. */
-.ph-part { white-space: nowrap; }
-.ph-name { color: var(--text-2); font-weight: 400; }
-.ph-part b { color: var(--text); font-weight: 600; }
-.ph-sep { color: #c4c4c9; }
+/* Timer pr. montør — ÉN felles liste (chip, rader og total i oversikten): navn til venstre
+   (brytes over flere linjer, kuttes aldri), timer i egen høyrejustert kolonne. */
+.ph-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 3px;
+    width: 100%;
+    font-size: 13.5px;
+    line-height: 1.35;
+}
+.ph-list .ph-name { min-width: 0; overflow-wrap: anywhere; color: var(--text-2); font-weight: 400; }
+.ph-list .ph-h { text-align: right; white-space: nowrap; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 /* ── Timer-oversikt: moderne kort-design ─────────────────────────────── */
 .confirm-modal-content.timer-overview-content {
     width: 90%;
@@ -3355,14 +3357,14 @@ label.settings-default-label.field-required > span::after {
 button.timer-week-row:active { background: #ebebed; }
 div.timer-week-row { cursor: default; }
 .timer-week-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.timer-week-persons { display: flex; flex-wrap: wrap; column-gap: 6px; row-gap: 2px; font-size: 13px; }
+.timer-week-persons { display: block; font-size: 13px; }
+.timer-week-persons .ph-list { font-size: 13px; }
 /* Linje 1: nr + prosjekt + «(denne)», prosjektet klipper med «…». */
 .timer-week-label {
     min-width: 0;
     display: flex;
     align-items: baseline;
     gap: 6px;
-    overflow: hidden;
 }
 .timer-week-nr {
     flex-shrink: 0;
@@ -3372,9 +3374,7 @@ div.timer-week-row { cursor: default; }
 }
 .timer-week-navn {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;   /* prosjektnavnet brytes — kuttes aldri (bruker 27-11-2026) */
     font-size: 12px;
     font-weight: 400;
     color: var(--text-2);
@@ -3402,30 +3402,21 @@ div.timer-week-row { cursor: default; }
 /* Sum-rad = samme stil som «Total» i Arbeidstid-vinduet (.dag-timer-modal-total): vanlig mørk
    etikett, ingen store bokstaver. */
 .timer-overview-totalrow {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
     border-top: 1px solid #e5e5ea;
     margin-top: 10px;
     padding: 14px 2px 2px;
-    flex-shrink: 0;
+    /* Mange montører: totalen krymper og ruller selv, så «Lukk» alltid står synlig. (% virker ikke
+       her — arket har ingen fast høyde; derfor flex-krymping + vh-tak.) */
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 40vh;
+    overflow-y: auto;
 }
-.timer-overview-totalrow > span:first-child {
-    flex-shrink: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
-}
-.timer-overview-totalrow #timer-overview-total-value {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    column-gap: 6px;
-    row-gap: 2px;
-    font-size: 15px;
-    min-width: 0;
-}
+.timer-overview-total-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.timer-overview-total-head > span { font-size: 15px; font-weight: 600; color: var(--text); }
+.timer-overview-total-head > b { font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.timer-overview-total-list { margin-top: 8px; }
+.timer-overview-total-list[hidden] { display: none; }
 .timer-overview-content .confirm-modal-buttons {
     margin-top: 10px;
 }
@@ -6886,8 +6877,10 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     padding: 20px;
     width: 90%;
     max-width: 400px;
-    max-height: 90vh;
-    max-height: 90dvh;
+    /* 100% = backdroppens innholdshøyde (.confirm-modal har padding-bottom = verktøylinja).
+       90dvh ignorerte den → på liten skjerm (320×568) ble vinduet høyere enn plassen og
+       toppen gikk over kanten (nettleser-test 27-11-2026). Samme regel som .spec-popup-sheet. */
+    max-height: calc(100% - 32px);
     display: flex;
     flex-direction: column;
 }

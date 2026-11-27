@@ -3134,6 +3134,32 @@ function convertTextareasToDiv() {
         }
     }
 
+    // Tekstfelt som ikke får plass på én linje (mange montører i Montør-cella, langt prosjektnavn,
+    // oppdragsgiver, fakturaadresse): et <input> kan bare vise én linje, så PNG-bildet kuttet resten
+    // (bruker 27-11-2026: lange navn skal alltid synes). Bytt dem midlertidig ut med en <div> med
+    // samme utseende som bryter over flere linjer. Felt som får plass, røres ikke.
+    const container = document.getElementById('form-container');
+    if (container) {
+        container.querySelectorAll('input[type="text"], input:not([type])').forEach(inp => {
+            if (inp.style.display === 'none' || !inp.value) return;
+            if (inp.scrollWidth <= inp.clientWidth + 1) return;
+            const cs = getComputedStyle(inp);
+            const div = document.createElement('div');
+            div.className = 'export-wrap-converted';
+            div.textContent = inp.value;
+            ['fontFamily', 'fontSize', 'fontWeight', 'color', 'lineHeight', 'paddingTop', 'paddingRight', 'paddingBottom',
+             'paddingLeft', 'borderTop', 'borderRight', 'borderBottom', 'borderLeft', 'borderRadius', 'backgroundColor',
+             'textAlign', 'boxSizing'].forEach(p => { div.style[p] = cs[p]; });
+            div.style.width = cs.width;
+            div.style.minHeight = cs.height;
+            div.style.whiteSpace = 'normal';
+            div.style.overflowWrap = 'anywhere';
+            inp.style.display = 'none';
+            inp.parentNode.insertBefore(div, inp.nextSibling);
+            convertedElements.push({ original: inp, replacement: div });
+        });
+    }
+
     return convertedElements;
 }
 

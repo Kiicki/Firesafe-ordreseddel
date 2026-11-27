@@ -9097,12 +9097,28 @@ async function _renderOrdreseddelInto(doc, data) {
             setFont('normal', 7.5);
             doc.setTextColor(0, 0, 0);   // felt-etiketter i svart (ikke grå)
             text(String(label || ''), x + 3, y + 4);
-            setFont('normal', 11);
             doc.setTextColor(0, 0, 0);
             var val = String(value || '');
             var maxW = w - 6;
-            var vlines = doc.splitTextToSize(val, maxW);
-            text(vlines.length ? [vlines[0]] : [''], x + 3, y + 9);
+            // ALDRI kuttet tekst (bruker 27-11-2026: mange montører / lange navn skal alltid synes).
+            // Før ble bare FØRSTE linje tegnet — resten av f.eks. «Igor, Kari, Ola, …» forsvant.
+            // 1) Én linje: krymp fra 11 pt ned til 7,5 pt til den får plass.
+            var size;
+            for (size = 11; size >= 7.5; size -= 0.5) {
+                setFont('normal', size);
+                if (doc.getTextWidth(val) <= maxW) { text([val], x + 3, y + 9); return; }
+            }
+            // 2) Flere linjer i plassen under etiketten (ca. 6,5 mm): minste skrift som får plass.
+            var avail = h - 5.2;
+            for (size = 8; size >= 5.5; size -= 0.5) {
+                setFont('normal', size);
+                var lines = doc.splitTextToSize(val, maxW);
+                var lh = size * 0.3528 * 1.15;
+                if (lines.length * lh <= avail || size <= 5.5) {
+                    lines.forEach(function (ln, i) { text([ln], x + 3, y + 5.2 + lh * (i + 0.8)); });
+                    return;
+                }
+            }
         }
         function fieldRow(cells, h) {
             var x = L;
@@ -11738,7 +11754,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // via inline-style, ikke class. Disse må eksplisitt kalle
     // window.applyKeyboardLayout() for å trigge re-evaluering.
     var POPUP_BACKDROP_SELECTOR = '.confirm-modal, .spec-popup-backdrop, .fakturaadresse-popup-backdrop';
-    var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet';
+    // .template-editor-content = vinduene i .confirm-modal med skjema-oppsett («+ Nytt prosjekt»,
+    // Til godkjenning: materiale/montør, nytt isolasjonsprodukt). Manglet her til 27-11-2026 →
+    // de ble ALDRI flyttet over tastaturet (Lagre/Avbryt bak tastaturet; funnet med nettleser-test).
+    var POPUP_CONTENT_SELECTOR = '.confirm-modal-content, .spec-popup-sheet, .fakturaadresse-popup-sheet, .template-editor-content';
 
     // === VirtualKeyboard API: eksakt tastatur-geometri ===
     // Chromium (Android Chrome PWA, Edge): aktivering av overlaysContent=true
@@ -12451,6 +12470,7 @@ document.addEventListener('DOMContentLoaded', function() {
         content.style.removeProperty('top');
         content.style.removeProperty('transform');
         content.style.removeProperty('max-height');
+        content.style.removeProperty('overflow-y');
         content.style.removeProperty('margin');
         content.style.removeProperty('z-index');
         content.style.removeProperty('transition');
@@ -12458,6 +12478,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // den tilbake (kan være oppdatert av _applyPopupTopAnchor mens tastaturet var åpent).
         if (content._kbdSavedMarginTop) content.style.marginTop = content._kbdSavedMarginTop;
         content._kbdSavedMarginTop = null;
+        // Høyde-låsen tilbake (se tastatur-grenen i _popupKbdSync).
+        content.style.removeProperty('min-height');
+        if (content._kbdSavedMinHeight) content.style.minHeight = content._kbdSavedMinHeight;
+        content._kbdSavedMinHeight = null;
     }
 
     // --- Lært tastaturhøyde (pr. orientering) ---
@@ -12506,6 +12530,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function _popupApplyPreLift(content) {
         if (content._kbdStyled) return;
+        // Løftet regnes ut ÉN gang ved åpning, mens vinduet kan være lite. Vokser innholdet
+        // etterpå (lista lastes, ny dimensjon/rad), ville det gamle løftet dyttet toppen over
+        // skjermkanten (funnet med nettleser-test 27-11-2026). Klem: toppen minst 8 px ned.
+        if (content._preLift > 0 && content._preLiftApplied) {
+            var rt = content.getBoundingClientRect().top;
+            if (rt < 8) content._preLift = Math.max(0, Math.round(content._preLift - (8 - rt)));
+        }
         if (content._preLift > 0) {
             content.style.setProperty('transition', 'none');
             content.style.setProperty('transform', 'translateY(' + (-content._preLift) + 'px)');
@@ -12539,6 +12570,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     // posisjonen brukeren ser) + forankringens margin-top.
                     content._kbdRestTop = content.getBoundingClientRect().top;
                     content._kbdSavedMarginTop = content.style.marginTop;
+                    // Høyde-låsen (_lockPopupSheetHeight, inline min-height) må vike mens
+                    // tastaturet er oppe: min-height VINNER over max-height i CSS, så vinduet
+                    // ble høyere enn plassen over tastaturet → Avbryt/Velg bak tastaturet.
+                    content._kbdSavedMinHeight = content.style.minHeight;
                     content._kbdStyled = true;
                     content._preLiftApplied = false;
                 }
@@ -12564,7 +12599,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 content.style.setProperty('transform', 'translateX(-50%)', 'important');
                 var avail = vv.height - mTop - mBot;
                 content.style.setProperty('max-height', avail + 'px', 'important');
+                content.style.setProperty('min-height', '0', 'important');
                 content.style.setProperty('margin', '0', 'important');
+                // Innhold som ikke kan krympe (f.eks. klokkehjulene) og er høyere enn plassen over
+                // tastaturet: hele vinduet ruller, så knappene alltid kan nås (aldri kuttet bort).
+                content.style.removeProperty('overflow-y');
+                if (content.scrollHeight > avail + 1) content.style.setProperty('overflow-y', 'auto', 'important');
                 content.style.setProperty('z-index', '101', 'important');
                 // Vertikal plass: popupen BLIR STÅENDE der den var før tastaturet
                 // kom (hvile-posisjonen), og flyttes kun opp så mye som trengs for
@@ -12673,6 +12713,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!c) return;
                 if (bd.classList.contains('active') && !c._preLiftOpen) {
                     c._preLiftOpen = true;
+                    // Nytt vindu åpnet mens et felt UTENFOR det har fokus (f.eks. «Fireprotect 20mm»
+                    // trykket mens et felt i Isolasjon-vinduet var aktivt): feltet er nå skjult/dekket,
+                    // så tastaturet hører ikke til noe man ser → lukk det. Ellers åpnet vinduet seg
+                    // krympet over et tastatur ingen brukte (opphavet til feilen 27-11-2026).
+                    var ae = document.activeElement;
+                    if (ae && ae !== document.body && !bd.contains(ae) && isKeyboardOpeningElement(ae) && ae.blur) ae.blur();
                     requestAnimationFrame(function() {
                         if (!bd.classList.contains('active')) return;
                         _popupComputePreLift(c);
@@ -20277,6 +20323,9 @@ function _lockPopupSheetHeight(popupId) {
     if (!p || !p.classList.contains('active')) return;
     var sheet = p.querySelector('.spec-popup-sheet');
     if (!sheet) return;
+    // Tastaturet oppe: vinduet er krympet til plassen over tastaturet, så høyden er ikke
+    // ekte — ikke mål/lås nå (ville også overstyrt tastaturets min-height:0).
+    if (sheet._kbdStyled) return;
     var cap = Math.round((window.innerHeight || 800) * 0.8);
     var prev = parseFloat(sheet.style.minHeight) || 0;
     var locked = Math.min(Math.max(prev, sheet.offsetHeight), cap);
@@ -20326,7 +20375,8 @@ function _applyPopupTopAnchor(popupId, tallestH) {
 // å fjerne den re-sentrerte popupen (synlig hopp) før tastatur-grenen tok over.
 function _setPopupAnchorMargin(p, sheet, off) {
     p.classList.add('popup-top-anchored');
-    sheet.style.minHeight = '';
+    if (sheet._kbdStyled) sheet._kbdSavedMinHeight = null;   // låsen fjernes — ikke gjenopprett den
+    else sheet.style.minHeight = '';
     if (sheet._kbdStyled) sheet._kbdSavedMarginTop = off + 'px';
     else sheet.style.marginTop = off + 'px';
 }
@@ -22933,12 +22983,23 @@ function _phList(acc, me) {
         return a.order - b.order;
     });
 }
-// «asd 19 t · Kari 6 t» som HTML (navn dempet, timer tydelig).
+// Timer pr. montør — ÉN felles visning (bruker 27-11-2026: «mange navn kan være registrert og
+// lange navn … dette må gjøres bedre»): en liste med navn til venstre (brytes, kuttes aldri)
+// og timer i egen høyrejustert kolonne, så tallene står under hverandre. Brukes på «Ført uke»-
+// linja i skjemaet, pr. ordreseddel i oversikten og i totalen. Summen vises separat (_phSum).
+function _phSum(list) { return (list || []).reduce(function (a, p) { return a + (p.hours || 0); }, 0); }
 function _phHtml(list) {
-    if (!list.length) return '<span class="ph-part"><b>0 t</b></span>';
-    return list.map(function (p) {
-        return '<span class="ph-part"><span class="ph-name">' + escapeHtml(p.navn) + '</span> <b>' + escapeHtml(_fmtHours(p.hours)) + ' t</b></span>';
-    }).join('<span class="ph-sep">·</span>');
+    if (!list || !list.length) return '';
+    return '<span class="ph-list">' + list.map(function (p) {
+        return '<span class="ph-name">' + escapeHtml(p.navn) + '</span><b class="ph-h">' + escapeHtml(_fmtHours(p.hours)) + ' t</b>';
+    }).join('') + '</span>';
+}
+// Lista trengs bare når den sier mer enn summen: 2+ montører, eller én som ikke er meg.
+function _phShowList(list) {
+    if (!list || !list.length) return false;
+    if (list.length > 1) return true;
+    var me = String(_myNameForHours() || '').trim().toLowerCase();
+    return String(list[0].navn || '').trim().toLowerCase() !== me;
 }
 
 // { uke, rows:[{ current, nr, navn, persons:[…], form }], total:[…] }
@@ -23008,7 +23069,13 @@ function updateTimerChip() {
         labelEl.removeAttribute('data-i18n');   // dynamisk (inkl. ukenr) — ikke overstyr av applyTranslations
         labelEl.textContent = data.uke ? (t('timer_week_label') + ' ' + data.uke) : t('timer_chip_label');
     }
-    if (valEl) valEl.innerHTML = _phHtml(data.total);
+    var sumEl = chip.querySelector('.timer-chip-sum');
+    if (sumEl) sumEl.textContent = _fmtHours(_phSum(data.total)) + ' t';
+    if (valEl) {
+        var show = _phShowList(data.total);
+        valEl.innerHTML = show ? _phHtml(data.total) : '';
+        valEl.hidden = !show;
+    }
 }
 window.updateTimerChip = updateTimerChip;
 
@@ -23044,7 +23111,7 @@ function openWeekTimerOverview() {
                 '<span class="timer-week-label"><span class="timer-week-nr">' + escapeHtml(r.nr || t('no_name')) + '</span>' +
                     (r.navn ? '<span class="timer-week-navn">' + escapeHtml(r.navn) + '</span>' : '') +
                     (r.current ? '<span class="timer-week-here">' + escapeHtml(t('timer_week_this')) + '</span>' : '') + '</span>' +
-                '<span class="timer-week-persons">' + _phHtml(r.persons) + '</span>' +
+                '<span class="timer-week-persons">' + (_phHtml(r.persons) || '<span class="ph-list"><span class="ph-name"></span><b class="ph-h">0 t</b></span>') + '</span>' +
             '</div>' +
             (r.current ? '' : '<span class="fakturaadresse-chevron">›</span>');
         if (!r.current) row.addEventListener('click', function () {
@@ -23060,7 +23127,13 @@ function openWeekTimerOverview() {
         list.appendChild(note);
     }
     var totalEl = document.getElementById('timer-overview-total-value');
-    if (totalEl) totalEl.innerHTML = _phHtml(data.total);
+    if (totalEl) totalEl.textContent = _fmtHours(_phSum(data.total)) + ' t';
+    var totalList = document.getElementById('timer-overview-total-list');
+    if (totalList) {
+        var showT = _phShowList(data.total);
+        totalList.innerHTML = showT ? _phHtml(data.total) : '';
+        totalList.hidden = !showT;
+    }
     modal.classList.add('active');
     if (typeof applyTranslations === 'function') applyTranslations();
     if (typeof window.applyKeyboardLayout === 'function') window.applyKeyboardLayout();

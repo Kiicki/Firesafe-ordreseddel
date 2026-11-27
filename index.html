@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1301">
+    <link rel="stylesheet" href="styles.css?v=1304">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -156,9 +156,13 @@
                 <!-- «Ført uke N»: timer pr. person i ukas ordresedler (bare info, ingen fasit) — updateTimerChip.
                      «Utførte arbeider»-overskriften er fjernet (26-11-2026); «Bestillinger» står rett over kortene. -->
                 <button type="button" class="timer-overview-chip" id="timer-overview-chip" onclick="openWeekTimerOverview()">
-                    <span class="timer-chip-label" data-i18n="timer_chip_label">Timer ført</span>
-                    <span class="timer-chip-value"><span class="ph-part"><b>0 t</b></span></span>
-                    <span class="fakturaadresse-chevron">›</span>
+                    <span class="timer-chip-head">
+                        <span class="timer-chip-label" data-i18n="timer_chip_label">Timer ført</span>
+                        <b class="timer-chip-sum">0 t</b>
+                        <span class="fakturaadresse-chevron">›</span>
+                    </span>
+                    <!-- Timer pr. montør (navn | timer) — bare når den sier mer enn summen -->
+                    <span class="timer-chip-value" hidden></span>
                 </button>
                 <div class="mobile-section-title" data-i18n="orders_list_title">Bestillinger</div>
                 <div id="mobile-orders"></div>
@@ -397,8 +401,11 @@
             </div>
             <div class="timer-overview-list" id="timer-overview-list"></div>
             <div class="timer-overview-totalrow">
-                <span id="timer-overview-total-label">Totalt</span>
-                <span id="timer-overview-total-value">0 t</span>
+                <div class="timer-overview-total-head">
+                    <span id="timer-overview-total-label">Totalt</span>
+                    <b id="timer-overview-total-value">0 t</b>
+                </div>
+                <div class="timer-overview-total-list" id="timer-overview-total-list" hidden></div>
             </div>
             <div class="confirm-modal-buttons">
                 <button class="confirm-btn-cancel" onclick="closeTimerOverview()" data-i18n="btn_close">Lukk</button>
@@ -2858,8 +2865,8 @@
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
     <script src="lang.js?v=549"></script>
-    <script src="script.js?v=649"></script>
-    <script src="script-ui.js?v=1558"></script>
+    <script src="script.js?v=650"></script>
+    <script src="script-ui.js?v=1561"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
