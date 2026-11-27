@@ -962,9 +962,6 @@ body:has(:is(
     background: #fef0ea;
 }
 
-.service-entry-card:has(.mobile-order-body-wrap.expanded) .mobile-order-arrow {
-    color: #E8501A;
-}
 
 .service-entry-title {
     flex: 1;
@@ -1857,8 +1854,6 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
 }
 /* Ekspanderbart beskrivelse-panel (ordreseddel-lista). */
 .saved-item-expand-btn { width: 30px; }   /* smalere enn kebaben → mer plass til nr */
-.saved-item-expand-btn svg { transition: transform 0.2s ease; }
-.saved-item.expanded .saved-item-expand-btn svg { transform: rotate(180deg); }
 /* Chevron + kebab tett sammen (ikke det brede 12px-gapet mellom flex-barn). */
 .saved-item-buttons { gap: 0; }
 .saved-item-details {
@@ -3942,17 +3937,14 @@ div.timer-week-row { cursor: default; }
     cursor: default;
 }
 
+/* Pila står til HØYRE etter tittelen (felles sammenlegg-pil, se «SAMMENLEGG-PIL»). */
 .mobile-order-arrow {
-    font-size: 13px;
-    color: #888;
     flex-shrink: 0;
-    width: 16px;
-    text-align: center;
-    transition: color 0.2s ease-out;
-}
-
-.mobile-order-card:has(.mobile-order-body-wrap.expanded) .mobile-order-arrow {
-    color: #E8501A;
+    align-self: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
 }
 
 .mobile-order-title {
@@ -5613,16 +5605,6 @@ body.settings-subpage-open #settings-header .modal-close-btn {
     display: none;
 }
 
-.settings-collapsible-arrow {
-    font-size: 20px;
-    color: #999;
-    font-weight: 300;
-    transition: transform 0.2s ease;
-}
-
-.settings-collapsible-arrow.open {
-    transform: rotate(90deg);
-}
 
 .settings-collapsible-body {
     display: none;
@@ -6038,15 +6020,10 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     background: #f8f9fa;
 }
 .settings-material-expand {
-    font-size: 20px;
-    color: #999;
-    font-weight: 300;
-    transition: transform 0.2s;
-    padding: 0 6px;
-    user-select: none;
-}
-.settings-material-group.expanded .settings-material-expand {
-    transform: rotate(90deg);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
 }
 .settings-material-body {
     display: none;
@@ -9163,8 +9140,6 @@ body.timebok-view-open #view-form { display: none; }
 .timebok-pb-sum { display: none; font-size: 13px; color: #6b6b73; overflow-wrap: anywhere; }
 .timebok-pb-sum b { color: #1a1a1a; font-weight: 500; font-size: 15px; }
 .timebok-pb-sum b.missing { color: #c0392b; }
-.timebok-pb-chev { flex-shrink: 0; color: #8a8a90; transition: transform 0.15s; transform: rotate(180deg); }
-.timebok-project-block.collapsed .timebok-pb-chev { transform: none; }
 .timebok-project-block.collapsed .timebok-pb-sum { display: block; }
 .timebok-project-block.collapsed .timebok-pb-body { display: none; }
 .timebok-project-block.collapsed .timebok-pb-head { border-bottom: none; }
@@ -10956,7 +10931,7 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
 /* Dra-håndtak for sortering (DELT av ordreseddel-popup og kappeskjema).
    touch-action:none = fingeren på håndtaket starter aldri native scroll, så
    draget eier gesten; resten av kortet scroller som normalt. Plassert HELT TIL
-   HØYRE (etter slett) — maksimal avstand fra ekspander-pila til venstre, så de
+   HØYRE (etter slett) — søppelkassa skiller det fra sammenlegg-pila, så de
    ikke forveksles. Negativ margin strekker trykkflaten til hele header-høyden
    + høyre padding. */
 .iso-group-drag {
@@ -10973,17 +10948,15 @@ body:has(#fastener-dim-popup.active) .confirm-modal { z-index: 80; }
     user-select: none;
 }
 .iso-group-drag[hidden] { display: none; }
-/* Gruppe-header: alt midtstilt vertikalt (header er alltid én linje). Pila får
-   trykkflate i full header-høyde + venstre padding, siden navnefeltet ellers
-   dekker nesten hele headeren og pila er hoved-målet for åpne/lukke. */
+/* Gruppe-header: alt midtstilt vertikalt. Pila (til høyre, før søppelkassa) får
+   trykkflate i full header-høyde, siden navnefeltet ellers dekker nesten hele
+   headeren og pila er hoved-målet for åpne/lukke. */
 .iso-group-card .iso-group-header { align-items: center; padding: 10px 12px; }
 .iso-group-header .mobile-order-arrow {
     align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: -10px 0 -10px -12px;
-    padding: 0 6px 0 14px;
+    width: auto;
+    margin: -10px 0;
+    padding: 0 8px;
 }
 .iso-group-drag svg { width: 20px; height: 20px; }
 /* Under sortering: ingen åpne/lukke-animasjon (lista lukkes/åpnes momentant). */
@@ -14352,8 +14325,7 @@ body.docs-select-active .toolbar { display: none !important; }
 .doc-st--ready { color: #2e7d32; }
 .doc-st-spin { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: -1px; border-radius: 50%; border: 1.6px solid #c9c9cf; border-top-color: var(--text-2); animation: docs-pill-spin 0.9s linear infinite; }
 .docs-menu-note { margin: -2px 0 10px; font-size: 13px; text-align: center; }
-.docs-unread-chev { transition: transform .15s; }
-.docs-unread-chev.open { transform: rotate(90deg); }
+.docs-unread-chev { flex-shrink: 0; display: flex; align-items: center; padding-left: 4px; }
 .docs-progress-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .docs-progress-text { font-size: 14px; color: var(--text); }
 .docs-progress-cancel { flex-shrink: 0; border: 1px solid var(--control-border, #d7d7dd); background: #fff; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; height: 30px; padding: 0 12px; border-radius: 8px; cursor: pointer; }
@@ -14692,3 +14664,24 @@ body.bulk-select-active .list-fab-bar, body.docs-select-active .list-fab-bar { d
 #plan-popup .plan-popup-add { margin-top: 6px; gap: 8px; }
 #plan-popup .plan-popup-add-input { height: 42px; padding: 0 12px; border-color: #dcdce1; border-radius: 9px; }
 #plan-popup .plan-popup-add-btn { width: 42px; height: 42px; border-color: #dcdce1; border-radius: 9px; font-size: 22px; font-weight: 500; }
+
+/* ═══ SAMMENLEGG-PIL: én pil for alt som åpnes/lukkes (bruker 27-11-2026: «det vil være
+   lettere å venne seg til om kollaps knappen var lik overalt»). Markup: _CHEV_SVG (script.js).
+   Alltid til HØYRE, rett før søppelkassa / ⋮. Lukket = grå ⌄, åpen = oransje ⌃.
+   Tilstanden kommer fra kortet (CSS), aldri fra JS. Ny sammenleggbar ting → _CHEV_SVG +
+   én linje i «åpen»-lista under. ═══ */
+.ui-chev {
+    width: 18px; height: 18px; flex-shrink: 0;
+    color: #8a8a90;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+.saved-item-action-btn svg.ui-chev { width: 18px; height: 18px; }
+/* Åpen: */
+:is(.mobile-order-header, .service-entry-header):has(+ .mobile-order-body-wrap.expanded) .ui-chev,
+.timebok-project-block:not(.collapsed) > .timebok-pb-head .ui-chev,
+.saved-item.expanded .saved-item-expand-btn .ui-chev,
+.settings-material-group.expanded > .settings-material-header .ui-chev,
+.docs-unread-chev.open .ui-chev {
+    transform: rotate(180deg);
+    color: #E8501A;
+}

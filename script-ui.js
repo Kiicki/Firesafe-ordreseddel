@@ -983,7 +983,7 @@ function _buildSavedItemHtml(item, index) {
         if (d || plans.length || ppl.length) _orders.push({ d: d, plans: plans, ppl: ppl });
     });
     var expandBtn = _orders.length
-        ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'
+        ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '">' + _CHEV_SVG + '</button>'
         : '';
     // Hver bestilling som eget nummerert kort → tydelig atskilt (ikke sammenflytende
     // avsnitt). Nummer vises kun når det er flere bestillinger. Under teksten: etasje · personer.
@@ -5593,8 +5593,8 @@ function renderMaterialSettingsItems() {
                     ${countBadge}
                 </div>
                 <button class="settings-material-type-btn" onclick="event.stopPropagation();openMatTypeDropdown(this,${idx})" data-value="${matType}" data-fixed="${item.fixedSize ? '1' : '0'}">${t('material_type_' + matType) + _matTypeSubLabel(matType, item.fixedSize)}</button>
+                <span class="settings-material-expand"${unitLocked ? ' style="visibility:hidden"' : ''}>${_CHEV_SVG}</span>
                 <button class="settings-delete-btn" onclick="event.stopPropagation();removeSettingsMaterial(${idx})" title="${t('btn_remove')}">${deleteIcon}</button>
-                <span class="settings-material-expand"${unitLocked ? ' style="visibility:hidden"' : ''}>&rsaquo;</span>
             </div>
             <div class="settings-material-body">${bodyContent}</div>
         </div>`;
@@ -11141,7 +11141,7 @@ function _buildServiceItemHtml(item, index) {
         _svcDetail += '</div>';
     });
     var svcExpandBtn = _svcDetail
-        ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'
+        ? '<button class="saved-item-action-btn saved-item-expand-btn" title="' + t('show_description') + '" aria-label="' + t('show_description') + '">' + _CHEV_SVG + '</button>'
         : '';
     var svcDetailsHtml = _svcDetail ? '<div class="saved-item-details" hidden>' + _svcDetail + '</div>' : '';
     return '<div class="saved-item" data-index="' + index + '">' +
@@ -14720,7 +14720,7 @@ function createTimebokProjectBlock(proj) {
                 '<span class="timebok-pb-label">' + escapeHtml(t('timebok_project')) + '<span class="timebok-pb-num"></span></span>' +
                 '<div class="timebok-pb-sum"></div>' +
             '</div>' +
-            '<svg class="timebok-pb-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+            _CHEV_SVG +
             '<button type="button" class="timebok-pb-remove" onclick="event.stopPropagation();removeTimebokProjectBlock(this)" aria-label="Fjern">' + deleteIcon + '</button>' +
         '</div>' +
         // Sammenlagt: tilleggsinfo + én linje pr. kode i FULL bredde under hodet (trykk = åpne).
@@ -19478,14 +19478,11 @@ function toggleKappeDeliverySection(headerEl) {
     var card = headerEl.closest('.mobile-order-card');
     if (!card) return;
     var wrap = card.querySelector('.mobile-order-body-wrap');
-    var arrow = headerEl.querySelector('.mobile-order-arrow');
     if (!wrap.classList.contains('expanded')) {
         wrap.classList.add('expanded');
-        if (arrow) arrow.innerHTML = '&#9650;';
         requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         wrap.classList.remove('expanded');
-        if (arrow) arrow.innerHTML = '&#9660;';
     }
 }
 
@@ -19493,10 +19490,8 @@ function _kappeApplyDeliveryCollapsedState(forceCollapse) {
     var card = document.getElementById('kappe-delivery-card');
     if (!card) return;
     var wrap = card.querySelector('.mobile-order-body-wrap');
-    var arrow = card.querySelector('.mobile-order-arrow');
     if (forceCollapse) {
         if (wrap) wrap.classList.remove('expanded');
-        if (arrow) arrow.innerHTML = '&#9660;';
     }
 }
 
@@ -21085,10 +21080,11 @@ function _createIsoGroupCard(opts) {
     if (!opts.hasProduct) card.classList.add('iso-group-card--no-product');
     card.innerHTML =
         '<div class="mobile-order-header iso-group-header" onclick="_toggleGroupCard(this)">' +
-            '<span class="mobile-order-arrow">' + (expanded ? '&#9650;' : '&#9660;') + '</span>' +
             // Textarea (ikke input): lange navn brytes, og Enter gir ny linje —
             // headeren vokser med innholdet. Ferdig = tapp utenfor (site-wide).
             '<textarea class="iso-group-name" rows="1" placeholder="" autocapitalize="sentences" onclick="event.stopPropagation()" oninput="_isoGroupTitleInput(this)">' + escapeHtml(_kappeNoteText(opts.title)) + '</textarea>' +
+            // Felles sammenlegg-pil til høyre (før søppelkassa), med stor trykkflate (CSS).
+            '<span class="mobile-order-arrow">' + _CHEV_SVG + '</span>' +
             '<button type="button" class="mobile-order-header-delete" onpointerdown="event.preventDefault()" onclick="event.stopPropagation(); ' + (opts.removeCall || '') + '" title="Fjern gruppe">' + deleteIcon + '</button>' +
             // Skjult til _isoRefreshGroupTitles ser 2+ grupper (ingenting å sortere ellers).
             '<span class="iso-group-drag" hidden onpointerdown="_isoGroupDragStart(event, this)" onclick="event.stopPropagation()" title="' + t('iso_group_drag') + '">' + _ISO_DRAG_ICON + '</span>' +
@@ -21477,8 +21473,6 @@ function _isoGroupDragBegin(st) {
         if (wrap && wrap.classList.contains('expanded')) {
             st.reopen.push(c);
             wrap.classList.remove('expanded');
-            var arrow = c.querySelector('.mobile-order-arrow');
-            if (arrow) arrow.innerHTML = '&#9660;';
         }
     });
     st.scroller.scrollTop += st.card.getBoundingClientRect().top - before;
@@ -21597,8 +21591,6 @@ function _isoGroupDragEnd(e) {
     st.reopen.forEach(function(c) {
         var wrap = c.querySelector('.mobile-order-body-wrap');
         if (wrap) wrap.classList.add('expanded');
-        var arrow = c.querySelector('.mobile-order-arrow');
-        if (arrow) arrow.innerHTML = '&#9650;';
     });
     st.scroller.scrollTop += card.getBoundingClientRect().top - before;
     void st.container.offsetHeight;
@@ -21624,11 +21616,9 @@ function _toggleGroupCard(headerEl) {
     var card = headerEl.parentElement;
     if (!card) return;
     var wrap = card.querySelector('.mobile-order-body-wrap');
-    var arrow = headerEl.querySelector('.mobile-order-arrow');
     if (!wrap) return;
     var open = !wrap.classList.contains('expanded');
     wrap.classList.toggle('expanded', open);
-    if (arrow) arrow.innerHTML = open ? '&#9650;' : '&#9660;';
     // Scroll kortet til toppen kun i form-kontekst (kappeskjema). I popupen eier
     // popup-laget scroll-posisjonen.
     if (open && card.closest('#kappe-lines') && typeof scrollCardToTop === 'function') {
@@ -21669,8 +21659,6 @@ function _isoCardAddGroupTop() {
     // Kollaps eksisterende grupper (som kappeskjema) før ny legges til.
     c.querySelectorAll('.iso-card-block .mobile-order-body-wrap.expanded').forEach(function(wrap) {
         wrap.classList.remove('expanded');
-        var arrow = wrap.parentElement.querySelector('.mobile-order-arrow');
-        if (arrow) arrow.innerHTML = '&#9660;';
     });
     var block = _createIsoCardBlock({ sel: prevSel }, true);
     c.appendChild(block);
@@ -23924,7 +23912,6 @@ function addKappeLine() {
         var wrap = card.querySelector('.mobile-order-body-wrap');
         if (wrap && wrap.classList.contains('expanded')) {
             wrap.classList.remove('expanded');
-            card.querySelector('.mobile-order-arrow').innerHTML = '&#9660;';
         }
     });
     var card = createKappeLineCard(inheritData, true);
@@ -23958,14 +23945,11 @@ function toggleKappeLine(headerEl) {
     if (document.activeElement) document.activeElement.blur();
     var card = headerEl.closest('.kappe-line-card');
     var wrap = card.querySelector('.mobile-order-body-wrap');
-    var arrow = headerEl.querySelector('.mobile-order-arrow');
     if (!wrap.classList.contains('expanded')) {
         wrap.classList.add('expanded');
-        arrow.innerHTML = '&#9650;';
         requestAnimationFrame(function() { scrollCardToTop(card, true); });
     } else {
         wrap.classList.remove('expanded');
-        arrow.innerHTML = '&#9660;';
     }
 }
 
@@ -26764,8 +26748,6 @@ function _collapseAllToggle(cfg) {
         var w = _collapseAllWrap(card);
         if (!w) return;
         w.classList.toggle('expanded', open);
-        var arrow = card.firstElementChild ? card.firstElementChild.querySelector('.mobile-order-arrow') : null;
-        if (arrow) arrow.innerHTML = open ? '&#9650;' : '&#9660;';
         if (cfg.after) cfg.after(card, open);
     });
     if (cfg.done) cfg.done();
@@ -32150,7 +32132,7 @@ function _docsUnreadableHtml() {
         '<span class="set-ico set-ico--amber">' + _DOCS_ICON_WARN + '</span>' +
         '<span class="set-text"><span class="set-title">' + escapeHtml(bad.length === 1 ? t('docs_unreadable_one') : t('docs_unreadable_n').replace('{0}', bad.length)) + '</span>' +
         '<span class="set-desc">' + (nRead ? '<span class="doc-st doc-st--reading"><span class="doc-st-spin"></span>' + escapeHtml(t('docs_unreadable_reading').replace('{0}', nRead)) + '</span>' : escapeHtml(t('docs_unreadable_desc'))) + '</span></span>' +
-        '<span class="set-chev docs-unread-chev' + (_docsUnreadOpen ? ' open' : '') + '">&rsaquo;</span></div>';
+        '<span class="docs-unread-chev' + (_docsUnreadOpen ? ' open' : '') + '">' + _CHEV_SVG + '</span></div>';
     return _docsCard(head + (_docsUnreadOpen ? _docsSortItems(bad).map(function (d) { return _docsRowHtml(d, true); }).join('') : ''));
 }
 function docsToggleUnreadable() { _docsUnreadOpen = !_docsUnreadOpen; _docsRender(); }
