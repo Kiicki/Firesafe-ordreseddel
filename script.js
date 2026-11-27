@@ -5910,10 +5910,15 @@ function _renderPlanPickerList(displayEl, keepState) {
     // «Generelt» først (fast valg), med skillestrek under.
     var genOn = existing.some(_isPlanGeneral);
     _planPickerState[PLAN_GENERAL] = genOn;
+    // «Generelt» er IKKE en etasje (bruker 27-11-2026: «kan brukes når ingen spesifikke etasjer skal
+    // brukes … ikke lik etasje»): eget valg øverst — tekst + forklaring til venstre, rund hake til
+    // høyre (som valglistene). Etasjene står under, med egen liten overskrift.
     html += '<div class="plan-popup-row plan-popup-general' + (genOn ? ' plan-popup-selected' : '') + '" data-plan="' + escapeHtml(PLAN_GENERAL) + '">' +
-        '<span class="plan-popup-check">\u2713</span>' +
-        '<span class="plan-popup-name">' + escapeHtml(t('plan_general')) + '</span>' +
-        '</div>';
+        '<span class="plan-popup-general-text"><span class="plan-popup-name">' + escapeHtml(t('plan_general')) + '</span>' +
+        '<span class="plan-popup-general-sub">' + escapeHtml(t('plan_general_sub')) + '</span></span>' +
+        '<span class="plan-popup-general-check" aria-hidden="true"></span>' +
+        '</div>' +
+        '<div class="plan-popup-sep">' + escapeHtml(t('plan_or_floors')) + '</div>';
     existing = existing.filter(function (n) { return !_isPlanGeneral(n); });
     options = options.filter(function (n) { return !_isPlanGeneral(n); });   // står den i lista fra før: bare én gang
 
@@ -6352,11 +6357,11 @@ function _shouldStorePersons(persons, myName) {
 // ── Lag: flere som jobbet SAMMEN (27-11-2026) ──
 // Bruker: «Kari og Ola gjør samme jobb … det er kjapere at vi registrerer Kari + Ola».
 // En oppføring i .personer kan være et LAG: { navn: 'Kari + Ola', lag: ['Kari','Ola'], uker }.
-// Timene i lagets bøtter er det HVER av dem jobbet (samme tid — Start–Slutt på klokka
-// passer da direkte). Timeverk = timer × antall; de flate summene og .uker (eksport-
-// totaler, timer-chip) regnes derfor med ganging, så de fortsatt betyr «alle timene».
-// Eksport/kort viser lagets linje med «(hver)», og «Ført uke» gir hver person timene sine.
-// Valget «Hver for seg» i personvelgeren gir vanlige enkeltpersoner som før.
+// Timene i lagets bøtter er lagets TOTAL (ENDRET 27-11-2026, bruker: «når folk jobber i lag så
+// skriver vi totale timer, ikke hver for seg. når jeg skriver 4 timer for Greg og Kari så betyr
+// det totale timer»). Ingen ganging: summer/eksport teller timene som de står. Eksport/kort viser
+// «Greg + Kari: Ma 4t», og «Ført uke» viser laget som ÉN post (fordelingen er ukjent — ingen
+// gjetting). «Hver for seg» i personvelgeren gir vanlige enkeltpersoner.
 function timerEntryCount(p) {
     return (p && Array.isArray(p.lag) && p.lag.length > 1) ? p.lag.length : 1;
 }
@@ -6366,31 +6371,12 @@ function timerEntryMembers(p) {
     var n = _timerTrim(p && p.navn);
     return n ? [n] : [];
 }
-// Etiketten på eksport-/kortlinja: «Kari + Ola (hver)» for et lag.
-function timerEntryLabel(p) {
-    var n = _timerTrim(p && p.navn);
-    return (n && timerEntryCount(p) > 1) ? n + ' (hver)' : n;
-}
+// Etiketten på eksport-/kortlinja: lagets navn («Greg + Kari»).
+function timerEntryLabel(p) { return _timerTrim(p && p.navn); }
+// Timer «for en person»: bare oppføringer med akkurat det navnet. Et lags total kan ikke
+// fordeles på medlemmene (ukjent fordeling), så laget telles som sin egen post.
 function _timerEntryHas(p, want) {
-    if (!want) return false;
-    if (_timerTrim(p && p.navn).toLowerCase() === want) return true;
-    return timerEntryCount(p) > 1 && timerEntryMembers(p).some(function(m) { return m.toLowerCase() === want; });
-}
-// Bøtte-kart × n (timeverk for et lag). Klokkene tas ikke med: summen har ingen egen start/slutt.
-function _scaleBucketMap(map, n) {
-    if (!(n > 1)) return map;
-    var out = {};
-    Object.keys(map || {}).forEach(function(w) {
-        var src = map[w] || {}, dst = {};
-        TIMER_BUCKET_KEYS_ALL.forEach(function(d) {
-            var v = _timerTrim(src[d]);
-            if (!v) return;
-            var x = parseFloat(v.replace(',', '.'));
-            dst[d] = isNaN(x) ? v : _timerFmtNum(x * n);
-        });
-        out[w] = dst;
-    });
-    return out;
+    return !!want && _timerTrim(p && p.navn).toLowerCase() === want;
 }
 
 // Har dette timer-objektet en personfordeling? (Ellers er timene «mine».)
@@ -6425,8 +6411,7 @@ function timerFromPersonList(persons, myName) {
         if (timerEntryCount(p) > 1) e = { navn: e.navn, lag: timerEntryMembers(p), uker: uker };
         clean.push(e);
     });
-    // Lag: timene er pr. person → ganges med antall i summene (timeverk).
-    var merged = _mergeBucketMaps(clean.map(function(p) { return _scaleBucketMap(p.uker, timerEntryCount(p)); }));
+    var merged = _mergeBucketMaps(clean.map(function(p) { return p.uker; }));   // lag = lagets total
     var timer = timerFromWeekBuckets(merged);
     if (_shouldStorePersons(clean, myName)) timer.personer = clean;
     return timer;
@@ -6446,7 +6431,7 @@ function orderHoursForPerson(timer, personName, myName) {
     };
     if (timerHasPersons(timer)) {
         timer.personer.forEach(function(p) {
-            if (!_timerEntryHas(p, want)) return;     // også når personen er med i et lag
+            if (!_timerEntryHas(p, want)) return;
             Object.keys(p.uker || {}).forEach(function(w) { addBucket(p.uker[w] || {}); });
         });
         return sum;
@@ -7234,13 +7219,11 @@ function _renderDagTimerPersonRow() {
             btn.className = 'dag-timer-person-tab' + (i === _dagTimerActivePerson ? ' active' : '') +
                 (timerEntryCount(p) > 1 ? ' dag-timer-person-tab--team' : '');
             var sum = _dagTimerPersonSum(p);
-            var cnt = timerEntryCount(p);
-            // Lag: timene er pr. person → «5 t × 2» (timeverk står i totalen nederst).
             // Aktiv fane: ✎ = trykk igjen for «Hvem jobbet?» (legg til / ta bort / Sammen–Hver for seg).
             var edit = i === _dagTimerActivePerson ? '<span class="dag-timer-person-tab-edit" aria-hidden="true">\u270E</span>' : '';
             btn.innerHTML =
                 '<span class="dag-timer-person-tab-name">' + escapeHtml(p.navn || t('dag_timer_person_me')) + edit + '</span>' +
-                '<span class="dag-timer-person-tab-sum">' + (sum ? _fmtDagTimerHours(sum) + ' t' + (cnt > 1 ? ' \u00d7 ' + cnt : '') : (cnt > 1 ? t('dag_timer_team_each') : '—')) + '</span>';
+                '<span class="dag-timer-person-tab-sum">' + (sum ? _fmtDagTimerHours(sum) + ' t' : '—') + '</span>';
             btn.onclick = function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -7381,8 +7364,9 @@ function _removeDagTimerPerson(i) {
 //   I «Legg til» står MEG uten hake (bruker 27-11-2026: «jeg tror ikke det er nødvendig at
 //   "meg" er valgt som default» — vinduet er for de ANDRE). Huker man av meg + andre med
 //   Sammen, blir min fane laget («asd + Kari», mine timer følger med).
-// Timer: fanens timer følger medlemmene (lag delt opp → hver får lagets timer, det er det
-// hver jobbet); nye personer i et lag får lagets timer, nye hver for seg starter tomme.
+// Timer: lagets timer er lagets TOTAL. Sammen → laget beholder fanens timer; lag delt opp →
+// den første beholder totalen og brukeren får beskjed om å fordele resten; nye hver for seg
+// starter tomme.
 var _personPickerCtx = { edit: -1 };   // edit = indeks for fanen som endres, -1 = ny fane
 var _personPickerTogether = true;
 function _personPickerOkSync() {
@@ -7637,9 +7621,15 @@ function _editDagTimerTab(idx, names, together) {
     orig.forEach(function(n) { isOrig[n.toLowerCase()] = true; });
     var tabH = _dagTimerPersonSum(entry) > 0;
     var copy = function() { return JSON.parse(JSON.stringify(entry.buckets || {})); };
+    // Sammen: laget har fanens timer (lagets total). Hver for seg: totalen kan ikke fordeles
+    // automatisk → den FØRSTE (av de som var på fanen) beholder timene, de andre starter tomme,
+    // og brukeren får beskjed om å flytte resten (ingen skjult fordeling).
+    var keeper = clean.filter(function(n) { return isOrig[n.toLowerCase()]; })[0] || null;
     var repl = (together || clean.length === 1)
-        ? [_dagTimerEntryFor(clean, copy())]                          // laget har fanens timer
-        : clean.map(function(n) { return { navn: n, buckets: isOrig[n.toLowerCase()] ? copy() : {} }; });
+        ? [_dagTimerEntryFor(clean, copy())]
+        : clean.map(function(n) { return { navn: n, buckets: (n === keeper) ? copy() : {} }; });
+    var splitNote = (!together && clean.length > 1 && tabH && orig.length > 1 && keeper)
+        ? t('dag_timer_split_note').replace('{0}', keeper) : '';
     var removed = orig.filter(function(n) { return !seen[n.toLowerCase()]; });
     var doApply = function() {
         closePersonPicker();
@@ -7649,6 +7639,7 @@ function _editDagTimerTab(idx, names, together) {
         _dagTimerPersons = list;
         _dagTimerActivePerson = at;
         _dagTimerRerender();
+        if (splitNote) showNotificationModal(splitNote);
     };
     if (removed.length && tabH) {
         showConfirmModal(t('dag_timer_person_remove') + ': ' + removed.join(', ') + '?', doApply, t('delete_btn'), '#E8501A');
@@ -7895,10 +7886,9 @@ window.openDtClock = openDtClock;
 function _dagTimerTypeSum(ot) {
     var sum = 0;
     _dagTimerPersons.forEach(function (p) {
-        var cnt = timerEntryCount(p);   // lag: timer pr. person × antall = timeverk
         Object.keys((p && p.buckets) || {}).forEach(function (w) {
             var b = p.buckets[w] || {};
-            TIMER_BUCKET_KEYS.forEach(function (d) { sum += _timerNum(b[timerKey(d, ot)]) * cnt; });
+            TIMER_BUCKET_KEYS.forEach(function (d) { sum += _timerNum(b[timerKey(d, ot)]); });   // lag = total
         });
     });
     return sum;

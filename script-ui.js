@@ -6216,7 +6216,13 @@ function _popupStackSync() {
     var all = Array.prototype.slice.call(document.querySelectorAll(_POPUP_STACK_SEL));
     var open = [];
     all.forEach(function (el, dom) {
-        if (!el.classList.contains('active')) { _popupUnder(el, false); return; }
+        if (!el.classList.contains('active')) {
+            _popupUnder(el, false);
+            // Lukket: fjern «samme topp»-forankringen vi satte (neste åpning starter som vanlig).
+            if (el._stackAnchored) { el._stackAnchored = false; if (typeof _clearPopupTopAnchor === 'function') _clearPopupTopAnchor(el.id); }
+            el._stackTop = 0;
+            return;
+        }
         var cs = getComputedStyle(el);
         // Usynlig (skjult selv, eller ligger i et skjult element) → teller ikke.
         if (cs.display === 'none' || cs.visibility === 'hidden' || !el.getClientRects().length) { _popupUnder(el, false); return; }
@@ -6257,6 +6263,56 @@ function _popupStackSync() {
         return r.width >= vw * 0.95 && r.height >= vh * 0.85;
     };
     open.forEach(function (o) { _popupUnder(o.el, !!top && o !== top && above(top, o) && !isPage(o.el)); });
+    _popupStackAlign(top ? top.el : null, isPage);
+}
+// ── SAMME TOPP når et vindu åpner et nytt vindu (bruker 27-11-2026: «jeg hater popuper som
+// hopper opp og ned når en ny popup åpnes» — Arbeidstid → klokka åpnet med en annen topp).
+// Vi husker toppen til vinduet som vises. Blir et NYTT vindu øverst mens det forrige fortsatt er
+// åpent (skjult bak / selvskjult), forankres det nye med samme topp; _fitPopupTopAnchor flytter
+// det bare opp hvis bunnen ellers havner under kanten. Lukkes det nye, kommer det forrige tilbake
+// der det sto (det ble aldri flyttet). Små spørsmål/menyer (_POPUP_STACK_KEEP_BEHIND) og hele
+// sider (materialvelgeren) er ikke «forrige vindu».
+var _popupTopMemo = null;   // { el, top } for vinduet som sist var øverst
+// Toppen måles når brukeren TRYKKER (rett før et nytt vindu kan åpnes) — da står vinduet i ro.
+// Måling ved åpning alene ga feil verdi når vinduet fortsatt la seg på plass (Arbeidstid: 288 mot 322).
+function _popupMemoNow() {
+    var best = null, bestZ = -1;
+    Array.prototype.forEach.call(document.querySelectorAll(_POPUP_STACK_SEL), function (el, dom) {
+        if (!el.classList.contains('active') || el.classList.contains('popup-under') || /--hidden\b/.test(el.className)) return;
+        if (_POPUP_STACK_KEEP_BEHIND[el.id]) return;
+        var cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return;
+        var z = parseInt(cs.zIndex, 10) || 0;
+        if (z >= bestZ) { bestZ = z; best = el; }
+    });
+    if (!best) return;
+    var sh = best.querySelector(_POPUP_ANCHOR_SHEET);
+    if (!sh || sh._kbdStyled) return;
+    var r = sh.getBoundingClientRect();
+    if (r.height > 0 && r.width < (window.innerWidth || 1) * 0.95) _popupTopMemo = { el: best, top: r.top };
+}
+document.addEventListener('pointerdown', _popupMemoNow, true);
+function _popupStackAlign(topEl, isPage) {
+    var sheetOf = function (el) { return el && el.querySelector(_POPUP_ANCHOR_SHEET); };
+    if (!topEl || isPage(topEl)) { if (!topEl) _popupTopMemo = null; return; }
+    var prev = _popupTopMemo;
+    if (prev && prev.el !== topEl) {
+        var prevOpen = prev.el.classList.contains('active');
+        if (prevOpen && !topEl._stackTop && prev.top > 0) {
+            topEl._stackTop = Math.round(prev.top);
+            topEl._stackAnchored = true;
+            var c = sheetOf(topEl);
+            if (c) { c._preLift = 0; c.style.removeProperty('transform'); }   // ikke løft — samme topp som forrige
+            _applyPopupTopAnchor(topEl.id, 0);
+        }
+    }
+    var sh = sheetOf(topEl);
+    if (sh && !sh._kbdStyled) {
+        var r = sh.getBoundingClientRect();
+        if (r.height > 0) _popupTopMemo = { el: topEl, top: r.top };
+    } else if (!prev || prev.el !== topEl) {
+        _popupTopMemo = { el: topEl, top: prev && prev.el === topEl ? prev.top : 0 };
+    }
 }
 (function () {
     var raf = 0;
@@ -12607,6 +12663,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function _popupComputePreLift(content) {
         content._preLift = 0;
         if (!IS_TOUCH_DEVICE || content._kbdStyled) return;
+        // Åpnet fra et annet vindu: står med samme topp som det (POPUP-STABEL) — ikke løft.
+        var bdS = content.closest && content.closest(POPUP_BACKDROP_SELECTOR);
+        if (bdS && bdS._stackTop > 0) return;
         var hasField = false;
         content.querySelectorAll('input, textarea, [contenteditable="true"]').forEach(function(f) {
             if (!hasField && isKeyboardOpeningElement(f) && !f.disabled && !f.readOnly && f.offsetParent !== null) hasField = true;
@@ -20449,10 +20508,13 @@ var _pendingTopAnchors = {};
 
 // Gjelder begge popup-oppbygningene: .spec-popup-sheet og .template-editor-content (sistnevnte
 // i .confirm-modal — f.eks. godkjenningsvinduene i Til godkjenning).
-var _POPUP_ANCHOR_SHEET = '.spec-popup-sheet, .template-editor-content';
+var _POPUP_ANCHOR_SHEET = '.spec-popup-sheet, .template-editor-content, .confirm-modal-content, .fakturaadresse-popup-sheet';
 function _applyPopupTopAnchor(popupId, tallestH) {
-    if (tallestH > 0) _pendingTopAnchors[popupId] = tallestH;
     var p = document.getElementById(popupId);
+    // Åpnet fra et annet vindu (POPUP-STABEL): toppen = forrige vindus topp — den vinner over
+    // vinduets egen forankring, ellers hoppet det ved neste _applyPopupTopAnchor (se _popupStackSync).
+    if (p && p._stackTop > 0) tallestH = (window.innerHeight || 800) - 2 * p._stackTop;
+    if (tallestH > 0) _pendingTopAnchors[popupId] = tallestH;
     if (!p || !p.classList.contains('active')) return;
     var sheet = p.querySelector(_POPUP_ANCHOR_SHEET);
     if (!sheet) return;
@@ -20460,6 +20522,7 @@ function _applyPopupTopAnchor(popupId, tallestH) {
     var off = Math.round((vh - tallestH) / 2);
     if (off < 16) off = 16;
     _setPopupAnchorMargin(p, sheet, off);
+    _fitPopupTopAnchor(p);
 }
 // Sett forankringen. Mens tastaturet er åpent eier _popupKbdSync posisjonen
 // (position:fixed + margin:0 !important) — da lagres verdien bare, og settes
@@ -20478,6 +20541,7 @@ function _clearPopupTopAnchor(popupId) {
     delete _pendingTopAnchors[popupId];
     var p = document.getElementById(popupId);
     if (!p) return;
+    p._stackTop = 0;
     p.classList.remove('popup-top-anchored');
     delete p.dataset.specKbd;
     var sheet = p.querySelector(_POPUP_ANCHOR_SHEET);
@@ -20532,8 +20596,12 @@ function _fitPopupTopAnchor(p) {
     if (!(h > 0)) return;                             // skjult bak et undervindu — sjekkes når det vises igjen
     var vh = window.innerHeight || 800;
     var pend = _pendingTopAnchors[p.id] || 0;
-    if (h > pend) { pend = h; _pendingTopAnchors[p.id] = h; }   // målt for lavt (f.eks. under tastatur)
-    var off = Math.round((vh - pend) / 2);
+    var off;
+    if (p._stackTop > 0) off = p._stackTop;   // åpnet fra et annet vindu: samme topp (flyttes bare om bunnen må)
+    else {
+        if (h > pend) { pend = h; _pendingTopAnchors[p.id] = h; }   // målt for lavt (f.eks. under tastatur)
+        off = Math.round((vh - pend) / 2);
+    }
     var maxOff = vh - 16 - h;                         // bunnen minst 16 px over skjermkanten
     if (off > maxOff) off = maxOff;
     if (off < 16) off = 16;
@@ -23062,13 +23130,10 @@ function _orderPersonHours(acc, tm, want, attrib, owner) {
     if (timerHasPersons(tm)) {
         tm.personer.forEach(function (p) {
             var uk = (p && p.uker) || {};
-            // Lag (Kari + Ola): timene er det HVER jobbet → hver person får dem.
-            var members = timerEntryMembers(p);
-            if (!members.length) members = [p && p.navn];
+            // Lag («Greg + Kari»): timene er lagets TOTAL → laget er én post (fordelingen er ukjent).
             Object.keys(uk).forEach(function (w) {
                 if (want && !want[w]) return;
-                var h = _phBucketSum(uk[w]);
-                members.forEach(function (m) { _phAdd(acc, m, h); });
+                _phAdd(acc, p && p.navn, _phBucketSum(uk[w]));
             });
         });
         return;

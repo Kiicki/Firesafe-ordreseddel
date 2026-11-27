@@ -331,11 +331,11 @@ const TRANSLATIONS = {
         dag_timer_person_exists: 'Montøren er allerede lagt til p\u00e5 denne bestillingen',
         dag_timer_together: 'Sammen',
         dag_timer_who: 'Hvem jobbet?',
+        dag_timer_split_note: 'Timene står nå på {0}. Flytt det som hører til de andre.',
         dag_timer_person_none: 'Alle er lagt til. Trykk på en fane for å endre hvem som jobbet der.',
         dag_timer_separate: 'Hver for seg',
-        dag_timer_team_hint: 'Én fane. Før timene hver av dem jobbet — totalen ganges med antall.',
+        dag_timer_team_hint: 'Én fane for laget. Før timene dere brukte til sammen.',
         dag_timer_separate_hint: 'Én fane pr. montør med egne timer.',
-        dag_timer_team_each: 'hver',
         dag_timer_person_need_montor: 'Fyll inn Montør i skjemaet først \u2014 da vet vi hvem timene dine skal st\u00e5 p\u00e5.',
         label_avdeling: 'Avdeling',
         label_oppdragsgiver: 'Oppdragsgiver',
@@ -360,6 +360,8 @@ const TRANSLATIONS = {
         // Order cards
         order_description: 'Beskrivelse',
         plan_general: 'Generelt',
+        plan_general_sub: 'Ingen bestemt etasje',
+        plan_or_floors: 'Eller velg etasjer',
         saved_meta_floor: 'Etasje',
         ai_fix: 'Forbedre',
         ai_fix_again: 'Ny versjon',
@@ -745,7 +747,7 @@ const TRANSLATIONS = {
         settings_plan_remove: 'Fjerne "{0}"?',
         settings_plan_edit_title: 'Rediger etasjenavn:',
         settings_no_plans: 'Ingen etasjer lagt til',
-        plan_picker_title: 'Velg plan',
+        plan_picker_title: 'Etasjer',
 
         // Materials & units settings
         settings_materials: 'Materialer',
@@ -1796,11 +1798,11 @@ const TRANSLATIONS = {
         dag_timer_person_exists: 'That technician is already on this order',
         dag_timer_together: 'Together',
         dag_timer_who: 'Who worked?',
+        dag_timer_split_note: 'The hours are now on {0}. Move what belongs to the others.',
         dag_timer_person_none: 'Everyone is added. Tap a tab to change who worked there.',
         dag_timer_separate: 'Separately',
-        dag_timer_team_hint: 'One tab. Enter the hours each of them worked — the total is multiplied by the number of people.',
+        dag_timer_team_hint: 'One tab for the team. Enter the hours you spent together.',
         dag_timer_separate_hint: 'One tab per technician with their own hours.',
-        dag_timer_team_each: 'each',
         dag_timer_person_need_montor: 'Fill in Technician on the form first \u2014 so we know whose hours yours are.',
         label_avdeling: 'Department',
         label_oppdragsgiver: 'Client',
@@ -1825,6 +1827,8 @@ const TRANSLATIONS = {
         // Order cards
         order_description: 'Description',
         plan_general: 'General',
+        plan_general_sub: 'No specific floor',
+        plan_or_floors: 'Or choose floors',
         saved_meta_floor: 'Floor',
         ai_fix: 'Improve',
         ai_fix_again: 'New version',
@@ -2207,7 +2211,7 @@ const TRANSLATIONS = {
         settings_plan_remove: 'Remove "{0}"?',
         settings_plan_edit_title: 'Edit floor name:',
         settings_no_plans: 'No floors added',
-        plan_picker_title: 'Select floor',
+        plan_picker_title: 'Floors',
 
         // Materials & units settings
         settings_materials: 'Materials',

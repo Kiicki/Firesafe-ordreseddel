@@ -323,6 +323,12 @@ Apple-prinsipp: **toppen av popupen står fast** mens den er åpen; boksen følg
    - Er en `--hidden`-popup aktiv uten at noen popup er synlig i 400 ms, vises den igjen (`_popupStackSync`, konsoll: «Popup-sikring»).
    - Endrer du popup-logikk: kjør testflyten med undervelgere (Arbeidstid → etasjevelger, materialvelger → Isolasjon/Festemidler → produktvelger, prosjektvelger → nytt prosjekt) og sjekk at noe alltid er synlig og at scroll virker etter lukking. Bevisste unntak (skjuler ikke det bak): `#confirm-modal`, `#unsaved-modal`, `#action-popup` (meldinger/spørsmål/meny om det man ser på) og nedtrekkslister (`.mat-type-backdrop`).
 
+6. **ÉN bredde og SAMME topp — et vindu som åpner et nytt vindu står helt i ro** (27-11-2026, bruker: «jeg hater popuper som hopper opp og ned når en ny popup åpnes. popuper som endrer bredde osv. fiks dette!!»).
+   - **Bredde:** alle vinduer (`.confirm-modal-content`, `.spec-popup-sheet`, `.fakturaadresse-popup-sheet`, `.template-editor-content`) = skjermen − 16 px på hver side, maks `--popup-w` (400 px) — blokken «POPUP-BREDDE» nederst i styles.css overstyrer alle enkeltvinduer. Gi ALDRI et vindu egen bredde. (Før: 300–440 px på PC.)
+   - **Topp:** åpnes et vindu FRA et annet (POPUP-STABEL), får det samme topp som det forrige (`_popupStackAlign` + `el._stackTop`, toppen måles ved trykk — `_popupMemoNow`). Det flyttes bare opp hvis bunnen ellers går under kanten (`_fitPopupTopAnchor`); det forrige kommer tilbake på samme sted. Vinduets egen forankring/forhåndsløft viker for stabel-toppen. Små spørsmål (#confirm-modal, #unsaved-modal, #action-popup) står midt på som før.
+   - **Hold undervinduer lave nok til å få plass under forelderen** (klokkehjulene maks 9 rader, `--wh-h` ≤ 324 px) — ellers må de flyttes opp.
+   - Test: `.claude/popup-audit.js` + mål topp/bredde på forelder → barn → tilbake (Arbeidstid → klokke/montør/etasje) på 354 px og PC.
+
 Unntak: produkt-undervelger (`#kappe-product-picker-overlay`) er en liste-popup uten sparsom-modus-problem og beholder ratchet-låsen `_lockPopupSheetHeight`/`_unlockPopupSheetHeight`. Animert størrelsesendring er bevisst valgt bort (CSS kan ikke animere `height:auto`; JS-måling er høy risiko mot `applyKeyboardLayout`).
 
 ## VIKTIG: Cache-versjon ved hver endring
