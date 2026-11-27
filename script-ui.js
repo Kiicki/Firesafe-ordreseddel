@@ -21669,10 +21669,26 @@ function _createIsoCardPlateRow(data) {
         '<div class="iso-card-row-plates"></div>';
     return row;
 }
+// Den ene Stk-raden en ny seksjon starter med, fortsatt helt tom (ingen bredde/sider og ingen
+// LM/antall på seksjonen)? Da er den bare en standard ingen har brukt.
+function _isoSectionUntouchedStk(section) {
+    var rows = section.querySelectorAll('.iso-section-bredder .iso-bredde-row');
+    if (rows.length !== 1) return null;
+    var filled = Array.prototype.some.call(rows[0].querySelectorAll('input'), function(inp) { return String(inp.value || '').trim() !== ''; });
+    var len = (section._isoLengths || [])[0] || {};
+    if (filled || String(len.lm || '').trim() || String(len.antall || '').trim()) return null;
+    return rows[0];
+}
 function _isoCardAddPlateRow(btn) {
     var section = btn.closest('.iso-section');
     var c = section ? section.querySelector('.iso-section-plate-rows') : null;
     if (!c) return;
+    // «+ Plate» erstatter den tomme standard-Stk-raden (bruker 27-11-2026: «noen ganger legger vi
+    // bare til plater … dumt at jeg må fjerne noe som er valgt som default»). Har man skrevet noe
+    // i Stk-raden, blir den stående; vil man ha begge, trykker man «+ Stk» igjen. (Tomme Stk-rader
+    // ignoreres uansett ved Velg/lagring.) Gjelder ordreseddel og kappeskjema (delt seksjon).
+    var untouched = _isoSectionUntouchedStk(section);
+    if (untouched) untouched.remove();
     var newRow = _createIsoCardPlateRow({});
     c.appendChild(newRow);
     _updateIsoCardModeIndicators();

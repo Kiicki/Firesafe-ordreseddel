@@ -11036,6 +11036,8 @@ body.iso-group-dragging * { cursor: grabbing !important; -webkit-user-select: no
     align-items: flex-end;
     gap: 4px;
 }
+/* Ingen Stk-rader (bare plater): kolonne-overskriften Bredde/Sider/LM/Antall har ingenting å stå over. */
+.iso-section-bredder:not(:has(.iso-bredde-row)) .iso-bredde-head { display: none; }
 .iso-bredde-head .kappe-quad-row { flex: 1; min-width: 0; }
 /* 4 kolonner (Antall/LM/Bredde/Sider) er smale i popupen (~53px) — «Bredde *»
    er ~1px for bred. Ikke kutt med «…»; korte etiketter kan trygt flyte inn i
