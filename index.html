@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1296">
+    <link rel="stylesheet" href="styles.css?v=1297">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -194,9 +194,10 @@
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                     <span data-i18n="toolbar_export">Eksport</span>
                 </button>
-                <button type="button" class="form-action-btn btn-form-mark" id="btn-form-mark" onclick="showFormStatusMenu()">
-                    <span data-i18n="form_mark_btn">Merk som</span>
-                    <span class="form-mark-caret" aria-hidden="true">▾</span>
+                <!-- Som Kappeskjema/Servicebil: to statuser (Lagret → Sendt); knappen skjules når skjemaet er sendt -->
+                <button type="button" class="form-action-btn btn-form-sent" id="btn-form-sent" onclick="_formMarkStatus('sendt')">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    <span data-i18n="btn_mark_sent">Merk sendt</span>
                 </button>
             </div>
 
@@ -2847,9 +2848,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=545"></script>
+    <script src="lang.js?v=546"></script>
     <script src="script.js?v=643"></script>
-    <script src="script-ui.js?v=1553"></script>
+    <script src="script-ui.js?v=1554"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');

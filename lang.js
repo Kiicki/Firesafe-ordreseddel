@@ -289,11 +289,6 @@ const TRANSLATIONS = {
         settings_autofill_hint: 'Det som er slått på, hentes fra Profil › Personalia når du lager et nytt skjema.',
         settings_autofill_navn: 'Navn (montør)',
         btn_mark_sent: 'Merk sendt',
-        btn_mark_ferdig: 'Merk lukket',
-        form_mark_btn: 'Merk som',
-        mark_sent_confirm: 'Merk dette skjemaet som sendt?',
-        mark_ferdig_confirm: 'Merk dette skjemaet som ferdig (signert)?',
-        marked_as_ferdig: 'Skjema markert som lukket!',
 
         // Login
         login: 'Logg inn',
@@ -372,7 +367,6 @@ const TRANSLATIONS = {
         timer_chip_label: 'Timer ført',
         timer_week_label: 'Ført uke',
         timer_of_total: 'av',
-        export_mark_ferdig_label: 'Merk som ferdig',
         kappe_text_section: 'Forenklet liste (ren tekst)',
         kappe_text_share: 'Del som tekst',
         kappe_text_copy: 'Kopier',
@@ -468,8 +462,6 @@ const TRANSLATIONS = {
         bulk_mark_btn: 'Merk som',
         status_lagret: 'Lagret',
         status_sendt: 'Sendt',
-        // Nøkkelnavnet speiler den lagrede verdien 'ferdig'; etiketten er «Lukket».
-        status_ferdig: 'Lukket',
         bulk_mark_confirm: 'Sette {0} skjema til «{1}»?',
         bulk_marked: '{0} skjema satt til «{1}»',
         select_mode_title: 'Velg skjemaer',
@@ -1750,11 +1742,6 @@ const TRANSLATIONS = {
         settings_autofill_hint: 'What is switched on is taken from Profile › Personal details when you create a new form.',
         settings_autofill_navn: 'Name (fitter)',
         btn_mark_sent: 'Mark sent',
-        btn_mark_ferdig: 'Mark closed',
-        form_mark_btn: 'Mark as',
-        mark_sent_confirm: 'Mark this form as sent?',
-        mark_ferdig_confirm: 'Mark this form as done (signed)?',
-        marked_as_ferdig: 'Form marked as closed!',
 
         // Login
         login: 'Log in',
@@ -1832,7 +1819,6 @@ const TRANSLATIONS = {
         order_title: 'Order',
         timer_chip_label: 'Hours logged',
         timer_of_total: 'of',
-        export_mark_ferdig_label: 'Mark as completed',
         kappe_text_section: 'Simplified list (plain text)',
         kappe_text_share: 'Share as text',
         kappe_text_copy: 'Copy',
@@ -1926,7 +1912,6 @@ const TRANSLATIONS = {
         bulk_mark_btn: 'Mark as',
         status_lagret: 'Saved',
         status_sendt: 'Sent',
-        status_ferdig: 'Closed',
         bulk_mark_confirm: 'Set {0} forms to "{1}"?',
         bulk_marked: '{0} forms set to "{1}"',
         select_mode_title: 'Select forms',

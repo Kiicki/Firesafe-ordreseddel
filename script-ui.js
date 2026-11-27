@@ -612,57 +612,21 @@ function updateToolbarState() {
     // No toolbar buttons need disabling anymore — save/export are in the form view itself
 }
 
-// Status-prikk-klasse for et lagret skjema. Antall tilstander avhenger av TYPEN:
-//
-//  ORDRESEDDEL (tab utelatt) — TRE tilstander:
-//   s-draft (oransje) = Lagret — ikke sendt ennå (i forms-samlingen)
-//   s-sent  (blå)     = Sendt — venter på svar (i archive, status='sendt')
-//   s-done  (grafitt) = Lukket — svar mottatt, ferdigbehandlet
-//
-//  KAPPESKJEMA og SERVICEBIL — TO tilstander:
-//   s-draft (oransje) = Lagret
-//   s-sent  (blå)     = Sendt. Punktum. De trenger ingen godkjenning, så det
-//                       finnes ingen «Lukket» å gå videre til.
-//
-// Hvorfor TYPEN avgjør, og ikke et lagret felt: kappe/service skriver aldri
-// `status` (markKappeAsSent/markServiceAsSent flytter bare til arkiv-samlingen),
-// så de falt før gjennom til s-done og så ut som lukkede saker. Å begynne å
-// skrive feltet ville bare fikset NYE dokumenter — alt som alt ligger i arkivet
-// ville forblitt grafitt. Å avgjøre på typen fikser gammel og ny data på én gang,
-// uten å migrere ett eneste dokument.
-//
-// `tab` er en POSITIV allowlist, ikke `tab !== 'own'`. _statusSortRank og enhver
-// fremtidig kaller som glemmer argumentet sender undefined; med negasjon ville
-// det stille slått ordreseddel over til to tilstander. Slik er undefined per
-// konstruksjon = ordreseddel.
-//
-// Både 'service' og 'servicebil' godtas: _savedItemTab returnerer 'service',
-// mens _selectTab/switchHentTab bruker 'servicebil'.
-//
-// For ordreseddel er «Lukket» alt i archive som IKKE er 'sendt'. Det dekker med
-// vilje flere lagrede verdier: 'ferdig', den utgåtte 'ikke_godkjent' (skrives
-// ikke lenger, men gamle dokumenter har den) og eldre arkiverte helt uten
-// status-felt. Derfor vises gammel data korrekt uten at noe må migreres.
+// Status-prikk-klasse for et lagret skjema. ALLE skjematyper har TO tilstander
+// (ordreseddel også fra 27-11-2026 — bruker: «Lukket» ble for tungvint, ble nesten
+// aldri satt, så oversikten over godkjent/ikke godkjent stemte uansett ikke):
+//   s-draft (gul) = Lagret — under arbeid (forms-samlingen)
+//   s-sent  (blå) = Sendt  — delt med kunden (archive-samlingen)
+// Avgjøres av SAMLINGEN (_isSent), ikke status-feltet: gamle ordresedler med
+// status 'ferdig' / 'ikke_godkjent' (Lukket) vises derfor som Sendt uten migrering.
+// `tab` brukes ikke lenger, men kallerne sender den fortsatt.
 function _statusDotClass(item, tab) {
-    if (!item || !item._isSent) return 's-draft';
-    // Typen vinner over feltet: et kappe-dokument som via duplisering eller
-    // import har fått et fremmed status-felt skal aldri rendres som lukket.
-    if (tab === 'service' || tab === 'servicebil' || tab === 'kappe' || tab === 'kvittering') return 's-sent';
-    if (item.status === 'sendt') return 's-sent';
-    return 's-done';
+    return (item && item._isSent) ? 's-sent' : 's-draft';
 }
 
-// Sorterings-rang for status-gruppering i lista: aktivt øverst (lagret, så
-// sendt/venter på svar), lukkede nederst.
-// KUN ordreseddel — kalles bare fra _savedFormsStatusCompare, som igjen brukes
-// på window.loadedForms. Sender derfor bevisst ingen `tab` videre: default =
-// 3-tilstands. Kappe/service sorterer med egne inline-komparatorer på _isSent.
+// Sorterings-rang for status-gruppering i lista: Lagret (under arbeid) øverst, så Sendt.
 function _statusSortRank(item) {
-    switch (_statusDotClass(item)) {
-        case 's-draft': return 0;   // 🟡 Lagret
-        case 's-sent':  return 1;   // 🔵 Sendt
-        default:        return 2;   // ⚫ Lukket
-    }
+    return _statusDotClass(item) === 's-draft' ? 0 : 1;
 }
 
 // Delt sammenligner for lagrede ordresedler: status-gruppe først, nyeste først
@@ -672,9 +636,6 @@ function _savedFormsStatusCompare(a, b) {
     if (ra !== rb) return ra - rb;
     return _cmpIsoDesc(a.savedAt, b.savedAt);
 }
-// Ikoner for «marker neste status» i lista.
-var _statusSendIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
-var _statusCheckIcon = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
 // Kebab (tre vertikale prikker) — samler kopier/dupliser/slett i én meny.
 var kebabIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
@@ -691,13 +652,6 @@ function _savedItemActionsHtml(hiddenButtonsHtml, leadingHtml) {
     '</div>';
 }
 
-// Er skjemaet LUKKET (grå/grønn = ferdig eller ikke godkjent)? Alt som ligger i
-// archive og ikke har status 'sendt' er lukket — samme regel som _statusDotClass
-// og showFormStatusMenu bruker, samlet ett sted så de tre ikke kan bli uenige.
-// Kun ordreseddel har 3-tilstands status; service/kappe er alltid utkast|sendt.
-function _isFormClosed(form) {
-    return !!(form && form._isSent && form.status !== 'sendt');
-}
 
 // Åpne handlings-menyen for en lagret-rad (gjenbruker #action-popup).
 // Ikoner for de ekstra meny-valgene (Eksporter / Merk som).
@@ -801,8 +755,7 @@ function _applySingleStatus(form, target) {
     _lastLocalSaveTs = Date.now();
     loadedForms = [];
     _showSavedFormsDirectly();
-    var labelKey = target === 'sendt' ? 'status_sendt'
-        : target === 'ferdig' ? 'status_ferdig' : 'status_lagret';
+    var labelKey = target === 'sendt' ? 'status_sendt' : 'status_lagret';
     showNotificationModal(t('bulk_marked', 1, t(labelKey).toLowerCase()), true);
 }
 
@@ -850,7 +803,7 @@ async function _canvasForTab(form, tab) {
     return await _renderOwnCanvasFromData(form);
 }
 
-async function _singleFormExport(form, tab, share, png, markFerdig) {
+async function _singleFormExport(form, tab, share, png) {
     var loading = document.getElementById('loading');
     if (loading) loading.classList.add('active');
     var type = _tabFormType(tab);
@@ -887,7 +840,7 @@ async function _singleFormExport(form, tab, share, png, markFerdig) {
     // Fullført deling → sendt. Samme regel som i det åpne skjemaet og i
     // fler-valg-eksporten; her manglet den, så et skjema delt fra Lagret-lista
     // ble liggende som utkast (gul prikk).
-    if (didShare) _promoteListFormToSent(form, tab, markFerdig);
+    if (didShare) _promoteListFormToSent(form, tab);
 }
 window._singleFormExport = _singleFormExport;
 
@@ -905,24 +858,14 @@ function _showSingleExportMenu(savedItem) {
     function shareBtn(png) {
         var lbl = png ? 'PNG' : 'PDF';
         if (!canShare) return '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + sh + ' ' + lbl + '</button>';
-        return '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, true, ' + (png ? 'true' : 'false') + ', ' + mf + ')">' + sh + ' ' + lbl + '</button>';
+        return '<button class="confirm-btn-ok" style="background:#E8501A" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, true, ' + (png ? 'true' : 'false') + ')">' + sh + ' ' + lbl + '</button>';
     }
     // Tekst-seksjonen gjelder bare kappeskjema, som eneste skjematype har en
     // kort nok bestillingsliste til å stå som ren e-posttekst.
     var textSectionHtml = (_singleExportCtx.tab === 'kappe') ? _kappeTextSectionHtml(true) : '';
-    // «Merk som ferdig» — kun ordreseddel (3-tilstands status), og kun når
-    // skjemaet ikke allerede er lukket.
-    var showFerdig = _singleExportCtx.tab === 'own' && !_isFormClosed(_singleExportCtx.form);
-    var mf = showFerdig ? "document.getElementById('export-mark-ferdig')?.checked" : 'false';
-    var ferdigCheckboxHtml = showFerdig
-        ? '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
-              '<input type="checkbox" id="export-mark-ferdig" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
-              escapeHtml(t('export_mark_ferdig_label')) +
-          '</label>'
-        : '';
     // Kvittering er selv et bilde i en PDF → bare PDF (PNG gir ingen mening).
     var pdfOnly = _singleExportCtx.tab === 'kvittering';
-    document.getElementById('action-popup-buttons').innerHTML = ferdigCheckboxHtml +
+    document.getElementById('action-popup-buttons').innerHTML =
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="closeActionPopup(); _singleFormExport(_singleExportCtx.form, _singleExportCtx.tab, false, false)">' + dl + ' PDF</button>' +
@@ -943,8 +886,7 @@ function _buildSavedItemHtml(item, index) {
     var isSent = item._isSent;
     var dotCls = _statusDotClass(item);
     var dot = '<span class="status-dot ' + dotCls + '"></span>';
-    // Ingen status-knapp i lista — status vises kun via prikken (oransje/blå/grønn).
-    // Markering skjer i skjemaet (Merk sendt / Merk ferdig).
+    // Ingen status-knapp i lista — status vises kun via prikken (gul/blå).
     var statusBtn = '';
     var clipBtn = '<button class="saved-item-action-btn clipboard" title="' + t('copy_btn') + '">' + copyIcon + '</button>';
     var dupBtn = '<button class="saved-item-action-btn copy" title="' + t('duplicate_btn') + '">' + duplicateIcon + '</button>';
@@ -1314,7 +1256,7 @@ function loadFormDirect(formData) {
     // Show sent banner but keep form editable
     document.getElementById('sent-banner').style.display = isSent ? 'block' : 'none';
     sessionStorage.setItem('firesafe_current_sent', isSent ? '1' : '');
-    sessionStorage.setItem('firesafe_current_status', (isSent ? (formData.status || 'ferdig') : ''));
+    sessionStorage.setItem('firesafe_current_status', (isSent ? 'sendt' : ''));
     _updateFormStatusButtons();
     closeModal();
     // Set hash based on form type
@@ -2432,25 +2374,13 @@ function showExportMenu() {
     const buttonsEl = document.getElementById('action-popup-buttons');
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
-    var mf = "document.getElementById('export-mark-ferdig')?.checked";
     var shareBtnPDF = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(' + mf + '); closeActionPopup()">' + shareIcon + ' PDF</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePDF(); closeActionPopup()">' + shareIcon + ' PDF</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PDF</button>';
     var shareBtnPNG = canShare
-        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(' + mf + '); closeActionPopup()">' + shareIcon + ' PNG</button>'
+        ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="doSharePNG(); closeActionPopup()">' + shareIcon + ' PNG</button>'
         : '<button class="confirm-btn-ok" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
-    // «Merk som ferdig»: av → deling gir sendt (som før), på → ferdig. Vises ikke
-    // når skjemaet ALLEREDE er lukket — da er det ingenting å velge.
-    // Nedlasting endrer aldri status, uansett avkrysning.
-    var _fIsSent = sessionStorage.getItem('firesafe_current_sent') === '1';
-    var _fStatus = sessionStorage.getItem('firesafe_current_status') || '';
-    var alreadyClosed = _fIsSent && _fStatus !== 'sendt';
-    var ferdigCheckboxHtml = alreadyClosed ? '' :
-        '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
-            '<input type="checkbox" id="export-mark-ferdig" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
-            escapeHtml(t('export_mark_ferdig_label')) +
-        '</label>';
-    let html = ferdigCheckboxHtml +
+    let html =
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="doExportPDF(); closeActionPopup()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> PDF</button>' +
@@ -2622,128 +2552,33 @@ function markCurrentFormAsSent() {
     }
 }
 
-// Sentralt: oppdater status-knappene (Merk sendt / Merk ferdig) ut fra det åpne
-// skjemaets tilstand (sessionStorage `firesafe_current_sent`/`firesafe_current_status`):
-//   Utkast  → begge knapper (kan sendes ELLER ferdigstilles direkte ved signering på stedet)
-//   Sendt   → kun «Merk ferdig»
-//   Ferdig  → ingen (hele status-raden skjules)
+// «Merk sendt» i ordreseddelen — som i Kappeskjema og Servicebil: vises bare
+// så lenge skjemaet er Lagret (to tilstander, se _statusDotClass).
 function _updateFormStatusButtons() {
-    // Én «Merk som ▾»-knapp er alltid synlig; popupen tilpasser valgene til
-    // gjeldende status (se showFormStatusMenu). Tidligere skjulte vi knapper
-    // per status — nå eier menyen den logikken.
-    var row = document.getElementById('form-status-actions');
-    if (row) row.style.display = '';
+    var btn = document.getElementById('btn-form-sent');
+    if (btn) btn.style.display = sessionStorage.getItem('firesafe_current_sent') === '1' ? 'none' : '';
 }
 
-// Status-farger på ETT sted. De var duplisert som literaler i tre popup-byggere
-// og drev fra hverandre: «Merk lukket»-knappen i lista sto igjen som grønn
-// gjennom to palett-endringer fordi den ble glemt. Må holdes i synk med
-// .status-dot-reglene i styles.css (CSS kan ikke lese herfra).
-var _STATUS_COLORS = { lagret: '#F5A623', sendt: '#2D7FF9', ferdig: '#3a3a3c' };
-
-// In-form status-meny: gjenbruker bulk-popup-mønsteret (#action-popup +
-// .bulk-status-option). Valgene avhenger av gjeldende status: forover i flyten,
-// og fra Lukket tilbake til Sendt (send på nytt hvis den ble avvist).
-var _FORM_STATUS_META = {
-    sendt:  { color: _STATUS_COLORS.sendt,  key: 'btn_mark_sent' },
-    ferdig: { color: _STATUS_COLORS.ferdig, key: 'btn_mark_ferdig' }   // = Lukket
-};
-function showFormStatusMenu() {
-    var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
-    var status = sessionStorage.getItem('firesafe_current_status') || '';
-    // Alt i archive som ikke er 'sendt' er Lukket — inkludert den utgåtte
-    // 'ikke_godkjent' på gamle dokumenter og arkiverte uten status-felt.
-    var cur = !isSent ? 'utkast' : (status === 'sendt' ? 'sendt' : 'lukket');
-    var opts;
-    if (cur === 'utkast') opts = ['sendt', 'ferdig'];
-    else if (cur === 'sendt') opts = ['ferdig'];
-    else opts = ['sendt'];   // Lukket → send på nytt (f.eks. etter avvisning)
-    var titleEl = document.getElementById('action-popup-title');
-    if (titleEl) titleEl.textContent = t('form_mark_btn');
-    document.getElementById('action-popup-buttons').innerHTML =
-        '<div class="bulk-status-menu">' +
-        opts.map(function(o) {
-            var m = _FORM_STATUS_META[o];
-            return '<button class="bulk-status-option" onclick="closeActionPopup(); _formMarkStatus(\'' + o + '\')">' +
-                '<span class="bulk-status-option-dot" style="background:' + m.color + '"></span>' + t(m.key) + '</button>';
-        }).join('') +
-        '</div>';
-    document.getElementById('action-popup').classList.add('active');
-}
-window.showFormStatusMenu = showFormStatusMenu;
+// Status-farger på ETT sted. Må holdes i synk med .status-dot-reglene i styles.css.
+var _STATUS_COLORS = { lagret: '#F5A623', sendt: '#2D7FF9' };
 
 function _formMarkStatus(target) {
     if (!validateRequiredFields()) return;
     if (target === 'sendt') markCurrentFormAsSent();
-    else if (target === 'ferdig') markCurrentFormAsFerdig();
 }
 window._formMarkStatus = _formMarkStatus;
 window._updateFormStatusButtons = _updateFormStatusButtons;
 
-// Marker det ÅPNE skjemaet som LUKKET: sett status='ferdig' i archive. Er
-// skjemaet allerede sendt ligger det i archive (ingen flytting); kommer det
-// direkte fra utkast, flyttes det forms→archive. Verdien 'ferdig' beholdes som
-// intern representasjon av Lukket — kun etiketten er endret, så gamle dokumenter
-// (også de med utgått 'ikke_godkjent') trenger ingen migrering.
-function _markCurrentFormTerminal(statusVal, toastKey) {
-    try {
-        var data = getFormData();
-        data.status = statusVal;
-        var wasSent = sessionStorage.getItem('firesafe_current_sent') === '1';
-        var saved = safeParseJSON(STORAGE_KEY, []);
-        var archived = safeParseJSON(ARCHIVE_KEY, []);
-        var aIdx = archived.findIndex(function(f) { return f.ordreseddelNr === data.ordreseddelNr; });
-        var sIdx = saved.findIndex(function(f) { return f.ordreseddelNr === data.ordreseddelNr; });
-        data.id = (aIdx !== -1) ? archived[aIdx].id : ((sIdx !== -1) ? saved[sIdx].id : Date.now().toString());
-        if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
-        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
-        if (sIdx !== -1) { saved.splice(sIdx, 1); safeSetItem(STORAGE_KEY, JSON.stringify(saved)); }
-        addToOrderNumberIndex(data.ordreseddelNr);
-        if (wasSent || aIdx !== -1) {
-            enqueueUserDocSet('archive', data.id, data, 'Mark ' + statusVal + ' (var i archive)');
-        } else {
-            enqueueUserDocMove('archive', 'forms', data.id, data, 'Mark ' + statusVal + ' (fra utkast)');
-        }
-        sessionStorage.setItem('firesafe_current_sent', '1');
-        sessionStorage.setItem('firesafe_current_status', statusVal);
-        _updateFormStatusButtons();
-        showNotificationModal(t(toastKey), true);
-        _lastLocalSaveTs = Date.now();
-        loadedForms = [];
-        _showSavedFormsDirectly();
-    } catch (e) { console.error('Mark terminal (' + statusVal + ') error:', e); }
-}
-function markCurrentFormAsFerdig() { _markCurrentFormTerminal('ferdig', 'marked_as_ferdig'); }
-window.markCurrentFormAsFerdig = markCurrentFormAsFerdig;
 
-// Kalt når en DELING er fullført: løft LAGRET (utkast) til sendt. Sendt forblir
-// sendt, ferdig forblir ferdig — aldri nedgrader (en ferdig/signert liste som
-// deles er fortsatt ferdig). Nedlasting kaller IKKE denne (last ned ≠ sendt).
 // ── «Deling = sendt» — ÉN regel for hele appen ───────────────────────────────
 // En FULLFØRT deling markerer skjemaet som sendt. En nedlasting gjør det ikke —
 // en fil på egen disk er ikke levert til noen. Regelen gjelder alle tre
 // skjematypene (ordreseddel, servicebil, kappeskjema) og alle tre delings-veiene
 // (åpent skjema, enkeltskjema fra Lagret-lista, fler-valg-eksport).
-// Ingen av veiene nedgraderer et skjema som allerede er sendt eller lukket.
-// Manuell merking finnes fortsatt: «Merk som» i ordreseddelen og
-// «Merk som sendt»-knappen i servicebil/kappeskjema.
-// markFerdig = avkrysningen «Merk som ferdig» i eksport-menyen.
-//   av  → utkast blir sendt; sendt/ferdig røres ikke (som før)
-//   på  → utkast OG sendt blir ferdig (kunden har signert, saken er lukket)
-// Ferdig nedgraderes aldri. Kun ordreseddel: servicebil og kappeskjema har bare
-// to tilstander og ingen «ferdig».
-function _promoteFormToSent(markFerdig) {
-    var isSent = sessionStorage.getItem('firesafe_current_sent') === '1';
-    var status = sessionStorage.getItem('firesafe_current_status') || '';
-    if (markFerdig) {
-        // Alt i archive som ikke er 'sendt' er allerede lukket — samme regel som
-        // showFormStatusMenu bruker, så de to kan ikke bli uenige om tilstanden.
-        var alreadyClosed = isSent && status !== 'sendt';
-        if (alreadyClosed) return;
-        markCurrentFormAsFerdig();
-        return;
-    }
-    if (isSent) return;                        // sendt el. ferdig → ikke rør
+// Et skjema som allerede er sendt, røres ikke. Manuell merking: «Merk sendt»-
+// knappen i alle skjematypene, og «Merk som» i lista (Lagret / Sendt).
+function _promoteFormToSent() {
+    if (sessionStorage.getItem('firesafe_current_sent') === '1') return;   // allerede sendt
     markCurrentFormAsSent();
 }
 window._promoteFormToSent = _promoteFormToSent;
@@ -2764,28 +2599,9 @@ window._promoteKappeToSent = _promoteKappeToSent;
 // samme data-baserte hjelperne som fler-valg-eksporten (_bulkMarkSelectedAsSent)
 // i stedet for de skjema-baserte markXAsSent-funksjonene.
 // tab: 'own' | 'service' | 'kappe' (fra _savedItemTab).
-function _promoteListFormToSent(form, tab, markFerdig) {
+function _promoteListFormToSent(form, tab) {
     if (!form) return false;
-    // «Merk som ferdig» gjelder kun ordreseddel, og gjør at et allerede SENDT
-    // skjema kan lukkes ved deling. _applyFormStatus håndterer alle overganger
-    // (også forms→archive for et utkast), så vi slipper egen flytte-logikk her.
-    if (markFerdig && tab === 'own') {
-        if (_isFormClosed(form)) return false;  // allerede lukket → ingenting å gjøre
-        var savedArr = safeParseJSON(STORAGE_KEY, []);
-        var archArr = safeParseJSON(ARCHIVE_KEY, []);
-        try { _applyFormStatus(form, 'ferdig', savedArr, archArr); }
-        catch (e) { console.error('Del → ferdig:', e); return false; }
-        safeSetItem(STORAGE_KEY, JSON.stringify(savedArr));
-        safeSetItem(ARCHIVE_KEY, JSON.stringify(archArr));
-        form._isSent = true;
-        form.status = 'ferdig';
-        _lastLocalSaveTs = Date.now();
-        loadedForms = [];
-        _showSavedFormsDirectly(tab);
-        showNotificationModal(t('marked_as_ferdig'), true);
-        return true;
-    }
-    if (form._isSent) return false;            // allerede sendt/lukket → aldri nedgrader
+    if (form._isSent) return false;            // allerede sendt → aldri nedgrader
     if (tab === 'kvittering') _applyTwoStateStatus(form, tab, 'sendt');
     else if (tab === 'service') _markServiceFormDataAsSent(form);
     else if (tab === 'kappe') _markKappeFormDataAsSent(form);
@@ -2799,63 +2615,7 @@ function _promoteListFormToSent(form, tab, markFerdig) {
 }
 window._promoteListFormToSent = _promoteListFormToSent;
 
-// ── Status fra lista: utkast → sendt → ferdig ────────────────────────────────
-// Marker et lagret skjema (fra #hent-lista) som SENDT (blå): flytt forms→archive
-// og sett status='sendt'. Speiler markCurrentFormAsSent, men på data fra lista
-// (skjemaet trenger ikke være åpent).
-function _markFormSent(form) {
-    try {
-        var data = Object.assign({}, form);
-        delete data._isSent;
-        data.status = 'sendt';
-        if (!data.id) data.id = _newFormId();
-        // localStorage: flytt fra saved til archive.
-        var saved = safeParseJSON(STORAGE_KEY, []);
-        var sIdx = saved.findIndex(function(f) { return f.id === data.id; });
-        if (sIdx !== -1) { saved.splice(sIdx, 1); safeSetItem(STORAGE_KEY, JSON.stringify(saved)); }
-        var archived = safeParseJSON(ARCHIVE_KEY, []);
-        var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
-        if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
-        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
-        addToOrderNumberIndex(data.ordreseddelNr);
-        enqueueUserDocMove('archive', 'forms', data.id, data, 'Mark sent (list)');
-        _lastLocalSaveTs = Date.now();
-        loadedForms = [];
-        _showSavedFormsDirectly();
-        showNotificationModal(t('marked_as_sent'), true);
-    } catch (e) { console.error('Mark sent (list) error:', e); }
-}
 
-// Marker et SENDT skjema som FERDIG (grønn): sett status='ferdig' i archive
-// (ingen samlings-flytting — den ligger allerede i archive).
-function _markFormFerdig(form) {
-    try {
-        var data = Object.assign({}, form);
-        delete data._isSent;
-        data.status = 'ferdig';
-        if (!data.id) data.id = _newFormId();
-        var archived = safeParseJSON(ARCHIVE_KEY, []);
-        var aIdx = archived.findIndex(function(f) { return f.id === data.id; });
-        if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
-        safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
-        enqueueUserDocSet('archive', data.id, data, 'Mark ferdig (list)');
-        _lastLocalSaveTs = Date.now();
-        loadedForms = [];
-        _showSavedFormsDirectly();
-        showNotificationModal(t('marked_as_ferdig'), true);
-    } catch (e) { console.error('Mark ferdig error:', e); }
-}
-
-// Ett trykk på status-knappen i lista flytter til NESTE tilstand (med bekreftelse).
-function advanceSavedFormStatus(form) {
-    if (!form) return;
-    if (!form._isSent) {
-        showConfirmModal(t('mark_sent_confirm'), function() { _markFormSent(form); }, t('btn_mark_sent'), '#2D7FF9');
-    } else if (form.status === 'sendt') {
-        showConfirmModal(t('mark_ferdig_confirm'), function() { _markFormFerdig(form); }, t('btn_mark_ferdig'), '#4CAF50');
-    }
-}
-window.advanceSavedFormStatus = advanceSavedFormStatus;
 
 // ============================================
 // PROSJEKTMALER
@@ -8792,7 +8552,7 @@ function updateSelectionUI() {
 }
 
 // Anvend en status på ÉN form i de gitte localStorage-arrayene + enqueue Firestore.
-// target: 'lagret' (oransje, i forms) | 'sendt' (blå, archive) | 'ferdig' (grå = Lukket, archive).
+// target: 'lagret' (gul, i forms) | 'sendt' (blå, archive).
 // ops (valgfri): samme mekanikk som i _markOwnFormDataAsSent — når fler-valg
 // sender inn en samle-array committes Firestore-skrivingene som ÉN atomisk
 // batch i stedet for 2 kall pr. skjema i en sekvensiell kjede.
@@ -8811,7 +8571,7 @@ function _applyFormStatus(form, target, saved, archived, ops) {
         else if (inArchive) enqueueUserDocMove('forms', 'archive', data.id, data, 'Bulk → lagret');
         else enqueueUserDocSet('forms', data.id, data, 'Bulk → lagret');
     } else {
-        // target = 'sendt' | 'ferdig' (= Lukket) → begge i archive.
+        // target = 'sendt' → archive.
         data.status = target;
         if (sIdx !== -1) saved.splice(sIdx, 1);
         if (aIdx !== -1) archived[aIdx] = data; else archived.unshift(data);
@@ -8847,9 +8607,7 @@ function bulkSetStatus(target) {
     var forms = [];
     _selectedSet.forEach(function(i) { var f = window.loadedForms[i]; if (f) forms.push(f); });
     if (!forms.length) return;
-    var label = (target === 'sendt') ? t('status_sendt')
-        : (target === 'ferdig') ? t('status_ferdig')
-        : t('status_lagret');
+    var label = (target === 'sendt') ? t('status_sendt') : t('status_lagret');
     var saved = safeParseJSON(STORAGE_KEY, []);
     var archived = safeParseJSON(ARCHIVE_KEY, []);
     var ops = [];
@@ -8867,13 +8625,12 @@ function bulkSetStatus(target) {
 window.bulkSetStatus = bulkSetStatus;
 
 // ── «Merk som» for kappeskjema + servicebil (2 tilstander) ──────────────────
-// Typen avgjør statusene: ordreseddel har 3 (Lagret·Sendt·Lukket); kappe og
-// servicebil har bare 2 (Lagret·Sendt) — «sendt» = ligger i arkiv-samlingen,
-// ingen status-felt (se _statusDotClass). Samme meny-oppsett for alle.
-var _STATUS_LABEL_KEYS = { lagret: 'status_lagret', sendt: 'status_sendt', ferdig: 'status_ferdig' };
+// Alle typer har 2 statuser (Lagret·Sendt) — «sendt» = ligger i arkiv-samlingen
+// (se _statusDotClass). Ordreseddel skriver i tillegg status='sendt' på dokumentet.
+var _STATUS_LABEL_KEYS = { lagret: 'status_lagret', sendt: 'status_sendt' };
 function _isTwoStateTab(tab) { return tab === 'kappe' || tab === 'service' || tab === 'servicebil' || tab === 'kvittering'; }
 function _statusOptionsForTab(tab) {
-    return _isTwoStateTab(tab) ? ['lagret', 'sendt'] : ['lagret', 'sendt', 'ferdig'];
+    return ['lagret', 'sendt'];
 }
 
 // Lagring pr. 2-tilstands-type: localStorage-nøkler + Firestore-samlinger.
@@ -9184,7 +8941,7 @@ async function _safeShare(files, meta) {
     }
 }
 
-async function doSharePDF(markFerdig) {
+async function doSharePDF() {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -9194,7 +8951,7 @@ async function doSharePDF(markFerdig) {
         var file = new File([blob], getExportFilename('pdf'), { type: 'application/pdf' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getFormData(), 'ordreseddel'));
-        if (result === 'shared') _promoteFormToSent(markFerdig);   // fullført deling → sendt/ferdig (aldri nedgrader)
+        if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -9202,7 +8959,7 @@ async function doSharePDF(markFerdig) {
     }
 }
 
-async function doSharePNG(markFerdig) {
+async function doSharePNG() {
     if (!validateRequiredFields()) return;
     var loading = document.getElementById('loading');
     loading.classList.add('active');
@@ -9214,7 +8971,7 @@ async function doSharePNG(markFerdig) {
         var file = new File([blob], getExportFilename('png'), { type: 'image/png' });
         loading.classList.remove('active');
         var result = await _safeShare([file], _singleShareText(getFormData(), 'ordreseddel'));
-        if (result === 'shared') _promoteFormToSent(markFerdig);   // fullført deling → sendt/ferdig (aldri nedgrader)
+        if (result === 'shared') _promoteFormToSent();   // fullført deling → sendt (aldri nedgrader)
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -10554,35 +10311,10 @@ function _markKappeFormDataAsSent(sourceData, ops) {
 // før), men Firestore-flyttingene samles og committes som ÉN atomisk batch —
 // ellers kan en delvis gjennomført kjede etterlate noen skjemaer som utkast i
 // Firestore når appen fryses under deling (se enqueueUserDocMoveBatch).
-function _bulkMarkSelectedAsSent(tab, markFerdig) {
+function _bulkMarkSelectedAsSent(tab) {
     var forms = _getSelectedForms();
     tab = tab || _selectTab;
     var ops = [];
-    // «Merk som ferdig» — avkrysningen i eksport-menyen. Samme regel som for
-    // enkeltskjema (_promoteListFormToSent): kun ordreseddel har 3-tilstands
-    // status, både utkast OG sendt kan lukkes, og et allerede lukket skjema
-    // røres ikke. _applyFormStatus håndterer forms→archive-flyttingen selv.
-    if (markFerdig && !_isTwoStateTab(tab)) {
-        var saved = safeParseJSON(STORAGE_KEY, []);
-        var archived = safeParseJSON(ARCHIVE_KEY, []);
-        var changed = false;
-        for (var k = 0; k < forms.length; k++) {
-            var f = forms[k];
-            if (_isFormClosed(f)) continue;                  // allerede lukket
-            try { _applyFormStatus(f, 'ferdig', saved, archived, ops); }
-            catch (e) { console.error('Bulk deling → ferdig:', e); continue; }
-            f._isSent = true;
-            f.status = 'ferdig';
-            changed = true;
-        }
-        if (changed) {
-            safeSetItem(STORAGE_KEY, JSON.stringify(saved));
-            safeSetItem(ARCHIVE_KEY, JSON.stringify(archived));
-        }
-        enqueueUserDocMoveBatch(ops, 'Bulk deling → ferdig');
-        _lastLocalSaveTs = Date.now();
-        return;
-    }
     for (var i = 0; i < forms.length; i++) {
         if (forms[i]._isSent) continue; // already sent
         if (tab === 'service') _markServiceFormDataAsSent(forms[i], ops);
@@ -10609,26 +10341,14 @@ function showBulkExportMenu() {
             '<input type="checkbox" id="bulk-export-combined" onchange="_updateBulkPngState()" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
             t('bulk_combine_pdf_label') +
         '</label>';
-    // «Merk som ferdig» — samme avkrysning som i enkeltskjema-eksporten
-    // (_showSingleExportMenu), bare for hele utvalget. Kun ordreseddel har
-    // 3-tilstands status, og bare når minst ETT valgt skjema kan lukkes.
-    var showFerdig = !_isTwoStateTab(_selectTab) &&
-        _getSelectedForms().some(function(f) { return !_isFormClosed(f); });
-    var mf = showFerdig ? "document.getElementById('bulk-export-mark-ferdig')?.checked" : 'false';
-    var ferdigCheckboxHtml = showFerdig
-        ? '<label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;font-size:14px;padding:4px 0">' +
-              '<input type="checkbox" id="bulk-export-mark-ferdig" style="width:22px;height:22px;accent-color:#E8501A;flex-shrink:0">' +
-              escapeHtml(t('export_mark_ferdig_label')) +
-          '</label>'
-        : '';
     var shareIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var dlIcon = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
     var canShare = !!(navigator.share && navigator.canShare);
     // Runtime-dispatch: checkbox styrer om PDF-knappen bruker samlet eller separat
     var pdfDl = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkExportPDF() : doBulkExportPDFSeparate())';
-    var pdfShare = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkSharePDF(' + mf + ') : doBulkSharePDFSeparate(' + mf + '))';
+    var pdfShare = '(document.getElementById(\'bulk-export-combined\')?.checked ? doBulkSharePDF() : doBulkSharePDFSeparate())';
     var pngDl = 'doBulkExportPNG()';
-    var pngShare = 'doBulkSharePNG(' + mf + ')';
+    var pngShare = 'doBulkSharePNG()';
 
     var shareBtnPDF = canShare
         ? '<button class="confirm-btn-ok" style="background:#E8501A" onclick="' + pdfShare + '; closeActionPopup()">' + shareIcon + ' PDF</button>'
@@ -10638,8 +10358,8 @@ function showBulkExportMenu() {
         : '<button class="confirm-btn-ok bulk-png-btn" style="background:#E8501A;opacity:0.5;cursor:not-allowed" onclick="showNotificationModal(t(\'share_not_supported\'))">' + shareIcon + ' PNG</button>';
 
     // «Marker som sendt»-avhuking fjernet: deling markerer automatisk (fullført
-    // deling → sendt; nedlasting endrer ikke status; ferdig forblir ferdig).
-    var html = ferdigCheckboxHtml + combinedCheckboxHtml +
+    // deling → sendt; nedlasting endrer ikke status).
+    var html = combinedCheckboxHtml +
         '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:4px">' + t('export_download') + '</div>' +
         '<div class="confirm-modal-buttons" style="margin-bottom:12px">' +
             '<button class="confirm-btn-ok" style="background:#333" onclick="' + pdfDl + '; closeActionPopup()">' + dlIcon + ' PDF</button>' +
@@ -10683,9 +10403,9 @@ function _updateBulkPngState() {
     });
 }
 
-async function _bulkFinishAfterExport(markSent, markFerdig) {
+async function _bulkFinishAfterExport(markSent) {
     var tabForRefresh = _selectTab;  // capture FØR toggleSelectMode nullstiller _selectTab
-    if (markSent) _bulkMarkSelectedAsSent(tabForRefresh, markFerdig);
+    if (markSent) _bulkMarkSelectedAsSent(tabForRefresh);
     toggleSelectMode();
     if (markSent) {
         // Refresh saved list slik at sendt-status vises korrekt
@@ -10738,7 +10458,7 @@ async function doBulkExportPNG() {
     }
 }
 
-async function doBulkSharePDF(markFerdig) {
+async function doBulkSharePDF() {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -10758,7 +10478,7 @@ async function doBulkSharePDF(markFerdig) {
         }
         loading.classList.remove('active');
         var result = await _safeShare([file], _bulkShareText(_selectTab));
-        if (result === 'shared') await _bulkFinishAfterExport(true, markFerdig);   // fullført deling → sendt/ferdig
+        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -10767,7 +10487,7 @@ async function doBulkSharePDF(markFerdig) {
     }
 }
 
-async function doBulkSharePNG(markFerdig) {
+async function doBulkSharePNG() {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -10785,7 +10505,7 @@ async function doBulkSharePNG(markFerdig) {
         }
         loading.classList.remove('active');
         var result = await _safeShare(files, _bulkShareText(_selectTab));
-        if (result === 'shared') await _bulkFinishAfterExport(true, markFerdig);   // fullført deling → sendt/ferdig
+        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -10822,7 +10542,7 @@ async function doBulkExportPDFSeparate() {
     }
 }
 
-async function doBulkSharePDFSeparate(markFerdig) {
+async function doBulkSharePDFSeparate() {
     if (_selectedSet.size === 0) return;
     if (!(navigator.share && navigator.canShare)) {
         showNotificationModal(t('share_not_supported') || 'Deling ikke støttet');
@@ -10840,7 +10560,7 @@ async function doBulkSharePDFSeparate(markFerdig) {
         }
         loading.classList.remove('active');
         var result = await _safeShare(files, _bulkShareText(_selectTab));
-        if (result === 'shared') await _bulkFinishAfterExport(true, markFerdig);   // fullført deling → sendt/ferdig
+        if (result === 'shared') await _bulkFinishAfterExport(true);   // fullført deling → sendt
     } catch (e) {
         showNotificationModal(t('share_error') + e.message);
     } finally {
@@ -11799,8 +11519,6 @@ document.getElementById('saved-list').addEventListener('click', function(e) {
             copyTextToClipboard(savedItem._formData.ordreseddelNr);
         } else if (btn.classList.contains('copy')) {
             duplicateFormDirect(savedItem._formData);   // ingen bekreftelse (fra 3-prikker)
-        } else if (btn.classList.contains('mark-status')) {
-            advanceSavedFormStatus(savedItem._formData);
         } else if (btn.classList.contains('delete')) {
             deleteFormDirect(savedItem._formData);
         }

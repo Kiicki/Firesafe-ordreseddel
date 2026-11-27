@@ -923,16 +923,6 @@ body:has(:is(
     border-color: #E8501A;
     color: #E8501A;
 }
-.btn-form-ferdig {
-    border-color: #4CAF50;
-    color: #4CAF50;
-}
-/* «Merk som ▾» — nøytral knapp; status-fargene vises som prikker i popupen
-   (samme profesjonelle prinsipp som fler-valg-menyen). */
-.form-mark-caret {
-    font-size: 11px;
-    color: #888;
-}
 
 /* Service entry cards */
 .service-entry-card {
