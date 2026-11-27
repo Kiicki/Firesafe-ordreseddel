@@ -17440,9 +17440,9 @@ function _drawIsoCanvas(canvas, data, plateW, plateH, profile, thickness, method
     var paddingBottom = (thickness > 0) ? 38 : 24;
     var padding = paddingTop;
     var maxDrawW = cw - paddingLeft - paddingRight;
-    // Dynamisk maks-høyde: viewport minus header(44) + kontroller(~80) + resultat(~30) + toolbar(67) + margins(60)
+    // Dynamisk maks-høyde: viewport minus header(56) + kontroller(~80) + resultat(~30) + toolbar(67) + margins(60)
     // canvas-padding (2*padding) trekkes fra separat i maxDrawH-formelen
-    var usedH = 44 + 80 + 30 + 67 + 60;
+    var usedH = 56 + 80 + 30 + 67 + 60;
     var maxDrawH = Math.max(150, window.innerHeight - usedH - paddingTop - paddingBottom);
     var scaleX = maxDrawW / plateW;
     var scaleY = maxDrawH / plateH;
@@ -30003,9 +30003,9 @@ function _sjRender() {
     } else {
         if (title) title.textContent = t('sj_title');
     }
-    // Listesider (DESIGNSTANDARD «Listesider»): ny = «+» nede til høyre, ikke knapp i headeren.
+    // Listesider (DESIGNSTANDARD «Listesider»): ny = «+» i headeren på listene; «Lagre» i skjemaet.
     if (btn) btn.style.display = (_sjMode === 'form') ? '' : 'none';
-    var fab = document.getElementById('sj-fab-bar');
+    var fab = document.getElementById('sj-new-btn');
     if (fab) fab.style.display = (_sjMode === 'form') ? 'none' : '';
     if (_sjMode === 'overview') { _sjRenderProjectList(); _sjRefreshProjects(); }
     else if (_sjMode === 'project') { _sjRenderProjectHead(); _sjRenderFloorFilter(); _sjLoadProject(true); }
@@ -31936,7 +31936,6 @@ function _docsSortProjects(ids) {
     var has = function (pid) { return _docsFilesUnder(pid, '').length ? 0 : 1; };
     return ids.slice().sort(function (a, b) { return has(a) - has(b) || _docsCmpBy(v, key(a), key(b), _docsProjName(a), _docsProjName(b)); });
 }
-var _DOCS_ICON_SELECT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg>';
 var _DOCS_ICON_GRID = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
 var _DOCS_ICON_LIST = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3.5" y1="6" x2="3.5" y2="6.01"/><line x1="3.5" y1="12" x2="3.5" y2="12.01"/><line x1="3.5" y1="18" x2="3.5" y2="18.01"/></svg>';
 var _DOCS_ICON_UP = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
@@ -31948,7 +31947,6 @@ function _docsViewbarHtml() {
     return '<div class="docs-viewbar">' +
         '<button type="button" class="docs-sort-btn" onclick="docsSortMenu()">' + escapeHtml(t('docs_sort_' + v.sort)) + ' <span class="docs-sort-dir">' + (v.dir === 'desc' ? '↓' : '↑') + '</span></button>' +
         '<span class="docs-viewbar-right">' +
-        ((_docsSel || _docsSelCanUse()) ? '<button type="button" class="list-bar-ico docs-sel-btn' + (_docsSel ? ' active' : '') + '" aria-label="' + escapeHtml(t('docs_select_btn')) + '" title="' + escapeHtml(t('docs_select_btn')) + '" onclick="docsToggleSelect()">' + _DOCS_ICON_SELECT + '</button>' : '') +
         '<button type="button" class="docs-view-btn" aria-label="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" title="' + escapeHtml(t(v.view === 'grid' ? 'docs_view_list' : 'docs_view_grid')) + '" onclick="docsToggleView()">' +
         (v.view === 'grid' ? _DOCS_ICON_LIST : _DOCS_ICON_GRID) + '</button></span></div>';
 }
@@ -32060,9 +32058,17 @@ function _docsSelFiles() {
     return out;
 }
 function _docsSelHeader() {
-    // ☑ (velg flere) står i listelinja over filene (_docsViewbarHtml), som i Skjemaer.
     var ttl = document.getElementById('docs-title');
     if (ttl && _docsSel) ttl.textContent = t('docs_select_title');
+    // ☑ (velg flere) står i HEADEREN (som i Skjemaer): synlig når det finnes noe å velge her,
+    // eller valget er i gang (oransje; trykk igjen = avslutt). Skjult i AI-visningen.
+    var selHead = document.getElementById('docs-sel-head');
+    if (selHead) {
+        var ai = !!(_docsLoc && _docsLoc.ai);
+        selHead.style.display = (!ai && (_docsSel || _docsSelCanUse())) ? '' : 'none';
+        selHead.classList.toggle('active', !!_docsSel);
+        selHead.setAttribute('aria-label', t('docs_select_btn')); selHead.title = t('docs_select_btn');
+    }
 }
 function _docsSelBar() {
     var n = _docsSelIds().length, files = _docsSelFiles(), admin = !!_acc.admin;
@@ -32232,7 +32238,7 @@ function _docsRender() {
     var ttl = document.getElementById('docs-title');
     if (ttl) ttl.textContent = (aiMode && !l.ai.docId) ? t('docs_ai_title') : t('docs_title');
     var fab = document.getElementById('docs-fab');
-    if (aiMode) { if (_docsSel) _docsSelExit(true); var sb = document.getElementById('docs-select-btn'); if (sb) sb.style.display = 'none'; if (fab) fab.style.display = 'none'; host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
+    if (aiMode) { if (_docsSel) _docsSelExit(true); var sb = document.getElementById('docs-sel-head'); if (sb) sb.style.display = 'none'; if (fab) fab.style.display = 'none'; host.innerHTML = _docsAiHtml(); _docsAiAfterRender(); var ft = document.getElementById('docs-offline-foot'); if (ft) ft.innerHTML = ''; return; }
     // Står man i en mappe som ikke finnes lenger (slettet på en annen enhet) → roten.
     if (l.folderId && !_docsById(l.folderId) && _docsLoadedOnce && _docs.length) l.folderId = '';
     var libFiles = _docs.filter(function (d) { return !_docsIsFolder(d) && !d.projectId; }).length;

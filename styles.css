@@ -827,11 +827,13 @@ body:has(:is(
 .modal-header {
     background: #333;
     color: white;
-    padding: 0 15px 0 48px;
-    height: 44px;
+    /* 56 px / 17 px (27-11-2026, var 44/14): bruker «header er for små til å ha knapper».
+       Som Android (56 dp) og iPhone (17 pt tittel). Knapper i headeren: .header-icon-btn (44×44). */
+    padding: 0 10px 0 52px;
+    height: 56px;
     flex-shrink: 0;
-    font-weight: bold;
-    font-size: 14px;
+    font-weight: 600;
+    font-size: 17px;
     display: flex;
     align-items: center;
     position: relative;
@@ -865,14 +867,15 @@ body:has(:is(
 .header-save-btn {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     background: #E8501A;
     color: white;
     border: none;
-    padding: 5px 14px;
-    font-size: 12px;
+    height: 36px;
+    padding: 0 16px;
+    font-size: 14px;
     font-weight: 600;
-    border-radius: 14px;
+    border-radius: 18px;
     cursor: pointer;
     flex-shrink: 0;
     margin-left: auto;
@@ -1338,15 +1341,15 @@ body.service-view-open #view-form {
 body.servicebil-inntak-mode .servicebil-uttak-only { display: none !important; }
 body.servicebil-uttak-mode .servicebil-inntak-only { display: none !important; }
 
-/* Servicebil Inntak: picker er IKKE fullskjerm — header (44px) + toggle (52px)
+/* Servicebil Inntak: picker er IKKE fullskjerm — header (56px) + toggle (52px)
    peeker over så bruker kan klikke Uttak. Lagre i view-headeren ER bekreft-
    handlingen for picker-utvalget (picker-headeren skjules nedenfor).
    Bunn: trekker fra toolbar-høyden så toolbar i body (fixed bottom) er synlig.
    Når tastatur er åpent overstyrer JS height inline til vv.height — toolbar
    reparentes da inn i .picker-overlay-list. */
 body.servicebil-inntak-mode #picker-overlay.active {
-    top: 96px;
-    height: calc(100dvh - 96px - var(--toolbar-h, 60px));
+    top: 108px;   /* header 56 + Inntak/Uttak 52 */
+    height: calc(100dvh - 108px - var(--toolbar-h, 60px));
 }
 /* I servicebil-inntak-modus brukes header-Lagre som primær-handling.
    Avbryt/Ok-knappene er overflødige siden picker ER inntak-skjemaet og Lagre i
@@ -5410,7 +5413,7 @@ body.picker-active .confirm-modal {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
+    width: 52px;
     min-height: 38px;
     position: absolute;
     left: 0;
@@ -5430,13 +5433,14 @@ body.picker-active .confirm-modal {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
+    width: 52px;
     min-height: 44px;
     position: absolute;
     left: 0;
     top: 0;
     bottom: 0;
 }
+.header-back-btn svg { width: 24px; height: 24px; }
 .header-back-btn:active {
     opacity: 0.5;
 }
@@ -7105,7 +7109,7 @@ html:not(.device-pc) select:not([multiple]):not([data-native]) { pointer-events:
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 44px;
+    height: 56px;
     width: 100%;
     padding: 0 12px;
     padding-top: env(safe-area-inset-top);
@@ -13378,7 +13382,7 @@ body.sjekkliste-view-open #view-form { display: none; }
 #sjekkliste-header > #sj-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #sjekkliste-header .header-save-btn { margin-left: 6px; }
 .sj-head-icon {
-    width: 38px; height: 38px; border: none; background: none; color: #fff;
+    width: 44px; height: 44px; border: none; background: none; color: #fff;
     display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.9;
     -webkit-tap-highlight-color: transparent;
 }
@@ -14241,7 +14245,6 @@ button, input, select, textarea { font-family: inherit; }
 /* ── Visning (19-11-2026, etter Dropbox/MEGA): sortering + liste/rutenett, «+»-knapp ── */
 .docs-viewbar { display: flex; align-items: center; justify-content: space-between; margin: 12px 0 4px; }
 .docs-viewbar-right { display: flex; align-items: center; gap: 2px; }
-.docs-sel-btn.active { color: #E8501A; background: #fff1ea; }
 .docs-sort-btn { border: none; background: none; padding: 6px 6px 6px 2px; font: inherit; font-size: 13.5px; font-weight: 500; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 8px; }
 .docs-view-btn { width: 36px; height: 36px; border: none; background: none; color: var(--text-2); border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .docs-sort-btn:active, .docs-view-btn:active { background: var(--press-bg); }
@@ -14270,18 +14273,6 @@ button, input, select, textarea { font-family: inherit; }
 .doc-row-more-gap { flex-shrink: 0; width: 26px; }   /* = ⋯ (34 px − 8 px negativ marg) */
 /* Nederst (som Dropbox): søkefelt med ✨ + «+». Fast over toolbaren, under popupene (.confirm-modal = 20).
    Skjult når tastaturet er åpent, under søk (feltet står da øverst), flervalg, AI og filvisning. */
-.docs-bottombar { position: fixed; left: 16px; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 16px); z-index: 15; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; }
-.docs-bottombar > * { pointer-events: auto; }
-html.device-pc .docs-bottombar { left: max(16px, calc((100vw - 800px) / 2 + 16px)); right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
-.docs-fab { flex-shrink: 0; width: 56px; height: 56px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.docs-fab:active { transform: scale(0.96); }
-/* Tastatur: bare når et tekstfelt FAKTISK har fokus (et ekte tastatur har alltid det). Feil-
-   deteksjon (f.eks. DevTools/vindu som endrer høyde) skal aldri gjemme søket + «+» — det ble
-   borte til omlasting (bruker 19-11-2026). */
-body.keyboard-open:has(:is(input, textarea, [contenteditable="true"]):focus) .docs-bottombar,
-body.doc-viewer-open .docs-bottombar, body.docs-select-active .docs-bottombar,
-#docs-modal.docs-searching .docs-bottombar, #docs-modal.docs-ai-mode .docs-bottombar { display: none !important; }
-#docs-modal:not(.docs-ai-mode):not(.docs-select) #docs-list { padding-bottom: 84px; }   /* siste rad over «+» */
 /* Flervalg (19-11-2026) — samme mønster som Lagret: «Velg» i headeren, rund hake, handlingslinje nederst */
 .docs-bulk-bar { display: none; }
 body.docs-select-active .docs-bulk-bar { display: flex; }
@@ -14374,7 +14365,7 @@ body.docs-select-active .docs-upload-pill, #login-view.active ~ .docs-upload-pil
 .doc-viewer { display: none; position: fixed; inset: 0; z-index: 55; background: #2a2a2e; flex-direction: column; }
 .doc-viewer.active { display: flex; }
 .doc-viewer-header {
-    flex-shrink: 0; height: 48px; display: flex; align-items: center; gap: 4px; padding: 0 6px;
+    flex-shrink: 0; height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 6px;
     background: #333; color: #fff; padding-top: env(safe-area-inset-top);
 }
 .doc-viewer-close, .doc-viewer-act {
@@ -14525,11 +14516,11 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 /* ══ LISTESIDER (22-11-2026) — Skjemaer (Lagret), Sjekklister og Dokumenter ser LIKE ut ══
    Bruker: «det virker ikke som å tilhøre samme app … det er viktig at designet er felles».
    Mønster (etter Dokumenter/Dropbox):
-   • Header = bare tilbake + tittel. Ingen handlingsknapper i headeren på listesider.
+   • Header = tilbake + tittel + ☑ «velg flere» + «+» ny (.header-actions/.header-icon-btn, 27-11-2026 —
+     bruker ville ha «+» i headeren; før stod ☑ på egen linje og «+» flytende nede til høyre).
    • Søkefelt .list-search: rundt (44 px), forstørrelsesglass til venstre, ✕ inne i feltet.
-   • Listelinje .list-bar rett over lista: venstre = sortering/info (kan være tom), høyre = ☑ «velg flere»
-     (.list-bar-ico, samme stil som liste/rutenett-knappen; oransje under merking, trykk igjen = avslutt).
-   • Ny = «+» nede til høyre (.list-fab-bar/.list-fab), skjult med tastatur og under merking.
+   • ☑ under merking: oransje, trykk igjen = avslutt. «+» skjules under merking.
+   • Dokumenter har i tillegg sortering + liste/rutenett på en linje over innholdet (.docs-viewbar).
    • Rader 15/500 tittel + 12.5 grå undertekst; merket rad = lys oransje + rund oransje hake til høyre.
    • Tom liste = sentrert grå tekst. Ny listeside: bruk disse klassene. */
 .list-search { position: relative; }
@@ -14544,26 +14535,26 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .list-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
 .list-search .list-search-clear { right: 6px; width: 32px; height: 32px; padding: 0; border-radius: 16px; color: #9a9aa2; }
 .list-search .list-search-clear.visible { display: flex; }
-#saved-modal .modal-search { padding: 10px 15px 0; }
+#saved-modal .modal-search { padding: 10px 15px 8px; }
 
-.list-bar { display: flex; align-items: center; justify-content: space-between; min-height: 36px; margin: 12px 0 4px; }
-.list-bar-left { min-width: 0; }
-#saved-list-bar { margin: 4px 0 0; padding: 0 15px; background: var(--page-bg); }
-/* ☑ = velg flere (samme ikon og knapp som liste/rutenett i Dokumenter). Under merking: oransje. */
-.list-bar-ico { width: 36px; height: 36px; border: none; background: none; color: var(--text-2); border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
-#saved-list-bar .list-bar-ico { margin-right: -6px; }
-.list-bar-ico:active { background: var(--press-bg); }
-.list-bar-ico.active { color: #E8501A; background: #fff1ea; }
-#saved-list, #service-list, #kappe-list, #kvittering-list, #bil-history-list { padding-top: 4px; padding-bottom: 92px; }
-#sj-pane-overview, #sj-pane-project { padding-bottom: 76px; }
+#saved-list, #service-list, #kappe-list, #kvittering-list, #bil-history-list { padding-top: 4px; padding-bottom: 24px; }
+#sj-pane-overview, #sj-pane-project { padding-bottom: 24px; }
 
-.list-fab-bar { position: fixed; left: 16px; right: 16px; bottom: calc(var(--toolbar-h, 60px) + 16px); z-index: 15; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; }
-.list-fab-bar > * { pointer-events: auto; }
-html.device-pc .list-fab-bar { left: max(16px, calc((100vw - 800px) / 2 + 16px)); right: max(16px, calc((100vw - 800px) / 2 + 16px)); }
-.list-fab { flex-shrink: 0; width: 56px; height: 56px; border: none; border-radius: 16px; background: #E8501A; color: #fff; box-shadow: 0 6px 16px rgba(232, 80, 26, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.list-fab:active { transform: scale(0.96); }
-body.keyboard-open:has(:is(input, textarea, [contenteditable="true"]):focus) .list-fab-bar,
-body.bulk-select-active .list-fab-bar, body.docs-select-active .list-fab-bar { display: none !important; }
+/* ═══ HEADERKNAPPER (27-11-2026): ikon-knapper i den mørke headeren, 44×44 trykkflate.
+   Rekkefølge til høyre: (☑ velg flere) (+ ny) / «Lagre». «+» oransje som tilbake-pila;
+   andre ikoner hvite; aktiv (f.eks. ☑ under merking) = oransje. Ny knapp i en header → disse klassene. ═══ */
+.modal-header > span:not(.header-actions) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.header-icon-btn {
+    width: 44px; height: 44px; flex-shrink: 0; padding: 0; border: none; border-radius: 22px;
+    background: none; color: #fff; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.header-icon-btn:active { background: rgba(255, 255, 255, 0.12); }
+.header-icon-btn.active { color: #E8501A; background: rgba(232, 80, 26, 0.16); }
+.header-add-btn { color: #E8501A; }
+#sjekkliste-header .header-add-btn { margin-left: auto; }
+body.bulk-select-active #saved-new-btn { display: none; }
 
 /* Rader: samme tekst som Dokumenter (.set-title / .set-desc). */
 #saved-list .saved-item-row1, #service-list .saved-item-row1, #kappe-list .saved-item-row1,

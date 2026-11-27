@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1295">
+    <link rel="stylesheet" href="styles.css?v=1296">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -418,6 +418,11 @@
                 <div class="modal-header">
                     <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <span id="saved-modal-title" data-i18n="modal_load_title">Skjemaer</span>
+                    <!-- Listeside: ☑ (velg flere) + «+» (nytt skjema av typen lista viser) i headeren (DESIGNSTANDARD «Listesider», 27-11-2026) -->
+                    <span class="header-actions">
+                        <button type="button" class="header-icon-btn" id="saved-select-btn" onclick="toggleSelectMode()" aria-label="Velg flere" title="Velg flere"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg></button>
+                        <button type="button" class="header-icon-btn header-add-btn" id="saved-new-btn" onclick="hentNewForm()" aria-label="Ny" title="Ny"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                    </span>
                 </div>
                 <div class="modal-tabs-wrap" id="saved-tabs-wrap">
                     <div class="modal-tabs">
@@ -465,11 +470,6 @@
                         </button>
                     </div>
                 </div>
-                <!-- Felles listelinje (DESIGNSTANDARD «Listesider»): ☑ (velg flere) rett over lista, samme sted og ikon som i Dokumenter -->
-                <div class="list-bar" id="saved-list-bar">
-                    <span class="list-bar-left"></span>
-                    <button type="button" class="list-bar-ico" id="saved-select-btn" onclick="toggleSelectMode()" aria-label="Velg flere" title="Velg flere"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg></button>
-                </div>
             </div>
             <div class="modal-body" id="saved-list"></div>
             <div class="modal-body" id="service-list" style="display:none;"></div>
@@ -477,8 +477,6 @@
             <div class="modal-body" id="kvittering-list" style="display:none;"></div>
             <div class="modal-body" id="bil-history-list" style="display:none;"></div>
         </div>
-        <!-- «+» = nytt skjema av typen lista viser (DESIGNSTANDARD «Listesider», som Dokumenter) -->
-        <div class="list-fab-bar"><button type="button" class="list-fab" onclick="hentNewForm()" aria-label="Ny"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>
     </div>
 
     <!-- Template Modal (Home Page) -->
@@ -1471,6 +1469,8 @@
             <div class="modal-header" id="sjekkliste-header">
                 <button class="header-back-btn" onclick="navigateBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <span id="sj-title" data-i18n="sj_title">Sjekklister</span>
+                <!-- «+» = ny sjekkliste — bare på listene (oversikt/prosjekt), ikke i skjemaet -->
+                <button type="button" class="header-icon-btn header-add-btn" id="sj-new-btn" onclick="sjNew()" aria-label="Ny" title="Ny"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
                 <!-- Alle sjekklister (prosjektoversikten) — vises bare i skjemaet -->
                 <button class="sj-head-icon" id="sj-list-btn" type="button" onclick="sjOpenOverview()" aria-label="Alle sjekklister" title="Alle sjekklister" style="display:none;"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
                 <button class="header-save-btn" id="sj-head-btn" type="button"><span id="sj-head-btn-label" data-i18n="toolbar_save">Lagre</span></button>
@@ -1498,7 +1498,6 @@
                     <button type="button" class="sj-more-btn" id="sj-more-btn" style="display:none;" onclick="sjLoadMore()" data-i18n="sj_load_more">Vis flere</button>
                 </div>
                 <div class="sj-pane" id="sj-pane-form" style="display:none;"></div>
-                <div class="list-fab-bar" id="sj-fab-bar"><button type="button" class="list-fab" onclick="sjNew()" aria-label="Ny"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div>
                 <input type="file" id="sj-camera-input" accept="image/*" capture="environment" hidden onchange="onSjFilesPicked(this)">
                 <input type="file" id="sj-file-input" accept="image/*" multiple hidden onchange="onSjFilesPicked(this)">
             </div>
@@ -2648,6 +2647,11 @@
                 <div class="modal-header">
                     <button class="header-back-btn" onclick="docsBack()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                     <span id="docs-title" data-i18n="docs_title">Dokumenter</span>
+                    <!-- ☑ (velg flere) + «+» (admin: ny mappe / last opp) i headeren; synlighet styres i _docsRender -->
+                    <span class="header-actions">
+                        <button type="button" class="header-icon-btn" id="docs-sel-head" onclick="docsToggleSelect()" aria-label="Velg flere" title="Velg flere" style="display:none"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg></button>
+                        <button type="button" class="header-icon-btn header-add-btn" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" title="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                    </span>
                 </div>
             </div>
             <div class="modal-body" id="docs-body">
@@ -2678,10 +2682,6 @@
                 <button type="button" id="docs-bulk-move" class="docs-bulk-ico" onclick="docsBulkMove()" title="Flytt" aria-label="Flytt" disabled><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/><polyline points="12 10 15 13 12 16"/><line x1="8" y1="13" x2="15" y2="13"/></svg></button>
                 <button type="button" id="docs-bulk-delete" class="docs-bulk-ico docs-bulk-del" onclick="docsBulkDelete()" title="Slett" aria-label="Slett" disabled><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg></button>
             </div>
-        </div>
-        <!-- «+» (admin: ny mappe / last opp) — alene nederst til høyre -->
-        <div class="docs-bottombar list-fab-bar" id="docs-bottombar">
-            <button type="button" class="docs-fab list-fab" id="docs-fab" onclick="docsAddMenu()" aria-label="Legg til" style="display:none"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
         </div>
     </div>
 
@@ -2849,7 +2849,7 @@
 
     <script src="lang.js?v=545"></script>
     <script src="script.js?v=643"></script>
-    <script src="script-ui.js?v=1552"></script>
+    <script src="script-ui.js?v=1553"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
