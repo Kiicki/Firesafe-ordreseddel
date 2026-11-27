@@ -23085,13 +23085,16 @@ function updateTimerChip() {
         labelEl.removeAttribute('data-i18n');   // dynamisk (inkl. ukenr) — ikke overstyr av applyTranslations
         labelEl.textContent = data.uke ? (t('timer_week_label') + ' ' + data.uke) : t('timer_chip_label');
     }
+    // Bare ÉN linje i skjemaet (bruker 27-11-2026: «ført uke er handy, men bare når du faktisk ser
+    // etter det»): tittel · antall montører · sum ›. Lista pr. montør står i vinduet (trykk).
     var sumEl = chip.querySelector('.timer-chip-sum');
     if (sumEl) sumEl.textContent = _fmtHours(_phSum(data.total)) + ' t';
-    if (valEl) {
-        var show = _phShowList(data.total);
-        valEl.innerHTML = show ? _phHtml(data.total) : '';
-        valEl.hidden = !show;
+    var cntEl = chip.querySelector('.timer-chip-count');
+    if (cntEl) {
+        var n = (data.total || []).length;
+        cntEl.textContent = n > 1 ? '\u00b7 ' + n + ' ' + t('timer_chip_montorer') : '';
     }
+    if (valEl) { valEl.innerHTML = ''; valEl.hidden = true; }
 }
 window.updateTimerChip = updateTimerChip;
 
