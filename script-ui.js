@@ -12593,6 +12593,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!bd.classList.contains('active')) content._preLift = 0;
                 _popupKbdClearContent(content);
                 _popupApplyPreLift(content);
+                // Bunnen skal aldri havne utenfor skjermen (se _fitPopupTopAnchor).
+                if (bd.classList.contains('active') && typeof _fitPopupTopAnchor === 'function') _fitPopupTopAnchor(bd);
             }
         });
     }
@@ -20364,9 +20366,38 @@ function _reconcileTopAnchorsForKeyboard(keyboardOpen) {
         var off = Math.round((vh - _pendingTopAnchors[popupId]) / 2);
         if (off < 16) off = 16;
         _setPopupAnchorMargin(p, sheet, off);
+        _fitPopupTopAnchor(p);
     });
 }
 window._reconcileTopAnchorsForKeyboard = _reconcileTopAnchorsForKeyboard;
+
+// ── SIKRING: bunnen av et topp-forankret vindu skal ALDRI havne utenfor skjermen ──
+// Bruker 27-11-2026: «jeg mangler bunnen hvor det står plate avbryt velg … sånn kan vi ikke
+// ha det noe sted!». Årsak: forankringen måler vinduets høyde (_applyPopupTopAnchor). Åpnes
+// vinduet mens tastaturet fortsatt er oppe (f.eks. «Fireprotect 20mm» trykket mens et felt i
+// Isolasjon-vinduet hadde fokus), har _popupKbdSync allerede krympet det til plassen over
+// tastaturet → høyden ble målt for lav → toppen satt for langt ned. Når tastaturet lukkes,
+// vokser vinduet til full høyde, men toppen sto igjen der → Avbryt/Velg under skjermkanten.
+// Løsning (gjelder ALLE topp-forankrede vinduer): hver gang vinduet er synlig uten tastatur
+// (_popupKbdSync kjører ved åpning, klasse-endring, størrelsesendring og tastatur-lukking),
+// regnes toppen ut fra den høyeste av husket høyde og FAKTISK høyde nå, og bunnen klemmes
+// innenfor skjermen. Riktig målte vinduer endres ikke (toppen står fast som før).
+function _fitPopupTopAnchor(p) {
+    if (!p || !p.classList.contains('active') || !p.classList.contains('popup-top-anchored')) return;
+    var sheet = p.querySelector(_POPUP_ANCHOR_SHEET);
+    if (!sheet || sheet._kbdStyled) return;          // tastaturet eier posisjonen nå
+    var h = sheet.offsetHeight;
+    if (!(h > 0)) return;                             // skjult bak et undervindu — sjekkes når det vises igjen
+    var vh = window.innerHeight || 800;
+    var pend = _pendingTopAnchors[p.id] || 0;
+    if (h > pend) { pend = h; _pendingTopAnchors[p.id] = h; }   // målt for lavt (f.eks. under tastatur)
+    var off = Math.round((vh - pend) / 2);
+    var maxOff = vh - 16 - h;                         // bunnen minst 16 px over skjermkanten
+    if (off > maxOff) off = maxOff;
+    if (off < 16) off = 16;
+    if (parseInt(sheet.style.marginTop, 10) !== off) sheet.style.marginTop = off + 'px';
+}
+window._fitPopupTopAnchor = _fitPopupTopAnchor;
 
 // "Fjern produkt"-knapp i produkt-velgeren: nullstiller linjens produkt.
 function clearKappeLineProductFromPicker() {
