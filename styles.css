@@ -2807,6 +2807,9 @@ label.settings-default-label.field-required > span::after {
     display: inline-block;
     white-space: nowrap;
 }
+/* Etiketten («Uke 13 · Kari + Ola + … (hver)») kan være lang med mange i et lag — den
+   brytes heller enn å gå ut over kortet (alle navn skal synes). */
+.dag-timer-display-text .dt-part--label { white-space: normal; overflow-wrap: anywhere; }
 
 /* Diskret separator mellom dager (JS skjuler den ved linjekant). */
 .dag-timer-display-text .dt-sep {
@@ -3024,11 +3027,16 @@ label.settings-default-label.field-required > span::after {
 .dag-timer-person-tab-name {
     font-size: 12px;
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* Navnet kuttes ALDRI (bruker 27-11-2026: «alle person navn skal være synlig uansett hvor
+       mange vi legger til») — det brytes over flere linjer i stedet. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.3;
     max-width: 100%;
 }
+/* Lag («Kari + Ola + …»): egen rad i full bredde, så navnene har plass. */
+.dag-timer-person-tab--team { grid-column: 1 / -1; padding-left: 14px; padding-right: 14px; }
 .dag-timer-person-tab-sum { font-size: 13px; font-weight: 700; }
 .dag-timer-person-tab.active .dag-timer-person-tab-sum { color: #E8501A; }
 /* Fjern-krysset: eget treffområde i hjørnet, stort nok for tommel (24px) uten å
@@ -3053,7 +3061,8 @@ label.settings-default-label.field-required > span::after {
 .dag-timer-person-add {
     min-width: 0;
     padding: 7px 6px;
-    border: 1px dashed #c9c9d1;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #e4e4e9;   /* aldri stiplet (DESIGNSTANDARD) */
     border-radius: 10px;
     background: #fff;
     color: #E8501A;
@@ -14629,16 +14638,20 @@ body.bulk-select-active #saved-new-btn { display: none; }
 /* «Generelt» øverst i etasjevelgeren, skilt fra etasjene. */
 /* Etasjevelgeren i appens valgknapp-stil (bruker 26-11-2026: «dette ser amatørmessig ut» — tykke
    grå rammer, fet tekst, rødt valgt). Samme som valgknappene i sjekklisten (.sj-chip): lys 1px-ramme,
-   rolig tekst, BARE det valgte er oransje (lys oransje flate + oransje ramme/tekst). 3 kolonner. */
+   rolig tekst, BARE det valgte er oransje (lys oransje flate + oransje ramme/tekst). 3 kolonner.
+   Personvelgeren (flervalg, 27-11-2026) bruker samme valgknapper, én pr. linje. */
 #plan-popup #plan-popup-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: start; }
-#plan-popup .plan-popup-row {
+:is(#plan-popup, #person-popup) .plan-popup-row {
     height: 42px; padding: 0 6px; box-sizing: border-box;
     border: 1px solid #dcdce1; border-radius: 9px; background: #fff; color: #1a1a1a; transition: none;
 }
-#plan-popup .plan-popup-row:active { background: var(--press-bg); }
-#plan-popup .plan-popup-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#plan-popup .plan-popup-selected { border-color: #E8501A; background: #fff3ee; color: #E8501A; }
-#plan-popup .plan-popup-selected .plan-popup-name { font-weight: 600; }
+:is(#plan-popup, #person-popup) .plan-popup-row:active { background: var(--press-bg); }
+:is(#plan-popup, #person-popup) .plan-popup-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Personvelgeren: navn kuttes aldri — raden vokser i stedet. */
+#person-popup .plan-popup-row { height: auto; min-height: 42px; padding: 8px 10px; }
+#person-popup .plan-popup-name { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+:is(#plan-popup, #person-popup) .plan-popup-selected { border-color: #E8501A; background: #fff3ee; color: #E8501A; }
+:is(#plan-popup, #person-popup) .plan-popup-selected .plan-popup-name { font-weight: 600; }
 /* «Generelt» i full bredde øverst, litt luft før etasjene. */
 #plan-popup .plan-popup-row.plan-popup-general { grid-column: 1 / -1; margin-bottom: 4px; }
 /* Ny etasje: felt + «+» i samme høyde og samme rolige ramme. */
@@ -14666,3 +14679,11 @@ body.bulk-select-active #saved-new-btn { display: none; }
     transform: rotate(180deg);
     color: #E8501A;
 }
+
+/* Personvelgeren: «Sammen | Hver for seg» når 2+ er valgt (lag, 27-11-2026). */
+.person-popup-mode { padding: 4px 16px 10px; }
+.person-popup-mode[hidden] { display: none; }
+.person-popup-mode-hint { margin-top: 6px; font-size: 12.5px; line-height: 1.35; color: var(--text-2); }
+
+/* Aktiv person-fane: ✎ = trykk igjen for «Hvem jobbet?». */
+.dag-timer-person-tab-edit { margin-left: 4px; font-size: 12px; color: #E8501A; }

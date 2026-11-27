@@ -920,7 +920,7 @@ function _buildSavedItemHtml(item, index) {
         var plans = Array.isArray(o.plans) && o.plans.length ? o.plans : String(o.plan || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
         var hasHours = !!(o.timer && typeof o.timer === 'object' && Object.keys(o.timer).length);
         var ppl = (o.timer && Array.isArray(o.timer.personer) && o.timer.personer.length)
-            ? o.timer.personer.map(function (p) { return String((p && p.navn) || '').trim(); }).filter(Boolean)
+            ? timerPersonNames(o.timer)   // lag → hver person
             : (hasHours && _montor ? [_montor] : []);
         if (d || plans.length || ppl.length) _orders.push({ d: d, plans: plans, ppl: ppl });
     });
@@ -4374,8 +4374,8 @@ function _admMaybeSyncAnsatte() {
         .catch(function () { _ansSynced = false; });
 }
 
-// «+» i personvelgeren: en person som ikke er bruker (innleid, lærling o.l.). Navnet tas i
-// bruk på DENNE bestillingen og huskes (15-11-2026): montør → egen liste + forslag til admin,
+// «+» i personvelgeren: en person som ikke er bruker (innleid, lærling o.l.). Navnet hukes av
+// i velgeren (flervalg, tas i bruk med «Legg til») og huskes (15-11-2026): montør → egen liste + forslag til admin,
 // admin → «Uten innlogging» for alle (se PERSONER: MONTØRENS KOLLEGER).
 function addPersonFromPicker() {
     var input = document.getElementById('person-popup-new');
@@ -4386,17 +4386,10 @@ function addPersonFromPicker() {
         setTimeout(function() { input.classList.remove('settings-input-error'); }, 1500);
         return;
     }
-    // Allerede ført på denne bestillingen? Da er det ikke noe å legge til, og en
-    // stille no-op ville sett ut som at knappen ikke virket.
-    var taken = (typeof _dagTimerPersons !== 'undefined') && _dagTimerPersons.some(function(p) {
-        return String(p.navn || '').trim().toLowerCase() === val.toLowerCase();
-    });
-    if (taken) {
-        showNotificationModal(t('dag_timer_person_exists'));
-        return;
-    }
+    // Står navnet allerede i lista, hukes den raden av; står personen på en annen fane, sier
+    // _personPickerAddRow fra (false) og ingenting huskes.
+    if (!_personPickerAddRow(val)) return;   // hukes av — tas i bruk med OK / «Legg til»
     input.value = '';
-    _addDagTimerPerson(val);            // ta den i bruk (lukker velgeren)
     _pplRemember(val);                  // og husk den (se PERSONER)
 }
 window.addPersonFromPicker = addPersonFromPicker;
@@ -22880,7 +22873,14 @@ function _orderPersonHours(acc, tm, want, attrib, owner) {
     if (timerHasPersons(tm)) {
         tm.personer.forEach(function (p) {
             var uk = (p && p.uker) || {};
-            Object.keys(uk).forEach(function (w) { if (!want || want[w]) _phAdd(acc, p.navn, _phBucketSum(uk[w])); });
+            // Lag (Kari + Ola): timene er det HVER jobbet → hver person får dem.
+            var members = timerEntryMembers(p);
+            if (!members.length) members = [p && p.navn];
+            Object.keys(uk).forEach(function (w) {
+                if (want && !want[w]) return;
+                var h = _phBucketSum(uk[w]);
+                members.forEach(function (m) { _phAdd(acc, m, h); });
+            });
         });
         return;
     }

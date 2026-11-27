@@ -162,7 +162,7 @@ Bruker (01-11-2026 og igjen 26-11-2026): «hvor mange ganger skal jeg si at en t
 Felles registre (prosjekter, materialer, isolasjon, festemidler, personer) eies av admin. Når en **montør** legger til noe nytt, blir det montørens eget (brukes med en gang) **og** sendes som forslag til admin (`firms/{firma}/projectSuggestions`, felt `kind`). Admin godkjenner/retter/slår sammen/avviser i **Admin › Til godkjenning**, og fanen **«Hva sendes hit»** viser reglene for admin.
 
 **Gjeldende regler:**
-- **Sendes til godkjenning:** prosjekter, materialer (også nye enheter), isolasjonsprodukter, festemiddelprodukter, personer («Annen person» i Arbeidstid).
+- **Sendes til godkjenning:** prosjekter, materialer (også nye enheter), isolasjonsprodukter, festemiddelprodukter, montører («Annen montør» i Arbeidstid).
 - **Sendes IKKE:** tykkelser/lengder og plate «Annen» (gjelder bare den ene linjen — hurtigvalg, ikke register), etasjer/valglister (montørens egne verdier gjelder bare skjemaet; bare admin legger inn i lista).
 - **Montør og admin har tilgang til det SAMME i selve appen** — forskjellen er bare Innstillinger › Admin. Ingen velger/liste i skjemaene skal ha «bare admin kan legge til»: finnes ikke verdien, skal alle kunne skrive/legge til sin egen (gjelder skjemaet/linjen eller blir forslag etter reglene over). Grep etter `isAdmin` når du lager en ny velger.
 - Ingen av/på-brytere: montøren skal aldri stå fast, og admin skal aldri ha egne ting hos montører som aldri blir sett.
@@ -287,6 +287,7 @@ Hver side i appen skal se ut som den hører til samme app. Standarden er **Meny-
 6. **Fanebryter / modusvalg:** `.tb-seg` + `.tb-seg-btn` (grå bane, aktivt valg hvitt med oransje tekst). Ikke understrek-faner, ikke oransje fylte knapper.
 7. **Tekstvekt:** kun overskrifter fet (600–700); radtitler 500; knapper/felt 400–500 (se «mindre fet»).
 8. **Tittel i headeren = navnet på knappen som åpner siden** (toolbar: Hjem, Verktøy, Timebok, Meny).
+8a. **Ordet er «montør», ikke «person»** (bruker 27-11-2026: «Vi bør også heller referere "personer" som "Montører" og det vil gjelde igjennom hele appen»): de som har jobbet / føres timer for, heter montør(er) overalt (Arbeidstid, «Annen montør», «Legg til montør», Til godkjenning). Unntak: innlogging/tilgang i Admin › Brukere («personer som har logget inn»), Personalia/Personlig, og Timebok «Person» (privat bil).
 8b. **Headeren er 56 px høy med tittel 17 px / 600** på alle sider (27-11-2026, var 44/14 — bruker: «header for små til å ha knapper»). Knapper i headeren: ikon = `.header-icon-btn` (44×44, hvit; «+» = `.header-add-btn` oransje; aktiv = oransje), tekst = `.header-save-btn` (oransje, 36 px). Tilbake-pila står alltid til venstre. Lang tittel kuttes med «…», aldri over knappene. Fullskjerms-visere (forhåndsvisning, dokumentviser) har samme høyde.
 9. **PC: appen står i en innrammet kolonne (800 px)** — kolonnen = `--page-bg` med svak skygge (`--column-shadow`), området utenfor = litt mørkere `--gutter-bg`. Header og toolbar = kolonnens bredde; kortene har samme sideluft inne i kolonnen som på mobil. Prøvd og avvist: full-bredde-striper («ser bare rart ut»), og kort helt ut til kanten uten ramme («stort og tomt»). Ny view: legg den til i «PC: appen står i en INNRAMMET kolonne»-blokken i styles.css.
 

@@ -48,7 +48,7 @@
     })();
     </script>
     <link rel="preload" href="fonts/roboto-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="styles.css?v=1297">
+    <link rel="stylesheet" href="styles.css?v=1301">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous" defer></script>
     <!-- PDF.js: brukes til å vise («Vis») den ekte tekst-PDF-en i appen -->
@@ -374,7 +374,7 @@
     <!-- Dager og timer Modal -->
     <div class="confirm-modal" id="dag-timer-modal" onclick="closeDagTimerModal(false)">
         <div class="confirm-modal-content dag-timer-modal-content" onclick="event.stopPropagation()">
-            <div class="dag-timer-modal-title" data-i18n="order_days_section">Arbeidstid og etasje</div>
+            <div class="dag-timer-modal-title" data-i18n="order_days_section">Arbeidstid, etasje og montører</div>
             <div class="dag-timer-modal-list" id="dag-timer-modal-list"></div>
             <!-- Sum-rad UTENFOR lista → alltid synlig, også når dag-radene scroller.
                  Oppdateres live av _updateDagTimerTotal() mens man skriver. -->
@@ -761,7 +761,7 @@
     <div class="confirm-modal" id="ppl-review-popup" onclick="closePersonReview()">
         <div class="template-editor-content" onclick="event.stopPropagation()">
             <div class="template-editor-header">
-                <span data-i18n="ppl_review_title">Godkjenn person</span>
+                <span data-i18n="ppl_review_title">Godkjenn montør</span>
                 <button class="template-editor-close" onclick="closePersonReview()">&times;</button>
             </div>
             <div class="template-editor-body">
@@ -2170,11 +2170,20 @@
     <div class="spec-popup-backdrop" id="person-popup" onclick="if(event.target===this)closePersonPicker()">
         <div class="spec-popup-sheet">
             <div class="spec-popup-header">
-                <span data-i18n="dag_timer_person_add">Legg til person</span>
+                <span id="person-popup-title" data-i18n="dag_timer_person_add">Legg til montør</span>
             </div>
             <div class="spec-popup-body" id="person-popup-list"></div>
+            <!-- 2+ valgt: jobbet de sammen (én fane, timer pr. person × antall) eller hver for seg? -->
+            <div class="person-popup-mode" id="person-popup-mode" hidden>
+                <div class="tb-seg">
+                    <button type="button" class="tb-seg-btn active" data-mode="together" onclick="setPersonPickerMode(true)" data-i18n="dag_timer_together">Sammen</button>
+                    <button type="button" class="tb-seg-btn" data-mode="separate" onclick="setPersonPickerMode(false)" data-i18n="dag_timer_separate">Hver for seg</button>
+                </div>
+                <div class="person-popup-mode-hint" id="person-popup-mode-hint"></div>
+            </div>
             <div class="spec-popup-buttons">
                 <button type="button" class="spec-popup-cancel" onclick="closePersonPicker()" data-i18n="btn_cancel">Avbryt</button>
+                <button type="button" class="spec-popup-ok" id="person-popup-ok" onclick="confirmPersonPicker()" data-i18n="btn_ok">OK</button>
             </div>
         </div>
     </div>
@@ -2848,9 +2857,9 @@
     </div>
     <script>(function () { try { var n = window._sugBadgeEarly; if (!n) return; var d = document.getElementById('menu-pending-dot'); d.textContent = n; d.hidden = false; } catch (e) {} })();</script>
 
-    <script src="lang.js?v=546"></script>
-    <script src="script.js?v=643"></script>
-    <script src="script-ui.js?v=1554"></script>
+    <script src="lang.js?v=549"></script>
+    <script src="script.js?v=649"></script>
+    <script src="script-ui.js?v=1557"></script>
     <script>
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
             navigator.serviceWorker.register('service-worker.js');
