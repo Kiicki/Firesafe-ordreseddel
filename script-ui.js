@@ -975,6 +975,85 @@ function _toggleSavedItemDetails(item) {
     item.classList.toggle('expanded', willExpand);
 }
 
+// ── LISTEGRUPPER: Lagret | Sendt (27-11-2026) ─────────────────────────────────
+// Bruker: «nå vises alle lister, utkast og sendt … det kan se rotete ut» → så: «hvorfor ikke
+// ha knapper som utkast og sendt? … noe lignende som vi har for prosjekt og internt i timebok?»
+// Øverst i lista: fanebryteren [ Alle · N | Lagret · N | Sendt · N ] (.tb-seg, ETT valg om gangen —
+// ikke av/på-knapper der «ingen» betyr «alt»). «Alle» lagt til samme dag (bruker: «ser du ingen
+// poeng i å vise lagret og sendt samtidig?»): begge kort med liten overskrift. Siste valg huskes
+// pr. liste på enheten (visning → bare localStorage); første gang = Alle. Ingen overskrifter over
+// kortene — fargeprikkene skiller lagret (gul) og sendt (blå).
+// SØK viser alltid treff fra begge (som «Alle») — ingenting skjules når man leter.
+// «Velg alle» tar bare det som vises (_getSelectableItems). Brukes av Ordreseddel, Kappeskjema
+// og Kvittering; Servicebil-historikken (inntak/uttak-logg) grupperes ikke.
+var _LIST_SEARCH_IDS = { 'saved-list': 'saved-search', 'kappe-list': 'kappe-search', 'kvittering-list': 'kvittering-search' };
+var _LIST_TAB_KEY = 'firesafe_list_tab';   // { listId: 'alle' | 'lagret' | 'sendt' }
+function _listTabGet(listId) {
+    try { var v = (JSON.parse(localStorage.getItem(_LIST_TAB_KEY) || '{}') || {})[listId]; return (v === 'lagret' || v === 'sendt') ? v : 'alle'; } catch (e) { return 'alle'; }
+}
+function _listTabSave(listId, tab) {
+    try { var o = JSON.parse(localStorage.getItem(_LIST_TAB_KEY) || '{}') || {}; o[listId] = tab; localStorage.setItem(_LIST_TAB_KEY, JSON.stringify(o)); } catch (e) {}
+}
+// Lagrede først, så sendte — stabil (rekkefølgen innen hver gruppe beholdes).
+function _draftsFirst(forms) {
+    return (forms || []).map(function (f, i) { return { f: f, i: i }; })
+        .sort(function (a, b) { return ((a.f && a.f._isSent) ? 1 : 0) - ((b.f && b.f._isSent) ? 1 : 0) || a.i - b.i; })
+        .map(function (x) { return x.f; });
+}
+function _listGroupStatus(listEl, hasMore) {
+    if (!listEl) return;
+    var items = Array.prototype.filter.call(listEl.children, function (el) { return el.classList.contains('saved-item'); });
+    if (!items.length) return;
+    var search = document.getElementById(_LIST_SEARCH_IDS[listEl.id] || '');
+    var searching = !!(search && String(search.value || '').trim());
+    var drafts = items.filter(function (el) { return !(el._formData && el._formData._isSent); });
+    var sent = items.filter(function (el) { return el._formData && el._formData._isSent; });
+    var more = listEl.querySelector(':scope > .load-more-btn');
+    var tab = _listTabGet(listEl.id);
+    var cnt = function (n, plus) { return ' <span class="list-group-count">' + n + (plus ? '+' : '') + '</span>'; };
+    if (!searching) {
+        var seg = document.createElement('div');
+        seg.className = 'tb-seg list-status-seg';
+        seg.innerHTML =
+            '<button type="button" class="tb-seg-btn' + (tab === 'alle' ? ' active' : '') + '" onclick="_listSetTab(this,\'alle\')">' + escapeHtml(t('list_all')) + cnt(drafts.length + sent.length, hasMore) + '</button>' +
+            '<button type="button" class="tb-seg-btn' + (tab === 'lagret' ? ' active' : '') + '" onclick="_listSetTab(this,\'lagret\')">' + escapeHtml(t('status_lagret')) + cnt(drafts.length) + '</button>' +
+            '<button type="button" class="tb-seg-btn' + (tab === 'sendt' ? ' active' : '') + '" onclick="_listSetTab(this,\'sendt\')">' + escapeHtml(t('status_sendt')) + cnt(sent.length, hasMore) + '</button>';
+        listEl.insertBefore(seg, listEl.firstChild);
+    }
+    var mk = function (key, list) {
+        if (searching && !list.length) return;
+        // Ingen overskrift over kortene (bruker 27-11-2026: «vi har farge prikker som skiller dem
+        // uansett») — i «Alle» og under søk står Lagret og Sendt som to kort med luft imellom.
+        var group = document.createElement('div');
+        group.className = 'list-group';
+        group.setAttribute('data-group', key);
+        if (list.length) list.forEach(function (el) { group.appendChild(el); });
+        else group.innerHTML = '<div class="no-saved list-group-empty">' + escapeHtml(t(key === 'sendt' ? 'list_no_sent' : 'list_no_drafts')) + '</div>';
+        listEl.insertBefore(group, more);
+    };
+    mk('lagret', drafts);
+    mk('sendt', sent);
+    listEl.setAttribute('data-list-tab', searching ? 'alle' : tab);
+}
+function _listSetTab(btn, tab) {
+    var listEl = btn && btn.closest('.modal-body');
+    if (!listEl) return;
+    _listTabSave(listEl.id, tab);
+    listEl.setAttribute('data-list-tab', tab);
+    listEl.querySelectorAll(':scope > .list-status-seg .tb-seg-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+    // Valg i fler-valg gjelder bare det som vises — fjern markeringer på det som nå skjules.
+    if (typeof _selectMode !== 'undefined' && _selectMode && typeof _selectedSet !== 'undefined') {
+        listEl.querySelectorAll(tab === 'alle' ? '.list-group-none' : '.list-group:not([data-group="' + tab + '"]) .saved-item.selected').forEach(function (el) {
+            var idx = parseInt(el.getAttribute('data-index'), 10);
+            if (!isNaN(idx)) _selectedSet.delete(idx);
+            el.classList.remove('selected');
+        });
+        if (typeof updateSelectionUI === 'function') updateSelectionUI();
+    }
+    listEl.scrollTop = 0;
+}
+window._listSetTab = _listSetTab;
+
 function renderSavedFormsList(forms, append, hasMore) {
     // Fasit-synk før visning: prosjektet i Innstillinger eier skrivemåten.
     forms = syncFormsWithProjects(forms, 'full');
@@ -1008,6 +1087,7 @@ function renderSavedFormsList(forms, append, hasMore) {
     if (hasMore) {
         listEl.insertAdjacentHTML('beforeend', '<button class="load-more-btn" onclick="loadMoreSavedForms()">' + t('load_more') + '</button>');
     }
+    _listGroupStatus(listEl, hasMore);
 
     // Hold markerte rader og "Velg alle"-knapp i synk etter re-rendering
     if (_selectMode) {
@@ -1127,6 +1207,10 @@ function _showSavedFormsDirectly(tab) {
     var kvSearchEl = document.getElementById('kvittering-search');
     if (kvSearchEl) kvSearchEl.value = '';
     _kvFormsAll = null;
+    var kappeSearchEl = document.getElementById('kappe-search');
+    if (kappeSearchEl) kappeSearchEl.value = '';
+    _kappeFormsAll = null;
+    updateSearchClearBtn('kappe-search');
     updateSearchClearBtn('saved-search');
     updateSearchClearBtn('service-search');
     updateSearchClearBtn('kvittering-search');
@@ -2399,6 +2483,7 @@ var _searchVersion = 0;
 var _savedFormsAll = null;
 var _templatesAll = null;
 var _serviceFormsAll = null;
+var _kappeFormsAll = null;   // usøkt kappe-liste mens søkefeltet er i bruk
 
 // Firestore prefix-søk for skjemaer som ikke er lastet inn ennå
 async function firestoreSearchForms(rawTerm, collections, field) {
@@ -2480,6 +2565,16 @@ function filterList(listId, searchId) {
                        (f.prosjektnr || '').toLowerCase().indexOf(term) !== -1;
             });
             _renderTemplatePickerList(filteredPicker, pickerListEl);
+        } else if (listId === 'kappe-list') {
+            // Kappeskjema-søket var koblet til feltet, men hadde ingen gren her → søket gjorde ingenting.
+            if (!_kappeFormsAll) _kappeFormsAll = (window.loadedKappeForms || []).slice();
+            if (!term) { var allK = _kappeFormsAll; _kappeFormsAll = null; renderKappeFormsList(allK); return; }
+            renderKappeFormsList(_kappeFormsAll.filter(function(f) {
+                var uke = (typeof _kappeItemWeek === 'function') ? String(_kappeItemWeek(f) || '') : '';
+                return ['prosjektnr', 'prosjektnavn', 'oppdragsgiver'].some(function(k) {
+                    return String(f[k] || '').toLowerCase().indexOf(term) !== -1;
+                }) || (uke && uke.toLowerCase().indexOf(term) === 0);
+            }));
         } else if (listId === 'kvittering-list') {
             _kvFilterList(term);
         } else if (listId === 'service-list') {
@@ -8490,16 +8585,13 @@ function toggleFormSelection(idx, rowEl) {
 // (uttak-poster i bil-history-listen) med data-form-idx — inntak (pafylling)
 // kan IKKE velges siden det ikke er et skjema.
 function _getSelectableItems() {
-    if (_selectTab === 'service') {
-        return document.querySelectorAll('#bil-history-list .bil-card-uttak[data-form-idx]');
-    }
-    if (_selectTab === 'kappe') {
-        return document.querySelectorAll('#kappe-list .saved-item[data-index]');
-    }
-    if (_selectTab === 'kvittering') {
-        return document.querySelectorAll('#kvittering-list .saved-item[data-index]');
-    }
-    return document.querySelectorAll('#saved-list .saved-item[data-index]');
+    var sel = (_selectTab === 'service') ? '#bil-history-list .bil-card-uttak[data-form-idx]'
+        : (_selectTab === 'kappe') ? '#kappe-list .saved-item[data-index]'
+        : (_selectTab === 'kvittering') ? '#kvittering-list .saved-item[data-index]'
+        : '#saved-list .saved-item[data-index]';
+    // Bare det som VISES (Lagret | Sendt-bryteren skjuler den andre gruppa) — «Velg alle» skal
+    // aldri ta med skjemaer man ikke ser.
+    return Array.prototype.filter.call(document.querySelectorAll(sel), function (el) { return el.offsetParent !== null; });
 }
 
 function _itemSelectionIdx(el) {
@@ -24349,9 +24441,11 @@ function renderKappeFormsList(forms) {
         if (_selectMode) updateSelectionUI();
         return;
     }
+    forms = _draftsFirst(forms);   // Lagret-gruppa øverst (LISTEGRUPPER)
     window.loadedKappeForms = forms;
     listEl.innerHTML = forms.map(function(item, i) { return _buildKappeItemHtml(item, i); }).join('');
     listEl.querySelectorAll('.saved-item').forEach(function(el, i) { el._formData = window.loadedKappeForms[i]; });
+    _listGroupStatus(listEl);
     // Re-applicer .selected-klasse hvis vi er i select-mode (f.eks. etter delete-refresh)
     if (_selectMode && _selectTab === 'kappe') {
         listEl.querySelectorAll('.saved-item').forEach(function(el) {
@@ -27842,9 +27936,11 @@ function renderKvitteringFormsList(forms) {
         if (_selectMode) updateSelectionUI();
         return;
     }
+    forms = _draftsFirst(forms);   // Lagret-gruppa øverst (LISTEGRUPPER)
     window.loadedKvitteringForms = forms;
     listEl.innerHTML = forms.map(function(item, i) { return _buildKvitteringItemHtml(item, i); }).join('');
     listEl.querySelectorAll('.saved-item').forEach(function(el, i) { el._formData = window.loadedKvitteringForms[i]; });
+    _listGroupStatus(listEl);
     if (_selectMode && _selectTab === 'kvittering') {
         listEl.querySelectorAll('.saved-item').forEach(function(el) {
             var idx = parseInt(el.getAttribute('data-index'), 10);

@@ -14181,7 +14181,7 @@ button, input, select, textarea { font-family: inherit; }
 #docs-modal.view.active .modal-body { overflow-y: visible; }
 .docs-search { position: relative; margin-bottom: 12px; }
 .docs-search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-2); display: flex; pointer-events: none; }
-.docs-search input { padding-left: 38px !important; padding-right: 52px !important; height: 44px !important; border-radius: 22px !important; }
+.docs-search input { padding-left: 38px !important; padding-right: 52px !important; height: 40px !important; border-radius: 20px !important; }
 .docs-search.has-q input { padding-right: 88px !important; }
 #docs-search::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }   /* egen ✕ i feltet */
 .docs-search .docs-search-ai { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; margin: 0; border: none; border-radius: 18px; background: #f1eafd; color: #7c3aed; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -14475,7 +14475,7 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
    Mønster (etter Dokumenter/Dropbox):
    • Header = tilbake + tittel + ☑ «velg flere» + «+» ny (.header-actions/.header-icon-btn, 27-11-2026 —
      bruker ville ha «+» i headeren; før stod ☑ på egen linje og «+» flytende nede til høyre).
-   • Søkefelt .list-search: rundt (44 px), forstørrelsesglass til venstre, ✕ inne i feltet.
+   • Søkefelt .list-search: rundt (40 px, kompakt 27-11-2026), forstørrelsesglass til venstre, ✕ inne i feltet.
    • ☑ under merking: oransje, trykk igjen = avslutt. «+» skjules under merking.
    • Dokumenter har i tillegg sortering + liste/rutenett på en linje over innholdet (.docs-viewbar).
    • Rader 15/500 tittel + 12.5 grå undertekst; merket rad = lys oransje + rund oransje hake til høyre.
@@ -14483,16 +14483,16 @@ body.doc-viewer-open #action-popup, body.doc-viewer-open #confirm-modal, body.do
 .list-search { position: relative; }
 .list-search .list-search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-2); display: flex; pointer-events: none; z-index: 1; }
 .list-search input {
-    width: 100%; box-sizing: border-box; height: 44px; padding: 0 44px 0 38px; margin: 0;
+    width: 100%; box-sizing: border-box; height: 40px; padding: 0 44px 0 38px; margin: 0;
     font-size: 16px; font-family: inherit; color: var(--text);
-    border: 1px solid var(--field-border); border-radius: 22px; background: #fff; outline: none;
+    border: 1px solid var(--field-border); border-radius: 20px; background: #fff; outline: none;
     -webkit-appearance: none; appearance: none;
 }
 .list-search input:focus { border-color: #E8501A; }
 .list-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
 .list-search .list-search-clear { right: 6px; width: 32px; height: 32px; padding: 0; border-radius: 16px; color: #9a9aa2; }
 .list-search .list-search-clear.visible { display: flex; }
-#saved-modal .modal-search { padding: 10px 15px 8px; }
+#saved-modal .modal-search { padding: 8px 15px 4px; }   /* kompakt (bruker 27-11-2026: «tar mye plass før den viser den første listen») */
 
 #saved-list, #service-list, #kappe-list, #kvittering-list, #bil-history-list { padding-top: 4px; padding-bottom: 24px; }
 #sj-pane-overview, #sj-pane-project { padding-bottom: 24px; }
@@ -14645,3 +14645,18 @@ body.bulk-select-active #saved-new-btn { display: none; }
 
 /* Aktiv person-fane: ✎ = trykk igjen for «Hvem jobbet?». */
 .dag-timer-person-tab-edit { margin-left: 4px; font-size: 12px; color: #E8501A; }
+
+/* ═══ LISTEGRUPPER (27-11-2026): fanebryter [ Alle · N | Lagret · N | Sendt · N ] øverst i lista (.tb-seg,
+   som Prosjekt | Internt i Timebok). Lagret/Sendt = bare den gruppa; Alle og søk = begge kort med luft
+   imellom, UTEN overskrift (fargeprikkene skiller dem — bruker 27-11-2026). ═══ */
+.list-status-seg { margin: 2px 0 8px; }
+.list-status-seg .tb-seg-btn { padding-top: 6px; padding-bottom: 6px; }   /* lavere bryter (~32 px trykkflate) */
+.list-status-seg .tb-seg-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.list-group-count { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.list-status-seg .tb-seg-btn.active .list-group-count { color: #E8501A; }
+.modal-body[data-list-tab="lagret"] > .list-group[data-group="sendt"],
+.modal-body[data-list-tab="sendt"] > .list-group[data-group="lagret"],
+.modal-body[data-list-tab="lagret"] > .load-more-btn { display: none; }
+.modal-body[data-list-tab="alle"] > .list-group:has(> .list-group-empty) { display: none; }   /* tom gruppe i «Alle»: ingen tomt kort / mellomrom */
+.list-group + .list-group { margin-top: 12px; }   /* Lagret- og Sendt-kortet i «Alle»/søk */
+.list-group-empty { padding: 28px 8px; }
