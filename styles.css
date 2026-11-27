@@ -1882,8 +1882,12 @@ body.kbd-editing .toolbar:not(.toolbar--inflow) {
 /* Utvidet ordreseddel (bruker 26-11-2026: «feltene ser litt rare ut»): INGEN boks i kortet
    (designstandard: aldri kort i kort) — bestillingene står rett i kortet, skilt med en tynn
    strek; under teksten etasje og personer med hvert sitt lille ikon. */
-.saved-item-details { padding-top: 2px; }
-.saved-item-order { padding: 10px 0 2px; background: none; border: none; border-radius: 0; gap: 8px; }
+/* Luft rundt skillestreken over beskrivelsen (bruker 27-11-2026: «for stort gap mellom prosjektnavn og
+   beskrivelse»): radens flex-gap (12 px) kom i tillegg som rad-mellomrom når panelet bryter til ny linje
+   → ~30 px. Nå: ingen rad-gap, 8 px over streken og 8 px under. */
+.saved-item:has(> .saved-item-details) { row-gap: 0; }
+.saved-item-details { margin-top: 4px; padding-top: 0; }   /* + knappenes ekstra høyde ≈ 8 px synlig luft over streken */
+.saved-item-order { padding: 8px 0 2px; background: none; border: none; border-radius: 0; gap: 8px; }
 .saved-item-order + .saved-item-order { margin-top: 0; border-top: 1px solid var(--divider); }
 .saved-item-order-num { width: 18px; height: 18px; font-size: 10.5px; margin-top: 1px; }
 .saved-item-order-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
